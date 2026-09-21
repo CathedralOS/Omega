@@ -174,8 +174,12 @@ address. Retaining names does not automatically retain setters or constructors.
 
 A decoded document is still a document. Migration, defaults, validation,
 construction, and resource acquisition use owner-defined operations before a
-valid `Player` exists. A live patch likewise needs the owner's validation and
-failure contract. Metadata cannot mint qualifications, duplicate linear fields,
+valid `Player` exists. Live updates invoke selected checked operations with valid
+access; there is no arbitrary reflective field-write API. A fuel-paused invocation
+can retain loans and temporarily unestablished invariants, so a pause does not
+permit even an otherwise invariant-preserving edit. See
+[embedding](chapter_24_embedding.md#calls-messages-and-editors).
+Metadata cannot mint qualifications, duplicate linear fields,
 or bypass a constructor merely because the document carries the right type key.
 
 Use reflection to remove repetitive member handling. Keep encoding formats,

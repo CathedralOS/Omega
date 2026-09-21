@@ -636,6 +636,74 @@ to-end customer is the three-component payment example, including an actual
 blocked bypass at the selected runtime boundary. A graph helper test alone does
 not close it.
 
+### Acceptance status
+
+This records current implementation evidence against the required cases; it is
+a status annotation, not a contract amendment.
+
+Covered by `omega-rust/omega/packages/topology` tests
+(`cargo nextest run -p topology-plan`, linux x86-64):
+
+- Graph and policies: `composition.rs` pins the payment composition, both
+  bypass cases (`a_direct_bypass_rejects_with_the_witness_path`,
+  `an_indirect_bypass_through_a_helper_rejects`, plus
+  `an_indirect_bypass_through_a_roster_member_rejects_on_replay` on replay),
+  terminating cycle checks, instance distinction
+  (`two_instances_of_one_component_stay_distinct`), unbound demanded imports
+  (`an_unbound_demanded_import_rejects_before_policies`,
+  `compatible_endpoints_with_no_connection_gain_no_edge`), duplicate
+  bindings/instances, and misleading `only_via` inputs
+  (`invalid_policy_inputs_reject_instead_of_vacuously_satisfying`,
+  `invalid_policy_selectors_reject`). Declaration and binding order collapse to
+  one canonical graph and wire form (`encode_is_byte_exact_and_canonical`,
+  `noncanonical_and_duplicate_entries_reject` in `codec.rs`).
+- Admission and substitution: `verification.rs` rejects unadmitted records,
+  externally-relabeled verified subjects, substituted component records and
+  endpoint inventories, stale-but-well-formed requests and authorizations,
+  roster mismatches from swapped code, undeclared extra instances, forged
+  completeness tags and satisfied flags, and corrupt/malformed plan bytes.
+  `custody_substitution.rs` sweeps every single-field substitution of the
+  deployment plan, topology request, and installation request.
+- Policy executables: unselected verifiers, policy executables, and transports
+  reject without loading
+  (`an_unselected_verifier_fails_before_evaluation`,
+  `unselected_policy_executable_rejects_without_loading`,
+  `unselected_transport_rejects`); a missing owner-required policy or an extra
+  unselected one rejects.
+- Installation lifecycle: `installation.rs` pins activation authority custody —
+  double activation, superseded and stale authorizations, artifact mismatches,
+  spent issuance through mid-preparation adapter failure and activation
+  failure, uncleanable-close custody reporting, and colliding endpoint tokens —
+  plus `golden_payment_installation_activates_and_receipts` as the positive
+  case. `process_confinement.rs` exercises the three-process customer over real
+  private channels (`spawned_members_hold_exactly_assigned_ends_and_flow_frames`,
+  `a_spawned_peer_failure_and_eof_close_their_binding`,
+  `a_spawned_garbage_frame_closes_the_binding`,
+  `a_mismatched_executable_refuses_before_any_member_entry`).
+- Cross-machine replay: `composition_build.rs`
+  `the_package_composes_and_a_source_free_consumer_verifies` covers the
+  no-source-tree consumer leg.
+
+Not yet closed:
+
+- Windows and macOS confinement providers: the private-pipe customer runs on
+  unix only (kernel-attested pipe tokens). The Windows leg needs inheritable
+  handle passing behind `StdPipeEnd`; macOS needs a signed member image. These
+  stay unavailable per the paragraph above, not passed.
+- Co-located versus isolated versus remote realization parity: only the
+  private-pipe leg exists.
+- The demand/supply contract join: `ExportSurface.identity` is an opaque
+  string, so a demanded import cannot yet be checked against an offered
+  export's requirement identity — a `COMPONENT-SUBSTRATE` description gap, not
+  a topology census.
+- Scoped-build refusal of helper authority (home files, network): input
+  confinement is exercised by `tests/fixtures/packages/build-scope-topology`;
+  the captured-input and artifact-only publication gaps sit under
+  `BUILD-SNAPSHOT-OUTPUTS`.
+- Application-level authorization cases (charge-amount mismatch, request
+  replay) live outside the topology package; the secret-dependent reply row is
+  a negative claim and stays unclaimed by design.
+
 ## Alternatives and scope settlement
 
 | Alternative | Assessment |

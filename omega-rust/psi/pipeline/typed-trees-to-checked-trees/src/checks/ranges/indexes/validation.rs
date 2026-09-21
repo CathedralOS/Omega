@@ -15,7 +15,10 @@ use super::super::expressions::{
     provable_range_bounds,
 };
 use super::super::facts::RangeFacts;
-use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
+use super::super::proofs::{
+    symbolic_extent_range_is_proven, symbolic_extent_scalar_index_is_proven,
+    unknown_length_index_is_proven, unknown_length_range_is_proven,
+};
 use super::super::types::{
     expression_enforced_declared_range, expression_integer_carrier_maximum, expression_is_slice,
     expression_is_unsigned_integer, expression_type_reference,
@@ -128,6 +131,26 @@ pub(super) fn check_indexed_access(
             facts,
             indexed.collection,
             indexed.index,
+            attribution,
+            diagnostics,
+        )
+    } else if let Some(extent) =
+        expression_type_reference(program, machine, state, indexed.collection).and_then(
+            |reference| super::super::arrays::fixed_array_type_symbolic_extent(program, reference),
+        )
+    {
+        // A const-generic extent `N` is not "unknown length": the obligation
+        // `index < N` / `end <= N` discharges against the binder's declared
+        // floor, the index's `u64[..N]` declared range, and collection-keyed
+        // facts. Unproven cannot fall to silent accept.
+        check_symbolic_extent_index(
+            program,
+            machine,
+            state,
+            facts,
+            indexed.collection,
+            indexed.index,
+            extent,
             attribution,
             diagnostics,
         )
@@ -444,6 +467,77 @@ fn check_unknown_length_slice_index(
                 format!(
                     "cannot prove index `{}` is within unknown slice length of `{}` in {}::{}",
                     index_label, collection_label, machine.name, state.name
+                ),
+                attribution,
+            )));
+        }
+    }
+    false
+}
+
+fn check_symbolic_extent_index(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
+    index: ExpressionHandle,
+    extent: (symbols::SymbolHandle, typed_trees::name::Identifier),
+    attribution: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    match program.expression_table.expression(index) {
+        ExpressionNode::Range(range) => {
+            if symbolic_extent_range_is_proven(
+                program, machine, state, facts, collection, range, &extent,
+            ) {
+                return true;
+            }
+            let failure =
+                unknown_length_range_failure(program, machine, state, facts, collection, range);
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove subslice range {} `{}` is within const extent `{}`",
+                    failure.label(),
+                    program.expression_table.display_name(index),
+                    extent.1.as_str()
+                ),
+                attribution,
+            )));
+        }
+        _ => {
+            // The #40 computed-index fence applies regardless of extent kind:
+            // a runtime `k + 1` index is not lowerable even against a symbolic
+            // bound, while literal-only folds (`items[2 + 3]`) still collapse.
+            if index_is_computed(program, index)
+                && literal_only_integer_value(program, index).is_none()
+            {
+                diagnostics.push(Diagnostic::error(with_attribution(
+                    format!(
+                        "index `{}` is a computed expression, not yet supported as an \
+                         indexed operand (it would silently read 0 or no-op); compute \
+                         it into a field first, then index by that field",
+                        program.expression_table.display_name(index)
+                    ),
+                    attribution,
+                )));
+                return false;
+            }
+            let collection_label = program.expression_table.display_name(collection);
+            let index_label = program.expression_table.display_name(index);
+            if symbolic_extent_scalar_index_is_proven(
+                program, machine, state, facts, collection, index, &extent,
+            ) {
+                return true;
+            }
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove index `{}` is within const extent `{}` of `{}` in {}::{}",
+                    index_label,
+                    extent.1.as_str(),
+                    collection_label,
+                    machine.name,
+                    state.name
                 ),
                 attribution,
             )));

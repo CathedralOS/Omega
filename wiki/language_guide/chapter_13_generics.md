@@ -64,9 +64,15 @@ Value binders distinguish two staging contracts:
 
 `const` is a requirement, not an optimization hint. Without it, known arguments
 may still specialize. With it, a declaration can require fixed layout or static
-instruction operands without supplying a runtime fallback. Runtime-capable
-binder support remains implementation work; these examples specify the intended
-contract rather than currently executable source.
+instruction operands without supplying a runtime fallback. Runtime-capable binders are
+implemented for machine signatures: `machine f<Count: u32>(...)` compiles to one
+body carrying `Count` as an ordinary argument, with its `requires` bound proved
+at the call site. They are not implemented for data declarations, so the
+`Index<Limit: u32>` example below still specifies the intended contract rather
+than currently executable source, and layout-determining positions such as array
+extents continue to reject. The slice-length bound shown in the next example is
+likewise not what the landed canaries exercise — those bound a scalar
+parameter.
 
 ```omega
 machine prefix_count<Count: u32>(items: &[u8]) -> u32

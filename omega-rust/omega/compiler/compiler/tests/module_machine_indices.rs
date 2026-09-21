@@ -281,12 +281,7 @@ fn machine_index_evaluation_preserves_declared_carriers_and_intermediate_overflo
             "SIZE + 1",
             "landed `u32` result cannot initialize `u64`",
         ),
-        (
-            "u8",
-            "255",
-            "(SIZE + 1) - 1",
-            "integer constant operation",
-        ),
+        ("u8", "255", "(SIZE + 1) - 1", "integer constant operation"),
     ] {
         Sources::write(
             root.join("constants.omg"),
@@ -731,6 +726,8 @@ impl Drop for Sources {
     }
 }
 
+#[path = "module_machine_indices/case_domain_facts.rs"]
+mod case_domain_facts;
 #[path = "module_machine_indices/case_membership.rs"]
 mod case_membership;
 

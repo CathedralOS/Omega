@@ -199,20 +199,53 @@ pub(in crate::lowering) fn lower_boundary_call(
                         },
                     )
                 }
-                abstract_operations::AbstractBoundaryResult::Scalar(_) => {
-                    return Err(
-                        LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
-                            machine: function.machine,
-                            operation: *psi_operation,
-                            boundary: *boundary,
+                abstract_operations::AbstractBoundaryResult::Scalar(result) => {
+                    // A scalar boundary result is honest only when the closed
+                    // realization itself emits the bytes producing it. The
+                    // direct port read is that shape: `in al, dx` leaves one
+                    // unsigned byte in rax under the admitted provider's
+                    // custody, so the settlement carries a scalar home
+                    // requirement rather than a borrowed structural one.
+                    let BoundaryRealization::DirectPortReadU8(_) = realization else {
+                        return Err(
+                            LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                                machine: function.machine,
+                                operation: *psi_operation,
+                                boundary: *boundary,
+                            },
+                        );
+                    };
+                    let u8_type =
+                        IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is a valid type");
+                    if result.scalar_type != ScalarType::Integer(u8_type)
+                        || declaration.result
+                            != terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(
+                                u8_type,
+                            ))
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    }
+                    target_operations::TargetBoundaryResult::Scalar(
+                        TargetUnitScalarHomeRequirement {
+                            defining_operation: *psi_operation,
+                            source_value: result.value,
+                            scalar_type: ScalarType::Integer(u8_type),
+                            shape: ValueShape::integer(1, 1),
                         },
-                    );
+                    )
                 }
             };
             let scalar_arguments = Vec::new();
             let mut runtime_scalar_arguments = Vec::new();
             let mut byte_sequence_arguments = Vec::new();
             if !matches!(realization, BoundaryRealization::HostedReadByte(_))
+                && !matches!(
+                    (realization, &target_result),
+                    (
+                        BoundaryRealization::DirectPortReadU8(_),
+                        target_operations::TargetBoundaryResult::Scalar(_)
+                    )
+                )
                 && !matches!(
                     &target_result,
                     target_operations::TargetBoundaryResult::Unit
@@ -430,7 +463,49 @@ pub(in crate::lowering) fn lower_boundary_call(
                     *nonreturning_boundary = exits_process;
                 }
                 BoundaryRealization::DirectPortReadU8(_) => {
-                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    // The direct port read emits the one closed `in al, dx`
+                    // sequence itself, so nothing arrives through the argument
+                    // transports and no claim/receipt rows can exist. Each
+                    // structural argument rejoins a declared caller place
+                    // exactly as the metadata-only port settlement requires.
+                    let call_plan = evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &CallSignature {
+                            parameters: Vec::new(),
+                            result: Some(ValueShape::integer(1, 1)),
+                        },
+                    )
+                    .map_err(LoweringError::AbiPlan)?;
+                    if target.architecture != Architecture::X86_64
+                        || call_plan.result
+                            != Some(ValuePlacement {
+                                shape: ValueShape::integer(1, 1),
+                                locations: vec![ValueLocation::Register {
+                                    register: calling_conventions::MachineRegister::X86Rax,
+                                    value_byte_offset: 0,
+                                    byte_size: 1,
+                                }],
+                            })
+                        || !arguments.is_empty()
+                        || !declaration.scalar_parameters.is_empty()
+                        || !completion_claim_sources.is_empty()
+                        || !completion_receipts.is_empty()
+                        || !structural_arguments.iter().all(|argument| {
+                            argument.path.is_empty()
+                                && parameters_by_place.contains_key(&argument.place)
+                        })
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    }
+                    let target_operations::TargetBoundaryResult::Scalar(home) = &target_result
+                    else {
+                        return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                    };
+                    insert_known_unit_integer(
+                        scalar_values,
+                        home.source_value,
+                        KnownUnitInteger::Home(*home),
+                    )?;
                 }
             }
             operations.push(TargetUnitOperation::BoundarySettlement {

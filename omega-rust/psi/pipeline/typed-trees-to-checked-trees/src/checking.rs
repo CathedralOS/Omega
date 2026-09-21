@@ -163,6 +163,15 @@ fn check_program(
         static_machine_selections,
         &mutation_summaries,
     )?;
+    // Sealed quotient requests were deferred by validation until termination
+    // was proved: judge them now against the checked termination facts. The
+    // batch is all-or-nothing and grants no executable operation.
+    validation::admit_checked_quotient_requests(&program, &|machine| {
+        facts
+            .termination
+            .for_machine(machine)
+            .map(|plan| plan.checked_summary.clone())
+    })?;
     checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
     checks::initialize_checked_borrow_call_certificates(&program, &mut facts);
 

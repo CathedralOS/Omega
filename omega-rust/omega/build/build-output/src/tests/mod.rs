@@ -407,4 +407,307 @@ fn rejects_external_symlink_targets_and_unsponsored_entries() {
     let unsponsored_fixture = Fixture::new("unsponsored");
     std::fs::write(unsponsored_fixture.root.join("extra"), b"bytes").unwrap();
     assert!(capture(&unsponsored_fixture.root, &unsponsored_fixture.sponsor).is_err());
+
+    let nested_unsponsored = Fixture::new("nested-unsponsored");
+    nested_unsponsored.create_directory(Path::new("nested"));
+    std::fs::write(nested_unsponsored.root.join("nested/extra"), b"bytes").unwrap();
+    let diagnostics = capture(&nested_unsponsored.root, &nested_unsponsored.sponsor)
+        .expect_err("an unsponsored entry inside a sponsored directory must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("absent from sponsor custody")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn capture_requires_a_quiescent_sponsor() {
+    let fixture = Fixture::new("prepared-transaction");
+    let pending = fixture
+        .sponsor
+        .prepare_create_object(&fixture.bind(Path::new("pending")), 1)
+        .unwrap();
+    let diagnostics = capture(&fixture.root, &fixture.sponsor)
+        .expect_err("a pending prepared transaction must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires a quiescent sponsor")),
+        "{diagnostics:#?}"
+    );
+    pending.abort();
+    assert!(
+        capture(&fixture.root, &fixture.sponsor).is_ok(),
+        "aborting the prepared transaction restores quiescence"
+    );
+
+    let open_fixture = Fixture::new("open-descriptor");
+    open_fixture.create_file(Path::new("held"), b"held");
+    let descriptor = open_fixture
+        .sponsor
+        .prepare_open(&open_fixture.bind(Path::new("held")))
+        .unwrap()
+        .commit()
+        .unwrap();
+    let diagnostics = capture(&open_fixture.root, &open_fixture.sponsor)
+        .expect_err("a live open descriptor must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires a quiescent sponsor")),
+        "{diagnostics:#?}"
+    );
+    open_fixture
+        .sponsor
+        .prepare_close(&descriptor)
+        .unwrap()
+        .commit()
+        .unwrap();
+    assert!(
+        capture(&open_fixture.root, &open_fixture.sponsor).is_ok(),
+        "closing the descriptor restores quiescence"
+    );
+}
+
+#[test]
+fn capture_rejects_roots_that_are_not_the_sponsored_directory() {
+    let fixture = Fixture::new("root-shape");
+    std::fs::create_dir(fixture.root.join("never-sponsored")).unwrap();
+    fixture.create_file(Path::new("as-root"), b"file");
+
+    for relative in ["never-sponsored", "as-root"] {
+        let diagnostics = capture(&fixture.root.join(relative), &fixture.sponsor)
+            .expect_err("only the committed directory is a capture root");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("not the sponsor's committed directory")),
+            "{relative}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn capture_rejects_a_root_that_changed_to_a_symlink_after_commit() {
+    use std::os::unix::fs::symlink;
+
+    let fixture = Fixture::new("symlinked-root");
+    let concrete = fixture.session.join("concrete");
+    std::fs::create_dir(&concrete).unwrap();
+    std::fs::remove_dir(&fixture.root).unwrap();
+    symlink(&concrete, &fixture.root).unwrap();
+    let diagnostics = capture(&fixture.root, &fixture.sponsor)
+        .expect_err("a sponsored directory root swapped for a symlink must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("must be a concrete directory")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn capture_rejects_entries_disagreeing_with_sponsor_extent() {
+    for replacement in [&b"longer-than-sponsored"[..], &b"s"[..]] {
+        let fixture = Fixture::new("extent-drift");
+        fixture.create_file(Path::new("artifact"), b"exact");
+        std::fs::write(fixture.root.join("artifact"), replacement).unwrap();
+        let diagnostics = capture(&fixture.root, &fixture.sponsor)
+            .expect_err("an extent change after commitment must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor extent")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn capture_binds_current_bytes_when_extent_is_unchanged() {
+    let fixture = Fixture::new("same-extent-rewrite");
+    fixture.create_file(Path::new("artifact"), b"first");
+    std::fs::write(fixture.root.join("artifact"), b"other").unwrap();
+    let retained = capture(&fixture.root, &fixture.sponsor).unwrap();
+    let [entry] = retained.entries.as_slice() else {
+        panic!("one retained entry")
+    };
+    let RetainedStagedOutputEntryKind::File { bytes, .. } = &entry.kind else {
+        panic!("the retained entry is a file")
+    };
+    assert_eq!(
+        &**bytes, b"other",
+        "the sponsor pins extent and kind, not content; the captured bytes are the current ones"
+    );
+}
+
+#[test]
+fn capture_rejects_entries_disagreeing_with_sponsor_kind() {
+    let file_to_directory = Fixture::new("file-became-directory");
+    file_to_directory.create_file(Path::new("entry"), b"file");
+    std::fs::remove_file(file_to_directory.root.join("entry")).unwrap();
+    std::fs::create_dir(file_to_directory.root.join("entry")).unwrap();
+    let diagnostics = capture(&file_to_directory.root, &file_to_directory.sponsor)
+        .expect_err("a file replaced by a directory must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor kind")),
+        "{diagnostics:#?}"
+    );
+
+    let directory_to_file = Fixture::new("directory-became-file");
+    directory_to_file.create_directory(Path::new("entry"));
+    std::fs::remove_dir(directory_to_file.root.join("entry")).unwrap();
+    std::fs::write(directory_to_file.root.join("entry"), b"file").unwrap();
+    let diagnostics = capture(&directory_to_file.root, &directory_to_file.sponsor)
+        .expect_err("a directory replaced by a file must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor kind")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn capture_rejects_kind_swaps_involving_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let file_to_symlink = Fixture::new("file-became-symlink");
+    file_to_symlink.create_file(Path::new("entry"), b"file");
+    std::fs::remove_file(file_to_symlink.root.join("entry")).unwrap();
+    symlink("target", file_to_symlink.root.join("entry")).unwrap();
+    let diagnostics = capture(&file_to_symlink.root, &file_to_symlink.sponsor)
+        .expect_err("a file replaced by a symlink must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor kind")),
+        "{diagnostics:#?}"
+    );
+
+    let symlink_to_file = Fixture::new("symlink-became-file");
+    let prepared = symlink_to_file
+        .sponsor
+        .prepare_create_symlink(&symlink_to_file.bind(Path::new("entry")), b"target")
+        .unwrap();
+    symlink("target", symlink_to_file.root.join("entry")).unwrap();
+    prepared.commit().unwrap();
+    std::fs::remove_file(symlink_to_file.root.join("entry")).unwrap();
+    std::fs::write(symlink_to_file.root.join("entry"), b"file").unwrap();
+    let diagnostics = capture(&symlink_to_file.root, &symlink_to_file.sponsor)
+        .expect_err("a symlink replaced by a file must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor kind")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn capture_rejects_sponsored_entries_missing_from_the_physical_tree() {
+    let fixture = Fixture::new("missing-entry");
+    fixture.create_directory(Path::new("nested"));
+    fixture.create_file(Path::new("nested/artifact"), b"nested");
+    fixture.create_file(Path::new("flat"), b"flat");
+    std::fs::remove_file(fixture.root.join("flat")).unwrap();
+    let diagnostics = capture(&fixture.root, &fixture.sponsor)
+        .expect_err("a sponsored file deleted after commitment must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("missing from the physical tree")),
+        "{diagnostics:#?}"
+    );
+
+    let nested_fixture = Fixture::new("missing-nested-entry");
+    nested_fixture.create_directory(Path::new("nested"));
+    nested_fixture.create_file(Path::new("nested/artifact"), b"nested");
+    std::fs::remove_file(nested_fixture.root.join("nested/artifact")).unwrap();
+    let diagnostics = capture(&nested_fixture.root, &nested_fixture.sponsor)
+        .expect_err("a sponsored nested file deleted after commitment must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("missing from the physical tree")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn capture_rejects_hard_link_group_members_replaced_after_commit() {
+    let fixture = Fixture::new("swapped-hard-link");
+    fixture.create_file(Path::new("first"), b"payload");
+    let first = fixture.bind(Path::new("first"));
+    let second = fixture.bind(Path::new("second"));
+    let prepared = fixture.sponsor.prepare_hard_link(&first, &second).unwrap();
+    std::fs::hard_link(fixture.root.join("first"), fixture.root.join("second")).unwrap();
+    prepared.commit().unwrap();
+
+    std::fs::remove_file(fixture.root.join("second")).unwrap();
+    std::fs::write(fixture.root.join("second"), b"payload").unwrap();
+    let diagnostics = capture(&fixture.root, &fixture.sponsor)
+        .expect_err("a hard-link member swapped for a distinct same-length file must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("hard-link group disagrees")),
+        "{diagnostics:#?}"
+    );
+
+    let extent_fixture = Fixture::new("swapped-hard-link-extent");
+    extent_fixture.create_file(Path::new("first"), b"payload");
+    let first = extent_fixture.bind(Path::new("first"));
+    let second = extent_fixture.bind(Path::new("second"));
+    let prepared = extent_fixture
+        .sponsor
+        .prepare_hard_link(&first, &second)
+        .unwrap();
+    std::fs::hard_link(
+        extent_fixture.root.join("first"),
+        extent_fixture.root.join("second"),
+    )
+    .unwrap();
+    prepared.commit().unwrap();
+    std::fs::remove_file(extent_fixture.root.join("second")).unwrap();
+    std::fs::write(extent_fixture.root.join("second"), b"longer-payload").unwrap();
+    let diagnostics = capture(&extent_fixture.root, &extent_fixture.sponsor)
+        .expect_err("a hard-link member swapped for a different-length file must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("disagrees with sponsor extent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn capture_rejects_a_symlink_retargeted_after_commit() {
+    use std::os::unix::fs::symlink;
+
+    let fixture = Fixture::new("retargeted-symlink");
+    let prepared = fixture
+        .sponsor
+        .prepare_create_symlink(&fixture.bind(Path::new("link")), b"a")
+        .unwrap();
+    symlink("a", fixture.root.join("link")).unwrap();
+    prepared.commit().unwrap();
+
+    std::fs::remove_file(fixture.root.join("link")).unwrap();
+    symlink("bb", fixture.root.join("link")).unwrap();
+    let diagnostics = capture(&fixture.root, &fixture.sponsor)
+        .expect_err("a symlink retargeted to a different-length spelling must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("disagrees with sponsor target length")),
+        "{diagnostics:#?}"
+    );
 }

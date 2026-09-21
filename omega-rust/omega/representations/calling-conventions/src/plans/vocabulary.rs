@@ -253,11 +253,11 @@ impl CallingPolicy {
     pub const fn native_for_target(target: target::NativeTarget) -> Self {
         match (target.architecture, target.object_format) {
             (Architecture::X86_64, target::ObjectFormat::Coff) => Self::MicrosoftX64,
-            (Architecture::X86_64, target::ObjectFormat::Elf) => Self::SystemVAMD64,
+            (Architecture::X86_64, target::ObjectFormat::Elf)
+            | (Architecture::X86_64, target::ObjectFormat::MachO) => Self::SystemVAMD64,
             (Architecture::Aarch64, target::ObjectFormat::Elf) => Self::Aapcs64,
             (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::Aapcs64,
-            (Architecture::X86_64, target::ObjectFormat::MachO)
-            | (Architecture::Aarch64, target::ObjectFormat::Coff) => {
+            (Architecture::Aarch64, target::ObjectFormat::Coff) => {
                 panic!(
                     "no native calling policy is declared for this (architecture, object-format) pair"
                 )
@@ -279,9 +279,9 @@ impl CallingPolicy {
             (Architecture::X86_64, target::ObjectFormat::Elf) => Some(Self::LinuxSyscallX86_64),
             (Architecture::Aarch64, target::ObjectFormat::Elf) => Some(Self::LinuxSyscallAarch64),
             (Architecture::X86_64, target::ObjectFormat::Coff)
+            | (Architecture::X86_64, target::ObjectFormat::MachO)
             | (Architecture::Aarch64, target::ObjectFormat::MachO) => None,
-            (Architecture::X86_64, target::ObjectFormat::MachO)
-            | (Architecture::Aarch64, target::ObjectFormat::Coff) => {
+            (Architecture::Aarch64, target::ObjectFormat::Coff) => {
                 panic!(
                     "no native syscall policy is declared for this (architecture, object-format) pair"
                 )

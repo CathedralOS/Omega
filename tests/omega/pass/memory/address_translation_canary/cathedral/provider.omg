@@ -1,0 +1,111 @@
+module cathedral::provider;
+
+// Cathedral's declared provider of the translation authority: the nominal
+// realization the authority's receipt crossings stand behind.
+//
+// Each member carries the ordinary `satisfies` edge onto the exact
+// `TranslationAuthority` requirement, so provider derivation covers the
+// complete contract atomically -- a partial provider cannot select onto the
+// slot (wiki/spec/build/provider_selection.md: coverage is family-atomic).
+// Each member also restates the requirement's conservation equation as its
+// own checked `ensures`: a law requirement's satisfier must carry that
+// equation itself, so the realized surface states the partition it
+// conserves where the checker reads it.
+//
+// The crossings are boundary leaves because the authority's carriers hold
+// unforgeable linear values (`MappingToken`, `Shootdown`, the borrowed
+// `BorrowedMappingToken`) that checked source cannot mint or destruct -- the
+// receipt work is the provider's own realization, exactly as the Rust
+// conservation model mints `TranslationActivationReceipt`/
+// `TranslationReleaseReceipt` through `from_admitted_provider`. What source
+// does check is the seam: the package's checked `install`/`remove` routes
+// consume and return the same carrier these crossings qualify, so the entry
+// they store provably belongs to the mapping the receipt installs.
+use omega::language::core::extent;
+use translation::TranslationAuthority;
+use translation::Mapping;
+use translation::Mapping::Pending;
+use translation::Mapping::Installed;
+use translation::BorrowedMapping;
+use translation::BorrowedMapping::Pending;
+use translation::BorrowedMapping::Installed;
+use translation::TranslationInstallObligations;
+use translation::TranslationReleaseObligations;
+use translation::Unmapped;
+use translation::UnmappedBorrowed;
+
+pub boundary trait CathedralTranslationProvider {
+    // Structural-validation crossing behind `map`.
+    machine map(
+        source: Extent in Granted,
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
+    ) -> Mapping
+    satisfies TranslationAuthority::map
+    ensures
+        separate(
+            Granted::content(&result.source),
+            Granted::content(&result.destination),
+        )
+        == separate(
+            Granted::content(old(&source)),
+            Granted::content(old(&destination)),
+        );
+
+    // The install-receipt crossing behind `activate`. The provider's checked
+    // `CathedralPageTables::install` is the route whose stored entries this
+    // receipt stands behind: it consumes the same pending carrier this edge
+    // requalifies, so activation never outruns the walk.
+    machine activate(pending: Mapping in Pending) -> Mapping
+    satisfies TranslationAuthority::activate
+    ensures
+        separate(
+            Granted::content(&result.source),
+            Granted::content(&result.destination),
+        )
+        == separate(
+            Granted::content(old(&pending.source)),
+            Granted::content(old(&pending.destination)),
+        );
+
+    // The release-receipt crossing behind `unmap`, standing behind the
+    // checked `CathedralPageTables::remove` that clears the leaf and
+    // invalidates the page's local translation.
+    machine unmap(active: Mapping in Installed) -> Unmapped
+    satisfies TranslationAuthority::unmap
+    ensures
+        separate(
+            Granted::content(&result.destination),
+            Granted::content(&result.source),
+        )
+        == separate(
+            Granted::content(old(&active.source)),
+            Granted::content(old(&active.destination)),
+        );
+
+    machine map_borrowed(
+        source: &Extent in Granted,
+        destination: Extent in Granted,
+        install: TranslationInstallObligations,
+        release: TranslationReleaseObligations
+    ) -> BorrowedMapping
+    satisfies TranslationAuthority::map_borrowed
+    ensures
+        Granted::content(&result.destination)
+        == Granted::content(old(&destination));
+
+    machine activate_borrowed(pending: BorrowedMapping in Pending)
+        -> BorrowedMapping
+    satisfies TranslationAuthority::activate_borrowed
+    ensures
+        Granted::content(&result.destination)
+        == Granted::content(old(&pending.destination));
+
+    machine unmap_borrowed(active: BorrowedMapping in Installed)
+        -> UnmappedBorrowed
+    satisfies TranslationAuthority::unmap_borrowed
+    ensures
+        Granted::content(&result.destination)
+        == Granted::content(old(&active.destination));
+}

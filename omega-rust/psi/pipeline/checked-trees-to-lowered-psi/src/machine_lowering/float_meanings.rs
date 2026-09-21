@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 use crate::lowering_error::LoweringError;
 use crate::proofs::float_meaning_projection::{
     lower_float_meaning_equality, lower_float_meaning_projection,
-    resolve_direct_float_source_binding,
+    rejoin_float_semantic_applications, resolve_direct_float_source_binding,
 };
 
 /// Retain the checked float-meaning projections and equalities on the
@@ -44,6 +44,11 @@ pub(crate) fn retain_float_meanings(
                 .map_err(LoweringError::InvalidFloatMeaningProjection)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    rejoin_float_semantic_applications(
+        &checked.facts.proof.float_semantic_applications,
+        &mut lowered.semantic_module.float_meaning_projections,
+    )
+    .map_err(LoweringError::InvalidFloatMeaningProjection)?;
     // Resolved direct sources never emit their checked transitional fallback,
     // so surviving fallback identities renumber densely in emission order.
     let mut transitional_sources = Vec::<u32>::new();

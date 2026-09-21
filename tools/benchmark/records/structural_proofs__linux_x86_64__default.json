@@ -1,0 +1,77 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-21T06:06:50Z",
+  "subject": {
+    "name": "structural_proofs",
+    "root": "samples/cli/proofs/structural_proofs/main.omg",
+    "source_revision": "fdbd7111d0ae17e503bf66a121f5937cd25b7734"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        32357.61976499998,
+        33347.98687399996,
+        32407.201057000064
+      ],
+      "median_ms": 32407.201057000064,
+      "min_ms": 32357.61976499998,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 4.758,
+        "compile: sources -> requested product": 32207.974,
+        "publish: retained product -> published product": 183.27,
+        "total elapsed": 32396.473
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 148152320,
+      "run_max_rss": null
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "skipped",
+      "unit": "ms",
+      "samples": [],
+      "median_ms": null,
+      "min_ms": null,
+      "exit_codes": [],
+      "exit_code_expected": null,
+      "stdin": "devnull",
+      "reason": "--no-run was passed"
+    }
+  },
+  "notes": [
+    "z125: proof-subject selection leg \u2014 structural_proofs carries authored build.omg + ProgramEntry; compile-only leg (--no-run), host linux x86_64"
+  ]
+}

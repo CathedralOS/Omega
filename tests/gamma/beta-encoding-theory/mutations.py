@@ -631,6 +631,22 @@ if __name__ == "__main__":
         threading.stack_size(512 * 1024 * 1024)
     except (ValueError, RuntimeError):
         pass
-    worker = threading.Thread(target=main)
+    # The worker's outcome has to reach the main thread: `threading`
+    # discards a `SystemExit` raised in a non-main thread and exits 0, so
+    # joining alone turns every refusal this gate makes into a silent pass.
+    # Same shape `full_subject.py` already uses for its deep-fold worker.
+    # Not named `failure`: that is this module's diagnostic helper, and
+    # rebinding it at module scope breaks `self_test`.
+    worker_outcome = []
+
+    def run():
+        try:
+            main()
+        except BaseException as error:  # noqa: BLE001 - re-raised below
+            worker_outcome.append(error)
+
+    worker = threading.Thread(target=run)
     worker.start()
     worker.join()
+    if worker_outcome:
+        raise worker_outcome[0]

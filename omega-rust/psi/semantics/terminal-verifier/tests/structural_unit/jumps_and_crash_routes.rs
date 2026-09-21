@@ -1,14 +1,19 @@
-use super::{content_predicate, hard_root_module, structural_parameter, unit_call_mut};
+use super::{
+    content_predicate, hard_root_module, partial_affine_field_module, structural_parameter,
+    unit_call_mut,
+};
 use crate::structural_unit::{
     block_id, boundary_id, claim_id, edge_id, machine_id, operation_id, place_id, service_id,
-    value_id,
+    structural_type_id, value_id,
 };
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
     Block, ClaimTransfer, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     EntryClaim, Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralPlaceDeclaration, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachineResult, Terminator, ValueDeclaration,
+    StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    SuccessorEdge, TerminalAffineCleanupAction, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration,
 };
 use terminal_verifier::{ModuleError, validate_module};
 
@@ -43,6 +48,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -53,12 +59,14 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
                 target: block_id(3),
                 arguments: vec![value_id(10)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: vec![place_id(4)],
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
@@ -105,6 +113,155 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     );
 }
 
+/// A Jump edge whose projected argument moves `right` out of `Pair{left,
+/// middle, right}` while its residual roster closes `middle` then `left` —
+/// the exact complement in canonical order. The successor binds the moved
+/// field and returns after trivially discarding it.
+fn jump_residual_cleanup_module() -> TerminalModule {
+    let mut module = partial_affine_field_module();
+    module.machines.pop();
+    let caller = &mut module.machines[0];
+    caller.blocks[0].operations.clear();
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(3),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: block_id(2),
+            position: 0,
+        },
+    });
+    caller.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: vec![StructuralArgument {
+            place: place_id(1),
+            path: vec![StructuralPathSegment::Field("right".into())],
+            access: StructuralAccess::Owned,
+        }],
+        edge: edge_id(1),
+        target: block_id(2),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: vec![
+            StructuralAffineDiscard {
+                place: place_id(1),
+                path: vec![StructuralPathSegment::Field("middle".into())],
+                structural_type: structural_type_id(1),
+            },
+            StructuralAffineDiscard {
+                place: place_id(1),
+                path: vec![StructuralPathSegment::Field("left".into())],
+                structural_type: structural_type_id(1),
+            },
+        ],
+    };
+    caller.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: place_id(3),
+            position: 0,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        id: block_id(2),
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::ReturnUnit {
+            edge: edge_id(2),
+            trivial_affine_discards: vec![place_id(3)],
+        },
+    });
+    module
+}
+
+#[test]
+fn jump_edge_residual_discards_close_the_projected_argument_root_in_order() {
+    let module = jump_residual_cleanup_module();
+    validate_module(&module)
+        .expect("a projected successor argument opens partial custody its edge residuals close");
+
+    // Residual rows follow the canonical complement order, not authored
+    // preference.
+    let mut reordered = module.clone();
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut reordered.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.swap(0, 1);
+    assert_eq!(
+        validate_module(&reordered).unwrap_err(),
+        ModuleError::InvalidPartialAffineCleanup {
+            machine: machine_id(1),
+            block: block_id(1),
+        }
+    );
+
+    // The moved child cannot reappear inside the residual evidence.
+    let mut double_move = module.clone();
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut double_move.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.push(StructuralAffineDiscard {
+        place: place_id(1),
+        path: vec![StructuralPathSegment::Field("right".into())],
+        structural_type: structural_type_id(1),
+    });
+    assert_eq!(
+        validate_module(&double_move).unwrap_err(),
+        ModuleError::InvalidPartialAffineCleanup {
+            machine: machine_id(1),
+            block: block_id(1),
+        }
+    );
+
+    // Residual cleanup retires the partial root before trivial discards are
+    // evaluated, so the root is never eligible for the trivial roster.
+    let mut trivial_root = module.clone();
+    let Terminator::Jump {
+        trivial_affine_discards,
+        ..
+    } = &mut trivial_root.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![place_id(1)];
+    assert_eq!(
+        validate_module(&trivial_root).unwrap_err(),
+        ModuleError::EdgeAffineDiscardsInvalid { edge: edge_id(1) }
+    );
+
+    // The residual roster must be the exact complement of the custody the
+    // edge's arguments opened: moving `left` instead of `right` leaves the
+    // authored rows naming a moved child and omitting a live one.
+    let mut wrong_projection = module;
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut wrong_projection.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("left".into())];
+    assert_eq!(
+        validate_module(&wrong_projection).unwrap_err(),
+        ModuleError::InvalidPartialAffineCleanup {
+            machine: machine_id(1),
+            block: block_id(1),
+        }
+    );
+}
+
 #[test]
 fn conditional_applies_affine_discards_only_to_each_selected_successor() {
     let mut module = hard_root_module();
@@ -135,6 +292,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -147,6 +305,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
                     target: block_id(3),
                     arguments: vec![value_id(10)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: vec![place_id(4)],
                 },
                 when_false: SuccessorEdge {
@@ -155,12 +314,14 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
                     target: block_id(4),
                     arguments: vec![value_id(10)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: vec![place_id(2)],
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
@@ -177,6 +338,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {
@@ -341,6 +503,7 @@ fn unit_calls_preserve_exact_crash_routes_and_remain_acyclic() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(2),
             structural_arguments: vec![StructuralArgument {
@@ -446,6 +609,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     *crash_continuations = vec![route(30)];
     let bridge = |block, parameter, edge| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(block),
         parameters: vec![declaration(parameter)],
@@ -456,6 +620,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             target: completion.id,
             arguments: vec![value_id(parameter)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -463,6 +628,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     module.machines[0].blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -475,6 +641,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
                     target: block_id(101),
                     arguments: vec![value_id(11)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -483,6 +650,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
                     target: block_id(102),
                     arguments: vec![value_id(11)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
@@ -517,6 +685,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             target: block_id(102),
             arguments: vec![value_id(50)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -525,6 +694,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             target: block_id(103),
             arguments: vec![value_id(50)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };

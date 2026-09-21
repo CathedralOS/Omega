@@ -25,6 +25,17 @@ an image. Package review remains part of this outer command; do not manufacture
 acceptance to advance the sample. The current first failure and remaining
 producer/native dependencies belong in [SAMPLE-CORPUS](../../../../TASKS.md).
 
+Linux x86-64 status (compiler-library regression, filtered to this sample):
+the source reaches checked trees, but native compilation fails in common
+physical staging with `UnsupportedScalarOperation` on `WrappingIntegerDivide`
+(`u32`, fixed carrier) — a scalar legalization gap routed to
+`target-operations-to-selected-instructions` per the SAMPLE-CORPUS table, not
+a sample defect. The `windows_x86_64` authored-entry selection also rejects
+the bundled `std/targets/windows_x86_64/entry.omg` contract ("require either
+the exact bundled Windows x86-64 contract or one accepted package-owned
+Windows x86-64 binding"); that rejection is cohort-wide — the same leg fails
+for `basics/brightness_control` — and belongs to the entry-contract owner.
+
 The faster compiler-library probe on macOS is:
 
 ```sh
