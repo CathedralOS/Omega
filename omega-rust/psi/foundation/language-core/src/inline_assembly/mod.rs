@@ -25,6 +25,15 @@ pub enum AsmInstructionShape {
     /// obligations are the assignment's own. Bracketed `[address]` spellings
     /// are not expressions and refuse before this shape applies.
     RegisterMove,
+    /// A place-bearing memory transfer: the memory operand is spelled as an
+    /// Omega place expression, so the access's provenance, permission and
+    /// exact-type contract is the place's own — it lowers to the same checked
+    /// place read or write an ordinary assignment performs. Bracketed
+    /// `[address]` spellings are not expressions and refuse before this shape
+    /// applies. Ordered variants (acquire/release) and width-suffixed,
+    /// offset/unscaled, or multi-register forms are different contracts and
+    /// stay refused.
+    MemoryTransfer(AsmMemoryTransferKind),
     MemoryFence(AsmFenceKind),
     InterruptControl(AsmInterruptControlKind),
     FlagsSnapshot,
@@ -48,6 +57,15 @@ pub enum AsmInstructionShape {
     CacheOperation(AsmCacheOperationKind),
     DescriptorTableLoad,
     DerivedExit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmMemoryTransferKind {
+    /// `ldr destination, place`: the place's typed read assigns into the
+    /// writable destination.
+    Load,
+    /// `str value, place`: the value's typed write assigns into the place.
+    Store,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -580,8 +598,8 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionSerializationKind::{InstructionSynchronizationBarrier, Serialize};
     use AsmInstructionShape::{
         CacheOperation, DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
-        InstructionSerialization, InterruptControl, JumpState, MemoryFence, MsrRead, MsrWrite,
-        PortIn, PortOut, RegisterMove, SchedulingHint,
+        InstructionSerialization, InterruptControl, JumpState, MemoryFence, MemoryTransfer,
+        MsrRead, MsrWrite, PortIn, PortOut, RegisterMove, SchedulingHint,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
@@ -1007,6 +1025,38 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: NO_CLOBBERS,
         }),
 
+        // The canonical unordered memory transfers admit once their memory
+        // operand is a structured Omega place rather than a bracketed address:
+        // the place's own provenance, permission and exact-type contract is
+        // the model, and the instruction lowers to the same checked place
+        // access an ordinary assignment performs. Width-suffixed forms
+        // (`ldrb`/`strh`/...) are a different contract — an element-width
+        // access is not a full-place copy — and offset/unscaled, ordered and
+        // multi-register forms each carry their own contract, so they stay
+        // refused below.
+        "ldr" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MemoryTransfer(AsmMemoryTransferKind::Load),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "str" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: MemoryTransfer(AsmMemoryTransferKind::Store),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+
         // Recognize common memory-addressing spellings so they refuse for the
         // semantic reason, not as arbitrary unknown text. The list covers the
         // AArch64 width/signed/unscaled/unprivileged variants, the non-temporal
@@ -1025,46 +1075,44 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // maintenance (`cl*`/`tlbi`/`ic`/`dc`), and SIMD register-only moves
         // do not access memory or belong to a different contract family, and
         // stay unrecognized rather than borrowing this refusal.
-        "ldr" | "str" | "ldp" | "stp" | "ldnp" | "stnp" | "push" | "pop" | "pushq" | "popq"
-        | "pushw" | "pushl" | "pushf" | "pushfd" | "pusha" | "pushal" | "pushad" | "popa"
-        | "popal" | "popad" | "popw" | "popl" | "popf" | "popfd" | "enter" | "leave" | "ldrb"
-        | "ldrh" | "ldrsb" | "ldrsh" | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb"
-        | "ldurh" | "ldursb" | "ldursh" | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb"
-        | "ldtrh" | "ldtrsb" | "ldtrsh" | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldapr"
-        | "ldaprb" | "ldaprh" | "ldaprsb" | "ldaprsh" | "ldaprsw" | "ldapur" | "ldapurb"
-        | "ldapurh" | "ldapursb" | "ldapursh" | "ldapursw" | "stlur" | "stlurb" | "stlurh"
-        | "ldlar" | "ldlarb" | "ldlarh" | "stllr" | "stllrb" | "stllrh" | "ldxr" | "ldxrb"
-        | "ldxrh" | "stxr" | "stxrb" | "stxrh" | "ldax" | "ldaxr" | "ldaxrb" | "ldaxrh"
-        | "stlxr" | "stlxrb" | "stlxrh" | "ldxp" | "stxp" | "ldaxp" | "stlxp" | "ldar"
-        | "ldarb" | "ldarh" | "stlr" | "stlrb" | "stlrh" | "ld64b" | "st64b" | "st64bv"
-        | "st64bv0" | "ld1" | "st1" | "ld2" | "st2" | "ld3" | "st3" | "ld4" | "st4" | "ld1r"
-        | "ld2r" | "ld3r" | "ld4r" | "swp" | "swpb" | "swph" | "swpa" | "swpal" | "swpl"
-        | "swpab" | "swpah" | "swpalb" | "swpalh" | "swplb" | "swplh" | "cas" | "casb" | "cash"
-        | "casa" | "casal" | "casl" | "casab" | "casah" | "caslb" | "caslh" | "casalb"
-        | "casalh" | "casp" | "caspa" | "caspal" | "caspl" | "ldadd" | "ldaddb" | "ldaddh"
-        | "ldadda" | "ldaddab" | "ldaddah" | "ldaddl" | "ldaddlb" | "ldaddlh" | "ldaddal"
-        | "ldaddalb" | "ldaddalh" | "ldclr" | "ldclrb" | "ldclrh" | "ldclra" | "ldclrab"
-        | "ldclrah" | "ldclrl" | "ldclrlb" | "ldclrlh" | "ldclral" | "ldclralb" | "ldclralh"
-        | "ldeor" | "ldeorb" | "ldeorh" | "ldeora" | "ldeorab" | "ldeorah" | "ldeorl"
-        | "ldeorlb" | "ldeorlh" | "ldeoral" | "ldeoralb" | "ldeoralh" | "ldset" | "ldsetb"
-        | "ldseth" | "ldseta" | "ldsetab" | "ldsetah" | "ldsetl" | "ldsetlb" | "ldsetlh"
-        | "ldsetal" | "ldsetalb" | "ldsetalh" | "ldsmax" | "ldsmaxb" | "ldsmaxh" | "ldsmaxa"
-        | "ldsmaxab" | "ldsmaxah" | "ldsmaxl" | "ldsmaxlb" | "ldsmaxlh" | "ldsmaxal"
-        | "ldsmaxalb" | "ldsmaxalh" | "ldsmin" | "ldsminb" | "ldsminh" | "ldsmina" | "ldsminab"
-        | "ldsminah" | "ldsminl" | "ldsminlb" | "ldsminlh" | "ldsminal" | "ldsminalb"
-        | "ldsminalh" | "ldumax" | "ldumaxb" | "ldumaxh" | "ldumaxa" | "ldumaxab" | "ldumaxah"
-        | "ldumaxl" | "ldumaxlb" | "ldumaxlh" | "ldumaxal" | "ldumaxalb" | "ldumaxalh"
-        | "ldumin" | "lduminb" | "lduminh" | "ldumina" | "lduminab" | "lduminah" | "lduminl"
-        | "lduminlb" | "lduminlh" | "lduminal" | "lduminalb" | "lduminalh" | "xchg" | "xadd"
-        | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat" | "xlatb" | "lds" | "les" | "lss"
-        | "lfs" | "lgs" | "sgdt" | "sidt" | "lgdt" | "movnti" | "movntq" | "movntdq"
-        | "movntdqa" | "bound" | "fxsave" | "fxrstor" | "xsave" | "xsavec" | "xsaves"
-        | "xsaveopt" | "xrstor" | "xrstors" | "movs" | "movsb" | "movsw" | "movsq" | "lods"
-        | "lodsb" | "lodsw" | "lodsq" | "lodsd" | "stos" | "stosb" | "stosw" | "stosq"
-        | "stosd" | "scas" | "scasb" | "scasw" | "scasq" | "scasd" | "cmps" | "cmpsb" | "cmpsw"
-        | "cmpsq" | "ins" | "outs" | "insb" | "insw" | "insd" | "outsb" | "outsw" | "outsd" => {
-            Refused(UnmodeledMemoryAccess)
-        }
+        "ldp" | "stp" | "ldnp" | "stnp" | "push" | "pop" | "pushq" | "popq" | "pushw" | "pushl"
+        | "pushf" | "pushfd" | "pusha" | "pushal" | "pushad" | "popa" | "popal" | "popad"
+        | "popw" | "popl" | "popf" | "popfd" | "enter" | "leave" | "ldrb" | "ldrh" | "ldrsb"
+        | "ldrsh" | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb" | "ldurh" | "ldursb"
+        | "ldursh" | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb" | "ldtrh" | "ldtrsb"
+        | "ldtrsh" | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldapr" | "ldaprb" | "ldaprh"
+        | "ldaprsb" | "ldaprsh" | "ldaprsw" | "ldapur" | "ldapurb" | "ldapurh" | "ldapursb"
+        | "ldapursh" | "ldapursw" | "stlur" | "stlurb" | "stlurh" | "ldlar" | "ldlarb"
+        | "ldlarh" | "stllr" | "stllrb" | "stllrh" | "ldxr" | "ldxrb" | "ldxrh" | "stxr"
+        | "stxrb" | "stxrh" | "ldax" | "ldaxr" | "ldaxrb" | "ldaxrh" | "stlxr" | "stlxrb"
+        | "stlxrh" | "ldxp" | "stxp" | "ldaxp" | "stlxp" | "ldar" | "ldarb" | "ldarh" | "stlr"
+        | "stlrb" | "stlrh" | "ld64b" | "st64b" | "st64bv" | "st64bv0" | "ld1" | "st1" | "ld2"
+        | "st2" | "ld3" | "st3" | "ld4" | "st4" | "ld1r" | "ld2r" | "ld3r" | "ld4r" | "swp"
+        | "swpb" | "swph" | "swpa" | "swpal" | "swpl" | "swpab" | "swpah" | "swpalb" | "swpalh"
+        | "swplb" | "swplh" | "cas" | "casb" | "cash" | "casa" | "casal" | "casl" | "casab"
+        | "casah" | "caslb" | "caslh" | "casalb" | "casalh" | "casp" | "caspa" | "caspal"
+        | "caspl" | "ldadd" | "ldaddb" | "ldaddh" | "ldadda" | "ldaddab" | "ldaddah" | "ldaddl"
+        | "ldaddlb" | "ldaddlh" | "ldaddal" | "ldaddalb" | "ldaddalh" | "ldclr" | "ldclrb"
+        | "ldclrh" | "ldclra" | "ldclrab" | "ldclrah" | "ldclrl" | "ldclrlb" | "ldclrlh"
+        | "ldclral" | "ldclralb" | "ldclralh" | "ldeor" | "ldeorb" | "ldeorh" | "ldeora"
+        | "ldeorab" | "ldeorah" | "ldeorl" | "ldeorlb" | "ldeorlh" | "ldeoral" | "ldeoralb"
+        | "ldeoralh" | "ldset" | "ldsetb" | "ldseth" | "ldseta" | "ldsetab" | "ldsetah"
+        | "ldsetl" | "ldsetlb" | "ldsetlh" | "ldsetal" | "ldsetalb" | "ldsetalh" | "ldsmax"
+        | "ldsmaxb" | "ldsmaxh" | "ldsmaxa" | "ldsmaxab" | "ldsmaxah" | "ldsmaxl" | "ldsmaxlb"
+        | "ldsmaxlh" | "ldsmaxal" | "ldsmaxalb" | "ldsmaxalh" | "ldsmin" | "ldsminb"
+        | "ldsminh" | "ldsmina" | "ldsminab" | "ldsminah" | "ldsminl" | "ldsminlb" | "ldsminlh"
+        | "ldsminal" | "ldsminalb" | "ldsminalh" | "ldumax" | "ldumaxb" | "ldumaxh" | "ldumaxa"
+        | "ldumaxab" | "ldumaxah" | "ldumaxl" | "ldumaxlb" | "ldumaxlh" | "ldumaxal"
+        | "ldumaxalb" | "ldumaxalh" | "ldumin" | "lduminb" | "lduminh" | "ldumina" | "lduminab"
+        | "lduminah" | "lduminl" | "lduminlb" | "lduminlh" | "lduminal" | "lduminalb"
+        | "lduminalh" | "xchg" | "xadd" | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat"
+        | "xlatb" | "lds" | "les" | "lss" | "lfs" | "lgs" | "sgdt" | "sidt" | "lgdt" | "movnti"
+        | "movntq" | "movntdq" | "movntdqa" | "bound" | "fxsave" | "fxrstor" | "xsave"
+        | "xsavec" | "xsaves" | "xsaveopt" | "xrstor" | "xrstors" | "movs" | "movsb" | "movsw"
+        | "movsq" | "lods" | "lodsb" | "lodsw" | "lodsq" | "lodsd" | "stos" | "stosb" | "stosw"
+        | "stosq" | "stosd" | "scas" | "scasb" | "scasw" | "scasq" | "scasd" | "cmps" | "cmpsb"
+        | "cmpsw" | "cmpsq" | "ins" | "outs" | "insb" | "insw" | "insd" | "outsb" | "outsw"
+        | "outsd" => Refused(UnmodeledMemoryAccess),
         _ => return None,
     };
     Some(entry)
