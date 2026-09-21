@@ -32,6 +32,17 @@ Ordinary checks and internal validation still run without a sidecar. A receiving
 policy may require PCC and refuse ordinary output. Absence of independently
 checked evidence cannot be reported as independently verified safety.
 
+Cyclic controls are specified throughout the premise-availability rules
+below: merge tokens exist only on acyclic joins, cyclic reconvergence
+requires checked invariant establishment and preservation, unproved cyclic
+arrivals prevent primitive-read equality introduction, and the scalar
+block-predicate rule presumes the existing cyclic cuts. Source-bound
+implementations cover bounded families — cyclic exit-header checks,
+cyclic-guarantee strengthening, and the enumerated cyclic call fixtures —
+while the general cyclic execution composition remains an open ledger leg
+tracked on the execution board. This revision claims no proved general
+cyclic composition theorem.
+
 ## Responsibilities
 
 | Component | Responsibility | Cannot choose |
