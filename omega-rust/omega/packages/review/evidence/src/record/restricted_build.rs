@@ -19,8 +19,13 @@ pub enum PackagePolicyRestrictedBuildOperation {
     /// Scoped real filesystem roots: reads under granted read roots, writes
     /// under granted write roots, anything else refused.
     ScopedFilesystemExecution,
-    /// Real filesystem without path grants. Admission does not currently
-    /// select this mode; it is retained so a review cannot silently drop it.
+    /// Real filesystem without path grants — the interpreter's opt-in
+    /// `FilesystemAccess::RealUnscoped` provider, carrying host
+    /// build-script authority. Build admission deliberately has no path
+    /// that produces it: every admitted scope issues scoped grants only,
+    /// and the grants are the audit surface, so admitting this mode is a
+    /// trust-boundary decision rather than a pending item. The variant
+    /// stays so a review surfaces it if an evaluator ever carries it.
     UnscopedFilesystemExecution,
 }
 
