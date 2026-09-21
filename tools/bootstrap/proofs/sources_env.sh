@@ -35,9 +35,10 @@ BETA_ENCODING_DEFINITION_PACKAGE_SIZE=116900
 BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c
 
 # Bound gate-local prefix entries packed on top of the bound member bytes.
-# Each derivation gate packs its own diagnostic entry on the packed checker
-# or theory closure — the customer bytes are the gate's prefix plus the
-# bound members — so the entries bind here the same way the staged-compiler
+# The beta-encoding theory and certificate-check gates pack the shared
+# producer entry on the packed theory closure; each derivation gate packs
+# its own diagnostic entry on the packed checker or theory closure — the
+# customer bytes are the gate's prefix plus the bound members — so the entries bind here the same way the staged-compiler
 # development driver binds on the Delta edge and the omega-* customer
 # entries bind on the Omega edge: separate inputs from the canonical
 # closures, never part of the manifested members. The identical pins in each
@@ -46,6 +47,8 @@ BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1
 # is an identity check on the entry source; it is not a proof of the gate's
 # judgment. Changing an entry changes the packed customer and must update
 # every record together.
+BETA_ENCODING_PRODUCER_ENTRY_SIZE=211
+BETA_ENCODING_PRODUCER_ENTRY_SHA256=35577d248b7745f3a6f4d2615e81bb8aae40cb8608d5fbda0be55978b544b373
 DERIVATION_ADMISSION_ENTRY_SIZE=1270
 DERIVATION_ADMISSION_ENTRY_SHA256=d657d412c92123bdc6dc7c95c38eed50a158c5c986507c5eb3f5ae4420a96e88
 DERIVATION_CHECKING_ENTRY_SIZE=1155
@@ -173,6 +176,20 @@ materialize_beta_encoding_theory() {
   require_beta_encoding_theory_identity || return $?
   python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" "$BETA_ENCODING_DEST"
+}
+
+# require_beta_encoding_producer_entry_identity : the shared producer prefix
+# entry the beta-encoding theory and certificate-check gates pack on the
+# bound theory members is the bound file. The entry is a separate input
+# from the canonical closure and never part of the manifested members, so
+# consumers that pack it run this before packing; tests may call it
+# directly. It does not run during materialization.
+require_beta_encoding_producer_entry_identity() {
+  require_bound_identity "main.gamma" \
+    "$OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY" \
+    "$BETA_ENCODING_PRODUCER_ENTRY_SIZE" \
+    "$BETA_ENCODING_PRODUCER_ENTRY_SHA256" \
+    "tests/gamma/beta-encoding-theory/README.md"
 }
 
 # require_derivation_*_entry_identity : the gate's diagnostic prefix entry is

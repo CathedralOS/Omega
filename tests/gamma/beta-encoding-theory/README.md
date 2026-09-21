@@ -91,13 +91,18 @@ materialized `evaluator`, use
 (or `python -B` on Windows when that names Python 3). The Python runner does
 not reconstruct or replace the evaluator. Both entrypoints propagate failures.
 
-The [producer entry](main.gamma) calls ordinary Gamma
+The bound [producer entry](main.gamma) — 211 bytes, SHA-256
+`35577d248b7745f3a6f4d2615e81bb8aae40cb8608d5fbda0be55978b544b373`, recorded
+in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_beta_encoding_producer_entry_identity` before it packs on the bound
+member bytes — calls ordinary Gamma
 [`beta_encoding_theory`](../../../bootstrap/proofs/beta_encoding/theory/theory.gamma)
 only for empty input. Its marked application result publishes bytes without a
 scalar terminator. Three nonempty inputs require status 1 and empty stdout and
 stderr. The exact producer composition is pinned in [source.tsv](source.tsv).
-The unmodified checking entry and its identity are reused from
-[derivation-checking](../derivation-checking/README.md).
+The unmodified checking entry and its bound identity are reused from
+[derivation-checking](../derivation-checking/README.md), checked here by
+`require_derivation_checking_entry_identity` before packing.
 
 The emitted complete GTH1 section contains the full error-valued Beta encoder
 theory. Its byte

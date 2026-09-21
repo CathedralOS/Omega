@@ -51,15 +51,18 @@ require_seed_execution_host "Beta encoding theory"
 ENCODING_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ENCODING_TMP"' EXIT HUP INT TERM
 # The bound member closures are checked against their audited records; the
-# gate's own diagnostic prefix entries pack on top of those bound members.
+# bound prefix entries — this gate's producer entry and the shared
+# derivation-checking diagnostic entry — pack on top of those bound members.
 require_beta_encoding_theory_identity
+require_beta_encoding_producer_entry_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$ENCODING_TMP/producer.gamma" --prefix "$GATE_DIR/main.gamma"
 require_derivation_checker_identity
+require_derivation_checking_entry_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$ENCODING_TMP/checker.gamma" \
-    --prefix "$OMEGA_REPO_ROOT/tests/gamma/derivation-checking/main.gamma"
+    --prefix "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY"
 materialize_gamma_evaluator "$ENCODING_TMP/evaluator" >/dev/null
 python3 -B "$GATE_DIR/$ENCODING_GATE" "$ENCODING_TMP"
