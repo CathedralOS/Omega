@@ -13777,6 +13777,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   external-roots `ProgramLocalRootInstallationLedger`, image-emission
   hosted_receiver). Sibling re-mine names on this surface:
   PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
+- **PIPELINE-DOC-LINK-DRIFT.** Resolved — re-mines the link-resolution
+  half of PIPELINE-ROUTE-CONFORMANCE-AUDIT's landed gate:
+  `tests/architecture/representation_ownership/route_conformance.rs`
+  pins `omega-rust/pipeline.md` — every `[label](target)` route-table
+  link resolves inside its named crate ("pipeline.md link does not
+  resolve" refusal) and `#fragment` targets resolve to headings in the
+  linked markdown (:125, :157). Re-verified at `bbc42c098b54`: all
+  pipeline.md targets still resolve on disk; the audit caught and
+  repointed the stale `timing_report.rs` link to
+  `compile_timings/mod.rs` at `1ccc88fb51`. No drift remains open.
 - **PIPELINE-ORPHAN-ELIMINATION.** The audit's residual slice: one dead stage
   output eliminated —
   `checked-compilation-to-terminal-artifact::validate_lowered_integer_comparison_custody`
