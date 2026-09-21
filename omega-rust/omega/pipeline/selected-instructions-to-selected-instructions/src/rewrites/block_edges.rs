@@ -156,6 +156,13 @@ pub(super) struct PathEdge<'function> {
     pub(super) successor: &'function SelectedSuccessor,
 }
 
+/// The acyclic-path walk bound for the shape-agnostic member-run
+/// admission: every per-shape family bounds its walk by shape; the shared
+/// admission has no shape, so it bounds the derivation itself. A function
+/// whose run-to-destination paths take more edges than this abandons as
+/// over budget rather than reporting a truncated window.
+pub(super) const PATH_EDGE_LIMIT: usize = 64;
+
 /// Every acyclic edge path from block `from` to block `to`, in walk order.
 ///
 ///

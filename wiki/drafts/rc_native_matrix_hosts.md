@@ -13,7 +13,7 @@ sibling drafts linked below.
 | Runner | Product identity | Row record | Status |
 | --- | --- | --- | --- |
 | Linux x86-64 | `linux_x86_64` | [rc_native_matrix_linux_x86_64.md](rc_native_matrix_linux_x86_64.md) | **red** — witnessed; see fresh sweep below |
-| Linux AArch64 | `linux_arm64` | [rc_native_matrix_linux_arm64.md](rc_native_matrix_linux_arm64.md) | **red/open** — cross-emit only on this host (11 pass / 75 fail across 86 legs at `e76d715c8e`); real execution legs need a linux/arm64 host |
+| Linux AArch64 | `linux_arm64` | [rc_native_matrix_linux_arm64.md](rc_native_matrix_linux_arm64.md) | **red/open** — cross-emit only on this host (13 pass / 73 fail across 86 legs, re-witnessed at `c267df86ac`); real execution legs need a linux/arm64 host |
 | macOS AArch64 | `macos_arm64` | — none — | **open, unrecorded** — no runner has executed emitted Mach-O programs; no row draft exists yet |
 | Windows x86-64 | `windows_x86_64` | [rc_native_matrix_windows_x86_64.md](rc_native_matrix_windows_x86_64.md) | **open** — recorded procedure for a Windows runner; no execution yet |
 

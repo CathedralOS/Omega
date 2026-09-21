@@ -33,8 +33,8 @@ branch/return spellings — so each fails for the semantic reason rather than as
 unknown text. Recognized unmodeled loads/stores refuse for missing memory
 contracts — the canonical unordered AArch64 pair `ldr`/`str` is the contracted
 exception above, and the refused coverage spans the width/signed/unscaled/unprivileged grids,
-non-temporal pairs, RCpc/limited-ordering acquire-release forms, the complete
-exclusive/LSE ordering grid, the 64-byte block forms, NEON structure loads and
+non-temporal and signed pair forms, RCpc/limited-ordering acquire-release forms, the complete
+exclusive/LSE ordering grid including the store-only (`st*`) aliases, the 64-byte block forms, NEON structure loads and
 stores, x86 string/port-string bare and dword forms, stack and flag-store forms,
 far-pointer loads, `xsave`/`fxsave` state families, descriptor-table memory
 operands, memory-destination non-temporal stores, and `bound`. Spellings with a
