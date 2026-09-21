@@ -9120,6 +9120,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`optimized_semantic_wrapper_object/codec.rs`) remains unrelocated with
   DURABLE-CODEC-EXTRACTION live (exp 07:34Z) and the wrapper dirs fenced to
   UEFI-PHYSICAL-SEMANTIC-ENTRY (exp 08:44Z).
+  Re-witnessed at `0a0662ad27a` (z161): all four findings hold — F1's
+  `native/prepared.rs` is still absent with no dangling references, F2's
+  `receiver_eligibility.rs` is still resident at 1,181 lines in
+  `psi/compiler/terminal-production` (unfenced; placement-debt verdict
+  unchanged), F3's `terminal_authority_policy` subsystem is still resident in
+  `native-realization` and now sits under FILESYSTEM-RELEASE-CONTRACT's claim
+  (zergling-z27, exp ~14:20Z), and F4's orphan codec is still unrelocated —
+  DURABLE-CODEC-EXTRACTION is no longer live (row exists, no claim) while the
+  `optimized_semantic_wrapper_{object,encoding}` dirs stay fenced to
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (z88, exp ~08:44Z). No unclaimed slice remains.
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
   alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
   `36ffc8af87`), which names this row verbatim. Re-verified on linux
