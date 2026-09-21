@@ -8139,6 +8139,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   annotated on this board). No live claim currently fences
   `proof_contracts/ordered_values.rs` or `guard_narrowing`; the neighboring
   DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT stub re-mines the same sentence.
+- **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT.** — mined candidate; scope
+  verified at `0f75a052f0`, covered. Re-mines the same chapter-12 sentence
+  as the sibling above ("solver-general proofs and dependent views remain
+  narrower", chapter_12_dependent_types.md:18): the views half of
+  relational proofs plus solver-general widening is exactly the residual
+  DEPENDENT-RELATIONAL-PROOFS-VIEWS records — a multi-session
+  solver/representation leg, not a bounded slice landable under this name.
+  The landed relational slice (strict bounds discharged through the
+  ceiling's carrier, `ordered_values::composed_ceiling_gap` +
+  `operand_carrier_bound`) stays where the sibling puts it; equality
+  through writes is DEPENDENT-VALUES-CHECKER-COVERAGE's slice. No
+  independent slice exists here.
 - **DEPENDENT-VALUES-CHECKER-COVERAGE.** Mined candidate; scope verified at
   `33eb8d92ff`: the residual named by the rewritten
   [chapter 12](wiki/language_guide/chapter_12_dependent_types.md) sentence is
