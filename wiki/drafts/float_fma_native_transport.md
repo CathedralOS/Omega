@@ -57,3 +57,15 @@ Conclusion: no unfenced implementable slice remains for this stub — the
 transport work belongs to the canonical X86-FMA-PROVIDER-TRANSPORT claim
 under its own sequencing. This pass contributes the re-verified landing
 state of leg (a) and the exact residual map.
+
+## Re-verification — `72fc66d6c3` (Zergling-126, linux x86-64)
+
+State unchanged; the two fence sites drifted a few lines without content
+change: `object_emission.rs` transport-stop now at `:42` (was `:34-38`),
+`optimization_stage.rs` "optimized nearest-FMA custody" now at `:29` (was
+`:27-30`). Still no `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma` references
+in s2s/s2rh/machine-emission `src` — the only hits remain the `isa-x86_64`
+`fma.rs` encoders and the object_emission stop message. Live claims still
+hold the residual surfaces (X86-FMA-PROVIDER-TRANSPORT on `legalization/`,
+exp 09:07Z; UEFI-PHYSICAL-SEMANTIC-ENTRY on the `native_realization`
+emission files, exp 08:44Z). No unfenced implementable slice.
