@@ -4,6 +4,12 @@ Scope-verification record for the dispatched name
 `PROOF-VALUE-SOURCE-CORRESPONDENCE` (board stub at ~TASKS.md:12788, mined
 unattributed in the wave-9 deep-mine batch `749794ddeb64`). Audited at
 `8f58b6676b00` on linux x86-64 (cargo; `mbx` absent on this host).
+Re-audited at `d781031d40e` (~13:35Z Sep 21, linux x86-64): the name has
+been re-mined into a small stub cluster — duplicate undotted
+`PROOF-VALUE-SOURCE-CORRESPONDENCE` stubs at ~TASKS.md:15392, ~15433 and
+later rows, all still `verify scope then implement`. The resolution and
+verdict below are unchanged; the stubs should fold into the owning rows
+(or be retired) rather than dispatch a new item.
 
 ## Resolution
 
@@ -47,6 +53,9 @@ cargo nextest run -p checked-trees-to-lowered-psi value_correspondence
 → 1/1 pass: extents::tests::eliminated_extent_preserves_collection_evaluation_bounds_and_selection
 ```
 
+Re-witnessed green at `d781031d40e` (code identical to main `4b8d3f36b725`
+outside TASKS.md): same command, 1/1 pass.
+
 ## Open legs
 
 - **General slice-backed extents**: need a retained view/bounds execution
@@ -77,3 +86,14 @@ Live claims adjacent to — but not covering — this surface:
 
 `value_correspondence/` and `owned_value_source.rs` themselves are unfenced;
 re-check `tools/claims.py status` before any code leg.
+
+Fence map at the `d781031d40e` re-audit: the c2l surfaces named above now
+also include `tests/nominal_affine_source/integer_comparison.rs` under
+RC-GATE-STABILITY-REPAIR (12:15Z), `tests/registered_callback_lifetime.rs`
+under NEW-C2L-SUITE-ERASED-PROOF-FORMALS-COMPILE-FIX (13:53Z), the
+`proofs/crash_routes/scalar_terms*` guarded-float term vocabulary under
+NEW-CC-IEEE-COMPARISON-GUARD-SCALAR-TERMS (18:29Z), and the
+entry-requirement crash certificate surfaces under
+NEW-PCSL-ENTRY-REQUIREMENT-CERTIFICATE (18:32Z). `value_correspondence/`,
+`owned_value_source.rs` and `expression_preparation/source_custody/`
+remain unfenced.
