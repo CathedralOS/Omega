@@ -9,7 +9,7 @@ use optimization_core::{
     OptimizedProgramStorageSemanticWrapperObjectIdentity, RelocationFreeObjectContainerIdentity,
 };
 
-use super::validate_object;
+use super::validation::validate_object_preserving_seal;
 
 pub(crate) fn compose_object(
     source_signature: [u8; 32],
@@ -134,6 +134,6 @@ pub(crate) fn compose_object(
         relocation_record_count: 0,
     };
     object.identity = object.recomputed_identity()?;
-    validate_object(&object, encoding.template())?;
+    validate_object_preserving_seal(&object, encoding.template())?;
     Ok(object)
 }
