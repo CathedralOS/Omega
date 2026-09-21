@@ -7347,6 +7347,36 @@ Platform/cross-host (structurally gated — document host limits):
   by the bootstrap board: Windows x64 (ALPHA-WINDOWS-CONFORMANCE-HOST /
   ALPHA-WINDOWS-SEED-EXECUTION), macOS arm64 (`svc #0x80` mmap path), and
   QEMU — none runnable on this host. No unfenced slice.
+- **ALPHA-WINDOWS-CONFORMANCE.** Mined candidate — scope verified at
+  `8570ba9ae8`, host-gated with a seed divergence surfaced. Owns the
+  Windows x64 edge legs per the host-coverage row (:11564):
+  `tests/bootstrap/alpha-beta-edge.sh` +
+  `tests/alpha/reference/diamond-py.sh` on the audited PE seed.
+  De-risked on this host under wine-6.0.3 (needs
+  `vm.overcommit_memory=1` — the seed commits a 128 GiB VirtualAlloc at
+  startup, same note as the omega-parser PE): `conformance.sh` 31/34
+  with every value/edge case byte-exact, `diamond-py.sh` 7/10 against
+  `alpha_ref.py` (same reds), Beta compiler reconstruction
+  byte-identical, finite root audit green, container + committed-forge
+  provenance green; the 736-control `word-prefix.sh` leg did not finish
+  inside the wine exec window. The three reds are all trap exit codes —
+  and two of them are a seed defect, not a wine artifact: the PE seed's
+  `div`/`mod` run a bare `cqto; idiv` with no operand guards
+  (.text+0x258/0x27a), while `alpha_x64_linux.s` pre-checks `R[s]=0`
+  and `INT_MIN/-1` and jumps to its `ud2` trap. A real #DE surfaces as
+  0xC0000094 — exit 148 under wine, and SIGFPE/136 (or raw 148) rather
+  than the pinned 132 wherever Git Bash applies its exception-to-signal
+  mapping — so `div_zero_trap`/`div_ovf_trap` appear structurally
+  unpassable on Windows x64 until the audited listing
+  (`alpha_x64_windows.hex` via `tools/bootstrap/alpha/forge.py`) regains
+  the guards and the bound identity in `seed_env.sh` is re-audited.
+  The `unknown_trap` red (ud2 → exit 29 under wine) is likely a wine
+  artifact — `STATUS_ILLEGAL_INSTRUCTION` maps to SIGILL on the real
+  path — but only a literal host run confirms. Residual: (1) adjudicate
+  the div/mod guard divergence — the audited-seed lane on the bootstrap
+  board, not this row; (2) literal `alpha-beta-edge.sh` +
+  `diamond-py.sh` under Git Bash + native python3 on Windows x64 —
+  host-gated, shared with ALPHA-WINDOWS-CONFORMANCE-HOST below.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
   host. The edge gate's provenance leg now runs the committed forge
   (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including
