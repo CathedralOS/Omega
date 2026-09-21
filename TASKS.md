@@ -11288,6 +11288,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice. Re-verified
   `5b3caaf337`: fence set moved — `rewrites/mod.rs` + `rewrites/catalog.rs`
   now sit under GENERAL-SCHEDULE-RELOCATION (~05:01Z), routing still fenced.
+  Re-verified `dccdfd1fd1` on linux x86-64: the fold stands — 41 `Orphaned`
+  rows in `rewrites/module_catalog.rs` still await the single
+  stage-entrance execution route EXECUTION carries; the implementing
+  surfaces stay fenced (`selected_optimization.rs` +
+  `rewrites/{mod.rs,module_catalog.rs}` under PIPELINE-REWRITE-CATALOG-WIRING
+  ~08:00Z; SELECTED-REWRITE-CATALOG-ROUTE item claim ~04:11Z;
+  SELECTED-REWRITE-CATALOG-WIRING/PIPELINE-REWRITE-ORPHANS/REWRITE-VALIDATOR-
+  INDEPENDENCE item claims ~01:57-05:01Z).
 - **SELECTED-OPTIMIZATION-DIRECT-READS.** Mined candidate — resolved,
   covered. Re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL
   surface (the direct-reads leg): `selected_optimization.rs` no longer
