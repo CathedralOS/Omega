@@ -13454,6 +13454,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling surfaces: the neighboring grant probes (InvalidOutputProbe,
   CanonicalizeOutputProbe, CrossDomainProbe) pin the remaining
   preparation-intent quadrants in the same test.
+- **NEW-RBRA-MIGRATION-RECIPE.** Inserted row — slice landed. Planner-scoped
+  to `wiki/drafts/range_suffix_migration.md`, which did not exist: authored it
+  as the migration recipe for REMOVE-BRACKETED-RANGE-ANNOTATIONS (:62) — a
+  position-by-position decision table (`-> T [lo..=hi]` → `T in D` or `-> T`
+  + `ensures`; `x: T [..]` → `T in D` or `T` + `requires`; exclusive and
+  receiver-dependent endpoint forms; extent/const positions reject to const
+  extents), the per-file procedure, and the corpus-first ordering against the
+  measured 1,598 occurrences / 544 files. The `RBRA` series names the
+  REMOVE-BRACKETED-RANGE-ANNOTATIONS legs (NEW-RBRA-EPSILON-PARSER-RETIREMENT,
+  NEW-RBRA-STD-LIBRARY-MIGRATION, NEW-RBRA-PASS-RECAST-GENERICS,
+  NEW-RBRA-FAIL-DEPENDENT, NEW-RBRA-PASS-TERMINATION); this is the recipe the
+  corpus migration executes against.
 - **NEW-RBRA-STD-LIBRARY-MIGRATION.** Inserted row, scope verified at `891194236afa` (planner-scoped to `source/library/std/{console,time,calling}.omg` + `source/library/std/targets/{linux_x86_64,linux_arm64,windows_x86_64,macos_x86_64}`) — no migration is pending on the scoped surface: every assigned path is byte-identical between this worktree and `origin/main` (empty `git diff --stat` per file/dir), and the std library already spells the current `Service<R>` carrier vocabulary (`time.omg:951` `host: Service<TimeHost>`; bare boundary-trait value spellings reject under `32f5182254`). The `RBRA` token occurs nowhere in the tree or boards; the only sibling in the series is NEW-RBRA-PASS-RECAST-GENERICS, which holds `tests/omega/pass/{recast,generics}` (15:22Z) — the corpus side of whatever migration the series names. Nothing to implement under this name until a concrete contract or failing customer identifies the delta.
 - **NEW-TLBR-PARAMETERIZED-REQUIREMENT-ADMISSION.** Inserted row, scope verified at `c3dd8016a74d` (planner-scoped to `psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs`, byte-identical to origin/main) — the parameterized-requirement admission frontier is `is_directly_callable_top_level_requirement`: a top-level `boundary requirement` may be body-called only when public, nongeneric (`lifetime_parameters.is_empty()` AND `machine_type_parameters(callee).is_empty()`), single-state, and self-free or owned-self; generic/lifetime-parameterized requirements deliberately keep the symbol fence ("receiver custody and obligation transfer are a separate settlement shape"). Widening the predicate is not a slice inside this file: it decides which bodyless symbols may execute, which requires the selected-provider settlement to answer a generic instantiation plus the lifetime-linked return frontier — machinery in selected-dispatch/provider-planning, not validation. The instantiation-bound machinery that an admitted parameterized call would need (`validate_type_parameter_instantiation_bounds` positional pinning + `type_satisfies_declared_property`) already exists and is exercised through the resolved-target rung. No bounded slice remains under the assigned file; the cross-file leg needs a dispatch that includes selected-dispatch's provider resolution.
 - **NEW-UPPER-KEBAB.** Resolved — minted name for the uppercase-rejection
