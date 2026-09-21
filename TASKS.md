@@ -8267,6 +8267,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   default-selection row). Record production needs `tools/benchmark`
   (fenced by BENCHMARK-ROW-RESUMPTION ~03:42Z) plus the matrix doc/test
   pair — every slice is claimed elsewhere this wave. No independent
+  Re-verified at `7241e02227` ([z70 ledger](wiki/drafts/benchmark_selection_contrast_rows_z70.md)):
+  both `sel-` contrast rows still on disk, records census now 10
+  (added `structural_proofs` default + `macos_x86_64`/`uefi_x86_64`
+  cross rows), `test_benchmark.py` 29/29 green; records/ +
+  `benchmarks.md` stay fenced to BENCHMARK-PROOF-SUBJECT-SELECTION
+  (exp 14:19Z).
 - **BENCHMARK-ROW-RESUMPTION.** — mined candidate; scope verified at
   `e927421a8b` on linux x86-64 (z181): re-mines the benchmark-row
   production lane — resume committing measured `tools/benchmark/
