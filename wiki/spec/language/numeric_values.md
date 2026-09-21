@@ -353,3 +353,16 @@ and additional requirements remain exact; named calls do not gain this
 conversion. Bounds must follow that selected operator's actual contract, not
 another declaration sharing its token. Bounds evidence grants no element-domain,
 borrow, mutation, or transfer authority.
+
+## Status
+
+Psi checking accepts the Exact, Wrapping, Saturating, and Trapping policies
+above, but no program using them yet reaches a native artifact: Terminal
+production covers only part of the surface. Landed legs include
+boolean-to-integer conversion, unsigned saturating narrowing casts, and
+unsigned-to-unsigned wrapping casts. Signed or mixed-sign saturating and
+modular conversions still refuse at the check stage, and Trapping's
+operation-level crash site has no admitted observation-profile row — its
+Terminal encoding stays unsettled behind the
+`terminal-operation-level-trap-crash-site` question. The leg is tracked under
+`ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
