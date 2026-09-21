@@ -21,6 +21,7 @@ use typed_trees::machine::Machine;
 use crate::BuildTimeValue;
 
 mod closure_validation;
+mod concrete_invocation;
 pub(crate) mod const_evaluable;
 mod selection_authority;
 #[cfg(test)]
@@ -302,6 +303,36 @@ impl BuildTimeAdmissionPlan {
         closure_validation::closure_has_authored_requires(&self.call_edges, program, machine.symbol)
     }
 
+    /// Whether the authored `requires` premises in `machine`'s call closure
+    /// are discharged by this exact zero-argument `machine()` invocation:
+    /// the synthesized call has no snapshot obligations to reproduce, so a
+    /// private probe machine carrying it can re-run ordinary contract
+    /// checking and decide every premise at the concrete call. A
+    /// non-zero-argument invocation has authored arguments a synthesized
+    /// `machine()` call cannot reproduce, so only the empty-arguments
+    /// invocation gains the discharge; every other admission path keeps the
+    /// conservative fence on that axis.
+    fn zero_argument_invocation_discharge(
+        &self,
+        program: &TypedTrees,
+        machine: &Machine,
+        arguments: &[BuildTimeValue],
+        custody: Option<BuildTimeInvocationCustody>,
+    ) -> bool {
+        arguments.is_empty()
+            && self.closure_includes_authored_requires(program, machine)
+            && concrete_invocation::zero_argument_invocation_discharges(
+                program,
+                machine,
+                custody.and_then(|custody| match custody {
+                    BuildTimeInvocationCustody::Source(span) => Some(span),
+                    BuildTimeInvocationCustody::Symbol(symbol) => {
+                        program.symbols.symbol_source_span(symbol)
+                    }
+                }),
+            )
+    }
+
     /// Whether the only authored `requires` premises in `machine`'s call
     /// closure are parameter-domain premises on `machine`'s own states. A
     /// caller that has proved each concrete argument's membership in its
@@ -562,7 +593,8 @@ impl BuildTimeAdmissionPlan {
             .iter()
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_common_floor(program, machine)?;
+        let discharge = self.zero_argument_invocation_discharge(program, machine, &arguments, None);
+        self.require_floor(program, machine, None, discharge)?;
         let value = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
@@ -590,7 +622,9 @@ impl BuildTimeAdmissionPlan {
             .iter()
             .find(|machine| machine.name.as_str() == machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_common_floor_for_invocation(program, machine, custody)?;
+        let discharge =
+            self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
+        self.require_floor(program, machine, Some(custody), discharge)?;
         let value = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
@@ -681,6 +715,8 @@ impl BuildTimeAdmissionPlan {
         let [machine] = matching.as_slice() else {
             return Err("build-time invocation has no unique exact machine".into());
         };
+        let discharge_authored_requires = discharge_authored_requires
+            || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
         if discharge_authored_requires {
             self.require_common_floor_for_concrete_premise_invocation(program, machine, custody)?;
         } else {
