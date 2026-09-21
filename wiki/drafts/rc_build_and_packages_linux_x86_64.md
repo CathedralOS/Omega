@@ -3,7 +3,9 @@
 Release-matrix gate `RC-BUILD-AND-PACKAGES` per
 `wiki/drafts/rust_compiler_completion.md` (board stub RC-BUILD-AND-PACKAGES).
 **Status: RED at this base.** Re-measured 2026-09-21; supersedes the
-`f1675418b1` record (which read 109/1664 + 11/353).
+`f1675418b1` record (which read 109/1664 + 11/353) and the `e76d715c8e`
+lane record (105/1645 + 2 skip, 22/350 compiler legs — same
+fixture-migration residual families).
 
 - Host: linux x86-64, runner `cargo` (mbx unavailable)
 - Toolchain: `nightly-2026-09-04`, `rustc 1.100.0-nightly (a69a63265 2026-09-03)`
