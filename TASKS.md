@@ -12795,21 +12795,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `Extent::Resident<P,T>` over an exact placement per
   [placed_access](wiki/spec/resources/placed_access.md) /
   [chapter_20](wiki/language_guide/chapter_20_memory_layout_abi.md#admission-and-placement).
-  Still unworkable — every implementing surface sits inside live fences:
-  the placed-access route (terminal-psi ownership/placement, access-plans
-  `owned_placement_lifecycle`, placed_view_referent, native-realization)
-  is split across PLAN-LAID-VIEWS (~09:25Z Sep 21) and
-  PLACED-ACCESS-NATIVE-OPS (~06:27Z Sep 21); the UEFI arrival leg under
-  UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z Sep 21). Adjacent extent/entry
-  surfaces also fenced: RUNTIME-SIZED-ACTIVATION-STORAGE
-  (`psi/foundation/extents`, ~01:34Z), CONST-GENERIC-EXTENT-RANGE-DISCHARGE
-  (ranges checks, ~09:26Z), HOSTILE-SHARED-MEMORY-REMAPPING
-  (`external-roots/program_local_extents`), BORROWED-STORAGE-RESTORATION
-  (`borrowed_window` emission). ENTRY-CONTENT-ROOTS and
-  PLACE-ALIAS-ANALYSIS-PRODUCER claims have since expired, but no
-  unfenced slice remains — their surfaces are co-held by the claims
-  above. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
-  PLACED-ACCESS-NATIVE-OPS (claimed), plus the entered-extent siblings
+  Still unworkable — re-verified at `3a8203932783` with the live-claim
+  map: most fences named in the previous audit have drained
+  (PLACED-ACCESS-NATIVE-OPS, UEFI-PHYSICAL-SEMANTIC-ENTRY,
+  RUNTIME-SIZED-ACTIVATION-STORAGE, HOSTILE-SHARED-MEMORY-REMAPPING,
+  BORROWED-STORAGE-RESTORATION, ENTRY-CONTENT-ROOTS and
+  PLACE-ALIAS-ANALYSIS-PRODUCER all lapsed), but the implementing
+  surfaces are still co-held: the placed-access route's
+  `placed_view_referent` leg stays under PLAN-LAID-VIEWS (~09:25Z
+  Sep 21), `psi/foundation/extents` is re-fenced under
+  DEVICE-EXTENT-ACCESS (`lib.rs` + `ordering_events`, ~11:04Z Sep 21)
+  and NEW-ATC-PROVIDER-CONFORMANCE-STANDIN (`mapping`, ~16:35Z Sep 21),
+  and native-realization is partially held by
+  BUILD-EXCLUSION-REALIZATION (~15:52Z Sep 21). `extent.omg`,
+  terminal-psi ownership/placement, and access-plans
+  `owned_placement_lifecycle` are unfenced, but no end-to-end slice
+  escapes the held files. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
+  PLACED-ACCESS-NATIVE-OPS (claim lapsed), plus the entered-extent siblings
   under ENTRY-CONTENT-ROOTS.
 - **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
   handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
