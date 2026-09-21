@@ -5,7 +5,7 @@ use super::{
     AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
     AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptFlagEffect,
     AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess, AsmSchedulingHintKind,
-    AsmTargetApplicability, asm_catalog_entry,
+    AsmSystemRegister, AsmTargetApplicability, asm_catalog_entry,
 };
 
 #[test]
@@ -203,6 +203,55 @@ fn control_register_contracts_pin_exact_u64_flow_and_machine_authority() {
     }
 
     assert_eq!(asm_catalog_entry("write_cr2"), None);
+}
+
+#[test]
+fn system_register_contracts_pin_exact_u64_flow_and_machine_authority() {
+    for register in AsmSystemRegister::ALL {
+        let AsmCatalogEntry::Contract(read) =
+            asm_catalog_entry(register.read_mnemonic()).expect("system-register read contract")
+        else {
+            panic!("system-register read must be contracted");
+        };
+        assert_eq!(
+            read.shape,
+            AsmInstructionShape::SystemRegisterRead(register)
+        );
+        assert_eq!(read.target, AsmTargetApplicability::Aarch64);
+        assert_eq!(
+            read.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
+        assert_eq!(read.operands[0].access, AsmOperandAccess::Write);
+        assert_eq!(read.operands[0].target_register, register.name());
+        assert_eq!(read.operands[0].expected_type_name, "u64");
+        assert_eq!(read.clobbers, &["x9", "x15"]);
+    }
+
+    for register in AsmSystemRegister::WRITABLE {
+        let mnemonic = register.write_mnemonic().expect("writable system register");
+        let AsmCatalogEntry::Contract(write) =
+            asm_catalog_entry(mnemonic).expect("system-register write contract")
+        else {
+            panic!("system-register write must be contracted");
+        };
+        assert_eq!(
+            write.shape,
+            AsmInstructionShape::SystemRegisterWrite(register)
+        );
+        assert_eq!(write.target, AsmTargetApplicability::Aarch64);
+        assert_eq!(
+            write.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
+        assert_eq!(write.operands[0].access, AsmOperandAccess::Read);
+        assert_eq!(write.operands[0].target_register, register.name());
+        assert_eq!(write.operands[0].expected_type_name, "u64");
+        assert_eq!(write.clobbers, &["x9", "x10", "x11", "x15"]);
+    }
+
+    assert_eq!(asm_catalog_entry("write_esr_el1"), None);
+    assert_eq!(asm_catalog_entry("write_far_el1"), None);
 }
 
 #[test]

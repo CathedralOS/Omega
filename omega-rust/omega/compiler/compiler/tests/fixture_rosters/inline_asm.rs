@@ -11,6 +11,8 @@ pub const ASM_X86_PIPELINE_DIRECTIVES_COMPILE: &str =
     "inline_asm/asm_x86_pipeline_directives_compile";
 pub const ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE: &str =
     "inline_asm/asm_aarch64_pipeline_directives_compile";
+pub const ASM_AARCH64_SYSTEM_REGISTERS_COMPILE: &str =
+    "inline_asm/asm_aarch64_system_registers_compile";
 pub const ASM_CACHE_MAINTENANCE_COMPILE: &str = "inline_asm/asm_cache_maintenance_compile";
 pub const ASM_CLI_REQUIRES_MACHINE_AUTHORITY: &str =
     "inline_asm/asm_cli_requires_machine_authority";
@@ -31,6 +33,7 @@ pub const PASS_CANARIES: &[&str] = &[
     ASM_MEMORY_TRANSFER_COMPILE,
     ASM_X86_PIPELINE_DIRECTIVES_COMPILE,
     ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE,
+    ASM_AARCH64_SYSTEM_REGISTERS_COMPILE,
     ASM_CACHE_MAINTENANCE_COMPILE,
 ];
 
@@ -105,6 +108,28 @@ pub const MSR_FAIL_CANARIES: &[(&str, &str)] = &[
     (
         "inline_asm/asm_wrmsr_requires_u64_value",
         "asm instruction `wrmsr` operand `value` requires an exact `u64` for target register `edx:eax`, found `u32`",
+    ),
+];
+
+/// System-register contracts pin MachineOwner authority, exact-u64 operand
+/// flow and the read-only exclusion on the syndrome pair; fragments live
+/// inline because these fixtures are exercised through `assert_contract_rejects`.
+pub const SYSTEM_REGISTER_FAIL_CANARIES: &[(&str, &str)] = &[
+    (
+        "inline_asm/asm_write_sctlr_el1_requires_machine_authority",
+        "asm instruction `write_sctlr_el1`, which requires a FREESTANDING boundary root",
+    ),
+    (
+        "inline_asm/asm_read_sctlr_el1_requires_u64_destination",
+        "asm instruction `read_sctlr_el1` operand `destination` requires an exact `u64` writable place",
+    ),
+    (
+        "inline_asm/asm_write_sctlr_el1_requires_u64_value",
+        "asm instruction `write_sctlr_el1` operand `value` requires an exact `u64` for target register `sctlr_el1`, found `u32`",
+    ),
+    (
+        "inline_asm/asm_write_esr_el1_unavailable",
+        "unknown asm instruction `write_esr_el1`",
     ),
 ];
 

@@ -254,6 +254,29 @@ fn pipeline_directives_enforce_zero_operand_and_clobber_contracts() {
         assert_contract_rejects(name, expected);
     }
 }
+// AArch64 system-register access is pinned at the same checked surface as the
+// pipeline directives: the fixture binds freestanding AArch64 program entries,
+// so entry selection admits the asm-only body while `asm#*` call lowering is
+// unbuilt (statement position stops at "call operation", value position at
+// "call source result type"). When a dedicated asm operation reaches emitted
+// bytes on AArch64 (`mrs`/`msr` encodings), promote this fixture to byte
+// assertions and an x86 refusal test.
+#[test]
+fn aarch64_system_registers_reach_checked_semantics() {
+    compile_canary_without_output(&pass_canary(
+        fixture_roster::ASM_AARCH64_SYSTEM_REGISTERS_COMPILE,
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!("system-register canary should reach checked semantics:\n{diagnostics:#?}")
+    });
+}
+
+#[test]
+fn system_registers_enforce_authority_and_value_contracts() {
+    for &(name, expected) in fixture_roster::SYSTEM_REGISTER_FAIL_CANARIES {
+        assert_contract_rejects(name, expected);
+    }
+}
 
 // Cache maintenance is pinned at the checked surface for the same reason as
 // the pipeline directives above: asm-only program entries are refused before

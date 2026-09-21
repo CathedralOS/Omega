@@ -42,6 +42,14 @@ pub enum AsmInstructionShape {
     MsrWrite,
     ControlRegisterRead(AsmControlRegister),
     ControlRegisterWrite(AsmControlRegister),
+    /// AArch64 system-register read (`mrs`): the source register is folded
+    /// into the mnemonic since an architectural register is not an operand
+    /// place. The explicit destination receives the register's `u64` view.
+    SystemRegisterRead(AsmSystemRegister),
+    /// AArch64 system-register write (`msr`): the destination register is
+    /// folded into the mnemonic; the explicit operand supplies the `u64`
+    /// value.
+    SystemRegisterWrite(AsmSystemRegister),
     /// Serializes the instruction stream itself rather than memory traffic:
     /// every prior instruction completes and instruction fetch re-synchronizes
     /// before the next instruction executes.
@@ -286,6 +294,143 @@ impl AsmControlRegister {
 
     pub fn from_write_intrinsic_name(name: &str) -> Option<Self> {
         [Self::Cr0, Self::Cr3, Self::Cr4]
+            .into_iter()
+            .find(|register| register.write_intrinsic_name() == Some(name))
+    }
+}
+
+/// AArch64 system registers accessible through the structured
+/// `read_<sysreg>`/`write_<sysreg>` spellings (architecturally `mrs`/`msr`).
+/// The set is the EL1 control, translation and thread set a kernel reaches
+/// for plus its read-only syndrome registers; ELR_EL1/SPSR_EL1 stay out —
+/// writing them participates in a mode transition (eret's regime contract),
+/// which AsmInstructionContract does not model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmSystemRegister {
+    SctlrEl1,
+    TcrEl1,
+    Ttbr0El1,
+    Ttbr1El1,
+    MairEl1,
+    VbarEl1,
+    TpidrEl1,
+    EsrEl1,
+    FarEl1,
+}
+
+impl AsmSystemRegister {
+    const ALL: [Self; 9] = [
+        Self::SctlrEl1,
+        Self::TcrEl1,
+        Self::Ttbr0El1,
+        Self::Ttbr1El1,
+        Self::MairEl1,
+        Self::VbarEl1,
+        Self::TpidrEl1,
+        Self::EsrEl1,
+        Self::FarEl1,
+    ];
+
+    /// Syndrome registers are read-only in the catalog: they describe the
+    /// last exception rather than machine configuration.
+    const WRITABLE: [Self; 7] = [
+        Self::SctlrEl1,
+        Self::TcrEl1,
+        Self::Ttbr0El1,
+        Self::Ttbr1El1,
+        Self::MairEl1,
+        Self::VbarEl1,
+        Self::TpidrEl1,
+    ];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::SctlrEl1 => "sctlr_el1",
+            Self::TcrEl1 => "tcr_el1",
+            Self::Ttbr0El1 => "ttbr0_el1",
+            Self::Ttbr1El1 => "ttbr1_el1",
+            Self::MairEl1 => "mair_el1",
+            Self::VbarEl1 => "vbar_el1",
+            Self::TpidrEl1 => "tpidr_el1",
+            Self::EsrEl1 => "esr_el1",
+            Self::FarEl1 => "far_el1",
+        }
+    }
+
+    pub const fn read_mnemonic(self) -> &'static str {
+        match self {
+            Self::SctlrEl1 => "read_sctlr_el1",
+            Self::TcrEl1 => "read_tcr_el1",
+            Self::Ttbr0El1 => "read_ttbr0_el1",
+            Self::Ttbr1El1 => "read_ttbr1_el1",
+            Self::MairEl1 => "read_mair_el1",
+            Self::VbarEl1 => "read_vbar_el1",
+            Self::TpidrEl1 => "read_tpidr_el1",
+            Self::EsrEl1 => "read_esr_el1",
+            Self::FarEl1 => "read_far_el1",
+        }
+    }
+
+    pub const fn write_mnemonic(self) -> Option<&'static str> {
+        match self {
+            Self::SctlrEl1 => Some("write_sctlr_el1"),
+            Self::TcrEl1 => Some("write_tcr_el1"),
+            Self::Ttbr0El1 => Some("write_ttbr0_el1"),
+            Self::Ttbr1El1 => Some("write_ttbr1_el1"),
+            Self::MairEl1 => Some("write_mair_el1"),
+            Self::VbarEl1 => Some("write_vbar_el1"),
+            Self::TpidrEl1 => Some("write_tpidr_el1"),
+            Self::EsrEl1 | Self::FarEl1 => None,
+        }
+    }
+
+    pub const fn read_intrinsic_name(self) -> &'static str {
+        match self {
+            Self::SctlrEl1 => "asm#read_sctlr_el1",
+            Self::TcrEl1 => "asm#read_tcr_el1",
+            Self::Ttbr0El1 => "asm#read_ttbr0_el1",
+            Self::Ttbr1El1 => "asm#read_ttbr1_el1",
+            Self::MairEl1 => "asm#read_mair_el1",
+            Self::VbarEl1 => "asm#read_vbar_el1",
+            Self::TpidrEl1 => "asm#read_tpidr_el1",
+            Self::EsrEl1 => "asm#read_esr_el1",
+            Self::FarEl1 => "asm#read_far_el1",
+        }
+    }
+
+    pub const fn write_intrinsic_name(self) -> Option<&'static str> {
+        match self {
+            Self::SctlrEl1 => Some("asm#write_sctlr_el1"),
+            Self::TcrEl1 => Some("asm#write_tcr_el1"),
+            Self::Ttbr0El1 => Some("asm#write_ttbr0_el1"),
+            Self::Ttbr1El1 => Some("asm#write_ttbr1_el1"),
+            Self::MairEl1 => Some("asm#write_mair_el1"),
+            Self::VbarEl1 => Some("asm#write_vbar_el1"),
+            Self::TpidrEl1 => Some("asm#write_tpidr_el1"),
+            Self::EsrEl1 | Self::FarEl1 => None,
+        }
+    }
+
+    pub fn from_read_mnemonic(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|register| register.read_mnemonic() == name)
+    }
+
+    pub fn from_write_mnemonic(name: &str) -> Option<Self> {
+        Self::WRITABLE
+            .into_iter()
+            .find(|register| register.write_mnemonic() == Some(name))
+    }
+
+    pub fn from_read_intrinsic_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|register| register.read_intrinsic_name() == name)
+    }
+
+    pub fn from_write_intrinsic_name(name: &str) -> Option<Self> {
+        Self::WRITABLE
             .into_iter()
             .find(|register| register.write_intrinsic_name() == Some(name))
     }
@@ -567,6 +712,97 @@ const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] =
     &[AsmOperandConstraint::read("value", "cr3", "u64", u64::MAX)];
 const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] =
     &[AsmOperandConstraint::read("value", "cr4", "u64", u64::MAX)];
+// AArch64 system-register access folds the named register into the source
+// spelling (`read_sctlr_el1` realizes as `mrs`, `write_sctlr_el1` as `msr`),
+// so each contract carries a single `u64` place or value operand whose
+// architectural target is the register itself.
+const SCTLR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "sctlr_el1",
+    "u64",
+)];
+const TCR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "tcr_el1",
+    "u64",
+)];
+const TTBR0_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "ttbr0_el1",
+    "u64",
+)];
+const TTBR1_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "ttbr1_el1",
+    "u64",
+)];
+const MAIR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "mair_el1",
+    "u64",
+)];
+const VBAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "vbar_el1",
+    "u64",
+)];
+const TPIDR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "tpidr_el1",
+    "u64",
+)];
+const ESR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "esr_el1",
+    "u64",
+)];
+const FAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::write_place(
+    "destination",
+    "far_el1",
+    "u64",
+)];
+const SCTLR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "sctlr_el1",
+    "u64",
+    u64::MAX,
+)];
+const TCR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "tcr_el1",
+    "u64",
+    u64::MAX,
+)];
+const TTBR0_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "ttbr0_el1",
+    "u64",
+    u64::MAX,
+)];
+const TTBR1_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "ttbr1_el1",
+    "u64",
+    u64::MAX,
+)];
+const MAIR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "mair_el1",
+    "u64",
+    u64::MAX,
+)];
+const VBAR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "vbar_el1",
+    "u64",
+    u64::MAX,
+)];
+const TPIDR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read(
+    "value",
+    "tpidr_el1",
+    "u64",
+    u64::MAX,
+)];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
@@ -575,6 +811,8 @@ const MSR_READ_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
 const MSR_WRITE_CLOBBERS: &[&str] = &["rax", "rcx", "rdx", "r10", "r11", "r15"];
 const CONTROL_REGISTER_READ_CLOBBERS: &[&str] = &["r10", "r15"];
 const CONTROL_REGISTER_WRITE_CLOBBERS: &[&str] = &["rax", "r10", "r11", "r15"];
+const SYSTEM_REGISTER_READ_CLOBBERS: &[&str] = &["x9", "x15"];
+const SYSTEM_REGISTER_WRITE_CLOBBERS: &[&str] = &["x9", "x10", "x11", "x15"];
 const IDT_DESCRIPTOR_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
     "IDT descriptor",
     "r10",
@@ -648,6 +886,58 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             interrupt_flag_effect: NoInterruptChange,
             flags_data_flow: NoFlagsDataFlow,
             clobbers: CONTROL_REGISTER_WRITE_CLOBBERS,
+        }));
+    }
+    if let Some(register) = AsmSystemRegister::from_read_mnemonic(mnemonic) {
+        let operands = match register {
+            AsmSystemRegister::SctlrEl1 => SCTLR_EL1_READ_OPERANDS,
+            AsmSystemRegister::TcrEl1 => TCR_EL1_READ_OPERANDS,
+            AsmSystemRegister::Ttbr0El1 => TTBR0_EL1_READ_OPERANDS,
+            AsmSystemRegister::Ttbr1El1 => TTBR1_EL1_READ_OPERANDS,
+            AsmSystemRegister::MairEl1 => MAIR_EL1_READ_OPERANDS,
+            AsmSystemRegister::VbarEl1 => VBAR_EL1_READ_OPERANDS,
+            AsmSystemRegister::TpidrEl1 => TPIDR_EL1_READ_OPERANDS,
+            AsmSystemRegister::EsrEl1 => ESR_EL1_READ_OPERANDS,
+            AsmSystemRegister::FarEl1 => FAR_EL1_READ_OPERANDS,
+        };
+        return Some(Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: AsmInstructionShape::SystemRegisterRead(register),
+            target: Aarch64,
+            required_authority: MachineOwner,
+            operands,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: SYSTEM_REGISTER_READ_CLOBBERS,
+        }));
+    }
+    if let Some(register) = AsmSystemRegister::from_write_mnemonic(mnemonic) {
+        let operands = match register {
+            AsmSystemRegister::SctlrEl1 => SCTLR_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::TcrEl1 => TCR_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::Ttbr0El1 => TTBR0_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::Ttbr1El1 => TTBR1_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::MairEl1 => MAIR_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::VbarEl1 => VBAR_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::TpidrEl1 => TPIDR_EL1_WRITE_OPERANDS,
+            AsmSystemRegister::EsrEl1 | AsmSystemRegister::FarEl1 => {
+                unreachable!("syndrome registers have no source write form")
+            }
+        };
+        // Register writes with architecturally deferred effect (translation
+        // base, memory attributes, control state) synchronize context through
+        // a caller-sequenced `isb`; the contract records no implicit fence.
+        return Some(Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: AsmInstructionShape::SystemRegisterWrite(register),
+            target: Aarch64,
+            required_authority: MachineOwner,
+            operands,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: SYSTEM_REGISTER_WRITE_CLOBBERS,
         }));
     }
 

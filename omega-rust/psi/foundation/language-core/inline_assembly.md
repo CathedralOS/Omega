@@ -17,6 +17,7 @@ every source-to-native consumer realizes it.
 | x86 structured `pushfq` / `popfq` | Exact `u64` writable/saved place; snapshot or restore with balanced RSP. Restore requires MachineOwner; a literal is not a saved-flags place. |
 | x86 `rdmsr` / `wrmsr` | Exact `u32` ECX selector and `u64` EDX:EAX value; explicit read destination; MachineOwner. |
 | x86 control-register access | Exact `u64` places/values; CR0/2/3/4 reads, CR0/3/4 writes; MachineOwner. |
+| AArch64 system-register access | Exact `u64` places/values via `read_<sysreg>`/`write_<sysreg>` (architecturally `mrs`/`msr`); EL1 control, translation and thread registers (SCTLR/TCR/TTBR0/TTBR1/MAIR/VBAR/TPIDR) plus read-only ESR_EL1/FAR_EL1; MachineOwner. Deferred-effect writes synchronize through a caller-sequenced `isb`. |
 | x86 `serialize` / AArch64 `isb` | Zero operands; instruction-stream serialization — every prior instruction completes and instruction fetch re-synchronizes — not memory ordering; UserChecked, no authority, no clobbers. |
 | x86 `pause` / AArch64 `yield` / `wfe` / `wfi` / `sev` / `sevl` / `nop` | Zero operands; scheduler/pipeline hint the core may elide — no semantic or machine-state obligation; UserChecked, no authority, no clobbers. `nop` is target-neutral; the AArch64 `wfe`/`wfi`/`sev`/`sevl` encodings complete the architectural hint set, each legally completable as a no-op. |
 | `lidt`, `iretq` / `sysret` / `sysretq`, `eret` | Deriver-only; `lidt` has the consumer-authorized descriptor contract, not an arbitrary address operand. |
@@ -77,7 +78,7 @@ volatile-state ceiling. This compatibility path applies only to the compiler-
 selected boot root; it must not widen an explicit source-selected boundary
 StatePlan. That ceiling permits state use, not acquisition of missing authority.
 
-Catalog expansion for atomics, cache/TLB operations, mode transitions and
-AArch64 system operations must extend the same contract/replay model; there is
+Catalog expansion for atomics, cache/TLB operations and mode transitions must
+extend the same contract/replay model; there is
 no per-family alternate instruction language. Final realization participates in
 [machine-state footprint replay](../../../../wiki/spec/build/machine_state_evidence.md).

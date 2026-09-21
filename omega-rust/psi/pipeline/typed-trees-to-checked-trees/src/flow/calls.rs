@@ -463,7 +463,8 @@ pub(crate) fn call_target_return_type(
     })
 }
 
-/// The asm-block value intrinsics (`in`, `rdmsr`, `pushfq`, `read_crN`) carry
+/// The asm-block value intrinsics (`in`, `rdmsr`, `pushfq`, `read_crN`,
+/// `read_<sysreg>`) carry
 /// fixed result types declared by the instruction contract rather than an
 /// authored signature: their desugared calls target compiler builtin symbols,
 /// which own no state, machine-parameter, or trait row to rejoin above. The
@@ -480,7 +481,16 @@ fn asm_intrinsic_result_type(
         | symbols::BuiltinFunction::AsmReadCr0
         | symbols::BuiltinFunction::AsmReadCr2
         | symbols::BuiltinFunction::AsmReadCr3
-        | symbols::BuiltinFunction::AsmReadCr4 => symbols::BuiltinTypeAtom::U64,
+        | symbols::BuiltinFunction::AsmReadCr4
+        | symbols::BuiltinFunction::AsmReadSctlrEl1
+        | symbols::BuiltinFunction::AsmReadTcrEl1
+        | symbols::BuiltinFunction::AsmReadTtbr0El1
+        | symbols::BuiltinFunction::AsmReadTtbr1El1
+        | symbols::BuiltinFunction::AsmReadMairEl1
+        | symbols::BuiltinFunction::AsmReadVbarEl1
+        | symbols::BuiltinFunction::AsmReadTpidrEl1
+        | symbols::BuiltinFunction::AsmReadEsrEl1
+        | symbols::BuiltinFunction::AsmReadFarEl1 => symbols::BuiltinTypeAtom::U64,
         _ => return None,
     };
     let symbol = program

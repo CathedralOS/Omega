@@ -52,7 +52,23 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmWriteCr4
             | BuiltinFunction::AsmWriteBackInvalidate
             | BuiltinFunction::AsmInvalidate
-            | BuiltinFunction::AsmWriteBackNoInvalidate => {
+            | BuiltinFunction::AsmWriteBackNoInvalidate
+            | BuiltinFunction::AsmReadSctlrEl1
+            | BuiltinFunction::AsmReadTcrEl1
+            | BuiltinFunction::AsmReadTtbr0El1
+            | BuiltinFunction::AsmReadTtbr1El1
+            | BuiltinFunction::AsmReadMairEl1
+            | BuiltinFunction::AsmReadVbarEl1
+            | BuiltinFunction::AsmReadTpidrEl1
+            | BuiltinFunction::AsmReadEsrEl1
+            | BuiltinFunction::AsmReadFarEl1
+            | BuiltinFunction::AsmWriteSctlrEl1
+            | BuiltinFunction::AsmWriteTcrEl1
+            | BuiltinFunction::AsmWriteTtbr0El1
+            | BuiltinFunction::AsmWriteTtbr1El1
+            | BuiltinFunction::AsmWriteMairEl1
+            | BuiltinFunction::AsmWriteVbarEl1
+            | BuiltinFunction::AsmWriteTpidrEl1 => {
                 vec![TerminalAuthorityClass::MachineControl]
             }
             BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
@@ -185,8 +201,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            23, 35, 127, 215, 18, 19, 89, 242, 190, 120, 110, 76, 221, 180, 25, 192, 17, 138, 163,
-            207, 217, 227, 161, 147, 151, 205, 60, 243, 121, 29, 246, 120,
+            147, 35, 69, 114, 152, 206, 223, 180, 113, 67, 138, 69, 14, 186, 182, 45, 192, 82,
+            161, 8, 5, 87, 138, 87, 251, 201, 249, 6, 116, 79, 22, 218,
         ]
     );
 }
