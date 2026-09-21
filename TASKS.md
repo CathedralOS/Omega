@@ -3304,6 +3304,22 @@ Owners include
   CALLBACK-PRIVATE-MATERIALIZATION's native entry → the acceptance
   program.
 
+  Re-witnessed at `94e764a6da` (~04:15Z Sep 21, linux x86-64): the ordered
+  frontier is still fenced. The first leg's `execution/unit` surface carries
+  six live claims — providers.rs + types/mod.rs under
+  PROVIDER-ATTACHMENT-MACHINE-PLAN (exp 09:49Z), dynamic_scalar_calls/ under
+  GENERIC-DYNAMIC-FAMILY-DISPATCH (05:31Z), control/checked_machine.rs under
+  CRASH-CONTRACT (04:27Z) and CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP
+  (08:46Z), composed_control/ under CONSERVATION-CONTRACT (09:57Z), and
+  control/call_occurrences.rs under PASS-CANARY-UNIT-PLAN-CLASS (11:01Z).
+  The named STRUCTURAL-BORROW-IDENTITY / GENERAL-CYCLIC-EXECUTION-OPTIMIZER /
+  PSI-NATIVE-FIELD-STORES claims have drained; terminal-interpreter
+  `call_operations.rs` (supported_result minted-claim leg) and
+  component-publication are currently claim-free, but the authored customer
+  still cannot run without the fenced unit-plan admission. Native entry stays
+  gated on CALLBACK-PRIVATE-MATERIALIZATION (live, exp 09:13Z). No landable
+  slice from this row this wave.
+
 - **FOREIGN-RETAINED-ARGUMENT-BACKING.** Execute outbound arguments that a
   foreign callee retains after return, beyond callbacks, under
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody), with
