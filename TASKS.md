@@ -3202,7 +3202,12 @@ moved to the termination-catalog fence (see that row's refresh note).
     repair; **FLOAT-PROVIDERS** owns the operations. A 135-file slice for this
     was parked on an unpublished local branch `write-only-borrow`
     (71a647f464); it is not on `origin`. Ask the coordinator whether it still
-    exists before re-implementing.
+    exists before re-implementing. Recovery record:
+    [write_only_borrow_ieee_store_branch.md](wiki/drafts/write_only_borrow_ieee_store_branch.md)
+    (`6898e16053`) — the tip's objects are absent from origin and this
+    checkout, so Path A stays the coordinator merge; Path B's
+    re-implementation contract (failing pin, producer gap, neighbor fences)
+    is fixed there.
 
   Acceptance: writes affect the original caller referent across calls and
   register/stack passing; reads through write-only access, bare `&write`
