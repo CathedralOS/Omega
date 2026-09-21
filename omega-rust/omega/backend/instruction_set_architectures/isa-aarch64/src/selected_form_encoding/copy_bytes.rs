@@ -5,7 +5,6 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::aarch64_physical_register_model;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -21,7 +20,7 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<[u8; 5], Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model()
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || alternative
             != (MachineAlternativeKey {
                 family: MachineAlternativeFamily::CopyBytes,

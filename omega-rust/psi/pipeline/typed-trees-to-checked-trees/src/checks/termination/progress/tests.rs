@@ -1096,6 +1096,58 @@ mod nested_call_arguments {
     }
 
     #[test]
+    fn may_write_helper_result_derives_the_replacement_input_premise() {
+        // `stamp` writes the replacement input into `context` and returns the
+        // input itself: the demanded premise is the replacement's exact
+        // subject, never the written aggregate's root.
+        let program = checked(
+            r#"
+            pub machine stamp(context: &mut Context, fresh: SchedulerHandle in WeakFair)
+            terminates;
+            -> SchedulerHandle in WeakFair { context.scheduler = fresh as SchedulerHandle; fresh }
+            pub machine process(context: &mut Context, replacement: &Context, ready: bool)
+            requires replacement.scheduler in WeakFair
+            terminates;
+            -> u64 {
+                transition ready {
+                    true -> waiting(stamp(context, replacement.scheduler))
+                    false -> 0
+                }
+                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
+            }
+            "#,
+        );
+        assert_single_premise(&program, "process", "replacement", "Context::scheduler");
+    }
+
+    #[test]
+    fn may_write_helper_returning_the_written_projection_derives_the_replacement_input_premise() {
+        // `stamp_read` returns the projection it just stored into: the
+        // premise replays that exact store through the callee's own body and
+        // lands on the replacement input's subject — the mutated aggregate's
+        // root correspondence is not evidence for the field's value.
+        let program = checked(
+            r#"
+            pub data FairContext { slot: SchedulerHandle in WeakFair; }
+            pub machine stamp_read(context: &mut FairContext, fresh: SchedulerHandle in WeakFair)
+            terminates;
+            -> SchedulerHandle in WeakFair { context.slot = fresh; context.slot }
+            pub machine process(context: &mut FairContext, replacement: &FairContext, ready: bool)
+            requires replacement.slot in WeakFair
+            terminates;
+            -> u64 {
+                transition ready {
+                    true -> waiting(stamp_read(context, replacement.slot))
+                    false -> 0
+                }
+                state waiting(selected: SchedulerHandle in WeakFair) -> u64 { consume(selected) }
+            }
+            "#,
+        );
+        assert_single_premise(&program, "process", "replacement", "FairContext::slot");
+    }
+
+    #[test]
     fn transition_argument_call_with_unresolved_route_stays_unproven() {
         // `choose` routes through a control-flow join; neither operand is the
         // exact origin, so the inner state's demanded premise cannot be

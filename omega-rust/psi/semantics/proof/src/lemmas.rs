@@ -42,6 +42,33 @@ pub enum ProofLemma {
 }
 
 impl ProofLemma {
+    /// The logical foundation this lemma's justification stands on.
+    ///
+    /// The classicality audit (`wiki/spec/proofs/classicality.md`) covers the
+    /// obligation-side lemma library beside the certificate rules: an
+    /// exhaustive `match` keeps the boundary enforced at compile time, so a
+    /// new lemma does not compile until it is classified here.
+    ///
+    /// Every lemma today decides a closed integer relation over exact
+    /// collection bounds — `index < length`, `length >= 1`, or
+    /// `start <= end <= length` — the same decidable fixed-integer fragment
+    /// the certificate rules' checked witnesses use. A lemma generalized to
+    /// an undecidable relation is a disguised classical step and must be
+    /// reclassified before it lands.
+    pub const fn foundation(self) -> proof_admission::ProofRuleFoundation {
+        match self {
+            Self::IndexInBounds
+            | Self::NonEmptyHasFirst
+            | Self::WindowLength
+            | Self::WindowSubrange
+            | Self::TailLengthDecreases => {
+                proof_admission::ProofRuleFoundation::ConstructiveDecidable
+            }
+        }
+    }
+}
+
+impl ProofLemma {
     /// All lemmas, in a stable order, for registries and exhaustive iteration.
     pub const ALL: [ProofLemma; 5] = [
         ProofLemma::IndexInBounds,
@@ -153,6 +180,18 @@ pub struct ForAllInRangeFact {
 }
 
 impl ForAllInRangeFact {
+    /// The foundation this fact's one elimination step stands on.
+    ///
+    /// `proves_element` discharges a per-element goal only by deciding
+    /// bounded range membership — concrete literal bounds, or the symbolic
+    /// full-extent `0..length` paired with an index already proven in
+    /// bounds — and a vacuous range discharges no concrete element. That is
+    /// a decision inside the decidable fragment; extending it to an
+    /// undecidable membership relation is a reclassification under the
+    /// classicality audit, not a local edit.
+    pub const ELIMINATION_FOUNDATION: proof_admission::ProofRuleFoundation =
+        proof_admission::ProofRuleFoundation::ConstructiveDecidable;
+
     /// Build a `for all i in start..end, P(i)` fact.
     pub fn new(predicate: impl Into<String>, start: QuantifiedBound, end: QuantifiedBound) -> Self {
         Self {
@@ -264,6 +303,40 @@ pub enum QuantifiedBound {
 #[cfg(test)]
 mod tests {
     use super::{ElementIndex, ForAllInRangeFact, LemmaFact, ProofLemma, QuantifiedBound};
+
+    #[test]
+    fn no_lemma_stands_on_a_classical_foundation() {
+        for lemma in ProofLemma::ALL {
+            assert_ne!(
+                lemma.foundation(),
+                proof_admission::ProofRuleFoundation::Classical,
+                "{lemma:?} must not silently rest on classical reasoning"
+            );
+        }
+    }
+
+    #[test]
+    fn every_lemma_decides_a_decidable_relation_today() {
+        // The audit's completeness check beside the exhaustive `match` in
+        // `foundation`: a lemma that is genuinely constructive (structural
+        // inference needing no decision) or a trusted admission changes
+        // this pin deliberately, in the same edit that classifies it.
+        for lemma in ProofLemma::ALL {
+            assert_eq!(
+                lemma.foundation(),
+                proof_admission::ProofRuleFoundation::ConstructiveDecidable,
+                "{lemma:?} foundation drifted off the decidable fragment"
+            );
+        }
+    }
+
+    #[test]
+    fn quantified_elimination_stays_inside_the_decidable_fragment() {
+        assert_eq!(
+            ForAllInRangeFact::ELIMINATION_FOUNDATION,
+            proof_admission::ProofRuleFoundation::ConstructiveDecidable
+        );
+    }
 
     #[test]
     fn lemmas_have_distinct_stable_names() {

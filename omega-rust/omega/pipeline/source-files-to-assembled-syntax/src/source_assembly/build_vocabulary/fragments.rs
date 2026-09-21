@@ -41,6 +41,8 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case SelectedIncomingSaturatingAddUpperBoundMaterialization;
     case SelectedIncomingWrappingRemainderMinusOneZeroMaterialization;
     case SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization;
+    case StateSpecialization;
+    case RepresentationSpecialization;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -86,6 +88,8 @@ pub data Optimizations {
     selected_incoming_saturating_add_upper_bound_materialization: u8 in Trapping;
     selected_incoming_wrapping_remainder_minus_one_zero_materialization: u8 in Trapping;
     selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization: u8 in Trapping;
+    state_specialization: u8 in Trapping;
+    representation_specialization: u8 in Trapping;
 }
 "#;
 
@@ -133,6 +137,8 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::SelectedIncomingSaturatingAddUpperBoundMaterialization -> selected_incoming_saturating_add_upper_bound_materialization()
         Optimization::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization -> selected_incoming_wrapping_remainder_minus_one_zero_materialization()
         Optimization::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization -> selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization()
+        Optimization::StateSpecialization -> state_specialization()
+        Optimization::RepresentationSpecialization -> representation_specialization()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -301,6 +307,14 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization(&mut self) {
         self.selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization = self.selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization + 1;
+    }
+
+    state state_specialization(&mut self) {
+        self.state_specialization = self.state_specialization + 1;
+    }
+
+    state representation_specialization(&mut self) {
+        self.representation_specialization = self.representation_specialization + 1;
     }
 }
 "#;

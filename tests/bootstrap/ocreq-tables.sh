@@ -148,10 +148,10 @@ agree(
 )
 
 # Scalar-resource table: every projected code's limit and coordinate space
-# agree across the contract and both embedded records. The contract also
-# assigns coverage provisions (codes 15-26) that the embedded compiler does
-# not project yet; the gate pins that boundary so projection drift trips
-# here instead of diverging silently.
+# agree across the contract and both embedded records. The contract assigns
+# coverage provisions at codes 15-25 and the request staging capacity at 26;
+# the gate pins that every contract-assigned code is projected, so a newly
+# assigned row that is not embedded trips here instead of diverging silently.
 resources = {}
 for cells in spec_table("| Code | Resource | Limit | Space | Coordinate |"):
     if (
@@ -192,7 +192,7 @@ unprojected = sorted(set(resources) - set(projected))
 agree(
     "pending resource provisions",
     unprojected,
-    list(range(15, 25)),
+    [],
 )
 
 gate_limits = dict(
@@ -217,8 +217,12 @@ for code, space in sorted(gate_spaces.items()):
         f"gate resource {code} space",
         space, embedded_spaces.get(code, space_default),
     )
-agree("gate unassigned resource limit", gate_limits.get(15), 0)
-agree("gate unassigned resource space", gate_spaces.get(15), -1)
+# The gate copies pin the unassigned markers: resource limit has no arm
+# boundary assert beyond the assigned inventory, so code 0 stands in as the
+# unassigned limit sentinel while code 27 is the first space-unassigned code
+# above the assigned 1-26 range the gate asserts.
+agree("gate unassigned resource limit", gate_limits.get(0), 0)
+agree("gate unassigned resource space", gate_spaces.get(27), -1)
 
 # Assigned Reject codes: the contract's lexical inventory maps by name; the
 # embedded projection returns the same wire codes.
@@ -228,6 +232,35 @@ for cells in spec_table(
 ):
     if len(cells) >= 4 and re.fullmatch(r"`[a-z_0-9]+`", cells[2] or ""):
         reject_rows[cells[2][1:-1]] = (int(cells[1]), int(cells[3].split()[0]))
+
+# Reject coordinate-space table: the embedded projection carries exactly the
+# contract's assigned Reject codes, each at its assigned space. An assigned
+# row missing from the projection, a drifted space, or a code the contract
+# never assigned all fail here.
+spec_reject_spaces = {
+    int(cells[1]): int(cells[3].split()[0])
+    for cells in spec_table(
+        "| Tag | Code | Name | Space | Coordinate | Limit/requested |"
+    )
+    if cells[0] == "1 `Reject`"
+}
+reject_space_machine = machine_body(outcome_src, "omega_reject_code_space")
+embedded_reject_spaces = int_arms(reject_space_machine)
+reject_space_default = int(
+    re.search(r"_ -> return (-?\d+)", reject_space_machine).group(1)
+)
+agree(
+    "reject space code set",
+    sorted(embedded_reject_spaces),
+    sorted(spec_reject_spaces),
+)
+for code, space in sorted(spec_reject_spaces.items()):
+    agree(
+        f"reject code {code} space",
+        embedded_reject_spaces.get(code),
+        space,
+    )
+agree("reject space default arm", reject_space_default, -1)
 
 lexical_names = {
     "invalid_utf8": "InvalidUtf8",

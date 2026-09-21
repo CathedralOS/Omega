@@ -37,12 +37,20 @@
 //! evidence than the published ceiling it refined. An unconstrained slot
 //! admits every retained candidate plus the contract any external provider
 //! could only conform to. Bounded dynamic dispatches rejoin the module's
-//! dispatch catalog and cover their exact realization; calls through an
-//! existential descriptor parameter have no retained target and are bounded
-//! by the requirement's retained crash contract — an excluded crash cause in
-//! it is a prohibited site, and the closed bucket list decides crash-only
-//! exclusion sets; service and physical-authority reach stay unenumerated
-//! and remain gaps.
+//! dispatch catalog and cover their exact realization. Calls through an
+//! existential descriptor parameter rejoin the same catalog's descriptor
+//! arguments: every in-closure call site feeding that parameter contributes
+//! its exact selection or rebound descriptor, so the dispatch's admitted
+//! target set is the resolved realization of each supplied conformance
+//! application. A dispatch the catalog cannot settle stays unenumerated —
+//! a descriptor dispatch with no retained realization row, a parameter the
+//! module's entries can still receive from the host, a feed missing its
+//! descriptor row, or a source whose retained conformance application
+//! cannot name the requirement's realization. An unenumerated site is
+//! bounded by the operation's retained crash contract: an excluded crash
+//! cause in it is a prohibited site, and the closed bucket list decides
+//! crash-only exclusion sets; service and physical-authority reach stay
+//! unenumerated and remain gaps.
 //!
 //! The build authoring surface is `builder.exclude_crash(CrashCause::X)`, a
 //! toolchain Build machine recorded only when executed against the original
@@ -72,11 +80,11 @@
 
 use effects::TerminalAuthorityClass;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, ServiceId};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    CrashCause, OperationKind, ProviderCandidateConformance, TerminalMachine, TerminalModule,
-    Terminator,
+    CrashCause, CrashRouteBucket, OperationKind, ProviderCandidateConformance,
+    TerminalDynamicDescriptorSource, TerminalMachine, TerminalModule, Terminator,
 };
 
 /// One exact exclusion selected by the build root.
@@ -509,24 +517,435 @@ pub fn establish_behavior_exclusions_with_owners(
         };
         let mut visited = Vec::new();
         let mut pending = VecDeque::from([machine]);
-        while let Some(machine) = pending.pop_front() {
-            if visited.contains(&machine.id) {
-                continue;
+        // Calls through an existential descriptor parameter cannot name a
+        // realization until the parameter's feeds are known, and feeds are
+        // only complete once every reachable caller is in `visited`. The walk
+        // therefore defers parameter dispatches and reruns the feed table
+        // until the reachable set stops growing: resolved realizations join
+        // the closure like any call edge, and joining them can expose further
+        // feeders. Resolution never shrinks — a gap verdict is emitted only
+        // for a host-reachable, missing, or unresolvable feed, which is
+        // terminal once observed.
+        let mut parameter_sites: BTreeMap<OperationId, ParameterDispatchSite> = BTreeMap::new();
+        let mut gapped_sites: BTreeSet<OperationId> = BTreeSet::new();
+        let mut resolved_ops: BTreeMap<OperationId, BTreeSet<MachineId>> = BTreeMap::new();
+        loop {
+            while let Some(machine) = pending.pop_front() {
+                if visited.contains(&machine.id) {
+                    continue;
+                }
+                visited.push(machine.id);
+                inspect_machine(
+                    module,
+                    entry,
+                    machine,
+                    exclusions,
+                    selected_provider_plans,
+                    boundary_owners,
+                    &mut report,
+                    &mut pending,
+                    &mut parameter_sites,
+                );
             }
-            visited.push(machine.id);
-            inspect_machine(
+            let feeds = collect_parameter_feeds(
                 module,
-                entry,
-                machine,
-                exclusions,
+                entries,
+                &visited,
+                &resolved_ops,
                 selected_provider_plans,
-                boundary_owners,
-                &mut report,
-                &mut pending,
             );
+            let mut progressed = false;
+            for site in parameter_sites.values() {
+                if gapped_sites.contains(&site.operation) {
+                    continue;
+                }
+                match parameter_dispatch_targets(module, &feeds, site) {
+                    ParameterDispatchVerdict::Pending => {}
+                    ParameterDispatchVerdict::Gap => {
+                        bound_unenumerated_dynamic_call(
+                            &site.crash_continuations,
+                            exclusions,
+                            entry,
+                            site.machine,
+                            site.block,
+                            site.operation,
+                            &mut report,
+                        );
+                        gapped_sites.insert(site.operation);
+                    }
+                    ParameterDispatchVerdict::Targets(targets) => {
+                        let resolved = resolved_ops.entry(site.operation).or_default();
+                        for target in targets {
+                            if !resolved.insert(target) {
+                                continue;
+                            }
+                            match module.machines.iter().find(|m| m.id == target) {
+                                Some(target) => {
+                                    pending.push_back(target);
+                                    progressed = true;
+                                }
+                                None => {
+                                    report.gaps.push(EvidenceGap {
+                                        entry,
+                                        machine: site.machine,
+                                        block: Some(site.block),
+                                        operation: Some(site.operation),
+                                        kind: EvidenceGapKind::UnknownCallee(target),
+                                    });
+                                    gapped_sites.insert(site.operation);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if !progressed && pending.is_empty() {
+                break;
+            }
         }
     }
     report
+}
+
+/// One `CallDynamicParameter*` operation awaiting its owner parameter's
+/// admitted descriptor feeds before it can name realization targets.
+#[derive(Debug)]
+struct ParameterDispatchSite {
+    machine: MachineId,
+    block: BlockId,
+    operation: OperationId,
+    parameter_ordinal: u32,
+    requirement_slot: u32,
+    crash_continuations: Vec<CrashRouteBucket>,
+}
+
+/// Bound one dynamic dispatch the walk could not enumerate by its retained
+/// crash contract, exactly like a boundary's declared crash routes: an
+/// excluded cause is a prohibited site, and the closed bucket list decides
+/// crash-only exclusion sets. Service and physical-authority reach stay
+/// unenumerated, so the site remains an evidence gap while either kind of
+/// exclusion is selected — and an empty contract bounds nothing, so it is
+/// always a gap.
+fn bound_unenumerated_dynamic_call(
+    crash_continuations: &[CrashRouteBucket],
+    exclusions: &BehaviorExclusions,
+    entry: MachineId,
+    machine: MachineId,
+    block: BlockId,
+    operation: OperationId,
+    report: &mut BehaviorExclusionReport,
+) {
+    for bucket in crash_continuations {
+        if exclusions.excludes_crash_cause(bucket.cause) {
+            report.prohibited.push(ProhibitedBehavior {
+                exclusion: BehaviorExclusion::CrashCause(bucket.cause),
+                entry,
+                machine,
+                site: ProhibitedSite::DynamicCall { block, operation },
+            });
+        }
+    }
+    if crash_continuations.is_empty()
+        || !exclusions.services().is_empty()
+        || !exclusions.physical_authority_classes().is_empty()
+    {
+        report.gaps.push(EvidenceGap {
+            entry,
+            machine,
+            block: Some(block),
+            operation: Some(operation),
+            kind: EvidenceGapKind::DynamicCall,
+        });
+    }
+}
+
+/// What one in-closure call edge supplies to one callee parameter: the exact
+/// descriptor source the catalog records plus the caller that supplied it.
+/// `unbounded` marks a feed the module cannot enumerate — a parameter an
+/// entry can still receive from the host, an invocation edge that carries no
+/// descriptor arguments, or a call site missing the parameter's row.
+#[derive(Debug, Default)]
+struct ParameterFeed {
+    sources: BTreeSet<(MachineId, TerminalDynamicDescriptorSource)>,
+    unbounded: bool,
+}
+
+enum ParameterDispatchVerdict {
+    /// No feed evidence exists yet; later callers may still supply one.
+    Pending,
+    /// The site cannot certify its targets: host-reachable parameter,
+    /// missing feed, or a source whose retained catalog cannot name the
+    /// requirement's realization.
+    Gap,
+    /// Every feed resolves to an exact retained machine.
+    Targets(BTreeSet<MachineId>),
+}
+
+/// One machine's declared dynamic-descriptor parameter ordinal.
+fn declared_parameter_ordinals(module: &TerminalModule, machine: MachineId) -> Vec<u32> {
+    module
+        .dynamic_dispatch
+        .parameters
+        .iter()
+        .filter(|parameter| parameter.owner == machine)
+        .map(|parameter| parameter.ordinal)
+        .collect()
+}
+
+/// The callee set of one operation: the static callee, or every realization
+/// an already-resolved dynamic dispatch is admitted to reach.
+fn operation_callees(
+    operation: &terminal_psi::Operation,
+    resolved_ops: &BTreeMap<OperationId, BTreeSet<MachineId>>,
+) -> Vec<MachineId> {
+    let mut callees = Vec::new();
+    match &operation.kind {
+        OperationKind::Call { callee, .. }
+        | OperationKind::CallUnit { callee, .. }
+        | OperationKind::CallStructuralScalar { callee, .. }
+        | OperationKind::CallStructural { callee, .. }
+        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callees.push(*callee),
+        OperationKind::CallDynamicScalar { .. }
+        | OperationKind::CallDynamicParameterScalar { .. }
+        | OperationKind::CallDynamicUnit { .. }
+        | OperationKind::CallDynamicParameterUnit { .. } => {
+            if let Some(targets) = resolved_ops.get(&operation.id) {
+                callees.extend(targets.iter().copied());
+            }
+        }
+        _ => {}
+    }
+    callees
+}
+
+/// The exact descriptor sources every in-closure invocation edge supplies to
+/// each declared `(machine, parameter)` pair, plus whether any edge can still
+/// carry a descriptor the module cannot enumerate. Only callers already in
+/// the walked closure contribute; a parameter dispatch resolved this sweep
+/// counts as a caller of its admitted targets, so feed growth and reachability
+/// settle to one fixpoint inside the caller loop.
+fn collect_parameter_feeds(
+    module: &TerminalModule,
+    entries: &[MachineId],
+    visited: &[MachineId],
+    resolved_ops: &BTreeMap<OperationId, BTreeSet<MachineId>>,
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+) -> BTreeMap<(MachineId, u32), ParameterFeed> {
+    let mut feeds: BTreeMap<(MachineId, u32), ParameterFeed> = BTreeMap::new();
+    for caller_id in visited {
+        let Some(caller) = module.machines.iter().find(|m| m.id == *caller_id) else {
+            continue;
+        };
+        for block in &caller.blocks {
+            for operation in &block.operations {
+                // A boundary invocation can realize provider-candidate bodies
+                // but carries no descriptor arguments for them.
+                if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+                    let candidates: Vec<&ProviderCandidateConformance> = module
+                        .provider_candidates
+                        .iter()
+                        .filter(|candidate| candidate.boundary == *boundary)
+                        .collect();
+                    let (realizations, _) =
+                        boundary_realization_coverage(&candidates, selected_provider_plans);
+                    for realization in realizations {
+                        for ordinal in declared_parameter_ordinals(module, realization) {
+                            feeds.entry((realization, ordinal)).or_default().unbounded = true;
+                        }
+                    }
+                }
+                let callees = operation_callees(operation, resolved_ops);
+                if callees.is_empty() {
+                    continue;
+                }
+                for callee in callees {
+                    for ordinal in declared_parameter_ordinals(module, callee) {
+                        let feed = feeds.entry((callee, ordinal)).or_default();
+                        match module.dynamic_dispatch.arguments.iter().find(|row| {
+                            row.owner == *caller_id
+                                && row.operation == operation.id
+                                && row.parameter_ordinal == ordinal
+                        }) {
+                            Some(row) => {
+                                feed.sources.insert((*caller_id, row.source));
+                            }
+                            None => feed.unbounded = true,
+                        }
+                    }
+                }
+            }
+            // Nominal cleanup edges commit a machine's body but carry no
+            // descriptor arguments.
+            for cleanup_machine in nominal_cleanup_machines(&block.terminator) {
+                for ordinal in declared_parameter_ordinals(module, cleanup_machine) {
+                    feeds
+                        .entry((cleanup_machine, ordinal))
+                        .or_default()
+                        .unbounded = true;
+                }
+            }
+        }
+    }
+    // Entries receive descriptor parameters from the host; no module row
+    // enumerates what the host may pass.
+    for entry in entries {
+        for ordinal in declared_parameter_ordinals(module, *entry) {
+            feeds.entry((*entry, ordinal)).or_default().unbounded = true;
+        }
+    }
+    // A caller passing its own descriptor parameter forwards whatever feeds
+    // that caller receives; expand transitively so grounded selections and
+    // rebound descriptors reach every consumer down the forwarding chain.
+    loop {
+        let mut changed = false;
+        let keys: Vec<(MachineId, u32)> = feeds.keys().copied().collect();
+        for key in keys {
+            let forwarded: Vec<(MachineId, u32)> = feeds
+                .get(&key)
+                .map(|feed| {
+                    feed.sources
+                        .iter()
+                        .filter_map(|(caller, source)| match source {
+                            TerminalDynamicDescriptorSource::Parameter { ordinal } => {
+                                Some((*caller, *ordinal))
+                            }
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut additions = BTreeSet::new();
+            let mut covered = BTreeSet::new();
+            let mut unbounded = false;
+            for inner_key in forwarded {
+                match feeds.get(&inner_key) {
+                    Some(inner) => {
+                        additions.extend(inner.sources.iter().copied());
+                        unbounded |= inner.unbounded;
+                        covered.insert(inner_key);
+                    }
+                    // A forwarded parameter nobody feeds is a descriptor
+                    // source the retained catalog cannot account for.
+                    None => unbounded = true,
+                }
+            }
+            let feed = feeds.entry(key).or_default();
+            for source in additions {
+                changed |= feed.sources.insert(source);
+            }
+            // A forwarding marker whose own feed exists has been expanded;
+            // drop it so only genuinely unaccounted parameters remain.
+            let before = feed.sources.len();
+            feed.sources.retain(|(caller, source)| match source {
+                TerminalDynamicDescriptorSource::Parameter { ordinal } => {
+                    !covered.contains(&(*caller, *ordinal))
+                }
+                _ => true,
+            });
+            changed |= feed.sources.len() != before;
+            if unbounded && !feed.unbounded {
+                feed.unbounded = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    feeds
+}
+
+/// The admitted target set of one deferred parameter dispatch under the
+/// current feed table. Resolves every supplied descriptor source through the
+/// module's conformance applications to the requirement row's retained
+/// realization callable.
+fn parameter_dispatch_targets(
+    module: &TerminalModule,
+    feeds: &BTreeMap<(MachineId, u32), ParameterFeed>,
+    site: &ParameterDispatchSite,
+) -> ParameterDispatchVerdict {
+    let Some(parameter) = module.dynamic_dispatch.parameters.iter().find(|parameter| {
+        parameter.owner == site.machine && parameter.ordinal == site.parameter_ordinal
+    }) else {
+        // The dispatch names a parameter the catalog does not declare.
+        return ParameterDispatchVerdict::Gap;
+    };
+    let Some(requirement) = parameter.requirements.get(site.requirement_slot as usize) else {
+        return ParameterDispatchVerdict::Gap;
+    };
+    let Some(feed) = feeds.get(&(site.machine, site.parameter_ordinal)) else {
+        // Reachable without any descriptor supply is impossible, but the feed
+        // table may simply be incomplete this sweep.
+        return ParameterDispatchVerdict::Pending;
+    };
+    if feed.unbounded {
+        return ParameterDispatchVerdict::Gap;
+    }
+    let mut targets = BTreeSet::new();
+    for (caller, source) in &feed.sources {
+        let mut selections = Vec::new();
+        match source {
+            TerminalDynamicDescriptorSource::Selection { ordinal } => selections.push(*ordinal),
+            TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+                // Both selections share the exact trait interface; covering
+                // each admitted body is the conservative direction.
+                let Some(rebound) = module
+                    .dynamic_dispatch
+                    .rebound_descriptors
+                    .iter()
+                    .find(|row| row.owner == *caller && row.ordinal == *ordinal)
+                else {
+                    return ParameterDispatchVerdict::Gap;
+                };
+                selections.push(rebound.initial_selection_ordinal);
+                selections.push(rebound.rebound_selection_ordinal);
+            }
+            TerminalDynamicDescriptorSource::Parameter { .. } => {
+                // Expansion covers every declared feed; a leftover forwarding
+                // source names a parameter with no feed account.
+                return ParameterDispatchVerdict::Gap;
+            }
+        }
+        for ordinal in selections {
+            let Some(selection) = module
+                .dynamic_dispatch
+                .selections
+                .iter()
+                .find(|row| row.owner == *caller && row.ordinal == ordinal)
+            else {
+                return ParameterDispatchVerdict::Gap;
+            };
+            let Some(application) =
+                module
+                    .closed_conformance_applications
+                    .iter()
+                    .find(|application| {
+                        application.commitment == selection.conformance_application_commitment
+                    })
+            else {
+                return ParameterDispatchVerdict::Gap;
+            };
+            let Some(row) = application.rows.iter().find(|row| {
+                row.declaring_trait_identity == requirement.declaring_trait_identity
+                    && row.public_requirement_identity == requirement.public_requirement_identity
+                    && row.family_tuple == requirement.family_tuple
+            }) else {
+                return ParameterDispatchVerdict::Gap;
+            };
+            let Some(callable_identity) = &row.realization_callable_identity else {
+                return ParameterDispatchVerdict::Gap;
+            };
+            let Some(callable) = application
+                .realization_callables
+                .iter()
+                .find(|callable| &callable.source_callable_identity == callable_identity)
+            else {
+                return ParameterDispatchVerdict::Gap;
+            };
+            targets.insert(callable.machine);
+        }
+    }
+    ParameterDispatchVerdict::Targets(targets)
 }
 
 /// Which realization evidence covers one reached boundary: retained
@@ -634,6 +1053,7 @@ fn inspect_machine<'module>(
     boundary_owners: &BoundaryServiceOwners,
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module TerminalMachine>,
+    parameter_sites: &mut BTreeMap<OperationId, ParameterDispatchSite>,
 ) {
     for block in &machine.blocks {
         for operation in &block.operations {
@@ -746,15 +1166,7 @@ fn inspect_machine<'module>(
                     crash_continuations,
                     ..
                 }
-                | OperationKind::CallDynamicParameterScalar {
-                    crash_continuations,
-                    ..
-                }
                 | OperationKind::CallDynamicUnit {
-                    crash_continuations,
-                    ..
-                }
-                | OperationKind::CallDynamicParameterUnit {
                     crash_continuations,
                     ..
                 } => {
@@ -775,48 +1187,43 @@ fn inspect_machine<'module>(
                                 }),
                             }
                         }
-                        None if !crash_continuations.is_empty() => {
-                            // The retained crash contract bounds the
-                            // unenumerated target's possible crash causes
-                            // exactly like a boundary's declared crash
-                            // routes: an excluded cause is a prohibited
-                            // site, and crash-only exclusion sets are
-                            // decided by the closed bucket list. Service and
-                            // physical-authority reach stay unenumerated, so
-                            // the site remains an evidence gap for those.
-                            for bucket in crash_continuations {
-                                if exclusions.excludes_crash_cause(bucket.cause) {
-                                    report.prohibited.push(ProhibitedBehavior {
-                                        exclusion: BehaviorExclusion::CrashCause(bucket.cause),
-                                        entry,
-                                        machine: machine.id,
-                                        site: ProhibitedSite::DynamicCall {
-                                            block: block.id,
-                                            operation: operation.id,
-                                        },
-                                    });
-                                }
-                            }
-                            if !exclusions.services().is_empty()
-                                || !exclusions.physical_authority_classes().is_empty()
-                            {
-                                report.gaps.push(EvidenceGap {
-                                    entry,
-                                    machine: machine.id,
-                                    block: Some(block.id),
-                                    operation: Some(operation.id),
-                                    kind: EvidenceGapKind::DynamicCall,
-                                });
-                            }
-                        }
-                        None => report.gaps.push(EvidenceGap {
+                        None => bound_unenumerated_dynamic_call(
+                            crash_continuations,
+                            exclusions,
                             entry,
-                            machine: machine.id,
-                            block: Some(block.id),
-                            operation: Some(operation.id),
-                            kind: EvidenceGapKind::DynamicCall,
-                        }),
+                            machine.id,
+                            block.id,
+                            operation.id,
+                            report,
+                        ),
                     }
+                }
+                OperationKind::CallDynamicParameterScalar {
+                    parameter_ordinal,
+                    requirement_slot,
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicParameterUnit {
+                    parameter_ordinal,
+                    requirement_slot,
+                    crash_continuations,
+                    ..
+                } => {
+                    // The target arrives with the caller's descriptor table:
+                    // defer until the parameter's feeds settle in the walk's
+                    // fixpoint (see `collect_parameter_feeds`).
+                    parameter_sites.insert(
+                        operation.id,
+                        ParameterDispatchSite {
+                            machine: machine.id,
+                            block: block.id,
+                            operation: operation.id,
+                            parameter_ordinal: *parameter_ordinal,
+                            requirement_slot: *requirement_slot,
+                            crash_continuations: crash_continuations.clone(),
+                        },
+                    );
                 }
                 _ => {}
             }

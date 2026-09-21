@@ -75,6 +75,7 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -286,12 +287,14 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -301,6 +304,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -322,6 +326,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

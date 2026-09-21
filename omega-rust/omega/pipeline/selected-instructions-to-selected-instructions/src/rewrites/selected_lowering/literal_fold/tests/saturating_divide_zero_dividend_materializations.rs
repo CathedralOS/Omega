@@ -201,7 +201,7 @@ fn saturating_divide_zero_dividend_fold_rewrites_every_unsigned_carrier_consumer
             // materialize row: the register pins, the dropped divisor
             // `Use`, and the dropped tail are gone with the divide form,
             // and so is every unit effect it carried.
-            // `FaultDischargedByObligationDeadUnitDefs` retires the
+            // `DischargedByObligation`/`RetiredWhenDead` composition retires the
             // x86-64 `rdx`/`rflags` clobbers unconditionally — dropping
             // a clobber only narrows destruction.
             assert_eq!(rewritten.operands.len(), 1);
@@ -866,7 +866,7 @@ fn saturating_divide_zero_dividend_fold_rejects_while_another_instruction_reads_
 
 #[test]
 fn saturating_divide_zero_dividend_fold_rejects_a_consumer_implicitly_using_a_unit() {
-    // `FaultDischargedByObligationDeadUnitDefs` forbids the consumer's
+    // `DischargedByObligation`/`RetiredWhenDead` composition forbids the consumer's
     // own implicit uses too: a use the `MaterializeI64` does not carry
     // would silently stop being observed. Forging the branch row's
     // condition-state use onto the consumer — `nzcv` on aarch64,
@@ -992,7 +992,7 @@ fn saturating_divide_zero_dividend_fold_rejects_tied_consumer_operands_but_keeps
  {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // `BoundEarlyClobberConsumerOperands` admits `fixed_view` pins and
+    // `BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` admits `fixed_view` pins and
     // `early_clobber` marks — the bindings constrain only the dropped
     // operand list — while `tied_to` still rejects: a tied register would
     // be a co-allocation the rewrite silently dissolves. The x86-64

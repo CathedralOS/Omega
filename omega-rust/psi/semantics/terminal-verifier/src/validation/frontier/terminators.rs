@@ -670,8 +670,7 @@ fn close_return_structural(
             place: *source,
         });
     }
-    if !super::super::structural_result_contracts::matches_function_result(source_signature, result)
-    {
+    if !super::super::structural_result_contracts::matches_return_source(source_signature, result) {
         return Err(ModuleError::StructuralReturnSignatureMismatch {
             machine: machine.id,
             block: block.id,

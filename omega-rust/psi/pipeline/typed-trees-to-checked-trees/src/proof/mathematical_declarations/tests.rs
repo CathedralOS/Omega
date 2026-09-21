@@ -121,6 +121,30 @@ fn arrows_applications_and_bodies_render_their_identities() {
 }
 
 #[test]
+fn machine_valued_body_records_its_denotation_spelling() {
+    let declarations =
+        elaborate("let gt(limit: i32, value: i32): core::Strict<0> = value > limit;");
+
+    let declaration = &declarations[0];
+    assert_eq!(declaration.name, "gt");
+    assert_eq!(
+        declaration
+            .parameters
+            .iter()
+            .map(|parameter| parameter.type_identity.as_str())
+            .collect::<Vec<_>>(),
+        vec!["i32", "i32"]
+    );
+    assert_eq!(declaration.result, "core::Strict<0>");
+    assert_eq!(
+        declaration.body,
+        CheckedMathematicalBody::Definition {
+            term_identity: "value > limit".to_owned()
+        }
+    );
+}
+
+#[test]
 fn boundary_let_elaborates_to_a_named_assumption() {
     let declarations = elaborate(
         "boundary let choose<u: core::Level, A: core::Type<u>>(inhabited: core::Squash<A>): A;",

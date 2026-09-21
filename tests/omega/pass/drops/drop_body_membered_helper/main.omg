@@ -1,0 +1,24 @@
+// A `drop` body is an ordinary Unit machine: helpers it calls attach to
+// ordinary data types, membered or not.
+
+data Guard {
+    handle: i32;
+}
+
+data Util {
+    flag: i32;
+}
+
+machine Util::flush() {
+}
+
+machine Guard::drop(&mut self) {
+    Util::flush();
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}

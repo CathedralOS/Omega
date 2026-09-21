@@ -4,10 +4,7 @@ pub(crate) fn machine_name(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
 ) -> String {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+    crate::lookup::machine_by_symbol(program, machine_symbol)
         .map(|machine| machine.name.as_str().to_owned())
         .unwrap_or_else(|| symbol_name(program, machine_symbol))
 }
@@ -41,11 +38,7 @@ pub(crate) fn symbol_name(program: &typed_trees::TypedTrees, symbol: SymbolHandl
         return "unknown".to_owned();
     }
 
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, symbol) {
         return machine.name.as_str().to_owned();
     }
 

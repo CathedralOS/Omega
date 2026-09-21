@@ -24,10 +24,14 @@
 //! successor transports remain unsupported, and the definition block must
 //! dominate every use block.
 //!
-//! Each retained rewrite shares unchanged selected functions. Replay still
-//! restores and compares the complete source by content, so separately
-//! allocated equivalent inputs work and corruption of an unrelated function
-//! rejects.
+//! Validation re-derives the same legality contract from the source records
+//! on its own audit — the victim's materialize definition and scalar
+//! custody, the flexible-use scan, the edge-transport refusal, and the
+//! dominance the definition block must hold — and never consults the
+//! producer's admission routine. It then requires the proposal to equal the
+//! function that audit produces and restores the complete source by
+//! content, so a wrong legality decision fails validation even when the
+//! proposal matches the emitted edit.
 
 mod admission;
 mod rewrite;

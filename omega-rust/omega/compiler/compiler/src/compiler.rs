@@ -25,6 +25,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
         let source = PreparedCheckedSource::prepare(
             &request.shared.root_path,
             request.shared.package_sources.clone(),
+            request.shared.timings,
         );
         let target_count = request.targets.len();
         let mut native_inputs = NativeInputReuse::default();
@@ -45,6 +46,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                     &target.configuration.optimization_rollback,
                     target.configuration.build_snapshot.as_ref(),
                 )?;
+                let stage_timings = checked.timings().phases().to_vec();
                 let admission =
                     admit_checked_compilation(&checked, target.accepted_trust_admissions())?;
                 let trust_settlement = admission.into_settlement();
@@ -80,7 +82,11 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                         outputs,
                         checked.production_subject()?,
                     )
-                    .map(|report| report.with_trust_admission_settlement(trust_settlement))
+                    .map(|report| {
+                        report
+                            .with_trust_admission_settlement(trust_settlement)
+                            .with_timings(stage_timings)
+                    })
                     .map_err(|message| vec![Diagnostic::error(message)]);
                 }
 
@@ -123,7 +129,9 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 } else {
                     report
                 };
-                Ok(report.with_trust_admission_settlement(trust_settlement))
+                Ok(report
+                    .with_trust_admission_settlement(trust_settlement)
+                    .with_timings(stage_timings))
             };
             outcomes.push(CompileTargetOutcome::new(profile, compile_target()));
         }
