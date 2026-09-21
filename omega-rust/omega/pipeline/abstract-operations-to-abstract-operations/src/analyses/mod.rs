@@ -32,9 +32,11 @@ pub use revision::AnalysisRevision;
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
     ExecutableEdgeFact, ExecutableEdgeKnowledge, FunctionEffectSummary, NodeEffectSummary,
-    NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, ScalarConstant,
-    ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport, UseDefinitionAnalysis,
-    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis,
+    NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, PlaceAliasClaim,
+    PlaceAliasFunction, PlaceAliasRelation, PlaceAliasRoot, PlaceAliasesAnalysis, PlaceView,
+    ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport,
+    UseDefinitionAnalysis, ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock,
+    ValueRangeAnalysis,
 };
 
 #[cfg(test)]

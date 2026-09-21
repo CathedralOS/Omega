@@ -1,5 +1,6 @@
 //! Member and type-reference substitution.
 use crate::preparation::generic_data::ClosedArgumentIdentity;
+use crate::preparation::generic_data::ConstScalarValue;
 use crate::preparation::generic_data::EvaluatedConst;
 use crate::preparation::generic_data::constant_selection;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
@@ -19,6 +20,7 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::ProofFact;
+use syntax_trees::item::ProofMembershipFact;
 use syntax_trees::types::DomainConstraint;
 use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeConstraintNode;
@@ -39,6 +41,7 @@ pub(crate) fn substitute_member(
     selection: Option<&constant_selection::ConstantSelection>,
     instance_name: &str,
     const_values: &HashMap<String, i128>,
+    const_scalars: &HashMap<String, ConstScalarValue>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<DataMember, Diagnostic> {
     let member = match member {
@@ -97,9 +100,13 @@ pub(crate) fn substitute_member(
                 syntax,
                 snapshot,
                 variant.where_facts,
+                substitution,
                 type_identities,
+                const_scalars,
+                const_values,
                 selection,
                 instance_name,
+                warnings,
             )?;
             DataMember::Variant(variant)
         }
@@ -130,9 +137,13 @@ fn copy_case_where_facts(
     syntax: &mut SyntaxTrees,
     snapshot: &SyntaxTrees,
     facts: HandleSpan<ProofFact>,
+    substitution: &HashMap<String, TypeReferenceHandle>,
     type_identities: &HashMap<String, ClosedArgumentIdentity>,
+    const_scalars: &HashMap<String, ConstScalarValue>,
+    const_values: &HashMap<String, i128>,
     selection: Option<&constant_selection::ConstantSelection>,
     instance_name: &str,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<HandleSpan<ProofFact>, Diagnostic> {
     let mut copied = HandleSpan::empty();
     for offset in 0..facts.count() {
@@ -144,6 +155,18 @@ fn copy_case_where_facts(
                 .expect("case where-fact source handle overflow"),
             facts.start().generation(),
         );
+        if let ProofFact::Membership(_) = snapshot.items.proof_fact(source) {
+            copied.push_contiguous(copy_case_membership_fact(
+                syntax,
+                snapshot,
+                source,
+                substitution,
+                const_scalars,
+                const_values,
+                warnings,
+            ));
+            continue;
+        }
         let ProofFact::Expression(template_root) = snapshot.items.proof_fact(source) else {
             copied.push_contiguous(syntax.copy_proof_fact_from(snapshot, source));
             continue;
@@ -226,6 +249,158 @@ fn copy_case_where_facts(
         copied.push_contiguous(handle);
     }
     Ok(copied)
+}
+
+/// Deep-copy one case `where` membership fact onto the instance, substituting
+/// the domain's index arguments: the gate admits `type` and `const` binders
+/// in argument position only, so a named `type` binder lands as the closed
+/// type argument, a named `const` binder as its literal spelling, and a
+/// const-expression argument copies so the caller's rewrite reduces its fresh
+/// `Name` leaves on the instance. The membership value and the domain path
+/// copy verbatim -- the gate refuses binder mentions in both, so their
+/// template spellings are already instance-correct.
+fn copy_case_membership_fact(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    source: Handle<ProofFact>,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_scalars: &HashMap<String, ConstScalarValue>,
+    const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
+) -> Handle<ProofFact> {
+    let ProofFact::Membership(membership) = snapshot.items.proof_fact(source) else {
+        unreachable!("membership fact checked by caller")
+    };
+    let membership = *membership;
+    let arguments = snapshot
+        .type_references
+        .type_reference_handles(membership.domain_arguments)
+        .to_vec();
+    let substituted: Vec<TypeReferenceHandle> = arguments
+        .iter()
+        .map(|argument| {
+            substitute_case_fact_domain_argument(
+                syntax,
+                snapshot,
+                *argument,
+                substitution,
+                const_scalars,
+                const_values,
+                warnings,
+            )
+        })
+        .collect();
+    let domain_arguments = syntax
+        .tables
+        .type_references
+        .insert_type_reference_handles(substituted);
+    let value = syntax.copy_expression_from(snapshot, membership.value);
+    let domain = syntax.items.insert_identifier_path_members(
+        snapshot
+            .items
+            .identifier_path_members(membership.domain)
+            .to_vec(),
+    );
+    let handle = syntax
+        .items
+        .append_proof_fact(ProofFact::Membership(ProofMembershipFact {
+            value,
+            domain,
+            domain_arguments,
+        }));
+    if let Some(source_span) = snapshot.items.proof_fact_source_span(source) {
+        syntax.items.set_proof_fact_source_span(handle, source_span);
+    }
+    handle
+}
+
+/// One domain index argument of a copied membership fact. `type` and `const`
+/// binders substitute; a parameter-free argument reuses its template handle
+/// (the snapshot is a prefix of the same arena). Composite shapes fall through
+/// to the general domain-argument substitution.
+fn substitute_case_fact_domain_argument(
+    syntax: &mut SyntaxTrees,
+    snapshot: &SyntaxTrees,
+    argument: TypeReferenceHandle,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_scalars: &HashMap<String, ConstScalarValue>,
+    const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
+) -> TypeReferenceHandle {
+    match syntax.type_references.type_reference(argument).clone() {
+        TypeReferenceNode::Named(name) => {
+            if let Some(substituted) = substitution.get(name.as_str()) {
+                return *substituted;
+            }
+            if let Some(scalar) = const_scalars.get(name.as_str()) {
+                // PDI2's closed-constant leaf is the literal name itself
+                // (`Domain<8>`, `Domain<true>`), so a `const` binder lands as
+                // that name.
+                let literal = match scalar {
+                    ConstScalarValue::Integer(value)
+                    | ConstScalarValue::DeclaredInteger { value, .. } => value.to_string(),
+                    ConstScalarValue::Boolean(value) => value.to_string(),
+                };
+                return syntax
+                    .tables
+                    .type_references
+                    .insert_named(Identifier::generated(literal));
+            }
+            argument
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            if !expression_mentions_const(syntax, expression, const_scalars) {
+                return argument;
+            }
+            // The copy's `Name` leaves sit past the caller's const-fact
+            // watermark, so the literal rewrite reduces the binder mentions
+            // on the instance while the template stays symbolic.
+            let copied = syntax.copy_expression_from(snapshot, expression);
+            syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(copied))
+        }
+        _ => substitute_domain_index_argument(
+            syntax,
+            snapshot,
+            argument,
+            substitution,
+            const_values,
+            warnings,
+        ),
+    }
+}
+
+/// Whether an expression names any `const` binder. Conservative like
+/// `expression_mentions_parameter`: an unhandled shape counts as a mention so
+/// the caller copies rather than sharing a binder-bearing expression.
+fn expression_mentions_const(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    const_scalars: &HashMap<String, ConstScalarValue>,
+) -> bool {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let [member] = syntax.expressions.identifier_path_members(*path) else {
+                return false;
+            };
+            const_scalars.contains_key(member.as_str())
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_mentions_const(syntax, binary.left, const_scalars)
+                || expression_mentions_const(syntax, binary.right, const_scalars)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_mentions_const(syntax, unary.operand, const_scalars)
+        }
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::SelfValue => false,
+        _ => true,
+    }
 }
 
 fn flatten_case_fact_conjuncts(

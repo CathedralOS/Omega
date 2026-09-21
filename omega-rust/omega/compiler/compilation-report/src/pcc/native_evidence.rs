@@ -192,19 +192,16 @@ fn declared_extent<'a>(
 
 /// The closed import-thunk form a declared target realizes, when it has one:
 /// the fixed byte extent and the exact machine-state footprint of the emitted
-/// thunk sequence. `(x86_64, Coff)` realizes `jmp [rip+disp32]` — six bytes
-/// writing only the instruction pointer; `(aarch64, MachO)` realizes the
-/// twelve-byte `ADRP X16, page; LDR X16, [X16, #imm]; BR X16` — X16 as sole
-/// scratch plus the instruction pointer. Any other declared target emits no
-/// thunk regions, so a row claiming one is not a checkable claim.
+/// thunk sequence. `(x86_64, Coff)` realizes `jmp [rip+disp32]` — the ISA
+/// crate owns that form's extent and footprint; `(aarch64, MachO)` realizes
+/// the twelve-byte `ADRP X16, page; LDR X16, [X16, #imm]; BR X16` — X16 as
+/// sole scratch plus the instruction pointer. Any other declared target emits
+/// no thunk regions, so a row claiming one is not a checkable claim.
 fn import_thunk_form(target: target::NativeTarget) -> Option<(usize, StateFootprintEvidence)> {
     match (target.architecture, target.object_format) {
         (target::Architecture::X86_64, target::ObjectFormat::Coff) => Some((
-            6,
-            StateFootprintEvidence::new(
-                RegisterSet::default(),
-                MachineStateSet::new([MachineState::InstructionPointer]),
-            ),
+            isa_x86_64::X86_64_IMPORT_THUNK_BYTE_COUNT,
+            isa_x86_64::x86_64_import_thunk_footprint(),
         )),
         (target::Architecture::Aarch64, target::ObjectFormat::MachO) => Some((
             12,
@@ -520,9 +517,17 @@ impl NativePlacedImageEvidence {
         })
     }
 
-    /// Construct a section directly from its parts. Production goes through
-    /// [`Self::from_artifact`], which locates the text and data extents; tests
-    /// build sections over synthetic inventories.
+    /// Construct a section directly from its parts, asserting the assembly
+    /// satisfies the decoder's canonical checks. Production goes through
+    /// [`Self::from_artifact`], which locates the text and data extents;
+    /// tests build sections over synthetic inventories. A real producer
+    /// never emits a section its own decoder must reject — the decode
+    /// checks are the realization contract (the declared target versus
+    /// footprint registers, the closed thunk form, canonical row order,
+    /// the import-data target gate) — so parts that cannot assemble a
+    /// decodable section are a fixture bug, not evidence. A fixture that
+    /// needs malformed evidence mutates a constructed section or its wire
+    /// bytes afterward, which is how the decode-rejection fixtures work.
     #[cfg(test)]
     pub(crate) fn from_parts(
         target: target::NativeTarget,
@@ -533,7 +538,7 @@ impl NativePlacedImageEvidence {
         import_data_file_offset: u64,
         import_data_inventory: image::PlacedDataRegionInventory,
     ) -> Self {
-        Self {
+        let section = Self {
             target,
             text_file_offset,
             inventory,
@@ -541,7 +546,11 @@ impl NativePlacedImageEvidence {
             data_inventory,
             import_data_file_offset,
             import_data_inventory,
+        };
+        if let Err(rejection) = Self::from_bytes(&section.to_bytes()) {
+            panic!("from_parts assembled a section its own decoder rejects: {rejection:?}");
         }
+        section
     }
 
     pub const fn target(&self) -> target::NativeTarget {
@@ -637,18 +646,19 @@ impl NativePlacedImageEvidence {
                 continue;
             }
             match (self.target.architecture, self.target.object_format) {
-                (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
+                (target::Architecture::X86_64, target::ObjectFormat::Coff)
+                | (target::Architecture::X86_64, target::ObjectFormat::MachO) => {
                     let bytes = text_bytes
-                        .get(region.section_offset..region.section_offset + 6)
+                        .get(region.section_offset..region.section_offset + region.byte_count)
                         .ok_or_else(|| {
                             format!(
-                                "Coff import thunk `{}` is out of the declared text extent",
+                                "import thunk `{}` is out of the declared text extent",
                                 region.symbol
                             )
                         })?;
-                    if bytes[..2] != [0xff, 0x25] {
+                    if isa_x86_64::decode_x86_64_import_thunk(bytes).is_none() {
                         return Err(format!(
-                            "Coff import thunk `{}` does not match jmp [rip+disp32]",
+                            "import thunk `{}` does not decode to jmp [rip+disp32]",
                             region.symbol
                         ));
                     }
@@ -662,6 +672,14 @@ impl NativePlacedImageEvidence {
         match (self.target.architecture, self.target.object_format) {
             (target::Architecture::Aarch64, target::ObjectFormat::MachO) => {
                 image_macho::validate_macho_aarch64_import_binding_pairing(
+                    text_bytes,
+                    &self.inventory,
+                    &self.data_inventory,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
+            }
+            (target::Architecture::X86_64, target::ObjectFormat::MachO) => {
+                image_macho::validate_macho_x86_64_import_binding_pairing(
                     text_bytes,
                     &self.inventory,
                     &self.data_inventory,
@@ -1447,11 +1465,21 @@ mod tests {
         FinalImageMemory,
     };
 
+    /// The fixtures declare one fixed target rather than the host's: the
+    /// planted footprint carries x86-64 registers, and decode binds every
+    /// footprint register to the section's declared architecture — a
+    /// mismatch `from_parts` now refuses at construction, so under
+    /// `host()` an aarch64 host would panic assembling a section its own
+    /// decoder must reject as foreign.
+    fn fixture_target() -> target::NativeTarget {
+        target::NativeTarget::linux_x64()
+    }
+
     /// Build a real placed inventory over a small text through the production
     /// `place_executable_regions`, so test evidence rows carry honest digests.
     fn placed_inventory(text: &[u8]) -> image::PlacedExecutableRegionInventory {
         let mut image = FinalImage::with_capacity(
-            target::NativeTarget::host(),
+            fixture_target(),
             FinalImageMemory {
                 text: text.to_vec(),
                 ..FinalImageMemory::default()
@@ -1495,7 +1523,7 @@ mod tests {
     fn empty_data_inventory() -> image::PlacedDataRegionInventory {
         image::place_data_regions(
             &FinalImage::with_capacity(
-                target::NativeTarget::host(),
+                fixture_target(),
                 FinalImageMemory::default(),
                 Default::default(),
                 0,
@@ -1509,7 +1537,7 @@ mod tests {
 
     fn evidence_over(text: &[u8], text_file_offset: u64) -> NativePlacedImageEvidence {
         NativePlacedImageEvidence::from_parts(
-            target::NativeTarget::host(),
+            fixture_target(),
             text_file_offset,
             placed_inventory(text),
             0,
@@ -1527,6 +1555,24 @@ mod tests {
         assert_eq!(
             NativePlacedImageEvidence::from_bytes(&bytes).expect("decode"),
             evidence
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "from_parts assembled a section its own decoder rejects")]
+    fn from_parts_rejects_a_target_footprint_mismatch() {
+        // The trap the host()-declaring fixture fell into: x86-64 footprint
+        // registers under an aarch64 section decode-reject as foreign, so
+        // the constructor refuses the assembly rather than letting the
+        // fixture discover it at decode.
+        NativePlacedImageEvidence::from_parts(
+            target::NativeTarget::macos_arm64(),
+            0,
+            placed_inventory(&[0xabu8; 12]),
+            0,
+            empty_data_inventory(),
+            0,
+            empty_data_inventory(),
         );
     }
 
@@ -1570,7 +1616,7 @@ mod tests {
         // Two regions written out of offset order reject rather than being
         // silently re-sorted into a canonical-looking section.
         let mut image = FinalImage::with_capacity(
-            target::NativeTarget::host(),
+            fixture_target(),
             FinalImageMemory {
                 text: vec![0xabu8; 12],
                 ..FinalImageMemory::default()
@@ -1596,14 +1642,14 @@ mod tests {
                 footprint: None,
             },
         ]);
-        // place_executable_regions sorts by offset, so hand the decoder an
-        // evidence whose wire rows were written unsorted directly.
+        // place_executable_regions sorts by offset and from_parts requires
+        // a decodable assembly, so the unsorted wire comes from mutating a
+        // constructed section — the same idiom the other decode-rejection
+        // fixtures use.
         let inventory = image::place_executable_regions(&image, FinalImageLayout::default())
             .expect("the fixture regions place");
-        let mut inventory = inventory;
-        inventory.regions.swap(0, 1);
-        let evidence = NativePlacedImageEvidence::from_parts(
-            target::NativeTarget::host(),
+        let mut evidence = NativePlacedImageEvidence::from_parts(
+            fixture_target(),
             0,
             inventory,
             0,
@@ -1611,6 +1657,7 @@ mod tests {
             0,
             empty_data_inventory(),
         );
+        evidence.inventory.regions.swap(0, 1);
         assert!(matches!(
             NativePlacedImageEvidence::from_bytes(&evidence.to_bytes()),
             Err(NativeEvidenceError::Malformed(_))

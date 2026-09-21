@@ -13,7 +13,12 @@
 //! classification below stays as the AGREEMENT ORACLE during the transition:
 //! a policy whose placements diverge from the codec's walk is a compile
 //! error naming both sides -- never a silent re-framing. Programs without
-//! the policy keep the Rust-derived plan unchanged.
+//! the policy keep the Rust-derived plan unchanged. A plan recorded after a
+//! successful policy agreement carries `policy_verified`: the generated
+//! codec's plan was independently checked against an authored statement of
+//! the public requirement, so evidence readers can distinguish it from a
+//! generator-admitted plan (codec spec: an unverified generated realization
+//! remains compiler-admitted).
 //!
 //! Classification mirrors the codec's walk exactly
 //! (`collect_field_appends` / `collect_field_reads`): repeated, nested, and
@@ -144,6 +149,10 @@ pub fn compute_wire_plans(
             .collect();
         derived.sort_by_key(|placement| placement.tag());
 
+        // A plan surviving the policy agreement check below is verified by
+        // an authored artifact; absent the policy it is generator-derived
+        // only.
+        let mut policy_verified = false;
         if policy_exists {
             // THE POLICY AUTHORS THE PLAN: evaluate it against the schema's
             // materialized facts and require agreement with the codec walk.
@@ -164,6 +173,7 @@ pub fn compute_wire_plans(
                      expects {derived:?}"
                 ))]);
             }
+            policy_verified = true;
         }
 
         let obligations = fields
@@ -182,11 +192,11 @@ pub fn compute_wire_plans(
                 })
             })
             .collect::<Vec<_>>();
-        plans.push((symbol, derived, obligations));
+        plans.push((symbol, derived, obligations, policy_verified));
     }
 
-    for (schema, placements, obligations) in plans {
-        typed.record_wire_schema_plan(schema, placements, obligations);
+    for (schema, placements, obligations, policy_verified) in plans {
+        typed.record_wire_schema_plan(schema, placements, obligations, policy_verified);
     }
     Ok(())
 }

@@ -59,6 +59,7 @@
 
 mod admission;
 mod rewrite;
+mod scheduled_relocation;
 mod validation;
 
 use std::sync::Arc;
@@ -68,6 +69,10 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::schedule_selected_pair;
+pub use scheduled_relocation::{
+    ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation,
+    relocate_scheduled_run, validate_scheduled_relocation,
+};
 pub use validation::validate_local_schedule;
 
 #[cfg(test)]

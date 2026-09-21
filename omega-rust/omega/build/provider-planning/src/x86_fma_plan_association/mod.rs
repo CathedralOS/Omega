@@ -7,7 +7,10 @@
 use std::collections::BTreeSet;
 
 use crate::{CompilerIntrinsicExecutionIdentity, SelectedProviderReviewProvenance};
-use checked_trees::{CheckedNamedOperatorUseFact, CheckedTrees};
+use checked_trees::{
+    CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact, CheckedProviderPlanCommitment,
+    CheckedTrees,
+};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 use symbols::{BuiltinFunction, SymbolHandle};
@@ -119,8 +122,25 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
 
     let mut plan_evidence = Vec::new();
     let mut demands = Vec::new();
-    for operator_use in checked.facts.operators.named_uses() {
-        match exact_selected_plan_index(operator_use, selected, &mut plan_evidence) {
+    // Both source spellings carry the same exact selected-plan evidence on
+    // their checked fact: a named boundary-operator use or a direct top-level
+    // boundary-requirement call. The lowered occurrence's
+    // `requirement_operator` carries the requirement symbol either way, so
+    // demand joins on that one view.
+    for named_use in checked
+        .facts
+        .operators
+        .named_uses()
+        .map(SelectedFmaUse::from)
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_requirement_uses()
+                .map(SelectedFmaUse::from),
+        )
+    {
+        match exact_selected_plan_index(named_use, selected, &mut plan_evidence) {
             Ok(None) => continue,
             Ok(Some(plan_index)) => {
                 let retained = &provenance[plan_index];
@@ -146,9 +166,7 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
                     )));
                     continue;
                 }
-                if retained.provider.row_requirements[row_index]
-                    != operator_use.selected_operator_symbol
-                {
+                if retained.provider.row_requirements[row_index] != named_use.requirement_symbol {
                     diagnostics.push(Diagnostic::error(format!(
                         "selected ProviderPlan `{}` does not bind this exact named FMA use to its retained requirement symbol",
                         retained.plan.name,
@@ -180,7 +198,7 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
                     plan_index,
                     row_index,
                     builtin,
-                    operator_use.selected_operator_symbol,
+                    named_use.requirement_symbol,
                     slot,
                 ));
             }
@@ -329,19 +347,50 @@ fn validate_provenance_alignment(
         .collect()
 }
 
+/// One checked named use viewed through its requirement symbol: a named
+/// boundary-operator use or a direct top-level requirement call, each stamped
+/// by provider planning with its exact selected plan. Mirrors the dual-lane
+/// view selected dispatch uses for the same facts.
+#[derive(Debug, Clone, Copy)]
+struct SelectedFmaUse {
+    requirement_symbol: SymbolHandle,
+    provider_plan_report_fingerprint: u64,
+    provider_plan_commitment: CheckedProviderPlanCommitment,
+}
+
+impl From<&CheckedNamedOperatorUseFact> for SelectedFmaUse {
+    fn from(operator_use: &CheckedNamedOperatorUseFact) -> Self {
+        Self {
+            requirement_symbol: operator_use.selected_operator_symbol,
+            provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+            provider_plan_commitment: operator_use.provider_plan_commitment,
+        }
+    }
+}
+
+impl From<&CheckedNamedRequirementUseFact> for SelectedFmaUse {
+    fn from(requirement_use: &CheckedNamedRequirementUseFact) -> Self {
+        Self {
+            requirement_symbol: requirement_use.requirement_symbol,
+            provider_plan_report_fingerprint: requirement_use.provider_plan_report_fingerprint,
+            provider_plan_commitment: requirement_use.provider_plan_commitment,
+        }
+    }
+}
+
 fn exact_selected_plan_index(
-    operator_use: &CheckedNamedOperatorUseFact,
+    named_use: SelectedFmaUse,
     selected: &effects::SelectedProviderPlanFacts,
     evidence: &mut Vec<SelectedPlanEvidence>,
 ) -> Result<Option<usize>, Diagnostic> {
-    let report_identity = operator_use.provider_plan_report_fingerprint;
-    let commitment = operator_use.provider_plan_commitment;
+    let report_identity = named_use.provider_plan_report_fingerprint;
+    let commitment = named_use.provider_plan_commitment;
     if report_identity == 0 && commitment.is_empty() {
         return Ok(None);
     }
     if report_identity == 0 || commitment.is_empty() {
         return Err(Diagnostic::error(
-            "named operator use retains only one half of exact selected ProviderPlan evidence",
+            "selected named use retains only one half of exact selected ProviderPlan evidence",
         ));
     }
 
@@ -370,7 +419,7 @@ fn exact_selected_plan_index(
     let first = matches.next();
     let Some(plan_index) = first.filter(|_| matches.next().is_none()) else {
         return Err(Diagnostic::error(format!(
-            "named operator use does not rejoin exactly one selected ProviderPlan at report identity {report_identity:#018x}",
+            "selected named use does not rejoin exactly one selected ProviderPlan at report identity {report_identity:#018x}",
         )));
     };
     let plan = &selected.plans()[plan_index];
@@ -380,7 +429,7 @@ fn exact_selected_plan_index(
             .is_some()
     }) {
         return Err(Diagnostic::error(format!(
-            "named operator use rejoined a substituted ProviderPlan at report identity {report_identity:#018x}",
+            "selected named use rejoined a substituted ProviderPlan at report identity {report_identity:#018x}",
         )));
     }
     Ok(Some(plan_index))
@@ -398,12 +447,12 @@ const fn slot_for_builtin(builtin: BuiltinFunction) -> Option<X86ScalarFmaSlot> 
 mod tests {
     use super::{
         AdmittedX86ScalarFmaProvider, BuiltinFunction, CheckedNamedOperatorUseFact, CheckedTrees,
-        CompilerIntrinsicExecutionIdentity, ProviderBinding, ProviderPlan,
+        CompilerIntrinsicExecutionIdentity, ProviderBinding, ProviderPlan, SelectedFmaUse,
         SelectedProviderReviewProvenance, SymbolHandle, TargetProfile, X86ScalarFmaSlot,
         bind_checked_x86_scalar_fma_plan_associations, exact_selected_plan_index,
     };
     use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelectionProvenance};
-    use checked_trees::CheckedProviderPlanCommitment;
+    use checked_trees::{CheckedNamedRequirementUseFact, CheckedProviderPlanCommitment};
     use effects::SelectedProviderPlanFacts;
     use effects::provider_plan::{ProviderPlanRow, ServiceMethod, ServiceSchema};
 
@@ -497,6 +546,29 @@ mod tests {
         checked
     }
 
+    fn requirement_demands(selected: &SelectedProviderPlanFacts, names: &[&str]) -> CheckedTrees {
+        let mut checked = CheckedTrees::default();
+        for name in names {
+            let plan = selected
+                .plans()
+                .iter()
+                .find(|plan| plan.name == *name)
+                .expect("selected demand fixture");
+            checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .append(CheckedNamedRequirementUseFact {
+                    provider_plan_report_fingerprint: plan.report_fingerprint(),
+                    provider_plan_commitment: CheckedProviderPlanCommitment::from_digest(
+                        *plan.identity_digest().as_bytes(),
+                    ),
+                    ..CheckedNamedRequirementUseFact::default()
+                });
+        }
+        checked
+    }
+
     fn admitted(profile: TargetProfile) -> AdmittedX86ScalarFmaProvider {
         AdmittedX86ScalarFmaProvider::from_deployment_claim(
             profile,
@@ -533,6 +605,64 @@ mod tests {
                 .iter()
                 .all(|association| association.matches_checked_inputs(&selected, provider))
         );
+    }
+
+    #[test]
+    fn requirement_spelled_demands_publish_the_same_slot_associations() {
+        let (selected, provenance) = selected_plans(&[
+            ("a32", BuiltinFunction::FloatFusedMultiplyAddF32),
+            ("b64", BuiltinFunction::FloatFusedMultiplyAddF64),
+        ]);
+        let provider = admitted(TargetProfile::LinuxX64);
+        let associations = bind_checked_x86_scalar_fma_plan_associations(
+            &requirement_demands(&selected, &["a32", "b64", "a32"]),
+            &selected,
+            &provenance,
+            Some(provider),
+            Some(TargetProfile::LinuxX64),
+        )
+        .expect("top-level requirement calls carry the same selected-plan evidence");
+        assert_eq!(
+            associations
+                .iter()
+                .map(|association| association.slot())
+                .collect::<Vec<_>>(),
+            X86ScalarFmaSlot::ALL
+        );
+        assert!(
+            associations
+                .iter()
+                .all(|association| association.matches_checked_inputs(&selected, provider))
+        );
+    }
+
+    #[test]
+    fn mixed_spelling_demands_share_one_slot_without_conflicting() {
+        let (selected, provenance) =
+            selected_plans(&[("a32", BuiltinFunction::FloatFusedMultiplyAddF32)]);
+        let mut checked = demands(&selected, &["a32"]);
+        checked
+            .facts
+            .operators
+            .named_requirement_uses
+            .append(CheckedNamedRequirementUseFact {
+                provider_plan_report_fingerprint: selected.plans()[0].report_fingerprint(),
+                provider_plan_commitment: CheckedProviderPlanCommitment::from_digest(
+                    *selected.plans()[0].identity_digest().as_bytes(),
+                ),
+                ..CheckedNamedRequirementUseFact::default()
+            });
+        let provider = admitted(TargetProfile::LinuxX64);
+        let associations = bind_checked_x86_scalar_fma_plan_associations(
+            &checked,
+            &selected,
+            &provenance,
+            Some(provider),
+            Some(TargetProfile::LinuxX64),
+        )
+        .expect("both spellings deduplicate to the same plan");
+        assert_eq!(associations.len(), 1);
+        assert_eq!(associations[0].slot(), X86ScalarFmaSlot::Binary32);
     }
 
     #[test]
@@ -579,8 +709,12 @@ mod tests {
         let mut occurrence = operator_use(&selected.plans()[1]);
         for _ in 0..64 {
             assert_eq!(
-                exact_selected_plan_index(&occurrence, &selected, &mut evidence)
-                    .expect("exact repeated occurrence"),
+                exact_selected_plan_index(
+                    SelectedFmaUse::from(&occurrence),
+                    &selected,
+                    &mut evidence
+                )
+                .expect("exact repeated occurrence"),
                 Some(1)
             );
         }
@@ -593,7 +727,7 @@ mod tests {
         assert_eq!(evidence[1].exact_rejoin, Some(true));
         occurrence.provider_plan_commitment = CheckedProviderPlanCommitment::from_digest([7; 32]);
         assert!(
-            exact_selected_plan_index(&occurrence, &selected, &mut evidence)
+            exact_selected_plan_index(SelectedFmaUse::from(&occurrence), &selected, &mut evidence)
                 .expect_err("a cached plan does not authorize changed occurrence evidence")
                 .message
                 .contains("exactly one selected ProviderPlan")

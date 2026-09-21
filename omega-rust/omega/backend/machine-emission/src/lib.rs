@@ -84,10 +84,9 @@ pub use exit_contract::{
     WholeFunctionExitContractError, WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
     WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
     WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, stage_whole_function_exit_contract,
+    WholeFunctionReturnValueEvidence,
     stage_whole_function_exit_contract_after_x86_branch_relaxation,
     stage_whole_function_exit_contract_for_layout, stage_whole_function_exit_contract_with_frame,
-    validate_whole_function_exit_contract,
     validate_whole_function_exit_contract_after_x86_branch_relaxation,
     validate_whole_function_exit_contract_for_layout,
     validate_whole_function_exit_contract_with_frame,
@@ -114,6 +113,15 @@ pub use fragments::{
 
 mod x86_fma;
 pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};
+
+mod startup_trampoline;
+pub use startup_trampoline::{
+    X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT, X86_64ResolvedStartupTrampoline,
+    X86_64StartupTrampolineFields, X86_64StartupTrampolineFootprint,
+    X86_64StartupTrampolineResolution, X86_64StartupTrampolineResolutionError,
+    X86_64StartupTrampolineTemplate, emit_x86_64_startup_trampoline,
+    resolve_x86_64_startup_trampoline, validate_x86_64_startup_trampoline,
+};
 
 mod entry_exit_stub;
 pub use entry_exit_stub::{

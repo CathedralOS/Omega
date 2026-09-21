@@ -1009,6 +1009,82 @@ fn retained_foreign_argument_under_custody_uses_the_authored_row() {
             .contains("no argument")
     );
 
+    // The retained source must be the authored entry-time parameter itself.
+    // A `Current`-version place, a `Result` root, or the `self` receiver all
+    // drift off the authored entry-parameter shape and must reject rather
+    // than silently re-binding whichever argument the caller prefers.
+    let mutated_sources = [
+        {
+            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
+                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+            else {
+                unreachable!()
+            };
+            custody.source.version = semantic_vocabulary::ContentPlaceVersion::Current;
+            custody
+        },
+        {
+            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
+                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+            else {
+                unreachable!()
+            };
+            custody.source.root = terminal_psi::RetainedBorrowPlaceRoot::Result;
+            custody
+        },
+        {
+            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
+                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+            else {
+                unreachable!()
+            };
+            custody.source.root = terminal_psi::RetainedBorrowPlaceRoot::Parameter {
+                position: 0,
+                identity: "self".to_owned(),
+                is_self: true,
+            };
+            custody
+        },
+    ];
+    for custody in mutated_sources {
+        assert!(
+            registry
+                .retain_foreign_argument_under_custody(
+                    &[&extent],
+                    RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                    &terminal_psi::BoundaryContentGuarantee::RetainedBorrow(custody),
+                )
+                .expect_err("a non-entry-parameter custody source rejects")
+                .0
+                .contains("not an entry parameter")
+        );
+    }
+
+    // A projected source (`buffer.field`) names interior storage, not the
+    // entry parameter place the authored loan binds.
+    let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut projected) =
+        retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+    else {
+        unreachable!()
+    };
+    projected
+        .source
+        .segments
+        .push(semantic_vocabulary::ContentPlaceSegment::Field(
+            "field".to_owned(),
+        ));
+    assert!(
+        registry
+            .retain_foreign_argument_under_custody(
+                &[&extent],
+                RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                &terminal_psi::BoundaryContentGuarantee::RetainedBorrow(projected),
+            )
+            .expect_err("a projected custody source rejects")
+            .0
+            .contains("not a direct parameter")
+    );
+
     // A range outside the argument's backing still rejects against the
     // ledger's own backing bounds.
     assert!(
@@ -2723,6 +2799,145 @@ fn batch_over_receiver_partitions_retains_each_member_residuals() {
         assert_eq!(restored.base(), base);
         assert_eq!(restored.length(), 0x200);
     }
+    assert_eq!(registry.held_accounts(), 0);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+#[test]
+fn program_local_extent_registry_remap_reseats_backing_under_new_era() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        985,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 1085, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 1185, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1285, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(
+            established,
+            installed_backing_extent(700, 0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes over its installed backing");
+
+    // Only the exact recombined root can drive a remap: a split descendant
+    // names partial authority and rejects, returning both Extents.
+    let (lower, upper) = extent.split_at(0x40).expect("split program-local Extent");
+    let rejected = registry
+        .remap(lower, installed_backing_extent(701, 0x4000, 0x100, 31))
+        .expect_err("a split descendant cannot remap the account");
+    assert!(rejected.diagnostic().0.contains("recombined root"));
+    let (lower, _backing) = rejected.into_parts();
+    let extent = lower.merge(upper).expect("recombine exact root Extent");
+
+    // A same-era replacement is indistinguishable from ambient substitution:
+    // a remap must advance the mapping era.
+    let rejected = registry
+        .remap(extent, installed_backing_extent(701, 0x4000, 0x100, 30))
+        .expect_err("a same-era replacement is not a remap");
+    assert!(rejected.diagnostic().0.contains("new mapping era"));
+    let (extent, _backing) = rejected.into_parts();
+
+    // The replacement covers the same geometry in the same address space;
+    // relocation is retire+materialize, not a remap.
+    let rejected = registry
+        .remap(extent, installed_backing_extent(701, 0x4000, 0x80, 31))
+        .expect_err("a geometry change cannot ride the remap route");
+    assert!(rejected.diagnostic().0.contains("same address space"));
+    let (extent, _backing) = rejected.into_parts();
+
+    // A foreign side still retaining the old range pins the stale revision:
+    // the remap is refused until the peer releases its retention.
+    let request = RetainedForeignArgumentRequest::new(
+        0x10,
+        0x20,
+        RetainedForeignAccess::Shared,
+        ExtentRights::from_normalized_identities([extent_id(
+            100,
+            ExtentRightId::from_normalized_identity,
+        )]),
+    )
+    .expect("nonempty shared request");
+    let retained = registry
+        .retain_foreign_argument_borrowed(&extent, request)
+        .expect("shared borrowed retention");
+    let rejected = registry
+        .remap(extent, installed_backing_extent(701, 0x4000, 0x100, 31))
+        .expect_err("a live retained foreign argument blocks the remap");
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("retained foreign argument")
+    );
+    let (extent, _backing) = rejected.into_parts();
+    registry
+        .release_retained_foreign_argument(retained)
+        .expect("peer retention releases");
+
+    // The checked remap consumes the stale root and mints a fresh
+    // program-local Extent over the re-seated backing's own runtime facts —
+    // same origin and lineage, new provenance and era.
+    let stale_era = extent.era();
+    let remapped = registry
+        .remap(extent, installed_backing_extent(701, 0x4000, 0x100, 31))
+        .expect("the recombined root re-seats the account's backing");
+    assert_eq!(remapped.base(), 0x4000);
+    assert_eq!(remapped.length(), 0x100);
+    assert_eq!(remapped.era().normalized_identity(), 31);
+    assert_ne!(remapped.era(), stale_era);
+    assert_eq!(registry.held_accounts(), 1);
+
+    // The account completes under the new revision: retirement returns the
+    // remapped backing, not the stale one.
+    let retired = registry
+        .retire(remapped, &mut installation, &mut lifecycle)
+        .expect("the remapped account completes under its new revision");
+    let backing = retired.into_backing();
+    assert_eq!(backing.base(), 0x4000);
+    assert_eq!(backing.era().normalized_identity(), 31);
+    assert!(
+        backing
+            .provider_issuance()
+            .is_some_and(|issuance| issuance == extent_provider_issuance(701))
+    );
     assert_eq!(registry.held_accounts(), 0);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
 }

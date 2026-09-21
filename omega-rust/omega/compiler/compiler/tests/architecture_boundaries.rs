@@ -52,11 +52,6 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         ),
         (
             "machine-emission/Cargo.toml",
-            "post-allocation-machine-to-post-allocation-machine",
-            "../../pipeline/post-allocation-machine-to-post-allocation-machine",
-        ),
-        (
-            "machine-emission/Cargo.toml",
             "post-allocation-machine-to-selected-form-encoding",
             "../../pipeline/post-allocation-machine-to-selected-form-encoding",
         ),
@@ -74,6 +69,11 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
             "machine-emission/Cargo.toml",
             "selected-instructions-to-register-homes",
             "../../pipeline/selected-instructions-to-register-homes",
+        ),
+        (
+            "machine-emission/Cargo.toml",
+            "resolved-layout-to-resolved-layout",
+            "../../pipeline/resolved-layout-to-resolved-layout",
         ),
         (
             "object/object-file/Cargo.toml",
@@ -189,6 +189,23 @@ fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
             "backend/instruction_set_architectures/isa-x86_64",
         ));
     }
+    // The resolved-layout optimization stage carries exactly the x86-64 ISA
+    // leg today (its dev-only ISA fixtures stay outside this production scan).
+    expected.insert((
+        "resolved-layout-to-resolved-layout",
+        "isa-x86_64",
+        "backend/instruction_set_architectures/isa-x86_64",
+    ));
+    expected.insert((
+        "selected-instructions-to-selected-instructions",
+        "isa-aarch64",
+        "backend/instruction_set_architectures/isa-aarch64",
+    ));
+    expected.insert((
+        "selected-instructions-to-selected-instructions",
+        "isa-x86_64",
+        "backend/instruction_set_architectures/isa-x86_64",
+    ));
 
     for cargo_toml in cargo_tomls_under(&lowering_root) {
         let contents = fs::read_to_string(&cargo_toml)

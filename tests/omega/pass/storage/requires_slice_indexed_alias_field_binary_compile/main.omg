@@ -1,11 +1,21 @@
+// COMPILE CANARY: a `requires`-bounded index writes a field through a `&mut`
+// slice alias. The entry point stays empty; the contract machine is exercised
+// for its body checks, so the `index < exits.len` premise is the real bound
+// the indexed write needs.
 data Exit {
-    count: i32;
+    // Defined-overflow domain: the indexed read through the `&mut` slice
+    // alias is opaque to snapshot-free bounds, so `count + 1` is a wrapping
+    // increment, not an exact-arithmetic obligation.
+    count: i32 in Wrapping;
 }
 
 data Main {
 }
 
-machine Main::main(
+machine Main::main(&mut self) {
+}
+
+machine Main::bump_exit(
     &mut self,
     exits: &mut [Exit],
     index: u64

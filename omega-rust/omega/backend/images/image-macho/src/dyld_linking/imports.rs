@@ -3,10 +3,8 @@
 
 use crate::dyld_linking::load_commands::MachoDylib;
 use crate::file_layout::layout::align_to;
-use calling_conventions::{
-    DARWIN_LIBOBJC_PATH, MachineRegister, MachineState, MachineStateSet, RegisterSet,
-    StateFootprintEvidence, darwin_import_library,
-};
+use crate::isa::MachoIsa;
+use calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
 use diagnostics::Diagnostic;
 use image::{
     FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
@@ -14,7 +12,7 @@ use image::{
     PlacedDataRegionInventory, PlacedExecutableRegionInventory,
 };
 use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
+use target::{ForeignLocatorCandidate, NormalizedForeignLocator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachoImportThunk {
@@ -77,6 +75,7 @@ fn plan_dylibs(imports: &[PreparedMachoImport]) -> Result<Vec<MachoDylib>, Diagn
 
 pub(crate) fn install_import_thunks(
     image: &mut FinalImage,
+    isa: MachoIsa,
 ) -> Result<InstalledMachoImports, Diagnostic> {
     // The host-ABI binding catalog registers an import symbol for EVERY binding,
     // but a program calls only a few. Only a REFERENCED import (a host-call `bl`
@@ -146,7 +145,7 @@ pub(crate) fn install_import_thunks(
                         locator.non_authoritative_compatibility_fingerprint(),
                     )));
                 };
-                if locator.target() != TargetProfile::MacosArm64
+                if locator.target() != isa.target_profile()
                     || locator.target().native_target() != image.target
                 {
                     return Err(Diagnostic::error(format!(
@@ -229,18 +228,19 @@ pub(crate) fn install_import_thunks(
             });
         }
         let data_offset = image.memory.data.len();
-        image.memory.text.extend([0u8; 12]);
+        let thunk_size = isa.import_thunk_size();
+        image.memory.text.extend([0u8].repeat(thunk_size));
         image.memory.data.extend([0u8; 8]);
 
         let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
         image_symbol.section = FinalImageSection::Text;
         image_symbol.offset = text_offset;
-        image_symbol.size = 12;
+        image_symbol.size = thunk_size;
 
         image.executable_regions.push(FinalExecutableRegion {
             origin: FinalExecutableRegionOrigin::ImportThunk,
             section_offset: text_offset,
-            byte_count: 12,
+            byte_count: thunk_size,
             symbol: symbol.clone(),
             footprint: None,
         });
@@ -273,38 +273,77 @@ pub(crate) fn patch_import_thunks(
     image: &mut FinalImage,
     layout: &FinalImageLayout,
     thunks: &[MachoImportThunk],
+    isa: MachoIsa,
 ) -> Result<(), Diagnostic> {
     for thunk in thunks {
         let instruction_address = layout.text_address + thunk.text_offset as u64;
         let pointer_address = layout.data_address + thunk.data_offset as u64;
-        patch_aarch64_adrp(
-            &mut image.memory.text,
-            thunk.text_offset,
-            instruction_address,
-            pointer_address,
-        )?;
-        patch_aarch64_ldr_x_from_page(
-            &mut image.memory.text,
-            thunk.text_offset + 4,
-            pointer_address,
-            16,
-            16,
-        )?;
-        write_u32_at(&mut image.memory.text, thunk.text_offset + 8, 0xd61f_0200)?;
+        match isa {
+            MachoIsa::Aarch64 => {
+                patch_aarch64_adrp(
+                    &mut image.memory.text,
+                    thunk.text_offset,
+                    instruction_address,
+                    pointer_address,
+                )?;
+                patch_aarch64_ldr_x_from_page(
+                    &mut image.memory.text,
+                    thunk.text_offset + 4,
+                    pointer_address,
+                    16,
+                    16,
+                )?;
+                write_u32_at(&mut image.memory.text, thunk.text_offset + 8, 0xd61f_0200)?;
+            }
+            MachoIsa::X86_64 => {
+                // `jmp qword ptr [rip + disp32]`: the slot lives in __DATA, so
+                // the displacement reaches across the planned segment distance.
+                let displacement = i64::try_from(pointer_address)
+                    .ok()
+                    .zip(i64::try_from(instruction_address + 6).ok())
+                    .and_then(|(target, next)| target.checked_sub(next))
+                    .ok_or_else(|| {
+                        Diagnostic::error(format!(
+                            "Mach-O x86-64 import thunk `{}` pointer address overflows",
+                            thunk.symbol
+                        ))
+                    })?;
+                let displacement = i32::try_from(displacement).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "Mach-O x86-64 import thunk `{}` binding slot is out of disp32 range",
+                        thunk.symbol
+                    ))
+                })?;
+                let Some(slot) = image
+                    .memory
+                    .text
+                    .get_mut(thunk.text_offset..thunk.text_offset + 6)
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "Mach-O x86-64 import thunk `{}` patch offset is out of bounds",
+                        thunk.symbol
+                    )));
+                };
+                slot[..2].copy_from_slice(&[0xff, 0x25]);
+                slot[2..6].copy_from_slice(&displacement.to_le_bytes());
+            }
+        }
     }
 
     Ok(())
 }
 
 /// Validate the final patched Mach-O thunk opcode shape and attach its exact
-/// architectural effect. The fixed sequence uses X16 as its sole scratch
-/// register and transfers control without changing flags, stack, or vectors.
+/// architectural effect. The AArch64 sequence uses X16 as its sole scratch
+/// register; the x86-64 stub writes the instruction pointer alone.
 pub(crate) fn validate_import_thunk_footprints(
     image: &mut FinalImage,
     thunks: &[MachoImportThunk],
+    isa: MachoIsa,
 ) -> Result<(), Diagnostic> {
+    let thunk_size = isa.import_thunk_size();
     for thunk in thunks {
-        let end = thunk.text_offset.checked_add(12).ok_or_else(|| {
+        let end = thunk.text_offset.checked_add(thunk_size).ok_or_else(|| {
             Diagnostic::error(format!(
                 "Mach-O import thunk `{}` range overflows",
                 thunk.symbol
@@ -320,15 +359,20 @@ pub(crate) fn validate_import_thunk_footprints(
                     thunk.symbol
                 ))
             })?;
-        let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
-        let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
-        let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
-        if adrp & 0x9f00_001f != 0x9000_0010
-            || ldr & 0xffc0_03ff != 0xf940_0210
-            || br != 0xd61f_0200
-        {
+        let canonical = match isa {
+            MachoIsa::Aarch64 => {
+                let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
+                let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
+                let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
+                adrp & 0x9f00_001f == 0x9000_0010
+                    && ldr & 0xffc0_03ff == 0xf940_0210
+                    && br == 0xd61f_0200
+            }
+            MachoIsa::X86_64 => isa_x86_64::decode_x86_64_import_thunk(bytes).is_some(),
+        };
+        if !canonical {
             return Err(Diagnostic::error(format!(
-                "Mach-O import thunk `{}` does not match ADRP X16; LDR X16, [X16, #imm]; BR X16",
+                "Mach-O import thunk `{}` does not match the ISA's canonical binding-slot branch",
                 thunk.symbol
             )));
         }
@@ -338,7 +382,7 @@ pub(crate) fn validate_import_thunk_footprints(
             .find(|region| {
                 region.origin == FinalExecutableRegionOrigin::ImportThunk
                     && region.section_offset == thunk.text_offset
-                    && region.byte_count == 12
+                    && region.byte_count == thunk_size
                     && region.symbol == thunk.symbol
             })
             .ok_or_else(|| {
@@ -347,10 +391,7 @@ pub(crate) fn validate_import_thunk_footprints(
                     thunk.symbol
                 ))
             })?;
-        region.footprint = Some(StateFootprintEvidence::new(
-            RegisterSet::new([MachineRegister::Aarch64X(16)]),
-            MachineStateSet::new([MachineState::InstructionPointer]),
-        ));
+        region.footprint = Some(isa.thunk_footprint());
     }
     Ok(())
 }
@@ -455,16 +496,45 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
     Ok(())
 }
 
-/// Replay the exact thunk↔binding-slot pairing against the placed region
-/// inventories. Every import thunk must decode to a canonical ADRP/LDR/BR
-/// sequence that loads its binding slot, and each exercised thunk must pair
-/// with exactly one placed binding slot naming the same symbol — and vice
-/// versa. A resolver-returned address or an unrecorded slot cannot substitute
-/// for this placed custody.
+/// Replay the exact thunk↔binding-slot pairing for an AArch64 image.
 pub fn validate_macho_aarch64_import_binding_pairing(
     final_text_bytes: &[u8],
     executable_regions: &PlacedExecutableRegionInventory,
     data_regions: &PlacedDataRegionInventory,
+) -> Result<(), Diagnostic> {
+    validate_macho_import_binding_pairing(
+        final_text_bytes,
+        executable_regions,
+        data_regions,
+        MachoIsa::Aarch64,
+    )
+}
+
+/// Replay the exact thunk↔binding-slot pairing for an x86-64 image.
+pub fn validate_macho_x86_64_import_binding_pairing(
+    final_text_bytes: &[u8],
+    executable_regions: &PlacedExecutableRegionInventory,
+    data_regions: &PlacedDataRegionInventory,
+) -> Result<(), Diagnostic> {
+    validate_macho_import_binding_pairing(
+        final_text_bytes,
+        executable_regions,
+        data_regions,
+        MachoIsa::X86_64,
+    )
+}
+
+/// Replay the exact thunk↔binding-slot pairing against the placed region
+/// inventories. Every import thunk must decode to its ISA's canonical
+/// branch-to-slot sequence that loads its binding slot, and each exercised
+/// thunk must pair with exactly one placed binding slot naming the same
+/// symbol — and vice versa. A resolver-returned address or an unrecorded slot
+/// cannot substitute for this placed custody.
+fn validate_macho_import_binding_pairing(
+    final_text_bytes: &[u8],
+    executable_regions: &PlacedExecutableRegionInventory,
+    data_regions: &PlacedDataRegionInventory,
+    isa: MachoIsa,
 ) -> Result<(), Diagnostic> {
     let thunks: Vec<_> = executable_regions
         .regions
@@ -479,7 +549,10 @@ pub fn validate_macho_aarch64_import_binding_pairing(
 
     let mut bound = Vec::with_capacity(thunks.len());
     for thunk in &thunks {
-        bound.push((thunk, thunk_bound_pointer_address(final_text_bytes, thunk)?));
+        bound.push((
+            thunk,
+            thunk_bound_pointer_address(final_text_bytes, thunk, isa)?,
+        ));
     }
     for (thunk, bound_address) in &bound {
         let matching = slots
@@ -516,18 +589,23 @@ pub fn validate_macho_aarch64_import_binding_pairing(
     Ok(())
 }
 
-/// Decode the canonical `ADRP x16, page; LDR x16, [x16, #scaled*8]; BR x16`
-/// thunk sequence and return the initialized-data pointer address it loads.
+/// Decode the thunk's canonical branch-to-slot sequence for `isa` and return
+/// the initialized-data pointer address it loads.
 fn thunk_bound_pointer_address(
     final_text_bytes: &[u8],
     region: &image::PlacedExecutableRegion,
+    isa: MachoIsa,
 ) -> Result<u64, Diagnostic> {
-    let end = region.section_offset.checked_add(12).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "Mach-O import thunk `{}` range overflows",
-            region.symbol
-        ))
-    })?;
+    let thunk_size = isa.import_thunk_size();
+    let end = region
+        .section_offset
+        .checked_add(thunk_size)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O import thunk `{}` range overflows",
+                region.symbol
+            ))
+        })?;
     let bytes = final_text_bytes
         .get(region.section_offset..end)
         .ok_or_else(|| {
@@ -536,38 +614,62 @@ fn thunk_bound_pointer_address(
                 region.symbol
             ))
         })?;
-    let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
-    let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
-    let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
-    if adrp & 0x9f00_001f != 0x9000_0010 || ldr & 0xffc0_03ff != 0xf940_0210 || br != 0xd61f_0200 {
-        return Err(Diagnostic::error(format!(
-            "Mach-O import thunk `{}` does not match ADRP X16; LDR X16, [X16, #imm]; BR X16",
-            region.symbol
-        )));
+    match isa {
+        MachoIsa::Aarch64 => {
+            let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
+            let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
+            let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
+            if adrp & 0x9f00_001f != 0x9000_0010
+                || ldr & 0xffc0_03ff != 0xf940_0210
+                || br != 0xd61f_0200
+            {
+                return Err(Diagnostic::error(format!(
+                    "Mach-O import thunk `{}` does not match ADRP X16; LDR X16, [X16, #imm]; BR X16",
+                    region.symbol
+                )));
+            }
+            let immediate = i64::from((((adrp >> 5) & 0x7ffff) << 2) | ((adrp >> 29) & 0b11));
+            // Sign-extend the 21-bit page delta.
+            let page_delta = (immediate << 43) >> 43;
+            let slot_page = (region.address & !0xfff)
+                .checked_add_signed(page_delta.checked_mul(4096).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "Mach-O import thunk `{}` page delta overflows",
+                        region.symbol
+                    ))
+                })?)
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "Mach-O import thunk `{}` bound page overflows",
+                        region.symbol
+                    ))
+                })?;
+            let scaled_offset = u64::from((ldr >> 10) & 0xfff);
+            slot_page.checked_add(scaled_offset * 8).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "Mach-O import thunk `{}` bound pointer address overflows",
+                    region.symbol
+                ))
+            })
+        }
+        MachoIsa::X86_64 => {
+            let displacement = isa_x86_64::decode_x86_64_import_thunk(bytes).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "Mach-O import thunk `{}` does not match JMP qword ptr [rip + disp32]",
+                    region.symbol
+                ))
+            })?;
+            // The displacement is measured from the byte after the six-byte stub.
+            (region.address + 6)
+                .checked_add_signed(i64::from(displacement))
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "Mach-O import thunk `{}` bound pointer address overflows",
+                        region.symbol
+                    ))
+                })
+        }
     }
-    let immediate = i64::from((((adrp >> 5) & 0x7ffff) << 2) | ((adrp >> 29) & 0b11));
-    // Sign-extend the 21-bit page delta.
-    let page_delta = (immediate << 43) >> 43;
-    let slot_page = (region.address & !0xfff)
-        .checked_add_signed(page_delta.checked_mul(4096).ok_or_else(|| {
-            Diagnostic::error(format!(
-                "Mach-O import thunk `{}` page delta overflows",
-                region.symbol
-            ))
-        })?)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "Mach-O import thunk `{}` bound page overflows",
-                region.symbol
-            ))
-        })?;
-    let scaled_offset = u64::from((ldr >> 10) & 0xfff);
-    slot_page.checked_add(scaled_offset * 8).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "Mach-O import thunk `{}` bound pointer address overflows",
-            region.symbol
-        ))
-    })
 }
 
 #[cfg(test)]

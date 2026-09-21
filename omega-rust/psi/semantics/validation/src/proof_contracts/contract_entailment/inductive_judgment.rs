@@ -96,12 +96,19 @@ pub(super) fn inductive_transition_entailment(
             TransitionTargetNode::Value(value) => ArmKind::Value(*value),
             TransitionTargetNode::Named {
                 path, arguments, ..
-            } if path.symbol == root.symbol => ArmKind::TailSelfCall(
-                program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .to_vec(),
-            ),
+            } if path.symbol == root.symbol || path.symbol == machine.symbol => {
+                // A tail call naming the machine itself re-enters its entry
+                // state: resolution binds the machine symbol as the canonical
+                // coordinate for a free machine's self-recursion, and the
+                // single-state precondition above makes that coordinate
+                // unambiguous with the root state.
+                ArmKind::TailSelfCall(
+                    program
+                        .statement_table
+                        .expression_handles(*arguments)
+                        .to_vec(),
+                )
+            }
             // Transitions to other states (or `self` / terminal targets) are
             // outside the recognized inductive shape.
             _ => {

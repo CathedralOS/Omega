@@ -12,6 +12,7 @@ use target_operations::{
 mod aggregate_results;
 mod direct_calls;
 mod ieee_float;
+mod indirect_calls;
 mod primitive_store;
 /// Replay one ordered Unit operation with only the SSA sources available here.
 pub(super) fn validate_operation(
@@ -111,7 +112,8 @@ pub(super) fn validate_operation(
         (
             _,
             AbstractOperation::IeeeFloatCompare { .. }
-            | AbstractOperation::IeeeFloatConstant { .. },
+            | AbstractOperation::IeeeFloatConstant { .. }
+            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. },
         ) => {
             ieee_float::validate(target, abstracted, sources)?;
         }
@@ -527,6 +529,13 @@ pub(super) fn validate_operation(
             direct_calls::validate(
                 target, abstracted, sources, custody, optimized, native, plan, unit,
             )?;
+        }
+        (
+            TargetUnitOperation::DynamicParameterScalarCall { .. }
+            | TargetUnitOperation::DynamicParameterUnitCall { .. },
+            _,
+        ) => {
+            indirect_calls::validate(function, target, abstracted, sources, native)?;
         }
         (
             TargetUnitOperation::IntegerConstant {

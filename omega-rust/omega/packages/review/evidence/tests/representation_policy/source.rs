@@ -11,7 +11,7 @@ pub data CopyCarrier [copy] { value: u64; }
 pub CopyTokenRepresentation: CopyCarrier satisfies OpaqueRepresentation<CopyToken>;
 "#;
 
-const CALLING: &str = r#"use calling;
+const CALLING: &str = r#"use omega_language_std::calling;
 data TransferPolicy { }
 TransferPolicyCallingPolicy: TransferPolicy satisfies CallingPolicy;
 machine TransferPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -115,14 +115,8 @@ impl Fixture {
             &types
         };
         if used {
-            let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .ancestors()
-                .nth(5)
-                .unwrap();
-            package.write(
-                "calling.omg",
-                &fs::read_to_string(repository.join("source/library/std/calling.omg")).unwrap(),
-            );
+            sources.push(standard_library_source());
+            dependencies.push(standard_library_dependency(package_identity()));
         }
         package.write(
             "main.omg",

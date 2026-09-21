@@ -248,13 +248,12 @@ fn copy_source_tree(source: &Path, destination: &Path) {
 fn macos_entry_policy_rejects_same_size_record_with_non_extent_fields() {
     let contract = standard_library_copy_with_entry_declarations(
         "macos-entry-record-rejection",
-        r#"use omega::language::core::service;
-
+        r#"
 data NotAnExtent { base: f64; length: f64; }
-pub boundary trait WrongStorage {
+boundary trait WrongStorage {
     machine enter(image: NotAnExtent, initial_storage: NotAnExtent);
 }
-pub boundary trait WrongMacosApplication: Service<WrongStorage> + Calling<MacosArm64> {}
+boundary trait WrongMacosApplication: WrongStorage + Calling<MacosArm64> {}
 "#,
     );
     let root = contract

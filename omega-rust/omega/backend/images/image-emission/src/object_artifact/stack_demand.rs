@@ -11,15 +11,6 @@ use semantic_vocabulary::MachineId;
 
 use crate::{ObjectArtifact, ObjectError, ObjectFunction};
 
-/// Compose the exact caller-owned peaks retained by the target emitter for a
-/// selected Unit entry. Cycles and any reachable non-Unit function fail closed.
-pub fn derive_unit_stack_demand(
-    artifact: &ObjectArtifact,
-    entry: MachineId,
-) -> Result<UnitStackDemand, ObjectError> {
-    derive_stack_demand(artifact, entry)
-}
-
 /// Compose byte-validated stack evidence for the currently admitted terminal
 /// function slices. Unit and branch-free scalar functions retain the acyclic
 /// internal-call closure.
@@ -284,7 +275,3 @@ impl installation_evidence::StackDemandEvidence for StackDemand {
             .collect()
     }
 }
-
-/// Compatibility name for the original Unit-only demand entry point. New
-/// callers should use [`StackDemand`] and [`derive_stack_demand`].
-pub type UnitStackDemand = StackDemand;

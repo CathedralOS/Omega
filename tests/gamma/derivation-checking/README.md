@@ -1,7 +1,7 @@
 # Supplied-theory derivation checking
 
 Run `sh tests/gamma/derivation-checking/run.sh` from the repository root.
-The gate uses the selected Gamma evaluator on macOS arm64 or Windows x64 Git
+The gate uses the selected Gamma evaluator on macOS arm64, Linux x86-64, or Windows x64 Git
 Bash. An unavailable Python installation explicitly skips; other hosts report
 unsupported. Host availability is not evidence of cross-platform execution.
 
@@ -71,15 +71,20 @@ For `P` Reflexivity rows comparing the same valid term, setup costs `P+1`,
 each row costs `1+2`, and final root comparisons cost four: `4P+5` total.
 A nullary constant Unfold costs three more than a Reflexivity row, so replacing
 one row yields `4P+8`. The 163,838-row fixture therefore completes at exactly
-655,360 units. With 163,839 rows, the first final root comparison requests
-655,361 at byte 2,621,604 and must refuse.
+655,360 units; under the selected 67,108,864-unit work counter the 163,839-row
+adjacent case also completes, at 655,364 (`adjacent_final_root_comparison`).
 
-A 262,143-row table consumes 262,144 units during setup and the remaining
-393,216 in 131,072 Ref rows. The next row reservation refuses at byte 2,097,268
-with the full limit/requested values. A fresh proof-index reservation cannot
-exhaust this larger work provision: the 8 MiB envelope permits fewer than
-524,288 minimum-size proof rows. Substitution's bulk controls separately cover
-exact and adjacent reservation refusal in an already consumed session.
+A 262,143-row table consumes 262,144 units during setup and each remaining Ref
+row three — 4P+5 = 1,048,577 total (`proof_index_and_rows_share_work`). The
+130 MiB request extent also admits a 655,360-row table of minimum-size
+Reflexivity rows whose index reservation alone requests 655,361 units; under
+the raised counter it completes at 4P+5 = 2,621,445
+(`fresh_proof_index_reservation`). An exhaustion leg cannot be regenerated at
+the selected bound — an exhausting table would exceed the request extent — so
+fresh exhaustion coverage retires under the opt-in pattern the heap/pair
+veterans use. Substitution's
+bulk controls separately cover exact and adjacent reservation refusal in an
+already consumed session.
 The 32,768-row backward Symmetry chain costs `6P+3 = 196,611`; it checks logical
 proof depth without expanding the chain or recursively traversing premises.
 

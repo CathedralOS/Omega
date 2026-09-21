@@ -240,16 +240,31 @@ const GENERATOR_INPUTS: &[&str] = &[
 ];
 
 fn completed_directories(directory: &std::path::Path) -> Vec<PathBuf> {
-    let mut paths = if directory.join("completed").exists() {
+    let mut paths = completed_sets(directory);
+    if let Ok(entries) = fs::read_dir(directory) {
+        for entry in entries.flatten() {
+            let child = entry.path();
+            if child.is_dir() {
+                paths.extend(completed_sets(&child));
+            }
+        }
+    }
+    paths.sort();
+    paths
+}
+
+/// Completed sets published under one build directory's `completed/` slot.
+/// Distinct source roots each own a separate build directory, so a shared
+/// publication parent enumerates their per-root `completed/` trees.
+fn completed_sets(directory: &std::path::Path) -> Vec<PathBuf> {
+    if directory.join("completed").exists() {
         fs::read_dir(directory.join("completed"))
             .unwrap()
             .map(|entry| entry.unwrap().path())
             .collect::<Vec<_>>()
     } else {
         Vec::new()
-    };
-    paths.sort();
-    paths
+    }
 }
 
 fn completed_contents(directory: &std::path::Path) -> Vec<(PathBuf, Vec<u8>, Vec<u8>)> {
@@ -279,11 +294,14 @@ fn acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_p
     )
     .unwrap();
     let publication = workspace.0.join("published");
-    let publication_argument = publication.to_str().unwrap();
     let mut previous: Vec<PathBuf> = Vec::new();
     for (name, content, artifact_only) in
         [("first", "FIRST!\n", true), ("second", "SECOND\n", false)]
     {
+        // Each source root owns its own build directory under the shared
+        // publication parent: an admitted --build-dir binds one canonical
+        // source root and refuses a different root.
+        let publication_argument = publication.join(name).to_str().unwrap().to_owned();
         let project = Project(workspace.0.join(name));
         fs::create_dir(&project.0).unwrap();
         fs::create_dir(project.0.join("templates")).unwrap();
@@ -320,7 +338,7 @@ machine build(builder: &mut Build) {{
             "--target",
             host.target_name(),
             "--build-dir",
-            publication_argument,
+            &publication_argument,
             "main.omg",
         ];
         arguments.extend_from_slice(GENERATOR_INPUTS);
@@ -346,7 +364,7 @@ machine build(builder: &mut Build) {{
         assert!(added[0].join("manifest.bin").is_file());
         assert_eq!(fs::read_dir(added[0].join("files")).unwrap().count(), 1);
         if !artifact_only {
-            let executable = publication.join(if cfg!(windows) {
+            let executable = publication.join(name).join(if cfg!(windows) {
                 "omega-program.exe"
             } else {
                 "omega-program"

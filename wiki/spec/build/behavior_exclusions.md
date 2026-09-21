@@ -205,6 +205,13 @@ Failure introduces no implicit unwind, flush, recovery, or authority. The settle
 [admission and diagnostics rules](../proofs/contracts.md#admission-and-runtime-diagnostics)
 remain unchanged: admissions require no runtime checking.
 
+[Build-time tests](testing.md) use ordinary mandatory checks for their verdict,
+not an optional checking/no-op diagnostic contract. A registered requirement may
+permit Trap and its satisfiers inherit that allowance; no attribute or global
+build switch widens their contracts. Test and application roots are separate:
+an application Trap exclusion does not forbid a failing check in the separately
+admitted test closure, and test execution cannot relax the application's exclusion.
+
 ## Implementation acceptance
 
 | Case | Required result |

@@ -332,18 +332,13 @@ impl SpawnedSupervisor {
         InstallationRequest {
             expected_request: request_commitment(request_bytes),
             occurrence,
-            artifacts: payment_components()
-                .iter()
-                .enumerate()
-                .map(|(index, admission)| AdmittedArtifact {
-                    artifact: if forge_artifact_at == Some(index) {
-                        identity(0xEE)
-                    } else {
-                        self.artifact
-                    },
-                    component_subject: subject_of(admission),
-                })
-                .collect(),
+            artifacts: artifact_roster(&payment_components(), |index| {
+                if forge_artifact_at == Some(index) {
+                    identity(0xEE)
+                } else {
+                    self.artifact
+                }
+            }),
         }
     }
 }

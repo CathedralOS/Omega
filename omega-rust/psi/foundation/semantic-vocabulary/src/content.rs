@@ -332,50 +332,55 @@ fn encode_fingerprint_string(value: &str, output: &mut Vec<u8>) {
 const MAX_CONTENT_TERM_DEPTH: usize = 256;
 
 fn validate_term(term: &ContentTerm, depth: usize) -> Result<(), PropositionError> {
-    if depth > MAX_CONTENT_TERM_DEPTH {
-        return Err(PropositionError::ContentTermNestingTooDeep);
-    }
-    match term {
-        ContentTerm::Projection {
-            projection,
-            subject,
-        } => {
-            if projection.projection_report_fingerprint == 0 {
-                return Err(PropositionError::ZeroContentProjectionFingerprint);
-            }
-            if subject.segments.iter().any(
-                |segment| matches!(segment, ContentPlaceSegment::Case(name) if name.is_empty()),
-            ) {
-                return Err(PropositionError::EmptyContentCaseName);
-            }
-            if subject.segments.iter().any(
-                |segment| matches!(segment, ContentPlaceSegment::Field(name) if name.is_empty()),
-            ) {
-                return Err(PropositionError::EmptyContentFieldName);
-            }
-            Ok(())
+    // The depth bound is unchanged; the walk itself rides an explicit
+    // worklist like the sibling validators, with children pushed in reverse
+    // so they still check left to right.
+    let mut pending = vec![(term, depth)];
+    while let Some((term, depth)) = pending.pop() {
+        if depth > MAX_CONTENT_TERM_DEPTH {
+            return Err(PropositionError::ContentTermNestingTooDeep);
         }
-        ContentTerm::Separate(terms) => {
-            if terms.len() < 2 {
-                return Err(PropositionError::NonCanonicalContentSeparationArity(
-                    terms.len(),
-                ));
+        match term {
+            ContentTerm::Projection {
+                projection,
+                subject,
+            } => {
+                if projection.projection_report_fingerprint == 0 {
+                    return Err(PropositionError::ZeroContentProjectionFingerprint);
+                }
+                if subject.segments.iter().any(
+                    |segment| matches!(segment, ContentPlaceSegment::Case(name) if name.is_empty()),
+                ) {
+                    return Err(PropositionError::EmptyContentCaseName);
+                }
+                if subject.segments.iter().any(
+                    |segment| matches!(segment, ContentPlaceSegment::Field(name) if name.is_empty()),
+                ) {
+                    return Err(PropositionError::EmptyContentFieldName);
+                }
             }
-            if terms
-                .iter()
-                .any(|term| matches!(term, ContentTerm::Separate(_)))
-            {
-                return Err(PropositionError::NestedContentSeparation);
+            ContentTerm::Separate(terms) => {
+                if terms.len() < 2 {
+                    return Err(PropositionError::NonCanonicalContentSeparationArity(
+                        terms.len(),
+                    ));
+                }
+                if terms
+                    .iter()
+                    .any(|term| matches!(term, ContentTerm::Separate(_)))
+                {
+                    return Err(PropositionError::NestedContentSeparation);
+                }
+                if terms.windows(2).any(|pair| pair[0] >= pair[1]) {
+                    return Err(PropositionError::NonCanonicalContentSeparationOrder);
+                }
+                for term in terms.iter().rev() {
+                    pending.push((term, depth + 1));
+                }
             }
-            if terms.windows(2).any(|pair| pair[0] >= pair[1]) {
-                return Err(PropositionError::NonCanonicalContentSeparationOrder);
-            }
-            for term in terms {
-                validate_term(term, depth + 1)?;
-            }
-            Ok(())
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]

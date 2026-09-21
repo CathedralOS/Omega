@@ -447,17 +447,20 @@ It has no runtime tagged-union ABI. See
 ### Value domains — wellness facts
 
 ```omega
-data Particle {
+data Particle
+where
+    alpha >= 0.0 && alpha <= 1.0,
+{
     x: f64;
     speed: f64 in Finite;
-    alpha: f32 [0.0..=1.0];
+    alpha: f32;
     mass: f64 in Finite & Positive;
 }
 ```
 
-Bare floats may contain NaN or infinity. `Finite` excludes them, and a finite
-range implies `Finite`. These are invariant-window facts, not runtime metadata
-or optimization permissions.
+Bare floats may contain NaN or infinity. `Finite` excludes them; the finite
+bounds in `alpha`'s contract also imply `Finite`. These are invariant-window
+facts, not runtime metadata or optimization permissions.
 
 ### Policy domains — operation behavior
 
@@ -470,7 +473,7 @@ Finite inputs alone therefore do not justify this result:
 
 ```omega
 machine divide(a: f32 in Finite, b: f32 in Finite) -> f32 in Finite {
-    return a / b;
+    a / b
 }
 ```
 

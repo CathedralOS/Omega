@@ -20,6 +20,11 @@ import time
 from pathlib import Path
 
 GATE_DIR = Path(__file__).resolve().parent
+# beta-encoding-theory binds first: `gate`, `fixtures` and `mutations` exist
+# in both sibling directories, and this gate needs the theory's gate (its
+# `prepare` emits the theory through the evaluator) and fixtures. Modules
+# that exist only under derivation-layout (wire, groups, physical_cases)
+# still resolve from the second entry.
 sys.path.append(str(GATE_DIR.parent / "beta-encoding-theory"))
 sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 
@@ -34,9 +39,11 @@ from stepper import Stepper, Theory  # noqa: E402
 REQUEST_EXTENT = 136_314_880
 WORK_PROVISION = 67_108_864
 
-# No measured wall-clock figure exists for the complete check yet; the first
-# native run pins it.  The bound is deliberately generous for the projected
-# 45-52M work units, and a timeout is a failed observation, not a verdict.
+# The first native run (Linux x86-64) measured a request_bytes refusal from
+# the checker's still-pinned 8,388,608-byte request bound; no complete-check
+# wall-clock figure exists yet.  The bound is deliberately generous for the
+# projected 45-52M work units, and a timeout is a failed observation, not a
+# verdict.
 CHECK_TIMEOUT = 21_600
 
 
