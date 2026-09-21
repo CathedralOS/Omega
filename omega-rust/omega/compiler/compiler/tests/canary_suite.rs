@@ -5058,11 +5058,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // Checked `let`/`boundary let` declarations reach the lowering consumer;
     // no Terminal evidence encoding carries them yet, so production refuses.
     "proofs/mathematical_declaration_lowering_rejected",
-    // Checked semantics admits the conditional claim join as evidence;
-    // `checked-trees-to-lowered-psi` refuses it pending Terminal
-    // exit-alternative correspondence. The fixture binds only
-    // `linux_x86_64::ProgramEntry` and runs the Terminal-artifact route.
-    "ownership/linear_ambiguous_state_result_mapping",
     // The v0 freestanding-authority discharge is wired into the typed->checked
     // settlement transition, so a hosted build (no `freestanding = true` in
     // build.omg) rejects asm instructions whose catalog contract requires
@@ -5073,6 +5068,19 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_write_cr3_requires_machine_authority",
     "inline_asm/asm_write_sctlr_el1_requires_machine_authority",
     "ports/asm_port_in_unsettled",
+    // Landed 2026-09-21 without roster rows; the CompleteCorpus inventory
+    // read them as unregistered.
+    "collections/vec_duplicate_cleanup",
+    "collections/vec_invalidated_loan_after_growth",
+    "domains/predicate_domain_local_initializer_unproved",
+    "ownership/borrowed_storage_missing_repair_on_branch",
+    "ownership/borrowed_storage_repeated_extraction",
+    "ownership/borrowed_storage_stale_read_in_hole",
+    "proofs/alignment_contract_zero_return",
+    "proofs/quotient_lift_invalid_law_rejected",
+    "proofs/quotient_lift_nonhermetic_identity_rejected",
+    "relevance/erased_case_payload_runtime_read",
+    "wire/preserve_unknown_demand_unsatisfiable",
 ];
 
 #[derive(Clone, Copy)]
