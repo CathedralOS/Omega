@@ -1821,9 +1821,9 @@ Owners include
   owned by the native semantic and certification owners rather than
   `compilation-report`, which owns the envelope and the sidecar.
 
-  Wave-9 recheck at `c267df86ac` (linux x86-64): the claimed
-  `compilation-report` surface is green — `cargo nextest run -p
-  compilation-report` 63/63 pass, covering the placed-image evidence legs
+  Wave-9 recheck at `c267df86ac` (linux x86-64); re-verified at
+  `e7c0099cb2`: the claimed `compilation-report` surface is green —
+  `cargo nextest run -p compilation-report` 64/64 pass, covering the placed-image evidence legs
   (extent/inventory replay, thunk closed-form binding on both targets,
   entry-boundary custody, loadable-role containment), the envelope claim
   fields (artifact commitment, semantic/checker profiles, guarantees,
