@@ -42,3 +42,5 @@ contract survival.
 leg under this name is landed and freshly witnessed; the two residuals
 belong to BOUNDARY-ISSUANCE (receipt ingress) and unavailable hosts.
 No code change.
+
+> Field note (201c249ceee5..832c55e69b76 review): re-verification record of an authorization-gated row; fold the frontier holds into AP-BRINGUP and delete rather than re-stamping.
