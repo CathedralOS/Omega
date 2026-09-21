@@ -3,8 +3,9 @@
 //! Owns crash routes and canonical propositions, logical contract conversion,
 //! content conservation guarantees, float-meaning projections, quotient
 //! correspondences, proof-SCC custody, scalar block invariants, the focused
-//! integer certificate producer, ranking certificates, evidence artifacts, and
-//! operation proof completion over the finished module.
+//! integer certificate producer, ranking certificates, evidence artifacts,
+//! mathematical declaration admission, and operation proof completion over the
+//! finished module.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -77,6 +78,7 @@ pub(crate) mod control_cycle_proofs;
 pub(crate) mod crash_routes;
 pub(crate) mod evidence_lowering;
 pub(crate) mod float_meaning_projection;
+pub(crate) mod mathematical_declarations;
 pub(crate) mod nonzero_divisor_certificate;
 pub(crate) mod operation_proofs;
 pub(crate) mod proof_recursion;
