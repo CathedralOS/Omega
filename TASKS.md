@@ -4665,6 +4665,17 @@ moved to the termination-catalog fence (see that row's refresh note).
   unrelated-cleanup non-binding — via module corruptions asserting
   `derive(...) == None` or `receiver_eligibility() == None`. No
   unwitnessed branch remains under this name.
+- **NEW-FOLD-LEDGER-DRAFTS-BATCH-8.** Resolved — ledger-draft fold per the
+  drafts' own review field notes (fold the verdict into the owner row,
+  delete the per-lane ledger). `new_rvg_stale_guard_regression_flip_z142`:
+  verdict folded into the RUNTIME-VALUE-GENERICS row — the
+  `runtime_bound_stale_call_guard_rejects_publication` flip already
+  rejects at `check_source` before the artifact gate, re-witnessed 13/13
+  `runtime_bound_*` PASS at `b53c7ea260`. `release_record_rust_832c55e69b`:
+  bounded linux_x86_64 observation folded into RUST-RELEASE-RECORD —
+  RC-REPOSITORY fmt leg green, RC-PORTABLE-PSI 1/1 and RC-DIAGNOSTICS 1/1
+  PASS, remaining gates not run; `tools/release/records/` still carries no
+  committed JSON, closure open. Both drafts deleted. No code change.
 - **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
   scope verified, slice landed 2026-09-21 (z181): the inventory of
   the `operator` introducer's retirement surface is committed at
@@ -4948,7 +4959,12 @@ moved to the termination-catalog fence (see that row's refresh note).
   evidence, wrong owner all adjudicated); the source-map bullet's
   regression `runtime_bound_stale_call_guard_rejects_publication` already
   rejects at `check_source` with "cannot prove requires contract" before
-  the artifact gate. The open bullets stay fenced: the value-binder
+  the artifact gate; the z142 ledger run independently re-witnessed the
+  flip and its neighbors at `b53c7ea260` — `cargo nextest run -p compiler
+  --test runtime_value_generics stale runtime_bound` 13/13 PASS, covering
+  both stale-guard rejections plus the dominating-guard and
+  equality-transport legs (draft folded under
+  NEW-FOLD-LEDGER-DRAFTS-BATCH-8). The open bullets stay fenced: the value-binder
   construction leg intersects `execution/unit` (PLACED-ACCESS-NATIVE-OPS,
   item-level 06:27Z, plus `providers.rs` under
   PROVIDER-ATTACHMENT-MACHINE-PLAN 09:49Z and `unit/calls` under
@@ -13963,6 +13979,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   comparator quote has aged into different wording (policy preserved);
   production surface now double-fenced (RC-HOST-RUNNER-LANES,
   RC-RELEASE-RECORD).
+  Folded record (NEW-FOLD-LEDGER-DRAFTS-BATCH-8): the `832c55e69b`
+  linux_x86_64 draft run observed RC-REPOSITORY's fmt leg green,
+  RC-PORTABLE-PSI 1/1 PASS (29.0s) and RC-DIAGNOSTICS 1/1 PASS (157.3s),
+  all other gates not run within that leg's bound — no gate moved vs the
+  `b5e4c7c5f8` record and `tools/release/records/` still carries no
+  committed JSON, so closure stays open as recorded.
 
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
