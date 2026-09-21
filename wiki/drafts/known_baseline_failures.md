@@ -1160,7 +1160,12 @@ diff:
   `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`.
 - `native-realization` 1:
   `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`.
-- `package-evidence` 1:
+- `package-evidence` 1 — a superseded assertion owned by
+  **QUOTIENT-THEOREM-LIFT**: the test asserts
+  `typed_trees_to_checked_trees::lower_typed_trees` rejects the proof-only
+  `Quotient::define` request, which that row now admits through checked
+  lowering (termination-gated `admit_checked_quotient_requests`); the
+  compiler is behaving as landed and the fixture needs a respell there:
   `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`.
 
 Host divergence: a macOS aarch64 reading of the same gate at `7b7d0fa8d5`
@@ -1181,7 +1186,12 @@ marked green above — the `package-manager` 6 plus the `external-roots`,
 `checked-trees-to-lowered-psi` pair and the `compilation-report` and
 `compiler` singletons now pass and are marked accordingly. The failure
 signatures on this host are `Service<R>`-spelling stale fixtures
-(`0e1977994b9`'s bare-boundary-trait rejection), the unqualified
+(`0e1977994b9`'s bare-boundary-trait rejection — the package-manager 6 and
+the `native-realization` member are stale fixtures under the
+**ENTRY-CONTENT-ROOTS** migration, not checker regressions; the
+receiving-admission member instead names
+`select_provider<Console, ConsoleNativeProvider>` unqualified and fails
+operand resolution), the unqualified
 `select_provider` operand spelling (`4406917695b`), a quotient-capture
 refusal, and the ranked component-scale segment-bound family
 (`7591b2607c77`'s component-scale charging; the external-roots member now
