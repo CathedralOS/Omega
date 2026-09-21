@@ -1410,12 +1410,11 @@ fn check_table(
         for (axis, leg) in row.axes() {
             match leg {
                 Leg::Covered { file, test } => {
-                    let marker = format!("fn {test}(");
                     match fs::read_to_string(audit.repository.join(file)) {
                         Ok(contents) => {
-                            if !contents.contains(&marker) {
+                            if !covers_test(&contents, test) {
                                 audit.violations.insert(format!(
-                                    "coverage row `{}` {axis} axis names `{file}` but no `fn {test}(` exists there",
+                                    "coverage row `{}` {axis} axis names `{file}` but no `#[test]`-attributed `fn {test}(` exists there",
                                     row.rule
                                 ));
                             }
@@ -1449,6 +1448,34 @@ fn check_table(
     }
 }
 
+/// A covering leg names a real test: `fn <test>(` at the start of a line with
+/// `#[test]` in its contiguous attribute/comment block above. Raw substring
+/// resolution also accepts `// fn <test>(` comments, documentation examples,
+/// and non-test helpers — any of which would keep a row green after the real
+/// covering test was renamed or retired.
+fn covers_test(contents: &str, test: &str) -> bool {
+    let signature = format!("fn {test}(");
+    let lines: Vec<&str> = contents.lines().collect();
+    (0..lines.len()).any(|index| {
+        if !lines[index].trim_start().starts_with(&signature) {
+            return false;
+        }
+        let mut cursor = index;
+        while cursor > 0 {
+            cursor -= 1;
+            let above = lines[cursor].trim_start();
+            if above.starts_with("#[test]") {
+                return true;
+            }
+            if above.is_empty() || above.starts_with('#') || above.starts_with("//") {
+                continue;
+            }
+            return false;
+        }
+        false
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -1478,7 +1505,11 @@ mod tests {
                 .unwrap_or_default()
         ));
         fs::create_dir_all(root.join("tests")).expect("fixture root");
-        fs::write(root.join("tests/fake.rs"), "fn present_test() {}\n").expect("fixture test file");
+        fs::write(
+            root.join("tests/fake.rs"),
+            "#[test]\nfn present_test() {}\n\nfn helper_only() {}\n\n// fn commented_out() {}\n",
+        )
+        .expect("fixture test file");
         root
     }
 
@@ -1534,8 +1565,9 @@ mod tests {
                 fixed_point: ok,
                 corruption: ok,
             },
-            // A mandatory-style row with a missing file, a missing fn, and a
-            // budget absence on a non-budget axis.
+            // A mandatory-style row with a missing file, a missing fn, a
+            // non-test helper posing as the covering test, a commented-out
+            // test name, and a budget absence on a non-budget axis.
             RuleCoverage {
                 rule: "fake_recovery_rewrite",
                 positive: covered("tests/fake.rs", "absent_test"),
@@ -1543,8 +1575,8 @@ mod tests {
                 boundary: Leg::Absent(super::AbsentReason::NoStepBudget),
                 disabled: Leg::Absent(super::AbsentReason::NoSelectionVocabulary),
                 budget: ok,
-                determinism: ok,
-                fixed_point: ok,
+                determinism: covered("tests/fake.rs", "helper_only"),
+                fixed_point: covered("tests/fake.rs", "commented_out"),
                 corruption: ok,
             },
             // A duplicate row for an already-covered rule.
@@ -1568,8 +1600,10 @@ mod tests {
             "coverage row `UnknownRule` is not a canonical rule or mandatory recovery rewrite",
             "coverage row `SelectionAbuseRule` records the disabled axis as absent for a selection-vocabulary reason, but the rule is an `Optimization` member",
             "coverage row `fake_recovery_rewrite` records a no-step-budget absence on the boundary axis",
-            "coverage row `fake_recovery_rewrite` positive axis names `tests/fake.rs` but no `fn absent_test(` exists there",
+            "coverage row `fake_recovery_rewrite` positive axis names `tests/fake.rs` but no `#[test]`-attributed `fn absent_test(` exists there",
             "coverage row `fake_recovery_rewrite` negative axis names missing test file `tests/missing.rs`",
+            "coverage row `fake_recovery_rewrite` determinism axis names `tests/fake.rs` but no `#[test]`-attributed `fn helper_only(` exists there",
+            "coverage row `fake_recovery_rewrite` fixed-point axis names `tests/fake.rs` but no `#[test]`-attributed `fn commented_out(` exists there",
         ] {
             assert!(
                 violations.iter().any(|violation| violation == expected),

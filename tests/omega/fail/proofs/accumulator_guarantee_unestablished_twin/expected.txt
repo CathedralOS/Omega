@@ -1,0 +1,1 @@
+machine `climb` ensures contract proof fact `result == acc + remaining + 1` is disproved by constant arithmetic on the transition arm guarded by `remaining > 0 && acc < 1000 == false`

@@ -256,12 +256,28 @@ fn machine_termination_violation(
     }
 
     if active.contains(&machine_symbol) {
-        let violation = format!(
-            "recursive machine-call cycle has no ordinary termination proof along `{}`",
-            path.join(" -> ")
-        );
+        // Re-entering an active machine is a recursive cycle. A machine whose
+        // authored `terminates by` measure already produced a checked
+        // `Terminates` summary has an ordinary termination proof, so the cycle
+        // is discharged instead of reported.
+        let measured = machine.supply_mode == MachineSupplyMode::CheckedBody
+            && matches!(
+                typed_trees_to_checked_trees::infer_machine_termination_summary(
+                    program,
+                    machine_symbol
+                ),
+                Some(TerminationGuarantee::Terminates { .. })
+            );
+        if !measured {
+            let violation = format!(
+                "recursive machine-call cycle has no ordinary termination proof along `{}`",
+                path.join(" -> ")
+            );
+            path.pop();
+            return Some(violation);
+        }
         path.pop();
-        return Some(violation);
+        return None;
     }
     active.push(machine_symbol);
 

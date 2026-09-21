@@ -124,7 +124,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
         // the only one every use — body, terminator, or edge — follows.
         for definition in admitted.definitions.iter().filter(|definition| {
             definition.block_index == block_index
-                && matches!(definition.position, admission::StoragePosition::BlockStart)
+                && matches!(definition.position, super::StoragePosition::BlockStart)
         }) {
             let store = admission::store(
                 &admitted,
@@ -188,12 +188,12 @@ pub fn spill_selected_runtime_value_with_span_policy(
             for definition in admitted.definitions.iter().filter(|definition| {
                 definition.block_index == block_index
                     && match definition.position {
-                        admission::StoragePosition::AfterInstruction(anchor)
-                        | admission::StoragePosition::AfterUseDef {
+                        super::StoragePosition::AfterInstruction(anchor)
+                        | super::StoragePosition::AfterUseDef {
                             instruction: anchor,
                             ..
                         } => anchor == original.id,
-                        admission::StoragePosition::BlockStart => false,
+                        super::StoragePosition::BlockStart => false,
                     }
             }) {
                 // A `UseDef` write left the new value in the register its
@@ -202,7 +202,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 // written. Every other definition stores the recorded
                 // register directly.
                 let stored = match definition.position {
-                    admission::StoragePosition::AfterUseDef { operand, .. } => instructions
+                    super::StoragePosition::AfterUseDef { operand, .. } => instructions
                         .last()
                         .and_then(|emitted| {
                             emitted
@@ -280,7 +280,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
             // loads name after rewriting — admission proved they all share
             // it. No reload pair is emitted here.
             for binding in &mut successor.structural_bindings {
-                let Some(byte_size) = admission::stored_transport_size(binding.transport) else {
+                let Some(byte_size) = super::stored_transport_size(binding.transport) else {
                     continue;
                 };
                 let (SelectedStructuralTransport::Descriptor { argument, .. }

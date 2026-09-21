@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+artifacts = { path = "../../tooling/artifacts" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 build-evaluation = { path = "../../build/build-evaluation" }
@@ -42,4 +43,5 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 arena = { path = "../../../psi/foundation/arena" }
+optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }
 object-file = { path = "../../backend/object/object-file" }

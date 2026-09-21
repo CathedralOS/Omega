@@ -20,8 +20,8 @@ use crate::dynamic_executable::section_headers::section_name_table::{
 };
 use diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 13;
-const SECTION_NAME_TABLE_INDEX: u32 = 12;
+const SECTION_COUNT: usize = 14;
+const SECTION_NAME_TABLE_INDEX: u32 = 13;
 const SHT_NULL: u32 = 0;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -38,6 +38,7 @@ const CANONICAL_KINDS: [ElfDynamicRosterSectionKind; SECTION_COUNT] = [
     ElfDynamicRosterSectionKind::ProcedureLinkage,
     ElfDynamicRosterSectionKind::ProcedureGot,
     ElfDynamicRosterSectionKind::ProcedureRelocation,
+    ElfDynamicRosterSectionKind::GeneralRelocation,
     ElfDynamicRosterSectionKind::DynamicTable,
     ElfDynamicRosterSectionKind::SectionNameTable,
 ];
@@ -138,8 +139,9 @@ pub(crate) enum ElfDynamicRosterSectionKind {
     ProcedureLinkage = 8,
     ProcedureGot = 9,
     ProcedureRelocation = 10,
-    DynamicTable = 11,
-    SectionNameTable = 12,
+    GeneralRelocation = 11,
+    DynamicTable = 12,
+    SectionNameTable = 13,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,6 +346,9 @@ const fn roster_kind_from_linkage(
         ElfProcedureLinkageSectionKind::ProcedureRelocation => {
             ElfDynamicRosterSectionKind::ProcedureRelocation
         }
+        ElfProcedureLinkageSectionKind::GeneralRelocation => {
+            ElfDynamicRosterSectionKind::GeneralRelocation
+        }
     }
 }
 
@@ -391,15 +396,15 @@ fn validate_contents(
 ) -> Result<(), Diagnostic> {
     require(
         section_names.descriptor_count() == SECTION_COUNT - 1,
-        "numeric ELF roster requires the exact sealed twelve semantic descriptors",
+        "numeric ELF roster requires the exact sealed thirteen semantic descriptors",
     )?;
     require(
-        section_names.byte_count() == 112,
-        "numeric ELF roster requires the exact complete 112-byte name table",
+        section_names.byte_count() == 122,
+        "numeric ELF roster requires the exact complete 122-byte name table",
     )?;
     require(
         contents.rows.len() == SECTION_COUNT,
-        "numeric ELF roster must contain exactly thirteen rows",
+        "numeric ELF roster must contain exactly fourteen rows",
     )?;
     require(
         contents.section_name_table_index == SECTION_NAME_TABLE_INDEX,
@@ -462,6 +467,7 @@ const fn expected_name(kind: ElfDynamicRosterSectionKind) -> &'static [u8] {
         ElfDynamicRosterSectionKind::ProcedureLinkage => b".plt",
         ElfDynamicRosterSectionKind::ProcedureGot => b".got.plt",
         ElfDynamicRosterSectionKind::ProcedureRelocation => b".rela.plt",
+        ElfDynamicRosterSectionKind::GeneralRelocation => b".rela.dyn",
         ElfDynamicRosterSectionKind::DynamicTable => b".dynamic",
         ElfDynamicRosterSectionKind::SectionNameTable => b".shstrtab",
     }
@@ -511,7 +517,8 @@ fn validate_row_against_owner(
         }
         ElfDynamicRosterSectionKind::ProcedureLinkage
         | ElfDynamicRosterSectionKind::ProcedureGot
-        | ElfDynamicRosterSectionKind::ProcedureRelocation => {
+        | ElfDynamicRosterSectionKind::ProcedureRelocation
+        | ElfDynamicRosterSectionKind::GeneralRelocation => {
             let source = linkage_descriptor_contents(section_names)
                 .descriptors
                 .iter()
@@ -542,7 +549,7 @@ fn validate_row_against_owner(
             let source = &section_names.dynamic_table().contents().descriptor;
             ElfNumericSectionDescriptor {
                 kind: row.kind,
-                index: 11,
+                index: 12,
                 name_offset: source.name_offset,
                 section_type: source.section_type,
                 flags: source.flags,
@@ -561,7 +568,7 @@ fn validate_row_against_owner(
             )?;
             ElfNumericSectionDescriptor {
                 kind: row.kind,
-                index: 12,
+                index: 13,
                 name_offset: source.name_offset,
                 section_type: source.section_type,
                 flags: source.flags,
@@ -601,6 +608,8 @@ fn validate_references(contents: &ElfDynamicSectionRosterContents) -> Result<(),
             && row(ElfDynamicRosterSectionKind::GnuVersionRequirement)?.link == 2
             && row(ElfDynamicRosterSectionKind::ProcedureRelocation)?.link == 3
             && row(ElfDynamicRosterSectionKind::ProcedureRelocation)?.info == 9
+            && row(ElfDynamicRosterSectionKind::GeneralRelocation)?.link == 3
+            && row(ElfDynamicRosterSectionKind::GeneralRelocation)?.info == 0
             && row(ElfDynamicRosterSectionKind::DynamicTable)?.link == 2,
         "numeric ELF link/info relationships do not resolve to the canonical roster",
     )

@@ -49,11 +49,49 @@ Then examine:
   The encoding is drafted in
   [matching_logic_sort_encoding.md](matching_logic_sort_encoding.md).
 - One small external arithmetic proof with its exact source axiom closure and
-  checked proof-object translation. Semantic expressibility alone is insufficient.
+  checked proof-object translation. Semantic expressibility alone is
+  insufficient. Pinned in
+  `omega-rust/psi/semantics/terminal-codec/tests/arithmetic_import.rs`: a
+  producer signature carries `Nat`, `zero`, `succ`, `add` plus the two
+  recursion axioms `addZero`/`addSucc` as named assumptions; the checked
+  object derives `add n (succ zero) = succ n` by transporting the step
+  axiom along the base axiom through `subst`, and the decoded judgment
+  re-verifies with `certificate_assumption_closure` equal to exactly the
+  six arithmetic rows. The direct-axiom variant confirms uncited axioms
+  (`succ`, `addSucc`) never enter the closure.
+  The inductive carrier's base/step certificate is already exercised on
+  the same bridge by `theorem_certificate.rs` (`indexCorrect`, proved by
+  `iindW`, transports through decode and re-verify).
+  Size and checking cost are pinned by the same file's
+  `the_imported_arithmetic_derivation_has_a_measured_size_and_step_cost`:
+  the wire encoding is exactly 716 bytes and re-verification consumes
+  exactly 6 conversion steps — a budget of 5 rejects with `StepCeiling`
+  and 6 suffices, so the imported check is both small and hard-bounded.
 
 All evidence retains logical fragment, rule/semantics versions, exact subject,
 target capsule, observation profile, bridge graph, and admissions. The paper's
 completeness theorem supplies no Omega authority merely by being cited.
+
+### Measured record
+
+`tools/matching-logic-metrics/run_metrics.py` produces the versioned record the
+measurement list above requires (schema `omega-matching-logic-comparison/1`,
+committed under `tools/matching-logic-metrics/records/`). At revision
+`649d7ca380` the current route measured: admission kernel 26,461 non-test
+source lines across 48 files; certificate translation 5,251 lines; the trusted
+derivation still deciding certificate-uncovered legs 5,566 lines; and an
+accepted-rule inventory of 62 named variants (23 `ProofRule` node rules, 23
+`AcceptedProofRule` families, 4 `PrimitiveJudgment` values, 2 obligation
+classes, 3 evidence routes, 3 accepted-fact routes, 4 classicality
+foundations). Median `compile` phase over the 20 identical-subject pinned
+pairs (44 cases: 20 accept, 24 reject; three documented exclusions in
+`pinned_cases.json` for fixtures that need reviewed package bindings or
+exceed a dev-host budget) was ~16 ms per check on one linux x86-64 dev host.
+Per-obligation certificate nodes and bytes are not emitted on that revision;
+the record marks the axis `unavailable` rather than guessing, and the harness
+captures `OMEGA_PROOF_MEASUREMENTS` lines automatically once the
+proof-search-measurement surface lands. `route.matching_logic_encoding` stays
+`pending` until the bounded slice exists.
 
 ## Possible outcomes and alternatives
 

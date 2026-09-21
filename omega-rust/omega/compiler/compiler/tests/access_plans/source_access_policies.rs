@@ -709,6 +709,180 @@ machine Inspector::inspect(
 }
 
 #[test]
+fn multiple_placed_view_inputs_reach_ordered_target_entry_abi() {
+    // A direct-entry machine may declare several placed-view inputs at once:
+    // each declared row contributes one pointer parameter on the entry ABI in
+    // roster order, and each row must be answered by exactly one selection —
+    // by identity, not by supply order, matching the establishment join.
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-multi-entry-abi",
+        r#"
+data Inspector {
+    left: Registers;
+    right: Registers;
+}
+machine Inspector::inspect(
+    &mut self,
+    first: &mut Placed<UartPlacement, Registers>,
+    second: &Placed<UartPlacement, Registers>
+) {}
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&main, None)
+    })
+    .expect("multi-row placed-view consumer should compile");
+    let inspect = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Inspector::inspect")
+        .expect("placed-view consumer");
+    let checked_inputs = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .filter(|input| input.machine == inspect.symbol)
+        .collect::<Vec<_>>();
+    let [first_checked, second_checked] = checked_inputs.as_slice() else {
+        panic!("two checked placed-view inputs")
+    };
+    let lowered = lower_machine(&checked, "Inspector::inspect")
+        .expect("lower multi-row placed-view consumer");
+    let semantic = terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode multi-row Terminal module");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode multi-row proof bundle");
+    let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .map(|admitted| admitted.into_parts())
+    .expect("retain exact placed-view custody");
+    let [first_input, second_input] = abstract_plan.placed_view_inputs.as_slice() else {
+        panic!("two retained placed-view inputs")
+    };
+
+    // Supply order is not the join order: the reversed selection set answers
+    // the same declared rows.
+    let selections = [
+        abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+            terminal_input: second_input,
+            placement_plan: &second_checked.placement,
+        },
+        abstract_operations_to_target_operations::SelectedPlacedViewInputPlan {
+            terminal_input: first_input,
+            placement_plan: &first_checked.placement,
+        },
+    ];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = abstract_operations_to_target_operations::
+            lower_to_target_operations_with_placed_view_inputs(
+                &abstract_plan,
+                target,
+                &selections,
+            )
+            .expect("lower multi-row placed-view target entry ABI");
+        assert_eq!(target_plan.entry_call_plan.parameters.len(), 2);
+        let [first, second] = target_plan.placed_view_inputs.as_slice() else {
+            panic!("two target placed-view inputs")
+        };
+        assert_eq!(first.terminal, *first_input);
+        assert_eq!(first.abi_parameter_ordinal, 0);
+        assert_eq!(first.placement, target_plan.entry_call_plan.parameters[0]);
+        assert_eq!(second.terminal, *second_input);
+        assert_eq!(second.abi_parameter_ordinal, 1);
+        assert_eq!(second.placement, target_plan.entry_call_plan.parameters[1]);
+        assert_eq!(first.referent_byte_size, 24);
+        assert_eq!(second.referent_byte_size, 24);
+        assert_eq!(
+            first.placement.shape.byte_size as usize,
+            target.pointer_size
+        );
+        assert_eq!(
+            second.placement.shape.alignment as usize,
+            target.pointer_alignment
+        );
+
+        assert_eq!(
+            abstract_operations_to_target_operations::validate_placed_view_input_translation(
+                &abstract_plan,
+                &selections,
+                target,
+                &target_plan,
+            ),
+            Ok(())
+        );
+
+        // A swapped roster cannot be presented as the same plan: the
+        // reconstructed carrier keeps declared order.
+        let mut swapped = target_plan.clone();
+        swapped.placed_view_inputs.swap(0, 1);
+        assert_eq!(
+            abstract_operations_to_target_operations::
+                validate_placed_view_input_translation(
+                    &abstract_plan,
+                    &selections,
+                    target,
+                    &swapped,
+                ),
+            Err(abstract_operations_to_target_operations::
+                PlacedViewInputTranslationError::CandidateInputRosterMismatch)
+        );
+    }
+
+    // Selection cardinality is exact: a short or overlong supply rejects
+    // before any row is joined.
+    for selections in [
+        selections[..1].to_vec(),
+        [selections[0], selections[1], selections[1]].to_vec(),
+    ] {
+        assert!(matches!(
+            abstract_operations_to_target_operations::
+                lower_to_target_operations_with_placed_view_inputs(
+                    &abstract_plan,
+                    NativeTarget::linux_x64(),
+                    &selections,
+                ),
+            Err(abstract_operations_to_target_operations::LoweringError::PlacedViewInput(
+                abstract_operations_to_target_operations::PlacedViewInputTranslationError::SelectionCountMismatch { .. }
+            ))
+        ));
+    }
+
+    // A duplicated selection leaves one declared row unanswered, and a stale
+    // selection names no declared row — both fail the per-row join.
+    let mut stale_row = (*second_input).clone();
+    stale_row.placement_commitment[0] ^= 1;
+    let stale_row = Box::leak(Box::new(stale_row));
+    let mut stale_selections = selections;
+    stale_selections[1].terminal_input = stale_row;
+    for selections in [
+        [selections[0], selections[0]].to_vec(),
+        stale_selections.to_vec(),
+    ] {
+        assert!(matches!(
+            abstract_operations_to_target_operations::
+                lower_to_target_operations_with_placed_view_inputs(
+                    &abstract_plan,
+                    NativeTarget::linux_x64(),
+                    &selections,
+                ),
+            Err(abstract_operations_to_target_operations::LoweringError::PlacedViewInput(
+                abstract_operations_to_target_operations::PlacedViewInputTranslationError::SelectionRowMismatch
+            ))
+        ));
+    }
+}
+
+#[test]
 fn placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap() {
     // A direct-entry machine may declare several placed-view inputs at once:
     // each roster row still joins exactly one provider establishment, the

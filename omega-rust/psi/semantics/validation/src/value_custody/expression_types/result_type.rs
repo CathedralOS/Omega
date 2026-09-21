@@ -25,13 +25,15 @@ mod tests;
 
 #[cfg(test)]
 mod domain_carrier_subjects {
-    use super::*;
+    use super::domain_expression_result_type_reference;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees::TypedTrees;
     use typed_trees::domain::ProofFact;
+    use typed_trees::expression::ExpressionHandle;
+    use typed_trees::types::PrimitiveType;
 
     fn typed_source(source: &str) -> TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
@@ -94,6 +96,132 @@ mod domain_carrier_subjects {
             resolved.and_then(|reference| program.type_reference_table.primitive_type(reference)),
             Some(PrimitiveType::U8)
         );
+    }
+}
+
+#[cfg(test)]
+mod named_call_result_fabrication {
+    use super::*;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+    use tokens_to_syntax_trees::parse_syntax_trees;
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::statement::StatementNode;
+
+    fn typed_source(source: &str) -> TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
+        lower_symbol_resolved_trees(&resolved).expect("typing")
+    }
+
+    fn match_arm_value(program: &TypedTrees, arm: usize) -> ExpressionHandle {
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let [StatementNode::Expression(result)] =
+            program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("outer result expression");
+        };
+        let mut root = *result;
+        if let ExpressionNode::Cast(cast) = program.expression_table.expression(root) {
+            root = cast.value;
+        }
+        let ExpressionNode::Match(dispatch) = program.expression_table.expression(root) else {
+            panic!("match result");
+        };
+        program.expression_table.match_arms(dispatch.arms)[arm].value
+    }
+
+    fn first_match_arm_value(program: &TypedTrees) -> ExpressionHandle {
+        match_arm_value(program, 0)
+    }
+
+    #[test]
+    fn named_call_composite_parameter_results_remain_unresolved() {
+        let program = typed_source(
+            "data Pair<T> { first: T; second: T; }
+             operator + Math::pair<T>(left: T, right: T) -> Pair<T>;
+             machine run(left: u8, right: u8) -> Pair<u8> {
+                 match true { true -> Math::pair(left, right), false -> Math::pair(right, left) }
+             }",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let call = first_match_arm_value(&program);
+        assert!(matches!(
+            program.expression_table.expression(call),
+            ExpressionNode::Call(_)
+        ));
+        assert_eq!(
+            expression_result_type_reference(&program, machine, state, call),
+            None,
+            "a declaration-local `Pair<T>` shell must not stand in for `Pair<u8>`"
+        );
+    }
+
+    #[test]
+    fn named_call_constrained_parameter_results_remain_unresolved() {
+        let program = typed_source(
+            "domain<T> T::NonZero;
+             operator + Math::clamp<T>(input: T, bound: T) -> T in NonZero;
+             machine run(left: u8, right: u8) -> u8 {
+                 match true { true -> Math::clamp(left, right), false -> right }
+             }",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let call = first_match_arm_value(&program);
+        assert!(matches!(
+            program.expression_table.expression(call),
+            ExpressionNode::Call(_)
+        ));
+        assert_eq!(
+            expression_result_type_reference(&program, machine, state, call),
+            None,
+            "a declaration-local `T in NonZero` shell must not stand in for `u8 in NonZero`"
+        );
+    }
+
+    #[test]
+    fn named_call_bound_and_concrete_results_still_resolve() {
+        let program = typed_source(
+            "operator + Math::sum<T>(left: T, right: T) -> T;
+             operator + Math::double(input: u8) -> u8;
+             machine run(flag: bool, left: u8, right: u8) -> u64 {
+                 (match flag {
+                     true -> Math::sum(left, right),
+                     false -> Math::double(left),
+                 }) as u64
+             }",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let bound = program.state_parameters(state)[1].type_reference;
+        let call = first_match_arm_value(&program);
+        assert!(matches!(
+            program.expression_table.expression(call),
+            ExpressionNode::Call(_)
+        ));
+        assert_eq!(
+            expression_result_type_reference(&program, machine, state, call),
+            Some(bound),
+            "bound `-> T` still instantiates from the operand"
+        );
+        let concrete_call = match_arm_value(&program, 1);
+        assert!(matches!(
+            program.expression_table.expression(concrete_call),
+            ExpressionNode::Call(_)
+        ));
+        let declared = program
+            .type_reference_table
+            .primitive_type(
+                expression_result_type_reference(&program, machine, state, concrete_call)
+                    .expect("concrete named result"),
+            )
+            .expect("primitive");
+        assert_eq!(declared, PrimitiveType::U8);
     }
 }
 
@@ -215,7 +343,7 @@ fn result_type(
         }
         ExpressionNode::Call(call) => {
             crate::machine_calls::calls::resolved_call_result_type(program, call).or_else(|| {
-                typed_trees::operator::resolve_named_expression_call(program, call).map(
+                typed_trees::operator::resolve_named_expression_call(program, call).and_then(
                     |operator| {
                         let operands: Vec<_> = program
                             .expression_table
@@ -223,8 +351,14 @@ fn result_type(
                             .iter()
                             .map(|argument| result_type(program, owner, *argument, active))
                             .collect();
-                        bound_result_type_parameter(program, operator, &operands)
-                            .unwrap_or(operator.return_type)
+                        bound_result_type_parameter(program, operator, &operands).or_else(|| {
+                            (!result_mentions_type_parameters(
+                                program,
+                                operator,
+                                operator.return_type,
+                            ))
+                            .then_some(operator.return_type)
+                        })
                     },
                 )
             })
@@ -666,6 +800,79 @@ fn bound_result_type_parameter(
                 || name.as_str() == result_parameter.name.as_str())
             .then_some(operand)
         })
+}
+
+/// A declared result that mentions the operator's type parameters — bare,
+/// nested inside a composite binder, or inside a constraint's static
+/// arguments — is declaration-local until `bound_result_type_parameter`
+/// instantiates a bare `T` from its operand. Exporting such a shell through
+/// a named call would fabricate caller identity, so it stays unresolved.
+fn result_mentions_type_parameters(
+    program: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let parameters = program.operator_type_parameters(operator);
+    let mut pending = vec![reference];
+    let mut seen = Vec::new();
+    while let Some(reference) = pending.pop() {
+        if seen.contains(&reference) {
+            continue;
+        }
+        seen.push(reference);
+        if let TypeReferenceNode::Named { symbol, .. }
+        | TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            ..
+        } = program.type_reference_table.type_reference(reference)
+            && parameters
+                .iter()
+                .any(|parameter| parameter.symbol == *symbol)
+        {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(*base_type);
+                if let Some(constraints) =
+                    program.type_reference_table.constraint_span(*constraints)
+                {
+                    for constraint in constraints {
+                        if let TypeConstraintNode::Domain(qualification) = constraint {
+                            pending.extend(qualification.arguments.iter().copied());
+                        }
+                    }
+                }
+            }
+            TypeReferenceNode::Generic { arguments, .. } => {
+                pending.extend_from_slice(
+                    program
+                        .type_reference_table
+                        .type_reference_handles(*arguments),
+                );
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                pending.push(*element_type);
+                if let typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } = length
+                    && parameters
+                        .iter()
+                        .any(|parameter| parameter.symbol == *symbol)
+                {
+                    return true;
+                }
+            }
+            TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            _ => {}
+        }
+    }
+    false
 }
 
 fn compatible_operands(

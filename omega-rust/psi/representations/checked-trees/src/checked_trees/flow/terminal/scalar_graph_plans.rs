@@ -7,6 +7,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan,
 };
+use crate::checked_trees::values::{CheckedErasedProofParameterPlan, CheckedProofTerm};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
@@ -18,6 +19,8 @@ pub struct CheckedScalarGraphPlans {
     pub parameter_storage: arena::Arena<CheckedScalarParameterStorage>,
     pub structural_transfers: arena::Arena<CheckedStructuralControlTransferPlan>,
     pub scalar_arguments: arena::Arena<CheckedStructuralScalarArgumentPlan>,
+    /// Proof-only erased actuals for `erased_proof_arguments` spans.
+    pub erased_proof_arguments: arena::Arena<CheckedProofTerm>,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     /// Ordered exits survive graph-body admission so ordinary Unit bodies use
     /// the same guard and selected-destination correspondence.
@@ -94,6 +97,9 @@ pub struct CheckedScalarStateGraph {
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Erased formals whose carriers are proof-only and admit no scalar
+    /// lane. The contract term lane carries their semantic type identities.
+    pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     pub parameter_types: Vec<PrimitiveType>,
     pub parameter_storage: arena::HandleSpan<CheckedScalarParameterStorage>,
     /// Authored mutable locals borrowed by retained statements or computations.
@@ -200,4 +206,7 @@ pub struct CheckedScalarSuccessor {
     /// `target_scalar_parameter_index` indexes the target state's
     /// `erased_scalar_parameters` roster, not its dense scalar roster.
     pub erased_arguments: arena::HandleSpan<CheckedStructuralScalarArgumentPlan>,
+    /// Erased proof-only actuals in the target's erased-proof roster order.
+    /// They carry semantic identity, never a runtime operand.
+    pub erased_proof_arguments: arena::HandleSpan<CheckedProofTerm>,
 }

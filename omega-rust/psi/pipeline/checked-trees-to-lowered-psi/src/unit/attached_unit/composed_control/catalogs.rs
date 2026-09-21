@@ -1,15 +1,14 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
 use super::super::super::{
     BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
-    StructuralTypeDeclaration,
+    StructuralDomainDeclaration, StructuralTypeDeclaration,
 };
 use super::super::{
-    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
-    LoweredPsi, Multiplicity, ScalarType, SemanticDomainId, ServiceReachSummary,
-    StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralTypeId,
-    ValueDeclaration, boundary_machine_id, dense_identity, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
+    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweredPsi, ScalarType,
+    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralPlaceDeclaration,
+    StructuralTypeId, ValueDeclaration, boundary_machine_id, dense_identity, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_result,
     lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
     lower_unit_parameters, terminal_scalar_type, unsupported,
 };
@@ -18,7 +17,7 @@ use crate::unit::attached_unit::bodies::UnitBody;
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
-    lower_unit_structural_type_roots,
+    lower_unit_structural_domains_including, lower_unit_structural_type_roots,
 };
 use semantic_vocabulary::Proposition;
 use std::borrow::Cow;
@@ -28,6 +27,7 @@ use std::borrow::Cow;
 pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(String, StructuralTypeId)]>,
+    pub(crate) structural_domains: Cow<'a, [StructuralDomainDeclaration]>,
     pub(crate) domain_ids: Cow<'a, [(SemanticDomainId, StructuralDomainId)]>,
     pub(crate) services: Cow<'a, [ServiceDeclaration]>,
     pub(crate) root_service_reach: Cow<'a, terminal_psi::TerminalRootServiceReach>,
@@ -82,7 +82,8 @@ fn lower_composed_services(
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. } => continue,
+            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. } => continue,
             _ => return unsupported("composed Unit control contains a non-call operation"),
         };
         collect_service_summary(&facts.rows, service_reach, &mut selected)?;
@@ -116,6 +117,9 @@ pub(crate) struct LoweredComposedInternalTarget {
     /// The callee's published erased-formal roster; a call carries one
     /// proof-only erased argument per row.
     pub(super) erased_scalar_formals: Vec<ValueDeclaration>,
+    /// The callee's published erased-proof roster in contract order; a call
+    /// carries one erased proof argument per row.
+    pub(super) erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     /// The callee's published `requires` clauses in contract order; the call
     /// allocates one obligation per row.
     pub(super) requires: Vec<Proposition>,
@@ -223,6 +227,65 @@ fn lower_catalogs(
             .filter_map(|(target, _)| target.attachment().map(str::to_owned)),
     );
     let (structural_types, type_ids) = lower_unit_structural_type_roots(checked, &type_roots)?;
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut domain_roots = plans
+        .machines
+        .iter()
+        .find(|plan| plan.machine == machine)
+        .into_iter()
+        .flat_map(|plan| {
+            plan.structural_parameters
+                .iter()
+                .flat_map(|parameter| {
+                    parameter.qualifications.iter().chain(
+                        parameter
+                            .projected_qualifications
+                            .iter()
+                            .map(|row| &row.domain),
+                    )
+                })
+                .chain(plan.body_qualifications.iter())
+        })
+        .chain(
+            plans
+                .composed_machines
+                .iter()
+                .find(|plan| plan.machine == machine)
+                .into_iter()
+                .flat_map(|plan| plan.body_qualifications.iter()),
+        )
+        .chain(states.iter().flat_map(|state| {
+            state.structural_parameters.iter().flat_map(|parameter| {
+                parameter.qualifications.iter().chain(
+                    parameter
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| &row.domain),
+                )
+            })
+        }))
+        .chain(
+            boundaries
+                .iter()
+                .flat_map(|(boundary, _)| match &boundary.result {
+                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                        qualifications.as_slice()
+                    }
+                    CheckedBoundaryMachineResultPlan::Unit
+                    | CheckedBoundaryMachineResultPlan::Scalar(_) => &[],
+                }),
+        )
+        .copied()
+        .collect::<Vec<SemanticDomainId>>();
+    domain_roots.sort_by_key(|domain| domain.0);
+    domain_roots.dedup();
+    let (structural_domains, domain_ids) = lower_unit_structural_domains_including(
+        checked,
+        &[],
+        boundaries,
+        &type_ids,
+        &domain_roots,
+    )?;
     let (services, service_ids) = lower_composed_services(
         checked,
         machine,
@@ -247,35 +310,10 @@ fn lower_catalogs(
         let structural_parameters = lower_unit_parameters(
             &boundary.structural_parameters,
             &type_ids,
-            &[],
+            &domain_ids,
             &mut next_place,
         )?;
-        let result = match &boundary.result {
-            CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
-            CheckedBoundaryMachineResultPlan::Scalar(scalar) => {
-                BoundaryMachineResult::Scalar(terminal_scalar_type(*scalar)?)
-            }
-            CheckedBoundaryMachineResultPlan::Structural {
-                type_identity,
-                multiplicity,
-                qualifications,
-            } => {
-                if !qualifications.is_empty() {
-                    return unsupported(
-                        "composed Unit structural boundary result carries qualifications",
-                    );
-                }
-                BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
-                    structural_type: lookup_type_id(&type_ids, type_identity)?,
-                    multiplicity: match multiplicity {
-                        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                        Multiplicity::Affine => StructuralMultiplicity::Affine,
-                        Multiplicity::Linear => StructuralMultiplicity::Linear,
-                    },
-                    qualifications: Vec::new(),
-                })
-            }
-        };
+        let result = lower_boundary_result(&boundary.result, &type_ids, &domain_ids)?;
         boundary_machines.push(BoundaryMachineDeclaration {
             parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
                 &boundary.scalar_parameters,
@@ -298,7 +336,7 @@ fn lower_catalogs(
                 boundary,
                 identity,
                 &structural_parameters,
-                &[],
+                &domain_ids,
             )?,
             content_guarantees: lower_boundary_content_guarantees(
                 &checked.facts.qualifications.content.conservation_plans,
@@ -329,7 +367,8 @@ fn lower_catalogs(
     Ok(ComposedCatalogs {
         structural_types: structural_types.into(),
         type_ids: type_ids.into(),
-        domain_ids: Vec::new().into(),
+        structural_domains: structural_domains.into(),
+        domain_ids: domain_ids.into(),
         services: services.into(),
         root_service_reach: Cow::Owned(root_service_reach),
         boundary_machines: boundary_machines.into(),

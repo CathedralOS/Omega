@@ -319,6 +319,7 @@ fn build_unit(
         unit.functions.last_mut().unwrap().verified_contract =
             Some(terminal_psi::MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(8_008, semantic_vocabulary::ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -187,6 +187,63 @@ impl ScalarBindings {
         Ok((source.place, case))
     }
 
+    /// A parameter-field case observation resolves through the dense
+    /// structural parameter index, then delegates to the shared
+    /// case-binding resolver for the retained path and selected case.
+    pub(crate) fn parameter_case_observation(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        case: &str,
+    ) -> Result<
+        (
+            PlaceId,
+            Vec<terminal_psi::StructuralPathSegment>,
+            semantic_vocabulary::StructuralCaseId,
+        ),
+        LoweringError,
+    > {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            argument.source
+        else {
+            return unsupported("case observation requires an exact parameter source");
+        };
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+            return unsupported("case observation changed its parameter custody");
+        }
+        let (parameter_position, _) = self
+            .structural_parameters
+            .get(usize::try_from(parameter_index).map_err(|_| {
+                LoweringError::Unsupported("case observation parameter index exceeds the host type")
+            })?)
+            .ok_or(LoweringError::Unsupported(
+                "case observation lost its parameter source",
+            ))?;
+        let path = argument
+            .path
+            .iter()
+            .map(|segment| match segment {
+                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
+                ),
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+                }
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or(LoweringError::Unsupported(
+                "case observation has a non-field parameter path",
+            ))?;
+        structural_cases::resolve(
+            &self.structural_cases,
+            &checked_trees::CheckedStructuralParameterField {
+                parameter_position: *parameter_position,
+                path,
+            },
+            case,
+        )
+    }
+
     pub(crate) fn with_local_cases(mut self, cases: &[structural_cases::LocalCaseBinding]) -> Self {
         self.local_cases = cases.to_vec();
         self
@@ -512,6 +569,7 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+            | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
             CheckedScalarExpression::IntegerTrappingCast { .. } => {
                 return Err(LoweringError::Unsupported(
@@ -549,7 +607,8 @@ impl ScalarBindings {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }

@@ -20,6 +20,7 @@ use object_file::{
 };
 
 use crate::dyld_linking::loader_mapping::{region, wide, word};
+use crate::isa::MachoIsa;
 
 /// An internal pointer reconstructed from its object relocation and symbol.
 #[derive(Clone, Copy)]
@@ -36,11 +37,7 @@ pub struct MachoImportPointer<'inputs> {
     pub symbol: &'inputs [u8],
 }
 
-/// Reconstruct fixup obligations from the source-free object, then replay bytes.
-///
-/// Import slot placement follows referenced object symbols, not the bind stream
-/// or mutable thunk observations. Normalized locators keep their raw install
-/// name and symbol; diagnostic names are used only by the legacy bootstrap form.
+/// Reconstruct fixup obligations for an AArch64 object and replay bytes.
 pub fn validate_macho_aarch64_object_fixups(
     object: &ObjectPlan,
     relocations: &RelocationPlan,
@@ -48,7 +45,50 @@ pub fn validate_macho_aarch64_object_fixups(
     object_data_bytes: usize,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    if object.target != target::NativeTarget::macos_arm64() || relocations.target != object.target {
+    validate_macho_object_fixups(
+        object,
+        relocations,
+        object_text_bytes,
+        object_data_bytes,
+        output,
+        MachoIsa::Aarch64,
+    )
+}
+
+/// Reconstruct fixup obligations for an x86-64 object and replay bytes.
+///
+/// Import slot placement follows referenced object symbols, not the bind
+/// stream or mutable thunk observations. Normalized locators keep their raw
+/// install name and symbol; diagnostic names are used only by the legacy
+/// bootstrap form.
+pub fn validate_macho_x86_64_object_fixups(
+    object: &ObjectPlan,
+    relocations: &RelocationPlan,
+    object_text_bytes: usize,
+    object_data_bytes: usize,
+    output: &image::EmittedImageOutput,
+) -> Result<(), Diagnostic> {
+    validate_macho_object_fixups(
+        object,
+        relocations,
+        object_text_bytes,
+        object_data_bytes,
+        output,
+        MachoIsa::X86_64,
+    )
+}
+
+/// Reconstruct fixup obligations from the source-free object, then replay
+/// bytes under `isa`'s thunk contract.
+fn validate_macho_object_fixups(
+    object: &ObjectPlan,
+    relocations: &RelocationPlan,
+    object_text_bytes: usize,
+    object_data_bytes: usize,
+    output: &image::EmittedImageOutput,
+    isa: MachoIsa,
+) -> Result<(), Diagnostic> {
+    if object.target != isa.native_target() || relocations.target != object.target {
         return Err(invalid());
     }
     let layout = output.final_image_layout;
@@ -84,7 +124,7 @@ pub fn validate_macho_aarch64_object_fixups(
                 .position(|(handle, _)| handle == relocation.symbol_handle)
                 .ok_or_else(invalid)?;
             let offset = ordinal
-                .checked_mul(12)
+                .checked_mul(isa.import_thunk_size())
                 .and_then(|offset| object_text_bytes.checked_add(offset))
                 .ok_or_else(invalid)?;
             (layout.text_address, offset)
@@ -116,9 +156,7 @@ pub fn validate_macho_aarch64_object_fixups(
             .iter()
             .filter(|import| import.symbol == handle);
         let (install_name, bind_symbol) = if let Some(import) = locators.next() {
-            if locators.next().is_some()
-                || import.locator.target() != target::TargetProfile::MacosArm64
-            {
+            if locators.next().is_some() || import.locator.target() != isa.target_profile() {
                 return Err(invalid());
             }
             let target::ForeignLocatorCandidate::MachODylibSymbol {

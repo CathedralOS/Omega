@@ -128,6 +128,24 @@ pub enum SelectedInstructionKind {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },
+    /// Signed division of normalized i64 operands admitted by this
+    /// operation's definedness proof: the divisor is provably nonzero and the
+    /// quotient provably representable in the declared carrier, so IDIV's
+    /// overflow pair cannot occur. Every non-u64 fixed carrier selects this
+    /// entry because scalar transport normalizes narrow operands into i64
+    /// registers whose signed division is already canonical.
+    ExactDivideI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Signed remainder of normalized i64 operands admitted by this
+    /// operation's definedness proof. The realization shares the signed
+    /// divide hardware and selects the high-half remainder register instead
+    /// of the quotient.
+    ExactRemainderI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     /// Addition of normalized carriers clamped to the carrier bounds; no
     /// Exact proof is implied. The u64 carrier is the three-operand
     /// carry-select form; every other carrier adds in 64 bits (or detects the

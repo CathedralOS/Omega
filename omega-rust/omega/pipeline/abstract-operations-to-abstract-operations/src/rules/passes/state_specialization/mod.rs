@@ -21,10 +21,14 @@ use crate::{
 
 use super::STATE_SPECIALIZATION_PASS_NAME;
 
-/// Binds the proven Boolean constant on an incoming unconditional `Jump` edge
-/// to a single-`Conditional` dispatch block's parameter and fuses the resolved
+/// Binds the proven constant on an incoming edge — an unconditional `Jump`
+/// successor or one arm of a `Conditional` predecessor — to a
+/// `Conditional`-terminated dispatch block's parameter and fuses the resolved
 /// arm, keeping both edges' provenance and fuel settlements on the fused
-/// traversal. Machines holding an authenticated cyclic component stay frozen.
+/// traversal. The condition reads the parameter directly (a Boolean
+/// argument) or through an in-block `parameter CMP literal` integer
+/// comparison against a pure scalar-constant prefix (an integer argument).
+/// Machines holding an authenticated cyclic component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StateArgumentSpecializationRule;
 
