@@ -932,8 +932,8 @@ fn validate_canonical_proposition(
                         pending.push(Step::Validate(premise, depth + 1));
                     }
                     Proposition::ContentConservation(conservation) => {
-                        validate_content_term_depth(conservation.left(), 0)?;
-                        validate_content_term_depth(conservation.right(), 0)?;
+                        validate_content_term_depth(conservation.left())?;
+                        validate_content_term_depth(conservation.right())?;
                     }
                 }
             }
@@ -1065,13 +1065,16 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
     Ok(())
 }
 
-fn validate_content_term_depth(term: &ContentTerm, depth: usize) -> Result<(), CodecError> {
-    if depth > MAX_CONTENT_TERM_DEPTH {
-        return Err(CodecError::ContentTermNestingTooDeep);
-    }
-    if let ContentTerm::Separate(terms) = term {
-        for term in terms {
-            validate_content_term_depth(term, depth + 1)?;
+fn validate_content_term_depth(term: &ContentTerm) -> Result<(), CodecError> {
+    let mut pending = vec![(term, 0_usize)];
+    while let Some((term, depth)) = pending.pop() {
+        if depth > MAX_CONTENT_TERM_DEPTH {
+            return Err(CodecError::ContentTermNestingTooDeep);
+        }
+        if let ContentTerm::Separate(terms) = term {
+            for term in terms {
+                pending.push((term, depth + 1));
+            }
         }
     }
     Ok(())
