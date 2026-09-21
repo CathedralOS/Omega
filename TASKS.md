@@ -17338,6 +17338,166 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   removed.
 
 - **STALE-CUSTODY-GATE-EXPECTATIONS.** Scope verified at `10d93dd448d`:
+||||||| parent of ca2ed19dd9e8 (board: add STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION resolved row)
+- **STAGE-ANCESTRY-DIRECT-READS.** Resolved — re-mine of the settled
+  selected-instructions ancestry surface, already closed under sibling
+  SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL: `83766d57bf` moved custody reads
+  in `selected-instructions-to-selected-instructions` to the retained
+  `optimized_target_owner` handle, the staged types expose
+  `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`
+  /`ranges`/`legality` directly, and `tests/ancestry_contract.rs` pins the
+  contract — zero `.optimized_target()` data reads and no unsanctioned
+  `selected_stage()` walks (witnessed green on linux x86-64). Remaining
+  `live_range_stage`/`liveness_stage`/`source_legality_stage`/`source_
+  segment_home_stage`/`transformation_stage` hops are the contract's named
+  custody-validator inputs, not data reads. Same-surface sibling stubs:
+  RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-
+  OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
+  REMOVAL, STAGED-ANCESTRY-ELIMINATION.
+- **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; scope verified, covered — the stage-crate ownership audit is the sweep already executed on the adjacent STAGE-ENTRANCE-ORPHAN-AUDIT row (audit at `280c4a83b6`, the residual leg of PIPELINE-OWNER-CONSOLIDATION): every `omega-rust/{psi,omega}/pipeline/*` crate's `pub fn` cross-referenced against callers outside its crate and tests, findings enumerated (the ~40 `rewrites/` entrances, 18 `unsequenced_spill_stages/`, `optimized_semantic_wrapper_{encoding,object}` entrances, plus the four named stage-entrance families). That row explicitly retires this stub as a re-mine of the same sweep; remediation of the named entrances belongs to the sibling rows it routes to (POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*, POC-WRAPPER-OBJECT-PLACEMENT). No independent slice exists here.
+- **STAGE-ENTRANCE-ORPHAN-AUDIT** — mined candidate.
+  Audit executed at `280c4a83b6` (the residual leg of
+  PIPELINE-OWNER-CONSOLIDATION: "a public stage entrance that no
+  coordinator or successor stage calls is an orphan output"). Method: for
+  every `omega-rust/{psi,omega}/pipeline/*` crate, every `pub fn` was
+  cross-referenced against all callers outside its own crate and outside
+  its own tests. Findings beyond the three named families (the ~40
+  `rewrites/` entrances, 18 `unsequenced_spill_stages/`, and the
+  `optimized_semantic_wrapper_{encoding,object}` entrances — all still
+  caller-less at this rev):
+  - `selected-instructions-to-register-homes`: `stage_fixed_view_
+    register_allocation` (assignment/recovery.rs) — a second allocation
+    stage entrance re-exported beside `stage_register_allocation`; no
+    caller.
+  - `symbol-resolved-trees-to-typed-trees`: `lower_symbol_resolved_trees_
+    owned` — owned-input sibling of the used `lower_symbol_resolved_trees`
+    entrance; def + lib.rs re-export only.
+  - `checked-trees-to-lowered-psi`: uncalled `lower_*`/`install_*`/`produce_*`
+    proof sub-passes re-exported at lib.rs
+    (`lower_content_conservation_plan`,
+    `install_non_executable_quotient_correspondences`,
+    `lower_boundary_content_guarantees`,
+    `lower_content_identity_reshuffles`,
+    `lower_content_partition_compositions`,
+    `lower_float_meaning_{equality,projection}`,
+    `produce_checked_canonical_integer_proof`).
+  - `abstract-operations-to-abstract-operations`: a large specialization
+    proposal/validation surface (`propose_*`,
+    `validate_*_specialization`, `bind_revision`/`commit_revision`,
+    `replay_psi_registry`, `compute_cold_parallel`, …) is def+re-export
+    only; `optimization-unit-semantics` touches a same-named
+    `validate_state_argument_specialization`, so per-name audit needed
+    before any removal.
+  - `abstract-operations-to-target-operations`: `lower_to_target_
+    operations_and_native_callbacks` is re-exported at lib.rs beside the
+    used `lower_optimized_to_target_operations` entrance but is still
+    delegated to internally — competing public entrance, not dead code.
+  Test-support `*_for_test`/`corrupt_*` helpers and crate-internal
+  methods are excluded (not stage entrances). Remediation belongs to the
+  sibling rows: POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*,
+  POC-WRAPPER-OBJECT-PLACEMENT (live claims: PIPELINE-WRAPPER-OBJECT-
+  ORPHAN 22:46Z) plus a new slice for the entrances named above; the
+  coordinator should also retire ORPHAN-ENTRANCE-AUDIT, ORPHAN-STAGE-
+  ENTRANCE-AUDIT, ORPHAN-STAGE-OUTPUT-AUDIT, STAGE-ANCESTRY-DIRECT-READS,
+  STAGE-CRATE-OWNERSHIP-AUDIT as re-mines of this same sweep.
+- **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
+- **STAGED-LOCAL-CRASH-LOWERING.** Mined candidate — resolved:
+  re-mines the explicit-crash leg of the resolved
+  STAGED-LOCAL-SEQUENCE-LOWERING row, identical to sibling verdict
+  STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION (this section). Re-verified
+  at `9ff8673b310` (linux x86-64): `cargo nextest run -p
+  omega-native-differential-test --test terminal_psi_source -E
+  'test(~staged_local)'` — 7/7 pass, including
+  `checked_source_staged_local_sequences_before_an_explicit_crash`.
+  The stale `wiki/drafts/known_baseline_failures.md` entry
+  (`UnsupportedControlFlow(MachineId(1))`, expectation from
+  `2694d433d3`) belongs to the known-failures doc lane.
+- **STALE-CUSTODY-GATE-EXPECTATIONS** — scope verified at `10d93dd448d`:
+- **STAGE-ANCESTRY-DIRECT-READS.** Resolved — re-mine of the settled
+  selected-instructions ancestry surface, already closed under sibling
+  SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL: `83766d57bf` moved custody reads
+  in `selected-instructions-to-selected-instructions` to the retained
+  `optimized_target_owner` handle, the staged types expose
+  `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`
+  /`ranges`/`legality` directly, and `tests/ancestry_contract.rs` pins the
+  contract — zero `.optimized_target()` data reads and no unsanctioned
+  `selected_stage()` walks (witnessed green on linux x86-64). Remaining
+  `live_range_stage`/`liveness_stage`/`source_legality_stage`/`source_
+  segment_home_stage`/`transformation_stage` hops are the contract's named
+  custody-validator inputs, not data reads. Same-surface sibling stubs:
+  RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-
+  OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
+  REMOVAL, STAGED-ANCESTRY-ELIMINATION.
+- **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; scope verified, covered — the stage-crate ownership audit is the sweep already executed on the adjacent STAGE-ENTRANCE-ORPHAN-AUDIT row (audit at `280c4a83b6`, the residual leg of PIPELINE-OWNER-CONSOLIDATION): every `omega-rust/{psi,omega}/pipeline/*` crate's `pub fn` cross-referenced against callers outside its crate and tests, findings enumerated (the ~40 `rewrites/` entrances, 18 `unsequenced_spill_stages/`, `optimized_semantic_wrapper_{encoding,object}` entrances, plus the four named stage-entrance families). That row explicitly retires this stub as a re-mine of the same sweep; remediation of the named entrances belongs to the sibling rows it routes to (POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*, POC-WRAPPER-OBJECT-PLACEMENT). No independent slice exists here.
+- **STAGE-ENTRANCE-ORPHAN-AUDIT** — mined candidate.
+  Audit executed at `280c4a83b6` (the residual leg of
+  PIPELINE-OWNER-CONSOLIDATION: "a public stage entrance that no
+  coordinator or successor stage calls is an orphan output"). Method: for
+  every `omega-rust/{psi,omega}/pipeline/*` crate, every `pub fn` was
+  cross-referenced against all callers outside its own crate and outside
+  its own tests. Findings beyond the three named families (the ~40
+  `rewrites/` entrances, 18 `unsequenced_spill_stages/`, and the
+  `optimized_semantic_wrapper_{encoding,object}` entrances — all still
+  caller-less at this rev):
+  - `selected-instructions-to-register-homes`: `stage_fixed_view_
+    register_allocation` (assignment/recovery.rs) — a second allocation
+    stage entrance re-exported beside `stage_register_allocation`; no
+    caller.
+  - `symbol-resolved-trees-to-typed-trees`: `lower_symbol_resolved_trees_
+    owned` — owned-input sibling of the used `lower_symbol_resolved_trees`
+    entrance; def + lib.rs re-export only.
+  - `checked-trees-to-lowered-psi`: uncalled `lower_*`/`install_*`/`produce_*`
+    proof sub-passes re-exported at lib.rs
+    (`lower_content_conservation_plan`,
+    `install_non_executable_quotient_correspondences`,
+    `lower_boundary_content_guarantees`,
+    `lower_content_identity_reshuffles`,
+    `lower_content_partition_compositions`,
+    `lower_float_meaning_{equality,projection}`,
+    `produce_checked_canonical_integer_proof`).
+  - `abstract-operations-to-abstract-operations`: a large specialization
+    proposal/validation surface (`propose_*`,
+    `validate_*_specialization`, `bind_revision`/`commit_revision`,
+    `replay_psi_registry`, `compute_cold_parallel`, …) is def+re-export
+    only; `optimization-unit-semantics` touches a same-named
+    `validate_state_argument_specialization`, so per-name audit needed
+    before any removal.
+  - `abstract-operations-to-target-operations`: `lower_to_target_
+    operations_and_native_callbacks` is re-exported at lib.rs beside the
+    used `lower_optimized_to_target_operations` entrance but is still
+    delegated to internally — competing public entrance, not dead code.
+  Test-support `*_for_test`/`corrupt_*` helpers and crate-internal
+  methods are excluded (not stage entrances). Remediation belongs to the
+  sibling rows: POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*,
+  POC-WRAPPER-OBJECT-PLACEMENT (live claims: PIPELINE-WRAPPER-OBJECT-
+  ORPHAN 22:46Z) plus a new slice for the entrances named above; the
+  coordinator should also retire ORPHAN-ENTRANCE-AUDIT, ORPHAN-STAGE-
+  ENTRANCE-AUDIT, ORPHAN-STAGE-OUTPUT-AUDIT, STAGE-ANCESTRY-DIRECT-READS,
+  STAGE-CRATE-OWNERSHIP-AUDIT as re-mines of this same sweep.
+- **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
+- **STAGED-LOCAL-CRASH-LOWERING.** Mined candidate — resolved:
+  re-mines the explicit-crash leg of the resolved
+  STAGED-LOCAL-SEQUENCE-LOWERING row, identical to sibling verdict
+  STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION (this section). Re-verified
+  at `9ff8673b310` (linux x86-64): `cargo nextest run -p
+  omega-native-differential-test --test terminal_psi_source -E
+  'test(~staged_local)'` — 7/7 pass, including
+  `checked_source_staged_local_sequences_before_an_explicit_crash`.
+  The stale `wiki/drafts/known_baseline_failures.md` entry
+  (`UnsupportedControlFlow(MachineId(1))`, expectation from
+  `2694d433d3`) belongs to the known-failures doc lane.
+- **STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION.** Resolved — sibling verdict
+  named by STAGED-LOCAL-CRASH-LOWERING (this section): the
+  attribution leg of the resolved STAGED-LOCAL-SEQUENCE-LOWERING
+  surface is green — `cargo nextest run -p omega-native-differential-test
+  --test terminal_psi_source -E 'test(~staged_local)'` passes 7/7 on
+  linux x86-64 (re-verified `9ff8673b310`), including
+  `checked_source_staged_local_sequences_before_an_explicit_crash`.
+  The stale `wiki/drafts/known_baseline_failures.md` row
+  (`UnsupportedControlFlow(MachineId(1))`, expectation from
+  `2694d433d3`, never bisected) belongs to the known-failures doc
+  lane — fenced there, not an open leg of this surface.
+- **STALE-CUSTODY-GATE-EXPECTATIONS** — scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
   is current, not stale. All five custody-named fail fixtures
   (`core/content_retained_custody_from_borrow`,
