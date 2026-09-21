@@ -16573,6 +16573,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `runtime_spill` + `stack_slot_coloring`.
 - **SQUALR-CLONE-SERIALIZATION.** Resolved — implemented under `samples/apps/squalr`
 - **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
+||||||| parent of 2b18898d807f (board: SQUALR-CLI-ENTRY-AND-MODEL scope-verified — submodule lane, gated)
+- **SPILL-STAGES-OWNERSHIP** — mined candidate; verify scope then implement.
+- **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
+- **SPILL-STAGES-OWNERSHIP** — mined candidate; verify scope then implement.
+- **SQUALR-CLI-ENTRY-AND-MODEL.** Scope verified — real item, no bounded
+  slice exists inside this repo's board. The stub names the Squalr
+  submodule's CLI-COMMANDS row (`samples/apps/squalr/TASKS.md:26`): port
+  the request/response model through squalr-engine-session,
+  squalr-engine and squalr-cli, including the intentionally-absent CLI
+  main entry — the submodule's AGENTS.md forbids a success stub. Ordered
+  execution places it after SUPPLIED-BYTES-SCAN, which gates it. The
+  submodule path is wholesale-fenced at verification time
+  (`samples/apps/squalr` dir-claimed by SQUALR-WINDOWS-GEOMETRY-VALIDATION
+  dev-88738 exp 05:49Z and GEOMETRY-ALIGNMENT-REGIONS z112 exp 01:18Z).
+  Execution belongs to the submodule's own lane under its pin — not a
+  parent-repo slice.
 - **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
   (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
   fields carry wire schema numbers, so the synthesized `encode`/`decode` pair
