@@ -1640,535 +1640,152 @@ syntax and other terminal services are not prerequisites.
 
 ## P5 - Cathedral over general Omega primitives
 
-- **BUMP-ALLOCATOR-CANARY.** Complete a package allocator over a qualified
-  `Extent` under the [allocation contract](wiki/spec/resources/allocation.md):
-  coexisting allocations, fallible allocation preserving unchanged state,
-  exact return/recomposition, and reset only after every live allocation and
-  resident has returned. Allocator strategy remains ordinary Omega source.
+- **BUMP-ALLOCATOR-CANARY.** Deliver an executable package allocator over a
+  qualified `Extent` under [allocation](wiki/spec/resources/allocation.md).
+  Strategy stays ordinary Omega source. Reuse `source/library/alloc/bump.omg`
+  and the `bump_allocator_canary` package-dependency fixture: the package exists,
+  but `Main::main` is empty, no storage provider is selected, and its `BumpVec`
+  exercise carries capacity rather than elements.
 
-  The `tests/omega/pass/memory/bump_allocator_canary` fixture and
-  `fail/memory/bump_allocator_*` controls establish checked-source examples,
-  not an executable allocator: the pass fixture is checked-only,
-  `Main::main` is empty, and its `ExtentPartition`/`ResidentStorage`
-  boundaries have no selected provider. `source/library/alloc/` contains only
-  `.gitkeep`. **VEC-NATIVE-GROWTH** owns the unfinished container delivery;
-  assigning its dependencies does not complete either customer.
+  Complete these connected parts:
 
-  Re-verified at `c924529921dd` (z108): the premise is stale — the package
-  leg landed. `source/library/alloc/` now hosts the real strategy
-  (`bump.omg`, 359 lines) and the fixture reaches it through an authored
-  `builder.depend` row (`bump_allocator_canary_consumes_the_alloc_package_
-  through_the_depend_edge` PASS, 11.9s — `Split`/`Bump`/`Issued`/`Attempt`/
-  `BumpVec`/`Recomposed`/`Growth`/`RetiredSlot` arrive via package inputs).
-  Checked coverage now spans coexisting allocations with exact counted-
-  residual accounting, `Attempt` exhaustion preserving the strategy,
-  tail-ward release, full reset, `BumpVec` grow/`RetiredSlot`/in-place
-  `shrink`, and the concrete `ResidentContentTransfer<P,T>` resident
-  route (place/read/retire) over `Granted & Vacant`; the
-  `OMEGA_FAIL_CANARY_FILTER=bump_allocator` control lane is green.
-  Remaining open: `Main::main` stays empty (checked-only — no interpreter
-  or native-host leg), growth still carries no elements (content-preserving
-  movement waits on the placed element ops), `RetiredSlot` is the finite
-  slot, and `ResidentStorage` establishment is still a pinned custody
-  shape rather than a PLAN-LAID-VIEWS evaluated-layout route. Record:
-  `wiki/drafts/bump_allocator_canary.md`.
+  - Connect `ExtentPartition` to the invoked partition/conservation route
+    owned by CONSERVATION-CONTRACT and TERMINAL-CONTENT-CLAIMS. Prove aligned
+    request geometry and the counted-residual/tail relationship; returned
+    length laws alone do not establish that a request fits. Preserve exact
+    alternatives, caller substitution and independent custody reconstruction.
+  - Replace fixture-local `ResidentStorage` with PLAN-LAID-VIEWS' evaluated
+    layout/access, establishment, element transfer and retirement. A resident
+    marker is not establishment; live residents cannot merge as vacant.
+  - Implement temporary exclusive strategy borrowing through
+    BORROWED-STORAGE-RESTORATION, ending at allocation return so allocations
+    coexist without a permanently borrowed compiler arena.
+  - Implement explicit retired storage, traversal and full recomposition.
+    `RetiredSlot` holds only one old buffer. Current `release`/`shrink`
+    restore the allocatable tail immediately; that specialized reuse behavior
+    is not the specified monotonic release, which retains returned extents
+    until reset. Preserve the contract rather than treating tail-adjacent return
+    as the general return implementation.
+  - Supply real backing and execute the package in the interpreter and on a
+    supported native host; record unavailable hosts separately.
+    VEC-NATIVE-GROWTH consumes this allocator and owns
+    the element-bearing container customer.
 
-  Remaining work:
+  Acceptance: coexisting allocations, unchanged state on failed requests,
+  exact cleanup/return, and reset to original backing only after every allocation
+  and resident returns. Live reset, dropped custody, double placement, wrong
+  resident indices and unrouted introduction reject. Preserve the
+  `fail/memory/bump_allocator_*` and live-resident controls. An empty entry,
+  finite reservation exercise or checked-only pass is not executable acceptance.
 
-  - Replace fixture-local split/merge assertions through
-    **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**' invoked partition
-    route. Establish request geometry and the counted-residual-to-tail
-    invariant; normal-return length laws alone do not prove a request fits.
-    Preserve exact claim alternatives through wrappers and normal returns,
-    with caller substitution and independent reconstruction. Demanded joined
-    custody still needs its route through
-    `checked-trees-to-lowered-psi/src/machine_lowering.rs`.
-  - Replace the fixture's `ResidentStorage` through **PLAN-LAID-VIEWS**'s
-    evaluated layout/access plan, establishment, transfer and retirement.
-    Keep routed resident introduction sealed and reject unrouted casts or
-    boundaries; a nominal resident marker is not establishment. A live resident
-    cannot be merged as vacant. Reuse
-    `bump_allocator_grow_with_live_resident` and the live-resident release/reset
-    controls while adding actual element transfer.
-  - Implement the strategy's temporary exclusive borrow. The fixture passes
-    `Bump` by value; exercise **BORROWED-STORAGE-RESTORATION** where moving and
-    replacing its fields is required. The strategy borrow ends at allocation
-    return, so coexisting allocations must not require a permanently borrowed
-    compiler-owned arena.
-  - Carry retired backing through explicit storage and prove its traversal and
-    recomposition. The finite retained slot is a checking example, not the
-    variable storage implementation needed by the vector. Do not silently turn
-    the fixture's tail-ward release operation into the whole allocation contract.
-  - Supply actual backing and execute the package through the interpreter and
-    a supported native host, retaining exact storage/claim custody through calls.
-    Record unsupported hosts separately.
-
-  Acceptance: two allocations coexist, cleanup returns their exact extents,
-  failed requests preserve the allocator, and reset restores the original
-  backing only after full return. Live allocations or residents at reset,
-  dropped custody, double placement, wrong resident indices and unrouted
-  introduction reject. The vector uses this allocator in
-  **VEC-NATIVE-GROWTH**; an empty entry or passing checked-only fixture is not
-  executable acceptance.
-
-- **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
-  backing, policy, installation and teardown in Omega source under
+- **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping
+  installation and teardown under
   [mapping and reclamation](wiki/spec/resources/extents.md#mapping-and-reclamation).
-  Cathedral owns table formats, walk policy and lifecycle; Omega owns mapping
-  authority, custody checking and the provider crossings. Cathedral's existing
-  numeric page-walk validation grants no mapping authority.
+  The corpus stand-in at `tests/omega/pass/memory/address_translation_canary`
+  declares `CathedralTranslationProvider` requirement coverage and threads
+  the owned `Mapping` through table install/remove before activation/release.
+  It remains checked-only: `Main::main` is empty and bodyless hardware/receipt
+  crossings have no selected executable provider joining the authored
+  obligations to `extents::mapping` receipts.
 
-  `tests/omega/pass/memory/address_translation_canary` checks an owned and a
-  borrowed-source `TranslationAuthority` contract (`Pending` -> `Installed` ->
-  reusable `Granted` custody plus a linear `Shootdown` debt) carrying authored
-  obligation sets, beside a stand-in `cathedral/` package: a fully backed
-  four-level hierarchy, entry encoding, the 9-bit level walk, three
-  `TranslationHardware` boundary crossings, and a second level of mapping
-  authority (`install_huge`/`remove_huge` store the terminal at depth 2, so a
-  2MiB leaf needs no `pt` table; `cathedral_huge_install_and_teardown` drives
-  the identical authority cycle). Eight `fail/core/translation_*`
-  controls pin custody misuse, and `psi/foundation/extents/src/mapping/` is the
-  Rust conservation model a provider reads. This is source checking only: the
-  fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster, `Main::main` is empty,
-  and no conformer or provider is selected. The driver calls the bodyless
-  authority crossings and `CathedralPageTables::install`/`remove` side by side,
-  passing geometry as inert `addr` values, so no stored entry backs the
-  `Installed` qualification and nothing joins the authored obligation sets to
-  the Rust model's receipts.
+  Finish that provider/receipt connection for exact source/destination custody,
+  mapping identity and era, including borrowed-source carrier transport.
+  Carried-loan mutation ceilings exist; borrowed install/remove routes retaining
+  return/field qualifications remain missing. Reproduce their current diagnostic
+  rather than assuming the fixture header's broad carried-loan blocker.
+  Extend the one-leaf routes to multi-page mappings with ordinary ranked loops.
+  TERMINATION-RANKING-CHECKS owns contract-aware boundary-call preservation;
+  nested checked-body calls in inert initializers are already supported.
+  Demand-grown tables depend on BUMP-ALLOCATOR-CANARY, placed read-back on
+  PLAN-LAID-VIEWS, and fixture range migration on REMOVE-BRACKETED-RANGE-ANNOTATIONS.
 
-  Remaining work:
+  Validate target-correct Cathedral entry encoding and geometry before execution:
+  `cathedral/tables.omg::FRAME_MASK` is currently `2^52`, not the documented
+  `2^52 - 2^12`, so it discards ordinary frame-address bits. Select authority,
+  hardware and shootdown realizations on a freestanding image through
+  UEFI-PHYSICAL-SEMANTIC-ENTRY and UEFI-OS-HANDOFF, with a QEMU harness.
 
-  - Make the package the realization the authority's receipts stand behind. Its
-    install and remove routes must establish `Installed` and release custody
-    for the exact consumed extents through provider selection and the
-    `extents::mapping` receipt join, not through a parallel call.
-  - Multi-page installation. `install`/`remove` cover the mapping's first page.
-    The per-page loop is a ranked cycle whose body computes `level_index` and
-    crosses `TranslationHardware::store_entry`. `preserves_rank` in
-    `validation/src/machine_calls/call_cycles/runtime_ranking/prefix.rs` admits
-    inert statements, disjoint stores, statement-position calls to
-    checked-body callees with inert arguments and complete disjoint write
-    frames, and (since 2026-09-20) a `let` bound directly to such a call in
-    both prefix walks. A `let` whose initializer composes the call and any
-    call to a bodyless boundary or requirement callee still reject with "a
-    write, call, or alias invalidates the entry-relative ranking" or an
-    unproven rank range.
-    [Termination](wiki/spec/language/termination.md#ranking) applies ordinary
-    contracts to calls outside the component, and
-    `TERMINATION-RANKING-CHECKS` owns the repair. Do not respell the loop.
-  - Demand-grown intermediate tables need the split/conservation surface
-    `BUMP-ALLOCATOR-CANARY` uses and inherit its open edges.
-  - Reading an entry back is placed access. Until `PLAN-LAID-VIEWS` supplies a
-    source establishment route, the hardware edges stay boundary requirements
-    and the package never consumes its own entries.
-  - Execution needs selected providers for the authority, hardware and
-    `Shootdown::discharge` crossings on a freestanding image, which depends on
-    `UEFI-PHYSICAL-SEMANTIC-ENTRY` and `UEFI-OS-HANDOFF`. The repository has no
-    QEMU harness.
+  Acceptance: install/tear down multi-page mappings in QEMU with explicit
+  `Extent` and TLB custody. Mapped access exists only after activation and
+  before unmap; reuse waits for completion. Source use after map, premature
+  unmap, lost shootdown, forged carriers, borrowed-source reclaim, replayed
+  activation and wrong-mapping/stale-era receipts reject. Preserve the eight
+  `fail/core/translation_*` controls. A checked fixture or Rust receipt test
+  is not execution. Cathedral owns the real package, formats, walk policy and
+  lifecycle; no page-table/TLB types belong in the compiler.
 
-  Acceptance: QEMU installs and tears down Cathedral-owned multi-page mappings
-  with explicit `Extent` and TLB custody, and mapped access exists only between
-  activation and unmap. Source use after map, unmap before activation, a lost
-  shootdown, carrier construction, borrowed-source reclaim, a replayed
-  activation, and a receipt for another mapping or a stale era reject. A
-  checked-only fixture or a Rust receipt test is not the witness.
+- **EXCEPTION-ROOTS-AND-TIMER.** Execute Cathedral's fatal entries on
+  dedicated critical stacks and a timer handler that acknowledges, records
+  and wakes ordinary work, under [interrupt obligations](wiki/spec/build/interrupt_obligations.md),
+  [hardware materialization](wiki/spec/build/hardware_materialization.md)
+  and [final machine-state evidence](wiki/spec/build/machine_state_evidence.md).
+  Cathedral owns exception coverage, gate/IST policy, controller/device
+  protocols, table validation and fatal behavior. Compiler mechanisms own
+  sealed installed roots, checked writers/instructions, entry/exit realization
+  and custody.
 
-  The `cathedral/` directory is a stand-in inside the compiler corpus;
-  Cathedral's repository owns the real package. Do not add page-table or TLB
-  types to the compiler.
+  Reuse `tests/omega/pass/memory/interrupt_table_canary` and
+  `compiler/tests/layout_plans/interrupt_descriptor_tables.rs`: authored
+  root selection, table layout, member admission and validation exist, as do
+  stub emission/replay with GPR/XMM saves, stack fragments and indirect copies.
+  The source entry is empty; tests supply installed bytes, authority and
+  resource receipts. Remaining:
 
-  Re-verified at `35e1b19198` with a scoped witness on this host:
-  `OMEGA_PASS_CANARY_FILTER=memory/address_translation_canary
-  OMEGA_FAIL_CANARY_FILTER=translation_ cargo nextest run -p compiler --test
-  canary_suite` — 2/2 green (the checked-only pass canary compiles, and all
-  eight `fail/core/translation_*` controls still reject). Fence audit for the
-  remaining legs: the ranked-loop leg stays owned by
-  TERMINATION-RANKING-CHECKS (zergling-159 holds both
-  `runtime_ranking` trees — do not respell); the provider-selection /
-  receipt-join leg's compiler surface is split — `extents/src/mapping/` is
-  unfenced but `terminal-psi-to-abstract-operations/provider_installation/
-  replay.rs` sits under CONSERVATION-CONTRACT (zergling-127) and
-  `extents/src/{lib.rs,ordering_events}` under DEVICE-EXTENT-ACCESS (z88);
-  demand-grown tables inherit BUMP-ALLOCATOR-CANARY's claim (f8ad694c);
-  read-back waits on PLAN-LAID-VIEWS (zergling-z27 holds the placed-view
-  referent + hosted-receiver trees); execution waits on
-  UEFI-PHYSICAL-SEMANTIC-ENTRY (z88) + UEFI-OS-HANDOFF (z19). The borrowed-
-  source routes still depend on the unlanded carried-loan machinery named in
-  `installer.omg`'s header. No unfenced bounded slice on this host; QEMU
-  acceptance remains the far witness. Re-verified at `51cb187902` (linux
-  x86-64, 2026-09-21 ~07:51Z): the fence map rotated — CONSERVATION-CONTRACT
-  no longer lists `provider_installation/replay.rs` and the
-  BUMP-ALLOCATOR-CANARY claim expired, so the receipt-join leg's compiler
-  surface reads unfenced — but the leg still waits on the same unlanded
-  carried-loan machinery and the `cathedral/` stand-in's borrowed-source
-  routes named above; ranked-loop stays under TERMINATION-RANKING-CHECKS
-  (exp 10:50Z), placed-view read-back under PLAN-LAID-VIEWS (exp 09:25Z),
-  execution under the UEFI pair (exp 08:44Z/10:19Z) plus DEVICE-EXTENT-ACCESS
-  holding `extents/src/{lib.rs,ordering_events}` (exp 11:04Z). No bounded
-  slice; QEMU acceptance remains the far witness.
+  - Join `machine-emission` stub bytes and member-call relocation to real image
+    text, installation and external-root admission. Bind exact entry/body
+    coordinates, installed bytes, stack overhead and final transitive state
+    evidence; retain separate stack, fuel and state columns.
+    `X86_64DeriverStubEntryEmission` currently has only test producers.
+    Unsupported ABI/backing must reject, not fabricate borrowed caller storage.
+  - Complete authored table publication and remove compiler-owned table-policy
+    fields/checks from `InterruptTableGateDescriptor`,
+    `InterruptTableProfile` and established/publication records. Reuse the
+    package validator/member verdict and generic writer; retain exact content,
+    installed-root, publication-authority and checked-`lidt` joins. Root custody
+    and the instruction contract remain compiler-owned.
+  - Replace acknowledgement-only fixture bodies with Cathedral's fatal halt,
+    controller/timer setup, tick record and wake behavior. Join completion to
+    exact acknowledgement lineage through BOUNDED-INSTALLATION-REACH-ROWS and
+    TOP-LEVEL-BOUNDARY-REQUIREMENTS. Shared inherited requirement identities
+    must keep resolving under their own selected provider plan.
+  - Integrate UEFI-PHYSICAL-SEMANTIC-ENTRY / UEFI-OS-HANDOFF, TR3-TR8 stack
+    provisioning, and a reproducible QEMU harness. Keep external interrupts
+    disabled until the exception floor is installed; NMI, machine-check and
+    physical-failure assumptions remain explicit.
 
-- **EXCEPTION-ROOTS-AND-TIMER.** Run Cathedral's fatal exception entries on
-  dedicated critical stacks, its descriptor-table installation, and a minimal
-  timer root whose hard handler only acknowledges, records and wakes ordinary
-  work, under [interrupt obligations](wiki/spec/build/interrupt_obligations.md)
-  and [hardware materialization](wiki/spec/build/hardware_materialization.md).
-  Cathedral owns exception coverage, gate and IST policy, the controller, the
-  timer device and the table's semantic validator. The compiler owns installed
-  root records, the generic checked writer, entry/exit realization and the
-  checked `lidt` contract.
-
-  `external-roots/src/interrupts/` holds Rust ledgers for entry admission,
-  nesting, epoch stages and settlement (`interrupt_entries.rs`) and for table
-  member admission, publication through the `lidt` edge and published-vector
-  dispatch (`interrupt_table.rs`); table staging, the writer and the
-  produced-image verdict are the authored layout plus the generic
-  post-handoff writer and the consumer's validator. `core/interrupt.omg`
-  declares the mask and acknowledgement obligations, and the instruction
-  catalog in
-  `language-core/src/inline_assembly/` holds the deriver-only `lidt` contract.
-  Every caller of those ledgers is a test inside `external-roots`. No authored
-  program installs an exception or timer root, no backend stage emits a
-  hardware entry/exit stub (`iretq` exists only in the instruction catalog),
-  and the repository has no QEMU harness.
-
-  `begin_published_interrupt_entry` now dispatches the member's declared
-  obligation: a `FatalException` member's entry arrives unconditionally —
-  the processor fault owes no declared stack-nesting edge or parent depth
-  bound — and its settle halts the ledger (`InstalledRootLedger::halted_by`),
-  so the interrupted chain it preempted can never resume ordinary work.
-
-  Remaining work:
-
-  - Authored roots. Cathedral's fatal-exception and timer entry machines
-    install as external roots through target-declared requirements and provider
-    selection, with deriver-owned entry/exit code, critical-stack arrival and
-    [machine-state evidence](wiki/spec/build/machine_state_evidence.md) in the
-    emitted image. Owners: `backend/machine-emission`,
-    `calling-conventions/src/stack_realizations/` and `external-roots`.
-    First authored leg landed: `interrupt_table_canary` now carries
-    `cathedral::interrupt_roots`, which declares `CriticalStackPolicy`
-    (`InterruptReturn` entry control, `X86Long64`, dedicated stack class,
-    masked preemption), `FatalExceptionRoot: InterruptEntry +
-    Calling<CriticalStackPolicy>`, the acknowledgement's opaque carrier, and
-    the provider/mask conformances; its `build.omg` selects the
-    representation through the shared program namespace (`use` there
-    re-declares the module). The compiler-side test drives that member's
-    candidate through `selected_external_root_provider_plan`, real entry
-    and mask-guard claims, `ResolvedRootServiceReach::
-    from_selected_provider_closure` and the replayed boundary realization
-    (`Dedicated` stack class joined to the member's declared class), then
-    `validate_external_root` → ledger `install` → `admit_interrupt_table_
-    member` for the divide-error vector. The deriver-owned entry/exit stub
-    contract now exists:
-    `calling-conventions/src/stack_realizations/entry_exit_stub.rs` —
-    `derive_x86_64_entry_exit_stub` binds a member's sealed
-    `ValidatedX86_64InstalledHardwareEntryFacts` to its exact admitted
-    boundary plan (commitment + fingerprint, InterruptReturn, X86Long64,
-    matching stack disposition and per-context preemption) and derives
-    per-context error-code normalization (hardware-pushed vs
-    stub-synthesized), frame/save-area bytes, the saved-state footprint, the
-    member-body envelope (exactly the plan's permitted transitive use) and
-    the interrupt-return exit realization. Every member candidate's
-    `machine_state` column in the compiler test — including the authored
-    divide-error member — now carries that derived envelope, which
-    `validate_external_root` ceiling-checks against the plan. The
-    machine-emission half of the stub-byte leg now exists:
-    `machine-emission/src/entry_exit_stub.rs` consumes
-    `ValidatedX86_64DeriverStub` plus the exact admitted boundary plan
-    (commitment + fingerprint match, uniform per-context error-code
-    disposition, GPR-only save roster) and a positional
-    `X86_64DeriverStubMemberCall` into emitted bytes — optional `cli` for a
-    `Masked` ceiling on trap gates, the synthesized error-code word, the
-    save-area pushes, an anchored 16-aligned frame staging member parameters
-    (movabs immediates into declared register and stack locations), the
-    member `call rel32` left unresolved behind `X86_64DeriverStubRelocation`,
-    restores, and `iretq`. Emission self-replays through a grammar decoder;
-    `validate_x86_64_deriver_entry_exit_stub` independently replays and
-    `resolve_x86_64_deriver_stub_member_call` + its validator seal the field
-    once image emission assigns section coordinates. Remaining on this leg:
-    image-emission's artifact join still must place the bytes at
-    `identity.entry_offset` and seal the relocation (image-emission is
-    fenced); non-GPR saves now land — XMM roster entries stage through the
-    contract's per-vector 16-byte reserve as a `sub rsp` slot area with
-    `movdqu` stores, replayed upward on restore before the pops
-    (`emit_x86_64_deriver_entry_exit_stub`); `Indirect` copies and
-    non-GPR parameter destinations still reject as deferred seams — the
-    copies additionally need the member-call-frame derivation in
-    calling-conventions to reserve the copy area and pointer slot, which
-    `outgoing_stack_end` currently skips — while stack pieces stage
-    through exact-width 4/2/1-byte tail stores; the byte recipe
-    lives in machine-emission until a second x86-64 deriver emission moves
-    it into the ISA crate; the member's stack column can now bind through
-    the emitted stub — `StackLocalEvidence::DeriverStubEntry` bound by
-    `bind_installed_deriver_stub_entry_stack`
-    (`external-roots/.../stack_demand.rs`) seals the member's terminal
-    demand at its certified text offset, replays the sealed `call rel32`
-    target equation and the exact installed entry bytes against the
-    contract's installed-entry identity and admitted boundary plan, and
-    folds the contract-carried `X86_64DeriverStub::peak_entry_overhead_bytes`
-    (normalization + save area + ≤15 normalization slack + anchored
-    member-call frame + the call's return slot) into the entry's ceiling,
-    so `bind_x86_64_target_direct_entry_stack_realization` accepts the
-    stub-entry summary and the dedicated-stack demand composes as
-    hardware frame + stub overhead + member ceiling; the contract now
-    carries `member_call_frame` (outgoing stack-argument extent plus the
-    anchored reservation) as the single derivation emission and stack
-    accounting share, and the save-area accounting reserves 16 bytes per
-    vector register; producing `X86_64DeriverStubEntryEmission` rows during
-    real admission still waits on the image-emission join above;
-    provider-admitted resource columns and fuel/state receipts remain
-    test-admitted shapes; the multi-resolution
-    seam now exists — `with_installation_reach_resolutions` keys the roster
-    by (requirement identity, provider plan report identity) and
-    `installation_reach_resolution_for_plan`/`resolve_installation_reach_for_plan`
-    bind a shared identity like `InterruptEntry::enter` through the root's own
-    selected plan while unscoped lookups fail closed on ambiguity — so a
-    second `InterruptEntry`-inheriting trait no longer trips roster
-    uniqueness; the producer side now matches: `installation_reach.rs`'s
-    nested-reach substitution resolves each pending row through its own
-    plan's resolution first and treats an identity published by more than
-    one selected plan (resolved or still in flight) as ambiguous rather than
-    binding a foreign plan's row, `root_validation.rs`'s `from_*` constructors
-    adopt the plan-scoped resolvers with the candidate's plan identity
-    (`from_selected_provider_closure_for_plan` etc., landed with the second
-    heir), `receipt_binding.rs` prefers the granted plan whose schema binds
-    the requirement's owner trait and keeps the fail-closed duplicate match
-    when no owner slot is granted, and the authored `TimerRoot` +
-    `TimerProvider::enter` acknowledge member is declared in
-    `interrupt_table_canary` and driven end-to-end by
-    `authored_timer_root_installs_through_selected_provider`; the device
-    source, tick record, and wake consequences stay with the later device
-    leg, and emitted-image machine-state evidence still needs the
-    image-emission join above.
-  - Descriptor table. The authored half now exists:
-    `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
-    package whose `InterruptGate` layout splits the entry-offset fields into
-    the wired bit placements and whose `InterruptDescriptorTable` layout
-    strides 33 gates at 16 bytes; the generic post-handoff writer
-    materializes the authored image with the installed roots' sealed
-    entries. The package also authors its declared membership and its
-    validator: `cathedral::interrupt_validation` declares
-    `TableMemberDeclaration` (vector, dedicated stack class, obligation
-    flag and descriptor constants), `IstBinding` (the slot → dedicated
-    class bindings the installed TSS must provide),
-    `InterruptTableMembership::declare` producing the member set, and
-    `DescriptorTableValidation::validate` — a `terminates by fuel` state
-    machine that scans every vector's decoded gate record and raw slot
-    bytes against the declared membership, joins each member's IST slot to
-    its dedicated stack class through the installed TSS, and returns
-    `TableVerdict::Accepted` or `Rejected { vector, reason }`. The
-    compiler test
-    (`layout_plans/interrupt_descriptor_tables.rs`) evaluates both
-    authored machines through `evaluate_build_time_machine`, decodes the
-    written bytes through the authored layout alone, hands the validator
-    the verbatim member array, the decoded gates and the staged TSS's IST
-    rows, and mints `EstablishedInterruptTable` only on `Accepted` — then
-    drives ledger admission → issued carrier → checked `lidt` provider
-    edge → `PublishedInterruptTable` end to end. The `InterruptTableProfile`
-    and member plans now take all their semantic constants (vector, stack
-    class, obligation, descriptor) from the authored declaration; only the
-    sealed entry-stub and external-root identities remain fixture
-    vocabulary. The compiler-side model has been retired: the ledger no
-    longer derives a bespoke writer, stages the table image, or decodes
-    produced gates — the authored layout, the generic post-handoff writer
-    and `DescriptorTableValidation::validate` carry the produced table,
-    and `EstablishedInterruptTable::from_consumer` mints the value only
-    on `Accepted`. Member admission is now authored too:
-    `cathedral::interrupt_validation` declares `MemberFacts` (the
-    record-derived arrival facts — interrupt-return exit, dedicated-class
-    arrival, acknowledgement-policy/parameter presence) and
-    `MemberAdmissionVerdict` beside `TableMemberAdmission::admit`, which
-    rules a member under its declared row and returns `Admitted` or
-    `Rejected { vector, reason }`; the compiler test evaluates the machine
-    verbatim and mints `InterruptTableMemberAdmission::from_consumer` only
-    on `Admitted`, so `admit_interrupt_table_member` replays the binding
-    (declared row plus the record's verbatim facts) instead of owning
-    policy. What remains in `interrupt_table/` is custody
-    plumbing: that admission binding, the
-    publication carrier/receipt binding the established value to the
-    table, and published-vector dispatch. Remaining on this leg: the
-    established-record and publication types
-    (`EstablishedInterruptTable`, `InterruptTablePublication*`, the
-    admitted-member records) still hold declaration-shaped obligations
-    the authored verdict now warrants — relocating them needs authored
-    record/machine types for publication so the ledger
-    becomes plumbing only; the ledger itself (installed roots, `lidt`
-    contract, checked writer) stays compiler-owned.
-  - Timer. The device source, tick record and wake are package code. The
-    acknowledgement settles through `InterruptAcknowledgement::complete`, whose
-    LAPIC/x2APIC reach waits on `BOUNDED-INSTALLATION-REACH-ROWS`.
-  - Execution needs the post-exit environment from
-    `UEFI-PHYSICAL-SEMANTIC-ENTRY` and `UEFI-OS-HANDOFF`, stack bounds from
-    `TR3-TR8` and a QEMU harness. External interrupts stay disabled until the
-    complete exception floor is installed.
-
-  Acceptance: QEMU reports timer ticks over owned output and halts between
-  ticks, and at least one deliberately raised fault reaches its fatal entry on
-  its dedicated critical stack. Publication with a missing member, a table
-  written by another writer or realization, a replayed publication or
-  acknowledgement, a forgotten or double completion, and retirement of a root
-  the table still names reject. Rust ledger tests and emitted but uninstalled
-  stubs are not the witness.
-
-  Flag: `external-roots/src/interrupts/interrupt_table/` carried a
-  compiler-owned Rust model of the x86-64 IDT — its bespoke writer plan,
-  staged image and `validate_written_descriptor_table` gate decoder are
-  retired in favor of the authored layout plus `DescriptorTableValidation`
-  verdict. What stays flagged: `InterruptTableGateDescriptor` still carries
-  selector, gate kind, privilege and IST slot as Rust fields, and
-  `InterruptTableProfile` still requires one distinct dedicated stack class
-  per vector — declaration vocabulary the authored
-  `TableMemberDeclaration`/`IstBinding` rows now supply, pending authored
-  admission and publication record types. Hardware materialization assigns
-  the validator and established value to the consumer package ("these
-  policies are not compiler-owned types"), and interrupt obligations says
-  Omega does not choose exception coverage or IST policy. The general
-  mechanism is a source-authored table layout, the generic writer and a
-  Cathedral validator; the compiler keeps root records, the IST-to-stack-
-  class join that stack selection derives, and the `lidt` contract.
-
-  Leg frontier at 867443a8fd (18:20Z attempt): a same-item claim is live
-  (Devin / exception-roots-and-timer, calling-conventions' stack_realizations,
-  until 23:14Z) and the remaining implementing surfaces are fenced —
-  `external-roots` platform_bringup/wholesale (UEFI-OS-HANDOFF 20:00Z),
-  interrupt_table member_admissions (RC-REPOSITORY-CLOSURE 23:46Z),
-  image-emission installation_record (FAULT-INJECTED-TARGET-READER 23:43Z)
-  plus image-emission src/ (ENTRY-CONTENT-ROOTS 01:45Z+1d), machine-emission
-  startup (AP-BRINGUP 01:40Z+1d), compiler/tests (several, incl.
-  TWO-AXIS-TERMINAL-AUTHORITY-REVIEW 19:24Z, PROOF-KERNEL-CORE 21:39Z).
-  First implementable retry order per the bullet above: (1) plan-scoped
-  installation-reach resolvers in provider-planning
-  (`derive_selected_installation_reach_resolutions`) +
-  `ResolvedRootServiceReach::from_*` adoption in root_validation.rs +
-  `receipt_binding.rs` shared-requirement admission; (2) authored `TimerRoot`
-  + acknowledge/record/wake member in `interrupt_table_canary` with the
-  compiler-side `admit_interrupt_table_member` drive; (3) image-emission
-  artifact join placing stub bytes at `identity.entry_offset` + relocation
-  seal (image-emission fence); (4) QEMU execution legs per the acceptance.
-  Re-verified at `fff3918dc4` (z107 leg, linux x86-64): retry-order legs
-  (1)/(2) are landed — plan-scoped resolvers, the authored `TimerRoot` +
-  `TimerProvider::enter` member driven end-to-end by
-  `authored_timer_root_installs_through_selected_provider` — and the
-  deferred-seam note in the authored-roots bullet is stale: `Indirect`
-  copies no longer reject (`43ef74241ca7` stages copy bytes into the
-  contract-reserved area and materializes the pointer through the plan's
-  declared register or stack location; calling-conventions'
-  `outgoing_stack_end` already reserves both the pointer word and the
-  `copy_stack_byte_offset` extent), and XMM saves land through the per-vector
-  `movdqu` slot area (`b60b3d7a98`). Witness: `cargo nextest run -p
-  machine-emission --lib -E 'test(/entry_exit_stub/)'` 12/12 PASS including
-  `indirect_parameter_stages_copy_bytes_and_{register,stack}_pointer` and
-  `borrowed_reference_pointer_still_rejects` (a stub-synthesized call still
-  has no caller storage to borrow). Fence map at 09:38Z: every prior holder
-  in the stale roster has drained — only EPOCH-RESOURCE-SNAPSHOTS survives
-  on `external-roots/src/program_local/program_local_roots` (~11:32Z);
-  `machine-emission`, `calling-conventions/stack_realizations`,
-  `image-emission` (incl. `installed_artifact`/`installation_record`) are
-  unfenced. The next implementable leg is (3): no external-root text
-  placement exists in image-emission yet — `installed_artifact.rs` can
-  bind an entry offset and exact bytes, but nothing emits the deriver
-  stub into the object's text or seals `X86_64DeriverStubRelocation`
-  against section coordinates, so `X86_64DeriverStubEntryEmission` rows
-  still cannot be produced during real admission.
+  Acceptance: QEMU boots the authored customer, reports timer ticks through
+  owned output, halts between ticks, and sends a deliberately raised fault to
+  its fatal handler on the dedicated stack without resuming ordinary work.
+  Missing members, wrong writer/realization or changed table bytes, replayed
+  publication/acknowledgement, forgotten/double completion, and retirement while
+  the table names the root reject. Ledger tests and uninstalled stub bytes are
+  not the witness. Record emulator/firmware prerequisites and unavailable hosts.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
-  for component contracts and for the completion route an opaque carrier owns.
-  Concrete reach and conservative bounds stay separate; selected provider
-  execution and token era, not row equality, authorize invocation. Parsing and
-  checking of `reaches <= Bound`, the package-review fence on ordinary public
-  callables, selected-row resolution
-  (`provider-planning/src/provider_planning/installation_reach.rs`) and
-  root-closure substitution (`external-roots/src/root_entry/root_validation.rs`)
-  exist. Closure substitution now substitutes a nested bounded row the same
-  closure selected: the realization's resolved row is
-  `RealizedMachineContractEnvelope::concrete_service_reach` extended by each
-  nested requirement's resolved row, iterated to a fixpoint so substituted
-  rows can themselves satisfy still-pending rows. A nested requirement the
-  closure never selected still rejects with the same unresolved-row
-  diagnostic, so "substitutes every bounded row and rejects unresolved rows"
-  ([interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime))
-  holds for both sides of the selection boundary. Authored-source pins:
-  `opaque_boundaries.rs::selected_realization_substitutes_a_selected_installation_bound_row`
-  (positive) and `selected_realization_with_an_unresolved_installation_bound_row_rejects`
-  (negative).
+  for component contracts and opaque-carrier completion. Selection and nested
+  closure substitution already exist in `provider-planning/installation_reach.rs`
+  and `external-roots/src/root_entry/root_validation.rs`; preserve the selected
+  nested-row and unresolved-row controls in `calling_policy_plans/opaque_boundaries.rs`.
 
-  Remaining work:
+  The shipped `InterruptAcknowledgement::complete` in `core/interrupt.omg`
+  still declares fixed `reaches PortIo`, and its test pins that limitation.
+  Migrate it to the ratified bound beneath `MachineControl + PortIo` together
+  with a selected satisfier that discharges the linear receiver and retains
+  exact provider execution, policy and token lineage. TOP-LEVEL-BOUNDARY-REQUIREMENTS
+  owns source requirement selection/discharge; owned receiver dispatch already
+  exists, so do not recreate it. A test-local copyable lookalike does not close
+  the real linear-carrier route.
+  COMPONENT-SUBSTRATE supplies the admitted component contract needed to reject
+  unresolved exported rows. This item owns the bound/substitution integration,
+  not another component implementation.
 
-  - Completion route. `InterruptAcknowledgement::complete` in
-    `source/library/core/interrupt.omg` still declares `reaches PortIo`, and
-    `compiler/tests/calling_policy_plans/opaque_boundaries.rs` pins it as not
-    installation-bound. Migrating the declaration is a verified one-line
-    change that turns that suite red, because every realization of the
-    installation-bound entry settles the linear acknowledgement and retains
-    the nested bounded row, and no satisfier for `complete` can be authored
-    while a checked body cannot discharge the linear receiver, so the route
-    now waits on receiver-bearing requirement selection, which
-    **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns and which
-    [interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
-    names for this selection and lineage integration. Land the declaration
-    with the satisfier, not before it. The rejection is
-    driven from authored source by
-    `opaque_boundaries.rs::selected_realization_with_an_unresolved_installation_bound_row_rejects`,
-    so losing the fence early is a red test.
-    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
-    requires a bounded row beneath `MachineControl + PortIo`, and
-    `InstalledInterruptCompletionRoute` in `external-roots` rejects a completion
-    requirement that has no installed resolution. Provider-planning tests
-    resolve the bounded spelling only for a test-local `[copy]` lookalike.
-    Migrate the shipped requirement and join its invocation to the carrier's
-    exact provider execution, policy and token lineage; an x2APIC provider must
-    not receive `PortIo`. Receiver-bearing requirement selection is
-    `TOP-LEVEL-BOUNDARY-REQUIREMENTS`' work. Re-scoped at `0f75a052f0`:
-    that prerequisite has partially landed — owned-`self` receivers and
-    one-hop projections now settle through `forward_receiver` dispatch rows
-    (see its row), so the open gate narrows to a checked body discharging the
-    linear `InterruptAcknowledgement` receiver plus co-landing the
-    declaration with its satisfier. The component-contract fence leg
-    additionally waits on the admitted-component carrier
-    COMPONENT-SUBSTRATE is building (its row notes this item waits on that
-    carrier); live fences this wave: COMPONENT-SUBSTRATE item lease ~08:44Z,
-    TOPOLOGY-PRIVATE-PIPE-INSTALLATION item lease ~09:52Z. No uncontested
-    slice exists on this row.
-    Re-verified at `97be15c1b59` (linux x86-64): the declaration is
-    unmigrated — `source/library/core/interrupt.omg` still spells
-    `InterruptAcknowledgement::complete` as bare `reaches PortIo`, and the
-    pin still asserts `!complete.service_reach_is_installation_bound`
-    (`opaque_boundaries.rs`). The fence map rotated but the surface stays
-    claimed: COMPONENT-SUBSTRATE (~08:44Z) and TOPOLOGY-PRIVATE-PIPE-
-    INSTALLATION (~09:52Z) item leases stand, STARTUP-ENTRY-MECHANICS now
-    holds `external-roots/src/root_entry` (covers `root_validation.rs`,
-    ~15:34Z), EPOCH-RESOURCE-SNAPSHOTS holds the `program_local` cohort
-    legs (~11:32Z), and DYNAMIC-UNIT-CALL-GRAPH-AND-REACH-EDGES holds
-    terminal-verifier's reach/call-graph surfaces (~15:49Z). The
-    completion-route gate is unchanged: co-landing the bounded declaration
-    with a satisfier still waits on TOP-LEVEL-BOUNDARY-REQUIREMENTS'
-    checked-body linear-receiver discharge.
-    Re-verified at `7d03d489e3` (linux x86-64): the declaration and pin
-    are unmoved — `interrupt.omg` still declares `complete` as bare
-    `reaches PortIo` and `opaque_boundaries.rs` still asserts
-    `!complete.service_reach_is_installation_bound`. The fence map
-    rotated again: every recorded lease on this surface
-    (COMPONENT-SUBSTRATE, TOPOLOGY-PRIVATE-PIPE-INSTALLATION,
-    STARTUP-ENTRY-MECHANICS, EPOCH-RESOURCE-SNAPSHOTS,
-    DYNAMIC-UNIT-CALL-GRAPH-AND-REACH-EDGES) has expired; the only
-    `external-roots` records now are elapsed sibling pins
-    (NEW-BI-INSTALLED-OCCURRENCE-REPLAY-PINS ~10:26Z,
-    NEW-APB-CANCELLATION-RACE-PINS ~12:52Z) — all past expiry. The gate
-    itself is unchanged in kind: the completion route still needs
-    TOP-LEVEL-BOUNDARY-REQUIREMENTS' checked-body linear-receiver
-    discharge plus a co-landed satisfier, and that owner has no live
-    claim. No uncontested slice exists on this row.
-
-  Acceptance: from the shipped core requirement, PIC completion resolves to
-  `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
-  source, Terminal Psi and the installed route. Cross-provider settlement with
-  equal rows, a replayed token or era, an `Independent` component exporting an
-  unresolved row, and final admission with any unresolved row reject.
-
-  `COMPONENT-SUBSTRATE` owns the component description these rows are
-  published from; this item owns the reach bound itself and stays separate
-  while the completion route above remains open.
+  Acceptance: the shipped core requirement resolves PIC completion to `PortIo`
+  and LAPIC/x2APIC completion to `MachineControl` through source, Terminal Psi
+  and `InstalledInterruptCompletionRoute`. Cross-provider settlement despite
+  equal rows, replayed token/era, an Independent component with an unresolved
+  export, and final admission with any unresolved row reject. Conservative bounds
+  grant no authority; exact selected execution and lineage authorize invocation.
 
 ## Parallel language and compiler lanes
 
