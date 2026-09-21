@@ -8449,7 +8449,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   it is the `+ 1 SIGTERM` in every recorded reading of that crate. The
   measurement substrate already landed (`proof/src/checker/measurement.rs`,
   `OMEGA_PROOF_MEASUREMENTS`); what has no owner is the containment decision
-  for this obligation. Measure the leg, name the obligation whose search does
+  for this obligation. Note before starting: that substrate cannot observe
+  this failure. `emit_if_requested` is called at `proof/src/checker.rs:178`,
+  after the obligation loop returns, so a run that never leaves the loop
+  prints nothing — setting the variable and rerunning the hang yields no
+  line. Getting a first measurement therefore needs per-obligation progress
+  output, a sampled stack, or a reduced input that still reproduces, not the
+  existing opt-in report. Measure the leg, name the obligation whose search does
   not converge, then either bound that search in `proof/src/checker` or refuse
   it fail-closed with a diagnostic. A longer test timeout is not a repair.
 
