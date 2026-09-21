@@ -1384,6 +1384,7 @@ dependencies = [
  "arena",
  "artifacts",
  "boundary-applications",
+ "build-declarations",
  "calling-conventions",
  "checked-compilation-to-terminal-artifact",
  "checked-interpreter",
