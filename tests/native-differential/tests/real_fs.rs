@@ -105,7 +105,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {{
         self.n = self.fs.close(self.fd);
         transition {{ _ -> done(self.rn) }}
     }}
-    state done(&mut self, count: i64) {{ self.console.exit_process(count as i32); }}
+    state done(&mut self, count: i64) {{ self.console.exit_process((count as i32 in Wrapping) as i32); }}
     state fail(&mut self) {{ self.console.exit_process(101); }}
 }}
 "#,
@@ -209,7 +209,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {{
     self.position = self.fs.seek(self.duplicate_fd, 0, 1);
     self.count = self.fs.close(self.duplicate_fd);
     self.count = self.fs.close(self.fd);
-    self.console.exit_process(self.position as i32);
+    self.console.exit_process((self.position as i32 in Wrapping) as i32);
 }}
 "#,
         file = omg_path(&file),
@@ -826,7 +826,7 @@ data IgnoredOperandProbe {{
 
 machine IgnoredOperandProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.dividend = 1;
-    self.divisor = 0;
+    self.divisor = (build.staged as i32 in Trapping);
     self.fd = self.fs.create(
         "{prepared_file}",
         (self.dividend / self.divisor) as i32

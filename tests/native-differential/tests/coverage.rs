@@ -2953,9 +2953,9 @@ data Main {
     unit_result: UnitResult;
 }
 machine Main::main(&mut self) reaches Console {
-    self.open_result = self.fs.open("/absent.txt");
+    let open_outcome: OpenResult = self.fs.open("/absent.txt");
     // The failure self-describes: the kind is embedded in the Error case.
-    transition self.open_result { OpenResult::Error { kind } -> not_found(kind) _ -> fail() }
+    transition open_outcome { OpenResult::Error { kind } -> not_found(kind) _ -> fail() }
     state not_found(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> make_dir() _ -> fail() }
     }
@@ -2964,8 +2964,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> make_dir_again() _ -> fail() }
     }
     state make_dir_again(&mut self) {
-        self.unit_result = self.fs.create_dir("/d");
-        transition self.unit_result { UnitResult::Error { kind } -> already_exists(kind) _ -> fail() }
+        let unit_outcome: UnitResult = self.fs.create_dir("/d");
+        transition unit_outcome { UnitResult::Error { kind } -> already_exists(kind) _ -> fail() }
     }
     state already_exists(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove_dir("/d");
@@ -3158,8 +3158,8 @@ machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/d");
     transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
     state openit(&mut self) {
-        self.open_result = self.fs.open_with("/d", self.write_opts);
-        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.open_with("/d", self.write_opts);
+        transition open_outcome { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
     }
     state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove_dir("/d");
@@ -3211,8 +3211,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> trywrite() _ -> fail() }
     }
     state trywrite(&mut self) {
-        self.open_result = self.fs.open_with("/p.txt", self.write_opts);
-        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.open_with("/p.txt", self.write_opts);
+        transition open_outcome { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
     }
     state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/p.txt");
@@ -3277,8 +3277,8 @@ machine Main::main(&mut self) reaches Console {{
     }}
     state dupfails(&mut self) {{
         // linking onto an existing name refuses (kind per the host target)
-        self.unit_result = self.fs.hard_link("/orig.txt", "/alias.txt");
-        transition self.unit_result {{ UnitResult::Error {{ kind }} -> checkdup(kind) _ -> fail() }}
+        let unit_outcome: UnitResult = self.fs.hard_link("/orig.txt", "/alias.txt");
+        transition unit_outcome {{ UnitResult::Error {{ kind }} -> checkdup(kind) _ -> fail() }}
     }}
     state checkdup(&mut self, kind: ErrorKind) {{
         transition kind {{ {dup_kind} -> dropsrc() _ -> fail() }}
@@ -3633,8 +3633,8 @@ machine Main::main(&mut self) reaches Console {
         transition rc == 0 { true -> trywrite() _ -> trywrite() }
     }
     state trywrite(&mut self) {
-        self.open_result = self.fs.open_with("/ff.txt", self.write_opts);
-        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.open_with("/ff.txt", self.write_opts);
+        transition open_outcome { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
     }
     state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/ff.txt");
@@ -4002,8 +4002,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state reject(&mut self, count: u64) {
         // create_new on an existing path -> AlreadyExists (the atomic guarantee)
-        self.open_result = self.fs.create_new("/cn.txt");
-        transition self.open_result { OpenResult::Error { kind } -> checkexist(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.create_new("/cn.txt");
+        transition open_outcome { OpenResult::Error { kind } -> checkexist(kind) _ -> fail() }
     }
     state checkexist(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::AlreadyExists -> readback() _ -> fail() }
@@ -4091,8 +4091,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.b1 == 116 { true -> canonmissing() _ -> fail() }
     }
     state canonmissing(&mut self) {
-        self.unit_result = self.fs.canonicalize("/nope", &mut self.buffer);
-        transition self.unit_result { UnitResult::Error { kind } -> checkkind(kind) _ -> fail() }
+        let unit_outcome: UnitResult = self.fs.canonicalize("/nope", &mut self.buffer);
+        transition unit_outcome { UnitResult::Error { kind } -> checkkind(kind) _ -> fail() }
     }
     state checkkind(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/link");
@@ -4277,8 +4277,8 @@ machine Main::main(&mut self) reaches Console {
     transition self.unit_result { UnitResult::Ok -> missing() _ -> fail() }
     state missing(&mut self) {
         // chown a path that does not exist -> NotFound
-        self.unit_result = self.fs.set_owner("/nope.txt", -1, -1);
-        transition self.unit_result { UnitResult::Error { kind } -> checkmissing(kind) _ -> fail() }
+        let unit_outcome: UnitResult = self.fs.set_owner("/nope.txt", -1, -1);
+        transition unit_outcome { UnitResult::Error { kind } -> checkmissing(kind) _ -> fail() }
     }
     state checkmissing(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> nooppath() _ -> fail() }
@@ -4299,9 +4299,9 @@ machine Main::main(&mut self) reaches Console {
     }
     state denyroot(&mut self, file: File) {
         // real change to root -> PermissionDenied
-        self.unit_result = self.fs.set_file_owner(file, 0, 0);
+        let unit_outcome: UnitResult = self.fs.set_file_owner(file, 0, 0);
         self.rc = self.fs.close(file);
-        transition self.unit_result { UnitResult::Error { kind } -> checkdenied(kind) _ -> fail() }
+        transition unit_outcome { UnitResult::Error { kind } -> checkdenied(kind) _ -> fail() }
     }
     state checkdenied(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/own.txt");
