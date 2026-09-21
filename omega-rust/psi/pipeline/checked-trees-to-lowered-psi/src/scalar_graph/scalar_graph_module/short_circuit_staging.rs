@@ -183,6 +183,7 @@ impl GraphEmission<'_> {
                         id: stage_block,
                         parameters: stage_block_parameters,
                         erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         operations: self.all_operations[stage_operation_start..].to_vec(),
                         terminator: Terminator::Jump {
                             structural_arguments: Vec::new(),
@@ -190,6 +191,7 @@ impl GraphEmission<'_> {
                             target: next_stage,
                             arguments,
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             residual_affine_discards: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
@@ -428,6 +430,7 @@ impl GraphEmission<'_> {
                         target: when_true.block,
                         arguments: when_true.arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -436,6 +439,7 @@ impl GraphEmission<'_> {
                         target: when_false.block,
                         arguments: when_false.arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 }
@@ -481,6 +485,7 @@ impl GraphEmission<'_> {
                         target: target.block,
                         arguments: target.arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }
@@ -502,6 +507,7 @@ impl GraphEmission<'_> {
                         target: scalar_source_block(self.identity_base, target),
                         arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards,
                     }
@@ -526,6 +532,7 @@ impl GraphEmission<'_> {
             id: stage_block,
             parameters: stage_parameters,
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: self.all_operations[operation_start..].to_vec(),
             terminator,
         });

@@ -194,6 +194,7 @@ fn record_module() -> TerminalModule {
             }),
             kind: OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: vec![],
                 structural_arguments: vec![StructuralArgument {
@@ -548,6 +549,7 @@ fn repeated_child_call_results_keep_independent_completed_storage() {
     module.machines.push(construct);
     let call = |value| OperationKind::CallStructuralWithScalarArguments {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: machine_id(3),
         arguments: vec![value_id(value), value_id(2)],
         structural_arguments: vec![],
@@ -880,6 +882,7 @@ fn owned_nested_record_call_copies_payload_before_mutating_its_child() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(callee),
             arguments: vec![],
             structural_arguments: vec![StructuralArgument {

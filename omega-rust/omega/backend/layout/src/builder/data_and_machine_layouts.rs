@@ -48,6 +48,31 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
+        // A quotient is realized as its carrier's canonical representative:
+        // the runtime layout IS the carrier's, retagged to the quotient's
+        // symbol so downstream lookups keep the authored identity. Carriers
+        // that are themselves proof-only never reach this arm -- the
+        // classification keeps such a quotient proof-only and the plan loop
+        // skips it.
+        if let Some(quotient) = definition.quotient.as_ref() {
+            let layout = self.layout_type_reference_handle(quotient.carrier, bindings)?;
+            let carrier_symbol = self.program.type_reference_symbol(quotient.carrier);
+            let shape = self
+                .data_layouts
+                .iter()
+                .find(|(_, candidate)| {
+                    carrier_symbol.is_valid() && candidate.symbol == carrier_symbol
+                })
+                .map(|(_, candidate)| candidate.shape.clone())
+                .unwrap_or_default();
+            return Ok(DataLayout {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+                shape,
+                layout,
+            });
+        }
+
         let members = self.program.data_members(definition);
         if matches!(
             DataDefinition::shape_kind_from_members(members),

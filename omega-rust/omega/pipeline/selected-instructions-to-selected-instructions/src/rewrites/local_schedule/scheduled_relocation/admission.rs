@@ -23,8 +23,7 @@ use crate::rewrites::window_hazards::{
 };
 
 /// The admitted run relocation: where the run leaves and where it lands.
-pub(super) struct Admission<'source> {
-    pub(super) function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The block the contiguous run vacates.
     pub(super) block_index: usize,
     /// The first body index the run occupies.
@@ -69,6 +68,54 @@ fn sinkable(instruction: &SelectedInstruction) -> bool {
             | SaturatingDivide { .. }
             | SaturatingRemainder { .. }
     )
+}
+
+/// Whether every execution leaving `from` reaches `to` before it can exit
+/// or revisit a block — the hoist's once-per-traversal bound. A block
+/// reachable from `from` without passing `to` that terminates, or sits on
+/// a cycle, would let a traversal pass `from` yet abandon or repeat the
+/// run's execution. The returned count is the depth-first walk's
+/// expansions for the work-budget fold.
+fn continuations_reach(
+    function: &SelectedFunction,
+    from: usize,
+    to: usize,
+) -> Result<(bool, usize), ScheduledRelocationError> {
+    const UNVISITED: u8 = 0;
+    const IN_STACK: u8 = 1;
+    const DONE: u8 = 2;
+    let mut marks = vec![UNVISITED; function.blocks.len()];
+    let mut expansions = 0usize;
+    let mut stack: Vec<(usize, usize)> = vec![(from, 0)];
+    marks[from] = IN_STACK;
+    while let Some((block, edge_index)) = stack.last_mut() {
+        let successors = terminator_successors(&function.blocks[*block].terminator);
+        if successors.is_empty() {
+            return Ok((false, expansions));
+        }
+        if *edge_index == successors.len() {
+            marks[*block] = DONE;
+            stack.pop();
+            continue;
+        }
+        let edge = successors[*edge_index];
+        *edge_index += 1;
+        let next =
+            block_index_of(function, edge.block).ok_or(ScheduledRelocationError::SourceMismatch)?;
+        if next == to {
+            continue;
+        }
+        match marks[next] {
+            IN_STACK => return Ok((false, expansions)),
+            DONE => continue,
+            _ => {
+                marks[next] = IN_STACK;
+                expansions += 1;
+                stack.push((next, 0));
+            }
+        }
+    }
+    Ok((true, expansions))
 }
 
 /// The position `destination` names inside `block`: a body instruction's
@@ -186,12 +233,14 @@ fn derive_paths(
 
 /// Admit `members` — a contiguous run of body instructions named in their
 /// own order — to leave their block and land on `destination`'s position
-/// in a block their block dominates, when the shared audits clear the
-/// derived window: every path between them simple and through plain
-/// `Source` blocks, every crossed edge plain and free of member
-/// interference, every crossed position schedulable and uncoupled, no
-/// boundary settlement observing a changed prefix, and every location the
-/// run writes dead on every traversal the run no longer executes on.
+/// in a block their block dominates (a sink), or land on a position in a
+/// block dominating theirs whose continuations all reach theirs (a
+/// hoist), when the shared audits clear the derived window: every path
+/// between them simple and through plain `Source` blocks, every crossed
+/// edge plain and free of member interference, every crossed position
+/// schedulable and uncoupled, no boundary settlement observing a changed
+/// prefix, and — for a sink, which abandons traversals — every location
+/// the run writes dead on every traversal the run no longer executes on.
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -199,7 +248,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, ScheduledRelocationError> {
+) -> Result<Admission, ScheduledRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ScheduledRelocationError::SourceMismatch);
@@ -259,29 +308,78 @@ pub(super) fn admit<'source>(
     if target_index == block_index {
         return Err(ScheduledRelocationError::UnsupportedPair);
     }
-    // Every traversal reaching the destination must have run the run's
-    // block, so the relocated execution stays once-per-traversal and no
-    // inflow gains a run that never executed in the source. A block
-    // reachable from the entry without the run's block fails that bound.
     let entry_index = block_index_of(function, function.entry_block)
         .ok_or(ScheduledRelocationError::SourceMismatch)?;
-    if reaches_avoiding(function, entry_index, Some(block_index), target_index)? {
-        return Err(ScheduledRelocationError::UnsupportedPair);
+    // The direction binds the once-per-traversal argument. A sink keeps
+    // the run once-per-traversal because every destination traversal ran
+    // the run's block first; a hoist mirrors that — the destination's
+    // block must dominate the run's, so no traversal reaches the run
+    // without having executed it at the landing. Any other topology moves
+    // the run across an inflow or a branch where some traversal would
+    // gain or lose it.
+    enum Direction {
+        Sink,
+        Hoist,
     }
-    // The run lands in the destination's stream and runs on every
-    // traversal of it; a destination re-enterable from its own successors
-    // would run it again where the source ran it once.
-    for edge in terminator_successors(&function.blocks[target_index].terminator) {
-        let next =
-            block_index_of(function, edge.block).ok_or(ScheduledRelocationError::SourceMismatch)?;
-        if next == target_index || reaches_avoiding(function, next, None, target_index)? {
-            return Err(ScheduledRelocationError::UnsupportedPair);
+    let direction = if !reaches_avoiding(function, entry_index, Some(block_index), target_index)? {
+        Direction::Sink
+    } else if !reaches_avoiding(function, entry_index, Some(target_index), block_index)? {
+        Direction::Hoist
+    } else {
+        return Err(ScheduledRelocationError::UnsupportedPair);
+    };
+    let mut search_steps = 0usize;
+    match direction {
+        Direction::Sink => {
+            // The run lands in the destination's stream and runs on every
+            // traversal of it; a destination re-enterable from its own
+            // successors would run it again where the source ran it once.
+            for edge in terminator_successors(&function.blocks[target_index].terminator) {
+                let next = block_index_of(function, edge.block)
+                    .ok_or(ScheduledRelocationError::SourceMismatch)?;
+                if next == target_index || reaches_avoiding(function, next, None, target_index)? {
+                    return Err(ScheduledRelocationError::UnsupportedPair);
+                }
+            }
+        }
+        Direction::Hoist => {
+            // A run block re-enterable from its own successors without
+            // crossing the destination again would execute the run where
+            // the relocated program already executed it once at the
+            // landing.
+            for edge in terminator_successors(&function.blocks[block_index].terminator) {
+                let next = block_index_of(function, edge.block)
+                    .ok_or(ScheduledRelocationError::SourceMismatch)?;
+                if next == block_index
+                    || reaches_avoiding(function, next, Some(target_index), block_index)?
+                {
+                    return Err(ScheduledRelocationError::UnsupportedPair);
+                }
+            }
+            // Every traversal leaving the destination must reach the
+            // run's block before it exits or revisits a block: an escape
+            // would execute the relocated run on a traversal that never
+            // ran it, and a cycle would run it again before the source
+            // position arrived once. Since the search certifies that
+            // continuation acyclic, every execution between them is a
+            // simple path — so the derived window's edge audit covers
+            // every edge a real traversal can cross.
+            let (reaches, expansions) = continuations_reach(function, target_index, block_index)?;
+            search_steps = expansions;
+            if !reaches {
+                return Err(ScheduledRelocationError::UnsupportedPair);
+            }
         }
     }
-    // Derive the region: every simple path from the run's block to the
-    // destination's. No path at all means the run would only be deleted,
-    // not relocated.
-    let derived = derive_paths(function, block_index, target_index, budget)?;
+    // Derive the region: every simple path between the run's block and
+    // the destination's, in the direction execution traverses it — the
+    // destination trails a sink, leads a hoist. No path at all means the
+    // run would only be deleted, not relocated.
+    let (window_from, window_to) = match direction {
+        Direction::Sink => (block_index, target_index),
+        Direction::Hoist => (target_index, block_index),
+    };
+    let derived = derive_paths(function, window_from, window_to, budget)?;
     if derived.region.is_empty() {
         return Err(ScheduledRelocationError::UnsupportedPair);
     }
@@ -312,10 +410,13 @@ pub(super) fn admit<'source>(
             return Err(ScheduledRelocationError::UnsupportedInstruction);
         }
     }
-    // The run trades order with the positions behind it in its own body,
-    // the whole stream of every block a path crosses, and the positions
-    // before the landing index in the destination block. Every other
-    // position keeps the run on the side it always had.
+    // The run trades order with the positions that switch sides of it:
+    // for a sink, the tail of its own body, the whole stream of every
+    // block a path crosses, and the positions before the landing index in
+    // the destination block; for a hoist, the mirror — the head of its
+    // own body, the intermediates' streams, and the positions from the
+    // landing index on. Every other position keeps the run on the side it
+    // always had.
     let intermediates: Vec<usize> = derived
         .region
         .iter()
@@ -323,11 +424,28 @@ pub(super) fn admit<'source>(
         .filter(|index| *index != block_index && *index != target_index)
         .collect();
     let mut crossed_body: Vec<&SelectedInstruction> = Vec::new();
-    crossed_body.extend(block.instructions[member_last + 1..].iter());
-    for &index in &intermediates {
-        crossed_body.extend(function.blocks[index].instructions.iter());
-    }
-    crossed_body.extend(function.blocks[target_index].instructions[..landing_index].iter());
+    let crossed_terminators: Vec<usize> = match direction {
+        Direction::Sink => {
+            crossed_body.extend(block.instructions[member_last + 1..].iter());
+            for &index in &intermediates {
+                crossed_body.extend(function.blocks[index].instructions.iter());
+            }
+            crossed_body.extend(function.blocks[target_index].instructions[..landing_index].iter());
+            std::iter::once(block_index)
+                .chain(intermediates.iter().copied())
+                .collect()
+        }
+        Direction::Hoist => {
+            crossed_body.extend(block.instructions[..member_first].iter());
+            for &index in &intermediates {
+                crossed_body.extend(function.blocks[index].instructions.iter());
+            }
+            crossed_body.extend(function.blocks[target_index].instructions[landing_index..].iter());
+            std::iter::once(target_index)
+                .chain(intermediates.iter().copied())
+                .collect()
+        }
+    };
     for crossed in &crossed_body {
         schedulable(function, crossed).ok_or(ScheduledRelocationError::UnsupportedInstruction)?;
         if run.iter().any(|member| coupled(member, crossed)) {
@@ -336,9 +454,11 @@ pub(super) fn admit<'source>(
     }
     // The terminator at each crossed block's boundary is a crossed
     // position: exempt from the barrier-kind rule but not from the call
-    // or hazard audit. The destination block's own terminator stays
-    // behind the landing index and is not crossed.
-    for index in std::iter::once(block_index).chain(intermediates.iter().copied()) {
+    // or hazard audit. For a sink the run's own block's terminator and
+    // the intermediates' are crossed while the destination's stays behind
+    // the landing index; a hoist crosses the destination's and the
+    // intermediates' while the run's block's terminator stays ahead.
+    for index in crossed_terminators {
         let terminator = terminator_instruction(&function.blocks[index].terminator);
         if has_call_contract(function, terminator.id) {
             return Err(ScheduledRelocationError::UnsupportedInstruction);
@@ -360,45 +480,49 @@ pub(super) fn admit<'source>(
     }) {
         return Err(ScheduledRelocationError::UnsupportedPair);
     }
-    // The skipped edges — every edge leaving a region block, other than
-    // the destination block, that no derived path uses — begin the
-    // traversals the run no longer executes on. The dead-path audit
-    // requires every location the run writes to die there: the vacated
-    // span stays silent because every position behind it that could
-    // observe the missing writes sits inside the crossed window, and the
-    // landing is Executed because the dominance bound makes every
-    // destination traversal run the run.
-    let mut skipped_edges = Vec::new();
-    for &index in &derived.region {
-        if index == target_index {
-            continue;
-        }
-        for (edge_position, edge) in terminator_successors(&function.blocks[index].terminator)
-            .iter()
-            .enumerate()
-        {
-            if !derived.used_edges.contains(&(index, edge_position)) {
-                skipped_edges.push(*edge);
+    // A sink abandons traversals: the skipped edges — every edge leaving
+    // a region block, other than the destination block, that no derived
+    // path uses — begin the traversals the run no longer executes on. The
+    // dead-path audit requires every location the run writes to die
+    // there: the vacated span stays silent because every position behind
+    // it that could observe the missing writes sits inside the crossed
+    // window, and the landing is Executed because the dominance bound
+    // makes every destination traversal run the run. A hoist abandons
+    // nothing: its dominance and continuation bounds keep every traversal
+    // that ran the run running it.
+    if matches!(direction, Direction::Sink) {
+        let mut skipped_edges = Vec::new();
+        for &index in &derived.region {
+            if index == target_index {
+                continue;
+            }
+            for (edge_position, edge) in terminator_successors(&function.blocks[index].terminator)
+                .iter()
+                .enumerate()
+            {
+                if !derived.used_edges.contains(&(index, edge_position)) {
+                    skipped_edges.push(*edge);
+                }
             }
         }
-    }
-    if !skipped_edges.is_empty()
-        && !dead_path::dead(
-            function,
-            dead_path::Relocation {
-                members: &run,
-                vacated_block: block_index,
-                vacated_first: member_first,
-                vacated_last: member_last,
-                landing_block: target_index,
-                landing_index,
-                landing: dead_path::Landing::Executed,
-                vacated: dead_path::Vacated::Silent,
-            },
-            dead_path::Start::Edges(&skipped_edges),
-        )
-    {
-        return Err(ScheduledRelocationError::UnsupportedPair);
+        if !skipped_edges.is_empty()
+            && !dead_path::dead(
+                function,
+                dead_path::Relocation {
+                    members: &run,
+                    vacated_block: block_index,
+                    vacated_first: member_first,
+                    vacated_last: member_last,
+                    landing_block: target_index,
+                    landing_index,
+                    landing: dead_path::Landing::Executed,
+                    vacated: dead_path::Vacated::Silent,
+                },
+                dead_path::Start::Edges(&skipped_edges),
+            )
+        {
+            return Err(ScheduledRelocationError::UnsupportedPair);
+        }
     }
     // The scan walks every block body, terminator, and edge once to
     // locate the run, the destination, and the paths between them; the
@@ -438,6 +562,7 @@ pub(super) fn admit<'source>(
             })
         })
         .and_then(|total| total.checked_add(derived.exploration))
+        .and_then(|total| total.checked_add(search_steps))
         .and_then(|total| {
             derived
                 .used_edges
@@ -468,7 +593,6 @@ pub(super) fn admit<'source>(
         return Err(ScheduledRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_first,
         member_last,

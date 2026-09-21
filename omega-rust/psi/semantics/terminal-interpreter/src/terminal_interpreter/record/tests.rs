@@ -106,6 +106,7 @@ fn unit_module() -> TerminalModule {
             entry: BlockId::new(900).unwrap(),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(900).unwrap(),
                 parameters: Vec::new(),
@@ -117,6 +118,7 @@ fn unit_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(900).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -240,6 +242,7 @@ fn getter_call(identity: u64, source: u64) -> Operation {
         result: OperationResult::Scalar(scalar(identity)),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: MachineId::new(901).unwrap(),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -325,6 +328,7 @@ fn ordinary_scalar_calls_reenter_constructor_with_fresh_record_identities() {
             result: OperationResult::Scalar(scalar(identity)),
             kind: OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: MachineId::new(900).unwrap(),
                 arguments: vec![ValueId::new(argument).unwrap()],
                 requirement_obligations: Vec::new(),
@@ -444,6 +448,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: writer.id,
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {

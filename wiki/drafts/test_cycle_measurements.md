@@ -2,9 +2,13 @@
 
 Temporary evidence for choosing the next local test-performance experiment,
 especially distinguishing compilation, test execution, and repeated rechecks.
-Remove this note when a controlled replacement measurement establishes the
-relevant scheduling/selection costs, or when the measured workloads are no
-longer used. It is not validation policy or a current checkout baseline; see
+The selection-cost role this clause covered is now established by the
+controlled replacement
+[test_cycle_selection_remeasurement.md](test_cycle_selection_remeasurement.md);
+this note stays as the standing record of the package-review route cost
+attribution (macOS/Windows/Linux sections below), which the replacement does
+not cover and which live optimization items still cite. It is not validation
+policy or a current checkout baseline; see
 [AGENTS.md](../../AGENTS.md#validation-scope) and
 [selector usage](../../tools/testing.md).
 
@@ -226,3 +230,110 @@ named remaining candidates `validate_specialized_program` and
 The `omega --check` whole-route probe on
 `tests/omega/pass/terminal_psi/integer_control_contract` stayed at a 4.63 s
 median over 5 warm debug runs (documented baseline 4.90 s).
+
+## Linux package-review route cost attribution
+
+On 2026-09-20, Linux x86_64 (Intel Xeon Platinum 8559C, 8 cores), base
+`a9fa1a4fe6`, the hosted-consumer review test ran unchanged inputs under
+temporary per-phase timers. The test target has since merged into `--test
+suite`; the current selector is
+
+```sh
+cargo nextest run -p package-manager --test suite \
+  --no-fail-fast -E 'test(=semantic_binding_review::macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
+```
+
+Environment-gated `Instant` marks (`OMEGA_T2C_PHASE_TIMINGS=<file>`) were added
+at the `check_program` phase boundaries, inside `build_check_facts`,
+`validate_typed_program`, `check_checked_facts_recording_with_crash_admission`,
+and `check_flow_call_contracts`, and per fixed-point sweep in
+`build_flow_facts_with_service_reaches`. They were removed before landing;
+the route ran them twice with the same shape (2833.8 s and 2866.9 s of
+checked-pass time against 3089 s and 3125 s of test execution).
+
+The route performs 18 checked compilations: ten large passes (mean 275 s,
+range 274-284 s) interleaved with eight small passes (mean 10 s). Sums across
+all 18 passes, run one:
+
+| Pass phase | Sum (s) | Share of checked time |
+| --- | ---: | ---: |
+| `build_check_facts` (fact construction) | 1292.2 | 45.6% |
+| check-stage replay (`checks/mod.rs`) | 1108.5 | 39.1% |
+| `validate_typed_program` | 247.5 | 8.7% |
+| direct-borrow resource init | 60.9 | 2.1% |
+| authored-selection finalization + cleanup/visibility | 60.3 | 2.1% |
+| specialization fixed point | 34.6 | 1.2% |
+| post-specialization resolution | 14.6 | 0.5% |
+| execution finalization | 11.0 | 0.4% |
+| remaining | ~4 | ~0.2% |
+
+Fact construction inside a large pass (~128 s): flow-fact building
+`build_flow_facts_with_service_reaches` owns ~105.8 s (1058.3 s of the route).
+Each large pass takes 125 fixed-point sweeps — a first full sweep at ~11-12.6 s
+then ~0.7-0.9 s per sweep while the dirty-state set drains — plus ~5.8 s of
+`finish`/reach materialization. Small passes converge inside the first complete
+sweep and never enter the incremental loop. Other fact families trail far
+behind: nominal machine uses + requirement-call specializations + entailment
+discharges ~8.2 s, proof facts ~5.7 s, semantic/domain facts ~2.6 s.
+
+Check-stage replay inside a large pass (~110 s): `check_flow_call_contracts`
+owns 82.5-86.7 s (75.5% of the stage, 29.5% of checked time). Within it, the
+per-call row — `check_call_requires` — measures 75.1 s of the 75.3 s call
+bucket, versus 7.9 s for lazy `entailment.for_machine` and 7.8 s for the exit
+checks. Next: `check_linear_obligations` ~10.4 s, `check_flow_call_borrows`
+~8.5 s, `check_indexed_accesses` ~5.9 s. `infer_path_conditioned_guard_
+coverage` is ~0.25 s per large pass (2.7 s of the route), confirming the earlier
+classification work retired that hotspot.
+
+Validation inside a large pass (~24 s): `validate_specialized_program` owns
+22.3-25.7 s (95.9% of the stage); its inner ~40-step validator sequence was not
+subdivided. Remaining route cost outside the checked passes (~250 s of test
+execution) is manager-side review work between compilations and was not
+attributed here.
+
+Measured optimization targets in route order: the flow fixed-point sweep
+schedule, `check_call_requires`, `validate_specialized_program`, then the
+multiplicity/borrow/ranges trio (~250 s combined). Release-profile timings were
+not measured; no whole-route speedup is claimed for any phase.
+
+## Linux package-review route phase attribution
+
+On 2026-09-21, Linux x86-64 (Intel Xeon Platinum 8559C, 8 vCPUs, 31 GiB),
+cargo (mbx absent), worktree base `e9ae9dba24ad`, the same hosted-consumer
+review test ran with `Instant` timers appended at call sites — reverted after
+the run, probe cost ~µs per call:
+
+```sh
+RUST_MIN_STACK=67108864 cargo nextest run -p package-manager --test suite \
+  --no-fail-fast --success-output immediate-final \
+  -E 'test(=semantic_binding_review::macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
+```
+
+The route on this revision drives 36 `check_program` passes (each fires the
+counter set once) and took 3,123.725 s total — about 2.4–5.9× the recorded
+540–830 s routes on this slower shared host. Per-call counters split into 18
+small passes (application-sized) and 18 large passes (standard-library-sized):
+
+| Instrumented span | Route total | Share | Median per small pass | Median per large pass |
+| --- | ---: | ---: | ---: | ---: |
+| `build_check_facts` (whole fact construction) | 2,608.2 s | 83.5% | 4,434 ms | 126,874 ms |
+| `build_flow_facts_with_service_reaches` | 2,153.3 s | 68.9% | 1,914 ms | 105,945 ms |
+| `validate_typed_program` (whole check pass) | 498.9 s | 16.0% | 1,315 ms | 23,477 ms |
+| `validate_specialized_program` | 479.4 s | 15.4% | 1,272 ms | 22,549 ms |
+| `build_proof_plan` + `check_proof_plan` | 12.0 s | 0.4% | — | — |
+| `validate_behavior_plan` + call acknowledgements + boundary-value gate | 7.5 s | 0.2% | — | — |
+| `validate_atomic_result_custody` | ~0 s | 0.0% | — | — |
+
+This resolves the named residual above: `build_flow_facts` owns about 69% of
+the route — about 83% of the fact-construction phase — making it the dominant
+candidate by an order of magnitude on Linux. `validate_specialized_program`
+owns 15.4% (nearly all of `validate_typed_program`'s 16.0%). Fact construction
+outside flow construction accounts for the remaining ~14.6%; every other
+measured leg is under half a percent, consistent with the earlier finding that
+crash-guard classification (~0.15%) is a minor share. Non-checking route
+overhead (resolution, compile orchestration, review joins) is the residual
+~0.5%. One instrumented run, no repeat; shares are the recordable result since
+per-call medians dominate within their bands by 50–100× the small/large split,
+and run-to-run variance on this class of host is far below the 4:1 phase
+separation. No optimization target is chosen by this measurement alone;
+`build_flow_facts` internals are the next attribution leg.

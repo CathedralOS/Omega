@@ -58,6 +58,7 @@ effects = { path = "../../omega-rust/omega/representations/effects" }
 
 [dev-dependencies]
 package-compilation = { path = "../../omega-rust/omega/build/package-compilation" }
+build-declarations = { path = "../../omega-rust/omega/build/build-declarations" }
 boundary-applications = { path = "../../omega-rust/omega/representations/boundary-applications" }
 object-file = { path = "../../omega-rust/omega/backend/object/object-file", features = ["test-support"] }
 legalized-operations = { path = "../../omega-rust/omega/representations/legalized-operations" }
@@ -81,6 +82,7 @@ register-model = { path = "../../omega-rust/omega/representations/register-model
 optimization-unit = { path = "../../omega-rust/omega/representations/optimization-unit" }
 optimization-unit-semantics = { path = "../../omega-rust/omega/semantics/optimization-unit-semantics" }
 selected-instructions = { path = "../../omega-rust/omega/representations/selected-instructions" }
+source = { path = "../../omega-rust/psi/foundation/source" }
 source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees" }

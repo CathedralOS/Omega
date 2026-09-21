@@ -14,9 +14,11 @@ use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
+};
 use typed_trees::machine::Machine;
-use typed_trees::signature::SignatureContractKind;
+use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 
 pub(crate) fn validate_specification_call_requirements(
@@ -81,23 +83,27 @@ fn validate_expression(
         return;
     };
     // Resolution, not target spelling, selects the declaration. Abstract
-    // signature applications are not covered by this concrete-declaration query.
-    let Some((callee, entry)) = selected_machine(program, call.target_symbol) else {
+    // signature applications arrive through two spellings of the same owner:
+    // a static requirement dispatch keeps the declaring trait's requirement
+    // identity beside the rewritten realization target, and a direct
+    // `Trait::requirement` citation resolves to the signature symbol itself.
+    // Both enforce the requirement's own contract under the call's subjects.
+    let Some(contract_owner) = requirement_owner(program, call) else {
         return;
     };
-    let mut requirements = applicable_requirements(program, callee, entry).peekable();
-    if requirements.peek().is_none() {
+    let requirements = applicable_requirements_of(program, &contract_owner);
+    if requirements.is_empty() {
         return;
     }
-    if !requirements_are_acyclic(program, callee, entry, &mut Vec::new(), &mut Vec::new()) {
+    if !requirements_are_acyclic(program, &contract_owner, &mut Vec::new(), &mut Vec::new()) {
         diagnostics.push(Diagnostic::error(format!(
             "cyclic requires formation for specification call `{}` in {owner}: an application cannot establish the contract needed to form itself",
-            callee.name,
+            owner_name(&contract_owner),
         )));
         return;
     }
     let mut arguments = Vec::new();
-    let parameters = program.state_parameters(entry);
+    let parameters = owner_parameters(program, &contract_owner);
     let static_receiver = call.receiver.is_valid()
         && matches!(
             program.expression_table.expression(call.receiver),
@@ -139,13 +145,18 @@ fn validate_expression(
     let structural_names_unique = names_are_unambiguous(program, &structural_facts, &arguments);
     let judge = StructuralJudge::from_requires(program, machine, &structural_facts);
     for requirement in requirements {
-        let static_selection_is_concrete = call.machine_arguments.is_empty()
+        // Substitution needs one argument per owned parameter. A dispatched
+        // requirement call is the signature owner's own spelling, so its
+        // dispatch record does not disqualify it; a concrete call keeps the
+        // static-selection gate that requires the same shape.
+        let arguments_select_plainly = call.machine_arguments.is_empty()
             && call.evidence_arguments.is_empty()
-            && call.static_requirement_dispatch.is_none();
+            && (matches!(contract_owner, RequirementOwner::Signature(..))
+                || call.static_requirement_dispatch.is_none());
         let proven = if let ProofFact::Expression(required) = requirement
-            && static_selection_is_concrete
+            && arguments_select_plainly
         {
-            let structural = requirement_parameters_are_bound(program, *required, entry)
+            let structural = requirement_parameters_are_bound(program, *required, parameters)
                 && structurally_substitutable_fact(program, *required)
                 && parameters.len() == arguments.len()
                 && structural_names_unique
@@ -157,7 +168,7 @@ fn validate_expression(
                             instantiated_fact_judgment(
                                 program,
                                 &judge,
-                                entry,
+                                parameters,
                                 *required,
                                 substitution
                             ),
@@ -169,7 +180,7 @@ fn validate_expression(
                     program,
                     machine,
                     state,
-                    entry,
+                    parameters,
                     prior_facts,
                     *required,
                     &arguments,
@@ -180,9 +191,94 @@ fn validate_expression(
         if !proven {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove requires contract for specification call `{}` in {owner}: establish its selected precondition in an independently formed prior requires fact",
-                callee.name,
+                owner_name(&contract_owner),
             )));
         }
+    }
+}
+
+/// The selected contract owner a call's requires obligations are read from.
+/// A concrete machine state owns its machine/state contracts; a trait
+/// requirement signature owns the public contract a conformance satisfies,
+/// reached either by `static_requirement_dispatch` (the realization target is
+/// the private rewrite, not the contract owner) or by direct signature-symbol
+/// citation in a proof term.
+enum RequirementOwner<'program> {
+    Concrete(&'program Machine, &'program State),
+    Signature(&'program StateSignature),
+}
+
+fn requirement_owner<'program>(
+    program: &'program TypedTrees,
+    call: &TableCallExpression,
+) -> Option<RequirementOwner<'program>> {
+    if let Some(dispatch) = &call.static_requirement_dispatch {
+        let definition = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == dispatch.declaring_trait)?;
+        return program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|requirement| requirement.symbol == dispatch.requirement)
+            .map(RequirementOwner::Signature);
+    }
+    selected_machine(program, call.target_symbol)
+        .map(|(machine, state)| RequirementOwner::Concrete(machine, state))
+        .or_else(|| {
+            signature_by_symbol(program, call.target_symbol).map(RequirementOwner::Signature)
+        })
+}
+
+fn signature_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&StateSignature> {
+    program.traits().iter().find_map(|definition| {
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|requirement| requirement.symbol == symbol)
+    })
+}
+
+fn owner_symbol(owner: &RequirementOwner<'_>) -> SymbolHandle {
+    match owner {
+        RequirementOwner::Concrete(_, state) => state.symbol,
+        RequirementOwner::Signature(signature) => signature.symbol,
+    }
+}
+
+fn owner_name<'program>(
+    owner: &RequirementOwner<'program>,
+) -> &'program typed_trees::name::Identifier {
+    match owner {
+        RequirementOwner::Concrete(machine, _) => &machine.name,
+        RequirementOwner::Signature(signature) => &signature.name,
+    }
+}
+
+fn owner_parameters<'program>(
+    program: &'program TypedTrees,
+    owner: &RequirementOwner<'program>,
+) -> &'program [StateParameter] {
+    match owner {
+        RequirementOwner::Concrete(_, state) => program.state_parameters(state),
+        RequirementOwner::Signature(signature) => program.state_signature_parameters(signature),
+    }
+}
+
+fn applicable_requirements_of<'program>(
+    program: &'program TypedTrees,
+    owner: &RequirementOwner<'program>,
+) -> Vec<&'program ProofFact> {
+    match owner {
+        RequirementOwner::Concrete(machine, state) => {
+            applicable_requirements(program, machine, state).collect()
+        }
+        RequirementOwner::Signature(signature) => program
+            .state_signature_contracts(signature)
+            .iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .collect(),
     }
 }
 
@@ -378,20 +474,20 @@ fn fact_roots(program: &TypedTrees, fact: &ProofFact, roots: &mut Vec<Expression
 /// dependencies, not body recursion (whose well-foundedness has another owner).
 fn requirements_are_acyclic(
     program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
+    owner: &RequirementOwner<'_>,
     active: &mut Vec<SymbolHandle>,
     complete: &mut Vec<SymbolHandle>,
 ) -> bool {
-    if complete.contains(&state.symbol) {
+    let symbol = owner_symbol(owner);
+    if complete.contains(&symbol) {
         return true;
     }
-    if active.contains(&state.symbol) {
+    if active.contains(&symbol) {
         return false;
     }
-    active.push(state.symbol);
+    active.push(symbol);
     let mut pending = Vec::new();
-    for fact in applicable_requirements(program, machine, state) {
+    for fact in applicable_requirements_of(program, owner) {
         fact_roots(program, fact, &mut pending);
     }
     let mut visited = Vec::new();
@@ -402,22 +498,22 @@ fn requirements_are_acyclic(
         visited.push(expression);
         let node = program.expression_table.expression(expression);
         if let ExpressionNode::Call(call) = node
-            && let Some((callee, target)) = selected_machine(program, call.target_symbol)
-            && !requirements_are_acyclic(program, callee, target, active, complete)
+            && let Some(nested) = requirement_owner(program, call)
+            && !requirements_are_acyclic(program, &nested, active, complete)
         {
             return false;
         }
         children(program, node, |child| pending.push(child));
     }
     active.pop();
-    complete.push(state.symbol);
+    complete.push(symbol);
     true
 }
 
 fn requirement_parameters_are_bound(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    state: &State,
+    parameters: &[StateParameter],
 ) -> bool {
     let mut pending = vec![expression];
     let mut visited = Vec::new();
@@ -430,8 +526,7 @@ fn requirement_parameters_are_bound(
         if let ExpressionNode::Name(path) = node {
             for symbol in [path.head_symbol, path.symbol] {
                 if program.symbols.get(symbol).kind == SymbolKind::Parameter
-                    && !program
-                        .state_parameters(state)
+                    && !parameters
                         .iter()
                         .any(|parameter| parameter.symbol == symbol)
                 {
@@ -458,7 +553,7 @@ fn arithmetic_requirement(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    callee: &State,
+    callee_parameters: &[StateParameter],
     prior_facts: &[ExpressionHandle],
     requirement: ExpressionHandle,
     arguments: &[ExpressionHandle],
@@ -468,7 +563,7 @@ fn arithmetic_requirement(
         ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
         scoped_arithmetic_implication,
     };
-    let parameters = program.state_parameters(callee);
+    let parameters = callee_parameters;
     if parameters.len() != arguments.len() {
         return false;
     }
@@ -580,3 +675,6 @@ fn names_are_unambiguous(
     }
     true
 }
+
+#[cfg(test)]
+mod tests;

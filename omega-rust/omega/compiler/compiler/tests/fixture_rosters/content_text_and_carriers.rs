@@ -9,6 +9,8 @@ pub(crate) const BODYLESS_DOMAIN_DECLARATIONS_EXIT: &str =
 pub(crate) const BODYLESS_OWNER_ESTABLISHMENT: &str = "domains/bodyless_owner_establishment";
 pub(crate) const EXTENT_ROOT_PROVIDER_ADAPTER: &str = "core/extent_root_provider_adapter";
 pub(crate) const CONTENT_CONSERVATION_CONTRACT: &str = "core/content_conservation_contract";
+pub(crate) const CONTENT_RETAINED_CUSTODY_ROUND_TRIP: &str =
+    "core/content_retained_custody_round_trip";
 pub(crate) const CARRY_PERMISSION_PROVIDER_ADAPTER: &str = "core/carry_permission_provider_adapter";
 pub(crate) const VACUOUS_DOMAIN_QUALIFICATION: &str = "domains/vacuous_domain_qualification";
 pub(crate) const USER_AUTHORED_PREDICATE_MACHINE: &str = "domains/user_authored_predicate_machine";

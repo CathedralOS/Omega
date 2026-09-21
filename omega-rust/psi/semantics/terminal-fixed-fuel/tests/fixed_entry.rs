@@ -70,6 +70,7 @@ fn unit_fixture() -> TerminalModule {
             entry: block_id(900),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
@@ -81,6 +82,7 @@ fn unit_fixture() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(900),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -138,6 +140,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
         entry: block,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
@@ -149,6 +152,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract,
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -265,6 +269,7 @@ fn ordered_one_executable_nominal_affine_fixture() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
@@ -301,6 +306,7 @@ fn ordered_two_distinct_executable_nominal_affine_fixture() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
@@ -337,6 +343,7 @@ fn ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: helper.id,
             structural_arguments: Vec::new(),
@@ -433,6 +440,7 @@ fn five_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
 fn executable_nominal_affine_fixture() -> TerminalModule {
     let empty_contract = |raw| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: contract_id(raw),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -510,6 +518,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         entry: block_id(901),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(901),
             parameters: Vec::new(),
@@ -519,6 +528,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     arguments: Vec::new(),
                     callee: machine_id(902),
                     structural_arguments: Vec::new(),
@@ -552,6 +562,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         entry: block_id(902),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(902),
             parameters: Vec::new(),
@@ -580,6 +591,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(903),
             structural_arguments: Vec::new(),
@@ -606,6 +618,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         entry: block_id(903),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(903),
             parameters: Vec::new(),
@@ -617,6 +630,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(903),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -641,6 +655,7 @@ fn three_helper_nominal_affine_fixture() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(904),
             structural_arguments: Vec::new(),
@@ -734,6 +749,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 entry: block_id(700),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(700),
                     parameters: Vec::new(),
@@ -744,6 +760,7 @@ fn unit_effect_fixture() -> TerminalModule {
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 arguments: Vec::new(),
                                 callee: machine_id(701),
                                 structural_arguments: Vec::new(),
@@ -770,6 +787,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(700),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -795,6 +813,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 entry: block_id(701),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(701),
                     parameters: Vec::new(),
@@ -816,6 +835,7 @@ fn unit_effect_fixture() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(701),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -870,6 +890,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(701),
             structural_arguments: vec![StructuralArgument {
@@ -971,6 +992,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -992,12 +1014,14 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                         target: block_id(2),
                         arguments: vec![value_id(1)],
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
@@ -1015,6 +1039,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: vec![goal.clone()],
@@ -1047,6 +1072,7 @@ fn call_fixture() -> TerminalModule {
     };
     let empty_contract = |raw| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: contract_id(raw),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -1101,6 +1127,7 @@ fn call_fixture() -> TerminalModule {
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -1117,6 +1144,7 @@ fn call_fixture() -> TerminalModule {
                             result: terminal_psi::OperationResult::Scalar(declaration(2)),
                             kind: OperationKind::Call {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 callee: machine_id(2),
                                 arguments: vec![value_id(1)],
                                 requirement_obligations: Vec::new(),
@@ -1150,6 +1178,7 @@ fn call_fixture() -> TerminalModule {
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),

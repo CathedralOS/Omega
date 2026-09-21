@@ -238,8 +238,9 @@ impl PackageSourcePatch {
 }
 
 /// Render an update patch, or a complete candidate-source review when the old
-/// snapshot is unavailable. Both snapshots are revalidated against their
-/// resolver-issued content commitments before capture and after rendering.
+/// snapshot is unavailable. Both snapshots are verified against their
+/// resolver-issued content commitments inside capture and revalidated after
+/// rendering.
 pub fn render_package_source_patch(
     baseline: Option<&PackageSourceCustody>,
     candidate: &PackageSourceCustody,

@@ -9,6 +9,8 @@ pub(crate) const ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED: &str =
     "data/zero_length_byte_literal_length_rejected";
 pub(crate) const ZERO_LENGTH_NON_SCALAR_ARRAY_REJECTED: &str =
     "data/zero_length_non_scalar_array_rejected";
+pub(crate) const ZERO_LENGTH_SCALAR_ARRAY_INDEX_REJECTED: &str =
+    "data/zero_length_scalar_array_index_rejected";
 
 // Checked source acceptance is owned by compiler/tests/domain_predicate_types.rs.
 pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
@@ -17,6 +19,7 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     ZERO_LENGTH_BYTE_ARRAY_LITERAL_ARITY_REJECTED,
     ZERO_LENGTH_BYTE_LITERAL_LENGTH_REJECTED,
     ZERO_LENGTH_NON_SCALAR_ARRAY_REJECTED,
+    ZERO_LENGTH_SCALAR_ARRAY_INDEX_REJECTED,
 ];
 
 // Checked admission for the empty fixed byte array: `[u8; 0]` is a first-class
@@ -24,6 +27,12 @@ pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
 // record fields, nested arrays); the only fences sit at use.
 pub(crate) const ZERO_LENGTH_BYTE_ARRAY_ADMISSION: &str =
     "collections/zero_length_byte_array_admission";
+
+// The admission is element-generic over every closed scalar leaf: non-byte
+// zero-length fixed arrays admit in the same positions, and the use-site
+// fences apply equally. Only non-scalar-leaf elements stay refused.
+pub(crate) const ZERO_LENGTH_SCALAR_ARRAY_ADMISSION: &str =
+    "data/zero_length_scalar_array_admission";
 
 // The empty byte array's use-site fences: an unprovable index, an array literal
 // with nonzero arity, and a quoted byte literal with nonzero byte count each
@@ -231,6 +240,8 @@ pub(crate) const RUNTIME_SATURATING_ARRAY_ELEMENT_GUARD_EXIT: &str =
 pub(crate) const CUSTOM_RANKING_FIELD_COUNTDOWN_COMPILE: &str =
     "termination/custom_ranking_field_countdown_compile";
 pub(crate) const CUSTOM_RANKING_STRUCT_VIEW: &str = "termination/custom_ranking_struct_view";
+pub(crate) const RANKED_CALLEE_PROJECTED_RECEIVER_COMPILE: &str =
+    "termination/ranked_callee_projected_receiver_compile";
 pub(crate) const RUNTIME_FLOAT_NESTED_OPERAND_EXIT: &str =
     "arithmetic/runtime_float_nested_operand_exit";
 pub(crate) const RUNTIME_SHIFT_COUNT_DOMAIN_EXIT: &str =
@@ -391,6 +402,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_SATURATING_ARRAY_ELEMENT_GUARD_EXIT,
     CUSTOM_RANKING_FIELD_COUNTDOWN_COMPILE,
     CUSTOM_RANKING_STRUCT_VIEW,
+    RANKED_CALLEE_PROJECTED_RECEIVER_COMPILE,
     RUNTIME_FLOAT_NESTED_OPERAND_EXIT,
     RUNTIME_SHIFT_COUNT_DOMAIN_EXIT,
     RUNTIME_EXACT_GUARDED_SHIFT_COUNT_EXIT,
@@ -416,4 +428,5 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     FLOAT_TRAPPING_DIVZERO_TRAPS,
     FLOAT_TRAPPING_INVALID_TRAPS,
     ZERO_LENGTH_BYTE_ARRAY_ADMISSION,
+    ZERO_LENGTH_SCALAR_ARRAY_ADMISSION,
 ];

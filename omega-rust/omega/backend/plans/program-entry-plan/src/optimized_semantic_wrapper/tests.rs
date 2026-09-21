@@ -18,7 +18,11 @@ use calling_conventions::{
     evaluate_ordinary_boundary_entry_plan,
 };
 
-use super::recipe::{CALL_STEP_INDEX, copy, expected_relocation, expected_steps};
+use super::recipe::{
+    OptimizedProgramStorageSemanticReceiverLayout, copy, expected_relocation, expected_steps,
+};
+
+const RECEIVER_FREE_CALL_STEP_INDEX: usize = 8;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceSchema,
 };
@@ -56,7 +60,9 @@ fn semantic() -> ValidatedBoundaryEntryPlan {
     .unwrap()
 }
 
-fn contract() -> OptimizedProgramStorageSemanticEntryContract {
+fn contract_with(
+    receiver: ProgramEntrySourceReceiverSignature,
+) -> OptimizedProgramStorageSemanticEntryContract {
     let slot = target::TargetProfile::UefiX64.program_entry_slot();
     let semantic = semantic();
     // Test-local calling-plan application identity, distinct from the raw
@@ -129,7 +135,7 @@ fn contract() -> OptimizedProgramStorageSemanticEntryContract {
         "Boot::launch".into(),
         "launch".into(),
         "Boot::launch#recipe".into(),
-        ProgramEntrySourceReceiverSignature::Free,
+        receiver,
         vec![
             SelectedProgramEntrySourceSignature::visible_parameter(
                 ProgramStorageEntryRootRole::Image,
@@ -161,12 +167,25 @@ fn contract() -> OptimizedProgramStorageSemanticEntryContract {
     .unwrap()
 }
 
+fn contract() -> OptimizedProgramStorageSemanticEntryContract {
+    contract_with(ProgramEntrySourceReceiverSignature::Free)
+}
+
+fn receiver_contract() -> OptimizedProgramStorageSemanticEntryContract {
+    contract_with(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        normalized_type_identity: "ref-mut(named(name(Boot::launch)))".into(),
+    })
+}
+
+const BOOT_LAYOUT: OptimizedProgramStorageSemanticReceiverLayout =
+    OptimizedProgramStorageSemanticReceiverLayout::new(8, 8);
+
 #[test]
 fn exact_semantic_wrapper_recipe_is_address_free_and_balanced() {
     let contract = contract();
     let fingerprint = contract.semantic_calling_plan_report_fingerprint();
     let source_identity = contract.source_signature_identity();
-    let plan = plan_optimized_program_storage_semantic_wrapper(contract).unwrap();
+    let plan = plan_optimized_program_storage_semantic_wrapper(contract, None).unwrap();
 
     validate_optimized_program_storage_semantic_wrapper(&plan).unwrap();
     assert_eq!(plan.source_signature_identity(), source_identity);
@@ -174,8 +193,9 @@ fn exact_semantic_wrapper_recipe_is_address_free_and_balanced() {
     assert_eq!(plan.outgoing_frame_byte_count(), 72);
     assert_eq!(plan.outgoing_release_byte_count(), 72);
     assert_eq!(plan.pre_call_stack_alignment(), 16);
-    assert_eq!(plan.steps(), &expected_steps(fingerprint));
-    assert_eq!(plan.relocation(), &expected_relocation());
+    assert_eq!(plan.receiver(), None);
+    assert_eq!(plan.steps(), expected_steps(fingerprint, None).as_slice());
+    assert_eq!(plan.relocation(), &expected_relocation(8));
     assert_eq!(plan.relocation().call_step_index(), 8);
     assert_eq!(
         plan.encoding_disposition(),
@@ -191,11 +211,11 @@ fn exact_semantic_wrapper_recipe_is_address_free_and_balanced() {
 
 #[test]
 fn step_order_root_register_and_frame_corruption_fail_closed() {
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract()).unwrap();
+    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
     plan.steps.swap(2, 4);
     assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
 
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract()).unwrap();
+    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
     plan.steps[2] = copy(
         ProgramStorageEntryRootRole::Image,
         0,
@@ -206,20 +226,107 @@ fn step_order_root_register_and_frame_corruption_fail_closed() {
     );
     assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
 
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract()).unwrap();
+    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
     plan.outgoing_release_byte_count = 88;
     assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
 
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract()).unwrap();
+    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
     plan.steps[9] =
         OptimizedProgramStorageSemanticWrapperStep::ReleaseOutgoingStackFrame { byte_count: 56 };
     assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
 }
 
 #[test]
+fn receiver_source_provisions_one_zeroed_frame_slot_and_reorders_arguments() {
+    let plan =
+        plan_optimized_program_storage_semantic_wrapper(receiver_contract(), Some(BOOT_LAYOUT))
+            .unwrap();
+
+    validate_optimized_program_storage_semantic_wrapper(&plan).unwrap();
+    let receiver = plan.receiver().unwrap();
+    assert_eq!(receiver.byte_count(), 8);
+    assert_eq!(receiver.alignment(), 8);
+    assert_eq!(receiver.slot_byte_count(), 16);
+    assert_eq!(receiver.outgoing_stack_byte_offset(), 64);
+    assert_eq!(plan.outgoing_frame_byte_count(), 88);
+    assert_eq!(plan.outgoing_release_byte_count(), 88);
+    assert_eq!(plan.pre_call_stack_alignment(), 16);
+    assert_eq!(plan.steps().len(), 13);
+    assert_eq!(plan.relocation().call_step_index(), 10);
+    use OptimizedProgramStorageSemanticWrapperStep as Step;
+    assert!(matches!(
+        plan.steps()[6],
+        Step::ProvisionReceiverMutableStorage {
+            outgoing_stack_byte_offset: 64,
+            slot_byte_count: 16,
+        }
+    ));
+    assert!(matches!(
+        plan.steps()[7],
+        Step::BindOutgoingReceiverAddress {
+            register: MachineRegister::X86Rcx,
+            outgoing_stack_byte_offset: 64,
+            byte_count: 8,
+            alignment: 8,
+        }
+    ));
+    assert!(matches!(
+        plan.steps()[8],
+        Step::BindOutgoingExtentCopyAddress {
+            register: MachineRegister::X86Rdx,
+            ..
+        }
+    ));
+    assert!(matches!(
+        plan.steps()[9],
+        Step::BindOutgoingExtentCopyAddress {
+            register: MachineRegister::X86R8,
+            ..
+        }
+    ));
+    assert!(matches!(
+        plan.steps()[10],
+        Step::CallPrivateTerminalContinuation { .. }
+    ));
+
+    // A drifted residence, a missing receiver, or a receiver on the wrong
+    // signature all fail closed before any bytes exist.
+    let mut drift = plan.clone();
+    drift.receiver = None;
+    assert!(validate_optimized_program_storage_semantic_wrapper(&drift).is_err());
+    let mut drift = plan.clone();
+    drift.receiver = Some(super::OptimizedProgramStorageSemanticReceiverStorage {
+        byte_count: 8,
+        alignment: 8,
+        slot_byte_count: 16,
+        outgoing_stack_byte_offset: 65,
+    });
+    assert!(validate_optimized_program_storage_semantic_wrapper(&drift).is_err());
+
+    assert!(
+        plan_optimized_program_storage_semantic_wrapper(contract(), Some(BOOT_LAYOUT)).is_err()
+    );
+    assert!(plan_optimized_program_storage_semantic_wrapper(receiver_contract(), None).is_err());
+    assert!(
+        plan_optimized_program_storage_semantic_wrapper(
+            receiver_contract(),
+            Some(OptimizedProgramStorageSemanticReceiverLayout::new(0, 8)),
+        )
+        .is_err()
+    );
+    assert!(
+        plan_optimized_program_storage_semantic_wrapper(
+            receiver_contract(),
+            Some(OptimizedProgramStorageSemanticReceiverLayout::new(8, 3)),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn private_call_fingerprint_and_relocation_corruption_fail_closed() {
-    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract()).unwrap();
-    plan.steps[CALL_STEP_INDEX] =
+    let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
+    plan.steps[RECEIVER_FREE_CALL_STEP_INDEX] =
             OptimizedProgramStorageSemanticWrapperStep::CallPrivateTerminalContinuation {
                 calling_policy: CallingPolicy::MicrosoftX64,
                 semantic_calling_plan_report_fingerprint: 0,
@@ -238,7 +345,7 @@ fn private_call_fingerprint_and_relocation_corruption_fail_closed() {
             relocation.addend = -4;
         },
     ] {
-        let mut plan = plan_optimized_program_storage_semantic_wrapper(contract()).unwrap();
+        let mut plan = plan_optimized_program_storage_semantic_wrapper(contract(), None).unwrap();
         corrupt(&mut plan.relocation);
         assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());
     }

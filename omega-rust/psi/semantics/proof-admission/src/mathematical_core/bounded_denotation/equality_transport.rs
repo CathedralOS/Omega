@@ -111,8 +111,9 @@ impl Denotation {
             }
             if !self.arena.structurally_equal(normal_premise, normal_goal) {
                 // Integer equality canonicalization can orient the two endpoints
-                // differently after substitution. Its symmetry is itself J.
-                let Some(oriented) = self.symmetry_evidence(normal_premise, normal_goal, evidence)
+                // differently after substitution. Its symmetry is itself J, and
+                // the same reversal can sit inside a connective's nested `Id`.
+                let Some(oriented) = self.oriented_evidence(normal_premise, normal_goal, evidence)
                 else {
                     return Ok(None);
                 };
@@ -349,5 +350,314 @@ impl Denotation {
             self.arena.insert(context)
         };
         Ok(Some((rewritten, context)))
+    }
+
+    /// `e : ⟦P⟧` re-presented as `⟦Q⟧` when the licensed premise and goal
+    /// differ only by identity endpoint orientation, possibly nested inside
+    /// connectives — each differing `Id` gets a `sym` `J` at exactly its
+    /// position rather than a rule-instance axiom for the whole judgment.
+    /// `Pi` domains coerce contravariantly, `Sigma` pairs covariantly, and a
+    /// `Two`-indexed family selects the per-branch coercion by `caseTwo`, so
+    /// conjunction, disjunction and implication positions are all covered.
+    /// `None` keeps the explicit rule-instance route for any difference
+    /// outside these shapes — a dependent codomain, an unmatched family, or
+    /// endpoints that are not a single swap.
+    pub(super) fn oriented_evidence(
+        &mut self,
+        premise: TermHandle,
+        goal: TermHandle,
+        evidence: TermHandle,
+    ) -> Option<TermHandle> {
+        if self.arena.structurally_equal(premise, goal) {
+            return Some(evidence);
+        }
+        self.oriented_coercion(premise, goal, evidence)
+    }
+
+    fn oriented_coercion(
+        &mut self,
+        premise: TermHandle,
+        goal: TermHandle,
+        evidence: TermHandle,
+    ) -> Option<TermHandle> {
+        if self.arena.structurally_equal(premise, goal) {
+            return Some(evidence);
+        }
+        let from = self.arena.get(premise);
+        let to = self.arena.get(goal);
+        match (from.clone(), to.clone()) {
+            (
+                Term::Id { ty, left, right },
+                Term::Id {
+                    ty: goal_ty,
+                    left: goal_left,
+                    right: goal_right,
+                },
+            ) => (self.arena.structurally_equal(ty, goal_ty)
+                && self.arena.structurally_equal(goal_left, right)
+                && self.arena.structurally_equal(goal_right, left))
+            .then(|| self.symmetry(ty, left, right, evidence)),
+            (
+                Term::Pi { domain, codomain },
+                Term::Pi {
+                    domain: goal_domain,
+                    codomain: goal_codomain,
+                },
+            ) => {
+                // `λ(h : ⟦goal premise⟧). ↑(evidence (h : ⟦premise⟧))`:
+                // the domain coerces contravariantly, the codomain
+                // covariantly. A codomain that names its own binder is a
+                // dependent function type — outside this producer's
+                // propositional `Pi`s.
+                if self.occurs_free(codomain, 0) || self.occurs_free(goal_codomain, 0) {
+                    return None;
+                }
+                let hypothesis = self.arena.insert(Term::Variable(0));
+                let argument = self.oriented_coercion(goal_domain, domain, hypothesis)?;
+                let function = shift(&mut self.arena, evidence, 0, 1);
+                let applied = self.arena.insert(Term::Apply { function, argument });
+                let body = self.oriented_coercion(codomain, goal_codomain, applied)?;
+                Some(self.arena.insert(Term::Lambda {
+                    domain: goal_domain,
+                    body,
+                }))
+            }
+            (
+                Term::Sigma { domain, codomain },
+                Term::Sigma {
+                    domain: goal_domain,
+                    codomain: goal_codomain,
+                },
+            ) => {
+                // `⟨c↑(fst e), c↑(snd e)⟩` — the pair evidence destructures
+                // directly; each projection coerces covariantly toward the
+                // goal's domain and codomain.
+                let fst = self.arena.insert(Term::Fst { pair: evidence });
+                let first = self.oriented_coercion(domain, goal_domain, fst)?;
+                // The disjunction denotation is a `Two`-indexed family
+                // `Σ(t : Two). caseTwo(M, d₀, rest, t)`; coercing its second
+                // projections needs the eliminator that picks the branch
+                // coercion under the same tag. A codomain without that
+                // scrutinee is an ordinary non-dependent pair type.
+                let second = match (self.arena.get(codomain), self.arena.get(goal_codomain)) {
+                    (
+                        Term::CaseTwo {
+                            motive,
+                            zero_branch: zero,
+                            one_branch: one,
+                            scrutinee,
+                        },
+                        Term::CaseTwo {
+                            motive: goal_motive,
+                            zero_branch: goal_zero,
+                            one_branch: goal_one,
+                            scrutinee: goal_scrutinee,
+                        },
+                    ) if self.arena.structurally_equal(motive, goal_motive)
+                        && self.arena.structurally_equal(domain, goal_domain)
+                        && matches!(self.arena.get(scrutinee), Term::Variable(0))
+                        && matches!(self.arena.get(goal_scrutinee), Term::Variable(0))
+                        // Arm payloads move to a different binder's scope;
+                        // a payload naming the Σ binder itself would
+                        // rebind — only binder-closed payloads carry over.
+                        && [motive, zero, one, goal_zero, goal_one]
+                            .into_iter()
+                            .all(|payload| !self.occurs_free(payload, 0)) =>
+                    {
+                        self.branch_selected_coercion(
+                            motive, zero, one, goal_zero, goal_one, evidence,
+                        )?
+                    }
+                    _ => {
+                        if self.occurs_free(codomain, 0) || self.occurs_free(goal_codomain, 0) {
+                            return None;
+                        }
+                        let snd = self.arena.insert(Term::Snd { pair: evidence });
+                        self.oriented_coercion(codomain, goal_codomain, snd)?
+                    }
+                };
+                Some(self.arena.insert(Term::Pair { first, second }))
+            }
+            _ => None,
+        }
+    }
+
+    /// `caseTwo(λ(t : Two). Π(_ : ⟦F t⟧). ⟦G t⟧, λ(h : d₀). …, λ(h :
+    /// rest). …, fst p) (snd p)` — the coercion of a disjunction pair's
+    /// second projection, where the two `Sigma` codomains are the tagged
+    /// families `F t = caseTwo(M, d₀, rest, t)` and `G t = caseTwo(M, d₀',
+    /// rest', t)` differing only by `Id` orientation inside the branch
+    /// payloads. The branches' own annotations name the reduced family
+    /// arms — the same proposition types the eliminator's motive yields.
+    fn branch_selected_coercion(
+        &mut self,
+        motive: TermHandle,
+        zero: TermHandle,
+        one: TermHandle,
+        goal_zero: TermHandle,
+        goal_one: TermHandle,
+        evidence: TermHandle,
+    ) -> Option<TermHandle> {
+        let tag = self.arena.insert(Term::Variable(0));
+        let premise_family = self.arena.insert(Term::CaseTwo {
+            motive,
+            zero_branch: zero,
+            one_branch: one,
+            scrutinee: tag,
+        });
+        // The Pi's codomain sits under one extra binder — the family
+        // mention `t` and every captured branch payload shift by one.
+        let shifted_tag = self.arena.insert(Term::Variable(1));
+        let shifted_goal_zero = shift(&mut self.arena, goal_zero, 0, 1);
+        let shifted_goal_one = shift(&mut self.arena, goal_one, 0, 1);
+        let shifted_motive = shift(&mut self.arena, motive, 0, 1);
+        let goal_family = self.arena.insert(Term::CaseTwo {
+            motive: shifted_motive,
+            zero_branch: shifted_goal_zero,
+            one_branch: shifted_goal_one,
+            scrutinee: shifted_tag,
+        });
+        let coercion_body = self.arena.insert(Term::Pi {
+            domain: premise_family,
+            codomain: goal_family,
+        });
+        let coercion_motive = self.arena.insert(Term::Lambda {
+            domain: self.two,
+            body: coercion_body,
+        });
+        let hypothesis = self.arena.insert(Term::Variable(0));
+        let zero_coerced = self.oriented_coercion(zero, goal_zero, hypothesis)?;
+        let zero_branch = self.arena.insert(Term::Lambda {
+            domain: zero,
+            body: zero_coerced,
+        });
+        let hypothesis = self.arena.insert(Term::Variable(0));
+        let one_coerced = self.oriented_coercion(one, goal_one, hypothesis)?;
+        let one_branch = self.arena.insert(Term::Lambda {
+            domain: one,
+            body: one_coerced,
+        });
+        let scrutinee = self.arena.insert(Term::Fst { pair: evidence });
+        let eliminator = self.arena.insert(Term::CaseTwo {
+            motive: coercion_motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        });
+        let argument = self.arena.insert(Term::Snd { pair: evidence });
+        Some(self.arena.insert(Term::Apply {
+            function: eliminator,
+            argument,
+        }))
+    }
+
+    /// Whether `Variable(index)` — measured from this term's own root —
+    /// occurs free in the term; each `Pi`/`Sigma`/`Lambda` body raises the
+    /// index by one. Used to decline codomains that depend on their
+    /// binder, which this producer's propositional connectives never
+    /// generate.
+    fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
+        match self.arena.get(term) {
+            Term::Variable(position) => position == index,
+            Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
+                self.occurs_free(domain, index)
+                    || index
+                        .checked_add(1)
+                        .is_some_and(|nested| self.occurs_free(codomain, nested))
+            }
+            Term::Lambda { domain, body } => {
+                self.occurs_free(domain, index)
+                    || index
+                        .checked_add(1)
+                        .is_some_and(|nested| self.occurs_free(body, nested))
+            }
+            Term::Apply { function, argument }
+            | Term::Pair {
+                first: function,
+                second: argument,
+            } => self.occurs_free(function, index) || self.occurs_free(argument, index),
+            Term::Fst { pair } | Term::Snd { pair } => self.occurs_free(pair, index),
+            Term::CaseTwo {
+                motive,
+                zero_branch,
+                one_branch,
+                scrutinee,
+            } => {
+                self.occurs_free(motive, index)
+                    || self.occurs_free(zero_branch, index)
+                    || self.occurs_free(one_branch, index)
+                    || self.occurs_free(scrutinee, index)
+            }
+            Term::Id { ty, left, right } => {
+                self.occurs_free(ty, index)
+                    || self.occurs_free(left, index)
+                    || self.occurs_free(right, index)
+            }
+            Term::Refl { ty, value } => {
+                self.occurs_free(ty, index) || self.occurs_free(value, index)
+            }
+            Term::IdElim {
+                motive,
+                base,
+                endpoint,
+                proof,
+            } => {
+                self.occurs_free(motive, index)
+                    || self.occurs_free(base, index)
+                    || self.occurs_free(endpoint, index)
+                    || self.occurs_free(proof, index)
+            }
+            Term::W { carrier, children } => {
+                self.occurs_free(carrier, index) || self.occurs_free(children, index)
+            }
+            Term::Sup {
+                carrier,
+                children,
+                label,
+                function,
+            } => {
+                self.occurs_free(carrier, index)
+                    || self.occurs_free(children, index)
+                    || self.occurs_free(label, index)
+                    || self.occurs_free(function, index)
+            }
+            Term::IndW { motive, step, tree } => {
+                self.occurs_free(motive, index)
+                    || self.occurs_free(step, index)
+                    || self.occurs_free(tree, index)
+            }
+            Term::EmptyElim { ty, scrutinee } => {
+                self.occurs_free(ty, index) || self.occurs_free(scrutinee, index)
+            }
+            Term::Squash { ty } | Term::Box { ty } => self.occurs_free(ty, index),
+            Term::SquashIntro { ty, value } | Term::BoxIntro { ty, value } => {
+                self.occurs_free(ty, index) || self.occurs_free(value, index)
+            }
+            Term::SquashElim {
+                proposition,
+                function,
+                scrutinee,
+            } => {
+                self.occurs_free(proposition, index)
+                    || self.occurs_free(function, index)
+                    || self.occurs_free(scrutinee, index)
+            }
+            Term::BoxElim {
+                motive,
+                body,
+                scrutinee,
+            } => {
+                self.occurs_free(motive, index)
+                    || self.occurs_free(body, index)
+                    || self.occurs_free(scrutinee, index)
+            }
+            Term::Dummy
+            | Term::Sort(_)
+            | Term::Constant { .. }
+            | Term::Two
+            | Term::TwoZero
+            | Term::TwoOne
+            | Term::Empty => false,
+        }
     }
 }

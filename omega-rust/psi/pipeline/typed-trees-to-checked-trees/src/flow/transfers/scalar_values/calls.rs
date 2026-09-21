@@ -503,6 +503,7 @@ fn collect_self_field_paths(
         | Expression::IntegerWiden { operand, .. }
         | Expression::IntegerExactCast { operand, .. }
         | Expression::IntegerWrappingCast { operand, .. }
+        | Expression::IntegerSaturatingCast { operand, .. }
         | Expression::IntegerTrappingCast { operand, .. } => {
             collect_self_field_paths(operand, self_position, paths);
         }

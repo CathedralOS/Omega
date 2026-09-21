@@ -571,6 +571,11 @@ impl Emission<'_, '_, '_> {
             .get(value)
             .clone();
         match node.kind {
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedStructuralValueKind::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` branch borrows its exact referent place: resolve
@@ -1595,6 +1600,7 @@ impl Emission<'_, '_, '_> {
             target: edge.target,
             arguments: edge.arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: edge.structural_arguments,
             trivial_affine_discards,
             residual_affine_discards,
@@ -1638,6 +1644,7 @@ impl Emission<'_, '_, '_> {
             target: edge.target,
             arguments: edge.arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: edge.structural_arguments,
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -1722,6 +1729,7 @@ impl Emission<'_, '_, '_> {
             arguments,
             structural_arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         })
     }
@@ -1731,6 +1739,7 @@ impl Emission<'_, '_, '_> {
             id: self.evaluation.current,
             parameters: std::mem::take(&mut self.evaluation.parameters),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: std::mem::take(&mut self.evaluation.block_structural_parameters),
             operations: self.operations[self.evaluation.operation_start..].to_vec(),
             terminator,
