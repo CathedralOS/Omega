@@ -36,6 +36,7 @@ use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_ha
 use crate::machine_lowering::specialization_commitments::selected_closure_specializations;
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, OperandProofCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
+use crate::proofs::mathematical_declarations::admit_mathematical_declarations;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::proof_recursion::lower_and_install_proof_recursion;
 use crate::proofs::quotient_correspondence::retain_checked_quotient_correspondences;
@@ -70,22 +71,6 @@ pub fn lower_machine_by_symbol(
 ) -> Result<LoweredPsi, LoweringError> {
     let selection = select_terminal_machine_by_symbol(checked, machine)?;
     lower_terminal_selection(checked, selection)
-}
-
-/// The checked `let`/`boundary let` mathematical declarations carry no
-/// Terminal Psi evidence encoding yet, so no production route may emit a
-/// module that omits them: every public lowering entrance refuses the roster
-/// loudly until PROOF-CONTRACT-MIGRATION consumes it downstream.
-pub(crate) fn reject_mathematical_declarations(
-    checked: &CheckedTrees,
-) -> Result<(), LoweringError> {
-    if checked.facts.proof.mathematical_declarations.is_empty() {
-        return Ok(());
-    }
-    unsupported(
-        "mathematical `let`/`boundary let` declarations check onto checked trees, but \
-         no Terminal evidence encoding carries them yet (PROOF-CONTRACT-MIGRATION)",
-    )
 }
 
 /// Source custody may select different claim lineages at different normal
@@ -128,7 +113,7 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
-    reject_mathematical_declarations(checked)?;
+    admit_mathematical_declarations(checked)?;
     reject_conditional_claim_joins(checked, &[selection.machine])?;
     operation_crash_contracts::reject_unjoinable_named_sites(checked, selection.machine)?;
     // Custody gates order deliberately: this program-level check runs before
