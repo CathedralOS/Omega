@@ -7991,7 +7991,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/multi_source_view_lifetimes.rs` and the crate README are claimed
   under GENERIC-RETURNED-VIEW-LIFETIMES (exp 22:27Z). No independent unclaimed
   slice exists here.
-- **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
+- **LOOKUP-MAP-JUSTIFICATION.** Mined candidate — scope verified,
+  already landed and enforced; same verdict as sibling rows
+  SCOPED-LOOKUP-MAP-AUDIT and LOOKUP-MAP-MEASUREMENT-AUDIT (adjacent
+  stub), whose surface this stub re-mines: the justification audit
+  exists as the repeatable architecture gate
+  `tests/architecture/scoped_lookup_maps.rs` enforcing the
+  `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the
+  baseline; extra lookup maps require a measured reason") by census —
+  every production `HashMap`/`BTreeMap` keyed by an authored-spelling
+  token must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded
+  key domain, and the reverse staleness check fails cataloged files
+  that no longer declare such a map. The one-shot census it encodes —
+  this row's namesake artifact — lives at
+  `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`; zero
+  name-keyed declaration-lookup maps beside the scoped symbol tree).
+  Verified green at `66a6ea93f7` per the sibling row: `cargo nextest
+  run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass
+  on Linux x86-64. No independent slice remains — the gate is
+  self-maintaining; a new name-keyed map without a recorded
+  justification fails the build.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
 - **LOWERED-OPERATION-PROOF-MACHINE-CALLS** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
