@@ -1693,6 +1693,27 @@ Owners include
   held by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). No independent slice
   remains open inside this row.
 
+  Re-verified at `7d03d489e3d9` (z133, linux x86-64): both recorded gates
+  still hold — `cargo nextest run -p typed-trees-to-checked-trees
+  checks::content` 14/14 and the authored ledger end-to-end leg
+  `cargo nextest run -p compiler --test secondary_processor_startup` 4/4,
+  including `authored_startup_contract_survives_terminal_and_native_production`
+  installing the emitted trampoline bytes. No upstream edits on the
+  ledger, canary, startup-test or trampoline-emission surfaces since
+  `3dac85e5cc`. Fence map refreshed: `execution/unit/providers.rs` under
+  PROVIDER-ATTACHMENT-MACHINE-PLAN (z200, ~09:49Z), the
+  `platform_bringup/secondary_processor*` ledger under
+  NEW-APB-CANCELLATION-RACE-PINS (z11, ~12:52Z), `root_entry/
+  provider_execution.rs` under NEW-BI-INSTALLED-OCCURRENCE-REPLAY-PINS
+  (swarm-w9, ~10:26Z), `external-roots` `program_local` subtree under
+  EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), the host-leg recipe draft under
+  NEW-APB-HOST-LEG-RECIPE (~16:10Z), the UEFI handoff surface under
+  UEFI-OS-HANDOFF (z19, ~10:19Z), with the boundary-ABI lane still held
+  by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). The open frontier is
+  unchanged: the provider-planning/native-settlement join to the
+  installed occurrence. No independent slice remains open inside this
+  row.
+
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
   route and exact occurrence through independent replay. Reject forged source
   construction, foreign/replayed receipts, substituted geometry and duplicate
