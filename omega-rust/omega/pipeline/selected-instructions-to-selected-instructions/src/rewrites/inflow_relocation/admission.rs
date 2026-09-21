@@ -14,8 +14,7 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedTerminator,
+    SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
 use super::InflowRelocationError;
@@ -29,8 +28,7 @@ use crate::rewrites::window_hazards::{
     coupled, has_call_contract, register_writes, schedulable, surface,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the join the inflow feeds.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -79,14 +77,14 @@ fn removable(instruction: &SelectedInstruction) -> bool {
     )
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, InflowRelocationError> {
+) -> Result<Admission, InflowRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(InflowRelocationError::SourceMismatch);
@@ -339,7 +337,6 @@ pub(super) fn admit<'source>(
         return Err(InflowRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,
