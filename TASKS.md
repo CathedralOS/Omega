@@ -11684,6 +11684,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   — 2/2 pass on linux x86-64. The remaining physical-evidence legs (dynamic-call
   and call-occurrence spans) belong to TRANSLATION-VALIDATION's named remaining
   work under DYNAMIC-CALL-OCCURRENCE-SPANS, not to access profiles.
+  Re-verified at `758e8ad9e2` on linux x86-64: both access-profile pins
+  intact at `mixed_structural_scalar.rs:184`/`:199` and the foreign-lane
+  rejection pin at `physical/derivation/tests.rs:645`; the settled
+  verdict stands (dispatcher re-dispatched the resolved name).
 - **PIPELINE-OWNER-CONSOLIDATION.** Mined candidate — scope verified; this stub
   is a self-mine of the canonical coordinator row in `TASKS_OPTIMIZER.md`
   (~line 26), not a separate task. Re-verified at `408953d975a`: every
