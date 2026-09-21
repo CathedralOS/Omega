@@ -120,5 +120,37 @@ The plan is the published promise. The final artifact's
 [machine-state evidence](machine_state_evidence.md) establishes that a particular
 implementation honors it without becoming part of that promise.
 
+## Status
+
+Landed on main:
+
+- Policy evaluation over the normalized `BoundarySignature` —
+  `Accepted(BoundaryEntryPlan)` / `Rejected(CallingPolicyRejection)` — and plan
+  validation producing `ValidatedBoundaryEntryPlan` with the domain-separated
+  contract commitment live in `calling-conventions/src/plans/`
+  (`call_plan_evaluation.rs`, `boundary_entry.rs`), including callback
+  materializations through
+  `validate_boundary_entry_plan_with_callback_materializations`.
+- Canonical host evaluators cover the ordinary, freestanding-program-entry, and
+  Darwin AAPCS64 variadic surfaces
+  (`evaluate_ordinary_boundary_entry_plan`,
+  `evaluate_freestanding_program_entry_plan`,
+  `evaluate_darwin_aapcs64_variadic_boundary_entry_plan`).
+- Selected consumers retain the evaluated plan through realization rather than
+  reselecting it: target plans travel as Terminal Psi realization inputs per
+  [boundary calls](../terminal-psi/boundary_calls.md), and validated plans are
+  replayed by the realization ladder (the secondary-processor startup test
+  drives install → claim → materialize → validate over the retained plan).
+
+Open:
+
+- The final state-footprint certificate that [machine-state
+  evidence](machine_state_evidence.md) requires has no production caller —
+  `FinalFootprintCertificate` construction and region-inventory validation are
+  exercised by tests only; see
+  [footprint replay status](../../../omega-rust/omega/backend/images/image/footprint_replay.md).
+  A passing plan evaluator therefore does not yet imply a replayed final
+  footprint.
+
 Current policy-source and normalized-model support is documented beside
 [calling conventions](../../../omega-rust/omega/representations/calling-conventions/README.md).
