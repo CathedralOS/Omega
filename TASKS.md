@@ -4726,6 +4726,19 @@ moved to the termination-catalog fence (see that row's refresh note).
   RC-REPOSITORY fmt leg green, RC-PORTABLE-PSI 1/1 and RC-DIAGNOSTICS 1/1
   PASS, remaining gates not run; `tools/release/records/` still carries no
   committed JSON, closure open. Both drafts deleted. No code change.
+- **NEW-RVG-STALE-CALL-GUARD-SOURCE-CHECK.** Resolved — minted name for the
+  stale-call-guard source-check leg of RUNTIME-VALUE-GENERICS, already
+  landed at `725798149efe` ("checks: retire stale guard premises at the
+  source contract check"): `incoming_guard_proves_requires` in the scoped
+  `checks/contracts/calls.rs` now requires the caller state to preserve
+  every field the requirement names plus every unqualified operand name
+  the instantiated label spells (`caller_state_preserves_label_names`),
+  so a stale guard + `limit = 0` rejects at `check_source` before the
+  artifact gate (`runtime_bound_stale_call_guard_rejects_publication`;
+  13/13 `runtime_bound_*` PASS at `b53c7ea260`, folded under
+  NEW-FOLD-LEDGER-DRAFTS-BATCH-8). Re-verified at `891eb5c584` on linux
+  x86-64: both functions intact at `calls.rs:513`/`:~590`. No slice
+  remains under this name.
 - **NEW-PCSL-VERIFICATION-SPEC-LEDGER-STATUS.** Resolved — the dispatched
   name's scoped deliverable already landed: `cc56e73fd87` ("docs:
   verification spec states ledger status reconciliation") added the exact
