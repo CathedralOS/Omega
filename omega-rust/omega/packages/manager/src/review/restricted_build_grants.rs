@@ -40,7 +40,7 @@ use crate::review::timings;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
-    purpose: DependencyPurpose,
+    context: PackageCheckedContext,
     request_meaning: String,
     request_path: Option<DependencyRequestPath>,
 }
@@ -52,9 +52,17 @@ impl UngrantedRestrictedBuildRequest {
         self.package
     }
 
+    /// The complete checked context — purpose, selected target, and build
+    /// execution profile — whose request lacks retained accepted meaning.
+    /// Sibling occurrences of one package grant independently, so the
+    /// context is the attribution, not an optional refinement.
+    pub const fn context(&self) -> PackageCheckedContext {
+        self.context
+    }
+
     /// The authorized context — product or build — the request belongs to.
     pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
+        self.context.purpose()
     }
 
     /// The complete normalized request meaning the accepted policy did not
@@ -80,10 +88,14 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
         }
         writeln!(
             formatter,
-            "package {identity}… {} occurrence requests:\n    {}",
-            self.purpose.name(),
+            "package {identity}… {} {} occurrence requests:\n    {}",
+            self.context.purpose().name(),
+            self.context.target().identity().as_str(),
             self.request_meaning
         )?;
+        if let Some(profile) = self.context.build_execution_profile() {
+            writeln!(formatter, "    build host {}", profile.identity().as_str())?;
+        }
         match &self.request_path {
             Some(path) => {
                 write!(formatter, "    path ")?;
@@ -172,7 +184,7 @@ impl RestrictedBuildCheckpoint {
             .filter(|meaning| granted.is_none_or(|texts| !texts.contains(*meaning)))
             .map(|meaning| UngrantedRestrictedBuildRequest {
                 package,
-                purpose: context.purpose(),
+                context,
                 request_meaning: meaning.to_owned(),
                 request_path: request_path.clone(),
             })
@@ -241,7 +253,7 @@ impl compiler::RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
         Err(vec![Diagnostic::error(
             UngrantedRestrictedBuildRequest {
                 package: self.package,
-                purpose: self.context.purpose(),
+                context: self.context,
                 request_meaning: meaning,
                 request_path: self.request_path.clone(),
             }
