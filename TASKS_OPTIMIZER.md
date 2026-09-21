@@ -939,37 +939,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   requires.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
   losing affine/linear custody.
-- **STATE-SPECIALIZATION.** Add state-argument/result specialization with exact
-  edge provenance. One bounded family in
-  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization/`
-  is now wired into the pass pipeline: `Optimization::StateSpecialization`
-  selects `omega.psi-pass.state-specialization.v1` (rule
-  `omega.psi-rule.state-argument-specialization.v1`) by exact name through
-  `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
-  independently under the evidence-matrix legs. The fused incoming edge is an
-  unconditional `Jump` successor or one arm of a `Conditional` predecessor —
-  a fused conditional arm leaves its sibling byte-exact, and both arms of one
-  predecessor may specialize in a single candidate. The state argument itself
-  may be Boolean (the condition reads the parameter directly) or an integer
-  the condition reads through an in-block `parameter CMP literal` comparison
-  — equality, less-than, or less-or-equal, evaluated under the operand type's
-  own `IntegerType::compare`, with every other node in the block a pure
-  scalar constant. Two constant-proof sources admit the bound argument: the
-  sparse lattice proves the argument's own value, or — the result
-  specialization — the argument resolves through single-predecessor
-  forwarding-block parameters to the scalar `result` of an in-function
-  direct `Call` whose callee carries exactly one `Return` over a value the
-  callee's own lattice proves constant (the call still executes at the
-  predecessor; only its proven result resolves the dispatch). It still
-  declines every machine holding a cyclic component and does not cover
-  multi-return, non-constant-return, dynamic, structural, or boundary-call
-  results, nor state arguments beyond those two condition shapes.
-  Acceptance: a source-produced state machine selects the rule by exact name
-  through `optimize_abstract_operations`, publishes, and replays
-  independently. Forged or stale edge provenance, a dispatch whose every
-  incoming edge is constant, and a disabled selection behave as
-  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
-  requires.
 - **INTERPROCEDURAL-SUMMARIES.** Add proof-bound inlining and the service/call
   summaries it needs. Transitive per-function effect summaries (observable,
   structural-state, crash, suspension, services, boundaries) and the direct
