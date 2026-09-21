@@ -6,7 +6,12 @@ current working files (including staged and untracked files). Rust files under
 a known crate's src/ select dependents; audited documentation selects its source
 checks. Other inputs run all library tests. Architecture tests always run because
 they read source trees
-without Cargo dependency edges. This is change-impact selection, not a proof
+without Cargo dependency edges.
+
+Routine-diff selections also exclude the measured slow tail in SLOW_TEST_OWNERS:
+a listed test is skipped unless its owning package's own src/ files changed or
+--with-slow-tail is passed. --full baselines never exclude them. This is
+change-impact selection, not a proof
 that the compiler or an untested base is correct. See tools/testing.md.
 """
 
@@ -45,13 +50,17 @@ DOCUMENTATION_TEST = (
 )
 
 # Measured multi-minute library tests by owning package
-# (wiki/drafts/test_cycle_selection_remeasurement.md). Selection keeps running
-# them; the plan reports the measured cost so a narrow run can see the slow
-# tail it is about to pay.
+# (wiki/drafts/test_cycle_selection_remeasurement.md), and the routine-diff
+# exclusion list decided for them. A reverse-dependency selection that picks up
+# native-realization otherwise drags ~800 s of runtime stress cases its diff
+# cannot affect; a diff under the owner's own src/ keeps its tail because that
+# tail is the affected behavior. --with-slow-tail restores excluded members and
+# --full never excludes; keep both this table and the remeasurement note current
+# before relying on a narrow run.
 SLOW_TEST_OWNERS = {
     "native-realization": [
-        ("stack_probe_commit", 38),
-        ("runtime_spill_pressure", 249),
+        ("stack_probe_commit", 324),
+        ("runtime_spill_pressure", 356),
     ],
 }
 
@@ -79,7 +88,7 @@ def changed_paths(root, base):
     return sorted(set((tracked + untracked).split("\0")) - {""})
 
 
-def selection(root, metadata, paths):
+def workspace_crates(root, metadata):
     members = set(metadata["workspace_members"])
     packages = [package for package in metadata["packages"]
                 if package["id"] in members]
@@ -91,6 +100,25 @@ def selection(root, metadata, paths):
         directory = Path(package["manifest_path"]).parent.relative_to(root)
         owners.append((PurePosixPath(directory.as_posix()), name))
     owners.sort(key=lambda owner: len(owner[0].parts), reverse=True)
+    return packages, owners
+
+
+def changed_source_crates(owners, paths):
+    """Workspace crates whose own src/*.rs files appear in the diff."""
+    touched = set()
+    for filename in paths:
+        path = PurePosixPath(filename)
+        for directory, name in owners:
+            if path.is_relative_to(directory):
+                relative = path.relative_to(directory)
+                if relative.parts[0] == "src" and relative.suffix == ".rs":
+                    touched.add(name)
+                break
+    return touched
+
+
+def selection(root, metadata, paths):
+    packages, owners = workspace_crates(root, metadata)
 
     affected = set()
     reasons = []
@@ -141,9 +169,24 @@ def selection(root, metadata, paths):
     return expression or "none()", sorted(affected), []
 
 
-def make_plan(root, runner, base, full=False):
+def slow_tail_filter(excluded):
+    by_owner = {}
+    for entry in excluded:
+        if not re.fullmatch(r"[A-Za-z0-9_:]+", entry["test"]):
+            raise ValueError(f"Unsupported test name: {entry['test']!r}")
+        by_owner.setdefault(entry["package"], []).append(entry["test"])
+    clauses = []
+    for owner in sorted(by_owner):
+        names = " | ".join(f"test({name})" for name in by_owner[owner])
+        clauses.append(f"(package(={owner}) & ({names}))")
+    return " | ".join(clauses)
+
+
+def make_plan(root, runner, base, full=False, with_slow_tail=False):
     paths = [] if full else changed_paths(root, base)
     documentation_paths = [path for path in paths if is_documentation(path)]
+    selected = set()
+    direct = set()
     if full:
         expression, packages, reasons = "all()", [], ["Explicit full run"]
     else:
@@ -152,18 +195,38 @@ def make_plan(root, runner, base, full=False):
         if Path(metadata["workspace_root"]).resolve() != root:
             raise ValueError("Cargo workspace root differs from Git root")
         expression, packages, reasons = selection(root, metadata, paths)
+        member_packages, owners = workspace_crates(root, metadata)
+        if expression == "all()":
+            # Fallbacks still run every library; only the base packages list is
+            # the directly changed subset.
+            selected = {package["name"] for package in member_packages}
+        else:
+            selected = set(packages)
+        direct = changed_source_crates(owners, paths)
     commands = [[runner, "nextest", "run", "--locked", "-p",
                  "omega-architecture-test", "--all-targets", "--no-fail-fast"]]
     if full or documentation_paths:
         commands.append([runner, "nextest", "run", "--locked", "-p", "compiler",
                          "--test", "canary_suite", "--no-fail-fast", "--no-tests", "fail",
                          "-E", f"test(={DOCUMENTATION_TEST})"])
+    slow_tail = [
+        {"package": owner, "test": name, "measured_seconds": seconds}
+        for owner, tests in SLOW_TEST_OWNERS.items()
+        if owner in selected
+        for name, seconds in tests
+    ]
+    excluded = [] if with_slow_tail else [
+        entry for entry in slow_tail if entry["package"] not in direct
+    ]
+    bounded = expression != "all()"
     if expression != "none()":
+        if excluded:
+            expression = f"({expression}) & not ({slow_tail_filter(excluded)})"
         # Keep --workspace even for a narrow filter. Splitting -p builds can
         # change feature unification and no longer match the full baseline.
         commands.append([runner, "nextest", "run", "--locked", "--workspace",
                          "--lib", "--no-fail-fast", "-E", expression])
-        if expression != "all()":
+        if bounded:
             # A valid selection can contain only bin crates (e.g. omega).
             # The separate integration gate covers those; this phase is --lib.
             commands[-1].extend(["--no-tests", "pass"])
@@ -171,14 +234,12 @@ def make_plan(root, runner, base, full=False):
             "documentation_paths": documentation_paths,
             "filter": expression, "full_suite_reasons": reasons,
             "commands": commands}
-    slow_tail = [
-        {"package": owner, "test": name, "measured_seconds": seconds}
-        for owner, tests in SLOW_TEST_OWNERS.items()
-        if owner in packages
-        for name, seconds in tests
-    ]
-    if slow_tail:
-        plan["slow_tail"] = slow_tail
+    remaining = [entry for entry in slow_tail if entry not in excluded]
+    if remaining:
+        plan["slow_tail"] = remaining
+    if excluded:
+        plan["slow_tail_excluded"] = excluded
+        plan["slow_tail_restore"] = "--with-slow-tail"
     return plan
 
 
@@ -197,6 +258,9 @@ def main():
     mode.add_argument("--base", help="Previously verified commit; compared to working files")
     mode.add_argument("--full", action="store_true", help="Run the complete portable baseline")
     parser.add_argument("--plan", action="store_true", help="Print JSON without building/running tests")
+    parser.add_argument("--with-slow-tail", action="store_true",
+                        help="Include measured multi-minute tests excluded from "
+                             "routine-diff selections; --full never excludes them")
     args = parser.parse_args()
     try:
         root = Path(output(Path.cwd(), ["git", "rev-parse", "--show-toplevel"]).strip()).resolve()
@@ -207,7 +271,7 @@ def main():
         runner = shutil.which("mbx") or shutil.which("cargo")
         if not runner:
             raise ValueError("Install mbx (preferred) or Cargo, and cargo-nextest")
-        plan = make_plan(root, runner, base, args.full)
+        plan = make_plan(root, runner, base, args.full, args.with_slow_tail)
         print(json.dumps(plan, indent=2), flush=True)
         if args.plan:
             return 0
