@@ -7753,6 +7753,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   merged pin. Workspace `omega update` on this host exceeded 15min twice
   (recompiling all package candidates) and produced no review file; the
   direct package check is the scoped witness.
+  Re-verified at `e1dc35c9294` (linux x86-64, 2026-09-21): the submodule
+  branch `zergling/z157-squalr-alignment-parsing` remains published at tip
+  `833ce362927c` on the Squalr-Omega remote, so the landed parse machine
+  stands exactly as recorded. The parent pin bump stays the coordinator
+  merge step — no new in-scope slice exists under this name; the row is
+  stamped, not reopened.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity. Scope
   verified at `10d93dd448`, fenced — the residual the app board lists under
   GEOMETRY-PARITY ("clone/serialization", samples/apps/squalr/TASKS.md):
