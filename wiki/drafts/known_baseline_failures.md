@@ -714,6 +714,10 @@ that commit and the repair; 51f21bb168 moved the emptied-scalar-contract
 rejection to the earlier `scalar contract lost authored requirements` gate
 and the expectation now names it.)
 
+Partial refresh at `d6a0625f6ba4` (2026-09-21, linux x86-64): the staged-local
+member below now passes. The hosted-receiver custody five remain live; two of
+the original eight failures were never itemized here.
+
 - Hosted-receiver custody (5): `control_flow_cleanup_source_reaches_the_publication_gate`,
   `retired_selected_lowering_rejects_before_native_publication`,
   `selected_preterminal_optimizers_rejoin_one_native_pipeline`,
@@ -726,10 +730,12 @@ and the expectation now names it.)
   builds the native request by hand and never supplies the checked entry the
   production route attaches through `with_checked_entry`. Repair is a harness
   migration onto the stage crate's route (**ENTRY-CONTENT-ROOTS** area).
-- `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
+- ~~`locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
   (1): `UnsupportedControlFlow(MachineId(1))` from
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
-  expectation from 2694d433d3, not bisected.
+  expectation from 2694d433d3, not bisected.~~ Verified stale: the member
+  now passes end to end at `d6a0625f6ba4` (linux x86-64, 9.9 s) — staged
+  local sequences lower through the target-operation route.
 
 ## native-differential `pipeline_ownership`
 
