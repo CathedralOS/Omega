@@ -1529,7 +1529,7 @@ Owners include
   `secondary_processor_startup` tests PASS, including
   `authored_startup_contract_survives_terminal_and_native_production`).
   Remaining: (2) real receipt ingress under BOUNDARY-ISSUANCE; (3) the
-  Windows/macOS/QEMU legs, which are host-unavailable here.
+  Windows/macOS/QEMU legs, which are host-unavailable here. Re-witnessed at `f600f8400b` (swarm-w9-ffival, linux x86-64): `compiler --test secondary_processor_startup` 4/4 PASS (nondispatch-withdrawal+late-arrival, installed-entry reach, stale-evidence/resource-conflict rejection, terminal-and-native contract survival; 47.8s). The ledger dir itself stays fenced to UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z); the authored canary + startup test were claimed-and-released for this witness.
 
   Reuse installed-code, per-processor stack/state and retirement joins. Bind the
   provider-declared profile to its selected contract; low-memory/vector geometry
