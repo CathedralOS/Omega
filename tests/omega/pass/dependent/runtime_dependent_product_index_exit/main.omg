@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) + interpreter differential. The R0 x R1a
 // COMPOSITION (ch12's working shape): dependent-ranged state params feed
 // the row-major product index directly --
-//   state read(&mut self, y: u32 [0..=self.rows], x: u32 [0..=self.cols])
+//   state read(&mut self, y: u32, requires param <= self.rows, x: u32, requires param <= self.cols)
 //       { ... self.pixels[y * 4 + x] ... }
 // with RUNTIME arguments (nothing folds): the caller's guard proves the
 // dependent obligations, decision-17's overflow proof and the computed-
@@ -13,11 +13,15 @@
 // exits: 71 = the composed read delivered the wrong element.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main {
+data Main
+where
+    rows <= 2,
+    cols <= 3,
+{
     console: Service<Console>;
     pixels: [u8; 12];
-    rows: u32 [0..=2];
-    cols: u32 [0..=3];
+    rows: u32;
+    cols: u32;
     j: u32;
     k: u32;
 }
@@ -31,7 +35,9 @@ machine Main::main(&mut self) reaches Console {
         true -> read(self.j, self.k)
         _ -> bad()
     }
-    state read(&mut self, y: u32 [0..=self.rows], x: u32 [0..=self.cols]) {
+    state read(&mut self, y: u32, x: u32)
+        requires y <= self.rows, x <= self.cols
+    {
         transition self.pixels[y * 4 + x] == 7 {
             true -> good()
             _ -> bad()
