@@ -4726,6 +4726,21 @@ moved to the termination-catalog fence (see that row's refresh note).
   RC-REPOSITORY fmt leg green, RC-PORTABLE-PSI 1/1 and RC-DIAGNOSTICS 1/1
   PASS, remaining gates not run; `tools/release/records/` still carries no
   committed JSON, closure open. Both drafts deleted. No code change.
+- **NEW-FOLD-LEDGER-DRAFTS-BATCH-3.** Resolved — ledger-draft fold per
+  the batch-8 precedent (adcad974bd2): each verdict folded into its
+  owning board row, per-lane ledger deleted.
+  `benchmark_selection_contrast_rows_z70` -> BENCHMARK-SELECTION-
+  CONTRAST-ROWS: adjudication stands — both selection-keyed contrast
+  rows on disk, records census 10, `test_benchmark.py` 29/29 re-witnessed
+  at `891eb5c5844`; production stays fenced.
+  `squalr_seed_parity` -> SQUALR-SEED-PARITY: merged-alias verdict folded
+  — submodule board census (exactly four rows, no seed-parity item)
+  verified off a shallow clone of the app repo's `main`; residual gaps
+  stay with their named sibling rows.
+  `domain_issuer_routes` -> DOMAIN-ISSUER-ROUTES: minting leg green
+  (17/17 qualification_evidence pins), artifact-roundtrip chain
+  indivisible — no codec section without verifier replay; all
+  implementing surfaces fenced. No code change.
 - **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
   scope verified, slice landed 2026-09-21 (z181): the inventory of
   the `operator` introducer's retirement surface is committed at
@@ -5273,8 +5288,9 @@ moved to the termination-catalog fence (see that row's refresh note).
   terminal-codec artifact custody tests under
   CUSTODY-MATRIX-HARNESS-MIGRATION). The chain is indivisible for a
   bounded slice — codec without verifier replay is a dead field, and the
-  section boundary is a terminal-semantics decision. Record:
-  `wiki/drafts/domain_issuer_routes.md`.
+  section boundary is a terminal-semantics decision. (The per-lane
+  ledger `wiki/drafts/domain_issuer_routes.md` was folded into this row
+  under NEW-FOLD-LEDGER-DRAFTS-BATCH-3.)
   Re-witnessed at `6f91898606` (zergling-132, linux x86-64): the minting
   leg stays green through the newest route extensions (9964a44a8bb,
   851052b4f8f) — `cargo nextest run -p typed-trees-to-checked-trees -E
@@ -7944,7 +7960,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Windows leg still host-gated; no independent slice exists.
 - **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators. Landed (`samples/apps/squalr`): `NormalizedRegion` ports upstream's `Ord`/`PartialOrd` — `NormalizedRegion::TotalOrder` is a `satisfies Order::before` conformance (the named-trait surface a trait-selected sort binds), all four fixed-token operators (`machine <`/`<=`/`>`/`>=`) are declared comparing `base_address` alone, and `base_address_order(&self, other)` is the callable spelling exercised natively in squalr-tests' `ordering` state (strict order both directions, base-tie order-equal while `equals` still distinguishes sizes). Compiler edge recorded: token operators need owned operands and by-value data arguments do not cross the selected ProgramEntry boundary ("rejoins 0 Terminal attachment identities"), so the `<`/`<=`/`>`/`>=` bindings are declared but unreachable from application code today. `Hash` deferred until a hash-keyed region collection is ported.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
-- **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z).
+- **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z). Folded record (NEW-FOLD-LEDGER-DRAFTS-BATCH-3): the Zergling-126 ledger at `7241e02227` independently confirmed via a shallow clone of CathedralOS/Squalr-Omega `main` that the submodule board carries exactly four rows — GEOMETRY-PARITY, SUPPLIED-BYTES-SCAN, CLI-COMMANDS, TARGETS-AND-THROUGHPUT — no seed-parity item; live fences then were SQUALR-NAMED-TRAIT-OPERATORS (10:24Z) and SQUALR-CLI-COMMANDS (15:14Z). At fold time the `samples/apps/squalr` dir fence has rotated to SQUALR-DEBUG-ASSERTIONS (~16:25Z) and the draft itself stayed claimed under SQUALR-SEED-PARITY (~15:14Z).
 - **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput. Scope
   verified at `7110606f46e5`: the name re-mines the submodule's ordered
   `samples/apps/squalr/TASKS.md` TARGETS-AND-THROUGHPUT item — port native
@@ -8743,12 +8759,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   default-selection row). Record production needs `tools/benchmark`
   (fenced by BENCHMARK-ROW-RESUMPTION ~03:42Z) plus the matrix doc/test
   pair — every slice is claimed elsewhere this wave. No independent
-  Re-verified at `7241e02227` ([z70 ledger](wiki/drafts/benchmark_selection_contrast_rows_z70.md)):
+  Re-verified at `7241e02227` (z70 ledger, folded under
+  NEW-FOLD-LEDGER-DRAFTS-BATCH-3):
   both `sel-` contrast rows still on disk, records census now 10
   (added `structural_proofs` default + `macos_x86_64`/`uefi_x86_64`
   cross rows), `test_benchmark.py` 29/29 green; records/ +
   `benchmarks.md` stay fenced to BENCHMARK-PROOF-SUBJECT-SELECTION
-  (exp 14:19Z).
+  (exp 14:19Z). Re-verified at `891eb5c5844` during the fold
+  (linux x86-64): census still 10 with both `sel-` rows and the
+  `structural_proofs`/`macos_x86_64`/`uefi_x86_64` additions intact,
+  `python3 tools/tests/test_benchmark.py` re-run 29/29 OK; the records
+  surface fence persists (BENCHMARK-PROOF-SUBJECT-SELECTION ~14:19Z)
+  plus a new tools/benchmark claim under
+  BENCHMARK-REJECTED-ROW-RECORDING (~16:28Z).
 - **BENCHMARK-ROW-RESUMPTION.** — mined candidate; scope verified at
   `e927421a8b` on linux x86-64 (z181): re-mines the benchmark-row
   production lane — resume committing measured `tools/benchmark/
