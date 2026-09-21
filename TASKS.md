@@ -13206,6 +13206,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   recorded residuals only `result_type.rs` still carries a live fence
   (MATCH-SELECTIVE-LOWERING, 07:39Z); the gate stays open until those
   fenced repairs land — no unowned slice exists under this name.
+  Re-verified at `90df29812c0` (z181): adjudication stands — the row is
+  a named re-mine; measurement lives on RC-REPOSITORY-GATE-CLOSURE. The
+  previously live fences recorded in the ledger have since drained from
+  the claims registry (MATCH-SELECTIVE-LOWERING over `result_type.rs`,
+  clippy-lint-repair over `validation`); CUSTODY-MATRIX-HARNESS-MIGRATION
+  still records the custody-inventory architecture leg. No re-measure
+  attempted under this name — the fresh-measure lane is the closure
+  row's.
 - **RC-REPOSITORY-GATE-CLOSURE.** Mined candidate — scope verified,
   slice landed on `zergling/z93-rc-repository-gate-closure`. Re-mines the
   `RC-REPOSITORY` gate row ([RC-REPOSITORY-CLOSURE](wiki/drafts/rust_compiler_completion.md)
