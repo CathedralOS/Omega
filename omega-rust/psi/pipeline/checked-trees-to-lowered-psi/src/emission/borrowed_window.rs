@@ -62,6 +62,20 @@ pub(crate) struct OpenBorrowedWindow {
     spelling: String,
 }
 
+impl OpenBorrowedWindow {
+    /// Frontier identity of the hole: the exact place (root and spelled
+    /// route) plus its declared type. `moved` is the path-local result
+    /// binding of that arm's extraction, so it is excluded — reconverging
+    /// arms may each have moved the same field under different bindings and
+    /// still carry one agreeing hole.
+    fn same_hole(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.full_path == other.full_path
+            && self.field == other.field
+            && self.hole_type == other.hole_type
+    }
+}
+
 /// The restoring value: an already-owned whole structural place of the hole's
 /// exact declared type. The removed value itself or any other whole owned
 /// value of that type qualifies; both values' obligations stay with their
@@ -129,8 +143,10 @@ impl BorrowedWindowLedger {
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: moved_place,
                 structural_type: place.hole_type,
                 multiplicity: terminal_multiplicity(result.multiplicity),
@@ -192,6 +208,7 @@ impl BorrowedWindowLedger {
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Unit,
             kind: OperationKind::StoreStructuralField {
@@ -222,13 +239,22 @@ impl BorrowedWindowLedger {
     }
 
     /// Reconverging paths must agree on the exact open holes; one repaired
-    /// path does not repair another.
+    /// path does not repair another. The frontier is hole identity — root,
+    /// spelled route, declared type — so sibling paths that each opened the
+    /// same place agree even though their `moved` result bindings are
+    /// arm-local: on the joined edge the shared hole is one open window,
+    /// and `emit_store` never consults `moved` when reseating it.
     pub(crate) fn require_same_frontier(&self, other: &Self) -> Result<(), LoweringError> {
         let disagreeing = self
             .open
             .iter()
-            .find(|absent| !other.open.contains(absent))
-            .or_else(|| other.open.iter().find(|absent| !self.open.contains(absent)));
+            .find(|absent| !other.open.iter().any(|open| open.same_hole(absent)))
+            .or_else(|| {
+                other
+                    .open
+                    .iter()
+                    .find(|absent| !self.open.iter().any(|open| open.same_hole(absent)))
+            });
         match disagreeing {
             None => Ok(()),
             Some(absent) => Err(unpinned(
@@ -236,6 +262,17 @@ impl BorrowedWindowLedger {
                 "reconverging paths disagree on the open window",
             )),
         }
+    }
+
+    /// The ledger a reconverged block continues with: the incoming
+    /// frontiers must agree on the exact open holes, so the shared holes
+    /// collapse to one open window each. Frontier identity excludes the
+    /// arm-local `moved` binding, and `emit_store` never consults `moved`
+    /// when reseating, so the joined frontier keeps this side's rows
+    /// verbatim. A driver joining more than two edges folds this pairwise.
+    pub(crate) fn joined(&self, other: &Self) -> Result<Self, LoweringError> {
+        self.require_same_frontier(other)?;
+        Ok(self.clone())
     }
 }
 
@@ -725,6 +762,7 @@ mod tests {
                 content_partition_compositions: Vec::new(),
                 entry: id(1, BlockId::new),
                 blocks: vec![Block {
+                    erased_proof_formals: Vec::new(),
                     erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(1, BlockId::new),
@@ -736,6 +774,7 @@ mod tests {
                     },
                 }],
                 contract: MachineContract {
+                    erased_proof_formals: Vec::new(),
                     erased_scalar_formals: Vec::new(),
                     id: id(1, ContractId::new),
                     crash_routes: Vec::new(),
@@ -1217,6 +1256,132 @@ mod tests {
     }
 
     #[test]
+    fn sibling_paths_opening_the_same_hole_agree_at_the_join() {
+        let receiver = envelope_receiver();
+        let mut left_arm = Emission::new();
+        let left_moved = left_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the first path");
+        let mut right_arm = Emission::new();
+        right_arm.next_place = 3;
+        let right_moved = right_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the second path");
+        // Each arm bound its own result place for the removed value; the
+        // frontier is the shared hole, not the per-arm binding.
+        assert_ne!(left_moved, right_moved);
+        left_arm
+            .ledger
+            .require_same_frontier(&right_arm.ledger)
+            .expect("same hole opened on both paths agrees");
+        right_arm
+            .ledger
+            .require_same_frontier(&left_arm.ledger)
+            .expect("agreement is symmetric");
+
+        // A hole opened on one arm only still disagrees with a path that
+        // never opened it, and with a path that opened a different hole.
+        let mut untouched = Emission::new();
+        assert_unpinned(
+            left_arm
+                .ledger
+                .require_same_frontier(&untouched.ledger)
+                .unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+        untouched
+            .emit_move(&receiver, &checked_place(&fields(&["right"]), CELL))
+            .expect("open the sibling field instead");
+        assert_unpinned(
+            left_arm
+                .ledger
+                .require_same_frontier(&untouched.ledger)
+                .unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+    }
+
+    #[test]
+    fn a_joined_frontier_collapses_arm_local_bindings_to_one_open_window() {
+        let receiver = envelope_receiver();
+        let mut left_arm = Emission::new();
+        left_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the first path");
+        let mut right_arm = Emission::new();
+        right_arm.next_place = 3;
+        right_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the second path");
+
+        let mut joined = left_arm
+            .ledger
+            .joined(&right_arm.ledger)
+            .expect("same hole opened on both paths joins");
+        assert_eq!(joined.open_windows().len(), 1);
+
+        // The hole stays open on the joined path: extracting it again
+        // still rejects, and reseating names the exact place — neither
+        // arm-local `moved` binding is consulted.
+        let mut extraction = joined.clone();
+        // The overlap refusal fires before the place counter is read.
+        let mut next_place = 8;
+        assert_unpinned(
+            extraction
+                .emit_move(
+                    &checked_place(&fields(&["left"]), CELL),
+                    &cell_binding(),
+                    &receiver,
+                    &structural_types(),
+                    &type_ids(),
+                    &mut next_place,
+                    &mut OperationBuffer::new(0),
+                )
+                .unwrap_err(),
+            "self.left",
+            "already absent",
+        );
+        joined
+            .emit_store(
+                &checked_place(&fields(&["left"]), CELL),
+                BorrowedWindowRepairValue {
+                    place: joined.open_windows()[0].moved,
+                    structural_type: cell(),
+                },
+                &receiver,
+                &structural_types(),
+                &type_ids(),
+                &mut OperationBuffer::new(0),
+            )
+            .expect("the joined frontier's shared hole reseats");
+        joined
+            .require_closed()
+            .expect("closed once the shared hole is reseated");
+    }
+
+    #[test]
+    fn a_joined_frontier_rejects_when_paths_disagree() {
+        let receiver = envelope_receiver();
+        let mut opened = Emission::new();
+        opened
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open");
+        let closed = Emission::new();
+        assert_unpinned(
+            opened.ledger.joined(&closed.ledger).unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+        assert_unpinned(
+            closed.ledger.joined(&opened.ledger).unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+    }
+
+    #[test]
     fn a_move_without_its_store_is_rejected_by_terminal_verification_too() {
         let receiver = envelope_receiver();
         let mut emission = Emission::new();
@@ -1271,6 +1436,84 @@ mod tests {
         let plan = plans
             .for_machine(machine.symbol)
             .expect("the move-out/restore pair plans");
+        assert!(plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            )
+        }));
+        assert!(plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            )
+        }));
+        let lowered =
+            crate::lower_machine(&checked, "Main::main").expect("lowers through the ledger");
+        let emitted_kinds: Vec<&OperationKind> = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|terminal| &terminal.blocks)
+            .flat_map(|block| &block.operations)
+            .map(|operation| &operation.kind)
+            .collect();
+        assert!(
+            emitted_kinds
+                .iter()
+                .any(|kind| { matches!(kind, OperationKind::MoveStructuralField { .. }) })
+        );
+        assert!(
+            emitted_kinds
+                .iter()
+                .any(|kind| { matches!(kind, OperationKind::StoreStructuralField { .. }) })
+        );
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("the emitted module verifies");
+    }
+
+    /// A route spelled through a `&mut` alias local names the same storage
+    /// hole as the owner path: the checker keys the window on the resolved
+    /// place, so `let r = &mut self; let x = r.f; r.f = move x` plans and
+    /// emits the same Move/Store pair as the direct spelling.
+    #[test]
+    fn the_reborrow_alias_route_routes_move_out_and_restore_through_the_ledger() {
+        let source = r#"
+            data Inventory {
+                slots: i32;
+            }
+
+            data Main {
+                inventory: Inventory;
+            }
+
+            machine Main::main(&mut self) {
+                let view: &mut Main = &mut self;
+                let replacement: Inventory = view.inventory;
+                view.inventory = move replacement;
+            }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+            .expect("the borrowed window checks");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str().ends_with("main"))
+            .expect("Main::main");
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        let plan = plans
+            .for_machine(machine.symbol)
+            .expect("the reborrowed move-out/restore pair plans");
         assert!(plan.operations.iter().any(|operation| {
             matches!(
                 operation,

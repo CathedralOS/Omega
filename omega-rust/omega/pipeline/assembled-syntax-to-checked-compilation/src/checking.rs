@@ -122,6 +122,14 @@ pub struct CheckedCompileRequest<'a> {
     /// requests join before their own build effects execute. `None` admits
     /// without consulting retained acceptance and issues no grants.
     pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    /// Collect the internal stage ladder into the produced
+    /// `CheckedCompilation`'s timing record. Off by default: the ladder
+    /// measures nothing until a caller asks for it, and the rows stay on the
+    /// checked record until a report-facing leg prints them. When the
+    /// request reuses a caller-prepared source, collection follows how that
+    /// source was prepared; this flag steers only the request-owned fresh
+    /// preparation.
+    pub collect_timings: bool,
 }
 
 impl<'a> CheckedCompileRequest<'a> {
@@ -140,6 +148,7 @@ impl<'a> CheckedCompileRequest<'a> {
             prepared_source_output: None,
             independent_component_discovery_output: None,
             restricted_build_grants: None,
+            collect_timings: false,
         }
     }
 
@@ -166,6 +175,7 @@ impl<'a> CheckedCompileRequest<'a> {
                 build_snapshot: self.build_snapshot,
                 optimization_rollback: self.optimization_rollback,
                 restricted_build_grants: self.restricted_build_grants,
+                collect_timings: self.collect_timings,
                 prepared_source_output: None,
                 independent_component_discovery_output: None,
             },
@@ -272,6 +282,20 @@ impl PreparedCheckedSource {
     }
 
     pub fn prepare(
+        root_path: &Path,
+        package_sources: Option<
+            std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
+        >,
+        collect_timings: bool,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::prepare_with_timing_collection(root_path, package_sources, collect_timings)
+    }
+
+    /// Prepare the immutable source frontier, collecting the internal stage
+    /// ladder into the accumulator the produced checked compilations seal
+    /// when `collect_timings` is set. The rows stay on the checked record
+    /// until a report-facing leg prints them.
+    pub fn prepare_with_timing_collection(
         root_path: &Path,
         package_sources: Option<
             std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
@@ -458,13 +482,13 @@ fn compile_checked_worker(
         .map_err(|diagnostic| vec![diagnostic])?;
     let prepared = match prepared {
         Some(prepared) => prepared,
-        None => PreparedCheckedSource::prepare(
+        None => PreparedCheckedSource::prepare_with_timing_collection(
             &request.root_path,
             request
                 .package_inputs
                 .as_ref()
                 .map(PackageCompilationInputs::source_inputs),
-            false,
+            request.collect_timings,
         )?,
     };
     let retained_source = retain_source.then(|| prepared.clone());

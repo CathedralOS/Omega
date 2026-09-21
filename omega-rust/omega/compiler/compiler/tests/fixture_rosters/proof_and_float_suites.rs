@@ -350,4 +350,10 @@ pub const CROSS_TARGET_PRODUCTION_FAIL_CANARIES: &[(&str, &str)] = &[
         "ownership/linear_ambiguous_state_result_mapping",
         "linux_x86_64",
     ),
+    // The `in` port read resolves its `u8` result but no checked unit
+    // operation arm carries a port effect, so the machine is omitted at the
+    // `call: call operation` planning phase. The fixture binds only
+    // `linux_x86_64::ProgramEntry`; on a non-x86 host the selected target has
+    // no bound root and the refusal never reaches the pinned wall.
+    ("ports/asm_port_in_unsettled", "linux_x86_64"),
 ];

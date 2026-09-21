@@ -36,7 +36,7 @@
 //! terminator record changes: every member keeps its own id, kind,
 //! operands, provenance, and implicit surface while only the run's
 //! position in the program moves. Proposal and independent replay share
-//! only the admission. Validation consumes the proposed program,
+//! only the admission predicates. Validation consumes the proposed program,
 //! requires the run to sit at the landing index in its original order,
 //! and restores the complete source by content — every other block,
 //! instruction, register, roster row, call, and settlement is retained

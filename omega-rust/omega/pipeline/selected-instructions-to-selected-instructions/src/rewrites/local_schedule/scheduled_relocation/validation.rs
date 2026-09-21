@@ -5,19 +5,20 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionId, SelectedInstructionPlan, SelectedSuccessor,
 };
+use semantic_vocabulary::EdgeId;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    block_instructions, edge_surface, plain_edge, terminator_instruction, terminator_successors,
-    transport_conflict,
+    CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
+    terminator_instruction, terminator_successors,
 };
 use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
 };
 
 /// The validator's own reconstruction of the relocation the contract
@@ -143,58 +144,61 @@ fn reaches_avoiding(
     Ok(false)
 }
 
-struct Derived {
-    region: BTreeSet<usize>,
-    used_edges: BTreeSet<(usize, usize)>,
-    exploration: usize,
+/// The acyclic-path walk bound, kept symmetric with the producer's so
+/// neither side of the contract derives a window the other refuses to
+/// measure — the cap the general `relocation` admission uses.
+const PATH_EDGE_LIMIT: usize = 64;
+
+/// Every block a crossed path enters — the region the family's
+/// `Source`-origin bound applies to.
+fn region(crossing: &RelocationCrossing<'_>) -> BTreeSet<usize> {
+    crossing
+        .positions
+        .iter()
+        .map(|(block_index, _)| *block_index)
+        .collect()
 }
 
-/// The validator's own path enumeration: every simple path between the
-/// run's block and the destination's, deriving the region and used-edge
-/// sets the window audit applies to.
-fn derive_paths(
-    function: &SelectedFunction,
-    from: usize,
-    to: usize,
-    budget: OptimizationWorkBudget,
-) -> Result<Derived, ScheduledRelocationError> {
-    let mut derived = Derived {
-        region: BTreeSet::new(),
-        used_edges: BTreeSet::new(),
-        exploration: 0,
-    };
-    let mut pending: Vec<(usize, Vec<usize>, Vec<(usize, usize)>)> =
-        vec![(from, vec![from], vec![])];
-    while let Some((current, path, edges)) = pending.pop() {
-        derived.exploration += 1;
-        if u64::try_from(derived.exploration)
-            .map_err(|_| ScheduledRelocationError::IdentityOverflow)?
-            > budget.validation_steps()
-        {
-            return Err(ScheduledRelocationError::WorkBudgetExceeded);
-        }
-        if current == to {
-            derived.region.extend(path.iter().copied());
-            derived.used_edges.extend(edges.iter().copied());
+/// Every edge leaving a region block that no crossed path uses: the
+/// starts of the traversals a sink abandons. The destination block's own
+/// successors stay out of the set — the run executes there.
+fn skipped_edges<'a>(
+    function: &'a SelectedFunction,
+    crossing: &RelocationCrossing<'_>,
+) -> Vec<&'a SelectedSuccessor> {
+    let used: BTreeSet<(SelectedBlockId, EdgeId)> = crossing
+        .edges
+        .iter()
+        .map(|edge| (edge.block, edge.successor.psi_edge))
+        .collect();
+    let mut skipped = Vec::new();
+    for index in region(crossing) {
+        if index == crossing.destination_block {
             continue;
         }
-        for (edge_position, edge) in terminator_successors(&function.blocks[current].terminator)
-            .iter()
-            .enumerate()
-        {
-            let next = block_index_of(function, edge.block)
-                .ok_or(ScheduledRelocationError::SourceMismatch)?;
-            if path.contains(&next) {
-                continue;
+        for edge in terminator_successors(&function.blocks[index].terminator) {
+            if !used.contains(&(function.blocks[index].id, edge.psi_edge)) {
+                skipped.push(edge);
             }
-            let mut next_path = path.clone();
-            next_path.push(next);
-            let mut next_edges = edges.clone();
-            next_edges.push((current, edge_position));
-            pending.push((next, next_path, next_edges));
         }
     }
-    Ok(derived)
+    skipped
+}
+
+/// Map the shared audit's typed rejection onto the family's error
+/// surface: an unschedulable crossed instruction is the family's
+/// unsupported-instruction answer; every other rejection refuses the
+/// pair.
+fn rejection(rejection: RunRelocationRejection) -> ScheduledRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => ScheduledRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => ScheduledRelocationError::UnsupportedPair,
+    }
 }
 
 /// Reconstruct the legality of moving the run `members` onto
@@ -311,25 +315,31 @@ fn reconstruct<'source>(
             }
         }
     }
-    let (window_from, window_to) = match direction {
-        Direction::Sink => (block_index, target_index),
-        Direction::Hoist => (target_index, block_index),
-    };
-    let derived = derive_paths(function, window_from, window_to, budget)?;
-    if derived.region.is_empty() {
-        return Err(ScheduledRelocationError::UnsupportedPair);
-    }
-    for index in &derived.region {
+    // The validator derives the crossed window itself through the shared
+    // enumeration, in the direction execution traverses it — the
+    // destination trails a sink, leads a hoist — under the same edge
+    // traversal bound the producer measures against. No path at all
+    // means the run would only be deleted, not relocated, which the
+    // shared audit refuses as an unreachable destination.
+    let crossing = crossed_window(
+        function,
+        block_index,
+        member_first,
+        member_last,
+        target_index,
+        landing_index,
+        match direction {
+            Direction::Sink => CrossingDirection::Forward,
+            Direction::Hoist => CrossingDirection::Backward,
+        },
+        PATH_EDGE_LIMIT,
+    )
+    .ok_or(ScheduledRelocationError::WorkBudgetExceeded)?;
+    for index in region(&crossing) {
         if !matches!(
-            function.blocks[*index].origin,
+            function.blocks[index].origin,
             SelectedBlockOrigin::Source(_)
         ) {
-            return Err(ScheduledRelocationError::UnsupportedPair);
-        }
-    }
-    for &(block, edge_position) in &derived.used_edges {
-        let edge = terminator_successors(&function.blocks[block].terminator)[edge_position];
-        if !plain_edge(edge) || run.iter().any(|member| transport_conflict(member, edge)) {
             return Err(ScheduledRelocationError::UnsupportedPair);
         }
     }
@@ -338,73 +348,16 @@ fn reconstruct<'source>(
             return Err(ScheduledRelocationError::UnsupportedInstruction);
         }
     }
-    let intermediates: Vec<usize> = derived
-        .region
-        .iter()
-        .copied()
-        .filter(|index| *index != block_index && *index != target_index)
-        .collect();
-    let mut crossed_body: Vec<&SelectedInstruction> = Vec::new();
-    let crossed_terminators: Vec<usize> = match direction {
-        Direction::Sink => {
-            crossed_body.extend(block.instructions[member_last + 1..].iter());
-            for &index in &intermediates {
-                crossed_body.extend(function.blocks[index].instructions.iter());
-            }
-            crossed_body.extend(function.blocks[target_index].instructions[..landing_index].iter());
-            std::iter::once(block_index)
-                .chain(intermediates.iter().copied())
-                .collect()
-        }
-        Direction::Hoist => {
-            crossed_body.extend(block.instructions[..member_first].iter());
-            for &index in &intermediates {
-                crossed_body.extend(function.blocks[index].instructions.iter());
-            }
-            crossed_body.extend(function.blocks[target_index].instructions[landing_index..].iter());
-            std::iter::once(target_index)
-                .chain(intermediates.iter().copied())
-                .collect()
-        }
-    };
-    for crossed in &crossed_body {
-        schedulable(function, crossed).ok_or(ScheduledRelocationError::UnsupportedInstruction)?;
-        if run.iter().any(|member| coupled(member, crossed)) {
-            return Err(ScheduledRelocationError::UnsupportedPair);
-        }
-    }
-    for index in crossed_terminators {
-        let terminator = terminator_instruction(&function.blocks[index].terminator);
-        if has_call_contract(function, terminator.id) {
-            return Err(ScheduledRelocationError::UnsupportedInstruction);
-        }
-        if run.iter().any(|member| coupled(member, terminator)) {
-            return Err(ScheduledRelocationError::UnsupportedPair);
-        }
-    }
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > member_first)
-            || (settlement.block == function.blocks[target_index].id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(ScheduledRelocationError::UnsupportedPair);
-    }
+    // The shared audit independently re-applies the window independence
+    // proof: every member schedulable, no member coupled with a crossed
+    // position or a crossed edge's terminator instruction, every crossed
+    // edge a plain semantic successor the run's transports do not
+    // interfere with, and no boundary settlement observing a changed
+    // executed prefix.
+    admit_run_relocation(function, &run, &crossing).map_err(rejection)?;
     if matches!(direction, Direction::Sink) {
-        let mut skipped_edges = Vec::new();
-        for &index in &derived.region {
-            if index == target_index {
-                continue;
-            }
-            for (edge_position, edge) in terminator_successors(&function.blocks[index].terminator)
-                .iter()
-                .enumerate()
-            {
-                if !derived.used_edges.contains(&(index, edge_position)) {
-                    skipped_edges.push(*edge);
-                }
-            }
-        }
-        if !skipped_edges.is_empty()
+        let skipped = skipped_edges(function, &crossing);
+        if !skipped.is_empty()
             && !dead_path::dead(
                 function,
                 dead_path::Relocation {
@@ -417,7 +370,7 @@ fn reconstruct<'source>(
                     landing: dead_path::Landing::Executed,
                     vacated: dead_path::Vacated::Silent,
                 },
-                dead_path::Start::Edges(&skipped_edges),
+                dead_path::Start::Edges(&skipped),
             )
         {
             return Err(ScheduledRelocationError::UnsupportedPair);
@@ -429,7 +382,6 @@ fn reconstruct<'source>(
             register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
         })
         .sum::<usize>();
-    let member_surface = run.iter().map(|member| surface(member)).sum::<usize>();
     let block_scan: usize = function
         .blocks
         .iter()
@@ -454,21 +406,31 @@ fn reconstruct<'source>(
                 total.checked_add(block_instructions(block).count())
             })
         })
-        .and_then(|total| total.checked_add(derived.exploration))
+        .and_then(|total| total.checked_add(PATH_EDGE_LIMIT))
         .and_then(|total| total.checked_add(search_steps))
         .and_then(|total| {
-            derived
-                .used_edges
-                .len()
-                .checked_mul(member_surface)
-                .and_then(|work| total.checked_add(work))
+            run.iter().try_fold(total, |total, member| {
+                crossing.edges.iter().try_fold(total, |total, edge| {
+                    total
+                        .checked_add(surface(member))?
+                        .checked_add(surface(edge.instruction))?
+                        .checked_add(edge_surface(edge.successor))
+                })
+            })
         })
         .and_then(|total| {
-            crossed_body
-                .len()
-                .checked_add(intermediates.len().saturating_add(1))
-                .and_then(|positions| positions.checked_mul(member_surface.saturating_add(1)))
-                .and_then(|work| total.checked_add(work))
+            run.iter().try_fold(total, |total, member| {
+                crossing
+                    .positions
+                    .iter()
+                    .try_fold(total, |total, (crossed_block, positions)| {
+                        positions.iter().try_fold(total, |total, position| {
+                            total.checked_add(surface(member))?.checked_add(surface(
+                                &function.blocks[*crossed_block].instructions[*position],
+                            ))
+                        })
+                    })
+            })
         })
         .and_then(|total| {
             total

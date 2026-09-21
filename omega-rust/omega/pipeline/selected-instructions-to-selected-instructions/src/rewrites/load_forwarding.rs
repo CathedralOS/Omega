@@ -31,12 +31,17 @@
 //! reached without interference, the walk crosses into every predecessor
 //! block, and the block resolves once each predecessor path's last writer
 //! stored the same register — one store dominating the join, or each leg's
-//! own store of that register. A deferred block writes nothing in its
+//! own store of that register. Legs that stored different registers still
+//! resolve when the block's own parameter already merges them: a block
+//! parameter every incoming edge binds from exactly that leg's register,
+//! so the parameter itself is the carried value. A deferred block writes
+//! nothing in its
 //! walked span, so a self-loop or writerless cycle still resolves when
 //! every leg arriving into it carries that register, provided the load's
 //! own block on the cycle shows a clear tail behind the load. The function
 //! entry, a block no edge reaches, and a deferred region whose arriving
-//! legs disagree or never settle each leave the walk without a pair.
+//! legs disagree without an edge merge or never settle each leave the walk
+//! without a pair.
 //! Crossed edges are admitted only when their transports move neither the
 //! carried registers nor storage the forwarded place can reach.
 //!

@@ -156,9 +156,9 @@ use crate::proof::integer_math_normalization::{
     lift_fixed_integer_relation, propositions_match_under_integer_math_normalization,
 };
 use crate::proof::{
-    AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, ProofError, ProofNode,
-    ProofRule, equality_rules, integer_bound_rules, integer_order_rules, order_discreteness,
-    strict_order_transitivity, subtract_order,
+    AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, PremiseRoster, ProofError,
+    ProofNode, ProofRule, equality_rules, integer_bound_rules, integer_order_rules,
+    order_discreteness, strict_order_transitivity, subtract_order,
 };
 
 /// A bound on the proof nodes one denotation walks — a resource refusal,
@@ -169,6 +169,7 @@ const MAX_ELABORATION_NODES: u64 = 1 << 16;
 mod addition;
 mod binary_numerals;
 mod booleans;
+mod casts;
 mod equality_transport;
 mod integer_operations;
 mod subtraction;
@@ -252,18 +253,6 @@ impl std::error::Error for BoundedDenotationError {}
 /// matching relation.
 fn propositions_match(retained: &Proposition, requested: &Proposition) -> bool {
     propositions_match_under_integer_math_normalization(retained, requested)
-}
-
-fn record_premise(premises: &mut Vec<AcceptedPremise>, index: usize, proposition: &Proposition) {
-    if !premises
-        .iter()
-        .any(|premise| premise.index == index && premise.proposition == *proposition)
-    {
-        premises.push(AcceptedPremise {
-            index,
-            proposition: proposition.clone(),
-        });
-    }
 }
 
 /// The `IntegerValue` a canonical math literal denotes when its magnitude
@@ -737,6 +726,11 @@ struct Denotation {
     /// `op l r` applications visible; one constant per applied term
     /// would hide them.
     integer_operations: BTreeMap<integer_operations::IntegerOperation, u32>,
+    /// Exact cast/widen operation → the position of its identity law
+    /// `Π(x : Int). Id Int (op x) x` — the denoted content of the
+    /// checked chain's "every edge preserves the mathematical integer"
+    /// invariant, interned once per operation like the other fixed laws.
+    cast_identities: BTreeMap<integer_operations::IntegerOperation, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
     /// `(operand, lower)` → assumption position of the operand's
@@ -788,6 +782,7 @@ impl Denotation {
             math_terms: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
             integer_operations: BTreeMap::new(),
+            cast_identities: BTreeMap::new(),
             decisions: HashMap::new(),
             carrier_bounds: BTreeMap::new(),
             rule_axioms: BTreeMap::new(),
@@ -1080,7 +1075,7 @@ impl Denotation {
     /// exact addition and subtraction additionally carry their fixed
     /// arithmetic laws — while field projections and unclassified
     /// constructors stay per-term opaque.
-    fn fixed_scalar_term(
+    pub(super) fn fixed_scalar_term(
         &mut self,
         term: &ScalarTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
@@ -1818,8 +1813,8 @@ struct Elaboration<'a> {
     depth: u32,
     steps: u64,
     rules: BTreeSet<AcceptedProofRule>,
-    assumptions: Vec<AcceptedPremise>,
-    semantic_axioms: Vec<AcceptedPremise>,
+    assumptions: PremiseRoster,
+    semantic_axioms: PremiseRoster,
 }
 
 impl<'a> Elaboration<'a> {
@@ -1855,8 +1850,8 @@ impl<'a> Elaboration<'a> {
             depth,
             steps: 0,
             rules: BTreeSet::new(),
-            assumptions: Vec::new(),
-            semantic_axioms: Vec::new(),
+            assumptions: PremiseRoster::default(),
+            semantic_axioms: PremiseRoster::default(),
         })
     }
 
@@ -1944,7 +1939,7 @@ impl<'a> Elaboration<'a> {
                 }
                 self.same_denotation(&axiom, &proof.conclusion)?;
                 self.rules.insert(AcceptedProofRule::SemanticAxiom);
-                record_premise(&mut self.semantic_axioms, *index, &axiom);
+                self.semantic_axioms.record(*index, &axiom);
                 let position = self.ambient + *index;
                 let position = u32::try_from(position)
                     .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
@@ -2532,7 +2527,7 @@ impl<'a> Elaboration<'a> {
                 witness,
             } => {
                 let root = self.node(root_bound)?;
-                integer_bound_rules::cast_bound_relation(
+                let chain = integer_bound_rules::cast_bound_relation(
                     self.context,
                     self.axioms,
                     &root_bound.conclusion,
@@ -2548,6 +2543,17 @@ impl<'a> Elaboration<'a> {
                     let (proposition, variable) = self.cited_axiom(index)?;
                     premises.push(proposition);
                     evidence.push(variable);
+                }
+                if let Some(derived) = self.denotation.cast_bound_evidence(
+                    &root_bound.conclusion,
+                    evidence[0],
+                    &chain,
+                    &evidence[1..],
+                    self.axioms,
+                    &proof.conclusion,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerCastBound);
+                    return Ok(derived);
                 }
                 self.rule_instance(
                     AcceptedProofRule::IntegerCastBound,
@@ -2615,7 +2621,7 @@ impl<'a> Elaboration<'a> {
         self.same_denotation(&assumption, conclusion)?;
         self.rules.insert(AcceptedProofRule::Assumption);
         if index < self.ambient {
-            record_premise(&mut self.assumptions, index, &assumption);
+            self.assumptions.record(index, &assumption);
         }
         let position = self.positions[index];
         Ok(self.variable(position))
@@ -2674,7 +2680,7 @@ impl<'a> Elaboration<'a> {
                 ProofError::UnknownAssumption(index),
             ));
         }
-        record_premise(&mut self.assumptions, index, &proposition);
+        self.assumptions.record(index, &proposition);
         let position = self.positions[index];
         let variable = self.variable(position);
         Ok((proposition, variable))
@@ -2692,7 +2698,7 @@ impl<'a> Elaboration<'a> {
                 ProofError::UnknownSemanticAxiom(index),
             ));
         };
-        record_premise(&mut self.semantic_axioms, index, &proposition);
+        self.semantic_axioms.record(index, &proposition);
         let position = u32::try_from(self.ambient + index)
             .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
         let variable = self.variable(position);
@@ -2836,8 +2842,8 @@ impl<'a> Elaboration<'a> {
                 expected,
             },
             rules: rules.into_iter().collect(),
-            assumptions,
-            semantic_axioms,
+            assumptions: assumptions.premises,
+            semantic_axioms: semantic_axioms.premises,
         }
     }
 }

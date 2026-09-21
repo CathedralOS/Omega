@@ -189,7 +189,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   all six records still carry completed `Rollback evidence` with `Approved
   status`, `Owner approval`, and `Measurement evidence` PENDING — the
   remaining legs are owner/product decisions plus the BENCHMARKS-gated
-  measurement leg, not implementable slices.
+  measurement leg, not implementable slices. Re-witnessed at `90df29812c0`
+  (linux x86-64): `exact_rule_rollout_is_complete_and_promotion_gated` still
+  green; the six records still carry completed `Rollback evidence` and the
+  same three PENDING legs.
   Acceptance: the command passes from a clean checkout and every promoted
   exact rule has the evidence the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
@@ -240,13 +243,29 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `forwarded_dynamic_descriptor_calls` require exactly one Text
     relocation plus an exact callee join for `ResolvedInternalCall`.
     Witness `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`.
+    Re-verified at `138ed79a677` for mined stub
+    **DYNAMIC-CALL-OCCURRENCE-SPANS** (resolved — this landed slice is the
+    whole item: `CallDynamic*` occurrences enumerated in
+    `physical/projection.rs`, span join in `derive_dynamic_call_span`, witness
+    test PASS on linux x86-64). Residual stays here: descriptor-materializing
+    relocation custody (fenced PHYSICAL-ACCESS-PROFILES) and the e2e replay leg
+    (dynamic-call programs red before the physical stage upstream).
+    z98 side (`9e386769132`, rebased — code superseded by upstream
+    `da97c882017`'s generalized all-family custody): the forwarded
+    `forwarded_dynamic_descriptor_calls` span the complete emitted record
+    with multi-window relocation custody — the resolved call relocation plus
+    every descriptor argument's table-address windows (one
+    `X86_64Relative32`, or the AArch64 `Aarch64Page21`/`Aarch64PageOffset12`
+    pair), each attributed to the call's operation and joined to the
+    conformance table whose application the argument names; any other
+    relocation overlapping the record rejects as unattributed, and
+    `derive_span` carries a relocation-window set rather than the single
+    window it modeled. Witnesses
+    `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`
+    and `operator_applications::tests::descriptor_table_relocations_*`.
     Remaining intrinsic kinds still produce no occurrences, so their
     span arms have no demand side — the occurrence replay for them is
-    TV-OPERATOR-APPLICATIONS-REPLAY's scope. Descriptor-materializing
-    records additionally need relocation custody beyond the single
-    window `derive_span` models (AArch64 table addressing emits two
-    windows) plus a conformance-table symbol join; that surface in
-    `physical/` is fenced by PHYSICAL-ACCESS-PROFILES this wave.
+    TV-OPERATOR-APPLICATIONS-REPLAY's scope.
     Measured (w9, `577d6ac2ba`): no end-to-end `physical_child_replay`
     leg for the dynamic family is reachable yet — dynamic-call programs
     are red before the physical stage on this host
@@ -255,6 +274,53 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     rebound and stored shapes hit the `ProgramEntry establishment
     rejoins 0 Terminal attachment identities` family), so the family's
     e2e replay leg waits on those upstream gaps. Regressions:
+||||||| parent of d7744b8fbcab (board: TRANSLATION-VALIDATION — re-census physical/ fence, pin descriptor-custody leg shape)
+    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
+    descriptor or parameter ordinals rather than a static callee, and
+    the remaining intrinsic kinds have no span arm. Verified
+    (w9, `fcef01c59a`): those operations do not produce coverage
+    occurrences at all yet — the checked boundary-operator replay
+    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
+    admits only IEEE FMA, structural returns, and float/integer
+    comparisons — so the first work is a new occurrence replay family
+    with demand/realization companions; only then do span arms join the
+    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
+    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
+    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
+    Descriptor-materializing records additionally need relocation custody
+    beyond the single window `derive_span` models (AArch64 table
+    addressing emits two windows) plus a conformance-table symbol join;
+    parameter-routed calls are register-indirect. `physical/` is fenced
+    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Regressions:
+    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
+    descriptor or parameter ordinals rather than a static callee, and
+    the remaining intrinsic kinds have no span arm. Verified
+    (w9, `fcef01c59a`): those operations do not produce coverage
+    occurrences at all yet — the checked boundary-operator replay
+    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
+    admits only IEEE FMA, structural returns, and float/integer
+    comparisons — so the first work is a new occurrence replay family
+    with demand/realization companions; only then do span arms join the
+    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
+    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
+    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
+    Descriptor-materializing records additionally need relocation custody
+    beyond the single window `derive_span` models (AArch64 table
+    addressing emits two windows) plus a conformance-table symbol join;
+    parameter-routed calls are register-indirect. `physical/` is fenced
+    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Re-censused at
+    `ed566863a7c6` (04:12Z): the `physical/` fence drained — no live claim
+    touches `native-artifact/src/physical/` or names DYNAMIC-CALL-
+    OCCURRENCE-SPANS / PHYSICAL-ACCESS-PROFILES, so the descriptor-custody
+    leg is implementable now. Its shape mirrors the existing two-window
+    precedent `NormalizedForeignCallbackRelocations::Aarch64PageAddress`
+    (page + page_offset) in `physical/model.rs`: a new
+    `PhysicalRelocationDisposition` variant for forwarded descriptor
+    calls carrying the callee relocation plus the descriptor-table
+    materialization window(s) and the conformance-table symbol join, with
+    matching evidence hashing in `derivation/evidence.rs` (`relocation_kind_tag`
+    tags are a closed 1-4 range today). Regressions:
+
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection;
@@ -857,50 +923,55 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   three rewrites and the commutation audit. `place_storage.rs` is the start
   of that owner.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
-  invariant-window specialization. One bounded family exists in
-  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`:
-  a `StructuralCaseMembership` reading a place whose case the unit itself
+  invariant-window specialization. The bounded representation families in
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`
+  and
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/field_value_specialization/`
+  are now wired into the pass pipeline under one exact-name selection:
+  `Optimization::RepresentationSpecialization` selects
+  `omega.psi-pass.representation-specialization.v1`, which schedules
+  `omega.psi-rule.case-membership-specialization.v1` then
+  `omega.psi-rule.field-value-specialization.v1` through
+  `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and
+  replaying each commit independently under the evidence-matrix legs.
+  A `StructuralCaseMembership` reading a place whose case the unit itself
   proves — established in the same machine by `EstablishScalarCase`, or
   declared under a closed `Sum`/`Mixed` roster of exactly one case — folds
-  to a `BooleanConstant` carrying the proven verdict, with separate
-  proposal, validation and application. The roster basis covers places no
-  producer can fix (parameters, block parameters, results, and
-  non-`EstablishScalarCase` operation results), and a membership's non-empty
-  path folds when the position it resolves to — a `Record`/`Mixed` common
-  field, `FixedArray` element, or `Reference` referent — closes over exactly
-  one case. `lib.rs` exports it, but it has no `PSI_PASS_CATALOG` entry,
-  selection name, or caller outside its tests. It declines memberships whose
-  observed position carries no proof — unestablished multi-case roots and
-  paths ending on multi-case or non-structural positions — and machines
-  holding cyclic components. Field relevance on `EstablishRecord` results
-  still lacks operand-substitution machinery, and no invariant-window
-  operation reaches this stage yet.
-  Acceptance: a source-produced machine selects the rule by exact name
-  through `optimize_abstract_operations`, publishes, and replays
-  independently, with forged or stale membership provenance behaving as
+  to a `BooleanConstant` carrying the proven verdict, with
+  `omega.validator.case-membership-specialization.v1` re-deriving the
+  proof. The roster basis covers places no producer can fix (parameters,
+  block parameters, results, and non-`EstablishScalarCase` operation
+  results), and a membership's non-empty path folds when the position it
+  resolves to — a `Record`/`Mixed` common field, `FixedArray` element, or
+  `Reference` referent — closes over exactly one case. It declines
+  memberships whose observed position carries no proof — unestablished
+  multi-case roots and paths ending on multi-case or non-structural
+  positions.
+  A `BooleanStructuralField`/`IntegerStructuralField` read whose stored
+  scalar the unit proves folds to the matching `BooleanConstant`/
+  `IntegerConstant`, with `omega.validator.field-value-specialization.v1`
+  re-deriving the proof on three bounded bases: the place's
+  `EstablishRecord` producer supplying a constant-resolving scalar
+  initializer at an empty path, the place's `EstablishScalarCase` producer
+  supplying one at a lone `Case` path matching `result_case`, or the
+  resolved field's declared `BoundedInteger` bound closing over exactly
+  one value. Constant resolution follows same-function block-parameter
+  bindings transitively and rejects divergent or cyclic chains; reads on
+  unproven places, non-singleton bounds, unsupported paths, and non-scalar
+  fields stay observations. Machines holding cyclic components stay frozen
+  byte-exact under both rules. Field relevance beyond these proven-scalar
+  observation folds still lacks operand-substitution machinery, and no
+  invariant-window operation reaches this stage yet; both remain open
+  under this item.
+  The bounded families' acceptance chains are witnessed: source-produced
+  machines select the rules by exact name through
+  `optimize_abstract_operations`, publish, and replay independently, with
+  forged or stale membership and field provenance, disabled selection, and
+  the cyclic freeze behaving as
   [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
   requires.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without
   losing affine/linear custody.
-- **STATE-SPECIALIZATION.** Add state-argument/result specialization with exact
-  edge provenance. One bounded family in
-  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization/`
-  is now wired into the pass pipeline: `Optimization::StateSpecialization`
-  selects `omega.psi-pass.state-specialization.v1` (rule
-  `omega.psi-rule.state-argument-specialization.v1`) by exact name through
-  `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
-  independently under the evidence-matrix legs. The fused incoming edge is an
-  unconditional `Jump` successor or one arm of a `Conditional` predecessor —
-  a fused conditional arm leaves its sibling byte-exact, and both arms of one
-  predecessor may specialize in a single candidate. It still declines every
-  machine holding a cyclic component and does not cover non-Boolean state
-  arguments or result specialization.
-  Acceptance: a source-produced state machine selects the rule by exact name
-  through `optimize_abstract_operations`, publishes, and replays
-  independently. Forged or stale edge provenance, a dispatch whose every
-  incoming edge is constant, and a disabled selection behave as
-  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
-  requires.
 - **INTERPROCEDURAL-SUMMARIES.** Add proof-bound inlining and the service/call
   summaries it needs. Transitive per-function effect summaries (observable,
   structural-state, crash, suspension, services, boundaries) and the direct
@@ -971,13 +1042,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `records/cli_mvp__linux_x86_64__default.json` measured at
   87d8b22713 on a Linux x86-64 host (dev-profile `omega`, 3 compile +
   5 run samples, exit 0). Remaining: rows for further subjects and
-  nonempty selections through the same `measure` command — at
-  e48558bd41 every `depend()`-ing subject fails native realization with
-  `Terminal proposal must retain every integer comparison occurrence
-  exactly once` (the uncovered comparison is std-internal; verified on
-  `cli_mvp` at default and `CopyPropagation`-disabled selections, ~23.5
-  min to rejection), so new linux_x86_64 rows wait on the
-  comparison-occurrence producer covering std plumbing — and the
+  nonempty selections through the same `measure` command. The
+  e48558bd41 rejection — every `depend()`-ing subject failing native
+  realization with `Terminal proposal must retain every integer
+  comparison occurrence exactly once` — is lifted: at ff782bdf21 the
+  `measure` compile leg over `cli_mvp`/linux_x86_64 with
+  `--accept-admissions` publishes native output (the comparison-occurrence
+  producer now covers std plumbing), so linux_x86_64 rows are unblocked.
+  The remaining work is row authorship (`PRIME-COUNTER-BENCHMARK-ROW`
+  owns `tools/benchmark` and `wiki/drafts/benchmarks.md`) plus the
   windows_x86_64, macos_arm64, linux_arm64, and uefi_x86_64 legs on
   matching hosts — unavailable on this host and recorded as such in
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md).

@@ -230,7 +230,8 @@ fn asm_control_registers_enforce_authority_and_value_contracts() {
 // result type", before any terminal op exists. When a dedicated asm operation
 // reaches emitted bytes, promote these fixtures to byte assertions (x86:
 // `0f 01 e8` serialize / `f3 90` pause / `90` nop; aarch64: `df 3f 03 d5` isb /
-// `5f 20 03 d5` yield / `1f 20 03 d5` nop) and an aarch64 refusal test. Target applicability is
+// `3f 20 03 d5` yield / `1f 20 03 d5` nop / `5f 20 03 d5` wfe / `7f 20 03 d5`
+// wfi / `9f 20 03 d5` sev / `bf 20 03 d5` sevl) and an aarch64 refusal test. Target applicability is
 // catalog metadata only -- the "x86_64-only" refusal those assertions expect
 // is itself unbuilt.
 #[test]

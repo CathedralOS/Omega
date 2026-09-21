@@ -90,9 +90,10 @@ fn source_ordered_calls_reach_executable_publication() {
             let target_stage =
                 lower_realization_target_stage(optimization, None, &[], &request).unwrap();
             let physical = lower_realization_physical_stage(target_stage, &request).unwrap();
-            let (object, _) = emit_optimized_fragments(
+            let (object, _, _) = emit_optimized_fragments(
                 physical,
                 OptimizedFragmentPublicationRequest {
+                    terminal: None,
                     hosted_receiver: None,
                     boundary_application_coverage: None,
                     private_functions: &[],
@@ -182,9 +183,10 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let target_stage =
                 lower_realization_target_stage(optimization, None, &[], &request).unwrap();
             let physical = lower_realization_physical_stage(target_stage, &request).unwrap();
-            let (object, _) = emit_optimized_fragments(
+            let (object, _, _) = emit_optimized_fragments(
                 physical,
                 OptimizedFragmentPublicationRequest {
+                    terminal: None,
                     hosted_receiver: None,
                     boundary_application_coverage: None,
                     private_functions: &[],
@@ -318,6 +320,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
         if base == 100 {
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(base).unwrap(),
                 result: OperationResult::Scalar(declaration(base + 1)),
                 kind: OperationKind::IntegerConstant {
@@ -328,10 +331,12 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
         if base != 300 {
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(base + 1).unwrap(),
                 result: OperationResult::Scalar(declaration(base + 3)),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: MachineId::new(base + 100).unwrap(),
                     arguments: vec![ValueId::new(base + 1).unwrap()],
                     requirement_obligations: Vec::new(),
@@ -341,6 +346,7 @@ fn scalar_call_artifact() -> terminal_codec::CanonicalTerminalArtifact {
         }
         machine.blocks = vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: machine.entry,
             parameters: Vec::new(),

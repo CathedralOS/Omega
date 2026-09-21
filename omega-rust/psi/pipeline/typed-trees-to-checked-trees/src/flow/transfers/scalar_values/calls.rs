@@ -76,12 +76,8 @@ pub(super) fn capture_call<Value: CapturedValue>(
             _ => None,
         }),
     )?;
-    let machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|state| state.symbol == call.target_symbol)
-    })?;
+    let (machine, _) =
+        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     if !machine.body_is_present
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.owned_data.is_empty()

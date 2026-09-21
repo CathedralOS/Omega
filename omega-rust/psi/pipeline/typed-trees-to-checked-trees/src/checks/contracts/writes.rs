@@ -30,11 +30,7 @@ pub(super) fn check_domain_field_writes(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return;
     };
     let Some(state) = crate::semantic_calls::find_state_in_machine(
@@ -655,10 +651,8 @@ fn scan_construction_field_domains(
                     // of the assignment length-fits check (1b). A too-long literal would
                     // otherwise overflow the field's inline storage. Only fires for a
                     // domain-carrying `[u8; N]` field (view carriers have no capacity).
-                    if let Some(machine) = program
-                        .machines()
-                        .iter()
-                        .find(|machine| machine.symbol == state_flow.machine_symbol)
+                    if let Some(machine) =
+                        crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
                         && let Some(state) = crate::semantic_calls::find_state_in_machine(
                             program,
                             state_flow.machine_symbol,
@@ -1800,6 +1794,33 @@ fn value_proves_domain_in_contexts(
         return true;
     }
 
+    // An admitted recast view `&x as &T` re-reads the SOURCE place's bytes
+    // through the let's stated type, so an `in D` annotation on that type is an
+    // obligation on the viewed place `x`, not on the reference-typed
+    // initializer (which owns no scalar place of its own). Validation's recast
+    // judgment already proved the source's declared representation facts imply
+    // the cast's stated shape before admitting the view; the residual question
+    // here is the source's own establishment in `domain_symbol`: live
+    // membership evidence at its place, or a declared leaf domain implying
+    // `domain_symbol` that is an invariant of the place — caller- or
+    // binder-established for parameters and initialized locals, and gated on
+    // the zero-initialized value satisfying it for machine storage and
+    // zero-initialized locals (the same soundness gate the field-domain fact
+    // seeding applies, so the annotation still cannot mint qualification).
+    if let Some(source) = recast_view_source_expression(program, value)
+        && (recast_source_proves_domain(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            source,
+            contexts,
+            domain_symbol,
+        ) || recast_source_declared_domain_implies(program, state_flow, source, domain_symbol))
+    {
+        return true;
+    }
+
     let value_label = program.expression_table.display_name(value);
     let value_place = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -1871,11 +1892,7 @@ fn declared_value_domain_implies(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = crate::semantic_calls::find_state_in_machine(
@@ -1929,4 +1946,304 @@ fn value_call_return_domain_implies(
                 domain_symbol,
             )
         })
+}
+
+/// The viewed place expression behind an admitted recast view: `&x as &T` is a
+/// `Cast` whose `form` is a borrow re-view spelling (`RecastShared` or
+/// `RecastMutable`), and the `&mut x as &mut T` pun wraps that cast in the
+/// unary `&mut`. Borrow shells peel in both directions so either spelling
+/// reduces to the source place `x`. Validation only admits a recast in the
+/// blessed `let` initializer position, so a non-recast value -- a conversion
+/// `x as T`, a place read, or any other shape -- yields `None` and keeps the
+/// ordinary discharge paths.
+fn recast_view_source_expression(
+    program: &typed_trees::TypedTrees,
+    value: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let mut current = value;
+    loop {
+        match program.expression_table.expression(current) {
+            ExpressionNode::Borrow(inner) => current = inner.target,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                let mut source = cast.value;
+                while let ExpressionNode::Borrow(inner) =
+                    program.expression_table.expression(source)
+                {
+                    source = inner.target;
+                }
+                return Some(source);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// Whether the recast source place carries LIVE membership evidence in
+/// `domain_symbol` -- an assigned value whose scalar satisfies the predicate,
+/// or a carried `DomainMembership`/`ContractDomainMembership` fact at the
+/// place (a minted local, a contract-proven parameter, a checked prior write).
+fn recast_source_proves_domain(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    statement_index: usize,
+    source: ExpressionHandle,
+    contexts: &[facts::FactContextHandle],
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_flow.state_symbol,
+        statement_index,
+        source,
+    ) else {
+        return false;
+    };
+    super::prover::prove_domain_at_place(
+        program,
+        &facts.semantic,
+        contexts,
+        &subject,
+        domain_symbol,
+    )
+}
+
+/// Whether the recast source's DECLARED leaf type carries a predicate domain
+/// that implies `domain_symbol`. The declared domain is an invariant of the
+/// place this pass enforces on every write, so the residual obligation is the
+/// domain's own establishment at the place's initial value: a state parameter
+/// is caller-established and an initialized local was proven at its `let`,
+/// while machine storage and zero-initialized locals additionally require the
+/// zero value to satisfy the domain -- the same soundness gate the
+/// field-domain fact seeding applies (`semantic/field_domains.rs`). A domain
+/// the zero value violates stays a write-time obligation rather than an
+/// invariant, so its reads must still follow a proven write.
+fn recast_source_declared_domain_implies(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    source: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
+        return false;
+    };
+    // `self`-rooted storage is always zero-initialized, so the declared leaf
+    // domain is a valid invariant only when the zero value provably satisfies
+    // it.
+    if let Some(leaf_type) =
+        crate::facts::field_domain::attached_data_field_type(program, machine, source)
+    {
+        return crate::facts::field_domain::predicate_domain_constraint_symbols(program, leaf_type)
+            .into_iter()
+            .any(|source_domain| {
+                domain_admits_zero_value(program, source_domain)
+                    && crate::facts::field_domain::domain_membership_implies(
+                        program,
+                        source_domain,
+                        domain_symbol,
+                    )
+            });
+    }
+    let Some(leaf_type) =
+        crate::facts::field_domain::direct_state_place_type_reference(program, state, source)
+    else {
+        return false;
+    };
+    let established = state_place_is_established(program, state, source);
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, leaf_type)
+        .into_iter()
+        .any(|source_domain| {
+            (established || domain_admits_zero_value(program, source_domain))
+                && crate::facts::field_domain::domain_membership_implies(
+                    program,
+                    source_domain,
+                    domain_symbol,
+                )
+        })
+}
+
+/// Whether a non-`self` state place's declared domain was established before
+/// the current statement: a parameter's declared domain is caller-established
+/// (and `&`/`&mut`/`&write` re-establishment is enforced on writes), and an
+/// initialized local's annotation was discharged at its own `let`. A
+/// zero-initialized local declared `in D` has no such evidence -- the same
+/// storage case as a machine field -- and any other root conservatively
+/// reports unestablished.
+fn state_place_is_established(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    source: ExpressionHandle,
+) -> bool {
+    let Some(symbol) = state_place_root_symbol(program, source) else {
+        return false;
+    };
+    if program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == symbol)
+    {
+        return true;
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => {
+                local.initial_value.is_valid()
+            }
+            _ => false,
+        })
+}
+
+/// The root symbol of a state place expression, peeling borrow shells and
+/// member projections. `self` is never a state-place root (the caller resolves
+/// it through `attached_data_field_type` first), so a `self`-headed name is
+/// not special-cased here.
+fn state_place_root_symbol(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => state_place_root_symbol(program, inner.target),
+        ExpressionNode::Member(member) => state_place_root_symbol(program, member.receiver),
+        ExpressionNode::Indexed(indexed) => state_place_root_symbol(program, indexed.collection),
+        ExpressionNode::Name(path) => path
+            .head_symbol
+            .is_valid()
+            .then_some(path.head_symbol)
+            .or_else(|| path.symbol.is_valid().then_some(path.symbol)),
+        _ => None,
+    }
+}
+
+/// Whether `domain_symbol`'s `self`-facts provably hold on the ZERO value of
+/// its declared carrier -- the scalar-carrier half of the ZII soundness gate
+/// `domain_admits_empty_byte_sequence` covers for recognized byte predicates.
+/// An integer leaf's ZII is `0` and a `bool` leaf's is `false`; `self`-relative
+/// membership facts recurse because a member's ZII is again the all-zero value
+/// of its own declared type. A leaf the evaluator cannot decide -- a float,
+/// byte string, record, runtime projection, or a non-`self` membership subject
+/// -- conservatively refuses, so an unproven domain stays a write-time
+/// obligation rather than an invariant.
+fn domain_admits_zero_value(
+    program: &typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    domain_admits_zero_value_inner(program, domain_symbol, &mut Vec::new())
+}
+
+fn domain_admits_zero_value_inner(
+    program: &typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+    active: &mut Vec<SymbolHandle>,
+) -> bool {
+    if crate::facts::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol) {
+        return true;
+    }
+    if active.contains(&domain_symbol) {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    // Generic or indexed domain instances can bind their zero question to the
+    // instance arguments; only closed symbol-only theories are answered here.
+    if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
+        return false;
+    }
+    let facts = program.proof_facts.span_or_empty(domain.facts);
+    if facts.is_empty() {
+        return false;
+    }
+    active.push(domain_symbol);
+    let admitted = facts.iter().all(|fact| match fact {
+        typed_trees::domain::ProofFact::Expression(expression) => matches!(
+            super::prover::evaluate_scalar(program, *expression, &mut |leaf| {
+                zero_value_scalar_leaf(program, domain, leaf)
+            }),
+            Some(super::prover::ScalarValue::Boolean(true))
+        ),
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            expression_is_self_relative(program, membership.value)
+                && domain_admits_zero_value_inner(program, membership.domain_symbol, active)
+        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
+    });
+    active.pop();
+    admitted
+}
+
+/// The ZII scalar of a `self`-relative leaf in a domain fact: the leaf's
+/// declared type resolved through its retained position, or through the
+/// domain target's member path when the position is opaque, then the zero of
+/// that primitive -- `0` for an integer leaf, `false` for a `bool` leaf.
+/// Floats, byte carriers, records, and runtime projections have no decidable
+/// scalar here, so the leaf stays unresolved and the enclosing evaluation
+/// fails closed.
+fn zero_value_scalar_leaf(
+    program: &typed_trees::TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+    leaf: ExpressionHandle,
+) -> Option<super::prover::ScalarValue> {
+    let leaf_type =
+        crate::flow::expression_place_type_reference(program, leaf, &[]).or_else(|| {
+            let self_type = crate::lookup::machine_symbol_from_type_reference_handle(
+                program,
+                domain.target_type,
+            );
+            let segments = crate::flow::relative_place_segments_from_expression(
+                program,
+                leaf,
+                self_type.is_valid().then_some(self_type),
+            )?;
+            crate::flow::project_type_reference_from_segments(
+                program,
+                domain.target_type,
+                &segments,
+            )
+        })?;
+    match program.type_reference_table.primitive_type(leaf_type) {
+        Some(typed_trees::types::PrimitiveType::Bool) => {
+            Some(super::prover::ScalarValue::Boolean(false))
+        }
+        Some(primitive) if primitive.accepts_integer_literal() => Some(
+            super::prover::ScalarValue::Integer(numerics::bignum::BigInt::from_i64(0)),
+        ),
+        _ => None,
+    }
+}
+
+/// Whether an expression is a `self`-rooted member path in a domain fact --
+/// `self`, `self.f`, or a deeper projection -- where `self` binds the domain's
+/// target value. A membership fact over any other subject (a constant, an
+/// unrelated place) is not evidence about the domain's own zero value.
+fn expression_is_self_relative(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => expression_is_self_relative(program, inner.target),
+        ExpressionNode::Member(member) => expression_is_self_relative(program, member.receiver),
+        ExpressionNode::Indexed(indexed) => {
+            expression_is_self_relative(program, indexed.collection)
+        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|member| member.as_str() == "self"),
+        _ => false,
+    }
 }

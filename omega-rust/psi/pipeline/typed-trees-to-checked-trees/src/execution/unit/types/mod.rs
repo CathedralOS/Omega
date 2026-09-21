@@ -899,22 +899,57 @@ pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
 }
 
 /// The authored `[erased]` scalar formals in authored order, each retaining
-/// its authored parameter position. Erased formals with non-primitive types
-/// refuse the plan: a proof-only structural formal has no erased scalar
-/// representation this slice defines.
+/// its authored parameter position. Proof-only erased formals belong to the
+/// proof lane (`erased_proof_parameter_plans`), so this plan skips them.
+/// Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
+    let proof_only = typed_trees::proof_only::classify(program);
     program
         .state_parameters(state)
         .iter()
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .filter(|(_, parameter)| {
+            proof_only
+                .proof_only_mention(program, parameter.type_reference)
+                .is_none()
+        })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+            })
+        })
+        .collect()
+}
+
+/// The authored `[erased]` proof-only formals in authored order, each
+/// retaining its authored parameter position and canonical semantic type
+/// identity (`Nat`). These carriers admit no scalar lane; the contract term
+/// lane carries them by identity instead.
+pub(crate) fn erased_proof_parameter_plans(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
+    let proof_only = typed_trees::proof_only::classify(program);
+    program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .filter(|(_, parameter)| {
+            proof_only
+                .proof_only_mention(program, parameter.type_reference)
+                .is_some()
+        })
+        .map(|(position, parameter)| {
+            Some(checked_trees::CheckedErasedProofParameterPlan {
+                source_position: u32::try_from(position).ok()?,
+                parameter_symbol: parameter.symbol,
+                type_identity: base_type_identity(program, parameter.type_reference, &[])?,
             })
         })
         .collect()
@@ -1190,10 +1225,7 @@ pub(super) fn attached_self_application(
     if name.as_str() != "Self" || !symbol.is_valid() {
         return None;
     }
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == *symbol)
+    crate::lookup::machine_by_symbol(program, *symbol)
         .map(|machine| machine.attached_data_application)
         .filter(|application| application.is_valid() && *application != type_reference)
 }
@@ -1319,10 +1351,18 @@ impl<'program> ShapeCollector<'program> {
     ) -> Option<()> {
         let carrier_type_identity = self.add_type(carrier, binders, &[])?;
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
+        let establishment_routes = self
+            .program
+            .domain_definitions()
+            .iter()
+            .find(|definition| definition.semantic_id == domain)
+            .map(|definition| definition.establishment_routes.clone())
+            .unwrap_or_default();
         let plan = CheckedUnitStructuralDomainPlan {
             domain,
             identity,
             carrier_type_identity,
+            establishment_routes,
         };
         if let Some(existing) = self
             .domains
@@ -1919,7 +1959,7 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Structural {
                 type_identity: self.add_reference_type(field.type_reference, binders)?,
             }
-        } else if let Some(fused_service_erasure) =
+        } else if let Some((fused_service_erasure, provider_node)) =
             provider_backed_field(self.program, field.type_reference)
         {
             let provider_type_identity = self
@@ -1927,7 +1967,7 @@ impl<'program> ShapeCollector<'program> {
                 .type_identity(TypeIdentityRequest {
                     binders,
                     substitutions,
-                    ..TypeIdentityRequest::ordinary(field.type_reference)
+                    ..TypeIdentityRequest::ordinary(provider_node)
                 })
                 .into_string();
             match fused_service_erasure {
@@ -2107,29 +2147,53 @@ impl<'program> ShapeCollector<'program> {
     }
 }
 
+/// A provider-backed field's erasure receipt (when the carrier is an exact
+/// `Service<R>` requirement) plus the type node whose identity names the
+/// provider — the carrier itself for a fused service, the unwrapped
+/// boundary-trait referent for a `&'a mut <boundary trait>` field.
 fn provider_backed_field(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<Option<checked_trees::CheckedFusedServiceErasureReceipt>> {
+) -> Option<(
+    Option<checked_trees::CheckedFusedServiceErasureReceipt>,
+    TypeReferenceHandle,
+)> {
     if let Some(requirement) =
         typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
         let authorization = program.fused_service_erasure(requirement)?;
-        return Some(Some(checked_trees::CheckedFusedServiceErasureReceipt {
-            requirement,
-            provider_plan_digest: authorization.provider_plan_digest,
-        }));
+        return Some((
+            Some(checked_trees::CheckedFusedServiceErasureReceipt {
+                requirement,
+                provider_plan_digest: authorization.provider_plan_digest,
+            }),
+            type_reference,
+        ));
     }
-    let provider_symbol = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. }
-        | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
-        _ => return None,
+    // Attached data stores a provider as `&'a mut <boundary trait>`: look
+    // through the reference (and any qualifications wrapped around it) to the
+    // trait symbol before deciding the field is not a provider handle.
+    let mut unwrapped = type_reference;
+    let provider_symbol = loop {
+        match program.type_reference_table.type_reference(unwrapped) {
+            TypeReferenceNode::Constrained {
+                base_type: inner, ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Reference {
+                referee: inner,
+                access: language_core::ReferenceAccess::Mutable,
+                ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => break *symbol,
+            _ => return None,
+        }
     };
     program
         .traits()
         .iter()
         .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
-        .then_some(None)
+        .then_some((None, unwrapped))
 }
 
 pub(super) fn scalar_type(

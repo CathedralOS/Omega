@@ -1,32 +1,41 @@
 //! Shared admission for diamond relocation: locate the named `member` in
 //! one block's body, require that block to end in a two-successor
 //! conditional branch whose distinct targets — the arms — are each reached
-//! by that branch's edges alone and each end in an unconditional `Jump` to
-//! one common join reached by arm edges alone, then derive the window the
-//! move crosses and prove it independent through the shared relocation
-//! admission: no register or condition-state hazard between the member and
-//! any crossed position, no interference with any crossed edge's register
-//! transports, no roster-carrying member sharing the window with a second
-//! memory-access actor, no barrier, call, hosted effect, or call-roster
-//! entry inside the window, and no boundary settlement whose observed
-//! executed prefix changes.
+//! by that branch's edges alone and each end in an unconditional `Jump`
+//! to one common join reached by arm edges alone, and hand the crossed
+//! window to the shared run audit — `crossed_window` derives the
+//! positions and edges every acyclic path between the branch head and the
+//! join crosses (the two branch edges and each arm's `Jump` edge under
+//! the gates below) and `admit_run_relocation` proves the window
+//! independent once — no register or condition-state hazard between the
+//! member and any crossed position, no interference with any crossed
+//! edge's register transports, no roster-carrying member sharing the
+//! window with a second memory-access actor, no barrier, call, hosted
+//! effect, or call-roster entry inside the window, and no boundary
+//! settlement whose observed executed prefix changes.
+//!
+//! Where the hoisting families prove a member's new position supplies
+//! every traversal into it, this direction proves the sink instead: every
+//! edge the head names reaches an arm the branch alone feeds, and every
+//! edge into the join leaves an arm, so each traversal of the member's
+//! block executes exactly one arm and reaches the join exactly once —
+//! the member keeps its execution count of one and needs no dead-path
+//! audit.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedSuccessor,
-    SelectedTerminator,
+    SelectedBlockOrigin, SelectedInstructionId, SelectedSuccessor, SelectedTerminator,
 };
 
 use super::DiamondRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, plain_edge,
-    terminator_instruction,
+    CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, terminator_instruction,
+    terminator_successors,
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the diamond's branching head.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -40,14 +49,14 @@ pub(super) struct Admission<'source> {
     pub landing_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, DiamondRelocationError> {
+) -> Result<Admission, DiamondRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(DiamondRelocationError::SourceMismatch);
@@ -210,13 +219,19 @@ pub(super) fn admit<'source>(
                 .then_some(target.instructions.len())
         })
         .ok_or(DiamondRelocationError::UnsupportedPair)?;
-    // The window the member's move crosses derives through the shared
-    // relocation rule once: the member's own tail behind it, every arm's
-    // whole body, the join's head before the landing index, and the two
-    // branch edges plus each arm's `Jump` edge — the same set this family
-    // enumerated by hand. The shared audit applies the schedulable,
-    // coupling, memory-ordering, transport, and settlement refusals
-    // unchanged; the topology gates above already bound every traversal.
+    // The crossed window is the shared derivation rather than this
+    // family's own enumeration: the member is the one-member run, and the
+    // gates above leave only head-to-arm-to-join acyclic paths. The walk
+    // pushes each branch edge once and each arm's `Jump` edge once per
+    // branch edge feeding it — two pushes per branch edge even when both
+    // name the same arm — so twice the branch's own out-edge count bounds
+    // it. The shared audit applies the hazard, memory-roster, transport,
+    // and settlement checks once: a boundary settlement positioned past
+    // the member's index in the head or past the landing index in the
+    // join observed a changed executed prefix and refuses, and so does a
+    // settlement inside a crossed arm — the member runs after that arm's
+    // point after the move where it ran before it before.
+    let edge_limit = branch_edges.len() * 2;
     let crossing = crossed_window(
         function,
         block_index,
@@ -225,47 +240,16 @@ pub(super) fn admit<'source>(
         target_index,
         landing_index,
         CrossingDirection::Forward,
-        PATH_EDGE_LIMIT,
+        edge_limit,
     )
     .ok_or(DiamondRelocationError::WorkBudgetExceeded)?;
-    admit_run_relocation(function, &[member_instruction], &crossing).map_err(|rejection| {
-        match rejection {
-            RunRelocationRejection::Unschedulable => DiamondRelocationError::UnsupportedInstruction,
-            RunRelocationRejection::UnreachableDestination
-            | RunRelocationRejection::Coupled
-            | RunRelocationRejection::MemoryOrdering
-            | RunRelocationRejection::TransportConflict
-            | RunRelocationRejection::NonPlainEdge
-            | RunRelocationRejection::Settlement => DiamondRelocationError::UnsupportedPair,
-        }
-    })?;
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(rejection)?;
     // The scan walks every block body and terminator instruction once to
-    // locate the member, and again with successor edges to count
-    // predecessor edges; the window audit walks the member's surface
-    // against each crossed position's, plus the function's three rosters
-    // and every crossed edge's binding roster.
-    let mut terminator_ids = std::collections::BTreeSet::new();
-    let crossed_surfaces = crossing
-        .positions
-        .iter()
-        .flat_map(|(block_index, positions)| {
-            positions
-                .iter()
-                .map(|position| &function.blocks[*block_index].instructions[*position])
-        })
-        .chain(
-            crossing
-                .edges
-                .iter()
-                .map(|edge| edge.instruction)
-                .filter(|instruction| terminator_ids.insert(instruction.id)),
-        )
-        .try_fold(0usize, |total, crossed| {
-            total
-                .checked_add(surface(member_instruction))?
-                .checked_add(surface(crossed))
-        })
-        .ok_or(DiamondRelocationError::IdentityOverflow)?;
+    // locate the member, and again with successor edges to count the
+    // arms' and the join's predecessor edges; the path walk touches each
+    // edge once; the window audit walks the member's surface against each
+    // crossed position's and each crossed edge's own surface, plus the
+    // function's three rosters.
     let steps = plan
         .functions
         .iter()
@@ -285,17 +269,41 @@ pub(super) fn admit<'source>(
                     .try_fold(total, |total, _| total.checked_add(1))
             })
         })
-        .and_then(|total| total.checked_add(crossed_surfaces))
+        .and_then(|total| {
+            function.blocks.iter().try_fold(total, |total, candidate| {
+                terminator_successors(&candidate.terminator)
+                    .iter()
+                    .try_fold(total, |total, _| total.checked_add(1))
+            })
+        })
+        .and_then(|total| total.checked_add(edge_limit))
+        .and_then(|total| {
+            crossing
+                .positions
+                .iter()
+                .try_fold(total, |total, (crossed_block, positions)| {
+                    positions.iter().try_fold(total, |total, position| {
+                        total
+                            .checked_add(surface(member_instruction))?
+                            .checked_add(surface(
+                                &function.blocks[*crossed_block].instructions[*position],
+                            ))
+                    })
+                })
+        })
+        .and_then(|total| {
+            crossing.edges.iter().try_fold(total, |total, edge| {
+                total
+                    .checked_add(surface(member_instruction))?
+                    .checked_add(surface(edge.instruction))?
+                    .checked_add(edge_surface(edge.successor))
+            })
+        })
         .and_then(|total| {
             total
                 .checked_add(function.memory_accesses.len())?
                 .checked_add(function.calls.len())?
                 .checked_add(function.boundary_settlements.len())
-        })
-        .and_then(|total| {
-            crossing.edges.iter().try_fold(total, |total, edge| {
-                total.checked_add(edge.successor.bindings.len())
-            })
         })
         .ok_or(DiamondRelocationError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| DiamondRelocationError::IdentityOverflow)?
@@ -304,10 +312,25 @@ pub(super) fn admit<'source>(
         return Err(DiamondRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,
         landing_index,
     })
+}
+
+/// Keeps the family's typed rejection vocabulary over the shared audit's
+/// rejection kinds: an unschedulable member or crossed position is the
+/// instruction-level refusal and every window-level refusal is the pair
+/// kind.
+fn rejection(rejection: RunRelocationRejection) -> DiamondRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => DiamondRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => DiamondRelocationError::UnsupportedPair,
+    }
 }

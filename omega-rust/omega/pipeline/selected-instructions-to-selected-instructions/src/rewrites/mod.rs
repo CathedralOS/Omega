@@ -51,7 +51,7 @@ mod runtime_rematerialization;
 mod runtime_spill;
 mod selected_lowering;
 mod store_motion;
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod triangle_relocation;
 mod window_hazards;

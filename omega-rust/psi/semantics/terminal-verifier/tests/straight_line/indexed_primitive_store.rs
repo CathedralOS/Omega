@@ -74,6 +74,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -86,6 +87,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -100,6 +102,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(3),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyIndexedPrimitiveStore {

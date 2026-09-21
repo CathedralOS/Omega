@@ -13,6 +13,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Epsilon runtime invariants"
+
 INVARIANT_TMP=$(mktemp -d)
 trap 'rm -rf -- "$INVARIANT_TMP"' EXIT HUP INT TERM
 # Bound materializers refuse before writing when the canonical manifest,

@@ -33,11 +33,13 @@ use crate::ValueUse;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::validate_psi_optimization_unit;
 use crate::validator_scalar_constant_facts;
+use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use std::cmp::Ordering;
 
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block
 /// projection so no session or proposal authority is consulted.
-fn cyclic_machines(unit: &PsiOptimizationUnit) -> BTreeSet<MachineId> {
+pub(crate) fn cyclic_machines(unit: &PsiOptimizationUnit) -> BTreeSet<MachineId> {
     unit.functions
         .iter()
         .filter_map(|function| {
@@ -100,27 +102,186 @@ fn has_cycle(graph: &BTreeMap<BlockId, Vec<BlockId>>) -> bool {
     false
 }
 
+/// The comparison an in-block dispatch condition computes against its bound
+/// operand. Mirrors the producer's ordering vocabulary exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntegerComparisonOrdering {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+/// How a dispatch `Conditional` resolves one bound argument's proven constant
+/// into the arm that edge takes — the same two admitted shapes the producer
+/// recognizes, reconstructed here independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DispatchCondition {
+    /// The condition is the block's own scalar parameter directly: a proven
+    /// `ScalarConstantValue::Boolean` is the taken arm.
+    DirectParameter,
+    /// The condition is produced in-block by `parameter CMP bound`, `bound`
+    /// carried by an in-block `IntegerConstant`: a proven
+    /// `ScalarConstantValue::Integer` evaluates under the operand type's own
+    /// ordering via `IntegerType::compare`.
+    IntegerComparison {
+        ordering: IntegerComparisonOrdering,
+        bound: IntegerValue,
+        parameter_on_left: bool,
+        integer_type: IntegerType,
+    },
+}
+
+impl DispatchCondition {
+    /// The Boolean the dispatch condition takes when the bound argument is
+    /// `constant`, or `None` when the constant is not the kind this condition
+    /// resolves.
+    fn resolve(&self, constant: &ScalarConstantValue) -> Option<bool> {
+        match (self, constant) {
+            (Self::DirectParameter, ScalarConstantValue::Boolean(value)) => Some(*value),
+            (
+                Self::IntegerComparison {
+                    ordering,
+                    bound,
+                    parameter_on_left,
+                    integer_type,
+                },
+                ScalarConstantValue::Integer(argument),
+            ) => {
+                let (left, right) = if *parameter_on_left {
+                    (*argument, *bound)
+                } else {
+                    (*bound, *argument)
+                };
+                let order = integer_type.compare(left, right)?;
+                Some(match ordering {
+                    IntegerComparisonOrdering::Equal => order == Ordering::Equal,
+                    IntegerComparisonOrdering::LessThan => order == Ordering::Less,
+                    IntegerComparisonOrdering::LessOrEqual => order != Ordering::Greater,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The integer-comparison dispatch shape, or `None` when `prefix` is not a
+/// pure scalar computation of `condition` as `parameter CMP literal`: every
+/// prefix node must be a scalar constant, except exactly one integer
+/// comparison producing `condition` whose operands pair one of the block's
+/// own scalar parameters with an in-block `IntegerConstant`.
+fn integer_comparison_condition(
+    block: &optimization_unit::OptimizationBlock,
+    prefix: &[OptimizationNode],
+    condition: ValueId,
+) -> Option<(ValueId, DispatchCondition)> {
+    let mut resolved = None;
+    for node in prefix {
+        let (ordering, result, left, right) = match &node.operation {
+            O::IntegerConstant { .. } | O::BooleanConstant { .. } => continue,
+            O::IntegerEqual {
+                result,
+                left,
+                right,
+                ..
+            } => (IntegerComparisonOrdering::Equal, *result, *left, *right),
+            O::IntegerLessThan {
+                result,
+                left,
+                right,
+                ..
+            } => (IntegerComparisonOrdering::LessThan, *result, *left, *right),
+            O::IntegerLessOrEqual {
+                result,
+                left,
+                right,
+                ..
+            } => (
+                IntegerComparisonOrdering::LessOrEqual,
+                *result,
+                *left,
+                *right,
+            ),
+            _ => return None,
+        };
+        if result != condition || resolved.is_some() {
+            return None;
+        }
+        resolved = Some(comparison_operands(block, prefix, ordering, left, right)?);
+    }
+    resolved
+}
+
+/// Split one comparison's operands into the dispatch parameter (one of the
+/// block's own scalar parameters, on exactly one side) and the bound literal
+/// (an in-block `IntegerConstant`, on the other).
+fn comparison_operands(
+    block: &optimization_unit::OptimizationBlock,
+    prefix: &[OptimizationNode],
+    ordering: IntegerComparisonOrdering,
+    left: ValueId,
+    right: ValueId,
+) -> Option<(ValueId, DispatchCondition)> {
+    let left_is_parameter = block.parameters.iter().any(|p| p.value == left);
+    let right_is_parameter = block.parameters.iter().any(|p| p.value == right);
+    let (parameter, bound, parameter_on_left) = match (left_is_parameter, right_is_parameter) {
+        (true, false) => (left, right, true),
+        (false, true) => (right, left, false),
+        _ => return None,
+    };
+    let (bound_value, integer_type) = prefix.iter().find_map(|node| {
+        let O::IntegerConstant {
+            result,
+            scalar_type,
+            value,
+            ..
+        } = &node.operation
+        else {
+            return None;
+        };
+        if *result != bound {
+            return None;
+        }
+        let ScalarType::Integer(integer_type) = scalar_type else {
+            return None;
+        };
+        Some((*value, *integer_type))
+    })?;
+    Some((
+        parameter,
+        DispatchCondition::IntegerComparison {
+            ordering,
+            bound: bound_value,
+            parameter_on_left,
+            integer_type,
+        },
+    ))
+}
+
 /// Independently derived specialization rows for one dispatch block, or `None`
 /// when the block is not an eligible dispatch state. Mirrors the proposal's
-/// exact admission: non-entry, structurally clean, single-`Conditional` block
-/// whose condition is one of its own scalar parameters, no globally proven
-/// Boolean for that parameter, and only constant-supplied incoming edges with
-/// empty affine and structural custody — an unconditional `Jump` successor or
-/// one arm of a `Conditional` predecessor. When every incoming edge qualifies
+/// exact admission: non-entry, structurally clean block whose terminator is a
+/// `Conditional` reading one of its own scalar parameters — directly, or
+/// through an in-block integer comparison against a literal — no globally
+/// proven constant for that parameter, and only constant-supplied incoming
+/// edges with empty affine and structural custody — an unconditional `Jump`
+/// successor or one arm of a `Conditional` predecessor. The bound argument's
+/// constant is proven by the replayed lattice, or by the result
+/// specialization: the argument is the scalar result of an in-function direct
+/// `Call` whose callee carries exactly one `Return` with a constant the
+/// callee's own replayed lattice proves. When every incoming edge qualifies
 /// the dispatch would be orphaned, so the plan reports no rows.
 fn plan_dispatch(
+    input: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     dispatch: BlockId,
-    constants: &BTreeMap<ValueId, bool>,
+    constants: &BTreeMap<ValueId, ScalarConstantValue>,
 ) -> Option<Vec<SpecializedStateEdgeRow>> {
     let machine = function.machine;
     let block = function.blocks.iter().find(|block| block.id == dispatch)?;
     if block.id == function.entry || !block.structural_parameters.is_empty() {
         return None;
     }
-    let [node] = block.nodes.as_slice() else {
-        return None;
-    };
+    let (node, prefix) = block.nodes.split_last()?;
     let O::Conditional {
         condition,
         when_true,
@@ -129,11 +290,16 @@ fn plan_dispatch(
     else {
         return None;
     };
-    let parameter = block
-        .parameters
-        .iter()
-        .find(|parameter| parameter.value == *condition)?;
-    if constants.contains_key(&parameter.value) {
+    let (parameter, condition_kind) = if prefix.is_empty() {
+        let parameter = block
+            .parameters
+            .iter()
+            .find(|parameter| parameter.value == *condition)?;
+        (parameter.value, DispatchCondition::DirectParameter)
+    } else {
+        integer_comparison_condition(block, prefix, *condition)?
+    };
+    if constants.contains_key(&parameter) {
         return None;
     }
     let arm_edge = |edge: EdgeId| {
@@ -217,11 +383,21 @@ fn plan_dispatch(
         let Some(binding) = edge
             .bindings
             .iter()
-            .find(|binding| binding.parameter == parameter.value)
+            .find(|binding| binding.parameter == parameter)
         else {
             continue;
         };
-        let Some(&constant) = constants.get(&binding.argument) else {
+        // The replayed lattice proves the argument's own value, or the
+        // argument resolves to the proven-constant scalar result of an
+        // in-function direct call — recomputed here from the callee's own
+        // function. An evaluated state-call argument is delivered through
+        // forwarding-block parameters, so the delivered value is resolved
+        // before the call proof.
+        let constant = constants.get(&binding.argument).copied().or_else(|| {
+            let delivered = delivered_argument(function, *owner_block, binding.argument);
+            call_result_constant(input, function, delivered)
+        });
+        let Some(constant) = constant.and_then(|constant| condition_kind.resolve(&constant)) else {
             continue;
         };
         let (resolved, rejected) = if constant {
@@ -248,7 +424,7 @@ fn plan_dispatch(
         edges.push(SpecializedStateEdgeRow {
             incoming_edge: edge.psi_edge,
             predecessor,
-            parameter: parameter.value,
+            parameter,
             argument: binding.argument,
             constant,
             taken_edge: resolved.psi_edge,
@@ -261,6 +437,102 @@ fn plan_dispatch(
         edges.clear();
     }
     Some(edges)
+}
+
+/// The value actually delivered to the dispatch parameter by `argument`,
+/// replayed identically to the producer's resolution: the lowering delivers
+/// an evaluated state-call argument through single-predecessor forwarding
+/// blocks, so while `argument` is a parameter of `owner_block` and that
+/// block has exactly one incoming edge, the unique binding supplies the
+/// delivered value. A multi-predecessor join or a non-parameter produced
+/// value stops the merge-free walk; the block count bounds it because the
+/// replayed machine is acyclic at admission.
+fn delivered_argument(
+    function: &PsiOptimizationFunction,
+    owner_block: BlockId,
+    argument: ValueId,
+) -> ValueId {
+    let mut owner_block = owner_block;
+    let mut argument = argument;
+    for _ in 0..function.blocks.len() {
+        let Some(block) = function.blocks.iter().find(|block| block.id == owner_block) else {
+            break;
+        };
+        if !block
+            .parameters
+            .iter()
+            .any(|parameter| parameter.value == argument)
+        {
+            break;
+        }
+        let mut incoming = function.blocks.iter().flat_map(|candidate| {
+            candidate.nodes.iter().flat_map(move |node| {
+                node.successors
+                    .iter()
+                    .filter(move |successor| successor.target == owner_block)
+                    .map(move |successor| (candidate.id, successor))
+            })
+        });
+        let (Some((predecessor_block, predecessor_edge)), None) =
+            (incoming.next(), incoming.next())
+        else {
+            break;
+        };
+        let Some(binding) = predecessor_edge
+            .bindings
+            .iter()
+            .find(|binding| binding.parameter == argument)
+        else {
+            break;
+        };
+        argument = binding.argument;
+        owner_block = predecessor_block;
+    }
+    argument
+}
+
+/// The result-specialization proof replayed for one delivered argument: the
+/// argument is the scalar `result` of an in-function direct `Call` whose
+/// callee's function contains exactly one `Return` node, and the returned
+/// value is constant under the callee's own independently recomputed
+/// lattice — never trusted from the candidate. The call still executes at
+/// the predecessor, so no callee purity is required and a cyclic callee is
+/// harmless; dynamic, structural, and boundary calls produce results through
+/// different operations and never match, nor does a callee with several
+/// `Return` nodes or a non-constant return.
+fn call_result_constant(
+    input: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    argument: ValueId,
+) -> Option<ScalarConstantValue> {
+    let callee = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::Call { result, callee, .. } if *result == argument => Some(*callee),
+            _ => None,
+        })?;
+    let callee_function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)?;
+    let mut returned = callee_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::Return { value, .. } => Some(*value),
+            _ => None,
+        });
+    let value = returned.next()?;
+    if returned.next().is_some() {
+        return None;
+    }
+    validator_scalar_constant_facts(input.identity, callee_function)
+        .into_iter()
+        .find(|(fact_value, _, _)| *fact_value == value)
+        .map(|(_, constant, _)| constant)
 }
 
 /// The fused node a specialization admits at one predecessor site: every
@@ -303,9 +575,13 @@ fn fused_node(
         .iter()
         .find(|block| block.id == dispatch)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let [dispatch_node] = dispatch_block.nodes.as_slice() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    // The dispatch terminator may trail a pure scalar-computation prefix —
+    // an integer state argument's `parameter CMP literal` — so the arm edges
+    // live on the block's final node rather than its only node.
+    let dispatch_node = dispatch_block
+        .nodes
+        .last()
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     match &predecessor.operation {
         O::Jump {
             psi_edge,
@@ -630,12 +906,9 @@ pub(super) fn validate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let constants = validator_scalar_constant_facts(input.identity, function)
         .into_iter()
-        .filter_map(|(value, constant, _)| match constant {
-            ScalarConstantValue::Boolean(constant) => Some((value, constant)),
-            ScalarConstantValue::Integer(_) => None,
-        })
-        .collect::<BTreeMap<ValueId, bool>>();
-    let replayed = plan_dispatch(function, patch.dispatch, &constants)
+        .map(|(value, constant, _)| (value, constant))
+        .collect::<BTreeMap<ValueId, ScalarConstantValue>>();
+    let replayed = plan_dispatch(input, function, patch.dispatch, &constants)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if replayed.is_empty() {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);

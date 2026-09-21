@@ -2,7 +2,7 @@
 // constructing the nested gated value establishes the outer record.
 use omega_language_std::console;
 use omega::language::core::service;
-data Player { health: i32 [1..=100]; }
+data Player where health >= 1, health <= 100 { health: i32; }
 data Team { captain: Player; score: i32; }
 data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {

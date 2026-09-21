@@ -85,6 +85,7 @@ beside code; completed work belongs in Git, not current reference material.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
+  [embedding and interpreted components](spec/build/embedding.md),
   [task activation and lifecycle](spec/build/task_runtime.md),
   [service permissions](spec/build/permissions.md),
   [opaque representations](spec/build/opaque_representations.md),

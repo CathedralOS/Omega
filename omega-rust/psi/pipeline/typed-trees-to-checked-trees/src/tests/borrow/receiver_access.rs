@@ -577,44 +577,53 @@ fn omission_stage(
 }
 
 #[test]
-fn explicit_shared_indexed_argument_still_omits_caller_in_call_operation() {
-    for (label, source) in [
-        (
-            "literal index",
-            "data Cell { value: u64; }
-             data Rack { cells: [Cell; 2]; }
-             machine take(view: &Cell) -> u64 { view.value }
-             machine Rack::run(&mut self) -> u64 { take(&self.cells[0]) }",
+fn explicit_shared_literal_indexed_argument_names_its_caller_in_the_call_operation() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         data Rack { cells: [Cell; 2]; }
+         machine take(view: &Cell) -> u64 { view.value }
+         machine Rack::run(&mut self) -> u64 { take(&self.cells[0]) }",
+    )
+    .unwrap_or_else(|diagnostics| panic!("source still checks: {diagnostics:#?}"));
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans.for_machine(machine_named(&checked, "take")).is_some(),
+        "the callee keeps its own Unit plan"
+    );
+    assert!(
+        plans.for_machine(machine_named(&checked, "run")).is_some(),
+        "a literal index segment is an exact element, so the caller is planned: {:?}",
+        plans.omission_for_machine(machine_named(&checked, "run"))
+    );
+}
+
+#[test]
+fn explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         data Rack { cells: [Cell; 2]; }
+         machine take(view: &Cell) -> u64 { view.value }
+         machine Rack::run(&mut self, i: u64 [0..=1]) -> u64 { take(&self.cells[i]) }",
+    )
+    .unwrap_or_else(|diagnostics| panic!("source still checks: {diagnostics:#?}"));
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "take"))
+            .is_some(),
+        "the callee keeps its own Unit plan"
+    );
+    let stage = omission_stage(&checked, "run");
+    assert!(
+        matches!(
+            stage,
+            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
+                if phase.contains("call operation")
         ),
-        (
-            "dynamic index",
-            "data Cell { value: u64; }
-             data Rack { cells: [Cell; 2]; }
-             machine take(view: &Cell) -> u64 { view.value }
-             machine Rack::run(&mut self, i: u64 [0..=1]) -> u64 { take(&self.cells[i]) }",
-        ),
-    ] {
-        let checked = check_source(source)
-            .unwrap_or_else(|diagnostics| panic!("{label}: source still checks: {diagnostics:#?}"));
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine_named(&checked, "take"))
-                .is_some(),
-            "{label}: the callee keeps its own Unit plan"
-        );
-        let stage = omission_stage(&checked, "run");
-        assert!(
-            matches!(
-                stage,
-                checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
-                    if phase.contains("call operation")
-            ),
-            "{label}: an indexed explicit `&` argument still stops the caller in call operation: {stage:?}"
-        );
-    }
+        "a runtime index has no checked path segment, so the caller still stops in call operation: {stage:?}"
+    );
 }
 
 #[test]

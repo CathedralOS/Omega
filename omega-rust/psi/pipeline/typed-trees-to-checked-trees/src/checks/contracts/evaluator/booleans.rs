@@ -211,13 +211,11 @@ impl ContractExpressionEvaluator<'_, '_> {
                         let owner_symbol = match owner {
                             BooleanExpressionOwner::Caller => self.caller_machine.symbol,
                             BooleanExpressionOwner::Contract => {
-                                let Some(target_machine) =
-                                    self.program.machines().iter().find(|machine| {
-                                        self.program
-                                            .machine_states(machine)
-                                            .iter()
-                                            .any(|state| state.symbol == self.target_symbol)
-                                    })
+                                let Some((target_machine, _)) =
+                                    crate::semantic_calls::find_state_with_machine(
+                                        self.program,
+                                        self.target_symbol,
+                                    )
                                 else {
                                     return false;
                                 };

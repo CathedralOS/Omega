@@ -10,7 +10,10 @@ The classification is executable, not only prose:
 `AcceptedProofRule::foundation`
 (`omega-rust/psi/semantics/proof-admission/src/classicality.rs`) assigns each
 rule a `ProofRuleFoundation` by exhaustive match, so a new certificate rule
-does not compile until it is classified. The module's tests keep the
+does not compile until it is classified. `ProofLemma::foundation` and
+`ForAllInRangeFact::ELIMINATION_FOUNDATION`
+(`omega-rust/psi/semantics/proof/src/lemmas.rs`) hold the obligation-side
+lemma vocabulary to the same rule. The module's tests keep the
 boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
 `TrustedAdmission`.
 
@@ -106,8 +109,8 @@ cannot discharge becomes a diagnostic rather than an accepted admission.
 
 | Surface | Foundation | Note |
 | ------- | ---------- | ---- |
-| `ProofLemma::{IndexInBounds, NonEmptyHasFirst, WindowLength, WindowSubrange, TailLengthDecreases}` | Constructive-decidable | Closed length/bounds/window relations over `usize`-shaped carriers; each lemma fires only when every premise in `premises()` is already established (`lemmas.rs`). |
-| `ForAllInRangeFact` / `QuantifiedBound` / `ElementIndex` | Constructive-decidable | Element discharge (`proves_element`, `contains_index`, `is_vacuous`) compares literal bounds only; symbolic bounds answer conservatively — never a decision over an undecidable relation. |
+| `ProofLemma::{IndexInBounds, NonEmptyHasFirst, WindowLength, WindowSubrange, TailLengthDecreases}` | Constructive-decidable | Closed length/bounds/window relations over `usize`-shaped carriers; each lemma fires only when every premise in `premises()` is already established (`lemmas.rs`). `ProofLemma::foundation` enforces the row by exhaustive match — a new lemma does not compile until it is classified. |
+| `ForAllInRangeFact` / `QuantifiedBound` / `ElementIndex` | Constructive-decidable | Element discharge (`proves_element`, `contains_index`, `is_vacuous`) compares literal bounds only; symbolic bounds answer conservatively — never a decision over an undecidable relation. `ForAllInRangeFact::ELIMINATION_FOUNDATION` pins the elimination step to this row. |
 | `checker/{arrival_stability, assignment_stability, bounded_checks, dependent_bounds, float_ranges, guards, integer_ranges, named_constraints, return_arrival}` | Constructive-decidable | Total deciders over the checked finite shapes: range arithmetic, arrival joins, guard narrowing and named-constraint lookup are each decidable relations over declared data. |
 | `checker/certificate/` | Constructive-decidable over an untrusted input | Bounded-integer legs arrive as untrusted certificates that the proof-admission kernel re-decides; the *decision* is decidable, and the cited rule rows keep their own classification from the table above. |
 | `checker/measurement.rs` | N/A (instrumentation) | Proof-search cost accounting; discharges nothing. |

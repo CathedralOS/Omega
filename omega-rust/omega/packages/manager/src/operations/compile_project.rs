@@ -9,8 +9,8 @@ use crate::admission::{
 };
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
-    ReviewOnlyCapabilityConflictLimits, compile_resolved_package_candidate_for_production,
-    ungranted_restricted_build_requests,
+    RestrictedBuildCheckpoint, ReviewOnlyCapabilityConflictLimits,
+    compile_resolved_package_candidate_for_production_collecting_timings,
 };
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
@@ -40,6 +40,7 @@ pub struct PreparedLocalProjectNativeRequest {
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
+    timings: bool,
 }
 
 impl PreparedLocalProjectNativeRequest {
@@ -58,7 +59,15 @@ impl PreparedLocalProjectNativeRequest {
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
+            timings: false,
         }
+    }
+
+    /// Record per-stage timings on the produced report. Off by default: the
+    /// ladder measures nothing until a caller asks for it.
+    pub fn with_timings(mut self, timings: bool) -> Self {
+        self.timings = timings;
+        self
     }
 
     pub fn with_accepted_trust_admissions(mut self, admissions: Vec<TrustAdmission>) -> Self {
@@ -102,8 +111,6 @@ impl PreparedLocalProjectNativeRequest {
 #[derive(Debug)]
 pub enum CompilePreparedLocalProjectNativeError {
     Review(CompileResolvedPackageReviewsError),
-    GrantJoin(crate::lock::PackageLockError),
-    UngrantedRestrictedBuild(Vec<crate::review::UngrantedRestrictedBuildRequest>),
     Evidence(AcceptedOrdinaryEvidenceError),
     TrustAdmission(Vec<Diagnostic>),
     Native(Vec<Diagnostic>),
@@ -114,22 +121,6 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
         match self {
             Self::Review(error) => {
                 write!(formatter, "cannot compile fresh package review: {error}")
-            }
-            Self::GrantJoin(error) => {
-                write!(
-                    formatter,
-                    "cannot project fresh package policy for the restricted build grant join: {error}"
-                )
-            }
-            Self::UngrantedRestrictedBuild(ungranted) => {
-                writeln!(
-                    formatter,
-                    "fresh production compile projects restricted build authority the accepted lock policy does not grant:"
-                )?;
-                for gap in ungranted {
-                    writeln!(formatter, "  {gap}")?;
-                }
-                Ok(())
             }
             Self::Evidence(error) => {
                 write!(
@@ -179,29 +170,30 @@ pub fn compile_prepared_local_project_for_native<Observation>(
         build_snapshot,
         terminal_authority_policy,
         receiving_terminal_authority_permission_policy,
+        timings,
     } = request;
     let (_, source_closure, accepted_target) = prepared.into_review_parts();
     let target_closure = source_closure.for_exact_target(target_profile);
-    let candidate = compile_resolved_package_candidate_for_production(
+    // Native production is an executor of the accepted policy: the retained
+    // target's restricted-request checkpoint arms the pass, so a projected
+    // request the accepted rows do not grant rejects before its own build
+    // effect executes — before generated sources or the checked root can
+    // reach realization.
+    let checkpoint = accepted_target
+        .as_ref()
+        .map(RestrictedBuildCheckpoint::derive);
+    let candidate = compile_resolved_package_candidate_for_production_collecting_timings(
         &target_closure,
         &build_dir,
         SemanticBindingReview::Discover,
         build_snapshot.as_ref(),
+        checkpoint.as_ref(),
+        timings,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
-    // Native production is an executor of the accepted policy: a projected
-    // restricted build request the accepted rows do not grant rejects before
-    // the compile's generated sources and checked root reach realization.
-    if let Some(accepted) = accepted_target.as_ref() {
-        let ungranted =
-            ungranted_restricted_build_requests(accepted, candidate.reviews(), &source_closure)
-                .map_err(CompilePreparedLocalProjectNativeError::GrantJoin)?;
-        if !ungranted.is_empty() {
-            return Err(
-                CompilePreparedLocalProjectNativeError::UngrantedRestrictedBuild(ungranted),
-            );
-        }
-    }
+    // Snapshot the ladder before realization: native realization overwrites
+    // the checked record's timing rows as it reuses them.
+    let stage_timings = candidate.checked_root().timings().phases().to_vec();
     let evidence = accept_ordinary_closure_evidence(
         &target_closure,
         candidate.reviews(),
@@ -230,7 +222,9 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     )
     .map(|report| {
         (
-            report.with_trust_admission_settlement(trust_settlement),
+            report
+                .with_trust_admission_settlement(trust_settlement)
+                .with_timings(stage_timings),
             observation,
         )
     })

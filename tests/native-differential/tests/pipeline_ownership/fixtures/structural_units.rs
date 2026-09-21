@@ -60,6 +60,7 @@ pub(crate) fn unit_return_parts() -> (TerminalModule, ProofBundle) {
             entry,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -71,6 +72,7 @@ pub(crate) fn unit_return_parts() -> (TerminalModule, ProofBundle) {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(3_504).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -171,6 +173,7 @@ pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundl
     };
     let contract = |id| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id,
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -208,6 +211,7 @@ pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundl
             },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: granted,
             semantic_domain: DomainSemanticId::new(3_609).unwrap(),
             identity: "Extent::Granted".into(),
@@ -254,15 +258,18 @@ pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundl
                 entry: BlockId::new(3_610).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3_610).unwrap(),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(3_611).unwrap(),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             arguments: Vec::new(),
                             callee,
                             structural_arguments: caller_places
@@ -303,6 +310,7 @@ pub(crate) fn structural_extent_call_unit_parts() -> (TerminalModule, ProofBundl
                 entry: BlockId::new(3_614).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3_614).unwrap(),
                     parameters: Vec::new(),

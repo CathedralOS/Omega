@@ -388,6 +388,7 @@ mod tests {
                     identity: "Buffer::Owned".into(),
                     carrier: buffer,
                     content_projection: Some(custody.source_projection.projection.clone()),
+                    establishment_routes: Vec::new(),
                 },
                 StructuralDomainDeclaration {
                     id: retained,
@@ -395,6 +396,7 @@ mod tests {
                     identity: "PendingRead::Retained".into(),
                     carrier: pending,
                     content_projection: Some(custody.result_projection.projection.clone()),
+                    establishment_routes: Vec::new(),
                 },
             ],
             services: Vec::new(),
@@ -541,6 +543,7 @@ mod tests {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
+                    erased_proof_formals: Vec::new(),
                     erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     parameters: Vec::new(),
@@ -548,6 +551,7 @@ mod tests {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(1).unwrap(),
                             result: OperationResult::Structural(StructuralOperationResult {
                                 place: pending_place,
@@ -555,6 +559,7 @@ mod tests {
                                 multiplicity: StructuralMultiplicity::Linear,
                                 qualifications: vec![retained],
                                 projected_qualifications: Vec::new(),
+                                qualification_establishments: Vec::new(),
                                 claims: vec![StructuralResultClaimBinding {
                                     claim: loan,
                                     path: Vec::new(),
@@ -576,6 +581,7 @@ mod tests {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(2).unwrap(),
                             result: OperationResult::Structural(StructuralOperationResult {
                                 place: restored_place,
@@ -583,6 +589,7 @@ mod tests {
                                 multiplicity: StructuralMultiplicity::Linear,
                                 qualifications: vec![owned],
                                 projected_qualifications: Vec::new(),
+                                qualification_establishments: Vec::new(),
                                 claims: vec![StructuralResultClaimBinding {
                                     claim: loan,
                                     path: Vec::new(),
@@ -611,6 +618,7 @@ mod tests {
                     },
                 }],
                 contract: MachineContract {
+                    erased_proof_formals: Vec::new(),
                     erased_scalar_formals: Vec::new(),
                     id: ContractId::new(1).unwrap(),
                     crash_routes: Vec::new(),

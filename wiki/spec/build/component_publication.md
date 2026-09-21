@@ -1,5 +1,10 @@
 # Native products and component publication
 
+The component identity, authority, entry, custody, and replacement contracts also
+govern [interpreted components](embedding.md#replacement-and-native-equivalence).
+Native mappings and relocations below belong to the native realization, not to
+an interpreter's implementation. A source module is not automatically a component.
+
 [Terminal Psi](../terminal-psi/product.md) is the portable compilation boundary.
 This contract distinguishes compilation products from installed component
 publication. Writing artifact bytes for later consumption does not establish a
@@ -178,16 +183,20 @@ independently provisionable execution domain, not necessarily a component-owned
 stack. Static builds may use selected actual demand; replaceable crossings use
 public promises and candidate admission, not a previous provider's private proof.
 
-## Service bindings and era entry
+## Bindings and era entry
 
-Runtime call authority uses compiler-known affine `Service<R>`, not a bare trait
+Runtime call authority uses compiler-known affine `Binding<R>`, not a bare trait
 value, provider object, or source-visible vtable. `R` identifies the exact closed
-boundary requirement. `Service` is declared as opaque boundary data in
+boundary requirement. `Binding` is declared as opaque boundary data in
 `omega::core`; binding establishment, custody, and realization are compiler
 semantics, not an implementation supplied by that source declaration. It is a
 service-binding carrier, not a general wrapper for trusted build-provided objects.
 
-Every usable `Service<R>` has an established binding as part of its validity.
+`Binding` is a core type name, not a keyword. It does not imply networking or
+asynchronous execution. The foreign-symbol locator is separately named
+[`ForeignBinding`](foreign_bindings.md); constructing it grants no call authority.
+
+Every usable `Binding<R>` has an established binding as part of its validity.
 There is no separate authored `Bound` domain or valid unestablished service value.
 This is not shorthand for a qualified type. A bare boundary trait in value
 position, such as `console: Console`, does not denote a service carrier and rejects.

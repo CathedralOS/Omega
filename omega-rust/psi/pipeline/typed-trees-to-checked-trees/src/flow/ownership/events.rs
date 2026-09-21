@@ -121,11 +121,7 @@ pub(crate) fn normalized_event_place_root(
         symbols::SymbolKind::State => (parent.parent, metadata.parent),
         _ => return root,
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return root;
     };
     // Authored and specialized state parameters retain exact symbol parents.

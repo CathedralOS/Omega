@@ -106,7 +106,7 @@ use checked_trees::{
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseSuccessorPlan,
     CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedGuardedJumpPlan, CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
     CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
@@ -610,6 +610,14 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     // different: its internal calls admit only Unit-roster targets, so a
     // callee a composed plan still invokes keeps its Unit entry. Run this
     // exclusion after closure pruning so only surviving callers count.
+    // A plan whose only operation is the terminal `Complete` describes a
+    // bare forwarder: no ordered calls or stores need the Unit replay, so
+    // only such effect-free plans leave the catalogs here.
+    let has_effects = |operations: &[CheckedUnitEffectOperationPlan]| {
+        operations
+            .iter()
+            .any(|operation| !matches!(operation, CheckedUnitEffectOperationPlan::Complete { .. }))
+    };
     let mut composed_call_targets = composed_machines
         .iter()
         .flat_map(|graph| graph.states.iter())
@@ -626,21 +634,26 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     composed_call_targets.sort_unstable();
     composed_call_targets.dedup();
     candidates.retain(|plan| {
-        facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_for_machine(plan.machine)
-            .is_none()
+        has_effects(&plan.operations)
+            || facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_for_machine(plan.machine)
+                .is_none()
             || composed_call_targets
                 .binary_search(&omission_key(plan.machine))
                 .is_ok()
     });
     composed_machines.retain(|graph| {
-        facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_for_machine(graph.machine)
-            .is_none()
+        graph
+            .states
+            .iter()
+            .any(|state| has_effects(&state.operations))
+            || facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_for_machine(graph.machine)
+                .is_none()
             || composed_call_targets
                 .binary_search(&omission_key(graph.machine))
                 .is_ok()
