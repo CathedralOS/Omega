@@ -8161,6 +8161,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`:
   compile median 1,681,237 ms, run median 1.94 ms, exit 0 x5,
   8,192-byte image, `validate` clean).
+- **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; scope verified at
+  `138ed79a677` (linux x86-64) for sibling stub
+  **BACKEND-RUNTIME-STARTUP-MECHANICS** (same surface — the runtime startup /
+  program-entry lane: `backend/runtime/external-roots` platform_bringup +
+  program-entry plan + `component-publication`, the directories earlier waves
+  claimed under the two startup-mechanics names). Frontier: those dedicated
+  dir-claims have drained, but the entry-plan implementing surface is still
+  fenced — `backend/runtime/external-roots/` sits under
+  EPOCH-RESOURCE-SNAPSHOTS (11:32Z), and the frontier note at ~1326 still
+  stands (UEFI-OS-HANDOFF and the UEFI-program-entry lanes remain live).
+  `component-publication/` itself is unfenced tonight, but its tests.rs
+  custody-matrix migration is CUSTODY-MATRIX-HARNESS-MIGRATION's item, not a
+  startup-mechanics leg. No independent slice landable from this stub.
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md) — produce committed
   `tools/benchmark/records/` rows for cross-target compile legs
