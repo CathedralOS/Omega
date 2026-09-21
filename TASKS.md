@@ -13253,6 +13253,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SCHEDULING-RELOCATION-ADMISSION** — mined candidate; verify scope then implement.
 - **SCHEDULING-RELOCATION-UNIFICATION** — mined candidate; verify scope then implement.
 - **SCOPED-LOOKUP-MAP-AUDIT** — resolved: same surface as the resolved rows above (`tests/architecture/scoped_lookup_maps.rs` census gate + `wiki/drafts/lookup_map_justification.md` one-shot census); re-run green at `771d0469a1c47` on linux x86-64 (2/2). No independent slice remains.
+  Field note (review 6f57bbbd8620..59e0b5ec22d0): this is the second
+  resolved SCOPED-LOOKUP-MAP-AUDIT row on the board (the other sits above with
+  the audit description); delete this stub instead of stamping it again.
 - **SEALED-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **SEED-HOST-CHAIN-LEGS.** Mined candidate. The bootstrap chain has two
   audited seed hosts — macOS arm64 (`alpha_arm64_macos`) and Windows x64
