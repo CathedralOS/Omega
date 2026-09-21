@@ -8117,6 +8117,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `linux_arm64` (needs an arm64 runner), `macos_arm64`/`windows_x86_64`
   (need their own hosts; windows peak-RSS stays `unavailable`), and
   `uefi_x86_64` (needs QEMU/hardware).
+- **BENCHMARK-CROSS-TARGET-COMPILE-ROWS.** Resolved — re-mine of
+  BENCHMARK-COMPILE-ONLY-ROWS (~line 6395), identical deliverable to sibling
+  BENCHMARK-CROSS-TARGET-COMPILE-LEGS: committed `tools/benchmark/records/`
+  rows for the cross-target compile legs (`benchmark.py measure --no-run`,
+  `runtime_ms` skipped). Verified at `97be15c1b59`: the measured
+  `wrapping_square_sum__{windows_x86_64,macos_arm64,linux_arm64}__default.json`
+  records are landed (`52ceeeabb7`, ancestor of base) plus a
+  `macos_x86_64` row; `52ceeeabb7` is an ancestor of base. Any further
+  matrix refresh belongs to BENCHMARK-CROSS-HOST-ROWS / BENCHMARK-ROW-RESUMPTION,
+  not this name.
+
 - **BENCHMARK-CROSS-TARGET-COMPILE-LEGS.** Scope verified — re-mine of
   BENCHMARK-COMPILE-ONLY-ROWS (~line 6395), which owns this exact deliverable:
   committed `tools/benchmark/records/` rows for the cross-target compile legs
