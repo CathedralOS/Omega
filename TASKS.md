@@ -8716,6 +8716,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   d-composition/refinement acceptance gates live under `tests/epsilon`
   (claimed by DELTA-COMPILER until 21:48Z). Per FEATURE_LEDGER's decision
   method, extension also needs a concrete `D`-side use to cite.
+- **EXACT-PROGRAM-ENTRY-MULTIPLICITY.** Retired row — resolved; stub
+  restores the pointer so the dangling owner references
+  (`TASKS.md` ~:4052, ~:11232) resolve. The row was retired at
+  `aceef55188` ("verified row, no remaining work"): entry multiplicity
+  is enforced end to end — `admission/selection.rs` requires exactly
+  one binding per required catalog slot, exactly one ProgramEntry-schema
+  root, a non-generic machine with at most one provisioned `&mut self`,
+  and `root_bindings.rs` rejects a re-bound slot or ambiguous
+  implementation; integration coverage lives in
+  `build_target_activation`, and the landed unit pins cover the
+  previously unexercised edges (empty root bindings keep the migration
+  fallback, unqualified slot spellings reject, malformed/unknown-profile
+  foreign rows reject beside a valid selection, the binding walk
+  collects every malformed row's diagnostic in order). What later waves
+  attributed under this name — the "selected ProgramEntry establishment
+  rejoins 0 Terminal attachment identities" family — is NOT this row's
+  surface: it is owned by SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT (the
+  `&[T]` view-local frontier; frontier now at the `&[T]`-consuming
+  callee — `Slice::index`/`Slice::range` Terminal vocabulary), and the
+  exact-symbol selection leg by PROGRAM-ENTRY-SELECTION-EXACTNESS
+  (residual implemented on `zergling/z161-program-entry-selection-exactness`).
+  No slice exists under this name at `fbf36233c9`.
 - **EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
 - **FAULT-INJECTED-TARGET-READER.** Mined candidate — resolved as
   covered: the surface this claim name has fenced is the image-emission
