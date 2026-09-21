@@ -207,6 +207,7 @@ fn scalar_call_module() -> TerminalModule {
     let join = &mut module.machines[0].blocks[1];
     join.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(902),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -267,6 +268,7 @@ fn scalar_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(910),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -419,6 +421,7 @@ fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
     });
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -445,6 +448,7 @@ fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
     let mut module = scalar_loan_module(StructuralMultiplicity::Unrestricted);
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

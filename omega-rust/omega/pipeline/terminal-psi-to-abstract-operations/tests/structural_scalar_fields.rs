@@ -145,6 +145,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id::<OperationId>(1),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -157,6 +158,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id::<OperationId>(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::StructuralScalarFieldStore {
@@ -169,6 +171,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id::<OperationId>(3),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -235,6 +238,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id::<OperationId>(4),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -386,6 +390,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
     block.operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(40),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -398,6 +403,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: producer,
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -420,6 +426,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(4),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -565,6 +572,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
     realization.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(4),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -577,6 +585,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(5),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -589,6 +598,7 @@ fn retains_direct_mutable_self_store_in_scalar_function() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(6),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

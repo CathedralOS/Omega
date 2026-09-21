@@ -221,6 +221,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Unit,
                 kind: OperationKind::EstablishTrivialAffineLocal { destination: local },

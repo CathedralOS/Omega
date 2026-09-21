@@ -103,6 +103,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation,
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {

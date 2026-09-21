@@ -73,6 +73,7 @@ pub(crate) fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -93,6 +94,7 @@ pub(crate) fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -138,6 +140,7 @@ pub(crate) fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -165,6 +168,7 @@ pub(crate) fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -185,6 +189,7 @@ pub(crate) fn emit_boolean_expression(
             let operation = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

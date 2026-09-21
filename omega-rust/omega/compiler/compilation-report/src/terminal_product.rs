@@ -1451,6 +1451,7 @@ mod tests {
     fn integer_equal() -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Scalar(declaration(6, ScalarType::Boolean)),
             kind: OperationKind::IntegerEqual {
@@ -1547,6 +1548,7 @@ mod tests {
         let plan = plan("provider");
         let widen = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(8).unwrap(),
             result: OperationResult::Scalar(integer(10)),
             kind: OperationKind::IntegerWiden {
@@ -1587,6 +1589,7 @@ mod tests {
         let plan = plan("provider");
         let authored_not = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(8).unwrap(),
             result: OperationResult::Scalar(declaration(10, ScalarType::Boolean)),
             kind: OperationKind::BooleanNot {
@@ -1648,6 +1651,7 @@ mod tests {
 
         let less_than = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Scalar(declaration(6, ScalarType::Boolean)),
             kind: OperationKind::IntegerLessThan {

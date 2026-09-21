@@ -91,6 +91,7 @@ pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
 
 /// One operation row: its id, static reach binding and result, then its
 /// kind behind the kind's tag; each kind's layout is owned by its family.
+/// A trailing possibly-suspending crossing marker closes the row.
 fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), CodecError> {
     writer.id(operation.id);
     writer.boolean(operation.static_reach_binding.is_some());
@@ -574,6 +575,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             scalar_operations::encode_saturating_integer_multiply(writer, left, right)?
         }
     }
+    writer.boolean(operation.suspension_crossing.is_some());
+    if let Some(crossing) = operation.suspension_crossing {
+        writer.id(crossing);
+    }
     Ok(())
 }
 
@@ -800,8 +805,14 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };
+    let suspension_crossing = if reader.boolean()? {
+        Some(reader.id("SuspensionCrossingId")?)
+    } else {
+        None
+    };
     Ok(Operation {
         static_reach_binding,
+        suspension_crossing,
         id: operation_id,
         result,
         kind,
@@ -952,6 +963,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(1),
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -995,6 +1007,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1046,6 +1059,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralScalarFieldStore {
@@ -1110,6 +1124,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(8),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1152,6 +1167,7 @@ mod tests {
         let operations = [
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1169,6 +1185,7 @@ mod tests {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(6),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldByteStore {
@@ -1219,6 +1236,7 @@ mod tests {
         let operations = [
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(31),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -1233,6 +1251,7 @@ mod tests {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(32),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1304,6 +1323,7 @@ mod tests {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(1),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1314,6 +1334,7 @@ mod tests {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(2),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1363,6 +1384,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -1404,6 +1426,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1462,6 +1485,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -1523,6 +1547,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::ByteSequenceWrite {
@@ -1576,6 +1601,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1628,6 +1654,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -1676,6 +1703,7 @@ mod tests {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

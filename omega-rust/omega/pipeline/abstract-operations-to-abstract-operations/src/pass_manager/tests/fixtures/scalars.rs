@@ -109,6 +109,7 @@ pub(in crate::pass_manager::tests) fn verified_dead_literals_unit() -> VerifiedP
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_103).unwrap(),
                         result: OperationResult::Scalar(declaration(
                             ValueId::new(5_104).unwrap(),
@@ -118,6 +119,7 @@ pub(in crate::pass_manager::tests) fn verified_dead_literals_unit() -> VerifiedP
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_105).unwrap(),
                         result: OperationResult::Scalar(declaration(
                             ValueId::new(5_106).unwrap(),
@@ -174,6 +176,7 @@ pub(in crate::pass_manager::tests) fn verified_half_dead_literals_unit()
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_113).unwrap(),
                         result: OperationResult::Scalar(declaration(ValueId::new(5_114).unwrap())),
                         kind: OperationKind::IntegerConstant {
@@ -182,6 +185,7 @@ pub(in crate::pass_manager::tests) fn verified_half_dead_literals_unit()
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_115).unwrap(),
                         result: OperationResult::Scalar(declaration(live)),
                         kind: OperationKind::IntegerConstant {
@@ -237,6 +241,7 @@ pub(in crate::pass_manager::tests) fn verified_parameter_add_unit() -> VerifiedP
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(5_125).unwrap(),
                     result: OperationResult::Scalar(declaration(sum)),
                     kind: OperationKind::WrappingIntegerAdd { left, right },

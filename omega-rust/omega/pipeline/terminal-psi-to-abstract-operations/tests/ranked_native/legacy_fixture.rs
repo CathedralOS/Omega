@@ -142,6 +142,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(1, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -154,6 +155,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(2, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -197,6 +199,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(3, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -209,6 +212,7 @@ pub(super) fn legacy_countdown() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(4, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),

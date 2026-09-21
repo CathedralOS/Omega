@@ -94,6 +94,7 @@ pub(super) fn verified_exact_add_unit_with_right(
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(416).unwrap(),
                         result: OperationResult::Scalar(declaration(left)),
                         kind: OperationKind::IntegerConstant {
@@ -102,6 +103,7 @@ pub(super) fn verified_exact_add_unit_with_right(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(417).unwrap(),
                         result: OperationResult::Scalar(declaration(right)),
                         kind: OperationKind::IntegerConstant {
@@ -110,6 +112,7 @@ pub(super) fn verified_exact_add_unit_with_right(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(418).unwrap(),
                         result: OperationResult::Scalar(declaration(computed)),
                         kind: OperationKind::ExactIntegerAdd {

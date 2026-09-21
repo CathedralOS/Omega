@@ -146,6 +146,7 @@ fn two_call_nominal_affine_cleanup_admits_nonempty_bodies_and_rejects_uncalled_h
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -164,6 +165,7 @@ fn two_call_nominal_affine_cleanup_admits_nonempty_bodies_and_rejects_uncalled_h
     let mut third_call = two_call_executable_nominal_affine_module();
     third_call.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -216,6 +218,7 @@ fn one_call_nominal_affine_cleanup_rejects_recursive_and_uncalled_helpers() {
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -1521,6 +1524,7 @@ fn projected_move_blocks_later_whole_root_use() {
     module.machines.push(whole_callee);
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(6),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

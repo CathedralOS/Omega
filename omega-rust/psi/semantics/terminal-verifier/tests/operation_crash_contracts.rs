@@ -134,6 +134,7 @@ fn module() -> TerminalModule {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id(1, OperationId::new),
                         result: OperationResult::Scalar(declaration(
                             COMPARISON,
@@ -146,6 +147,7 @@ fn module() -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id(2, OperationId::new),
                         result: OperationResult::Scalar(declaration(50, integer_type)),
                         kind: OperationKind::IntegerConstant {

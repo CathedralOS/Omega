@@ -15,6 +15,7 @@ fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
     let mut module = conditional_module(VocabularyMarker::CURRENT);
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

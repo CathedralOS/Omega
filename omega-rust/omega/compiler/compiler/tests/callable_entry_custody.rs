@@ -119,6 +119,7 @@ fn callable_module() -> TerminalModule {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(declaration(3)),
                     kind: OperationKind::IntegerBitwiseXor {

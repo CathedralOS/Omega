@@ -88,6 +88,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(437).unwrap(),
                     result: OperationResult::Scalar(declaration(remainder)),
                     kind: if divide {
@@ -236,6 +237,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(458).unwrap(),
                         result: OperationResult::Scalar(declaration(one)),
                         kind: OperationKind::IntegerConstant {
@@ -244,6 +246,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(459).unwrap(),
                         result: OperationResult::Scalar(declaration(remainder)),
                         kind: OperationKind::ExactIntegerRemainder {
@@ -378,6 +381,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(478).unwrap(),
                         result: OperationResult::Scalar(declaration(operand)),
                         kind: OperationKind::IntegerConstant {
@@ -386,6 +390,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(479).unwrap(),
                         result: OperationResult::Scalar(declaration(negative_one)),
                         kind: OperationKind::IntegerConstant {
@@ -394,6 +399,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(480).unwrap(),
                         result: OperationResult::Scalar(declaration(remainder)),
                         kind: OperationKind::ExactIntegerRemainder {

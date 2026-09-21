@@ -33,6 +33,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_037).unwrap(),
                         result: OperationResult::Scalar(declaration(constant)),
                         kind: OperationKind::IntegerConstant {
@@ -98,6 +99,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_608).unwrap(),
                     result: OperationResult::Scalar(boolean(call_result)),
                     kind: OperationKind::Call {
@@ -159,6 +161,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1_614).unwrap(),
                 result: OperationResult::Scalar(boolean(callee_value)),
                 kind: OperationKind::BooleanConstant { value: true },

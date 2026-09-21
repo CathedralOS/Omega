@@ -42,6 +42,7 @@ fn unit_call_module() -> TerminalModule {
     entry.blocks[0].id = entry.entry;
     let call = |operation, newline| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(operation).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -63,6 +64,7 @@ fn unit_call_module() -> TerminalModule {
         call(205, entry.parameters[1].id),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(206).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

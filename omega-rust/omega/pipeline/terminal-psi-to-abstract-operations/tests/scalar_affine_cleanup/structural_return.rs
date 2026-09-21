@@ -232,6 +232,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         .operations
         .push(terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             result: terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -340,6 +341,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         .operations
         .push(terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: semantic_vocabulary::OperationId::new(2).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: terminal_psi::OperationKind::EstablishTrivialAffineLocal {

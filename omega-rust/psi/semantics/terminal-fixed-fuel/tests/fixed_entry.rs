@@ -265,6 +265,7 @@ fn ordered_one_executable_nominal_affine_fixture() -> TerminalModule {
     helper.contract.id = contract_id(903);
     module.machines[2].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(903),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -302,6 +303,7 @@ fn ordered_two_distinct_executable_nominal_affine_fixture() -> TerminalModule {
     helper.contract.id = contract_id(904);
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(904),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -339,6 +341,7 @@ fn ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
     helper.contract.id = contract_id(902);
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -524,6 +527,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(901),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -587,6 +591,7 @@ fn two_helper_nominal_affine_fixture() -> TerminalModule {
     module.structural_types.push(second_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(902),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -651,6 +656,7 @@ fn three_helper_nominal_affine_fixture() -> TerminalModule {
     module.structural_types.push(third_helper_type.clone());
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(903),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -756,6 +762,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(700),
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
@@ -771,6 +778,7 @@ fn unit_effect_fixture() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(701),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -819,6 +827,7 @@ fn unit_effect_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(702),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -886,6 +895,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
     caller.published_service_ceiling.clear();
     caller.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(700),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -910,6 +920,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
     callee.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(702),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -922,6 +933,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(703),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -998,6 +1010,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -1134,12 +1147,14 @@ fn call_fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(declaration(1)),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(declaration(2)),
                             kind: OperationKind::Call {

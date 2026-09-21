@@ -521,6 +521,7 @@ fn affine_identity_calls_preserve_exact_types_and_established_local_custody() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {
@@ -558,6 +559,7 @@ fn affine_identity_calls_preserve_claim_custody_with_ordinary_callee_operations(
             }
             2 => callee.blocks[0].operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

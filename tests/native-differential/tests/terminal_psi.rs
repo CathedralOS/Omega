@@ -62,6 +62,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 erased_proof_formals: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

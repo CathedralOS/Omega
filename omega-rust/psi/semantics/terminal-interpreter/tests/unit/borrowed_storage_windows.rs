@@ -119,6 +119,7 @@ fn window_module() -> TerminalModule {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: structural_result(2),
             kind: OperationKind::MoveStructuralField {
@@ -129,6 +130,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -139,6 +141,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: structural_result(3),
             kind: OperationKind::EstablishRecord {
@@ -153,6 +156,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Unit,
             kind: OperationKind::StoreStructuralField {
@@ -168,6 +172,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(6),
             result: structural_result(4),
             kind: OperationKind::MoveStructuralField {
@@ -178,6 +183,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(7),
             result: OperationResult::Unit,
             kind: OperationKind::StoreStructuralField {
@@ -193,6 +199,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -209,6 +216,7 @@ fn window_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(8),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

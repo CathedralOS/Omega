@@ -176,6 +176,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_514).unwrap(),
                     result: OperationResult::Scalar(boolean(computed)),
                     kind: OperationKind::BooleanEqual {
@@ -197,6 +198,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 parameters: vec![boolean(target_parameter)],
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_516).unwrap(),
                     result: OperationResult::Scalar(boolean(target_result)),
                     kind: OperationKind::BooleanNot {
@@ -235,6 +237,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_521).unwrap(),
                     result: OperationResult::Scalar(boolean(predecessor_value)),
                     kind: OperationKind::BooleanNot { operand: incoming },
@@ -314,6 +317,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_071).unwrap(),
                     result: OperationResult::Scalar(boolean(left_value)),
                     kind: OperationKind::BooleanConstant { value: true },
@@ -337,6 +341,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_073).unwrap(),
                     result: OperationResult::Scalar(boolean(right_value)),
                     kind: OperationKind::BooleanConstant { value: false },

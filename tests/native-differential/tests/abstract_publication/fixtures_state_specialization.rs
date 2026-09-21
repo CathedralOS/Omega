@@ -129,6 +129,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_611).unwrap(),
                         result: OperationResult::Scalar(boolean(5_609)),
                         kind: OperationKind::BooleanConstant { value: true },

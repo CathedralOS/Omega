@@ -363,6 +363,7 @@ pub(super) fn emit_call_operations(
             let id = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -407,6 +408,7 @@ pub(super) fn emit_call_operations(
             let id = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -430,6 +432,7 @@ pub(super) fn emit_call_operations(
             let id = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -491,6 +494,7 @@ pub(super) fn emit_call_operations(
             let id = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -543,6 +547,7 @@ pub(super) fn emit_call_operations(
             let id = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id,
                 result: OperationResult::Unit,
                 kind,
@@ -847,6 +852,7 @@ pub(super) fn emit_boundary_call_operation(
     )?;
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: call_id,
         result,
         kind: OperationKind::BoundaryCall {
@@ -1142,6 +1148,7 @@ fn emit_scalar_call_operation(
     };
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id,
         result: OperationResult::Scalar(value),
         kind,
