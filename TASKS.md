@@ -5175,6 +5175,31 @@ Owners include
   witness 8421784e74 recorded no duration, so this may be scale, not a
   hang) — worth timing before treating it as regression evidence.
 
+  Wave-10 recheck at `e7c0099cb2b7` (linux x86-64; no claim landed —
+  four claims-ref pushes raced): the item surface stays green — all 286
+  mutation-matching and all 536 flow-matching
+  `typed-trees-to-checked-trees` unit tests pass. The timing caveat is
+  now answered, and the probe is a real regression: both cited probes
+  DO emit a diagnostic, and the dungeon run is bounded — it fails (not
+  hangs) at real 27m29s / user 30m32s. `omega --check --target
+  linux_x86_64` on `samples/cli/basics/multiplication_table` (~25m) and
+  `samples/cli/games/dungeon_crawler_cli` (27m29s) each fail inside
+  `omega-language-std` package compilation with `routed service field
+  Filesystem::host has no exact Fused selected-provider-plan join`
+  (selected-dispatch/src/boundary_dispatch.rs:229). The recorded-green
+  linux witness was 8421784e74; the join the diagnostic demands is
+  minted by 2704dd0edbf2 ("omega: mint the toolchain-settled
+  FilesystemHost provider plan", landed after that witness). The
+  settling surfaces that commit touched (`provider_settlement/`,
+  `effects/src/selected_provider_plans.rs`, `trust-model`,
+  `canonical_filesystem_host.rs`) hold no live claim at this writing —
+  PROVIDER-ATTACHMENT-MACHINE-PLAN's claim covers only t2c
+  `execution/unit/{providers.rs,types/mod.rs}` — so the join is an
+  unclaimed regression for a provider-settlement leg, not a flow gap
+  here. The two named remaining legs are unchanged: `&mut self`
+  widening parked on `mutable-self-receiver-declared-field-rows`, the
+  `&write` spelling is WRITE-ONLY-BORROW's.
+
   Acceptance: the dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls
   satisfy default field obligations, while corrupted elements and stale
   aliased fields reject at calls, transitions, and returns.
