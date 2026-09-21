@@ -14,8 +14,8 @@ use provider_planning::CompositionMode;
 use provider_planning::SelectedProviderReviewProvenance;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 
-/// Rejoin every checked `Service<R> in Bound` erasure to its exact typed
-/// source field or direct owned parameter and owner-controlled Fused
+/// Rejoin every checked routed `Service<R>` carrier erasure to its exact
+/// typed source field or direct owned parameter and owner-controlled Fused
 /// selected-provider plan. This runs immediately before Terminal production,
 /// where erasure becomes irreversible.
 pub fn validate_fused_service_terminal_custody(
