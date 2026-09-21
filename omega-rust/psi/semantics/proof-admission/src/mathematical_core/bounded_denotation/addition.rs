@@ -531,17 +531,8 @@ impl Denotation {
         let IntegerMathTerm::IntegerLiteral(bound_literal) = bound else {
             return Ok(None);
         };
-        let bound_value = if bound_literal.negative() {
-            if bound_literal.magnitude() == (i128::MAX as u128) + 1 {
-                IntegerValue::Signed(i128::MIN)
-            } else {
-                let Ok(magnitude) = i128::try_from(bound_literal.magnitude()) else {
-                    return Ok(None);
-                };
-                IntegerValue::Signed(-magnitude)
-            }
-        } else {
-            IntegerValue::Unsigned(bound_literal.magnitude())
+        let Some(bound_value) = super::math_literal_value(*bound_literal) else {
+            return Ok(None);
         };
         // The conjunction denotes to a `Σ` pair: the first conjunct is
         // `fst`, the second — last — conjunct is `snd`.
@@ -860,14 +851,16 @@ impl Denotation {
         Ok((endpoint, self.constant(position)))
     }
 
-    /// One addend's bound endpoint: the checked literal it is bounded by,
-    /// with the evidence re-shaped to `IntLe endpoint' operand'` (lower)
-    /// or `IntLe operand' endpoint'` (upper). A literal operand bounded by
-    /// `Truth` is its own endpoint through `refl`; `Truth` over an open
-    /// operand cites its interned carrier-membership bound; `Equal`
-    /// evidence transports through `eq_le`; an oriented `≤` stands in its
-    /// own direction and refuses the other.
-    fn add_bound_endpoint(
+    /// One operand's bound endpoint: the checked literal it is bounded
+    /// by, with the evidence re-shaped to `IntLe endpoint' operand'`
+    /// (lower) or `IntLe operand' endpoint'` (upper). A literal operand
+    /// bounded by `Truth` is its own endpoint through `refl`; `Truth`
+    /// over an open operand cites its interned carrier-membership bound;
+    /// `Equal` evidence transports through `eq_le`; an oriented `≤`
+    /// stands in its own direction and refuses the other. Callers pass
+    /// the direction they need — an antitone operand asks for the
+    /// conclusion's opposite direction.
+    pub(super) fn add_bound_endpoint(
         &mut self,
         operand: &ScalarTerm,
         proposition: &Proposition,
