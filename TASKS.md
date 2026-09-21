@@ -7446,6 +7446,25 @@ Platform/cross-host (structurally gated — document host limits):
   board, not this row; (2) literal `alpha-beta-edge.sh` +
   `diamond-py.sh` under Git Bash + native python3 on Windows x64 —
   host-gated, shared with ALPHA-WINDOWS-CONFORMANCE-HOST below.
+
+  Re-verified at `59e0b5ec22d0` (linux x86-64): the seed defect persists
+  verbatim — `h_div`/`h_mod` in the committed listing still run bare
+  `48 99 / 49 F7 F8` (`cqo; idiv r8`) with no divisor-zero or
+  INT64_MIN÷-1 pre-check (the `6165a54d4d4b..82741ec43919` field note in
+  the listing records the same audit finding), so `div_zero_trap`/
+  `div_ovf_trap` remain structurally unpassable on Windows x64. The
+  bound identity re-audit is green without touching the seed: `forge.py
+  alpha_x64_windows.hex --check alpha_x64_windows.exe` reproduces the
+  committed PE byte-for-byte, and the `require_bound_identity` constants
+  in `seed_env.sh` (size 16782336, SHA-256 4ee9ee0f…d701) match the
+  checked-in exe exactly — any guard repair must re-bind both before it
+  lands. `tests/bootstrap/alpha-identity.sh` passes on this host
+  (canonical stamp + corruption/truncation refusal). The wine de-risk is
+  not repeatable here — no `wine`/`wine64` and `vm.overcommit_memory=0`,
+  where the PE needs =1 for its 128 GiB VirtualAlloc — so residual (2)
+  stays host-gated and residual (1) stays on the audited-seed lane. The
+  bare `ALPHA-WINDOWS-CONFORMANCE` stub at ~line 7718 is a same-name
+  re-mine of this row.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
   host. The edge gate's provenance leg now runs the committed forge
   (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including
@@ -7715,7 +7734,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BOOTSTRAP-SEED-EXECUTION-HOSTS (03:55Z), the native-validation draft
   under ALPHA-SEED-CONTAINER-NATIVE-VALIDATION (05:57Z). Sibling stubs on
   the same leg: ALPHA-WINDOWS-CONFORMANCE, ALPHA-WINDOWS-SEED-EXECUTION.
-- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; covered — same-name
+  re-mine of the resolved-with-remainder row at ~line 7419, which owns the
+  Windows x64 edge legs (`alpha-beta-edge.sh` + `diamond-py.sh` on the
+  audited PE seed). Re-verified there at `59e0b5ec22d0`: the div/mod
+  guard defect persists in the listing, the bound identity re-audit is
+  green (`forge.py --check` byte-exact, `seed_env.sh` constants match the
+  committed exe), the wine de-risk is not repeatable on this host, and
+  both residuals stay owned (audited-seed lane; ALPHA-WINDOWS-
+  CONFORMANCE-HOST's literal Windows x64 run).
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
