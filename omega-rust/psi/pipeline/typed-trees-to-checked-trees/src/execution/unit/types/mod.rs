@@ -1225,10 +1225,7 @@ pub(super) fn attached_self_application(
     if name.as_str() != "Self" || !symbol.is_valid() {
         return None;
     }
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == *symbol)
+    crate::lookup::machine_by_symbol(program, *symbol)
         .map(|machine| machine.attached_data_application)
         .filter(|application| application.is_valid() && *application != type_reference)
 }

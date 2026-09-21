@@ -291,10 +291,7 @@ fn shared_nominal_argument(
             _ => return None,
         };
         if parameter.is_self {
-            let owner = program
-                .machines()
-                .iter()
-                .find(|owner| owner.symbol == machine)?;
+            let owner = crate::lookup::machine_by_symbol(program, machine)?;
             let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
             else {

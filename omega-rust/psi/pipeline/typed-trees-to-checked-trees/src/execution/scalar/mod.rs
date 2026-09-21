@@ -192,11 +192,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
         {
             return false;
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == graph.machine)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, graph.machine) else {
             return false;
         };
         graph.states.iter().all(|retained| {

@@ -442,10 +442,7 @@ pub(super) fn argument(
             if usize::try_from(result.statement_index).ok()? != call.statement_index {
                 return None;
             }
-            let source_machine = program
-                .machines()
-                .iter()
-                .find(|candidate| candidate.symbol == machine)?;
+            let source_machine = crate::lookup::machine_by_symbol(program, machine)?;
             let source_state = crate::semantic_calls::find_state(program, state)?;
             let parameter_position =
                 crate::semantic_calls::call_target_parameters(program, call.target_symbol)?

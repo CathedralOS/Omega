@@ -200,10 +200,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let mut consumed = Vec::new();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
-    let owner = program
-        .machines()
-        .iter()
-        .find(|owner| owner.symbol == machine)?;
+    let owner = crate::lookup::machine_by_symbol(program, machine)?;
     let mut scalar_local_count = 0u32;
     let control_prefix =
         statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
@@ -533,10 +530,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         outer.push(call);
         trace.phase("outer calls: structural operands");
         trace.statement(u32::try_from(call.statement_index).ok());
-        let owner = program
-            .machines()
-            .iter()
-            .find(|owner| owner.symbol == machine)?;
+        let owner = crate::lookup::machine_by_symbol(program, machine)?;
         for nested in structural_operands::for_call(program, facts, owner, state, call)? {
             if structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
                 return None;
