@@ -634,6 +634,9 @@ fn physical_contract_matches(
     if target == target::NativeTarget::macos_arm64() {
         return macos_physical_contract_matches(physical);
     }
+    if target == target::NativeTarget::macos_x64() {
+        return macos_x86_64_physical_contract_matches(physical);
+    }
     if target == target::NativeTarget::linux_x64() {
         return linux_x86_64_physical_contract_matches(physical);
     }
@@ -665,6 +668,31 @@ fn macos_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) 
                 MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
             ]
         && physical.result_type_identity() == MACOS_ARM64_I32_TYPE_IDENTITY
+        && physical.boundary_entry_plan() == expected.plan()
+        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
+        && physical.guaranteed_entry_stack().is_none()
+        && physical.guaranteed_entry_stack_application().is_none()
+}
+
+fn macos_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
+    use program_entry_plan::{MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY};
+    let expected = program_entry_plan::exact_macos_x86_64_physical_boundary_entry_plan();
+    // Native settlement separately rejoins the accepted package requirement
+    // identity. A package-qualified requirement is not the standalone spelling;
+    // it must still carry these exact target-source bytes, role, and ABI/state.
+    physical.target_slot() == target::TargetProfile::MacosX64.program_entry_slot()
+        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::MacosX64
+        && physical.target_package_source_digest()
+            == program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest()
+        && !physical.requirement_identity().is_empty()
+        && physical.parameter_type_identities()
+            == [
+                MACOS_X86_64_I32_TYPE_IDENTITY,
+                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+            ]
+        && physical.result_type_identity() == MACOS_X86_64_I32_TYPE_IDENTITY
         && physical.boundary_entry_plan() == expected.plan()
         && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
         && physical.guaranteed_entry_stack().is_none()
@@ -753,10 +781,15 @@ fn receiver_layout(
                 calling_conventions::MachineRegister::Aarch64X(0),
             )
         }
-        target_ if target_ == target::NativeTarget::linux_x64() => (
-            CallingPolicy::SystemVAMD64,
-            calling_conventions::MachineRegister::X86Rdi,
-        ),
+        target_
+            if target_ == target::NativeTarget::linux_x64()
+                || target_ == target::NativeTarget::macos_x64() =>
+        {
+            (
+                CallingPolicy::SystemVAMD64,
+                calling_conventions::MachineRegister::X86Rdi,
+            )
+        }
         target_ if target_ == target::NativeTarget::windows_x64() => (
             CallingPolicy::MicrosoftX64,
             calling_conventions::MachineRegister::X86Rcx,

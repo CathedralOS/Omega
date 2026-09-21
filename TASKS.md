@@ -7842,6 +7842,38 @@ Platform/cross-host (structurally gated — document host limits):
   (enum arm + `program_entry_slot` row + `program_entry_plan` exact
   replay module + `hosted_receiver` bridge arm); it lands after the UEFI
   fence's claim adds the covering arms or expires.
+||||||| parent of 9da15812f566 (targets: wire the macOS x86-64 physical entry contract through the dispatch sites)
+  Remaining legs: the `ProgramEntryPhysicalContractPackage::MacosX64` enum arm
+  + `program_entry_slot` row in `target/src/lib.rs` (fenced by
+  UEFI-PHYSICAL-SEMANTIC-ENTRY at dispatch time), the hosted-receiver bridge
+  arm in `hosted_receiver.rs` (fenced by ENTRY-CONTENT-ROOTS), the
+  `native_hosted_target()` cfg arm in `compiler/tests/canary_suite.rs`
+  (fenced by PRIVILEGED-PORT-EFFECT-SETTLEMENTS), the installation-record
+  pairing dispatch in `record_validation.rs` (fenced by
+  FAULT-INJECTED-TARGET-READER — x86_64 Mach-O images with thunk regions
+  fail-closed there until it lands), and a real x86_64-apple-darwin host run
+  (requires the Intel host; this session ran on linux x86-64).
+  Dispatch legs landed: `ProgramEntryPhysicalContractPackage::MacosX64` +
+  the `program_entry_slot` row (`HostedApplication`, `MacosX64Application`
+  boundary schema, `MacosPhysicalEntry::enter`, SystemVAMD64 physical and
+  semantic conventions) in `target/src/lib.rs`; the exact contract module
+  `exact_macos_x86_64.rs` replaying the authored four-parameter SysV
+  boundary plan (rdi/rsi/rdx/rcx → eax) and its package source digest;
+  `AcceptedSemanticBindingRole::MacosX64ProgramEntry` plus its
+  build-evaluation role/digest arms, package-manager candidate arm, and
+  selected-dispatch accepted-role list; the `macos_x86_64` arms in
+  `hosted_receiver.rs` (`physical_contract_matches` + the
+  SystemVAMD64/`X86Rdi` `receiver_layout` arm); the per-ISA
+  installation-record pairing dispatch in `record_validation.rs`
+  (`MachoIsa::X86_64` selects `validate_macho_x86_64_import_binding_pairing`,
+  ending the aarch64-only fail-closed path); and the
+  `cfg(macos, x86_64)` `native_hosted_target()` arm in `canary_suite.rs`.
+  The two compile-forced fingerprint arms in `target/src/uefi_boot_services`
+  and `target/src/uefi_system_table` (`MacosX64 => 6`) ride along; the UEFI
+  claim's listed paths name a `backend/target/` crate that no longer exists.
+  86/86 `target` + `program-entry-plan` tests pass on linux x86-64.
+  Remaining leg: a real x86_64-apple-darwin host run (requires the Intel
+  host; this session ran on linux x86-64).
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
   validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a
   host-free `alpha-beta-edge.sh` leg, validates both committed containers as
