@@ -2073,6 +2073,97 @@ fn ranked_countdown_lowers_implicit_mutable_receiver_without_discarding_it() {
     .expect("mutable-receiver ranked proof closes for interpreter admission");
 }
 
+/// The checker admits `&mut self` receivers on every structural Unit state,
+/// not only inside a ranked countdown component: a borrowed receiver transfers
+/// 1:1 across each edge and is never part of the affine discard frontier. The
+/// acyclic route keeps the same bound as its ranked sibling.
+#[test]
+fn acyclic_structural_control_lowers_implicit_mutable_receiver_custody() {
+    let checked = checked_source(
+        r#"
+            data Root { value: i32; }
+            data Token { value: i32; }
+
+            machine Root::route(&mut self, token: Token) {
+                transition { _ -> done(token) }
+                state done(&mut self, token: Token) {}
+            }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .machines
+        .iter()
+        .find(|plan| plan.ranked_scc.is_none())
+        .expect("checked acyclic mutable-receiver route");
+    let lowered = lower_structural_unit_control_machine(&checked, plan)
+        .expect("acyclic mutable receiver should lower into Terminal custody");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("one acyclic machine")
+    };
+    let [receiver, token] = machine.structural_parameters.as_slice() else {
+        panic!("receiver plus token structural parameters")
+    };
+    assert!(receiver.is_self);
+    assert_eq!(receiver.position, 0);
+    assert_eq!(
+        receiver.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+    );
+    assert_eq!(
+        receiver.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+    );
+    assert!(!token.is_self);
+    assert_eq!(token.position, 1);
+    assert_eq!(token.access, terminal_psi::StructuralAccess::Owned);
+    assert_eq!(
+        token.multiplicity,
+        terminal_psi::StructuralMultiplicity::Affine
+    );
+    assert!(matches!(
+        machine.structural_places.as_slice(),
+        [
+            terminal_psi::StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: true
+                },
+                ..
+            },
+            terminal_psi::StructuralPlaceDeclaration {
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false
+                },
+                ..
+            }
+        ]
+    ));
+    assert!(matches!(
+        &machine.blocks[0].terminator,
+        Terminator::Jump { target, .. } if *target == machine.blocks[1].id
+    ));
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &machine.blocks[1].terminator
+    else {
+        panic!("done state returns Unit")
+    };
+    assert_eq!(trivial_affine_discards.as_slice(), &[token.place]);
+    terminal_verifier::validate_module_representation(&lowered.semantic_module)
+        .expect("mutable-receiver acyclic representation is structurally valid");
+    terminal_verifier::verify_module_for_interpretation(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("mutable-receiver acyclic proof closes for interpreter admission");
+}
+
 #[test]
 fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
     let checked = checked_source(
