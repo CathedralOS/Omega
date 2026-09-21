@@ -13,6 +13,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Epsilon evaluator entry"
+
 ENTRY_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ENTRY_TMP"' EXIT HUP INT TERM
 # Bound materializers refuse before writing when the canonical manifest,

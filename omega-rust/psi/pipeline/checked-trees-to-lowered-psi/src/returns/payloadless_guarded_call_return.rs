@@ -115,11 +115,14 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: place_id(1),
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -149,6 +152,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             id: contract_id(1),
             crash_routes: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
@@ -210,6 +214,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
                 id: block_id(3),
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::ReturnStructural {
                     edge: edge_id(3),
@@ -222,6 +227,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
                 id: contract_id(3),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),

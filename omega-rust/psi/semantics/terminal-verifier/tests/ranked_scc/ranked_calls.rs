@@ -34,6 +34,7 @@ fn ranked_scalar_call_cycle() -> TerminalModule {
     callee.entry = id(100, BlockId::new);
     callee.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
@@ -49,6 +50,7 @@ fn ranked_scalar_call_cycle() -> TerminalModule {
     module.machines[0].contract.crash_routes = routes.clone();
     module.machines[0].blocks[2].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -57,6 +59,7 @@ fn ranked_scalar_call_cycle() -> TerminalModule {
         }),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![id(1, ValueId::new)],
             requirement_obligations: Vec::new(),

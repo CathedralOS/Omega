@@ -163,6 +163,15 @@ pub(crate) fn validate(
         {
             continue;
         }
+        // A borrowed-window repair store covers its authored assignment; the
+        // ledger already validated destination and value against the open hole.
+        if plan.operations.iter().any(|operation| {
+            matches!(operation,
+            CheckedUnitEffectOperationPlan::StoreStructuralField { statement_index: ordinal, .. }
+                if *ordinal == statement_index)
+        }) {
+            continue;
+        }
         let matching = stores
             .iter()
             .filter(|store| store.statement_index == statement_index)

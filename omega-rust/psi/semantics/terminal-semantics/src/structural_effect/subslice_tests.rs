@@ -12,8 +12,10 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
 fn operation() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(2).unwrap(),
             structural_type: StructuralTypeId::new(1).unwrap(),
             multiplicity: StructuralMultiplicity::Unrestricted,

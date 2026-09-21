@@ -108,6 +108,7 @@ fn constructor_observations(
         for _ in 0..2 {
             block.operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(next_operation).unwrap(),
                 result: OperationResult::Scalar(boolean(next_value)),
                 kind: OperationKind::StructuralCaseMembership {
@@ -191,6 +192,7 @@ fn parameter_observations(access: StructuralAccess) -> CanonicalTerminalArtifact
     block.operations = (1..=2)
         .map(|identity| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(boolean(identity)),
             kind: OperationKind::StructuralCaseMembership {

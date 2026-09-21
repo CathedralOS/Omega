@@ -1,0 +1,22 @@
+// FAIL canary: recoverable failure does not cancel restoration debt. The
+// `Failed` arm is an ordinary cleanup-bearing edge out of the machine, so
+// leaving `self.inventory` absent there rejects the same as any other exit.
+data Inventory { slots: i32; }
+data Outcome {
+    case Ok;
+    case Failed(code: i32);
+}
+data Main { inventory: Inventory; }
+
+machine Main::restore(&mut self, taken: Inventory) -> i32 {
+    self.inventory = move taken;
+    0
+}
+
+machine Main::apply(&mut self, outcome: Outcome) -> i32 {
+    let taken: Inventory = self.inventory;
+    transition outcome {
+        Outcome::Ok -> self.restore(taken)
+        Outcome::Failed { code } -> code
+    }
+}

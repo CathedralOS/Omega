@@ -1406,3 +1406,178 @@ fn undeclared_contract_view_calls_finalize_as_proof_view_intrinsics() {
     );
     assert!(checked.authored_declaration_selections().all_finalized());
 }
+
+/// A managed-package quotient program: `TOTAL_DIRECT_DEFINE` from the
+/// validation bridge tests beside the entry `omega --check` selects. Lowered
+/// with a package identity so the proof-only bridge's hermetic identity rule
+/// holds, and unmodified otherwise: every typed termination summary is
+/// `NoGuarantee`, as on the compiler route.
+fn managed_quotient_define_program() -> typed_trees::TypedTrees {
+    const CORE_RELATION: &str = include_str!("../../../../../../source/library/core/relation.omg");
+    const SOURCE: &str = r#"
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative {
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+requires equivalent(left, right)
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass {
+    Quotient::define<representative, representative_respects>(value)
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
+"#;
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x73; 32])
+        .expect("nonzero package identity");
+    let mut sources = source::SourceMap::default();
+    let core_source_id = sources
+        .add_with_metadata(
+            std::path::PathBuf::from("source/library/core/relation.omg"),
+            CORE_RELATION.to_owned(),
+            std::path::PathBuf::from("source/library/core"),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let source_id = sources
+        .add_with_metadata(
+            std::path::PathBuf::from("managed/quotient/main.omg"),
+            SOURCE.to_owned(),
+            std::path::PathBuf::from("managed/quotient"),
+            Some(package),
+            source::SourceOrigin::User,
+        )
+        .source_id;
+    let core_tokens = Lexer::new(CORE_RELATION).tokenize().expect("tokenize core");
+    let mut syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(core_source_id, &core_tokens)
+            .expect("parse core relation");
+    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize fixture");
+    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        .expect("parse fixture");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(std::sync::Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("package-aware resolution");
+    lower_symbol_resolved_trees(&resolved).expect("type lowering")
+}
+
+#[test]
+fn a_sealed_quotient_request_call_resolves_as_a_proof_only_intrinsic() {
+    let typed = managed_quotient_define_program();
+    let request_span = typed
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::Call
+                && selection.target()
+                    == AuthoredDeclarationSelectionTarget::LateBound(
+                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    )
+        })
+        .map(|selection| selection.source_span())
+        .expect("the sealed request is a late-bound call selection");
+
+    let checked = lower_typed_trees(typed)
+        .expect("the checked route admits the managed direct define after checked termination");
+    let selections = checked.authored_declaration_selections();
+    let request = selections
+        .iter()
+        .find(|selection| selection.source_span() == request_span)
+        .expect("the request selection is retained");
+    assert_eq!(
+        request.target(),
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::QuotientDefine
+        )
+    );
+    assert!(selections.all_finalized());
+    // Proof-only: the flow ledger keeps the request's occurrence (every call
+    // expression has one) but it names no executable callee, so no checked
+    // call target, value plan or Unit operation can arise from it.
+    let request_expression = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, expression)| {
+            matches!(
+                expression,
+                typed_trees::expression::ExpressionNode::Call(call) if call.quotient_operation.is_some()
+            )
+            .then_some(handle)
+        })
+        .expect("the request expression is retained");
+    for (_, state) in checked.facts.flow.control.states.iter() {
+        for call in checked.facts.flow.control.calls.span_or_empty(state.calls) {
+            let site = crate::semantic_calls::find_call_site(
+                &checked.typed,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            );
+            if matches!(
+                site,
+                Some(crate::semantic_calls::CallSite::Expression { expression, .. })
+                    if expression == request_expression
+            ) {
+                assert!(
+                    !call.target_symbol.is_valid() && !call.receiver_symbol.is_valid(),
+                    "the sealed request must not acquire an executable call target"
+                );
+            }
+        }
+    }
+}

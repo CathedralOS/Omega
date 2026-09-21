@@ -1,15 +1,15 @@
 //! State-local calls and explicit successor bindings, independent of graph shape.
 use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan, ExpressionNode,
-    Multiplicity, PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode,
-    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
-    calls,
+    CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedScalarBinding,
+    CheckedScalarBindingValue, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedStructuralAccess, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, ExpressionNode, Multiplicity, PermissionEventKind,
+    PermissionEventSource, PrimitiveType, StatementNode, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode, TypeReferenceNode, TypedTrees, calls,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
@@ -647,7 +647,7 @@ pub(super) fn build_traced(
                     StatementNode::Transition(when_false),
                 ] if matches!(when_true.guard, TransitionGuardNode::When(_))
                     && composed_control::topology::exact_false_fallback(
-                        program, when_true, when_false,
+                        program, facts, when_true, when_false,
                     ) =>
                 {
                     trace
@@ -671,10 +671,113 @@ pub(super) fn build_traced(
                         )?,
                     }
                 }
+                tail @ [
+                    StatementNode::Transition(_),
+                    StatementNode::Transition(_),
+                    StatementNode::Transition(_),
+                    ..,
+                ] if tail
+                    .iter()
+                    .all(|statement| matches!(statement, StatementNode::Transition(_)))
+                    && tail[..tail.len() - 1].iter().all(|statement| {
+                        matches!(statement, StatementNode::Transition(transition)
+                            if matches!(transition.guard, TransitionGuardNode::When(_)))
+                    })
+                    && matches!(tail.last(), Some(StatementNode::Transition(transition))
+                        if transition.guard == TransitionGuardNode::Always) =>
+                {
+                    trace.phase("state graph: terminator: guarded jump successors: roster");
+                    let retained = facts
+                        .flow
+                        .terminal_scalar_graphs
+                        .guarded_tails
+                        .iter()
+                        .filter(|tail| tail.state == state.symbol)
+                        .collect::<Vec<_>>();
+                    let [retained] = retained.as_slice() else {
+                        return None;
+                    };
+                    let Some(exits) = facts
+                        .flow
+                        .terminal_scalar_graphs
+                        .guarded_exits
+                        .span(retained.arms)
+                    else {
+                        return None;
+                    };
+                    // The shared scalar roster owns this tail's guard order,
+                    // coverage and selected destinations; the composed edges
+                    // must agree with it exactly.
+                    if exits.len() != tail.len() - 1 {
+                        return None;
+                    }
+                    let mut arms = Vec::with_capacity(exits.len());
+                    for (index, (statement, exit)) in
+                        tail[..tail.len() - 1].iter().zip(exits.iter()).enumerate()
+                    {
+                        let StatementNode::Transition(transition) = statement else {
+                            return None;
+                        };
+                        let arm_ordinal = ordinal.checked_add(u32::try_from(index).ok()?)?;
+                        let checked_trees::CheckedScalarBranchDestination::Jump(selected) =
+                            &exit.destination
+                        else {
+                            return None;
+                        };
+                        if exit.guard_statement_ordinal != arm_ordinal
+                            || selected.statement_ordinal != arm_ordinal
+                        {
+                            return None;
+                        }
+                        trace.phase(
+                            "state graph: terminator: guarded jump successors: guard expression",
+                        );
+                        trace.statement(Some(arm_ordinal));
+                        let guard = facts
+                            .values
+                            .scalar_expressions
+                            .expression_at(
+                                state.symbol,
+                                arm_ordinal,
+                                CheckedScalarExpressionRole::Guard,
+                            )?
+                            .clone();
+                        if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
+                            return None;
+                        }
+                        let successor = edge(transition, arm_ordinal, SuccessorEdge::GuardedJump)?;
+                        if successor.target_state != selected.target {
+                            return None;
+                        }
+                        arms.push(CheckedGuardedJumpPlan { guard, successor });
+                    }
+                    let Some(StatementNode::Transition(fallback_transition)) = tail.last() else {
+                        return None;
+                    };
+                    let fallback_ordinal = ordinal.checked_add(u32::try_from(exits.len()).ok()?)?;
+                    let Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
+                        &retained.fallback
+                    else {
+                        return None;
+                    };
+                    if selected.statement_ordinal != fallback_ordinal {
+                        return None;
+                    }
+                    let fallback = edge(
+                        fallback_transition,
+                        fallback_ordinal,
+                        SuccessorEdge::GuardedJump,
+                    )?;
+                    if fallback.target_state != selected.target {
+                        return None;
+                    }
+                    CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }
+                }
                 _ => {
                     // Name the tail shape the general route lacks: the arms
                     // above admit an empty unit tail, one return expression,
-                    // one unconditional jump, and an exact when/else pair.
+                    // one unconditional jump, an exact when/else pair, and an
+                    // ordered guarded chain ending in its authored `_` arm.
                     trace.phase(match &statements[terminator_index..] {
                         [] => "state graph: terminator: unsupported tail: missing return value",
                         [StatementNode::Expression(_)] => {
@@ -724,6 +827,7 @@ pub(super) fn build_traced(
             terminator,
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                 | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         ) {
@@ -759,6 +863,7 @@ pub(super) fn build_traced(
                 terminator,
                 CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                     | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                    | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
             ) && result.multiplicity == Multiplicity::Affine
                 && facts
                     .flow
@@ -812,6 +917,21 @@ pub(super) fn build_traced(
                             state,
                             result,
                             &[when_true, when_false],
+                            &disposable_locals,
+                        )
+                }
+                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+                    let successors = arms
+                        .iter()
+                        .map(|arm| &arm.successor)
+                        .chain(std::iter::once(fallback))
+                        .collect::<Vec<_>>();
+                    successors.iter().all(|edge| transferred(edge))
+                        || local_results::permits_disposal(
+                            program,
+                            state,
+                            result,
+                            &successors,
                             &disposable_locals,
                         )
                 }
@@ -910,6 +1030,10 @@ pub(super) fn build_traced(
             scalar_parameters: scalar.clone(),
             erased_scalar_parameters:
                 crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
+                    program, state,
+                )?,
+            erased_proof_parameters:
+                crate::execution::terminal_unit::types::erased_proof_parameter_plans(
                     program, state,
                 )?,
             requires: state_requires[state_index].clone(),
@@ -1056,6 +1180,7 @@ type Signature = (
 pub(super) enum SuccessorEdge {
     Jump,
     Conditional,
+    GuardedJump,
     ClosedCase,
 }
 
@@ -1071,6 +1196,7 @@ enum SuccessorGuard {
     ParameterTransfer,
     ScalarArguments,
     ErasedArguments,
+    ErasedProofArguments,
     EdgeCleanup,
 }
 
@@ -1107,6 +1233,9 @@ impl SuccessorEdge {
             (Self::Jump, SuccessorGuard::ErasedArguments) => {
                 "state graph: terminator: jump successor: erased arguments"
             }
+            (Self::Jump, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: jump successor: erased proof arguments"
+            }
             (Self::Jump, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: jump successor: edge cleanup"
             }
@@ -1140,8 +1269,47 @@ impl SuccessorEdge {
             (Self::Conditional, SuccessorGuard::ErasedArguments) => {
                 "state graph: terminator: conditional successors: erased arguments"
             }
+            (Self::Conditional, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: conditional successors: erased proof arguments"
+            }
             (Self::Conditional, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: conditional successors: edge cleanup"
+            }
+            (Self::GuardedJump, SuccessorGuard::TransitionForm) => {
+                "state graph: terminator: guarded jump successors: transition form"
+            }
+            (Self::GuardedJump, SuccessorGuard::TargetState) => {
+                "state graph: terminator: guarded jump successors: target state"
+            }
+            (Self::GuardedJump, SuccessorGuard::ArgumentCount) => {
+                "state graph: terminator: guarded jump successors: argument count"
+            }
+            (Self::GuardedJump, SuccessorGuard::StructuralArgument) => {
+                "state graph: terminator: guarded jump successors: structural argument"
+            }
+            (Self::GuardedJump, SuccessorGuard::ReceiverTransfer) => {
+                "state graph: terminator: guarded jump successors: receiver transfer"
+            }
+            (Self::GuardedJump, SuccessorGuard::SubsliceTransfer) => {
+                "state graph: terminator: guarded jump successors: byte-subslice transfer"
+            }
+            (Self::GuardedJump, SuccessorGuard::ResultTransfer) => {
+                "state graph: terminator: guarded jump successors: result-local transfer"
+            }
+            (Self::GuardedJump, SuccessorGuard::ParameterTransfer) => {
+                "state graph: terminator: guarded jump successors: parameter transfer"
+            }
+            (Self::GuardedJump, SuccessorGuard::ScalarArguments) => {
+                "state graph: terminator: guarded jump successors: scalar arguments"
+            }
+            (Self::GuardedJump, SuccessorGuard::ErasedArguments) => {
+                "state graph: terminator: guarded jump successors: erased arguments"
+            }
+            (Self::GuardedJump, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: guarded jump successors: erased proof arguments"
+            }
+            (Self::GuardedJump, SuccessorGuard::EdgeCleanup) => {
+                "state graph: terminator: guarded jump successors: edge cleanup"
             }
             (Self::ClosedCase, SuccessorGuard::TransitionForm) => {
                 "state graph: terminator: closed-sum case successor: transition form"
@@ -1172,6 +1340,9 @@ impl SuccessorEdge {
             }
             (Self::ClosedCase, SuccessorGuard::ErasedArguments) => {
                 "state graph: terminator: closed-sum case successor: erased arguments"
+            }
+            (Self::ClosedCase, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: closed-sum case successor: erased proof arguments"
             }
             (Self::ClosedCase, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: closed-sum case successor: edge cleanup"
@@ -1531,12 +1702,30 @@ fn successor_bindings(
                 })
             })
             .collect::<Option<Vec<_>>>()?;
+    mark(SuccessorGuard::ErasedProofArguments);
+    // Erased proof-only formals carry proof terms, not scalar expressions:
+    // each actual lowers to a construction or a forwarded caller formal.
+    let proof_only = typed_trees::proof_only::classify(program);
+    let erased_proof_arguments =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, target)?
+            .iter()
+            .map(|target| {
+                let argument = argument_at(target.source_position)?;
+                crate::values::lower_proof_term(
+                    program,
+                    argument,
+                    program.state_parameters(source),
+                    &proof_only,
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
     Some(CheckedStructuralControlSuccessorPlan {
         statement_ordinal: ordinal,
         target_state: target.symbol,
         transfers,
         scalar_arguments,
         erased_arguments,
+        erased_proof_arguments,
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

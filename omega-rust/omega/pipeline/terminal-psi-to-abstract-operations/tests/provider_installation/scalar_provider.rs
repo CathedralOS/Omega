@@ -70,6 +70,7 @@ fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitutio
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(9),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

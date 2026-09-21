@@ -112,13 +112,9 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if program.machines().iter().any(|machine| {
-                machine.body_is_present
-                    && program
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == call.target_symbol)
-            }) {
+            if crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+                .is_some_and(|(machine, _)| machine.body_is_present)
+            {
                 return Some(());
             }
 
@@ -859,7 +855,9 @@ mod tests {
     use super::check_call_result_qualifications;
     use checked_trees::CheckedTrees;
     use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
-    use language_semantics::{PermissionAccess, PermissionEventKind, PermissionEventSource};
+    use language_semantics::{
+        PermissionAccess, PermissionEventKind, PermissionEventSource, QualificationEvidenceOrigin,
+    };
     use source_files_to_tokens::Lexer;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
@@ -1082,6 +1080,115 @@ mod tests {
     #[test]
     fn replay_accepts_authorized_issuance_occurrence() {
         issuance_fixture();
+    }
+
+    fn issuance_fact(checked: &CheckedTrees) -> facts::FactHandle {
+        checked
+            .facts
+            .semantic
+            .facts
+            .iter()
+            .find_map(|(handle, fact)| {
+                (fact.origin == FactOrigin::CallEnsures
+                    && matches!(fact.payload, FactPayload::DomainMembership { .. })
+                    && matches!(fact.place, FactPlace::Place(place)
+                        if matches!(checked.facts.semantic.places.get(place).root, PlaceRoot::Expression(_))
+                            && checked.facts.semantic.places.get(place).segments.is_empty()))
+                .then_some(handle)
+            })
+            .expect("bare result issuance fact")
+    }
+
+    #[test]
+    fn replay_rejects_foreign_receipt_identity() {
+        // A nonzero receipt identity is receipt evidence, not fresh issuance:
+        // the occurrence must trace to this exact invocation, not to an
+        // admitted receipt that already crossed a boundary.
+        let mut checked = issuance_fixture();
+        let handle = issuance_fact(&checked);
+        checked
+            .facts
+            .semantic
+            .facts
+            .get_mut(handle)
+            .evidence
+            .receipt_identity = 7;
+        assert_replay(&checked, false);
+    }
+
+    #[test]
+    fn replay_rejects_admitted_receipt_origin() {
+        // Evidence that already crossed an admitted boundary under a public
+        // contract cannot re-enter through the bare issuance route.
+        let mut checked = issuance_fixture();
+        let handle = issuance_fact(&checked);
+        checked.facts.semantic.facts.get_mut(handle).evidence.origin =
+            QualificationEvidenceOrigin::AdmittedReceipt;
+        assert_replay(&checked, false);
+    }
+
+    #[test]
+    fn replay_rejects_requirement_routed_evidence() {
+        // Evidence already attributed to a requirement route is not a bare
+        // invocation occurrence; counting it as issuance would mint twice.
+        let mut checked = issuance_fixture();
+        let handle = issuance_fact(&checked);
+        let routed = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "obtain")
+            .expect("caller machine")
+            .symbol;
+        checked
+            .facts
+            .semantic
+            .facts
+            .get_mut(handle)
+            .evidence
+            .requirement_symbol = routed;
+        assert_replay(&checked, false);
+    }
+
+    #[test]
+    fn sibling_requirement_on_authorized_boundary_cannot_mint() {
+        // `established by Provider::grant` names the exact requirement, not
+        // the trait: a sibling requirement on the same authorized boundary
+        // declaring the same result constraint is foreign issuance.
+        let source = r#"
+            data ByteUnit {}
+            data CountedQuantity<Unit> { magnitude: u64; }
+            trait Content<A> { machine project(subject: &Self) -> A; }
+            data Region [linear] { length: u64; }
+            domain Region::Granted established by Provider::grant;
+            machine Granted::content(region: &Region) -> CountedQuantity<ByteUnit>
+            satisfies Content<CountedQuantity<ByteUnit>>::project
+            { CountedQuantity { magnitude: region.length } }
+            boundary trait Provider {
+                machine grant(raw: Region) -> Region ensures result in Granted;
+                machine mint(raw: Region) -> Region ensures result in Granted;
+            }
+            machine obtain(provider: &Provider, raw: Region) -> Region in Granted
+            reaches Provider
+            {
+                provider.mint(raw)
+            }
+        "#;
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize sibling-route fixture");
+        let syntax = parse_syntax_trees(&tokens).expect("parse sibling-route fixture");
+        let resolved =
+            resolve(ResolutionRequest::new(&syntax)).expect("resolve sibling-route fixture");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type sibling-route fixture");
+        let error = crate::lower_typed_trees(typed)
+            .expect_err("an unnamed sibling requirement cannot mint the routed domain");
+        assert!(
+            error.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot establish call-result qualification")),
+            "expected call-result qualification rejection, got: {error:#?}"
+        );
     }
 
     #[test]

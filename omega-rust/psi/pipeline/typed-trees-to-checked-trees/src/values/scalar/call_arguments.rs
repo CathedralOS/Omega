@@ -42,6 +42,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     plans: &mut CheckedScalarExpressionPlans,
+    proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) {
     for machine in program.machines() {
@@ -149,6 +150,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                             &parameters,
                             &locals,
                             &mut plans.expressions,
+                            proof_terms,
                             &mut plans.source_bindings,
                             &mut plans.binding_symbols,
                         );

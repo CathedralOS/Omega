@@ -386,6 +386,7 @@ impl ExitScalars<'_, '_> {
                 | Scalar::IntegerWiden { operand, .. }
                 | Scalar::IntegerExactCast { operand, .. }
                 | Scalar::IntegerWrappingCast { operand, .. }
+                | Scalar::IntegerSaturatingCast { operand, .. }
                 | Scalar::IntegerTrappingCast { operand, .. } => {
                     pending.push(operand.as_mut());
                     continue;

@@ -12,6 +12,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Delta frontend boundary"
+
 FRONTEND_BOUNDARY_TMP=$(mktemp -d)
 trap 'rm -rf -- "$FRONTEND_BOUNDARY_TMP"' EXIT HUP INT TERM
 materialize_delta_compiler "$FRONTEND_BOUNDARY_TMP/compiler.gamma"

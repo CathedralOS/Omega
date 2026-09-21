@@ -43,8 +43,11 @@ use typed_trees::statement::{
 /// symbol — so every statement is scanned under both. A `self.<sibling>`
 /// receiver call keeps its own field prefix through the receiver path the
 /// statement carries, so mutating one field's attached machine does not
-/// dirty the read field. A bare `self` read or an opaque first step names
-/// no separable field and keeps no entry identity.
+/// dirty the read field. A bare `self` read is the receiver's whole storage
+/// and keeps the entry identity only while every receiver root is pristine —
+/// both the whole-receiver spellings and each attached-data member the write
+/// side can root at. A first step that is neither a field nor whole storage
+/// still names no separable field and keeps no entry identity.
 pub(super) fn receiver_field_holds_entry_value(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -52,8 +55,19 @@ pub(super) fn receiver_field_holds_entry_value(
     before_statement: usize,
     field_path: &[PlaceSegment],
 ) -> bool {
-    let Some(&PlaceSegment::Field(field)) = field_path.first() else {
-        return false;
+    // An empty `field_path` is the bare `self` whole-storage read: pristine
+    // there means no write or exclusive borrow under any receiver root at
+    // all — including the member symbols `self.<member>` spellings root at,
+    // which are each scanned with the empty read path. An unresolvable
+    // receiver declaration cannot enumerate those roots and stays
+    // conservative.
+    let (field, member_roots) = match field_path.first() {
+        Some(&PlaceSegment::Field(field)) => (Some(field), Vec::new()),
+        None => match receiver_member_symbols(program, machine) {
+            Some(symbols) => (None, symbols),
+            None => return false,
+        },
+        Some(_) => return false,
     };
     // A whole-receiver place roots at whichever symbol `self` resolved to —
     // the machine, its attached data, or a state's own receiver parameter —
@@ -151,10 +165,13 @@ pub(super) fn receiver_field_holds_entry_value(
             statements
         };
         window.iter().all(|statement| {
-            !statement_may_overwrite(program, machine.symbol, statement, field, &field_path[1..])
-                && receiver_roots.iter().all(|root| {
-                    !statement_may_overwrite(program, machine.symbol, statement, *root, field_path)
-                })
+            field.is_none_or(|field| {
+                !statement_may_overwrite(program, machine.symbol, statement, field, &field_path[1..])
+            }) && member_roots.iter().all(|root| {
+                !statement_may_overwrite(program, machine.symbol, statement, *root, &[])
+            }) && receiver_roots.iter().all(|root| {
+                !statement_may_overwrite(program, machine.symbol, statement, *root, field_path)
+            })
         })
     })
 }
@@ -213,6 +230,26 @@ pub(crate) enum PlaceSegment {
         end: usize,
     },
     Opaque,
+}
+
+/// The local scan's segment spelling of a canonical `facts::PlaceSegment`.
+/// The canonical producer normalizes fixed selections itself; an `Index`
+/// that still folds to a literal keeps the same element identity here, and a
+/// genuinely dynamic index stays opaque.
+pub(super) fn canonical_place_segment(
+    program: &TypedTrees,
+    segment: &facts::PlaceSegment,
+) -> PlaceSegment {
+    match segment {
+        facts::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
+        facts::PlaceSegment::Case { variant } => PlaceSegment::Case(*variant),
+        facts::PlaceSegment::FixedIndex { index } => PlaceSegment::FixedIndex(*index),
+        facts::PlaceSegment::FixedRange { start, end } => PlaceSegment::FixedRange {
+            start: *start,
+            end: *end,
+        },
+        facts::PlaceSegment::Index { expression } => fixed_index_segment(program, *expression),
+    }
 }
 
 /// The element segment an `Indexed` step contributes to a rooted path. The
@@ -353,6 +390,43 @@ fn rooted_place_path(
     }
 }
 
+/// Every member symbol of the receiver's attached data — a `self.<member>`
+/// write roots at the member's own symbol, so a bare `self` read is pristine
+/// only while no statement writes or exclusively borrows under any of them.
+/// Variant members and their payload fields are included: a case spelling
+/// roots at its member's symbol too. An ambiguous or absent declaration
+/// cannot enumerate the write surface and stays conservative.
+fn receiver_member_symbols(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<Vec<SymbolHandle>> {
+    let mut owners = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == machine.attached_data_symbol);
+    let data = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    Some(
+        program
+            .data_members(data)
+            .iter()
+            .flat_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) => vec![field.symbol],
+                typed_trees::data::DataMember::Variant(variant) => std::iter::once(variant.symbol)
+                    .chain(
+                        program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .map(|field| field.symbol),
+                    )
+                    .collect(),
+            })
+            .collect(),
+    )
+}
+
 /// The written or exclusively borrowed place `expression` reaches `symbol`'s
 /// storage at a path the read cannot be separated from.
 fn place_interferes(
@@ -383,19 +457,7 @@ pub(crate) fn statement_may_overwrite_place(
     let read_path: Vec<PlaceSegment> = place
         .segments
         .iter()
-        .map(|segment| match segment {
-            facts::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
-            facts::PlaceSegment::Case { variant } => PlaceSegment::Case(*variant),
-            facts::PlaceSegment::FixedIndex { index } => PlaceSegment::FixedIndex(*index),
-            facts::PlaceSegment::FixedRange { start, end } => PlaceSegment::FixedRange {
-                start: *start,
-                end: *end,
-            },
-            // The canonical producer normalizes fixed selections itself; an
-            // `Index` that still folds to a literal keeps the same identity
-            // here, and a genuinely dynamic index stays opaque.
-            facts::PlaceSegment::Index { expression } => fixed_index_segment(program, *expression),
-        })
+        .map(|segment| canonical_place_segment(program, segment))
         .collect();
     statement_may_overwrite(program, machine_symbol, statement, symbol, &read_path)
 }

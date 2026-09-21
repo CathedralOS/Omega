@@ -9,7 +9,7 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use typed_trees::types::PrimitiveType;
 
 #[test]
-fn constructed_range_equation_preserves_checked_field_values_and_inferred_capacity() {
+fn constructed_domain_equation_preserves_checked_field_values_and_inferred_capacity() {
     use build_time_evaluation::{
         BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue,
     };
@@ -46,7 +46,7 @@ fn constructed_range_equation_preserves_checked_field_values_and_inferred_capaci
 }
 
 #[test]
-fn constructed_range_equation_keeps_explicit_identity_and_field_obligations() {
+fn constructed_domain_equation_keeps_explicit_identity_and_field_obligations() {
     let canary = pass_canary("generics/omitted_data_binder_range_equation");
     let source = fs::read_to_string(canary.join("main.omg")).unwrap();
     let scratch = unique_no_output_build_dir();
@@ -54,14 +54,14 @@ fn constructed_range_equation_keeps_explicit_identity_and_field_obligations() {
     let path = scratch.join("main.omg");
     for (name, invalid, expected) in [
         (
-            "explicit larger range",
-            "machine invalid(value: Bytes<256, u64[0..=512]>) -> Bytes<256> { value }",
+            "explicit wider domain index",
+            "machine invalid(value: Bytes<256, u64 in AtMost<512> >) -> Bytes<256> { value }",
             "where equation binds `Capacity` to 512 but its explicit argument is 256",
         ),
         (
-            "field outside the constructed range",
-            "machine invalid() -> u64 { let bytes: Bytes<256> = Bytes { length: 257 }; bytes.length }",
-            "field `length`: value 257 is outside its declared range `0..=256`",
+            "field outside the constructed domain",
+            "machine invalid() -> u64 { let bytes: Bytes<256> = Bytes { length: 257 as u64 in AtMost<256> }; bytes.length as u64 }",
+            "domain fact is FALSE at this value",
         ),
     ] {
         fs::write(&path, format!("{source}\n{invalid}\n")).unwrap();

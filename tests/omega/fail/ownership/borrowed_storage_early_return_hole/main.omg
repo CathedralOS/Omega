@@ -1,0 +1,10 @@
+// FAIL canary: returning while a borrowed-storage hole is open rejects.
+// `self.inventory` is still absent at the exit; the moved `taken` never
+// reaches a restore, so the hole meets the early return and rejects.
+data Inventory { slots: i32; }
+data Main { inventory: Inventory; }
+
+machine Main::leave(&mut self) -> i32 {
+    let taken: Inventory = self.inventory;
+    0
+}

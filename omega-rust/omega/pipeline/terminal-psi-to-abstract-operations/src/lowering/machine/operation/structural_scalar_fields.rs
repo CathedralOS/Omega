@@ -422,6 +422,7 @@ mod tests {
             entry: BlockId::new(2).unwrap(),
             blocks: Vec::new(),
             contract: MachineContract {
+                erased_proof_formals: Vec::new(),
                 erased_scalar_formals: Vec::new(),
                 id: ContractId::new(9).unwrap(),
                 crash_routes: Vec::new(),
@@ -434,6 +435,7 @@ mod tests {
 
     fn test_block(operations: Vec<Operation>) -> Block {
         Block {
+            erased_proof_formals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             id: BlockId::new(2).unwrap(),
             parameters: Vec::new(),
@@ -451,6 +453,7 @@ mod tests {
     fn marker(id: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(id).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BooleanConstant { value: false },
@@ -460,6 +463,7 @@ mod tests {
     fn producer(id: u64, value: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(id).unwrap(),
             result: OperationResult::Scalar(scalar_parameter(value)),
             kind: OperationKind::BooleanConstant { value: true },

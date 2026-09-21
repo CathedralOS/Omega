@@ -53,6 +53,7 @@ pub(super) fn index_structural_types(
                 );
             }
             terminal_psi::StructuralTypeShape::FixedArray { .. } => {}
+            terminal_psi::StructuralTypeShape::ElementView { .. } => {}
             terminal_psi::StructuralTypeShape::Record { fields } => {
                 validate_structural_fields(unit, declaration.id, None, fields, true)?;
             }
@@ -77,7 +78,8 @@ pub(super) fn index_structural_types(
                     _ => None,
                 })
                 .collect(),
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => vec![*element],
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+            | terminal_psi::StructuralTypeShape::ElementView { element } => vec![*element],
             terminal_psi::StructuralTypeShape::Sum { cases } => cases
                 .iter()
                 .flat_map(|case| &case.fields)
@@ -152,7 +154,8 @@ pub(super) fn index_structural_types(
                     }
                 })
                 .collect(),
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => vec![*element],
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+            | terminal_psi::StructuralTypeShape::ElementView { element } => vec![*element],
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_)
             | terminal_psi::StructuralTypeShape::Reference { .. }

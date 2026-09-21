@@ -206,6 +206,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         structural_parameters: nominal_parameters,
         scalar_parameters: Vec::new(),
         erased_scalar_parameters: plan.erased_scalar_parameters.clone(),
+        erased_proof_parameters: plan.erased_proof_parameters.clone(),
         provider_attachment_requirements: Vec::new(),
         trivial_affine_locals: Vec::new(),
         entry_claims: Vec::new(),
@@ -417,6 +418,22 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         if receiver_place_rebase.contains_key(&receiver) {
             continue;
         }
+        // A receiver that names the hook's borrowed `self` parameter is a
+        // declared place, not a proof-local root — it stays put.
+        let receiver_is_hook_parameter = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == cleanup.cleanup_machine)
+            .is_some_and(|machine| {
+                machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self && parameter.place == receiver)
+            });
+        if receiver_is_hook_parameter {
+            continue;
+        }
         next_proof_root = next_proof_root
             .checked_add(1)
             .ok_or(LoweringError::Unsupported(
@@ -465,6 +482,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::PrimitiveScalar(_)
                 | StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::ElementView { .. }
                 | StructuralTypeShape::FixedArray { .. }
                 | StructuralTypeShape::Sum { .. }
                 | StructuralTypeShape::Mixed { .. } => None,
@@ -1316,6 +1334,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             id: continuation_block,
             parameters: vec![convergence_value],
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: operations.operations[continuation_operation_start..].to_vec(),
             terminator: Terminator::Return {
                 edge: return_edge,
@@ -1377,6 +1396,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             id: entry.entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: operations.operations,
             terminator: Terminator::Return {
                 edge,

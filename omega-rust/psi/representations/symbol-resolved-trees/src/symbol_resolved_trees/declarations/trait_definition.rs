@@ -39,6 +39,10 @@ pub struct TraitRefinementClause {
     pub requirement: Option<DiagnosticName>,
     /// Operational axes only.
     pub signature: StateSignature,
+    /// Exact authored `reaches` keyword occurrences on this clause. An
+    /// authored `reaches;` (empty names with a keyword span) is a narrowed
+    /// empty row; an omitted clause inherits the base row.
+    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
     /// Authored `reaches` names retained until row binding; clause reach rows
     /// intern against the bound fit check, not the signature pending pass.
     pub service_reaches: Vec<DiagnosticName>,

@@ -278,6 +278,7 @@ fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
             &program,
             &CheckedOperatorFacts::default(),
             &[],
+            &mut Vec::new(),
         );
         assert_eq!(
             plans.expression_at(state_symbol, 1, CheckedScalarExpressionRole::Return),
@@ -306,6 +307,7 @@ fn mutable_scalar_reads_require_consistent_exact_resolved_name_handles() {
                 &changed,
                 &CheckedOperatorFacts::default(),
                 &[],
+                &mut Vec::new(),
             );
             assert_eq!(
                 plans.expression_at(state_symbol, 1, CheckedScalarExpressionRole::Return),

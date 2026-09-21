@@ -1,8 +1,6 @@
 use super::super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
-use super::{
-    MachineAlternativeKey, PackedByteWidth, SelectedInstructionKind,
-    aarch64_physical_register_model,
-};
+use super::{MachineAlternativeKey, PackedByteWidth, SelectedInstructionKind};
+use crate::aarch64_physical_register_model;
 use selected_instructions::{MachineSemanticKind, MachineSizeKnowledge};
 
 fn case(

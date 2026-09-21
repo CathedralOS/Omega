@@ -14,13 +14,13 @@ use super::super::super::{
     OptimizedProgramStorageSemanticWrapperObjectSymbol,
     OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
 };
-use super::super::child;
 use super::super::{
     OptimizedProgramStorageSemanticWrapperObjectError,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object,
 };
+use super::super::{child, encoding};
 use super::fixture::{recompose, staged_parts, three_symbol_parts};
 use crate::optimized_semantic_wrapper_object::object::validate_manifest;
 use object_file::{ObjectLocalSymbolId, canonical_private_machine_symbol_name};
@@ -101,10 +101,13 @@ fn wrapper_object_plan_rejects_every_representable_one_field_substitution() {
             mutated.identity, object.identity,
             "reauthenticated {field} must change the containing object identity",
         );
-        let mutated_container = encode_optimized_program_storage_semantic_wrapper_object(&mutated)
-            .unwrap_or_else(|error| {
-                panic!("representable {field} must keep a valid object envelope: {error:?}")
-            });
+        let mutated_container = encode_optimized_program_storage_semantic_wrapper_object(
+            &mutated,
+            encoding().template(),
+        )
+        .unwrap_or_else(|error| {
+            panic!("representable {field} must keep a valid object envelope: {error:?}")
+        });
         assert_eq!(
             decode_optimized_program_storage_semantic_wrapper_object(&mutated_container.bytes),
             Ok(mutated.clone()),
@@ -239,7 +242,10 @@ fn wrapper_object_plan_rejects_every_closed_field_at_encoding() {
         mutate(&mut mutated);
         mutated.identity = mutated.recomputed_identity().unwrap();
         assert_eq!(
-            encode_optimized_program_storage_semantic_wrapper_object(&mutated),
+            encode_optimized_program_storage_semantic_wrapper_object(
+                &mutated,
+                encoding().template()
+            ),
             Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject),
             "non-canonical {field} must be rejected at encoding",
         );
@@ -283,7 +289,10 @@ fn wrapper_object_plan_rejects_every_closed_axis_at_encoding_extended() {
         mutate(&mut mutated);
         mutated.identity = mutated.recomputed_identity().unwrap();
         assert_eq!(
-            encode_optimized_program_storage_semantic_wrapper_object(&mutated),
+            encode_optimized_program_storage_semantic_wrapper_object(
+                &mutated,
+                encoding().template()
+            ),
             Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject),
             "non-canonical {field} must be rejected at encoding",
         );
@@ -330,7 +339,10 @@ fn wrapper_object_plan_rejects_terminal_function_row_substitutions() {
         mutate(&mut mutated);
         mutated.identity = mutated.recomputed_identity().unwrap();
         assert_eq!(
-            encode_optimized_program_storage_semantic_wrapper_object(&mutated),
+            encode_optimized_program_storage_semantic_wrapper_object(
+                &mutated,
+                encoding().template()
+            ),
             Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject),
             "non-canonical {field} must be rejected at encoding",
         );
@@ -347,7 +359,7 @@ fn stale_object_identity_rejects_at_encoding() {
     mutated.identity =
         OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(b"stale-object");
     assert_eq!(
-        encode_optimized_program_storage_semantic_wrapper_object(&mutated),
+        encode_optimized_program_storage_semantic_wrapper_object(&mutated, encoding().template()),
         Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject),
     );
 
@@ -357,7 +369,7 @@ fn stale_object_identity_rejects_at_encoding() {
     mutated.source_artifact =
         OptimizedObjectArtifactIdentity::from_canonical_bytes(b"mutated-artifact");
     assert_eq!(
-        encode_optimized_program_storage_semantic_wrapper_object(&mutated),
+        encode_optimized_program_storage_semantic_wrapper_object(&mutated, encoding().template()),
         Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject),
     );
 }

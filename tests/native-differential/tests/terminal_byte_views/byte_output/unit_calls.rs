@@ -17,10 +17,12 @@ pub(super) fn unit_byte_output_calls_module() -> TerminalModule {
     caller.blocks[0].id = caller.entry;
     let call = |identity, value| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: module.entry,
             arguments: vec![value],
             structural_arguments: Vec::new(),
@@ -33,6 +35,7 @@ pub(super) fn unit_byte_output_calls_module() -> TerminalModule {
         call(105, caller.parameters[0].id),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(106).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

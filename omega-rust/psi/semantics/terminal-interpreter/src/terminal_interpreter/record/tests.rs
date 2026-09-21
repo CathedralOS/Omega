@@ -17,6 +17,7 @@ fn verified_startup_moves_the_decoded_operation_allocation() {
     let mut module = unit_module();
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(901).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(901).unwrap(),
@@ -106,6 +107,7 @@ fn unit_module() -> TerminalModule {
             entry: BlockId::new(900).unwrap(),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(900).unwrap(),
                 parameters: Vec::new(),
@@ -117,6 +119,7 @@ fn unit_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(900).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -168,8 +171,10 @@ fn record_module() -> TerminalModule {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(1).unwrap(),
             structural_type: record,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -217,6 +222,7 @@ fn getter() -> TerminalMachine {
     getter.result = TerminalMachineResult::Scalar(scalar(14));
     getter.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(12).unwrap(),
         result: OperationResult::Scalar(scalar(13)),
         kind: OperationKind::IntegerStructuralField {
@@ -236,10 +242,12 @@ fn getter() -> TerminalMachine {
 fn getter_call(identity: u64, source: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(scalar(identity)),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: MachineId::new(901).unwrap(),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -321,10 +329,12 @@ fn ordinary_scalar_calls_reenter_constructor_with_fresh_record_identities() {
         .into_iter()
         .map(|(identity, argument)| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(scalar(identity)),
             kind: OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: MachineId::new(900).unwrap(),
                 arguments: vec![ValueId::new(argument).unwrap()],
                 requirement_obligations: Vec::new(),
@@ -413,6 +423,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
     writer.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(21).unwrap(),
             result: OperationResult::Scalar(scalar(21)),
             kind: OperationKind::IntegerConstant {
@@ -421,6 +432,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(22).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -440,10 +452,12 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(11).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: writer.id,
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -470,6 +484,7 @@ fn owned_record_argument_mutation_does_not_change_the_callers_referent() {
     machine.blocks[0].operations.push(call);
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(4).unwrap(),
         result: OperationResult::Scalar(scalar(4)),
         kind: OperationKind::IntegerStructuralField {

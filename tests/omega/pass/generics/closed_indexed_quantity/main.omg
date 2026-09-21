@@ -90,9 +90,13 @@ machine qualify_i64_meters(value: i64) -> i64 in Quantity<Units::METER> {
 
 // The destination remains a direct proof-static binder. The body performs an
 // ordinary conversion step (identity here) and then selects that exact result
-// index; no unit-specific behavior is built into `as`.
-machine retag_i64<const To: Unit>(value: i64) -> i64 in Quantity<To> {
-    let tagged: i64 in Quantity<To> = (value as i64 in Quantity<To>);
+// index; no unit-specific behavior is built into `as`. The carrier is bounded
+// end to end so the caller's exact `i64 -> i32` cast keeps positive fit
+// evidence (an unrestricted `i64 as i32` is correctly rejected).
+machine retag_i64<const To: Unit>(
+    value: i64 [0..=100]
+) -> i64 [0..=100] in Quantity<To> {
+    let tagged: i64 [0..=100] in Quantity<To> = (value as i64 [0..=100] in Quantity<To>);
     transition { _ -> tagged }
 }
 
@@ -101,7 +105,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let meters: i64 in Quantity<Units::METER> = retag_i64(70);
+    let meters: i64 [0..=100] in Quantity<Units::METER> = retag_i64(70);
     let seconds: i64 in Quantity<Units::SECOND> = retag_i64(0);
     self.console.exit_process(meters as i32);
 }

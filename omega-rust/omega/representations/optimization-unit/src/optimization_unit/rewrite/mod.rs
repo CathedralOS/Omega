@@ -12,8 +12,9 @@ use optimization_core::{
     OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, ScalarType, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerCarrier, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
+    ValueId,
 };
 
 use crate::{

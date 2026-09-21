@@ -5,7 +5,8 @@ use super::super::primitive_locals;
 use super::{MachineEmission, StepInputs};
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
-    lookup_service_id, unsupported,
+    StructuralPlaceDeclaration, StructuralPlaceKind, lookup_service_id, lookup_type_id,
+    unsupported,
 };
 
 impl MachineEmission<'_> {
@@ -326,5 +327,92 @@ impl MachineEmission<'_> {
             value.id,
             &mut self.next_call_obligation,
         )?))
+    }
+
+    /// Move one whole structural field out of borrowed storage into the
+    /// authored local binding. The opened window is closed by the matching
+    /// `StoreStructuralField`; `emit` refuses an exit that still holds one.
+    pub(super) fn move_structural_field(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<Option<OperationKind>, LoweringError> {
+        let CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } = operation
+        else {
+            unreachable!("dispatched move_structural_field")
+        };
+        if result.binding_ordinal as usize != self.structural_result_places.len() {
+            return unsupported("borrowed-window move result binding is not dense");
+        }
+        let place = self.borrowed_windows.emit_move(
+            source,
+            result,
+            self.parameters,
+            self.structural_types,
+            self.type_ids,
+            &mut self.next_place,
+            &mut self.operations,
+        )?;
+        self.structural_result_places.push((
+            StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: self
+                        .operations
+                        .operations
+                        .last()
+                        .ok_or(LoweringError::Unsupported(
+                            "borrowed-window move emitted no operation",
+                        ))?
+                        .id,
+                    structural_type: lookup_type_id(self.type_ids, &result.type_identity)?,
+                },
+            },
+            false,
+        ));
+        Ok(None)
+    }
+
+    /// Store the moved binding back into its open window. The ledger is
+    /// unchanged here; the emission-level ledger closes the hole.
+    pub(super) fn store_structural_field(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<Option<OperationKind>, LoweringError> {
+        let CheckedUnitEffectOperationPlan::StoreStructuralField {
+            destination, value, ..
+        } = operation
+        else {
+            unreachable!("dispatched store_structural_field")
+        };
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } = value.source
+        else {
+            return unsupported("borrowed-window repair value is not a moved structural binding");
+        };
+        let (declaration, _) = self
+            .structural_result_places
+            .get(binding_ordinal as usize)
+            .ok_or(LoweringError::Unsupported(
+                "borrowed-window repair binding is absent",
+            ))?;
+        let StructuralPlaceKind::OperationResult {
+            structural_type, ..
+        } = declaration.kind
+        else {
+            return unsupported("borrowed-window repair binding is not an operation result");
+        };
+        self.borrowed_windows.emit_store(
+            destination,
+            crate::emission::borrowed_window::BorrowedWindowRepairValue {
+                place: declaration.id,
+                structural_type,
+            },
+            self.parameters,
+            self.structural_types,
+            self.type_ids,
+            &mut self.operations,
+        )?;
+        Ok(None)
     }
 }

@@ -1604,3 +1604,714 @@ fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources()
         }
     }
 }
+
+/// `Foreign::leaf(quad: Quad, mixed: Mixed) -> Unit` transports both records
+/// by value: `quad` is a homogeneous f32 quadruple and `mixed` a split
+/// float/integer pair, so the rebuilt signature is the calling policy's
+/// classified shape — `HomogeneousFloatAggregate(4)` and a SysV
+/// `Sse`/`Integer` eightbyte pair on SysV, HFA and integer on AAPCS, integer
+/// views under Microsoft x64.
+fn owned_fixture() -> (AbstractOperationPlan, Execution) {
+    use semantic_vocabulary::IeeeFloatFormat;
+    use terminal_psi::StructuralTypeShape::Record;
+
+    let f32_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+    let f64_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+    let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let quad_type = StructuralTypeId::new(10).unwrap();
+    let mixed_type = StructuralTypeId::new(11).unwrap();
+    let quad_place = PlaceId::new(1).unwrap();
+    let mixed_place = PlaceId::new(2).unwrap();
+    let fields = |entries: Vec<(&str, StructuralFieldType)>| Record {
+        fields: entries
+            .into_iter()
+            .enumerate()
+            .map(
+                |(index, (identity, field_type))| StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(index as u64 + 1).unwrap(),
+                    identity: identity.into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type,
+                },
+            )
+            .collect(),
+    };
+    let mut source = empty_plan(MachineId::new(1).unwrap());
+    source.functions[0].structural_parameters = vec![
+        StructuralParameterDeclaration {
+            place: quad_place,
+            position: 0,
+            is_self: false,
+            structural_type: quad_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+        StructuralParameterDeclaration {
+            place: mixed_place,
+            position: 1,
+            is_self: false,
+            structural_type: mixed_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+    ];
+    source.structural_types.make_mut().extend([
+        StructuralTypeDeclaration {
+            id: quad_type,
+            identity: "probe::Quad".into(),
+            shape: fields(vec![
+                ("x", StructuralFieldType::Scalar(f32_type)),
+                ("y", StructuralFieldType::Scalar(f32_type)),
+                ("z", StructuralFieldType::Scalar(f32_type)),
+                ("w", StructuralFieldType::Scalar(f32_type)),
+            ]),
+        },
+        StructuralTypeDeclaration {
+            id: mixed_type,
+            identity: "probe::Mixed".into(),
+            shape: fields(vec![
+                ("f", StructuralFieldType::Scalar(f64_type)),
+                ("tag", StructuralFieldType::Scalar(u64_type)),
+            ]),
+        },
+    ]);
+    source.boundary_machines.push(declaration(
+        Vec::new(),
+        vec![
+            StructuralParameterDeclaration {
+                place: PlaceId::new(31).unwrap(),
+                position: 0,
+                is_self: false,
+                structural_type: quad_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+            StructuralParameterDeclaration {
+                place: PlaceId::new(32).unwrap(),
+                position: 1,
+                is_self: false,
+                structural_type: mixed_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        ],
+        terminal_psi::BoundaryMachineResult::Unit,
+    ));
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::BoundaryCall {
+            psi_operation: OperationId::new(7).unwrap(),
+            result: AbstractBoundaryResult::Unit,
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: vec![
+                terminal_psi::StructuralArgument {
+                    place: quad_place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                terminal_psi::StructuralArgument {
+                    place: mixed_place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+            ],
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    );
+    (
+        source,
+        Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        },
+    )
+}
+
+fn owned_signature(native: NativeTarget) -> CallSignature {
+    use calling_conventions::SystemVEightbyteClass;
+    let quad = match CallingPolicy::native_for_target(native) {
+        CallingPolicy::MicrosoftX64 => ValueShape::integer(16, 4),
+        _ => ValueShape::homogeneous_float_aggregate(4, 4),
+    };
+    let mixed = match CallingPolicy::native_for_target(native) {
+        CallingPolicy::SystemVAMD64 => ValueShape::system_v_aggregate(
+            16,
+            8,
+            SystemVEightbyteClass::Sse,
+            SystemVEightbyteClass::Integer,
+        ),
+        _ => ValueShape::integer(16, 8),
+    };
+    CallSignature {
+        parameters: vec![quad, mixed],
+        result: None,
+    }
+}
+
+/// `Foreign::leaf(view: &[u8], holder_view: &[u8]) -> Unit` borrows a whole
+/// stored descriptor and a descriptor field stored inside a record: both
+/// formals transport the two-word `BorrowedView` by value under the
+/// declaration's own `Integer(16, 8)` signature shape.
+fn view_fixture() -> (AbstractOperationPlan, Execution) {
+    use terminal_psi::StructuralTypeShape::Record;
+    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
+
+    let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let view_type = StructuralTypeId::new(20).unwrap();
+    let holder_type = StructuralTypeId::new(21).unwrap();
+    let buffer_place = PlaceId::new(3).unwrap();
+    let holder_place = PlaceId::new(4).unwrap();
+    let mut source = empty_plan(MachineId::new(1).unwrap());
+    source.functions[0].structural_parameters = vec![
+        StructuralParameterDeclaration {
+            place: buffer_place,
+            position: 0,
+            is_self: false,
+            structural_type: view_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+        StructuralParameterDeclaration {
+            place: holder_place,
+            position: 1,
+            is_self: false,
+            structural_type: holder_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+    ];
+    source.structural_types.make_mut().extend([
+        StructuralTypeDeclaration {
+            id: view_type,
+            identity: "probe::View".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        },
+        StructuralTypeDeclaration {
+            id: holder_type,
+            identity: "probe::Holder".into(),
+            shape: Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "tag".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(i32_type),
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).unwrap(),
+                        identity: "data".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::ByteSequence(
+                            ByteSequenceCarrier::BorrowedView,
+                        ),
+                    },
+                ],
+            },
+        },
+    ]);
+    source.boundary_machines.push(declaration(
+        Vec::new(),
+        vec![
+            StructuralParameterDeclaration {
+                place: PlaceId::new(33).unwrap(),
+                position: 0,
+                is_self: false,
+                structural_type: view_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+            StructuralParameterDeclaration {
+                place: PlaceId::new(34).unwrap(),
+                position: 1,
+                is_self: false,
+                structural_type: view_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::MutableBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        ],
+        terminal_psi::BoundaryMachineResult::Unit,
+    ));
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::BoundaryCall {
+            psi_operation: OperationId::new(7).unwrap(),
+            result: AbstractBoundaryResult::Unit,
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: vec![
+                terminal_psi::StructuralArgument {
+                    place: buffer_place,
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+                terminal_psi::StructuralArgument {
+                    place: holder_place,
+                    path: vec![StructuralPathSegment::Field("data".to_owned())],
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ],
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    );
+    (
+        source,
+        Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        },
+    )
+}
+
+#[test]
+fn normalized_foreign_owned_aggregate_arguments_replay_across_native_targets() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (source, execution) = owned_fixture();
+        let signature = owned_signature(native);
+        let target = lower(
+            &source,
+            native,
+            &execution,
+            &[(1, binding(native, signature.clone()))],
+        );
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap_or_else(
+            |operation| {
+                panic!("owned aggregate rows must replay on {native:?}: refused {operation:?}")
+            },
+        );
+        let TargetUnitOperation::NormalizedForeignCall {
+            structural_arguments,
+            binding: row_binding,
+            ..
+        } = normalized_foreign_ref(&target, 7)
+        else {
+            panic!("normalized foreign row")
+        };
+        for (index, (argument, signature_shape)) in structural_arguments
+            .iter()
+            .zip(&signature.parameters)
+            .enumerate()
+        {
+            assert_eq!(
+                argument.destination.shape, *signature_shape,
+                "owned argument {index} transports the classified signature shape on {native:?}"
+            );
+            assert_eq!(
+                argument.destination, row_binding.boundary_entry_plan.call.parameters[index],
+                "owned argument {index} lands the plan's own destination on {native:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_field() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (source, execution) = view_fixture();
+        let descriptor = ValueShape::integer(16, 8);
+        let target = lower(
+            &source,
+            native,
+            &execution,
+            &[(
+                1,
+                binding(
+                    native,
+                    CallSignature {
+                        parameters: vec![descriptor, descriptor],
+                        result: None,
+                    },
+                ),
+            )],
+        );
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap_or_else(
+            |operation| panic!("descriptor rows must replay on {native:?}: refused {operation:?}"),
+        );
+        let TargetUnitOperation::NormalizedForeignCall {
+            structural_arguments,
+            ..
+        } = normalized_foreign_ref(&target, 7)
+        else {
+            panic!("normalized foreign row")
+        };
+        assert_eq!(structural_arguments[0].source_byte_offset, 0);
+        assert_eq!(structural_arguments[1].source_byte_offset, 8);
+    }
+}
+
+#[test]
+fn normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows() {
+    use target_operations::TargetStructuralArgumentSource;
+    for native in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+        for mutation in 0..8 {
+            let (source, execution) = owned_fixture();
+            let target = lower(
+                &source,
+                native,
+                &execution,
+                &[(1, binding(native, owned_signature(native)))],
+            );
+            let mut changed = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                structural_arguments,
+                ..
+            } = normalized_foreign_mut(&mut changed, 7)
+            else {
+                panic!("normalized foreign row")
+            };
+            match mutation {
+                // The retained shape claims the access-borrowed pointer form
+                // rather than the owned referent shape.
+                0 => structural_arguments[0].shape = ValueShape::borrowed_reference(16, 4),
+                // An owned argument names its whole referent: a projected
+                // path is a substituted projection.
+                1 => {
+                    structural_arguments[0].path =
+                        vec![StructuralPathSegment::Field("x".to_owned())]
+                }
+                // A caller parameter's declared placement is its custody:
+                // claiming a producer home is a substituted source.
+                2 => {
+                    structural_arguments[0].source =
+                        TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: OperationId::new(7).unwrap(),
+                        }
+                }
+                // A claimed destination that is not the plan's exact
+                // placement refuses.
+                3 => {
+                    structural_arguments[0].destination = calling_conventions::ValuePlacement {
+                        shape: ValueShape::integer(8, 8),
+                        locations: vec![calling_conventions::ValueLocation::Register {
+                            register: calling_conventions::MachineRegister::X86Rdi,
+                            value_byte_offset: 0,
+                            byte_size: 8,
+                        }],
+                    }
+                }
+                // A mismatched projected type identity refuses.
+                4 => structural_arguments[0].structural_type = StructuralTypeId::new(11).unwrap(),
+                // A mismatched byte offset refuses.
+                5 => structural_arguments[0].source_byte_offset = 8,
+                // A declared access substitution refuses: the semantic
+                // argument transports the place by value.
+                6 => structural_arguments[0].access = StructuralAccess::SharedBorrow,
+                // An indexed transport marker is never produced for a
+                // record field path.
+                _ => structural_arguments[1].element_stride = Some(1),
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "forged owned-aggregate row {mutation} on {native:?}"
+            );
+        }
+        for mutation in 0..5 {
+            let (source, execution) = view_fixture();
+            let descriptor = ValueShape::integer(16, 8);
+            let target = lower(
+                &source,
+                native,
+                &execution,
+                &[(
+                    1,
+                    binding(
+                        native,
+                        CallSignature {
+                            parameters: vec![descriptor, descriptor],
+                            result: None,
+                        },
+                    ),
+                )],
+            );
+            let mut changed = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                structural_arguments,
+                ..
+            } = normalized_foreign_mut(&mut changed, 7)
+            else {
+                panic!("normalized foreign row")
+            };
+            match mutation {
+                // A non-descriptor root accepts no empty-path borrow.
+                0 => {
+                    structural_arguments[0].place = PlaceId::new(4).unwrap();
+                }
+                // A stored descriptor field's projected shape is the view's
+                // own two words; claiming the bare referent pointer form is
+                // a substituted shape.
+                1 => structural_arguments[1].shape = ValueShape::borrowed_reference(8, 8),
+                // The retained field offset must be the reconstructed one.
+                2 => structural_arguments[1].source_byte_offset = 0,
+                // A non-byte-sequence leaf path is not a descriptor
+                // projection: `tag` carries an i32 field.
+                3 => {
+                    structural_arguments[1].path =
+                        vec![StructuralPathSegment::Field("tag".to_owned())]
+                }
+                // Substituted destination placement refuses.
+                _ => {
+                    structural_arguments[0].destination = calling_conventions::ValuePlacement {
+                        shape: ValueShape::integer(8, 8),
+                        locations: vec![calling_conventions::ValueLocation::Register {
+                            register: calling_conventions::MachineRegister::X86Rdi,
+                            value_byte_offset: 0,
+                            byte_size: 8,
+                        }],
+                    }
+                }
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "forged descriptor row {mutation} on {native:?}"
+            );
+        }
+    }
+}
+
+/// `Foreign::leaf(pair: Pair) -> Unit` over an owned actual produced by an
+/// earlier call: the retained `StructuralHome` source replays through the
+/// producing call's exact affine result home — a substituted producer or a
+/// claimed caller placement refuses.
+fn home_fixture() -> (AbstractOperationPlan, Execution) {
+    let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let pair_type = StructuralTypeId::new(30).unwrap();
+    let produced = PlaceId::new(50).unwrap();
+    let mut source = empty_plan(MachineId::new(1).unwrap());
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: pair_type,
+            identity: "probe::Pair".into(),
+            shape: StructuralTypeShape::Record {
+                fields: [
+                    ("x", StructuralFieldId::new(1).unwrap()),
+                    ("y", StructuralFieldId::new(2).unwrap()),
+                ]
+                .map(|(identity, id)| StructuralFieldDeclaration {
+                    id,
+                    identity: identity.into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(i32_type),
+                })
+                .to_vec(),
+            },
+        });
+    source.boundary_machines.push(declaration(
+        Vec::new(),
+        vec![StructuralParameterDeclaration {
+            place: PlaceId::new(35).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: pair_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        terminal_psi::BoundaryMachineResult::Unit,
+    ));
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::CallStructural {
+            psi_operation: OperationId::new(6).unwrap(),
+            result: terminal_psi::StructuralOperationResult {
+                place: produced,
+                structural_type: pair_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            callee: MachineId::new(902).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
+    );
+    source.functions[0].operations.insert(
+        1,
+        AbstractOperation::BoundaryCall {
+            psi_operation: OperationId::new(7).unwrap(),
+            result: AbstractBoundaryResult::Unit,
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument {
+                place: produced,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }],
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    );
+    let mut callee = source.functions[0].clone();
+    callee.machine = MachineId::new(902).unwrap();
+    callee.structural_parameters = Vec::new();
+    callee.operations = vec![
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(40).unwrap(),
+            scalar_type: i32_type,
+            value: IntegerValue::Signed(7),
+        },
+        AbstractOperation::EstablishRecord {
+            psi_operation: OperationId::new(2).unwrap(),
+            result: terminal_psi::StructuralOperationResult {
+                place: produced,
+                structural_type: pair_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            },
+            fields: [
+                StructuralFieldId::new(1).unwrap(),
+                StructuralFieldId::new(2).unwrap(),
+            ]
+            .map(|field| terminal_psi::RecordFieldInitializer {
+                field,
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value: ValueId::new(40).unwrap(),
+                    range_obligation: None,
+                },
+            })
+            .to_vec(),
+        },
+        AbstractOperation::ReturnStructural {
+            psi_edge: EdgeId::new(1).unwrap(),
+            source: produced,
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    ];
+    callee.result = AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+        place: produced,
+        structural_type: pair_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    source.functions.push(callee);
+    (
+        source,
+        Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        },
+    )
+}
+
+fn pair_signature() -> CallSignature {
+    CallSignature {
+        parameters: vec![ValueShape::integer(8, 4)],
+        result: None,
+    }
+}
+
+#[test]
+fn normalized_foreign_owned_aggregate_from_call_result_replays_affine_home() {
+    for native in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+        let (source, execution) = home_fixture();
+        let target = lower(
+            &source,
+            native,
+            &execution,
+            &[(1, binding(native, pair_signature()))],
+        );
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap_or_else(
+            |operation| {
+                panic!("home-sourced owned row must replay on {native:?}: refused {operation:?}")
+            },
+        );
+        let TargetUnitOperation::NormalizedForeignCall {
+            structural_arguments,
+            ..
+        } = normalized_foreign_ref(&target, 7)
+        else {
+            panic!("normalized foreign row")
+        };
+        assert_eq!(
+            structural_arguments[0].source,
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(6).unwrap(),
+            }
+        );
+        for mutation in 0..3 {
+            let mut changed = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                structural_arguments,
+                ..
+            } = normalized_foreign_mut(&mut changed, 7)
+            else {
+                panic!("normalized foreign row")
+            };
+            match mutation {
+                // A substituted producer identity refuses.
+                0 => {
+                    structural_arguments[0].source =
+                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: OperationId::new(7).unwrap(),
+                        }
+                }
+                // A claimed caller placement is not the producing call's
+                // home.
+                1 => {
+                    structural_arguments[0].source =
+                        target_operations::TargetStructuralArgumentSource::Placement(
+                            calling_conventions::ValuePlacement {
+                                shape: ValueShape::integer(8, 4),
+                                locations: vec![calling_conventions::ValueLocation::Register {
+                                    register: calling_conventions::MachineRegister::X86Rax,
+                                    value_byte_offset: 0,
+                                    byte_size: 8,
+                                }],
+                            },
+                        )
+                }
+                // An unrestricted formal cannot take an affine result.
+                _ => structural_arguments[0].shape = ValueShape::borrowed_reference(8, 4),
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "forged affine-home row {mutation} on {native:?}"
+            );
+        }
+    }
+}

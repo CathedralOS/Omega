@@ -325,3 +325,43 @@ fn predicate_domain_initializer_wrong_owner_rejects() {
         );
     }
 }
+
+/// An equality live at a write's incoming boundary transports through the
+/// write: `counter.count`'s exit value is the stored source expression with
+/// the entry equality substituted, so `counter.count == before + 1` follows
+/// from `counter.count = counter.count + 1` under `counter.count == before`.
+/// A wrong update to the same shape still rejects.
+#[test]
+fn write_transport_carries_entry_equality_across_scalar_write() {
+    assert_accepted(
+        "write_transport_carries_entry_equality_across_scalar_write",
+        r#"
+        data Counter { count: u32; }
+        machine bump(counter: &mut Counter, before: u32 [0..=4095])
+            requires
+                counter.count == before
+                counter.count <= 4095
+            ensures
+                counter.count == before + 1
+        {
+            counter.count = counter.count + 1;
+        }
+    "#,
+    );
+    assert_rejected(
+        "write_transport_rejects_a_wrong_update",
+        r#"
+        data Counter { count: u32; }
+        machine bump(counter: &mut Counter, before: u32 [0..=4095])
+            requires
+                counter.count == before
+                counter.count <= 4095
+            ensures
+                counter.count == before + 1
+        {
+            counter.count = counter.count + 2;
+        }
+    "#,
+        &["cannot prove ensures"],
+    );
+}

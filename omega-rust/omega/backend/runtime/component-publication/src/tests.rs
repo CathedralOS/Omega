@@ -62,9 +62,10 @@ use external_roots::{
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
 use image_emission::{
-    InstalledArtifact, bind_installed_artifact, bind_installed_compiler_private_function_entry,
-    build_installation_record, build_installation_record_with_evidence,
-    build_object_artifact_with_private_functions, emit_executable_image,
+    InstalledArtifact, InstalledCompilerPrivateFunctionEntry, bind_installed_artifact,
+    bind_installed_compiler_private_function_entry, build_installation_record,
+    build_installation_record_with_evidence, build_object_artifact_with_private_functions,
+    emit_executable_image,
 };
 use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
@@ -2850,10 +2851,11 @@ fn interpreted_unregister_drives_registration_ledger_teardown() {
         .callback_registration_runtime(10)
         .expect("retained callback runtime");
 
-    // Registration occurred before the program ran: root admission, provider
-    // registration, lease acquisition, and lowering are the chain's register
-    // leg, which the authored program cannot yet express — the check layer
-    // still gates a claimed linear boundary result.
+    // Registration occurred before the program ran for this teardown-only
+    // fixture; the whole-chain leg — root admission, provider registration,
+    // lease acquisition, and lowering driven by the program's own `register`
+    // boundary call — is exercised by
+    // `interpreted_register_and_unregister_drive_the_registration_ledger`.
     let (validated, slot_authority, admission) =
         callback_install_inputs(runtime.installed(), private_entry);
     let root = runtime
@@ -2949,6 +2951,360 @@ fn interpreted_unregister_drives_registration_ledger_teardown() {
     };
     assert_eq!(*call, unregister_boundary.id);
     assert_eq!(arguments.as_slice(), &[registered_input]);
+    let completed = driver
+        .completed
+        .expect("the program's unregister released the component-era lease");
+    let (completed_attribution, completion) = completed.into_parts();
+    assert_eq!(completed_attribution.entry(), private_entry);
+    let (returned_slot, returned_capacity) = completion.into_parts();
+    assert_eq!(
+        returned_slot.slot(),
+        root_id(720, RootSlotId::from_normalized_identity)
+    );
+    assert_eq!(returned_capacity.identity(), capacity_identity);
+    assert_eq!(
+        driver.runtime.component_era_lease_holds(),
+        Some(0),
+        "the program's unregister released the exact component-era hold"
+    );
+}
+
+/// The full authored customer leg: `Customer::run` enters holding an
+/// unqualified `Registration` token, `register` returns it under the routed
+/// `Live` domain, and `unregister` settles that exact occurrence — so both
+/// boundary calls are program operations the ledger joins, not a Rust
+/// caller's sequence.
+const CALLBACK_REGISTER_ROUND_TRIP_PROGRAM: &str = r#"
+    data RegistrationSlot {}
+    data CountedQuantity<Unit> { magnitude: u64; }
+    trait Content<A> {
+        machine project(subject: &Self) -> A;
+    }
+
+    data Registration [linear] { slot: u64; }
+
+    domain Registration::Live
+    established by Registrar::register, Registrar::unregister;
+
+    machine Live::content(registration: &Registration) -> CountedQuantity<RegistrationSlot>
+    satisfies Content<CountedQuantity<RegistrationSlot>>::project
+    {
+        CountedQuantity { magnitude: 1 }
+    }
+
+    boundary trait Registrar {
+        machine register(registration: Registration) -> Registration in Registration::Live;
+
+        machine unregister(registration: Registration in Live);
+    }
+
+    data Customer {}
+    machine Customer::run(&mut self, registration: Registration)
+    reaches Registrar invokes Registrar;
+    {
+        let registered: Registration in Registration::Live = Registrar::register(registration);
+        Registrar::unregister(registered);
+    }
+"#;
+
+/// Joins one interpreted program's `register` and `unregister` boundary
+/// calls to the real registration custody chain. Where the teardown leg
+/// supplies an already-lowered live registration, the register leg is driven
+/// here: on the observed `register` effect the runtime performs root
+/// admission, provider registration, component-era lease acquisition, and
+/// lowering, and hands the program the `Live`-qualified occurrence; the
+/// following `unregister` effect then performs provider unregistration,
+/// exact root quiescence, and component-era lease release — the whole
+/// lifetime following the program's own order.
+struct ProgramDrivenRegistration {
+    register: BoundaryMachineId,
+    unregister: BoundaryMachineId,
+    calls: Vec<(BoundaryMachineId, Vec<TerminalStructuralValue>)>,
+    runtime: RunnableComponentCallbackRegistrationRuntime<'static>,
+    attribution: Option<InstalledCompilerPrivateFunctionEntry>,
+    install_inputs: Option<(ValidatedExternalRoot, RootSlotAuthority, RootAdmission)>,
+    provider: OpaqueCallbackProviderId,
+    capacity_identity: OpaqueCallbackRegistrationCapacityOccurrenceId,
+    registration_receipt_identity: OpaqueCallbackRegistrationReceiptId,
+    registration_identity: OpaqueCallbackRegistrationId,
+    unregistration_contract_identity: OpaqueCallbackUnregistrationContractId,
+    lease_identity: ProgramLocalRootEpochLeaseId,
+    removal_identity: RootRemovalReceiptId,
+    unregistration_receipt_identity: OpaqueCallbackUnregistrationReceiptId,
+    registered_value: TerminalStructuralValue,
+    removal: Option<RootRemovalReceipt>,
+    live: Option<Registration<'static>>,
+    completed: Option<CompletedRegistration>,
+}
+
+impl TerminalEffectHandler for ProgramDrivenRegistration {
+    fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall {
+            boundary,
+            structural_arguments,
+            ..
+        } = effect
+        else {
+            return Err(TerminalEffectRejection::new(
+                "only boundary effects are expected",
+            ));
+        };
+        self.calls.push((*boundary, structural_arguments.clone()));
+        Ok(())
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall { boundary, .. } = effect else {
+            return Err(TerminalEffectRejection::new(
+                "only boundary effects are expected",
+            ));
+        };
+        self.handle_effect(effect)?;
+        if *boundary == self.register {
+            let (validated, slot, admission) = self
+                .install_inputs
+                .take()
+                .expect("callback install inputs retained");
+            let root = self
+                .runtime
+                .install(validated, slot, admission)
+                .expect("program-driven callback root admission");
+            let capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+                self.capacity_identity,
+                self.provider,
+            );
+            let receipt = OpaqueCallbackRegistrationReceipt::from_provider(
+                self.registration_receipt_identity,
+                self.registration_identity,
+                self.provider,
+                self.unregistration_contract_identity,
+                &root,
+                &capacity,
+                true,
+            );
+            self.removal = Some(RootRemovalReceipt::from_provider(
+                self.removal_identity,
+                &root,
+                true,
+                true,
+            ));
+            let registered = self
+                .runtime
+                .admit_compiler_private_callback(
+                    self.attribution
+                        .take()
+                        .expect("private callback attribution"),
+                    root,
+                    receipt,
+                    capacity,
+                )
+                .expect("program-driven provider registration");
+            let lease = self
+                .runtime
+                .acquire_registration_lease(self.lease_identity)
+                .expect("program-driven component-era lease");
+            self.live = Some(
+                self.runtime
+                    .lower_registration(registered, lease)
+                    .expect("program-driven linear registration"),
+            );
+            return Ok(TerminalEffectResult::Structural(
+                self.registered_value.clone(),
+            ));
+        }
+        if *boundary == self.unregister {
+            let live = self.live.take().expect("the live registration is present");
+            let provider_receipt = OpaqueCallbackUnregistrationReceipt::from_provider(
+                self.unregistration_receipt_identity,
+                live.registration(),
+                true,
+            );
+            let unregistered = live
+                .unregister_and_quiesce(
+                    &mut self.runtime,
+                    provider_receipt,
+                    self.removal.take().expect("removal evidence retained"),
+                )
+                .expect("program-driven unregister and quiescence");
+            self.completed = Some(
+                unregistered
+                    .release_component_era(&mut self.runtime)
+                    .expect("program-driven component-era release"),
+            );
+            return Ok(TerminalEffectResult::Unit);
+        }
+        Err(TerminalEffectRejection::new("unexpected boundary call"))
+    }
+}
+
+/// The authored customer's register leg driving the ledger, witnessed end to
+/// end: the interpreted program's `register` boundary call performs root
+/// admission, provider registration, lease acquisition, and lowering, and
+/// its `unregister` call quiesces the root and releases the exact
+/// component-era lease — program operations, not a Rust caller's sequence.
+#[test]
+fn interpreted_register_and_unregister_drive_the_registration_ledger() {
+    let tokens = Lexer::new(CALLBACK_REGISTER_ROUND_TRIP_PROGRAM)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
+    let module = &lowered.semantic_module;
+    let register_boundary = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.identity.contains("Registrar::register"))
+        .expect("register boundary retained");
+    let unregister_boundary = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.identity.contains("Registrar::unregister"))
+        .expect("unregister boundary retained");
+    let registration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.identity.contains("Registration"))
+        .expect("Registration declaration");
+    let domain = module
+        .structural_domains
+        .iter()
+        .find(|domain| domain.identity.contains("Registration::Live"))
+        .expect("Live domain");
+    let terminal_psi::StructuralTypeShape::Record { fields } = &registration.shape else {
+        panic!("Registration is a record")
+    };
+    let slot = fields
+        .iter()
+        .find(|field| field.identity.contains("slot"))
+        .expect("slot field");
+
+    terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
+        .expect("registration program verifies");
+    let module_bytes = encode_module(module).expect("encode module");
+    let proof_bytes = encode_proof_section(module, &lowered.proof_bundle).expect("encode proof");
+
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let private_function = callback_private_function_identity();
+    let fixture = runnable_fixture(800);
+    let attribution = bind_installed_compiler_private_function_entry(
+        fixture.runnable.installed_artifact(),
+        private_function,
+        private_entry,
+    )
+    .expect("private callback attribution");
+    let mut lifecycle = lifecycle();
+    let era_candidate = candidate(10, &fixture.runnable);
+    let era_receipt = ComponentEraPublicationReceipt::from_runtime(
+        799,
+        lifecycle.lifecycle(),
+        &era_candidate,
+        true,
+        false,
+    );
+    lifecycle
+        .publish(era_candidate, era_receipt, fixture.runnable)
+        .expect("callback component era");
+    let retained: &'static mut RunnableComponentEraLedger = Box::leak(Box::new(lifecycle));
+    let runtime: RunnableComponentCallbackRegistrationRuntime<'static> = retained
+        .callback_registration_runtime(10)
+        .expect("retained callback runtime");
+
+    let install_inputs = callback_install_inputs(runtime.installed(), private_entry);
+    let removal_identity = root_id(781, RootRemovalReceiptId::from_normalized_identity);
+    let capacity_identity = root_id(
+        789,
+        OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+    );
+    let provider = root_id(784, OpaqueCallbackProviderId::from_normalized_identity);
+    let registration_receipt_identity = root_id(
+        787,
+        OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
+    );
+    let registration_identity =
+        root_id(783, OpaqueCallbackRegistrationId::from_normalized_identity);
+    let unregistration_contract_identity = root_id(
+        785,
+        OpaqueCallbackUnregistrationContractId::from_normalized_identity,
+    );
+
+    let registration_input = TerminalStructuralValue {
+        opaque_identity: 7,
+        structural_type: registration.id,
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let registered_value = TerminalStructuralValue {
+        opaque_identity: 41,
+        structural_type: registration.id,
+        qualifications: vec![domain.id],
+        path: Vec::new(),
+    };
+    let inputs = TerminalStructuralInputs {
+        arguments: std::slice::from_ref(&registration_input),
+        scalar_fields: &[TerminalStructuralScalarFieldValue {
+            argument_index: 0,
+            path: Vec::new(),
+            field: slot.id,
+            value: TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                value: IntegerValue::Unsigned(3),
+            },
+        }],
+        ..Default::default()
+    };
+    let mut driver = ProgramDrivenRegistration {
+        register: register_boundary.id,
+        unregister: unregister_boundary.id,
+        calls: Vec::new(),
+        runtime,
+        attribution: Some(attribution),
+        install_inputs: Some(install_inputs),
+        provider,
+        capacity_identity,
+        registration_receipt_identity,
+        registration_identity,
+        unregistration_contract_identity,
+        lease_identity: ProgramLocalRootEpochLeaseId::from_normalized_identity(798)
+            .expect("callback component-era lease"),
+        removal_identity,
+        unregistration_receipt_identity: root_id(
+            791,
+            OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+        ),
+        registered_value: registered_value.clone(),
+        removal: None,
+        live: None,
+        completed: None,
+    };
+
+    let execution = interpret_terminal_artifact_measured(
+        &module_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+        inputs,
+        &mut driver,
+    )
+    .expect("registration round trip interprets");
+
+    assert_eq!(execution.value(), TerminalExecutionResult::Unit);
+    let [
+        (register_call, register_arguments),
+        (unregister_call, unregister_arguments),
+    ] = driver.calls.as_slice()
+    else {
+        panic!("register and unregister boundary calls observed in order")
+    };
+    assert_eq!(*register_call, register_boundary.id);
+    assert_eq!(register_arguments.as_slice(), &[registration_input]);
+    assert_eq!(*unregister_call, unregister_boundary.id);
+    assert_eq!(unregister_arguments.as_slice(), &[registered_value]);
     let completed = driver
         .completed
         .expect("the program's unregister released the component-era lease");
