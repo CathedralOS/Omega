@@ -1169,35 +1169,33 @@ fn inspect_machine<'module>(
                 | OperationKind::CallDynamicUnit {
                     crash_continuations,
                     ..
-                } => {
-                    match dynamic_dispatch_realization(module, machine.id, operation.id) {
-                        Some(realization) => {
-                            match module
-                                .machines
-                                .iter()
-                                .find(|target| target.id == realization)
-                            {
-                                Some(target) => pending.push_back(target),
-                                None => report.gaps.push(EvidenceGap {
-                                    entry,
-                                    machine: machine.id,
-                                    block: Some(block.id),
-                                    operation: Some(operation.id),
-                                    kind: EvidenceGapKind::UnknownCallee(realization),
-                                }),
-                            }
+                } => match dynamic_dispatch_realization(module, machine.id, operation.id) {
+                    Some(realization) => {
+                        match module
+                            .machines
+                            .iter()
+                            .find(|target| target.id == realization)
+                        {
+                            Some(target) => pending.push_back(target),
+                            None => report.gaps.push(EvidenceGap {
+                                entry,
+                                machine: machine.id,
+                                block: Some(block.id),
+                                operation: Some(operation.id),
+                                kind: EvidenceGapKind::UnknownCallee(realization),
+                            }),
                         }
-                        None => bound_unenumerated_dynamic_call(
-                            crash_continuations,
-                            exclusions,
-                            entry,
-                            machine.id,
-                            block.id,
-                            operation.id,
-                            report,
-                        ),
                     }
-                }
+                    None => bound_unenumerated_dynamic_call(
+                        crash_continuations,
+                        exclusions,
+                        entry,
+                        machine.id,
+                        block.id,
+                        operation.id,
+                        report,
+                    ),
+                },
                 OperationKind::CallDynamicParameterScalar {
                     parameter_ordinal,
                     requirement_slot,
