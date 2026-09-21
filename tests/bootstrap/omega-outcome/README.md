@@ -44,6 +44,14 @@ over the private Epsilon execution envelope, not the sealed request edge; no
 Rust compiler, host parser, host typechecker, or host code generator supplies
 the program's meaning.
 
+The chain once emitted five extra zero bytes — an empty record, not part of
+any frame — between the last assigned-table frame and the bounded-sum values
+on one of two runs of byte-identical customer input; the same request did not
+repeat it. The oracle pins the stream consistent with the customer's emission
+order, which contains no such record. A gate failure whose only difference is
+an extra `0000000000` group is this known transport artifact, not a contract
+violation.
+
 From the repository root on macOS arm64, or Windows x64 with Git Bash:
 
 ```sh

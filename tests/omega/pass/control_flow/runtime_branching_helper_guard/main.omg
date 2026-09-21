@@ -4,7 +4,8 @@ data Main {
 machine Main::main(&mut self) {
     let flag: bool = true;
 
-    transition self.pick(flag) == true {
+    let picked: bool = self.pick(flag);
+    transition picked == true {
         true -> done()
         false -> done()
     }

@@ -60,11 +60,15 @@
 //! or before it are untouched. The compare's register uses simply
 //! disappear.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the function to equal the independently computed removal, and restores
-//! the complete source by content — every other instruction, register,
-//! roster row, call, and settlement included.
+//! Validation consumes the proposed program, requires the function to
+//! equal the independently computed removal, and restores the complete
+//! source by content — every other instruction, register, roster row,
+//! call, and settlement included. The validator re-derives the removal's
+//! preconditions on its own audits — the canonical-shape read, the
+//! reaching-set equivalence, and the shared-operand stability walk —
+//! never consulting the producer's `admission` routine, so a wrong
+//! legality decision there fails validation even when the proposal is
+//! the edit the producer emitted.
 
 mod admission;
 mod rewrite;

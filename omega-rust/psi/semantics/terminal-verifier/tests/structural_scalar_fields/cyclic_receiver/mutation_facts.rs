@@ -91,6 +91,7 @@ fn premise_certificate(
 fn integer_constant(operation: u64, value: i128) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

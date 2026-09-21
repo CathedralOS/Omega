@@ -45,9 +45,14 @@ fn module_constant_domain_index_enters_canonical_public_data_artifact() {
             ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
         })
         .expect("public indexed domain application checks");
-        let [family] = checked.typed.domain_definitions() else {
-            panic!("one authored indexed family");
-        };
+        let [family]: [_; 1] = checked
+            .typed
+            .domain_definitions()
+            .iter()
+            .filter(|definition| definition.name.as_str() == "Indexed")
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("one authored indexed family");
         let root = checked
             .typed
             .data_definitions()

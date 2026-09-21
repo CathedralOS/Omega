@@ -133,6 +133,15 @@ fn collect_evidence_requirement_closure<'program>(
             .trait_machine_signatures(trait_definition.machines)
             .iter(),
     );
+    // A transparent refinement declares no requirements of its own: it
+    // "names a structural bound on an existing base conformance, not a new
+    // nominal satisfaction target" (spec, `language/conformances.md`). The
+    // requirement namespace a binder over it selects is the base's.
+    if let Some(base) = &trait_definition.refines
+        && let Some(base_trait) = select_visible_trait_definition(program, &base.name, sources)
+    {
+        collect_evidence_requirement_closure(program, base_trait, sources, visited, output);
+    }
     for parent in program.trait_requirements(trait_definition.requires) {
         let Some(parent_trait) = select_visible_trait_definition(program, &parent.name, sources)
         else {

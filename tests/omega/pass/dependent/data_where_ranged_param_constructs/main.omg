@@ -1,5 +1,5 @@
 // R2 rung 3 slice 9 -- PROVER-BACKED CONSTRUCTION: the literal's field
-// value is a RUNTIME parameter, but its declared range `[1..=100]` decides
+// value is a RUNTIME parameter, but its declared `requires 1 <= strength, strength <= 100` decides
 // the gated fact `health >= 1` by interval folding -- ch12's Player
 // constructs from runtime data with no spelled requires, and the access
 // gate opens in the constructing machine.
@@ -12,7 +12,9 @@ where
     health: i32;
 }
 data Main { console: Service<Console>; champion: Player; }
-machine Main::recruit(&mut self, strength: i32 [1..=100]) -> i32 {
+machine Main::recruit(&mut self, strength: i32) -> i32 
+requires 1 <= strength, strength <= 100
+{
     self.champion = Player { health: strength };
     self.champion.health
 }

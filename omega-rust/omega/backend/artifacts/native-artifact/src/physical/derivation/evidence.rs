@@ -786,7 +786,12 @@ pub(crate) fn physical_child_identity(
         PhysicalRelocationDisposition::ResolvedInternalCall => 2,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_) => 3,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(_) => 4,
+        PhysicalRelocationDisposition::DynamicCallCustody(_) => 5,
     }]);
+    if let PhysicalRelocationDisposition::DynamicCallCustody(custody) = relocation {
+        digest.update(custody.windows_digest());
+        digest.update(u64::from(custody.window_count()).to_le_bytes());
+    }
     if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) = relocation {
         digest.update(relocation.locator_identity());
         digest.update(relocation.boundary_plan_identity());

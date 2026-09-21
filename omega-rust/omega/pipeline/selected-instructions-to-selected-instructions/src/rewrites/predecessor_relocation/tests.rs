@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,40 +27,7 @@ use super::{
     PredecessorRelocationError, PredecessorRelocationReceipt, ValidatedPredecessorRelocation,
     relocate_selected_instruction_into_predecessor, validate_predecessor_relocation,
 };
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const MOVING: SelectedInstructionId = SelectedInstructionId(3);
@@ -1646,12 +1613,13 @@ fn measured_validation_step_boundary_admits_and_rejects() {
     // x86-64: with the member a materialization and `MID` the destination,
     // the charge is (2 blocks + 6 body instructions) for the member scan +
     // (6 body + 2 terminator instructions) for the predecessor scan +
-    // member-against-crossed surfaces for `MID` (1+1), `TAIL` (1+1),
-    // `LEAD` (1+1), and the jump (1+2) + empty rosters = 8 + 8 + 9 = 25.
-    // Destination `HEAD` adds the crossed `HEAD` pair (1+1) for 27.
-    for (member, destination, exact_steps) in [(MOVING, MID, 25u64), (MOVING, HEAD, 27u64)] {
+    // the shared path walk's edge bound (1) + member-against-crossed
+    // surfaces for `MID` (1+1), `TAIL` (1+1), `LEAD` (1+1), and the jump
+    // (1+2) + empty rosters = 8 + 8 + 1 + 9 = 26.
+    // Destination `HEAD` adds the crossed `HEAD` pair (1+1) for 28.
+    for (member, destination, exact_steps) in [(MOVING, MID, 26u64), (MOVING, HEAD, 28u64)] {
         let source = fixture(target);
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result = relocate_selected_instruction_into_predecessor(
             &source,
             0,
@@ -1671,7 +1639,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             relocate_selected_instruction_into_predecessor(
                 &source,
@@ -1788,4 +1756,143 @@ fn predecessor_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![HEAD, MOVING, TAIL, MID]
     );
+}
+
+/// The validator proves its legality reconstruction is its own: a forged
+/// proposal — the same edit a producer would publish — is produced
+/// directly on the source's plan without consulting admission, so the
+/// validator's verdict cannot ride on the producer's admission record. A
+/// legal forged move validates; a forged move across a hazard-coupled
+/// crossed position rejects with the legality error, not a replay
+/// mismatch.
+mod independence_tests {
+    use super::{
+        JUMP, MID, MOVING, NativeTarget, PredecessorRelocationError, R_MOVE, R_TAIL,
+        SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, TAIL,
+        ValidatedPredecessorRelocation, baseline_target_register_environment, budget, fixture,
+        instruction, mutated, validate_predecessor_relocation,
+    };
+
+    /// Relocate `member` to `landing_index` inside the predecessor block's
+    /// body — the edit a producer emitting that relocation would publish —
+    /// without asking admission whether the window is legal.
+    fn forged(
+        source: &ValidatedPredecessorRelocation,
+        member: SelectedInstructionId,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let (block_index, member_index) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_index, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.id == member)
+                    .map(|member_index| (block_index, member_index))
+            })
+            .unwrap();
+        let instruction = function.blocks[block_index]
+            .instructions
+            .remove(member_index);
+        function.blocks[0]
+            .instructions
+            .insert(landing_index, instruction);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the member and the crossed positions carry no hazards,
+    /// no roster rows, and no barriers, so the audit derives the move and
+    /// the content comparison accepts it.
+    #[test]
+    fn forged_member_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_predecessor_relocation(
+            &source,
+            0,
+            MOVING,
+            MID,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 1),
+        )
+        .unwrap();
+    }
+
+    /// The same forged move validates at the body end: naming the
+    /// predecessor's terminator-carried `Jump` instruction lands the
+    /// member past every body position, and the validator derives that
+    /// landing itself.
+    #[test]
+    fn forged_member_move_to_the_body_end_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_predecessor_relocation(
+            &source,
+            0,
+            MOVING,
+            JUMP,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the member moved past a crossed position reading the
+    /// register it defines — here `TAIL` mutated to read `R_MOVE`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`, not
+    /// a replay mismatch, because it reconstructs the window's hazards
+    /// instead of trusting the producer's admission record.
+    #[test]
+    fn forged_member_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_TAIL],
+            );
+        });
+        assert_eq!(
+            validate_predecessor_relocation(
+                &source,
+                0,
+                MOVING,
+                MID,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 1),
+            )
+            .unwrap_err(),
+            PredecessorRelocationError::UnsupportedPair
+        );
+        // Landing the member at the body end keeps the coupled `TAIL`
+        // ahead of it as the source had it, so the validator's audit
+        // derives that window legal as well.
+        validate_predecessor_relocation(
+            &source,
+            0,
+            MOVING,
+            JUMP,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
 }

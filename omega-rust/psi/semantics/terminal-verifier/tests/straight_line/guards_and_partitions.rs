@@ -98,6 +98,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(777).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishTrivialAffineLocal {
@@ -106,6 +107,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(778).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishTrivialAffineLocal {
@@ -836,6 +838,7 @@ fn partition_composition_is_scheduled_strictly_after_the_producer_call() {
     let source_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let add_probe = |operation, result, obligation| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -909,6 +912,7 @@ fn partition_composition_rejects_missing_and_noncall_producers() {
     let noncall_operation = OperationId::new(91).expect("noncall operation");
     noncall.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: noncall_operation,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

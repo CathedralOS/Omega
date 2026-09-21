@@ -130,6 +130,7 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
         entry: BlockId::new(base + 100).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(base + 100).unwrap(),
             parameters: Vec::new(),
@@ -141,6 +142,7 @@ fn unit_callee(machine: u64, base: u64, arity: usize) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(base + 300).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -174,6 +176,7 @@ fn composition_pressure_module(
         |index: u64| ObligationId::new(COMPOSITION_PRESSURE_OBLIGATION_BASE + index).unwrap();
     let constant = |id: u64, result, n: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind: OperationKind::IntegerConstant {
@@ -182,6 +185,7 @@ fn composition_pressure_module(
     };
     let exact_add = |id: u64, left, right, result, obligation: ObligationId| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind: OperationKind::ExactIntegerAdd {
@@ -192,28 +196,33 @@ fn composition_pressure_module(
     };
     let wrapping_add = |id: u64, left, right, result| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
     };
     let boolean_constant = |id: u64, result| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(boolean(result)),
         kind: OperationKind::BooleanConstant { value: true },
     };
     let less_than = |id: u64, left, right, result| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(boolean(result)),
         kind: OperationKind::IntegerLessThan { left, right },
     };
     let unit_call = |id: u64, callee, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee,
             arguments,
             structural_arguments: Vec::new(),
@@ -224,6 +233,7 @@ fn composition_pressure_module(
     };
     let edge = |id: u64, target: BlockId| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(id).unwrap(),
         target,
         arguments: Vec::new(),
@@ -269,6 +279,7 @@ fn composition_pressure_module(
     // architecture needs.
     let pressure_leaf = |block: BlockId, victim, op_base: u64, filler_base: u64| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block,
         parameters: Vec::new(),
@@ -341,6 +352,7 @@ fn composition_pressure_module(
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: leaf,
                     parameters: Vec::new(),
@@ -356,12 +368,14 @@ fn composition_pressure_module(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: jump,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         edge: EdgeId::new(COMPOSITION_PRESSURE_EDGE_BASE + 4).unwrap(),
                         target: x_leaf,
                         arguments: Vec::new(),
@@ -378,6 +392,7 @@ fn composition_pressure_module(
                 // both survivors place.
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: x_leaf,
                     parameters: Vec::new(),
@@ -441,6 +456,7 @@ fn composition_pressure_module(
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: leaf,
                     parameters: Vec::new(),
@@ -456,12 +472,14 @@ fn composition_pressure_module(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: jump,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         edge: EdgeId::new(COMPOSITION_PRESSURE_EDGE_BASE + 4).unwrap(),
                         target: x_leaf,
                         arguments: Vec::new(),
@@ -477,6 +495,7 @@ fn composition_pressure_module(
                 // leaving `{x0, x1}`.
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: x_leaf,
                     parameters: Vec::new(),
@@ -505,6 +524,7 @@ fn composition_pressure_module(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: mid,
                     parameters: Vec::new(),
@@ -543,6 +563,7 @@ fn composition_pressure_module(
         blocks: {
             let mut blocks = vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(COMPOSITION_PRESSURE_ENTRY).unwrap(),
                 parameters: Vec::new(),
@@ -558,6 +579,7 @@ fn composition_pressure_module(
         },
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(COMPOSITION_PRESSURE_CONTRACT).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

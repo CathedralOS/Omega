@@ -389,10 +389,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     if covered.len() != temporaries.len() {
         return None;
     }
-    let target = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == *target_machine)?;
+    let target = crate::lookup::machine_by_symbol(program, *target_machine)?;
     let [callee] = program.machine_states(target) else {
         return None;
     };

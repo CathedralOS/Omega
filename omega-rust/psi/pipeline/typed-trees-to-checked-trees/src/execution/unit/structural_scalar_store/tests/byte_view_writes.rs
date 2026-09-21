@@ -42,7 +42,7 @@ fn free_machine_stores(source: &str) -> Vec<CheckedUnitEffectOperationPlan> {
     let (structural, scalar) =
         super::super::super::free_structural_scalar_signature(program, &mut shapes, state, &[])
             .expect("free machine signature");
-    let stores = build_structural_scalar_field_store_sequence(
+    build_structural_scalar_field_store_sequence(
         program,
         &checked.facts,
         machine,
@@ -52,8 +52,7 @@ fn free_machine_stores(source: &str) -> Vec<CheckedUnitEffectOperationPlan> {
         0,
         None,
     )
-    .expect("statement sequence plans");
-    stores
+    .expect("statement sequence plans")
 }
 
 /// `target[i] = b` on a `&mut [u8]` view produces a `ByteSequenceWrite` — but

@@ -6,7 +6,7 @@ use super::super::{
 use super::{
     CallSignature, CallingPolicy, ClaimId, IntegerSign, IntegerType, IntegerValue,
     LegalizedOperationPlan, LegalizedScalarCall, LegalizedScalarInstructionKind, OwnershipEvent,
-    ScalarType, StructuralPathSegment, call_aware_plan, evaluate_call_plan, id,
+    ScalarType, StructuralPathSegment, ValueShape, call_aware_plan, evaluate_call_plan, id,
     scalar_argument_mut, scalar_call_unit_plan, structural_argument_mut, structural_call_mut,
 };
 mod byte_literals;
@@ -230,6 +230,87 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                 actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(id(
                     1,
                 )));
+            }
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+#[test]
+fn abi_layout_substitutions_drift_the_plan_identity() {
+    let plan = scalar_call_unit_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    let shape = ValueShape::integer(8, 8);
+    let signature = CallSignature {
+        parameters: vec![shape, shape],
+        result: Some(shape),
+    };
+    let carried = call_mut(&mut plan.clone().scalar_functions[0], 0)
+        .call_plan
+        .clone();
+    // The ABI layout is reconstructible from the declaration and the selected
+    // calling policy: re-deriving yields the carried row exactly.
+    assert_eq!(
+        carried,
+        evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).unwrap()
+    );
+    assert_ne!(
+        carried,
+        evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature).unwrap()
+    );
+    // A substituted row must reject, not only a missing one: every layout
+    // field a forged placement could carry reaches the identity digest.
+    for mutation in 0..10 {
+        let mut changed = plan.clone();
+        let call = call_mut(&mut changed.scalar_functions[0], 0);
+        match mutation {
+            0 => call.call_plan.policy = CallingPolicy::MicrosoftX64,
+            1 => {
+                let calling_conventions::ValueLocation::Register { register, .. } =
+                    &mut call.call_plan.parameters[0].locations[0]
+                else {
+                    panic!("register fixture");
+                };
+                *register = calling_conventions::MachineRegister::X86Rdx;
+            }
+            2 => {
+                let calling_conventions::ValueLocation::Register { byte_size, .. } =
+                    &mut call.call_plan.parameters[1].locations[0]
+                else {
+                    panic!("register fixture");
+                };
+                *byte_size += 1;
+            }
+            3 => {
+                call.call_plan.parameters[0].locations[0] =
+                    calling_conventions::ValueLocation::Stack {
+                        stack_byte_offset: 0,
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                        alignment: 8,
+                    };
+            }
+            4 => call.call_plan.parameters[0].shape = ValueShape::integer(8, 4),
+            5 => call.call_plan.result = Some(call.call_plan.parameters[0].clone()),
+            6 => call.call_plan.stack_alignment += 2,
+            7 => {
+                call.call_plan.entry_control = calling_conventions::EntryControl::SupervisorCall {
+                    number_register: calling_conventions::MachineRegister::X86Rax,
+                    immediate: 0x80,
+                };
+            }
+            8 => {
+                call.call_plan.ordinary_clobbers = calling_conventions::RegisterSet::new([
+                    calling_conventions::MachineRegister::X86Rbx,
+                ]);
+            }
+            _ => {
+                let calling_conventions::ValueLocation::Register { register, .. } =
+                    &mut call.result_placement.as_mut().unwrap().locations[0]
+                else {
+                    panic!("register fixture");
+                };
+                *register = calling_conventions::MachineRegister::X86Rcx;
             }
         }
         assert_identity_drift(identity, &changed);

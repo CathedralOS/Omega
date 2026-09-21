@@ -20,6 +20,8 @@ mod installation_field_substitution_fields;
 mod installation_field_substitutions;
 #[path = "artifacts/installation_function_nested_custody.rs"]
 mod installation_function_nested_custody;
+#[path = "artifacts/installation_function_nested_custody_fields.rs"]
+mod installation_function_nested_custody_fields;
 #[path = "artifacts/installation_records.rs"]
 mod installation_records;
 #[path = "artifacts/installed_artifact.rs"]

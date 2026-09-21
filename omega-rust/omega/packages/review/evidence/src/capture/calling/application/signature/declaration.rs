@@ -10,6 +10,7 @@ use crate::capture::calling::application::signature::CallingSignatureProjection;
 use crate::capture::calling::application::signature::count;
 use crate::capture::calling::application::signature::parameters;
 use crate::capture::calling::application::signature::project_with_binders;
+use crate::capture::calling::application::signature::scratch;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;
@@ -39,7 +40,7 @@ pub(crate) fn declaration_parameters(
     symbol: SymbolHandle,
 ) -> Result<(Vec<PackagePolicyTypeParameter>, u32), Vec<Diagnostic>> {
     let owner = root(compilation, symbol)?;
-    let mut projected = compilation.typed.clone();
+    let mut projected = scratch::trees(compilation);
     let mut parameters = compilation.trait_type_parameters(owner).to_vec();
     let lifetimes = owner
         .lifetime_parameters
@@ -80,7 +81,7 @@ pub(crate) fn project_declaration(
     requirement: SymbolHandle,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let owner = root(compilation, symbol)?;
-    let mut projected = compilation.typed.clone();
+    let mut projected = scratch::trees(compilation);
     let mut arguments = Vec::new();
     let mut binders = Vec::new();
     for (ordinal, parameter) in compilation.trait_type_parameters(owner).iter().enumerate() {

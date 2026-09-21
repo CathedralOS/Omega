@@ -13,11 +13,11 @@ use super::{Error, host};
 use crate::{
     ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
 };
-use machine_code::NormalizedForeignCallResolutionKind;
+use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
 use object_file::{
     NormalizedImportPlan, ObjectPlan, RelocationKind, RelocationOrigin, RelocationPlan,
     RelocationRecord, SectionKind, StagedOptimizedRelocationFreeObjectContainer, SymbolKind,
-    SymbolPlan, SymbolSection, normalized_foreign_import_symbol_name,
+    SymbolPlan, SymbolSection, normalized_foreign_import_symbol_name, object_function_symbol,
     object_symbol_handle_by_foreign_locator,
 };
 
@@ -31,8 +31,71 @@ pub(super) fn publish(
         .source()
         .text_section()
         .unresolved_normalized_foreign_calls;
-    let mut relocations = RelocationPlan::with_record_capacity(object.target, fields.len());
+    let callback_record_count = calls
+        .iter()
+        .filter_map(|call| call.callback_address.as_ref())
+        .map(|callback| match callback.encoding {
+            CallbackAddressEncoding::X86_64Relative32 { .. } => 1,
+            CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
+        })
+        .sum::<usize>();
+    let mut relocations =
+        RelocationPlan::with_record_capacity(object.target, fields.len() + callback_record_count);
     for (field, call) in fields.iter().zip(calls) {
+        let function = functions
+            .iter()
+            .find(|function| function.machine == field.caller)
+            .ok_or(Error::Mismatch("fragment import caller is absent"))?;
+        let origin = RelocationOrigin::SemanticOperation {
+            function_symbol_handle: function.symbol,
+            operation_identity: field.operation.get(),
+        };
+        // A callback argument's address is a compiler-private relocation: it
+        // binds the private thunk's symbol, not the import tail.
+        if let Some(callback) = &call.callback_address {
+            let Some((callback_symbol, _)) =
+                object_function_symbol(object, callback.target.callback_function)
+            else {
+                return Err(Error::Mismatch(
+                    "fragment import lacks callback private function",
+                ));
+            };
+            let mut push_callback_relocation =
+                |relocation_offset: usize, kind: RelocationKind| -> Result<(), Error> {
+                    let offset = function
+                        .text_offset
+                        .checked_add(relocation_offset)
+                        .ok_or(Error::Overflow)?;
+                    relocations.push_record(RelocationRecord {
+                        origin,
+                        section: SectionKind::Text,
+                        offset,
+                        byte_width: 4,
+                        symbol_handle: callback_symbol,
+                        addend: 0,
+                        kind,
+                    });
+                    Ok(())
+                };
+            match callback.encoding {
+                CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
+                    push_callback_relocation(relocation_offset, RelocationKind::X86_64Relative32)?
+                }
+                CallbackAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => {
+                    push_callback_relocation(
+                        page_relocation_offset,
+                        RelocationKind::Aarch64Page21,
+                    )?;
+                    push_callback_relocation(
+                        page_offset_relocation_offset,
+                        RelocationKind::Aarch64PageOffset12,
+                    )?;
+                }
+            }
+        }
         let symbol = if let Some(import) = object
             .layout
             .normalized_imports
@@ -64,15 +127,8 @@ pub(super) fn publish(
             });
             symbol
         };
-        let function = functions
-            .iter()
-            .find(|function| function.machine == field.caller)
-            .ok_or(Error::Mismatch("fragment import caller is absent"))?;
         relocations.push_record(RelocationRecord {
-            origin: RelocationOrigin::SemanticOperation {
-                function_symbol_handle: function.symbol,
-                operation_identity: field.operation.get(),
-            },
+            origin,
             section: SectionKind::Text,
             offset: host(field.field_section_offset)?,
             byte_width: usize::from(field.field_byte_width),
@@ -95,7 +151,16 @@ pub(super) fn validate(
         .text_section()
         .unresolved_normalized_foreign_calls;
     let layout = &artifact.object.layout;
-    if artifact.foreign_calls != calls || artifact.relocations.record_count() != fields.len() {
+    let expected_records = fields.len()
+        + calls
+            .iter()
+            .filter_map(|call| call.callback_address.as_ref())
+            .map(|callback| match callback.encoding {
+                CallbackAddressEncoding::X86_64Relative32 { .. } => 1,
+                CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
+            })
+            .sum::<usize>();
+    if artifact.foreign_calls != calls || artifact.relocations.record_count() != expected_records {
         return Err(Error::Mismatch("fragment import relocation roster changed"));
     }
     let mut imports = layout.normalized_imports.iter();
@@ -138,23 +203,90 @@ pub(super) fn validate(
     if imports.next().is_some() || symbols.next().is_some() {
         return Err(Error::Mismatch("fragment import roster has extra rows"));
     }
-    for ((field, call), (_, relocation)) in fields
-        .iter()
-        .zip(&calls)
-        .zip(artifact.relocations.records())
-    {
+    let mut records = artifact.relocations.records();
+    for (field, call) in fields.iter().zip(&calls) {
         let function = artifact
             .functions
             .iter()
             .find(|function| function.machine == field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
+        let origin = RelocationOrigin::SemanticOperation {
+            function_symbol_handle: function.symbol,
+            operation_identity: field.operation.get(),
+        };
+        if let Some(callback) = &call.callback_address {
+            let Some((callback_symbol, callback_plan)) =
+                object_function_symbol(&artifact.object, callback.target.callback_function)
+            else {
+                return Err(Error::Mismatch(
+                    "fragment import callback private function is missing",
+                ));
+            };
+            let mut carriers = artifact
+                .private_functions
+                .iter()
+                .filter(|private| private.identity == callback.target.callback_function);
+            let (Some(private), None) = (carriers.next(), carriers.next()) else {
+                return Err(Error::Mismatch(
+                    "fragment import callback private function is missing",
+                ));
+            };
+            if private.function.symbol != callback_symbol
+                || private.function.text_offset != callback_plan.offset
+                || private.function.byte_count != callback_plan.size
+            {
+                return Err(Error::Mismatch(
+                    "fragment import callback private function differs",
+                ));
+            }
+            let mut replay_callback_relocation =
+                |relocation_offset: usize, kind: RelocationKind| -> Result<(), Error> {
+                    let offset = function
+                        .text_offset
+                        .checked_add(relocation_offset)
+                        .ok_or(Error::Overflow)?;
+                    let Some((_, relocation)) = records.next() else {
+                        return Err(Error::Mismatch("fragment import relocation roster changed"));
+                    };
+                    if relocation.origin != origin
+                        || relocation.section != SectionKind::Text
+                        || relocation.offset != offset
+                        || relocation.byte_width != 4
+                        || relocation.symbol_handle != callback_symbol
+                        || relocation.addend != 0
+                        || relocation.kind != kind
+                    {
+                        return Err(Error::Mismatch(
+                            "fragment import callback relocation differs",
+                        ));
+                    }
+                    Ok(())
+                };
+            match callback.encoding {
+                CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
+                    replay_callback_relocation(relocation_offset, RelocationKind::X86_64Relative32)?
+                }
+                CallbackAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => {
+                    replay_callback_relocation(
+                        page_relocation_offset,
+                        RelocationKind::Aarch64Page21,
+                    )?;
+                    replay_callback_relocation(
+                        page_offset_relocation_offset,
+                        RelocationKind::Aarch64PageOffset12,
+                    )?;
+                }
+            }
+        }
         let symbol = object_symbol_handle_by_foreign_locator(&artifact.object, &call.locator);
+        let Some((_, relocation)) = records.next() else {
+            return Err(Error::Mismatch("fragment import relocation roster changed"));
+        };
         if !layout.symbols.is_valid(symbol)
-            || relocation.origin
-                != (RelocationOrigin::SemanticOperation {
-                    function_symbol_handle: function.symbol,
-                    operation_identity: field.operation.get(),
-                })
+            || relocation.origin != origin
             || relocation.section != SectionKind::Text
             || relocation.offset != host(field.field_section_offset)?
             || relocation.byte_width != usize::from(field.field_byte_width)

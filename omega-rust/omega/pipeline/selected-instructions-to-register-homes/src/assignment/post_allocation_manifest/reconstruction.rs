@@ -87,7 +87,7 @@ pub(super) fn expected_record(
     };
     let mut record = PostAllocationOptimizationManifest {
         identity: PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
-        stage: PostAllocationManifestStage::ValidatedRegisterHomes,
+        stage: PostAllocationManifestStage::RegisterHomes,
         pre_physical,
         target: ranges.plan().target,
         selected: ranges.plan().selected,
