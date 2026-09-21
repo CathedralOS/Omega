@@ -37,11 +37,25 @@
 //!   premises, and the kernel's `IntegerAffineBound` rule re-derives each
 //!   mapped endpoint under an independently checked `IntegerAffineWitness`.
 //!
-//! Dependent bounds, sibling-length atoms, guard-narrowed assignments and
-//! returns, `K - place` and non-literal-operand refolds, non-exact
-//! arithmetic, anonymous-landed arguments, guard point exclusions,
-//! arrival-bound returns and the floating legs are not covered; those
-//! obligations keep the existing derivation.
+//! * a state return's joined arrival bound enters as the premise pair when
+//!   it already reaches the target -- the arrival answer owns the verdict,
+//!   so a bound that misses keeps the trusted failure instead of falling
+//!   through to the declared legs;
+//! * a state return whose declared interval alone misses the target cites
+//!   the surviving `requires` contract conditions' `subject OP literal`
+//!   facts on the return atom beside the declared pair -- the same facts
+//!   `return_arrival` applies under the same stability gates; and
+//! * a guarded transition argument that still misses after the direct and
+//!   refold legs cites the arrival-rescue bound as its premise pair, exactly
+//!   where the trusted derivation consults that query.
+//!
+//! Dependent bounds, sibling-length atoms, guard-narrowed assignments,
+//! `K - place` and non-literal-operand refolds, contract operand folds on
+//! returns, non-literal initializers (the ordinary derivation's only verdict
+//! for them is failure -- there is no proved range to certify), non-exact
+//! arithmetic, anonymous-landed arguments, guard point exclusions (the
+//! kernel has no disequality premise to carry `x != K`), and the floating
+//! legs are not covered; those obligations keep the existing derivation.
 
 use arena::HandleSpan;
 use numerics::bignum::BigInt;
@@ -54,14 +68,22 @@ use semantic_vocabulary::{
     EvidenceIdentity, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
     ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
+use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
+use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+use crate::checker::AssignmentRangeContext;
+use crate::checker::arrival_stability;
+use crate::checker::assignment_stability::collect_read_place_paths;
 use crate::checker::derivation_cache::DerivationConsultation;
 use crate::checker::guards::{expressions_equivalent_for_proof, unwrap_true_guard_condition};
 use crate::checker::integer_ranges::{
-    integer_literal_handle, integer_range_from_constraints, type_constraints,
+    integer_literal_handle, integer_range_for_return_value, integer_range_from_constraints,
+    type_constraints,
 };
 use crate::checker::measurement::ProofPlanMeasurements;
 use crate::obligations::{
@@ -164,15 +186,17 @@ pub(crate) fn bounded_integer_value_verdict(
     verdict
 }
 
-/// Certificate route for a bounded state return. The arrival machinery owns
-/// the verdict whenever it applies -- its joined bounds and authored
-/// assumptions are richer evidence than the declared interval this producer
-/// cites -- so a certificate is emitted only when `return_arrival` would
-/// reach the declared path itself: the statement-identity gate must hold and
-/// the arrival arithmetic query must return no bounds.
-pub(crate) fn state_return_integer_verdict(
-    proof_plan: &ProofPlan,
+/// Certificate route for a bounded state return. Three legs mirror the
+/// trusted `return_arrival` decision order: a computed arrival bound enters
+/// as the premise pair when it reaches the target, the declared-or-literal
+/// legs follow, and the `requires`-contract leg cites the surviving authored
+/// conditions' literal facts on the return atom. Malformed obligations, a
+/// missed arrival bound, contract operand folds and every other shape stay
+/// uncovered and keep the ordinary derivation.
+pub(crate) fn state_return_integer_verdict<'program>(
+    proof_plan: &ProofPlan<'program>,
     obligation: &BoundedStateReturnObligation,
+    context: &AssignmentRangeContext<'program>,
     target: &IntegerRange,
     seed: u64,
     measurements: &mut ProofPlanMeasurements,
@@ -185,7 +209,8 @@ pub(crate) fn state_return_integer_verdict(
         measurements.record_certificate_verdict(CertificateVerdict::Certified);
         return CertificateVerdict::Certified;
     }
-    let Some(certificate) = state_return_certificate(proof_plan, obligation, target, seed) else {
+    let Some(certificate) = state_return_certificate(proof_plan, obligation, context, target, seed)
+    else {
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
@@ -206,14 +231,52 @@ pub(crate) fn state_return_integer_verdict(
     verdict
 }
 
-fn state_return_certificate(
-    proof_plan: &ProofPlan,
+fn state_return_certificate<'program>(
+    proof_plan: &ProofPlan<'program>,
     obligation: &BoundedStateReturnObligation,
+    context: &AssignmentRangeContext<'program>,
     target: &IntegerRange,
     seed: u64,
 ) -> Option<BoundedValueCertificate> {
-    if return_arrival_owns_verdict(proof_plan, obligation) {
+    let program = proof_plan.program;
+    // A malformed obligation is the checker's diagnostic, not a certificate
+    // question; the statement-identity gate mirrors `return_arrival`.
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == obligation.machine_symbol)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == obligation.state_symbol)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if !std::ptr::eq(program, context.program)
+        || !matches!(
+            statements.get(obligation.statement_index),
+            Some(StatementNode::Expression(value)) if *value == obligation.value
+        )
+    {
         return None;
+    }
+    if let Some((minimum, maximum)) = validation::arrival_integer_expression_bounds(
+        program,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.value,
+    ) {
+        // The joined arrival bound owns this verdict when it answers. Cite
+        // it as the premise pair only when it reaches the target; a bound
+        // that misses keeps the trusted derivation's identical failure
+        // rather than falling through to the declared legs it supersedes.
+        return interval_premise_certificate(
+            proof_plan,
+            obligation.base_type,
+            minimum,
+            maximum,
+            target,
+            seed,
+        );
     }
     bounded_integer_value(
         proof_plan,
@@ -224,47 +287,232 @@ fn state_return_certificate(
         seed,
         false,
     )
+    .or_else(|| {
+        contract_refined_certificate(
+            proof_plan, obligation, machine, state, context, target, seed,
+        )
+    })
 }
 
-/// Whether `return_arrival::integer_range` decides this leg through anything
-/// other than the declared-or-literal value interval: a malformed obligation
-/// (its verdict is the checker diagnostic, not a certificate question) or a
-/// bound the arrival query already computed. Mirrors the front of
-/// `return_arrival::integer_range`.
-fn return_arrival_owns_verdict(
+/// A `(minimum, maximum)` interval an outside query established for the
+/// value -- the arrival join's bound -- cited as the same premise pair the
+/// declared leg uses. Emits only when the interval already reaches the
+/// target; a gap leaves the leg uncovered and the trusted derivation keeps
+/// its own verdict.
+fn interval_premise_certificate(
     proof_plan: &ProofPlan,
-    obligation: &BoundedStateReturnObligation,
-) -> bool {
-    let program = proof_plan.program;
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)
-    else {
-        return true;
+    base_type: TypeReferenceHandle,
+    minimum: i64,
+    maximum: i64,
+    target: &IntegerRange,
+    seed: u64,
+) -> Option<BoundedValueCertificate> {
+    let interval = IntegerRange {
+        minimum: BigInt::from_i64(minimum),
+        maximum: BigInt::from_i64(maximum),
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == obligation.state_symbol)
-    else {
-        return true;
-    };
-    let statements = program.statement_table.statements(state.statement_nodes);
-    if !matches!(
-        statements.get(obligation.statement_index),
-        Some(StatementNode::Expression(value)) if *value == obligation.value
-    ) {
-        return true;
+    if interval.minimum < target.minimum || interval.maximum > target.maximum {
+        return None;
     }
-    validation::arrival_integer_expression_bounds(
-        program,
-        obligation.machine_symbol,
-        obligation.state_symbol,
-        obligation.statement_index,
-        obligation.value,
+    let integer_type = fixed_integer_type(proof_plan.program.primitive_type_reference(base_type)?)?;
+    declared_interval_certificate(
+        &interval,
+        integer_type,
+        bigint_math_literal(&target.minimum)?,
+        bigint_math_literal(&target.maximum)?,
+        seed,
     )
-    .is_some()
+}
+
+/// The Requires-contract leg for a state return: each authored condition
+/// whose operands survive the state prefix contributes the same `subject OP
+/// literal` facts `return_arrival::apply_condition` applies, restated as
+/// `<=` premises on the return atom beside the declared pair. The trusted
+/// path's operand-level refold stays uncovered, as does every leg when the
+/// declared carrier interval is absent.
+fn contract_refined_certificate<'program>(
+    proof_plan: &ProofPlan<'program>,
+    obligation: &BoundedStateReturnObligation,
+    machine: &'program Machine,
+    state: &'program State,
+    context: &AssignmentRangeContext<'program>,
+    target: &IntegerRange,
+    seed: u64,
+) -> Option<BoundedValueCertificate> {
+    let program = proof_plan.program;
+    // The trusted path refines this same interval and fails without it; the
+    // certificate keeps that gate.
+    let declared = integer_range_for_return_value(proof_plan, obligation)?;
+    let integer_type = fixed_integer_type(program.primitive_type_reference(obligation.base_type)?)?;
+
+    let is_entry = program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol);
+    let mut conditions = Vec::new();
+    for contract in program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|_| is_entry)
+        .chain(program.state_contracts(state))
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+    {
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(condition) = fact else {
+                continue;
+            };
+            if !contract_stable_expression(proof_plan, *condition) {
+                continue;
+            }
+            let mut premise_reads = Vec::new();
+            collect_read_place_paths(proof_plan, *condition, &mut premise_reads);
+            let mut value_reads = premise_reads.clone();
+            collect_read_place_paths(proof_plan, obligation.value, &mut value_reads);
+            if let Some(operands) = &obligation.binary_operands {
+                collect_read_place_paths(proof_plan, operands.left, &mut value_reads);
+                collect_read_place_paths(proof_plan, operands.right, &mut value_reads);
+            }
+            let Some(call_frames) = context.call_frames() else {
+                continue;
+            };
+            if arrival_stability::prefix_preserves_reads(
+                proof_plan,
+                machine,
+                state,
+                obligation.statement_index,
+                &premise_reads,
+                &value_reads,
+                call_frames,
+            ) {
+                conditions.push(*condition);
+            }
+        }
+    }
+    if conditions.is_empty() {
+        return None;
+    }
+
+    let mut facts = Vec::new();
+    push_bound(&mut facts, declared.minimum.clone(), true);
+    push_bound(&mut facts, declared.maximum.clone(), false);
+    for condition in &conditions {
+        collect_contract_bounds(proof_plan, obligation.value, *condition, &mut facts);
+    }
+    // The trusted path discards a contradictory refinement and reports the
+    // declared interval instead; the certificate keeps only the declared
+    // pair when the collected facts cannot hold together.
+    let mut narrowed = declared.clone();
+    for fact in &facts[2..] {
+        if fact.lower {
+            narrowed.minimum = narrowed.minimum.max(fact.bound.clone());
+        } else {
+            narrowed.maximum = narrowed.maximum.min(fact.bound.clone());
+        }
+    }
+    if narrowed.minimum > narrowed.maximum {
+        facts.truncate(2);
+    }
+
+    let value = ValueId::new(seed)?;
+    let atom = IntegerMathTerm::MathValue {
+        source_type: integer_type,
+        value,
+    };
+    let proposition_context =
+        PropositionContext::from_value_types([(value, ScalarType::Integer(integer_type))]).ok()?;
+    let mut assumptions = Vec::with_capacity(facts.len());
+    for fact in &facts {
+        push_math_premise(&mut assumptions, &fact.bound, &atom, fact.lower);
+    }
+    guarded_bounds_certificate(atom, assumptions, proposition_context, target, seed)
+}
+
+/// `condition`'s `subject OP literal` conjuncts restated as `<=` facts on
+/// the subject -- the certificate mirror of `return_arrival::apply_condition`:
+/// one `== true` unwrap, `&&` splits, and a side spelling the subject as the
+/// SAME stable place owns the comparison. Unlike the guard collectors there
+/// is no `!` arm: contract conditions are assumptions, not fall-through
+/// complements.
+fn collect_contract_bounds(
+    proof_plan: &ProofPlan,
+    subject: ExpressionHandle,
+    condition: ExpressionHandle,
+    facts: &mut Vec<GuardBound>,
+) {
+    let program = proof_plan.program;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(condition) else {
+        return;
+    };
+    if binary.operator == BinaryOperator::Equal {
+        if matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(true)
+        ) {
+            return collect_contract_bounds(proof_plan, subject, binary.left, facts);
+        }
+        if matches!(
+            program.expression_table.expression(binary.left),
+            ExpressionNode::Boolean(true)
+        ) {
+            return collect_contract_bounds(proof_plan, subject, binary.right, facts);
+        }
+    }
+    if binary.operator == BinaryOperator::And {
+        collect_contract_bounds(proof_plan, subject, binary.left, facts);
+        collect_contract_bounds(proof_plan, subject, binary.right, facts);
+        return;
+    }
+    if contract_same_place(proof_plan, binary.left, subject) {
+        if let Some(value) = integer_literal_handle(proof_plan, binary.right) {
+            push_right_literal_bounds(binary.operator, BigInt::from_i64(value), facts);
+        }
+        return;
+    }
+    if contract_same_place(proof_plan, binary.right, subject)
+        && let Some(value) = integer_literal_handle(proof_plan, binary.left)
+    {
+        push_left_literal_bounds(binary.operator, BigInt::from_i64(value), facts);
+    }
+}
+
+/// `return_arrival::same_place`: the condition side is a stable `Name` or
+/// `Member` place and the subject spells the same stable place.
+fn contract_same_place(
+    proof_plan: &ProofPlan,
+    condition_side: ExpressionHandle,
+    subject: ExpressionHandle,
+) -> bool {
+    let table = &proof_plan.program.expression_table;
+    matches!(
+        table.expression(condition_side),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+    ) && contract_stable_expression(proof_plan, condition_side)
+        && contract_stable_expression(proof_plan, subject)
+        && table.expressions_structurally_equal(condition_side, subject)
+}
+
+/// `return_arrival::stable_expression`: an authored condition becomes a
+/// premise only when every operand is a spelling-stable place or literal --
+/// calls, indexing and unresolved names cannot be.
+fn contract_stable_expression(proof_plan: &ProofPlan, value: ExpressionHandle) -> bool {
+    let table = &proof_plan.program.expression_table;
+    if !table.expression_is_valid(value) {
+        return false;
+    }
+    match table.expression(value) {
+        ExpressionNode::Name(path) => path.symbol.is_valid() && path.head_symbol.is_valid(),
+        ExpressionNode::Member(member) => {
+            member.member_symbol.is_valid()
+                && contract_stable_expression(proof_plan, member.receiver)
+        }
+        ExpressionNode::Binary(binary) => {
+            contract_stable_expression(proof_plan, binary.left)
+                && contract_stable_expression(proof_plan, binary.right)
+        }
+        ExpressionNode::Unary(unary) => contract_stable_expression(proof_plan, unary.operand),
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
+        _ => false,
+    }
 }
 
 /// Certificate route for a guarded transition argument: the arm's own guard
@@ -375,6 +623,34 @@ fn guarded_transition_certificate(
     }
     guarded_direct_certificate(proof_plan, obligation, target, seed)
         .or_else(|| guarded_refold_certificate(proof_plan, obligation, target, seed))
+        .or_else(|| arrival_argument_certificate(proof_plan, obligation, target, seed))
+}
+
+/// The arrival-rescue leg for a transition argument: the bound the trusted
+/// derivation consults when its guarded range misses the target enters as
+/// the premise pair. Runs after the direct and refold legs decline, exactly
+/// where the trusted path consults the arrival query.
+fn arrival_argument_certificate(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    target: &IntegerRange,
+    seed: u64,
+) -> Option<BoundedValueCertificate> {
+    let (minimum, maximum) = validation::arrival_integer_expression_bounds(
+        proof_plan.program,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.argument,
+    )?;
+    interval_premise_certificate(
+        proof_plan,
+        obligation.base_type,
+        minimum,
+        maximum,
+        target,
+        seed,
+    )
 }
 
 /// The direct leg: the whole argument is one opaque mathematical atom and the
@@ -1340,3 +1616,396 @@ fn envelope(seed: u64, proof: ProofNode) -> Option<CertificateEnvelope> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod coverage_tests {
+    //! The new legs' premise collectors and constructors, exercised against a
+    //! minimal typed program: one machine `Main` with one entry state `entry`
+    //! returning the state parameter `pending`, under a `requires pending <=
+    //! 200` contract condition. The kernel -- not the producer -- decides
+    //! every emitted package.
+
+    use super::{
+        CertificateVerdict, GuardBound, collect_contract_bounds, contract_refined_certificate,
+        contract_same_place, contract_stable_expression, interval_premise_certificate,
+        state_return_integer_verdict,
+    };
+    use crate::checker::AssignmentRangeContext;
+    use crate::checker::measurement::ProofPlanMeasurements;
+    use crate::obligations::{
+        BoundedStateReturnObligation, IntegerRange, ProofConstraint, ProofPlan,
+    };
+    use arena::HandleSpan;
+    use numerics::bignum::BigInt;
+    use numerics::literals::IntegerLiteral;
+    use proof_admission::AcceptedFactRoute;
+    use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::TypedTrees;
+    use typed_trees::domain::ProofFact;
+    use typed_trees::expression::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableNamePath,
+    };
+    use typed_trees::machine::Machine;
+    use typed_trees::name::Identifier;
+    use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+    use typed_trees::state::State;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+    struct ReturnProgram {
+        program: TypedTrees,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        carrier: TypeReferenceHandle,
+        value: ExpressionHandle,
+        condition: ExpressionHandle,
+    }
+
+    fn name_path(program: &mut TypedTrees, symbol: SymbolHandle) -> TableNamePath {
+        let mut members = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("pending"));
+        let mut member_symbols = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member_symbol(&mut member_symbols, symbol);
+        TableNamePath {
+            members,
+            member_symbols,
+            head_symbol: symbol,
+            symbol,
+        }
+    }
+
+    fn binary(
+        program: &mut TypedTrees,
+        left: ExpressionHandle,
+        operator: BinaryOperator,
+        right: ExpressionHandle,
+    ) -> ExpressionHandle {
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator,
+                right,
+            }))
+    }
+
+    /// `machine Main { entry(pending: u8[0..=255]) requires pending <= 200 {
+    ///     pending } }` -- the declared interval alone misses a `[0..=220]`
+    /// return target; the contract condition is what reaches it.
+    fn return_program() -> ReturnProgram {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        // A hierarchy arena parent accepts exactly one child range: the
+        // builtins and the machine share root's single batch.
+        let root_children = symbols::builtin_type_symbols()
+            .into_iter()
+            .chain([(SymbolKind::Machine, SymbolNameRef::Static("Main"))]);
+        let handles =
+            SymbolTableBuilder::child_handles(builder.insert_children(root, root_children))
+                .collect::<Vec<_>>();
+        let u8_symbol = handles[symbols::BuiltinTypeAtom::U8.ordinal()];
+        let machine = *handles.last().expect("machine");
+        let state = SymbolTableBuilder::child_handles(builder.insert_children(
+            machine,
+            [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+        ))
+        .next()
+        .expect("state");
+        let pending = SymbolTableBuilder::child_handles(builder.insert_children(
+            state,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("pending"))],
+        ))
+        .next()
+        .expect("parameter");
+
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: u8_symbol,
+                name: Identifier::generated("u8"),
+            });
+        let pending_path = name_path(&mut program, pending);
+        let value = program
+            .expression_table
+            .insert(ExpressionNode::Name(pending_path));
+        let bound = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(200)));
+        let condition = binary(&mut program, value, BinaryOperator::LessOrEqual, bound);
+
+        let mut state_node = State {
+            symbol: state,
+            name: Identifier::generated("entry"),
+            ..State::default()
+        };
+        program.push_state_parameter(
+            &mut state_node,
+            StateParameter {
+                symbol: pending,
+                name: Identifier::generated("pending"),
+                type_reference: carrier,
+                ..StateParameter::default()
+            },
+        );
+        let statement = program
+            .statement_table
+            .insert(StatementNode::Expression(value));
+        state_node.statement_nodes = HandleSpan::from_parts(statement, 1);
+        let facts = program
+            .proof_facts
+            .insert_many([ProofFact::Expression(condition)]);
+        program.push_state_contract(
+            &mut state_node,
+            SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts,
+                ..SignatureContract::default()
+            },
+        );
+        let mut machine_node = Machine {
+            symbol: machine,
+            name: Identifier::generated("Main"),
+            ..Machine::default()
+        };
+        program.push_machine_state(&mut machine_node, state_node);
+        program.push_machine(machine_node);
+        ReturnProgram {
+            program,
+            machine,
+            state,
+            carrier,
+            value,
+            condition,
+        }
+    }
+
+    fn return_obligation(
+        plan: &mut ProofPlan,
+        fixture: &ReturnProgram,
+    ) -> BoundedStateReturnObligation {
+        let value_constraints =
+            plan.type_constraints
+                .insert_many([ProofConstraint::IntegerRange {
+                    minimum: BigInt::from_i64(0),
+                    maximum: BigInt::from_i64(255),
+                }]);
+        BoundedStateReturnObligation {
+            machine_symbol: fixture.machine,
+            machine: Identifier::generated("Main"),
+            state_symbol: fixture.state,
+            state: Identifier::generated("entry"),
+            statement_index: 0,
+            value: fixture.value,
+            value_constraints,
+            base_type: fixture.carrier,
+            constraints: HandleSpan::empty(),
+            binary_operands: None,
+        }
+    }
+
+    #[test]
+    fn arrival_interval_certificate_verifies_under_the_kernel() {
+        let fixture = return_program();
+        let plan = ProofPlan::new(&fixture.program);
+        let certificate = interval_premise_certificate(
+            &plan,
+            fixture.carrier,
+            0,
+            200,
+            &IntegerRange {
+                minimum: BigInt::from_i64(0),
+                maximum: BigInt::from_i64(220),
+            },
+            71,
+        )
+        .expect("certificate");
+        let fact = certificate.verify().expect("kernel accepts");
+        assert!(matches!(
+            fact.route,
+            AcceptedFactRoute::CertificateDerived { .. }
+        ));
+    }
+
+    #[test]
+    fn arrival_interval_gap_stays_uncovered() {
+        let fixture = return_program();
+        let plan = ProofPlan::new(&fixture.program);
+        // The arrival bound misses the target; the leg emits nothing rather
+        // than falling through to declared legs the arrival answer supersedes.
+        assert!(
+            interval_premise_certificate(
+                &plan,
+                fixture.carrier,
+                0,
+                255,
+                &IntegerRange {
+                    minimum: BigInt::from_i64(0),
+                    maximum: BigInt::from_i64(10),
+                },
+                72,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn contract_condition_contributes_its_literal_facts() {
+        let mut fixture = return_program();
+        let less = fixture
+            .program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(7)));
+        let conjunct = binary(
+            &mut fixture.program,
+            fixture.value,
+            BinaryOperator::GreaterOrEqual,
+            less,
+        );
+        let both = binary(
+            &mut fixture.program,
+            conjunct,
+            BinaryOperator::And,
+            fixture.condition,
+        );
+        let plan = ProofPlan::new(&fixture.program);
+        let mut facts: Vec<GuardBound> = Vec::new();
+        collect_contract_bounds(&plan, fixture.value, both, &mut facts);
+        assert!(
+            matches!(
+                facts.as_slice(),
+                [GuardBound { bound: lower, lower: true }, GuardBound { bound: upper, lower: false }]
+                    if *lower == BigInt::from_i64(7) && *upper == BigInt::from_i64(200)
+            ),
+            "pending >= 7 && pending <= 200 contributes `7 <= pending` and `pending <= 200`"
+        );
+    }
+
+    #[test]
+    fn contract_point_exclusion_contributes_no_fact() {
+        let mut fixture = return_program();
+        let five = fixture
+            .program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(5)));
+        let exclusion = binary(
+            &mut fixture.program,
+            fixture.value,
+            BinaryOperator::NotEqual,
+            five,
+        );
+        // Equality, by contrast, enters as its antisymmetric pair.
+        let equality = binary(
+            &mut fixture.program,
+            fixture.value,
+            BinaryOperator::Equal,
+            five,
+        );
+        let plan = ProofPlan::new(&fixture.program);
+        let mut facts: Vec<GuardBound> = Vec::new();
+        collect_contract_bounds(&plan, fixture.value, exclusion, &mut facts);
+        assert!(facts.is_empty(), "a `!=` exclusion has no `<=` restatement");
+        collect_contract_bounds(&plan, fixture.value, equality, &mut facts);
+        assert_eq!(facts.len(), 2);
+    }
+
+    #[test]
+    fn contract_same_place_and_stability_gates() {
+        let mut fixture = return_program();
+        let foreign = fixture
+            .program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath::default()));
+        let projection = fixture
+            .program
+            .expression_table
+            .insert(ExpressionNode::ZeroValue(fixture.carrier));
+        let plan = ProofPlan::new(&fixture.program);
+        assert!(contract_same_place(&plan, fixture.value, fixture.value));
+        assert!(!contract_same_place(&plan, foreign, fixture.value));
+        assert!(contract_stable_expression(&plan, fixture.condition));
+        assert!(!contract_stable_expression(&plan, projection));
+    }
+
+    #[test]
+    fn contract_refined_return_certifies_where_the_declared_leg_misses() {
+        let fixture = return_program();
+        let mut plan = ProofPlan::new(&fixture.program);
+        let obligation = return_obligation(&mut plan, &fixture);
+        let context = AssignmentRangeContext::new(&plan);
+        let machine = &fixture.program.machines()[0];
+        let state = &fixture.program.machine_states(machine)[0];
+        let certificate = contract_refined_certificate(
+            &plan,
+            &obligation,
+            machine,
+            state,
+            &context,
+            &IntegerRange {
+                minimum: BigInt::from_i64(0),
+                maximum: BigInt::from_i64(220),
+            },
+            73,
+        )
+        .expect("the `pending <= 200` premise reaches the target");
+        // The declared pair plus the condition fact are the cited roster.
+        assert_eq!(certificate.assumptions.len(), 3);
+        certificate.verify().expect("kernel accepts");
+    }
+
+    #[test]
+    fn contract_refined_return_gap_stays_uncovered() {
+        let fixture = return_program();
+        let mut plan = ProofPlan::new(&fixture.program);
+        let obligation = return_obligation(&mut plan, &fixture);
+        let context = AssignmentRangeContext::new(&plan);
+        let machine = &fixture.program.machines()[0];
+        let state = &fixture.program.machine_states(machine)[0];
+        assert!(
+            contract_refined_certificate(
+                &plan,
+                &obligation,
+                machine,
+                state,
+                &context,
+                &IntegerRange {
+                    minimum: BigInt::from_i64(0),
+                    maximum: BigInt::from_i64(100),
+                },
+                74,
+            )
+            .is_none(),
+            "neither declared 255 nor the `pending <= 200` fact reaches a [0..=100] target"
+        );
+    }
+
+    #[test]
+    fn state_return_verdict_discharges_the_refined_return() {
+        let fixture = return_program();
+        let mut plan = ProofPlan::new(&fixture.program);
+        let obligation = return_obligation(&mut plan, &fixture);
+        let context = AssignmentRangeContext::new(&plan);
+        let mut measurements = ProofPlanMeasurements::default();
+        let verdict = state_return_integer_verdict(
+            &plan,
+            &obligation,
+            &context,
+            &IntegerRange {
+                minimum: BigInt::from_i64(0),
+                maximum: BigInt::from_i64(220),
+            },
+            75,
+            &mut measurements,
+            None,
+        );
+        assert_eq!(verdict, CertificateVerdict::Certified);
+        assert_eq!(measurements.certificate_certified, 1);
+    }
+}
