@@ -8050,6 +8050,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   records in `tools/benchmark/records/`), so no independent slice
   exists here. Re-verified at `62c502f9f6` on linux x86-64;
   records confirmed present on the tip `a51cb805cc`.
+- **BENCHMARK-LINUX-ARM64-ROW.** Resolved 2026-09-21 — scope verified at
+  `7241e02227`; re-mines the linux_arm64 leg of the host-row matrix (see
+  BENCHMARK-HOST-ROW-MATRIX / BENCHMARK-CROSS-HOST-ROWS): one committed
+  `tools/benchmark/records/` row measured on a linux arm64 host via
+  `benchmark.py measure --target linux_arm64`. Verified at this commit:
+  `tools/benchmark/records/wrapping_square_sum__linux_arm64__default.json`
+  exists but is a cross-compile leg measured on a linux x86_64 host
+  (`host.machine=x86_64`; `runtime_ms.status=skipped`, reason `--no-run`;
+  compile median 28129.6 ms) — the host-native runtime row this item
+  names is not producible on this linux x86-64 box (no arm64 runner).
+  The producing surfaces are also fenced this wave:
+  `tools/benchmark/records` + `wiki/drafts/benchmarks.md` under
+  BENCHMARK-PROOF-SUBJECT-SELECTION (exp ~14:19Z). No independent slice
+  exists under this name — the start condition is a seeded linux arm64
+  runner plus the records-dir fence settling.
 - **BENCHMARK-MACOS-ARM64-ROW.** Mined candidate; scope verified at
   50425f1c70 — re-mines the macos_arm64 leg of the host-row matrix (see
   BENCHMARK-HOST-ROW-MATRIX and BENCHMARK-CROSS-HOST-ROWS' verified
