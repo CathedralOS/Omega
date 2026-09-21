@@ -17635,7 +17635,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-DEBUG-ASSERTIONS (~16:25Z); the GEOMETRY-WINDOWS-VALIDATION
   item claim stays live (~13:53Z); the recorded draft
   `wiki/drafts/squalr_geometry_windows_validation.md` named by the
-  sibling row is not landed on main.
+  sibling row is not landed on main. Re-verified at `c924529921` (linux
+  x86-64): submodule gitlink still `ef6682f75f4`; host gate unchanged —
+  no Windows host in this lane, so the leg stays unmeasurable here.
 - **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
   verified, re-mine of the audited sibling row
   SQUALR-GEOMETRY-WINDOWS-VALIDATION (~line 10273, verified against
