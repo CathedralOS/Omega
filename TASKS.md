@@ -7419,7 +7419,6 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   authority collision on an instantiated template method. Re-run the command above
   before attributing any of them, since the roster moves.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.** — mined candidate; scope verified, covered — sibling re-mine name recorded on the STATE-LOCAL-VALUE-FRONTIER field-store row: the "structural field store: scalar field type" frontier in `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store` (native customers like `filesystem/windows_canonicalize_exit` store structural `UnitResult`; the closure is nested structural sum construction/extraction, borrowed case observation, whole nominal receiver replacement). Re-verified at `8570ba9ae8`: the frontier site is unchanged (`structural_scalar_store/mod.rs:1182` still traces the scalar-field-type phase). The recorded fence map has rotated — `structural_scalar_store` + `primitive_store.rs` are now claimed by PSI-NATIVE-FIELD-STORES (z78, exp ~14:15Z) instead of CORPUS-RED-FAMILY-TRAPSTORE, while the execution/unit control+state_graph, values, flow and field_domain fences recorded earlier have drained or re-fenced (LOWERED-PSI-BASELINE-TAIL on the unit_state_graph tests, CLEANUP-HOOK-SELECTION on `control/checked_machine.rs`, PROVIDER-ATTACHMENT-MACHINE-PLAN on `providers.rs`/`types`). The surface stays claimed — no uncontested implementation leg here.
-||||||| parent of 46a9ef596511 (board/known-baseline-failures: attach fix-leaf names to every recorded cluster)
 - **NEW-BASELINE-CLUSTER-TRIAGE-TO-FIX-LEAVES.** Mined candidate; scope verified —
   triage `wiki/drafts/known_baseline_failures.md` so every recorded cluster names
   a fix leaf on the board. Triaged at `d7744b8fbcab` (linux x86-64): most sections
@@ -8514,7 +8513,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ASM-CATALOG-MEMORY-AND-CONTROL (z139, 05:55Z). No independent slice
   exists; sibling stubs ASM-CATALOG-MEMORY-AND-CONTROL and
   ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS mine the same clause.
-||||||| parent of 378ff7d482a7 (board: mark ASM-INSTRUCTION-CATALOG-EXPANSION resolved upstream)
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; resolved upstream.
@@ -10156,7 +10154,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (swarm-z143, exp 13:57Z) and family 1's surface
   `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
   (devin-848972c1, exp 13:59Z). No independent slice remains.
-||||||| parent of 2ccef088fb73 (board: re-witness CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET attributions)
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
@@ -13400,7 +13397,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   package_compilation_inputs -E 'test(~reject) or test(~do_not_admit)
   or test(~fail)'` — 51/51 PASS (206s). No independent slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
-||||||| parent of 01c72ce90bfb (board: re-witness PACKAGE-PROJECTION-EVIDENCE-MIGRATION scope verdict)
 - **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF.** Mined candidate — resolved:
   re-mines the computed-constant leaf surface landed under
   PKG-INPUTS-FLOAT-IDENTITY-LANDING (`742a2f1d84`), same resolution as
@@ -14478,7 +14474,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   same-named stubs further down re-mine this row. No independent slice.
 - **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6, re-verified at `29983459ec` — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side still admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/state_graph + composed_control AND the native admission file itself (GENERAL-CYCLIC-EXECUTION-OPTIMIZER, exp ~03:48Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, exp ~04:33Z). No independent unclaimed slice remains here.
 - **RC-BUILD-AND-PACKAGES.** — mined candidate; scope verified at `f1675418b1`,
-||||||| parent of e5a620b04d9c (board: mark PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY resolved)
 - **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY** — mined candidate; verify scope then implement.
 - **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
 - **RANKED-CALLEE-NATIVE-COMPOSITION** — mined candidate; scope verified, re-mine of the surface sibling RANKED-PROJECTED-RECEIVER-COMPOSITION resolved at `6ef64f6dd6` (immediately below). "Native composition of ranked callees" names the same GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: composed argument references, call/return, cleanup, callee-measure checking, and composed resource evidence for ranked callees reaching native lowering — versus today's whole-entry-only native admission (`terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`, "Ranked native admission" admits only whole ranked modules). It is an extend-the-common-graph leg, not a separate item. Every implementing surface is live-fenced this wave: `execution/unit/{control,state_graph,composed_control}` (GENERAL-CYCLIC-EXECUTION, 19:37Z), `receiver_calls` (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native `lowering/control_flow` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice exists; the residual stays on the parent optimizer rows. Sibling re-mine names: RANKED-NATIVE-ADMISSION.
@@ -15564,7 +15559,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   REGRESSION NOT CLOSED BY THAT LANDING (measured 2026-09-20 at `00ed2cec7c3`,
   reconfirmed at `1f7301b71020`): `92db61544e3` left nine `omega-architecture-test`
   cases red, and they are still red — `symbolic_walk_{weak_guard_spelling_refuses,
-||||||| parent of eab5496b9224 (board: RECAST-SOURCE-POSITIONS re-witness + close recorded regression)
 - **RECAST-SOURCE-POSITIONS** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
   REGRESSION NOT CLOSED BY THAT LANDING (measured 2026-09-20 at `00ed2cec7c3`,
   reconfirmed at `1f7301b71020`): `92db61544e3` left nine `omega-architecture-test`
@@ -15597,7 +15591,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   recast-witness family plus the transitive-frame and equality-coupling cases);
   the witness transport is intact at current tip and the assertions were never
   relaxed.
-||||||| parent of eab5496b9224 (board: RECAST-SOURCE-POSITIONS re-witness + close recorded regression)
   and `boundary_witness_survives_transitive_disjoint_boundary_frame`. The programs are
   still REFUSED, so this is a precision loss rather than an admission hole: the refusal
   now reads "cannot bound the recast offset `offset` -- the region holds 64 bytes, but no
@@ -16398,7 +16391,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   REWRITE-CATALOG, PIPELINE-REWRITE-CATALOG-WIRING.
 
   row).
-||||||| parent of ad9f07b3461f (board: re-witness SELECTED-REWRITE-CATALOG-EXECUTION cluster state)
 - **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
   at 6d00135b89 — re-mines the keep-or-delete leg of the
   SELECTED-REWRITE-CATALOG cluster; the verdict is recorded on sibling
@@ -16498,7 +16490,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
   (~07:39Z at this check); no independent slice exists under this name.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
-||||||| parent of 66f9426258b7 (board: re-witness SEMANTIC-WRAPPER-OBJECT-OWNERSHIP covered annotation)
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE.** Mined candidate; scope verified
   at `a3ab15b761`, covered — same settled orphan-owner surface as resolved
@@ -17702,7 +17693,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   files registered (`bounded_denotation/casts.rs` under
   formation:mathematical-core, `casts/tests.rs` test-only). Verified:
   `python3 tools/trusted_surface_digests.py` exits 0 and
-||||||| parent of 98c9599eda1e (board: TRANSPARENT-TRAIT-REFINEMENTS — reaches-subset leg landed upstream)
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
   implemented and landed (e2974a6a800 is an ancestor of origin/main;
   the landed re-record c0b2b6e19f registered integer_operations.rs and
