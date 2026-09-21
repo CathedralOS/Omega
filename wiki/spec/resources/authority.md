@@ -70,6 +70,17 @@ axiom proving arbitrary predicates. A result annotation alone remains insufficie
 Existing evidence may instead be forwarded; a public wrapper returning an issued
 value does not become a new issuer.
 
+The authorized issuance spellings on a boundary requirement are an `ensures`
+clause on the bare result, the requirement's own declared result type carrying
+`T in D` (the signature's declared constraint is itself the issuance witness),
+and a selected case payload of the owned result carrier whose declared type
+carries the domain on the domain's own target carrier. The `established by`
+route names the exact called requirement in each; a case-payload grant carries
+the same authority as the bare-result spelling, scoped to the selected case —
+a payload wearing the constraint on an unrelated carrier mints nothing. A call
+that consumed a live owned claim of the same family transfers it rather than
+minting fresh supply.
+
 An exact-machine route does not bypass a boundary declaration's ordinary supply,
 provider, or admission obligations. Merely implementing a requirement does not
 authorize an unrelated direct call. A separately authorized exact checked machine
@@ -116,8 +127,9 @@ authorized establishment occurrence as described above.
 
 For an admitted membership guarantee, the boundary requirement supplies the
 contract and the domain authorizes that requirement. An unrelated accepted
-boundary machine's assertion is insufficient. The subject is bare `result` or
-an exact non-`self` parameter with the domain's carrier. A routed result binds
+boundary machine's assertion is insufficient. The subject is bare `result`,
+a selected case payload of the owned result carrier under the spelling above,
+or an exact non-`self` parameter with the domain's carrier. A routed result binds
 the selected occurrence; a parameter introduction requires an installed
 external-root invocation. At an ordinary call that parameter remains a
 precondition. The receipt retains boundary trait, exact requirement/signature,
