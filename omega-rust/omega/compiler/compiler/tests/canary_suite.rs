@@ -332,6 +332,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // reaches terminal and fixed-fuel, so `inspect-terminal` shows the exact
     // owner-attached hook invoked once.
     "drops/core_drop_owner_hook",
+    // The hook body is an ordinary machine: a `self`-reading argumented call,
+    // a repeated helper, a nested unattached call, and a `self` field write
+    // all reach the terminal closure off the same nominal cleanup edge.
+    "drops/core_drop_owner_hook_body",
     // Ordinary hook bodies: field stores on the borrowed `self` receiver,
     // calls with arguments, membered and unattached helpers, helpers with
     // their own bodies, and an `ensures` postcondition the body establishes.
