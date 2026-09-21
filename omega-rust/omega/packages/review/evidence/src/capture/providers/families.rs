@@ -66,6 +66,52 @@ fn validate_retained_static_parameter_count(
     Ok(())
 }
 
+/// Lazily reconstruct the compilation's closed specialized operator
+/// applications once a generic family coordinate needs them.
+fn specialized_operator_applications<'a>(
+    cache: &'a mut Option<Vec<selected_dispatch::CheckedSpecializedOperatorApplicationRealization>>,
+    compilation: &PackageReviewInput<'_>,
+) -> Result<
+    &'a [selected_dispatch::CheckedSpecializedOperatorApplicationRealization],
+    Vec<Diagnostic>,
+> {
+    match cache {
+        Some(applications) => Ok(applications.as_slice()),
+        cache @ None => {
+            let derived =
+                selected_dispatch::derive_checked_specialized_operator_application_realizations(
+                    compilation,
+                    compilation.custody.selected_provider_plans(),
+                )?;
+            Ok(cache.insert(derived).as_slice())
+        }
+    }
+}
+
+/// A generic coordinate is admissible only while every retained closed
+/// application of that coordinate rejoins the plan its family selected. The
+/// derivation has already reconstructed each nonempty D29 demand and
+/// rechecked its specialization replay and realization contract; the
+/// commitment join here binds that evidence to this coordinate's plan.
+fn validate_generic_coordinate_applications(
+    coordinate: &provider_planning::ProviderOperatorFamilyCoordinate,
+    family_selected_plan_digest: &[u8; 32],
+    applications: &[selected_dispatch::CheckedSpecializedOperatorApplicationRealization],
+) -> Result<(), Vec<Diagnostic>> {
+    for application in applications {
+        if application.requirement_operator != coordinate.symbol {
+            continue;
+        }
+        if application.provider_plan_commitment.as_bytes() != family_selected_plan_digest {
+            return Err(vec![Diagnostic::error(format!(
+                "generic boundary-operator coordinate `{}` retains a closed application whose selected plan commitment disagrees with the family-selected ProviderPlan",
+                coordinate.requirement_identity,
+            ))]);
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn project_selected_provider_families(
     compilation: &PackageReviewInput<'_>,
     target: target::TargetProfile,
@@ -115,6 +161,7 @@ pub(crate) fn project_selected_provider_families(
         }
     }
 
+    let mut specialized_applications = None;
     let mut families = Vec::with_capacity(seeds.len());
     for seed in seeds {
         let ProviderSelectionSubject::BoundaryOperatorFamily(family) = &seed.declaration.subject
@@ -179,12 +226,6 @@ pub(crate) fn project_selected_provider_families(
             let expected_static_parameter_count = operator.lifetime_parameters.len()
                 + compilation.operator_type_parameters(operator).len();
             validate_retained_static_parameter_count(coordinate, expected_static_parameter_count)?;
-            if expected_static_parameter_count != 0 {
-                return Err(vec![Diagnostic::error(format!(
-                    "generic boundary-operator coordinate `{}` remains outside package review until final specialization reconstructs D29 demand and rechecks the selected realization",
-                    coordinate.requirement_identity,
-                ))]);
-            }
             let operator_declaration = nominal_identity(compilation, coordinate.symbol)?;
             if operator_declaration != family_identity {
                 return Err(vec![Diagnostic::error(format!(
@@ -218,6 +259,15 @@ pub(crate) fn project_selected_provider_families(
                     coordinate.requirement_identity,
                     provider_type_declaration.path(),
                 ))]);
+            }
+            if expected_static_parameter_count != 0 {
+                let applications =
+                    specialized_operator_applications(&mut specialized_applications, compilation)?;
+                validate_generic_coordinate_applications(
+                    coordinate,
+                    selected_provider.selected_plan_digest().as_bytes(),
+                    applications,
+                )?;
             }
             coordinates.push(CheckedPackageProviderFamilyCoordinateReview {
                 requirement_identity: coordinate.requirement_identity.clone(),
@@ -265,7 +315,9 @@ pub(crate) fn project_selected_provider_families(
 
 #[cfg(test)]
 mod tests {
-    use crate::capture::providers::families::validate_retained_static_parameter_count;
+    use crate::capture::providers::families::{
+        validate_generic_coordinate_applications, validate_retained_static_parameter_count,
+    };
 
     fn coordinate(arity: usize) -> provider_planning::ProviderOperatorFamilyCoordinate {
         provider_planning::ProviderOperatorFamilyCoordinate {
@@ -273,6 +325,74 @@ mod tests {
             requirement_identity: "operator::Transfer::move($0,$1)->unit".to_owned(),
             static_parameter_count: arity,
         }
+    }
+
+    fn specialized_application(
+        requirement_operator: symbols::SymbolHandle,
+        provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
+    ) -> selected_dispatch::CheckedSpecializedOperatorApplicationRealization {
+        selected_dispatch::CheckedSpecializedOperatorApplicationRealization {
+            application_site: checked_trees::CheckedBoundaryOperatorApplicationUseSite::Statement(
+                typed_trees::statement::StatementHandle::invalid(),
+            ),
+            application_arguments: Vec::new(),
+            authored_use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+            requirement_operator,
+            requirement_overload_identity: String::new(),
+            provider_plan_report_fingerprint: 0,
+            provider_plan_commitment,
+            realization_template: symbols::SymbolHandle::invalid(),
+            realization_machine: symbols::SymbolHandle::invalid(),
+            realization_state: symbols::SymbolHandle::invalid(),
+            specialization_commitment:
+                typed_trees::typed_trees::MachineSpecializationCommitment::from_digest([0; 32]),
+            realization_contract_report_fingerprint: 0,
+            realization_contract_commitment: checked_trees::MachineContractCommitment::from_digest(
+                [0; 32],
+            ),
+        }
+    }
+
+    #[test]
+    fn generic_coordinate_admits_applications_rejoining_the_selected_plan() {
+        let coordinate = coordinate(1);
+        let selected = [7; 32];
+        let applications = vec![
+            specialized_application(
+                coordinate.symbol,
+                checked_trees::CheckedProviderPlanCommitment::from_digest(selected),
+            ),
+            specialized_application(
+                symbols::SymbolHandle::from_arena_index(41),
+                checked_trees::CheckedProviderPlanCommitment::from_digest([3; 32]),
+            ),
+        ];
+        validate_generic_coordinate_applications(&coordinate, &selected, &applications)
+            .expect("closed applications rejoining the selected plan admit the coordinate");
+    }
+
+    #[test]
+    fn generic_coordinate_rejects_an_application_on_another_plan() {
+        let coordinate = coordinate(1);
+        let applications = vec![specialized_application(
+            coordinate.symbol,
+            checked_trees::CheckedProviderPlanCommitment::from_digest([3; 32]),
+        )];
+        let diagnostics =
+            validate_generic_coordinate_applications(&coordinate, &[7; 32], &applications)
+                .expect_err("an application committed to another selected plan must fail closed");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("disagrees with the family-selected ProviderPlan")
+        );
+    }
+
+    #[test]
+    fn generic_coordinate_without_applications_keeps_declaration_coverage() {
+        let coordinate = coordinate(1);
+        validate_generic_coordinate_applications(&coordinate, &[7; 32], &[])
+            .expect("declaration coverage is vacuous without retained closed applications");
     }
 
     #[test]

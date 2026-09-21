@@ -258,8 +258,11 @@ pub enum PackageReviewProviderSelectionAuthority {
 /// Closed coverage vocabulary for an atomic boundary-operator family.
 ///
 /// This axis means every declaration coordinate in the selected family is
-/// covered. Generic applications remain outside package review until final
-/// specialization reconstructs and rechecks their exact realization.
+/// covered, including generic coordinates once final specialization has
+/// rejoined each of their retained closed applications to the coordinate's
+/// selected plan. Closed applications remain a separate evidence axis under
+/// `boundary_application_realizations`; universal coverage of generic
+/// customers stays unimplemented and fail-closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProviderFamilyCoverage {
     CompleteDeclarationFamily,
