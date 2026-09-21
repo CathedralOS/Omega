@@ -2547,6 +2547,26 @@ Owners include
     `normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_transport`
     and
     `normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_field`.
+    The a2t replay now admits both classes —
+    `validation/structural_call_arguments.rs::normalized_foreign_call`
+    classifies the formals' shapes against the calling policy itself
+    (`validation/structural_shapes.rs::classified_boundary_shape`, mirrored
+    crate-locally from provider planning), replays `Owned` whole-place rows
+    from caller placements and affine call-result `StructuralHome` custody,
+    and replays `BorrowedView` formals from a whole stored view or a stored
+    descriptor field via `borrowed_view_field_offset`, witnessed by
+    `normalized_foreign_owned_aggregate_arguments_replay_across_native_targets`,
+    `normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_field`,
+    `normalized_foreign_owned_aggregate_from_call_result_replays_affine_home`,
+    and `normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows`.
+    The frontier moved to instruction selection: a source-produced
+    scalar+record foreign call now stops at
+    `Selection(Legalization(SourceCustodyMismatch))` because the legalizer's
+    `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
+    and selection's
+    `selection/scalar_call_abi/normalized_foreign.rs` operand views still
+    admit only borrowed single-pointer sources — those two mirrors are the
+    remaining legs before matching-host execution.
   - Dynamic descriptor calls. Target lowering produces
     `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
     and the `...WithDynamicArguments` calls, and
