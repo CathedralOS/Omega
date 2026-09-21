@@ -13362,6 +13362,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   still records the custody-inventory architecture leg. No re-measure
   attempted under this name — the fresh-measure lane is the closure
   row's.
+  Re-verified at `138ed79a677` (linux x86-64): the clippy leg LANDED at
+  `69941b6d8dce4` — `cargo clippy -p validation --all-targets
+  -D warnings` GREEN, both named lints repaired. The architecture leg is
+  still RED but has rotated: `glob_self_imports_never_grow_per_crate` now
+  reports two files — the recorded `result_type.rs` plus a NEW residual
+  `foundation/extents/src/ordering_events/tests.rs` (`use super::*`,
+  file-fenced to DEVICE-EXTENT-ACCESS until 11:04Z). Every recorded
+  residual remains fenced; still no unowned slice.
 - **RC-REPOSITORY-GATE-CLOSURE.** Mined candidate — scope verified,
   slice landed on `zergling/z93-rc-repository-gate-closure`. Re-mines the
   `RC-REPOSITORY` gate row ([RC-REPOSITORY-CLOSURE](wiki/drafts/rust_compiler_completion.md)
