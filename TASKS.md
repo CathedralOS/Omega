@@ -10790,8 +10790,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Closure stays gated on the ENTRY-CONTENT-ROOTS lane, the print_number
   domain-field leg, the new CheckedOperator-occurrence audit residual
   (t2c authored_selections), the GUI Fused-provider legs, and the
-  device_extent_access authored root. Sibling re-mines of the same matrix
-  row: RC-REPRESENTATIVE-PROGRAMS-GATE, -GREEN, -PER-HOST.
+  device_extent_access authored root. Re-verified at `20a7d1332c` (linux
+  x86-64): `sample_entry_exceptions_are_explicit_and_non_runnable` is GREEN
+  — the `cli__device__device_extent_access` pin landed via
+  ENTRY-CONTENT-ROOTS — so that family is closed;
+  `named_integer_conversion_samples_reach_checked_trees` still fails
+  verbatim on `print_number` (`self.out requires [u8; N]::Utf8`, 114s).
+  Sibling re-mines of the same matrix row:
+  RC-REPRESENTATIVE-PROGRAMS-GATE, -GREEN, -PER-HOST.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
   Re-measured at `edc77c21480` on linux x86-64 (`cargo nextest run
