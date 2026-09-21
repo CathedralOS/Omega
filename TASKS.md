@@ -2952,322 +2952,117 @@ syntax and other terminal services are not prerequisites.
   Checked-source folding or a manually supplied closure request alone does
   not close this acceptance.
 
-- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish explicit public
-  `boundary requirement Owner::name(...);` declarations under
-  [machine supply](wiki/spec/language/machines.md#supply),
+- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Complete selected execution and
+  source-free identity for explicit `boundary requirement Owner::name(...);`
+  under [machine supply](wiki/spec/language/machines.md#supply),
   [provider selection](wiki/spec/build/provider_selection.md) and
-  [requirement identity](wiki/spec/terminal-psi/boundary_calls.md#call-and-requirement-identity):
-  external satisfiers, provider selection, and installed execution with era
-  replay. Owners: `build/selected-dispatch` (`boundary_dispatch.rs`,
-  `selected_dispatch/requirement_adapter.rs`), `build/provider-planning`, and
-  Psi lowering plus Terminal for the retained identity.
+  [requirement identity](wiki/spec/terminal-psi/boundary_calls.md#call-and-requirement-identity).
+  Existing checked/intrinsic adapter routes cover value/statement calls and
+  owned receivers; deeper projected receivers also have checked interpretation.
+  Reuse them without treating that result as native coverage of every shape.
 
-  One shape executes in both engines: a public, nongeneric, receiver-free
-  requirement whose selected plan is a checked `satisfies` adapter or a
-  compiler intrinsic, called in value position
-  (`pass/providers/checked_boundary_requirement_{dispatch,terminal}_exit`, with
-  the unselected and private fences under `fail/providers/`). Settlement
-  rewrites the typed call to the adapter entry before lowering, so the
-  Terminal module holds an ordinary in-module call and no requirement identity.
+  Extend the selected-call mechanism to type/lifetime-parameterized
+  requirements and borrowed receivers. `selected-dispatch/boundary_dispatch.rs`
+  still restricts direct requirements to nongeneric, receiver-free signatures;
+  `selected_dispatch/requirement_adapter.rs` separately rejects family rows.
+  Compose external satisfiers with structural arguments and interpreter
+  provider execution. Preserve the mixed borrowed-record external customer,
+  its initialized fields and reused returned value; the macOS ARM64 scalar
+  control `top_level_external_requirement_returns_and_reuses_its_result_natively`
+  does not establish that broader route or other-host execution.
 
-  Statement position is now the same route: `_ = Owner::name(...);` settles to
-  the selected checked adapter exactly like the value-position call. The
-  rewrite journals the statement-table call, retargets its retained flow
-  occurrence by caller state, statement index, and call ordinal, keeps
-  `discards_result` intact, and restores the authored requirement statement on
-  source replay
-  (`pass/providers/checked_boundary_requirement_statement_call_exit`, with the
-  unselected fence `fail/providers/boundary_requirement_statement_call_unselected`).
+  Replace shape-specific post-check adapter rewrites with settled call-target
+  substitution keyed on the actual flow occurrence. Retain the requirement's
+  package-qualified operation, complete static telescope, signature, contract,
+  visibility, selected provider/adapter and era through ordinary lowering.
+  This is a canonical requirement kind distinct from trait-keyed conformance
+  rows. The current Terminal canary's helper observes an ordinary adapter call
+  and no requirement boundary declaration, despite its renamed
+  `...retains_requirement_occurrence` test; its name is not identity evidence.
 
-  An owned-`self` receiver is now the same route too: `token.consume();` on a
-  public `boundary requirement Token::consume(self)` settles a
-  receiver-place-keyed `forward_receiver` dispatch row (one row per
-  single-place receiver site, keyed on the place's own symbol), and the
-  rewrite splices that place in as the adapter's leading argument —
-  `Provider::entry(token)` — in both statement and expression position. The
-  interpreter binds it as an ordinary call, and Unit construction admits the
-  attached adapter through its ordinary structural-argument rungs
-  (`tests/fixtures/boundary-requirement-member-call`, harness
-  `canary_suite/top_level_requirement_member_call.rs`; Linux x86-64 verified:
-  interpreter exit and native-artifact exit both execute the selected
-  adapter). Borrowed (`&self`/`&mut self`) receivers stay fenced.
+  Coordinate `Task::finish`/cancellation and interrupt completion with
+  BOUNDED-INSTALLATION-REACH-ROWS and COMPONENT-SUBSTRATE for selection and
+  lineage, not special compiler-owned lifecycle policy.
+  **OPERATOR-MACHINE-SUPPLY** owns source supply migration and retirement of
+  the undifferentiated `MachineSupplyMode::Boundary`; do not recreate the
+  already retired float-operator inventory here.
 
-  One projection hop is now the same route: `holder.token.consume();` settles
-  a `forward_receiver` row keyed on the leaf field symbol (`Holder::token`),
-  found by resolving each projected member's declared field type inside the
-  previous member's named data definition, and the rewrite reifies the place
-  path — `Provider::entry(holder.token)` — as argument 0 in both statement
-  and expression position (expression sites splice the authored receiver at
-  any depth). Statement paths longer than one hop stay fenced: the
-  statement-table call retains only root and leaf member symbols, so deeper
-  projections cannot reify their intermediate members
-  (`selected-dispatch` inline test
-  `a_projected_receiver_member_call_forwards_the_place_as_argument_zero`).
+  Acceptance: value, statement, receiver and external-provider customers
+  execute in the interpreter and natively under one exact selected plan;
+  serialized source-free replay retains requirement/provider/adapter identity.
+  Reject unselected, private, ambiguous, foreign-package, substituted and
+  stale-era authority, including same-spelled declarations in another package.
+  Keep missing-import settlement rejection; an ordinary foreign exit is not
+  canonical ProcessExit evidence.
 
-  Remaining work:
+- **BUILD-ADMISSION-CHECKPOINT.** Finish command-level
+  [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
+  and executor-grant integration across install/update/review/resume and
+  consuming compilation. The pre-effect checkpoint is implemented in
+  `checking/build_continuation.rs::AdmittedBuildCheckpoint::execute`;
+  `check_project`, `check_locked_sources` and `compile_project` supply it.
+  Reuse its refused/granted-effect sentinel controls rather than rebuild the
+  gate or move consent back after execution.
 
-  - Parameterized requirements and deeper receiver projections.
-    `is_directly_callable_top_level_requirement` still admits no type or
-    lifetime parameter, the rewrite rejects family rows, and statement
-    receiver paths beyond one hop reject (above). `core/task.omg` (`Task::finish<T>(self)`,
-    `request_cancel`) and
-    `core/interrupt.omg` (`InterruptMaskGuard::restore`,
-    `InterruptAcknowledgement::complete`) have no library or canary satisfier
-    and reach execution only as installation-bound reach rows
-    (**BOUNDED-INSTALLATION-REACH-ROWS**).
-    [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
-    names this item for that selection and lineage integration.
-  - External satisfiers still need interpreter provider execution and
-    structural-argument composition. Native scalar-returning imports are no
-    longer blocked on foreign-call emission: retain
-    `compiler --test efb3_flat_record_probe
-    top_level_external_requirement_returns_and_reuses_its_result_natively`
-    as the macOS ARM64 control, including its exact requirement identity,
-    selected import, returned value and second-call reuse. Other hosts remain
-    unverified by that test. Missing import settlement must keep rejecting in
-    `external_boundary_requirement_via_exit_canary_keeps_requirement_seam`;
-    its ordinary foreign `exit_with` is not canonical ProcessExit evidence.
-    The borrowed-record counterpart remains a frontend dependency: at
-    `4752d94c3f6` on macOS ARM64, replace the mixed-argument probe's trait with
-    `pub data Move {}` and
-    `pub boundary requirement Move::shift(delta: i32, p: &Point, bias: i32) -> i32;`,
-    remove its Service field, provider selection and `reaches Move` clause,
-    and use `Move::shift` for the same two calls. Terminal production rejects `Main::main` at
-    `statement sequence: call: call operation, statement 2` in checked
-    `execution/unit/`, before native lowering. Preserve the record and its
-    initialized fields when completing that join; the scalar control does
-    not close it.
-  - Terminal identity and era replay. Conformance rows in
-    `terminal_module/boundary/conformances.rs` are trait-keyed, and the
-    `..._terminal_exit` harness test asserts that the requirement is absent
-    from the artifact. Retain operation, static telescope, signature,
-    contract, visibility and the selected conformance row as a canonical kind
-    distinct from trait requirements, then bind installed execution to the
-    selected provider execution and token era.
-  - Respell tokenless boundary operators onto this route:
-    `core/float_operations.omg` holds 124 `boundary operator` rows against 2
-    `boundary requirement` rows. `compiler_intrinsics/requirement_view.rs`,
-    plan stamping, call-row retirement, D29 coverage and review policy rows
-    already key on either spelling. **OPERATOR-MACHINE-SUPPLY** keeps the
-    inventory and the `operator` introducer's removal.
-  - Remove the undifferentiated `MachineSupplyMode::Boundary`, which
-    `syntax-trees-to-symbol-resolved-trees/src/lowering/machine.rs` still
-    assigns, once those source migrations close.
+  Supply a real restricted-request command customer, including a dependency
+  used for both Build/Product purposes and its generated-source handoff.
+  Manager review sessions currently use compiler-owned private staging;
+  empty request sets do not demonstrate this acceptance. Bind requests and
+  grants to exact package occurrence, dependency path, checked purpose,
+  target/execution profile, operation, logical scope and bounds. Product
+  acceptance cannot authorize the same package's build effects.
 
-  Acceptance: value- and statement-position calls, a receiver-bearing
-  requirement and an external satisfier each execute in the interpreter and
-  natively under one selected plan, and the serialized Terminal artifact
-  replays requirement, provider and adapter identity without source.
-  Unselected, private, ambiguous, foreign-package and stale-era calls reject,
-  as do a substituted adapter and a same-spelled declaration in another
-  package. No declaration lowers to `MachineSupplyMode::Boundary`.
+  Acceptance: initial installation and newly added, widened or transitive
+  requests stop before their restricted effects and expose those coordinates.
+  Acceptance plus a genuine executor grant resumes the exact candidate, then
+  reviews generated source; missing/refused/cross-purpose grants perform no
+  restricted action. Audit inspection acquires no host authority. Unchanged
+  request meaning needs no recurring approval; source changes remain visible.
+  Resolution-only updates preserve approval meaning. Exercise interrupted
+  review/publication and stale candidates without storing secrets or machine-
+  specific grant paths in the lock. Dependency locks confer no host authority;
+  already performed host
+  effects have no implicit rollback.
 
-  Flag: the route is a post-check rewrite admitted one authored shape at a
-  time, and its Terminal test pins the requirement's absence. Adding
-  statement position, receivers and external bindings as further rewrite
-  cases repeats the recognizer pattern in
-  [compositional lowering](AGENTS.md#compositional-lowering). The general
-  mechanism is one settled call-target substitution keyed on the
-  `FlowCallFact` occurrence, with a Terminal-visible requirement/provider row.
+  Preserve coherent source/authority snapshot replay, purpose-drift refusal
+  and authored-before-generated resolution. Captured immutable inputs and
+  bounded compiler-private staging remain benign, while supplied host
+  directories remain restricted. No recursive build API, own-build
+  final-component query or hidden post-compilation callback.
+  **BUILD-SNAPSHOT-OUTPUTS** owns committed output sets and required-output
+  settlement at publication.
 
-  Re-verified at `72fc66d6c32` (linux x86-64) — every named leg is fenced
-  or upstream-blocked this wave: the parameterized-requirement gate and
-  deeper receiver projections live in `selected-dispatch/boundary_dispatch.rs`
-  (NEW-NFF-FILESYSTEM-HOST-PLAN-JOIN-REGRESSION, ~15:44Z) and the
-  statement-position/FlowCallFact surfaces share that file;
-  provider-planning `receipt_binding.rs`/`selected_plan_bindings.rs` under
-  NEW-BI-PROVIDER-PLANNING-ISSUANCE-JOIN (~15:36Z); the external-satisfier
-  structural-argument surface `execution/unit/{providers.rs,types/mod.rs}`
-  under PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z); l2t
-  `boundary_operator_custody` under FILESYSTEM-RELEASE-CONTRACT (~14:20Z);
-  the tokenless-operator respell and `MachineSupplyMode::Boundary` removal
-  are delegated to OPERATOR-MACHINE-SUPPLY whose inventory landed (z181)
-  with migrations open; the interrupt completion route waits on the
-  linear-receiver satisfier plus the COMPONENT-SUBSTRATE carrier per its
-  own row; the macOS ARM64 external-satisfier control is host-gated. The
-  Terminal requirement-identity leg (`terminal_module/boundary/conformances.rs`)
-  is unfenced but joins through the settled dispatch facts boundary_dispatch.rs
-  produces — fenced upstream. No uncontested landable slice this pass.
+- **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish ordinary explicit std/alloc
+  dependency migration under the [toolchain/library contract](wiki/spec/packages/toolchain.md).
+  Std may be replaced, split or absent; only core and the specified
+  compiler-injected vocabulary retain toolchain authority. Standalone
+  std/alloc still receive broad `Toolchain` classification in
+  `source-files-to-assembled-syntax/src/source/source_storage.rs`.
+  Remove that fallback as remaining consumers acquire exact source-byte
+  catalog roles or accepted semantic bindings, not by relabeling a directory.
 
-  Re-verified at `53817f8759e5` (linux x86-64) — surfaces unmoved
-  (`MachineSupplyMode::Boundary` still assigned at
-  `lowering/machine.rs:148,163`; `is_directly_callable_top_level_requirement`
-  still gates `boundary_dispatch.rs:751`), and the fence map rotated but the
-  slice ledger is unchanged: `selected-dispatch/boundary_dispatch.rs` stays
-  under NEW-NFF-FILESYSTEM-HOST-PLAN-JOIN-REGRESSION (~16:27Z) covering the
-  parameterized-requirement gate, deeper projections and
-  statement/FlowCallFact surfaces; `execution/unit/{providers.rs,
-  types/mod.rs}` stays under PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z);
-  `external-roots` program_local legs under EPOCH-RESOURCE-SNAPSHOTS
-  (~11:32Z). Two recorded leases drained since `72fc66d6c32`
-  (NEW-BI-PROVIDER-PLANNING-ISSUANCE-JOIN on provider-planning and
-  FILESYSTEM-RELEASE-CONTRACT on `boundary_operator_custody`), but the
-  conformances.rs Terminal-identity leg still joins through fenced
-  boundary_dispatch facts, and the remaining legs (tokenless respell,
-  `MachineSupplyMode::Boundary` removal, interrupt completion, macOS
-  external-satisfier control) stay delegated/upstream/host-gated exactly as
-  recorded. No uncontested landable slice this pass either.
-
-- **BUILD-ADMISSION-CHECKPOINT.** Execute an admitted build machine against one
-  coherent frontend/source/authority snapshot and append generated source in a
-  later resolution stratum; authored source may not resolve forward into output
-  generated by its own build. The checkpoint, the generated-source stratum,
-  serialized replay and compiler-owned publication of the retained native
-  product exist: a replay record binds root package identity, authored
-  declaration role, target profile and admitted build execution profile, and
-  drift in any of them, or in source, target or artifact, stops publication
-  (`compiler/tests/build_config_granted/checkpoints_and_snapshots.rs`,
-  `compiler/tests/build_snapshot_outputs.rs`,
-  `omega/tests/package_commands/generated.rs`). Restricted-build acceptance
-  now surfaces compiler-derived requests in review output, and restricted
-  grants bind to the checked occurrence's `PackageCheckedContext`; the
-  evaluator-side invocation gate still does not exist.
-
-  Remaining work:
-
-  - Finish [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-    at the admitted-program evaluator, before a restricted host effect.
-    Candidate review already projects normalized request meaning and retains
-    explicit decision rows in the lock. The consuming-lock join in
-    `packages/manager/src/review/restricted_build_grants.rs` rejects missing,
-    changed, or wrong-context consent before consuming a checked result, and
-    a `RestrictedBuildCheckpoint` — the accepted target's granted request
-    meanings keyed by package identity and `PackageCheckedContext` — now
-    threads through `compile_dependency_closure` so a consuming compile
-    joins each occurrence's projected requests before its review is
-    retained or its generated-source bundle hands off to a dependent;
-    `UngrantedRestrictedBuildRequests` carries the pending meanings for
-    install/update review and resume, and audit-only callers pass no
-    checkpoint and issue no grants. Still ahead of this item: carry the
-    checkpoint through the admitted execution request so the offending
-    occurrence's own build effect waits on the grant (the `checking`
-    request carrier and `build_continuation` seam), and wire the consuming
-    operations (`operations::check_project`, `check_locked_sources`,
-    `compile_project`) to supply it instead of joining after the pass.
-    Exercise newly added, widened, transitive, rejected, and interrupted
-    requests through those commands.
-    Keep captured immutable inputs and compiler-owned bounded private
-    staging outside restricted-action consent; generic sponsors for
-    supplied host directories remain restricted. Controls live in
-    `packages/manager/src/review/candidate/compilation/tests/restricted_build_grants.rs`
-    and `omega/tests/build_input_inventory.rs`. Do not introduce an arbitrary
-    recursive build API or a new host protocol as part of this join.
-  - Bind restricted-request checkpoints to the existing `PackageCheckedContext`
-    and generated handoff. Build/product occurrences already have independent
-    producer reviews, lock policy and reconstruction; acceptance for one must
-    not authorize a restricted action by the other, even on the same target.
-    The checkpoint keys grants by that exact context — a cross-purpose probe
-    in the controls shows a product acceptance authorizing none of the same
-    package's build-context meanings — and the in-pass join runs ahead of
-    the generated-source handoff. Checkpoint drift through the dual-role
-    generated-source customer in `omega/tests/package_commands/build_purposes.rs`
-    still needs a CLI route that produces restricted requests: every real
-    manager flow today sponsors private staging, so the requests project
-    empty and the exercise stays in the candidate controls until the
-    operations wiring lands.
-
-  Acceptance: initial install and an update adding a restricted helper request
-  both stop before its host effect and show package, dependency path,
-  operation, logical scope, bounds, and profile/target. Resume with acceptance
-  plus a real grant executes, then reviews generated source; rejection or a
-  missing grant performs no restricted action. Audit-only inspection never
-  adds grants. Unchanged requests need no recurring approval; widened or
-  transitive requests do. Resolution-only updates preserve approval meaning,
-  source changes remain audit visible, and dependency-owned lock decisions
-  cannot authorize host access. Exercise interrupted review/publication and
-  stale candidates without retaining secrets or machine-specific grant paths
-  in the lock. With purposes bound, replay after serialization reproduces the
-  product and purpose drift rejects beside the existing activation controls.
-
-  Preserve the authored/generated boundary: no own-build final-component query
-  or hidden post-compilation callback. **BUILD-SNAPSHOT-OUTPUTS** owns the
-  committed output set and required-output settlement at publication.
-
-- **OPTIONAL-STDLIB-SEMANTIC-BINDINGS.** Finish the compiler/library migration
-  to explicit ordinary std dependency edges under the
-  [toolchain/library contract](wiki/spec/packages/toolchain.md). Std may be
-  replaced, split, or absent; only core and compiler-injected vocabulary
-  remain toolchain-owned. Migrate package-aware fixtures, keep freestanding
-  UEFI roots dependency-free, and retain standalone compatibility only until
-  fixtures acquire package roots. Replace std/alloc `Toolchain` classification
-  when compiler consumers have exact source-byte catalog entries or explicit
-  semantic bindings; the current narrow roles and standalone limits are listed
+  Migrate remaining corpus/member imports and package roots, including
+  bundled proof, host/objc, fail and run consumers, through ordinary
+  dependency edges and target-correct Console, Filesystem and physical-entry
+  bindings. Keep freestanding roots dependency-free. The existing narrow
+  roles, including macOS x64 entry, are documented
   [beside package compilation](omega-rust/omega/build/package-compilation/semantic_bindings.md).
-
-  Complete composed-Unit plans for trait-default, float, wire,
-  arithmetic-helper, guarded-call, and looping-cast canaries and the
-  target-correct non-Linux Console catalog entry. The float pass group
-  migrated to ordinary `omega_language_std` edges (50 packaged roots, 49
-  std consumers under `tests/omega/pass/float`; the std-free
-  `named_float_to_integer_no_context_compile` and
-  `tests/omega/run/float/sqrt_probe` remain standalone), so its directed
-  and twin canaries now reach the package route and expose the open
-  composed-Unit and checked-operator legs there. The dependent,
-  ownership, constants, calls, arithmetic, and versioning consumers
-  followed the same edge (28 roots, all checked-only), and the generics,
-  filesystem-straggler, host, and time holdouts joined them (packaged
-  counts: generics 37, filesystem 85, host 23/22, time 17) — macOS-gated
-  filesystem and fs-time-interop roots bind only `macos_arm64`, the
-  windows_* seams bind only `windows_x86_64`, and the interpreter-only
-  `runtime_time_host_virtual_exit` binds none. Five of the nine
-  remaining proofs consumers migrated; `citation_requires_discharged`,
-  `proof_nat_structural_lemmas`, `ring_identity_slot_bridge_compile`,
-  and `real_boundary_package_compile` stay bundled because they select
-  private `boundary machine` entries in core (`add_zero_right`,
-  `add_comm`, `add_assoc`, `mul_comm`, `mul_identity`, `zero`, `one` on
-  nat/ring; `real_add_commutative` on real) — the package route rejects
-  private-machine selection, so they need a per-root declaration
-  exception until core exports them or a semantic binding admits them.
-  `proofs/kernel_*` drift stays owned by the kernel items.
-  `objc` (18) and `arithmetic/saturating_divide_native` are
-  macOS-only and unmigrated here; `fail/` and `run/` corpora still hold
-  bundled spellings. Packaged `platform/` member sources now carry the
-  ordinary `omega_language_std` spelling, and the std-edge declaration
-  pin in `repository_build_declarations.rs` recurses into member
-  directories so a bundled member import is rejected. `run/` migration
-  waits on the open package-route legs named above: state-machine
-  entries there rejoin no Terminal attachment (the identical
-  `pass/text/runtime_stdin_command_branch_exit` shape is already red on
-  it), `-> i32` mains have no `ProgramEntry` result binding, and
-  domain-qualified borrow shapes fail package checking. Structural
-  writeback shares the blocker recorded in `WRITE-ONLY-BORROW`. Feed
-  consumer-scoped Console, Filesystem, and UEFI bindings through normal
-  package-aware compilation.
+  Route exposed composed-call, ownership, entry and proof failures to their
+  capability owners, retaining each customer's intended checking/execution
+  acceptance; unrelated blocked features do not stop independent migrations.
+  Private core proof declarations remain private: obtain an authorized proof
+  route with PROOF-CONTRACT-MIGRATION/PROOF-KERNEL-CORE, not a per-fixture
+  visibility exception.
 
   Acceptance: removing a dependency rejects its imports/provider selections;
-  name, alias, path, or same-spelled declarations cannot restore it, and stale
-  or substituted semantic bindings reject without relying on accepted-lock
-  replay. `packages/manager/tests/repository_build_declarations.rs` checks each
-  packaged canary group's std edge against its imports; extend it as groups
-  migrate. `packages/manager/tests/standard_library_package_resolution.rs`
-  already holds the Console case: removing the std path dependency rejects the
-  consumer with a diagnostic naming the missing `omega_language_std` edge, and
-  another alias or path spelling does not restore the import.
-
-  The Console provider selection has no diagnostic of its own, because source
-  assembly stops at the import and a selection without the import is not a
-  checkable shape. Letting source assembly continue past the missing edge so
-  build evaluation could name the selection regresses
-  `standard_library_alias_has_no_undeclared_bundled_fallback`: the imported
-  type is left undefined in the assembled tree and the rejection moves to a
-  later stage that drops the missing-edge diagnostic. A separate selection
-  diagnostic is an architectural follow-up, not a change to this shape.
-
-  Fence census at `b5e4c7c5f8a` (2026-09-21 ~05:5xZ, linux x86-64): every
-  named residual leg is fenced or gated, so no unmanned slice exists.
-  The composed-Unit substrate sits under CONSERVATION-CONTRACT
-  (`typed-trees-to-checked-trees/src/execution/unit/composed_control`,
-  exp 09:57Z); the four bundled proofs consumers sit under
-  PROOF-CONTRACT-MIGRATION (proof/tests/core, exp 10:38Z) and
-  PROOF-KERNEL-CORE (exp 09:49Z); the acceptance surfaces sit under
-  BUILD-PACKAGES-GATE companions (`packages/manager/tests` +
-  `tests/fixtures/packages` exp 07:44Z, `package_compilation_inputs`
-  exp 09:10Z). `objc` (18) and `arithmetic/saturating_divide_native`
-  remain macOS-only; `run/` migration waits on the open package-route
-  legs recorded above. `package-compilation/src/semantic_bindings.rs`
-  is nominally unfenced — the dev-88738 claim expired 04:23Z — but its
-  only named pending consumer is UEFI-PHYSICAL-SEMANTIC-ENTRY's
-  `MacosX64ProgramEntry` arm, a hardware/target-gated leg.
+  aliases, paths, names and same-spelled substitutes confer no authority.
+  Rejoin exact package, declaration, schema and any role-required selected
+  plan; stale/substituted bindings reject independently of lock replay.
+  Extend `repository_build_declarations.rs`'s recursive member/import checks
+  as fixtures migrate and preserve the missing-edge/alias controls in
+  `standard_library_package_resolution.rs`. Early missing-import rejection
+  is sufficient; do not weaken assembly to manufacture a second diagnostic
+  for a provider selection whose import already failed.
 
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   under the [component publication contract](wiki/spec/build/component_publication.md),
