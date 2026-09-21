@@ -1688,6 +1688,32 @@ pub(crate) fn evaluate_integer_endpoint(
     Ok((literal, warnings))
 }
 
+/// Evaluate a context-free const argument against its declared exact carrier.
+/// Deferred const-generic applications fold through this entry once Omega
+/// supplies their selected provider bodies; the canonical index carries the
+/// spelling a `Named` type-reference node records.
+pub(crate) fn evaluate_closed_const_argument(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    let (value, warnings) = evaluate_scalar_in(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        destination,
+        ArithmeticDomain::Exact,
+        Some(calls),
+    )?;
+    match value {
+        ScalarValue::Index(canonical) => Ok((canonical, warnings)),
+        ScalarValue::Float { .. } => {
+            Err("const application needs an exact integer or Boolean carrier".into())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Value, apply, landed_literal};
