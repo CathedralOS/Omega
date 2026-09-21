@@ -9195,6 +9195,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tools/tests/test_benchmark.py` now under BENCHMARK-REJECTED-ROW-RECORDING
   (Zergling-128, ~16:28Z), BENCHMARK-LINUX-X64-ROW-REFRESH re-held by
   zergling-z186 (~16:56Z). Producing surfaces stay claimed; no slice here.
+  Re-witnessed at `12ea4941ebd` (zergling-132, linux x86-64): census
+  still ten committed rows — both `sel-` contrast rows, both
+  linux_x86_64 defaults and the five cross-target legs intact —
+  `python3 tools/tests/test_benchmark.py` 29/29 OK. Fence rotation:
+  records/ + benchmarks.md remain under BENCHMARK-PROOF-SUBJECT-
+  SELECTION (~14:19Z); BENCHMARK-REJECTED-ROW-RECORDING's
+  benchmark.py/test fence has drained; sibling item claims live on
+  BENCHMARK-SELECTION-CONTRAST-ROWS (~12:35Z) and
+  BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT (~17:02Z). Producing surfaces
+  stay claimed; no slice here.
 - **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-VARIANT-ROWS.** Mined candidate — scope
   verified, coverage landed. Bare re-mine of the variant-selection leg
