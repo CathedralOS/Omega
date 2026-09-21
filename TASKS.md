@@ -7731,6 +7731,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   optimized-semantic-wrapper codec — owned by DURABLE-CODEC-RELOCATION)
   all stand as recorded. Residual relocations are
   sibling items' moves, not audit work; no unclaimed slice remains.
+  Re-witnessed at `7b25940907`: F1 repair holds (`native/prepared.rs` absent,
+  no dangling references), F2 stands (`receiver_eligibility.rs` still resident
+  at 1,181 lines in `psi/compiler/terminal-production`), F4's orphan codec
+  (`optimized_semantic_wrapper_object/codec.rs`) remains unrelocated with
+  DURABLE-CODEC-EXTRACTION live (exp 07:34Z) and the wrapper dirs fenced to
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (exp 08:44Z).
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
   alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
   `36ffc8af87`), which names this row verbatim. Re-verified on linux
