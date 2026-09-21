@@ -2,7 +2,10 @@
 
 Scope-verification draft for `NEW-SV-ROOT-FILE-DISCIPLINE-SCOPE`, re-mining
 **ROOT-FILE-DISCIPLINE** (TASKS.md). Recorded against `59e0b5ec22d`,
-re-verified at `b53c7ea2603` on linux x86-64.
+re-verified at `b53c7ea2603` and again at `6f918986063` on linux x86-64
+(`lib.rs` still 51 lines with zero item definitions, the `Start at
+identity.rs` pointer intact, and `semantic-vocabulary` still absent from
+`REPRESENTATION_ROOTS` — the verdict below stands).
 
 ## What the name binds
 
