@@ -25,6 +25,7 @@ use checked_trees::{
 use facts::{FactPlan, ProgramPoint};
 use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::types::TypeReferenceNode;
 
 mod dispatch;
 mod result_domains;
@@ -317,7 +318,78 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         checked_trees::FlowOperatorOperandFact {
             expression,
             constraints: captured_constraints,
+            referents: self.operand_referents(expression),
         }
+    }
+
+    /// Exact storage this operand's evaluated value denotes at invocation when
+    /// it is a view carrier. A `Borrow` operand evaluates to a reference; any
+    /// other operand is a view when its result type unwraps to a reference or
+    /// slice. Detached carriers read their operand-time copy, so only a view
+    /// transports the referent's live facts. The fail-closed resolver returns
+    /// `None` for referents it cannot place exactly; those operands keep the
+    /// context-identity intersection transport.
+    fn operand_referents(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> HandleSpan<checked_trees::FlowOperandReferent> {
+        // A value-type query strips a borrow to its target, so `Borrow`
+        // operands identify their view shape structurally.
+        let is_view = if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Borrow(_)
+        ) {
+            true
+        } else {
+            let Some(mut result_type) = self.context.expression_result_type_at(
+                self.program,
+                self.machine,
+                self.state,
+                expression,
+            ) else {
+                return HandleSpan::empty();
+            };
+            loop {
+                match self
+                    .program
+                    .type_reference_table
+                    .type_reference(result_type)
+                {
+                    TypeReferenceNode::Constrained { base_type, .. } => result_type = *base_type,
+                    TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
+                        break true;
+                    }
+                    _ => break false,
+                }
+            }
+        };
+        if !is_view {
+            return HandleSpan::empty();
+        }
+        let Some(referents) = crate::flow::reference_expression_storage_places(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            expression,
+            self.context.call_frames,
+        ) else {
+            return HandleSpan::empty();
+        };
+        let rows: Vec<checked_trees::FlowOperandReferent> = referents
+            .iter()
+            .map(|referent| checked_trees::FlowOperandReferent {
+                root: referent.root,
+                segments: self
+                    .context
+                    .control
+                    .operand_referent_segments
+                    .insert_many(referent.segments.iter().copied()),
+            })
+            .collect();
+        self.context
+            .control
+            .operand_referents
+            .insert_many(rows.iter().copied())
     }
 
     fn record_operator_invocation(
