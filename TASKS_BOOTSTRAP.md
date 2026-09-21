@@ -82,138 +82,76 @@ prerequisite to every lower-rung milestone.
 
 ## Alpha execution hardening
 
-- **ALPHA-WINDOWS-CONFORMANCE.** Owners: `bootstrap/0_alpha/` semantics, native
-  implementations and audited listings, with `tests/alpha/conformance.sh`.
-  Remaining acceptance: execute `sh tests/bootstrap/alpha-beta-edge.sh` and
-  `sh tests/alpha/reference/diamond-py.sh` on Windows x64 for the
-  [selected seed](bootstrap/0_alpha/README.md#retention-inventory), retaining
-  exact bounds/Trap observations and register preservation through host I/O.
-  The shared `tests/alpha/io-registers.hex` must return zero and `ABCDEF` for
-  input `AB`; all bounds and reconstruction controls remain required too.
-  macOS execution and PE byte audits do not substitute for this unavailable host result;
-  [coverage limits](tests/alpha/README.md#bounds-conformance) remain explicit.
-  On hosts without an executable seed the conformance, seed-diamond, and
-  native-bounds gates now refuse explicitly (`requires macOS arm64 or
-  Windows x64`, exit 2) instead of reporting per-case seed failures; on
-  Linux x86-64 `python3 tests/alpha/bounds.py --reference` passes 72/72 and
-  the diamond's reference side returns `ABCDEF`/0 for input `AB`. The
-  Windows x64 run remains the only missing leg.
+- **ALPHA-WINDOWS-CONFORMANCE.** Execute `sh tests/bootstrap/alpha-beta-edge.sh`
+  and `sh tests/alpha/reference/diamond-py.sh` on Windows x64 using the
+  [selected seed](bootstrap/0_alpha/README.md#retention-inventory).
+  Owners: `bootstrap/0_alpha/` and `tests/alpha/`. Retain exact bounds/Trap
+  observations and register preservation through host I/O: `io-registers.hex`
+  must return zero and `ABCDEF` for input `AB`. PE reconstruction, Wine and
+  other hosts' runs do not establish Windows execution.
+  Preserve [coverage limits](tests/alpha/README.md#bounds-conformance) and
+  explicit unsupported-host refusal.
+
+- **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION.** Re-forge and re-sign the macOS ARM64
+  Alpha container from the corrected 128-GiB startup extent, repin its audit
+  inventory and `ALPHA_SEED_ARM64_MACOS_*` identities, then run native bounds,
+  conformance and source-reconstruction gates. The
+  [recorded container divergence](bootstrap/0_alpha/README.md#ratified-bounds-hardening-contract)
+  is 32 TiB in the committed container versus 128 GiB in the corrected source
+  and selected semantics; a source edit does not repair the shipped seed.
+  Preserve exact tape bytes, I/O and stack behavior. Windows extent/runtime
+  acceptance stays with ALPHA-WINDOWS-CONFORMANCE.
 
 ## P1 - Gamma checker and first complete encoding proof
 
-- **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific proof using
-  the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md)
-  and [Beta definitions](bootstrap/proofs/beta_encoding/README.md), following the
-  [complete encoding acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md).
-  The subject is the entire selected Gamma evaluator's raw Beta source and
-  persisted Alpha tape. The complete theory emits from Gamma source, the owner
-  proposition `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)` is
-  independently reconstructed, and a complete untrusted derivation has been
-  produced. None of that is admission. The derivation is a 135,451,492-byte
-  request: 16.1 times the request provision, about 70-80 times the work
-  provision and physical pair ceiling, and about 8 times the evaluator's
-  buffered-output limit, so the selected chain can neither check nor produce
-  it. [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md) holds the
-  measurements.
+- **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
+  with the ordinary-Gamma [checker](bootstrap/proofs/checker/CHECKING.md) and
+  [Beta definitions](bootstrap/proofs/beta_encoding/README.md). Follow the
+  [full acceptance](bootstrap/proofs/beta_encoding/ACCEPTANCE.md), not a smaller
+  equation batch: the subject is the entire selected Gamma evaluator's raw Beta
+  source and persisted Alpha tape, with independently reconstructed proposition
+  `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)`.
 
-  Owner decision `beta-encoding-certificate-admission` selects more native
-  backing over a checker composition rule, recorded at the
-  [checking ledger](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision).
-  The [cost review](wiki/drafts/bootstrap_cost_review.md) established that no
-  reduction closes the gap, so the provisions grow instead and the five-rule
-  calculus stays. The
-  [encoder candidate](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md)'s
-  pause is unaffected: the decision settles which route admission takes, not
-  when provisions are selected, and that
-  [continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
-  still requires one complete definition package and integrated recipe to pin
-  the extrapolated coefficients first.
+  Current frontier: the complete untrusted derivation and source-owned theory
+  exist, and request admission now allows 136,314,880 bytes. The
+  [native check record](tests/gamma/beta-encoding-check/README.md) progressed
+  past request admission to comparison-budget exhaustion; the source's
+  `implementation/comparison/session.gamma` now uses the selected 2^26 shared
+  work bound. Successful full checking and mutation acceptance remain owed.
+  Reuse the coupled evaluator/storage provisions in
+  [CHECKING.md](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
+  and [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md); do not rediscover
+  the retired small request limit or add a second work allowance.
 
-  Remaining work:
+  Remaining:
+  - Produce the complete certificate through the selected evaluator chain from
+    the source-owned definitions. `tests/gamma/beta-encoding-theory/run.sh
+    --full-subject` reproduces and measures host-stepper output; it is not
+    selected-chain production.
+  - Run `tests/gamma/beta-encoding-check/run.sh` against the current pinned
+    checker on supported native seeds. Require the exact `Checked` observation
+    for 3,182,974 rows within the selected provision, record actual time/storage,
+    then execute the full-subject mutation controls. A timeout, reference-VM
+    result or partial run is not admission.
+  - Preserve the retained-role census and justify every remaining checker rule,
+    definition and admission against this subject. Remove unjustified helpers;
+    totality cases and owner-fixed rules need not occur in this successful
+    derivation. Reuse the existing census rather than opening another inventory
+    task.
 
-  - Done: the ground, index, memo and allocation bounds were rederived at the
-    measured extent and the three coupled provisions selected, recorded in the
-    [checking ledger](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
-    with the second-platform reproduction of every measured figure in
-    [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md). Selected:
-    136,314,880-byte request extent (130 MiB) inside a 137,363,456-byte
-    (131 MiB) evaluator frame, a 67,108,864-unit (2^26) work counter, and a
-    3,387,293,850-pair arena — the deeper memo key spaces moved the amortized
-    ledger constant to 50 pairs per unit.
-  - Done: the Alpha realization supplies the extent. Both audited seeds now
-    obtain `M` at startup — `VirtualAlloc` on Windows x64, anonymous
-    `mmap` via `svc #0x80` on macOS arm64 — over `MEMSIZE = 0x2000000000`
-    (128 GiB) in AlphaBootstrapV5. `M` stays a flat zeroed array, no opcode
-    transition moved, and execution remains a function of tape and input.
-    The evaluator frames requests at `0x10000000..0x18300000`, buffers
-    135,266,304 output bytes at `0x18300000..0x20400000`, and admits
-    3,422,453,760 pair nodes at `0x20400000..0x2000000000`; the ledger's
-    3,387,293,850-pair and 134,800,268-byte certificate provisions hold.
-    Native acceptance on Windows/macOS/QEMU is still required and is the
-    remaining validation for the derived containers.
+  More native backing, not a new composition rule, is the selected admission
+  route. The [encoder candidate continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
+  still governs that separate experiment. The macOS seed repair is owned by
+  ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION; it does not prevent work on another
+  supported seed.
 
-  - Produce the certificate through the selected chain from source-owned
-    definitions. The host-side
-    [stepper](tests/gamma/beta-encoding-theory/stepper.py) production now
-    has a gate mode:
-    `tests/gamma/beta-encoding-theory/run.sh --full-subject` reproduces the
-    complete derivation on any host with python3, pins the theory
-    reconstruction, both subject identities, and every emitted figure, and
-    emits the retained-role census; it remains diagnostic production rather
-    than the selected chain, which still needs a native host to evaluate and
-    check.
-  - Check the full certificate, and the full-subject mutations the acceptance
-    document lists, under the exact profile. The check gate exists:
-    `tests/gamma/beta-encoding-check/run.sh` emits the theory through the
-    selected evaluator, reproduces the pinned 135,485,028-byte request, and
-    requires the `Checked` observation with row count 3,182,974 and work
-    inside the 2^26 provision. Measured on linux x86-64 (this leg formerly
-    crashed before executing: `check.py` bound `derivation-layout` ahead of
-    `beta-encoding-theory` on `sys.path`, so its `import gate` resolved the
-    wrong module): the evaluator emits the pinned 116,900-byte theory
-    (2.3 s), the host stepper reproduces the pinned request
-    (35.2 s), and the checker runs. The extents.gamma re-pin has since
-    landed at `a31bdf79e5129` ("land the 130 MiB derivation-checker request
-    extent") — `implementation/admission/extents.gamma` now compiles in the
-    selected 136,314,880-byte bound with the checker manifest, packed and
-    diagnostic source identities, and admission-boundary vectors re-pinned
-    across the derivation gates. On linux x86-64 the evaluator now admits
-    the framed request past admission (the recorded `admission_incomplete`
-    code-1 refusal at the pre-selection 8,388,608-byte extent is gone) and
-    enters the long `Checked`-observation run. Remaining: complete that
-    evaluator run on macOS arm64 or Windows x64 and record measured work
-    and time, then run the mutation legs the acceptance document lists.
-  - Show that each retained checker rule and encoding helper has a role in
-    that certificate, and remove the rest. The audit is resolved: every
-    rule except symmetry appears (symmetry stays as one of the five
-    owner-fixed rules), all 107 theory functions unfold after removing the
-    TokenClass chooser — the only member with no caller in any clause body,
-    so no subject can ever unfold it — with functions 63..108 renumbered
-    down, 359 of 361 constructors appear in terms (S_EMPTY and A_EXHAUSTED
-    stay as the Source base case and the contract-required distinct
-    exhaustion admission), and 1,911 of the 2,811 declared clauses appear
-    as unfolding premises with the unexercised remainder retained for
-    function totality on malformed input. The emitted section's
-    functions-table length word was repaired to match: the handwritten
-    `theory/definitions.gamma` dispatcher still declared 108 records over
-    the post-renumber 107, and emit_gamma.py does not generate that file,
-    so the stale count survived the census. The bound closure is
-    re-pinned (member digest, manifest and packed identities, producer
-    source row); the emitted-section identity the evaluator-side gates
-    pin is unchanged, so the repair moves the Gamma emission onto the
-    already-pinned 107-function bytes instead of revising them.
-
-  Acceptance: the full certificate checks under the exact
-  [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with
-  measured bytes, storage, depth, and time and a reviewable account of the
-  definitions and trusted assumptions. Malformed, cyclic, missing-premise,
-  wrong-subject, wrong-rule, and exhausted requests cannot accept. Rule
-  tests, finite equation batches, partial proofs, and assembler agreement do
-  not close this task. Encoding equality does not prove that the evaluator
-  implements Gamma; that trust assumption stays explicit. No proof search,
-  producer-selected root, trusted assembler primitive, or general-purpose
-  extension.
-  Fence stamp `836bb681a265` (swarm-w9-ffival): the residual leg's surfaces are live-fenced — claim probe exit 2, both `tests/gamma/beta-encoding-check` and `bootstrap/proofs/checker` held by GAMMA-CERTIFICATE-NATIVE-EXECUTION (zergling/z78, exp ~12:58Z); GAMMA-CERTIFICATE-CHECK (zergling-182) also carries an open claim by name. The pending evaluator `Checked` run and mutation legs belong to those lanes; nothing unfenced remains to drive here.
+  Acceptance: full evidence checks under the exact
+  [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with measured
+  bytes, storage, depth and time. Malformed, cyclic, missing-premise,
+  wrong-subject, wrong-rule and exhausted requests cannot accept. Keep the
+  explicit limitation: encoding equality does not prove evaluator semantics.
+  No proof search, producer-selected root, trusted assembler primitive or
+  general-purpose checker extension.
 ## P4 - Epsilon to Omega and self-hosting
 
 - **OMEGA-D.** Complete the Epsilon closure selected by
@@ -248,98 +186,45 @@ prerequisite to every lower-rung milestone.
 
 ## P5 - Audited chain closure
 
-- **CHAIN-MANIFEST.** In shared `tools/bootstrap/` orchestration and edge-owned
-  records, bind each exact source closure, artifact, semantics version,
-  observation/resource profile, independently reconstructed obligation,
-  certificate, and disclosed admission. Every edge through Omega D binds
-  today: `require_bound_identity` (`tools/bootstrap/alpha/seed_env.sh`) checks
-  a subject's exact size and digest against the audit record that states them,
-  each edge's `*_env.sh` wraps it per subject — seed container, flat-edge
-  source and tape, request entry, manifests, members, composed record, driver,
-  receipt, gate-local customer entry — and every test gate consuming a
-  canonical closure reaches it through those materializers. The `tests/bootstrap/*-identity.sh` gates cover
-  identity, refusal, and agreement with every other repository record that
-  pins a bound subject. These are byte identities, not evidence that a rung
-  ran: the gates bind without executing, and seed execution needs macOS arm64
-  or Windows x64, the only two audited seed containers in `bootstrap/0_alpha/`.
+- **CHAIN-MANIFEST.** Bind the remaining self-host compiler tapes, certificates
+  and disclosed admissions in edge-owned records and shared
+  `tools/bootstrap/` orchestration. Source closures, seed/evaluator artifacts,
+  request entries and gate-local drivers already use exact bindings; preserve
+  their `*_env.sh` materializers and `tests/bootstrap/*-identity.sh` refusal
+  controls rather than creating another binding scheme.
 
-  Remaining work:
+  Missing subjects: the `omega0` and `omega` tapes produced by OMEGA-C, and
+  proof/admission records as their edges close. Each binding must join the exact
+  source closure, artifact, semantics and resource/observation profile,
+  reconstructed obligation and evidence before the consuming gate executes.
+  Identity-only tests are not execution or proof evidence.
 
-  - ~~D's OCREQ request entry, still framed per gate rather than bound.~~
-    Bound in `tools/bootstrap/omega/compiler_env.sh` at 4,115 bytes
-    (`OMEGA_REQUEST_ENTRY_*` pins) alongside its canonical sealed request
-    fixture (`OMEGA_REQUEST_FIXTURE_*`, 132 bytes), both recorded in
-    `tests/bootstrap/omega-request/README.md` and refused by
-    `tests/bootstrap/omega-identity.sh`; the `tests/bootstrap/omega-request`
-    gate serves it through the selected chain on macOS arm64/Windows x64.
-    New request-level provisions 25 (`coverage_request_semantics`) and 26
-    (`request_staging_bytes`) were added to the outcome tables in
-    `bootstrap/5_omega/outcome.epsilon` and
-    `wiki/spec/build/compiler_request.md`, rebinding the D closure records.
-  - ~~The gate-local prefixes packed on top of bound member bytes: every
-    gate-local driver except the shared Epsilon slice driver.~~ All
-    gate-local drivers are bound. Delta and Epsilon edges bind in
-    `tools/bootstrap/{delta/compiler,epsilon/evaluator}_env.sh`: the
-    lowering-plan and normalization Delta-edge driver entries plus the
-    internal-boundary and emission gate-owned controls closures (each binds
-    its manifest and the packed bytes it repacks to), and the checking and
-    array-storage Epsilon-edge drivers plus the checking-invariants,
-    runtime-invariants, runtime-references, and source-views controls
-    closures; `tests/bootstrap/{delta,epsilon}-identity.sh` pass the bound
-    identities and refuse corrupted or truncated drivers, manifests, and
-    controls members on Linux. D's gate-local customer entries bind in
-    `tools/bootstrap/omega/compiler_env.sh`, recorded in each omega-* gate
-    README; `tests/bootstrap/omega-identity.sh` checks them and the packed
-    compiler-plus-entry customer bytes on Linux. The shared Epsilon slice
-    driver bound at e1fba5f523 as `EPSILON_EXECUTION_DRIVER_*` pins in
-    `tools/bootstrap/epsilon/evaluator_env.sh` with
-    `require_epsilon_execution_driver_identity` gating every cross-rung
-    consumer.
-  - The `omega0` and `omega` compiler tapes, which **OMEGA-C** has yet to
-    produce.
-  - The certificates and disclosed admission records, as the edges producing
-    them land. Bind each on arrival; a subject bound after the fact cannot
-    show that the artifact a gate consumed was the audited one.
+  Acceptance: a reviewer can follow each dependency to the audited root without
+  treating hashes, execution success or producer assertions as proofs. Retain
+  only plumbing with an exact customer under
+  [whole-chain minimization](bootstrap/MINIMIZATION.md#retention-test).
+  OFFLINE-REBUILD owns complete blank-host reconstruction.
 
-  Acceptance: a reviewer can follow every dependency back to the audited root
-  without treating a digest, a successful execution, or a producer assertion as
-  a proof. Each binding names the exact customer that requires it, per the
-  [retention test](bootstrap/MINIMIZATION.md#retention-test); this orchestration
-  is permanent host tooling inside the audited surface, so added plumbing
-  counts against the same budget it protects.
+- **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction from the audited
+  Alpha seed and repository-owned bytes on supported hosts. Rust, Python,
+  networking and package managers are never semantic stages; the manifest must
+  expose all admissions and contain no retired rung.
 
-  **OFFLINE-REBUILD** owns reconstruction of the whole chain on a blank host.
+  Reuse the existing identity/source-closure/hygiene gates and seed execution
+  routes. Linux x86-64 now has a selected native seed and executable lower-rung
+  coverage; the old macOS/Windows-only diagnosis is obsolete. Windows PE runs
+  under Wine do not validate a Windows host.
 
-- **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction across all
-  completed edges. Acceptance: a blank supported host reconstructs and checks
-  the entire chain from the audited Alpha seed and repository-owned bytes;
-  Rust, Python, networking, and package managers are never semantic stages.
-  The manifest contains no retired rung or undisclosed authority substitute.
+  Remaining:
+  - Execute Gamma, Delta, Epsilon and `omega-*` customer gates on Windows x64
+    through the documented Git Bash route, recording exact observations and
+    resource prerequisites. ALPHA-WINDOWS-CONFORMANCE owns the Alpha/Beta edge,
+    not this whole roster. Byte-only identity checks do not replace execution.
+  - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
+    required proof edges close, then reconstruct/check it on a blank supported
+    host without unavailable-host success or an undisclosed authority substitute.
+    Apply ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION before claiming the corrected
+    macOS extent.
 
-  Frontier (Linux x86-64, base 1e1559d475): every completed edge's bound
-  materialization and refusal coverage passes host-free — the
-  `*-identity.sh` gates, `source-closure.sh`, and `chain-hygiene.sh` — and
-  `alpha-beta-edge.sh` now reports its seed-execution legs UNAVAILABLE
-  (exit 2) rather than FAILED where no audited Alpha container runs.
-  Update (z124, linux x86-64 at `d2fe213ff6`): with `alpha_x64_linux`
-  bound as a seed-execution host, the previously macOS/Windows-only legs
-  now run here — `tests/alpha/conformance.sh` 34/34 + native bounds 78/78,
-  `tests/alpha/parity.sh` seed parity 33/33, `tests/beta/compiler/
-  reconstruction.sh` PASS (Beta reconstructs its direct Alpha tape
-  byte-identically), `tests/beta/compiler/word-prefix.sh` 736/736
-  controls, `tests/beta/compiler/compiler-diamond.sh` 6/6, and
-  `alpha-beta-edge.sh --edge` VERIFIED. Alpha conformance, Beta
-  self-reconstruction, and the shared word prefix no longer require
-  macOS arm64 or Windows x64; the remaining host-gated leg is the literal
-  Windows Git Bash route below. The
-  omega-parser/outcome/executable chain now runs on Linux x86-64
-  (`alpha_x64_linux` is bound; the parser gate is fully green there),
-  and the parser gate's Windows PE seed ran both legs byte-exactly under
-  wine — receipt and all twelve customer invocations; only the literal
-  Git Bash route on a real Windows host remains unvalidated. The
-  D→omega0 and omega0→omega tapes are not
-  yet produced (OMEGA-C), so whole-chain reconstruction currently ends at
-  interpreted D. Every Beta compiler-exec entrypoint — reconstruction,
-  the compiler diamond, and `tools/bootstrap/beta/build.sh` — now refuses
-  (exit 2) on hosts that cannot run the audited seed rather than crashing
-  on the Windows PE container.
+  Acceptance is the complete offline self-host chain, not another passing
+  subset or an aggregate of incompatible source/profile pins.
