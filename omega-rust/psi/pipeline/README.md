@@ -421,9 +421,11 @@ arithmetic-policy projections remain rejected until scalar production and source
 replay carry that policy together. These boundaries are covered by
 `module_machine_indices::indexed_domains` and validation's
 `qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy`.
-Scalar result annotations still need the independent body-proof obligation
-tracked by `SCALAR-DOMAIN-RETURN-PROOF`; distinct identities alone do not prove a
-returned value satisfies its declared predicates.
+Scalar result annotations are established in the producing body: ordinary exits
+prove the machine and state result obligations from live exact membership or the
+arithmetic prover, closed indices retain their declaration binders, and routed
+qualifications require authorized provenance
+(`typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
@@ -431,9 +433,10 @@ be checked as the real constrained declaration's index. Likewise, a computed
 module constant must be materialized before a dependent declaration selects its
 Boolean value. Untyped fact folding cannot replace that route because it does
 not retain authored numeric operand widths or selected operation custody.
-The `computed_boolean_domain_indices_retain_their_pending_typed_probe_boundary`
-regression retains these failures, including standalone logical-not's earlier
-parser boundary.
+`module_machine_indices::indexed_domains::computed_boolean_domain_indices_reach_source_free_terminal`
+and `..._do_not_publish_placeholder_membership` pin that route through to
+source-free Terminal; false predicates feeding another constant, foreign private
+selections, mixed carriers and missing unary custody still reject.
 
 Module-owned constants with foreign nominal and closed generic value types
 retain separate declaration, carrier and initializer owners. Name expressions

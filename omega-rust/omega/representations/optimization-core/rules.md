@@ -56,7 +56,7 @@ the repository gate.
 
 ## Supported composition policy
 
-- The source vocabulary names six Psi suites; the executable
+- The source vocabulary names eight Psi suites; the executable
   `lowered-psi-to-lowered-psi` phase runs every member through
   `run_psi_optimization` over the complete validated carrier.
 - One checked-tree product-pruning rule may follow authored checking when the
