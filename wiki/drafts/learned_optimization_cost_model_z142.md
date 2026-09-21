@@ -39,3 +39,5 @@ machinery this item names and the policy doc authorizes none. Same
 verdict as siblings LEARNED-COST-MODEL (`05416dd1a0`),
 GRAPH-COST-EVIDENCE-CORPUS, OPTIMIZATION-WORKLOAD-CORPUS,
 WORKLOAD-MULTIVERSIONING.
+
+> Field note (f5eca6b2b0bd..5d9afb85f822 review): ledger-only re-verification of an authorization-gated row; fold the verdict into LEARNED-COST-MODEL when its fence opens and delete this draft rather than re-stamping.
