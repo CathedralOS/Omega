@@ -15190,20 +15190,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   families and host runners land; no independent slice exists under this
   name.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOST-RUNS.** Scope verified at `a941e36c800` —
+- **RC-NATIVE-MATRIX-HOST-RUNS.** Scope verified at `e7c0099cb2b7` —
   names the per-host execution runs of the
   [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
   requirement: each hosted target's products executed and validated on
   its own host. Every run is separately owned — linux_x86_64 under
-  RC-NATIVE-MATRIX-LINUX-X86-64 (recorded red 15/38 with fixture-migration
-  residuals at `wiki/drafts/rc_native_matrix_linux_x86_64.md`; the harness
-  itself cannot compile while `pipeline_ownership`/`abstract_publication`
-  stay fenced to STRUCTURAL-UNIT-CALL-GRAPH-JOINS and
-  NATIVE-DIFFERENTIAL-MATRIX), linux_arm64 under RC-NATIVE-MATRIX-LINUX-ARM64
-  (live claim, cross-emit only), macos_arm64 under RC-NATIVE-MATRIX-MACOS-ARM64
-  (no runner), windows_x86_64 under RC-NATIVE-MATRIX-WINDOWS-X64 (runner
-  procedure recorded). Coordination umbrella is RC-NATIVE-MATRIX-HOSTS
-  (recorded, `wiki/drafts/rc_native_matrix_hosts.md` rev 0977a4249e;
+  RC-NATIVE-MATRIX-LINUX-X86-64 (live claim; re-run recorded 24 pass /
+  14 fail across 38 legs at `6ef64f6dd6`, all 14 sysv legs refusing at
+  product admission on the ENTRY-CONTENT-ROOTS root surface,
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md`; the harness's
+  `pipeline_ownership` test target still fails to compile — 5 errors —
+  while BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP holds that dir; the
+  `abstract_publication` leg has since cleared), linux_arm64 under
+  RC-NATIVE-MATRIX-LINUX-ARM64 (live claim, cross-emit only),
+  macos_arm64 under RC-NATIVE-MATRIX-MACOS-ARM64 (no runner; the
+  macos_arm64 target paths are live-fenced to MACOS-APPLICATION-PUBLICATION),
+  windows_x86_64 under RC-NATIVE-MATRIX-WINDOWS-X64 and
+  RC-WINDOWS-X64-NATIVE-ROW (live claim; compile-side lanes green,
+  matching-runner leg still open). Coordination umbrella is
+  RC-NATIVE-MATRIX-HOSTS (recorded, `wiki/drafts/rc_native_matrix_hosts.md`;
   live claim) with closure under RC-NATIVE-MATRIX-CLOSURE (live claim).
   No executable slice exists on this host.
 - **RC-NATIVE-MATRIX-HOSTS** — recorded at
