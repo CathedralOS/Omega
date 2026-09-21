@@ -5,6 +5,7 @@ use typed_trees::expression::{
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::super::diagnostics::{
     known_length_range_bound_failure, known_length_range_value_failure,
@@ -139,6 +140,13 @@ pub(super) fn check_indexed_access(
             |reference| super::super::arrays::fixed_array_type_symbolic_extent(program, reference),
         )
     {
+        // A const-generic extent bound through a still-pending application
+        // reads like a `ConstCall` length: its fold awaits selected execution,
+        // so the preliminary pass defers instead of failing the open
+        // template's symbolic binder.
+        if extent_binds_pending_application(program, machine, state, indexed.collection, extent.0) {
+            return BoundsCheckResult::Unsupported;
+        }
         // A const-generic extent `N` is not "unknown length": the obligation
         // `index < N` / `end <= N` discharges against the binder's declared
         // floor, the index's `u64[..N]` declared range, and collection-keyed
@@ -584,6 +592,87 @@ fn check_symbolic_extent_index(
         }
     }
     false
+}
+
+/// Whether `extent` names a const parameter of the collection owner's generic
+/// base whose argument position still holds a `ConstExpression` marked for
+/// deferred fold. The pending-application mark is the pre-check
+/// continuation's custody: it is set when the application awaits selected
+/// provider bodies and cleared as the selected fold lands the literal. Only
+/// the member's own receiver can carry that binding — a deeper projection
+/// would bind a different parameter list.
+fn extent_binds_pending_application(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    extent: symbols::SymbolHandle,
+) -> bool {
+    let ExpressionNode::Member(member) = program.expression_table.expression(collection) else {
+        return false;
+    };
+    let Some(receiver) = expression_type_reference(program, machine, state, member.receiver) else {
+        return false;
+    };
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(receiver)
+    else {
+        return false;
+    };
+    let Some(template) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *base_symbol)
+    else {
+        return false;
+    };
+    let Some(position) = program
+        .data_type_parameters(template)
+        .iter()
+        .position(|parameter| parameter.symbol == extent)
+    else {
+        return false;
+    };
+    program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+        .get(position)
+        .is_some_and(|argument| type_reference_has_pending_application(program, *argument))
+}
+
+/// Whether a type reference's subtree carries a `ConstExpression` whose root
+/// is still marked pending — i.e. the const application occupying this slot
+/// has not folded yet.
+fn type_reference_has_pending_application(
+    program: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::ConstExpression(expression) => {
+            program.pending_const_range_endpoints.contains(expression)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .any(|argument| type_reference_has_pending_application(program, *argument)),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_has_pending_application(program, *base_type)
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_has_pending_application(program, *referee)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            type_reference_has_pending_application(program, *element_type)
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
+    }
 }
 
 fn check_known_length_range_index(

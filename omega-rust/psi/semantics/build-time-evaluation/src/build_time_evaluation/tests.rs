@@ -562,6 +562,125 @@ fn provider_backed_domain_fact_defers_then_evaluates_its_selected_body() {
     );
 }
 
+/// A provider-dependent const application closes into a generated instance
+/// once the selected body folds: `Buffer<limit()>` becomes `Named` to a
+/// `Buffer<7>` whose member extent carries the literal, so downstream member
+/// checks see a concrete extent rather than the open template's `N`.
+#[test]
+fn selected_provider_const_application_realizes_instance() {
+    let package = PackageKeyIdentity::from_digest([0x7b; 32]).expect("nonzero package identity");
+    let source = r#"
+        data Math {}
+        boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+        data Provider {}
+        machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
+        machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+        data Buffer<const N: u64> { values: [u8; N]; }
+        data Main { value: Buffer<limit()>; }
+        machine Main::main(&mut self) { self.value.values[6] = 70; }
+    "#;
+    let (syntax, sources) = parsed_source(source, package);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("pre-resolution evaluation");
+    let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+    let mut typed = typed_after_pre_resolution(&syntax, sources);
+    let pending = pre_check
+        .evaluate_or_defer(&mut typed)
+        .expect("defer scan")
+        .expect("the provider-dependent application must defer");
+    let rows = provider_body_rows(&typed);
+    pending
+        .evaluate_selected_operators(
+            &mut typed,
+            SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &rows,
+            },
+        )
+        .expect("selected fold");
+    let buffer = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Buffer")
+        .expect("Buffer template");
+    let main = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .expect("Main");
+    let value_field = typed
+        .data_members(main)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "value" => {
+                Some(field.type_reference)
+            }
+            _ => None,
+        })
+        .expect("Main.value field");
+    let typed_trees::types::TypeReferenceNode::Named {
+        symbol: instance_symbol,
+        ..
+    } = typed.type_reference_table.type_reference(value_field)
+    else {
+        panic!("the folded application must close to a Named instance")
+    };
+    assert_ne!(
+        *instance_symbol, buffer.symbol,
+        "the instance is a generated definition, not the open template"
+    );
+    let instance = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *instance_symbol)
+        .expect("generated Buffer<7> instance");
+    assert!(
+        instance.generic_instance.is_some(),
+        "the instance retains its application origin"
+    );
+    let values_field = typed
+        .data_members(instance)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "values" => {
+                Some(field.type_reference)
+            }
+            _ => None,
+        })
+        .expect("instance values field");
+    match typed.type_reference_table.type_reference(values_field) {
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            length: typed_trees::types::FixedArrayLength::Literal(7),
+            ..
+        } => {}
+        other => panic!("instance values extent must be Literal(7), got {other:?}"),
+    }
+    // Instance origins keep their authored `Generic` node as provenance; only
+    // application sites that are not some instance's origin must be closed.
+    let origins: std::collections::HashSet<_> = typed
+        .data_definitions()
+        .iter()
+        .filter_map(|definition| definition.generic_instance)
+        .collect();
+    assert!(
+        typed
+            .type_reference_table
+            .generic_type_reference_sites()
+            .iter()
+            .filter(|(site, _, _)| !origins.contains(site))
+            .all(|(_, base, _)| *base != buffer.symbol),
+        "no open Buffer application may survive the selected fold"
+    );
+}
+
 #[test]
 fn builtin_only_domain_fact_keeps_the_undifferentiated_early_route() {
     let package = PackageKeyIdentity::from_digest([0x79; 32]).expect("nonzero package identity");

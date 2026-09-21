@@ -1,0 +1,51 @@
+// The selected provider body is the only admissible result for a deferred
+// const application: `Provider::remainder` folds `left | right` = 7, so the
+// generated instance's extent is 7 and a byte-7 write -- which would only be
+// legal if some other result (the unselected literal satisfier's 9, or any
+// folded value past 7) had leaked in -- must reject against the materialized
+// extent.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega::language::core::service;
+
+data Math {}
+
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+
+data Provider {}
+
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (left | right) }
+}
+
+data AltProvider {}
+
+machine AltProvider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (9) }
+}
+
+machine limit() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    transition { _ -> (left % right) }
+}
+
+data Buffer<const N: u64> {
+    values: [u8; N];
+}
+
+data Main {
+    exit: Service<ProcessExit>;
+    value: Buffer<limit()>;
+}
+
+machine Main::main(&mut self) reaches
+    ProcessExit
+{
+    self.value.values[7] = 70;
+    self.exit.exit_process(70);
+}

@@ -14,15 +14,25 @@
 //! copy, the argument evaluates under its declared carrier, and the site
 //! becomes a `Named` literal. Distinct build plans therefore produce distinct
 //! results while an unselected satisfier stays inert.
+//!
+//! Folding the argument is only half the settlement: the enclosing `Generic`
+//! site still reads open because the pre-resolution normalizer skipped it
+//! while the call awaited selection. `realize_folded_applications` closes the
+//! site to the same shape a provider-free application carries — rejoining or
+//! synthesizing the generated data instance, substituting const parameters in
+//! member types with the folded literals, and rewriting the site to `Named`.
 
+use std::collections::{HashMap, HashSet};
+
+use arena::HandleSpan;
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
-    data::TypeParameterKind,
+    data::{DataMember, TypeParameterKind},
     expression::ExpressionHandle,
     name::Identifier,
-    types::{TypeReferenceHandle, TypeReferenceNode},
+    types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 
 use crate::machine_execution::admission::{expression_children, require_closed_expression_custody};
@@ -215,10 +225,506 @@ pub(crate) fn evaluate_selected_const_applications(
             return Err(round.diagnostics);
         }
     }
+    realize_folded_applications(typed, &published);
     for warning in warnings {
         eprintln!("{warning}");
     }
     Ok(())
+}
+
+/// Close every generic application site whose retained const argument just
+/// folded. The pre-resolution normalizer skipped these sites exactly because
+/// the call awaited provider selection, so they still read `Generic` — member
+/// resolution would rejoin the open template and keep its const parameters
+/// symbolic. Once the argument is a closed literal the site must land the
+/// same shape a provider-free application produces: rejoin an existing
+/// generated instance or synthesize it, then rewrite the site to `Named`.
+/// Nested applications converge outward: each realized site is itself a
+/// closed argument, so an enclosing `Generic` becomes realizable on the next
+/// pass. A site that still names a generic binder, or whose template needs a
+/// synthesis shape this pass does not own (case payloads, where-fact
+/// evaluation, lifetime forwarding, attached machines), stays open and is
+/// checked exactly as before.
+fn realize_folded_applications(
+    typed: &mut TypedTrees,
+    published: &[(
+        TypeReferenceHandle,
+        TypeReferenceNode,
+        Vec<ExpressionHandle>,
+    )],
+) {
+    if published.is_empty() {
+        return;
+    }
+    let mut closed: HashSet<TypeReferenceHandle> =
+        published.iter().map(|(site, _, _)| *site).collect();
+    let mut declined: HashSet<TypeReferenceHandle> = HashSet::new();
+    loop {
+        // Instance origins are provenance, not applications: a `Generic` node
+        // recorded as `generic_instance` must keep that shape, or readers that
+        // follow `Named` -> origin -> `Named` loop forever.
+        let origins: HashSet<TypeReferenceHandle> = typed
+            .data_definitions()
+            .iter()
+            .filter_map(|definition| definition.generic_instance)
+            .collect();
+        let mut progress = false;
+        for (site, base_symbol, arguments) in
+            typed.type_reference_table.generic_type_reference_sites()
+        {
+            if closed.contains(&site) || declined.contains(&site) || origins.contains(&site) {
+                continue;
+            }
+            let argument_handles = typed
+                .type_reference_table
+                .type_reference_handles(arguments)
+                .to_vec();
+            if !argument_handles
+                .iter()
+                .any(|argument| argument_contains(typed, *argument, &closed))
+            {
+                continue;
+            }
+            if !argument_handles
+                .iter()
+                .all(|argument| closed_argument(typed, *argument))
+            {
+                continue;
+            }
+            let Some((symbol, name)) = realize_data_instance(typed, site, base_symbol) else {
+                declined.insert(site);
+                continue;
+            };
+            typed.type_reference_table.substitute_node(
+                site,
+                TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(name),
+                },
+            );
+            closed.insert(site);
+            progress = true;
+        }
+        if !progress {
+            return;
+        }
+    }
+}
+
+/// Whether the argument subtree contains a site this pass already folded or
+/// closed — the dependency edge that pulls an enclosing `Generic` into scope.
+fn argument_contains(
+    typed: &TypedTrees,
+    reference: TypeReferenceHandle,
+    closed: &HashSet<TypeReferenceHandle>,
+) -> bool {
+    if closed.contains(&reference) {
+        return true;
+    }
+    match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Generic { arguments, .. } => typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .any(|argument| argument_contains(typed, *argument, closed)),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            argument_contains(typed, *base_type, closed)
+        }
+        TypeReferenceNode::Reference { referee, .. } => argument_contains(typed, *referee, closed),
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            argument_contains(typed, *element_type, closed)
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
+    }
+}
+
+/// Whether a generic argument is a closed concrete substitution: a literal
+/// constant, a named builtin or data type, or a nested application whose own
+/// arguments are closed. A `TypeParameter` symbol keeps the site open for
+/// ordinary specialization.
+fn closed_argument(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            !symbol.is_valid()
+                || matches!(
+                    typed.symbols.get(*symbol).kind,
+                    SymbolKind::BuiltinType | SymbolKind::Data
+                )
+        }
+        TypeReferenceNode::Generic { arguments, .. } => typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .iter()
+            .all(|argument| closed_argument(typed, *argument)),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Constrained { .. }
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => false,
+    }
+}
+
+/// Rejoin or synthesize the concrete data instance a now-closed `Generic`
+/// site names, returning the instance symbol and its canonical spelling.
+/// `None` declines: the site stays `Generic` and checking owns the result.
+fn realize_data_instance(
+    typed: &mut TypedTrees,
+    site: TypeReferenceHandle,
+    base_symbol: SymbolHandle,
+) -> Option<(SymbolHandle, String)> {
+    let TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = typed.type_reference_table.type_reference(site).clone()
+    else {
+        return None;
+    };
+    let argument_handles = typed
+        .type_reference_table
+        .type_reference_handles(arguments)
+        .to_vec();
+    let template = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == base_symbol)
+        .cloned()?;
+    if template.generic_instance.is_some()
+        || template.quotient.is_some()
+        || !template.where_facts.is_empty()
+        || template.zero_gated
+        || !template.lifetime_parameters.is_empty()
+        || typed
+            .machines()
+            .iter()
+            .any(|machine| machine.attached_data_symbol == base_symbol)
+    {
+        return None;
+    }
+    let parameters = typed.data_type_parameters(&template).to_vec();
+    if parameters.len() != argument_handles.len() {
+        return None;
+    }
+    let mut bindings = HashMap::new();
+    for (parameter, argument) in parameters.iter().zip(&argument_handles) {
+        match parameter.kind {
+            TypeParameterKind::Type
+            | TypeParameterKind::Const { .. }
+            | TypeParameterKind::Value { .. } => {
+                bindings.insert(parameter.symbol, *argument);
+            }
+            _ => return None,
+        }
+    }
+    let synthetic_name = format!(
+        "{}<{}>",
+        template.name.as_str(),
+        argument_handles
+            .iter()
+            .map(|argument| argument_slug(typed, *argument))
+            .collect::<Option<Vec<_>>>()?
+            .join(", ")
+    );
+    if let Some(existing) = typed.data_definitions().iter().find(|definition| {
+        definition.generic_instance.is_some_and(|origin| {
+            instance_origin_matches(typed, origin, base_symbol, &argument_handles)
+        })
+    }) {
+        return Some((existing.symbol, synthetic_name));
+    }
+    let template_members = typed.data_members(&template).to_vec();
+    let mut member_types = Vec::with_capacity(template_members.len());
+    for member in &template_members {
+        let DataMember::Field(field) = member else {
+            return None;
+        };
+        let type_reference = substitute_member_type(typed, field.type_reference, &bindings)?;
+        member_types.push((field.clone(), type_reference));
+    }
+    let instance_symbol =
+        typed
+            .symbols
+            .insert_generated_root_from(base_symbol, SymbolKind::Data, &synthetic_name);
+    let member_span = typed.symbols.insert_generated_children(
+        instance_symbol,
+        member_types
+            .iter()
+            .map(|(field, _)| (SymbolKind::Field, field.name.as_str())),
+    );
+    let origin = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            lifetime_arguments,
+            arguments,
+        });
+    let mut instance = template.clone();
+    instance.symbol = instance_symbol;
+    instance.name = Identifier::generated(synthetic_name.clone());
+    instance.type_parameters = HandleSpan::empty();
+    instance.generic_instance = Some(origin);
+    instance.members = HandleSpan::empty();
+    for ((field, type_reference), offset) in member_types.iter().zip(0..member_span.count()) {
+        let mut field = field.clone();
+        field.symbol = SymbolHandle::from_parts(
+            member_span
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("generated member symbol overflow"),
+            member_span.start().generation(),
+        );
+        field.type_reference = *type_reference;
+        typed.push_data_member(&mut instance, DataMember::Field(field));
+    }
+    typed.push_data_definition(instance);
+    Some((instance_symbol, synthetic_name))
+}
+
+/// Substitute bound parameter occurrences inside a template member's type.
+/// `None` declines shapes whose substitution this pass cannot replay exactly.
+fn substitute_member_type(
+    typed: &mut TypedTrees,
+    reference: TypeReferenceHandle,
+    bindings: &HashMap<SymbolHandle, TypeReferenceHandle>,
+) -> Option<TypeReferenceHandle> {
+    match typed.type_reference_table.type_reference(reference).clone() {
+        TypeReferenceNode::Named { symbol, .. } => {
+            bindings.get(&symbol).copied().or(Some(reference))
+        }
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime,
+        } => {
+            let referee = substitute_member_type(typed, referee, bindings)?;
+            Some(
+                typed
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Reference {
+                        referee,
+                        access,
+                        lifetime,
+                    }),
+            )
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let element_type = substitute_member_type(typed, element_type, bindings)?;
+            let length = match length {
+                FixedArrayLength::Literal(_) => length,
+                FixedArrayLength::ConstParameter { symbol, .. } => {
+                    let argument = bindings.get(&symbol).copied()?;
+                    let TypeReferenceNode::Named { name, .. } =
+                        typed.type_reference_table.type_reference(argument)
+                    else {
+                        return None;
+                    };
+                    FixedArrayLength::Literal(name.as_str().parse().ok()?)
+                }
+                FixedArrayLength::ConstCall { .. } => return None,
+            };
+            Some(
+                typed
+                    .type_reference_table
+                    .insert(TypeReferenceNode::FixedArray {
+                        element_type,
+                        length,
+                    }),
+            )
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            let element_type = substitute_member_type(typed, element_type, bindings)?;
+            Some(
+                typed
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Slice { element_type }),
+            )
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } => {
+            let mut substituted = Vec::new();
+            for argument in typed
+                .type_reference_table
+                .type_reference_handles(arguments)
+                .to_vec()
+            {
+                substituted.push(substitute_member_type(typed, argument, bindings)?);
+            }
+            let arguments = typed
+                .type_reference_table
+                .insert_type_reference_handles(substituted);
+            Some(
+                typed
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Generic {
+                        base_symbol,
+                        base_name,
+                        lifetime_arguments,
+                        arguments,
+                    }),
+            )
+        }
+        TypeReferenceNode::Constrained { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. } => None,
+        TypeReferenceNode::Unit => Some(reference),
+    }
+}
+
+/// The canonical argument spelling used in a synthesized instance name.
+fn argument_slug(typed: &TypedTrees, reference: TypeReferenceHandle) -> Option<String> {
+    match typed.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => Some(format!(
+            "{}<{}>",
+            base_name.as_str(),
+            typed
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .map(|argument| argument_slug(typed, *argument))
+                .collect::<Option<Vec<_>>>()?
+                .join(", ")
+        )),
+        _ => None,
+    }
+}
+
+/// Whether an existing instance's recorded origin names this exact
+/// application, so repeated sites rejoin the one generated definition.
+fn instance_origin_matches(
+    typed: &TypedTrees,
+    origin: TypeReferenceHandle,
+    base_symbol: SymbolHandle,
+    arguments: &[TypeReferenceHandle],
+) -> bool {
+    let TypeReferenceNode::Generic {
+        base_symbol: origin_base,
+        arguments: origin_arguments,
+        ..
+    } = typed.type_reference_table.type_reference(origin)
+    else {
+        return false;
+    };
+    let origin_handles = typed
+        .type_reference_table
+        .type_reference_handles(*origin_arguments);
+    *origin_base == base_symbol
+        && origin_handles.len() == arguments.len()
+        && origin_handles
+            .iter()
+            .zip(arguments)
+            .all(|(origin, argument)| closed_argument_eq(typed, *origin, *argument))
+}
+
+fn closed_argument_eq(
+    typed: &TypedTrees,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    match (
+        typed.type_reference_table.type_reference(left),
+        typed.type_reference_table.type_reference(right),
+    ) {
+        (
+            TypeReferenceNode::Named {
+                symbol: left_symbol,
+                name: left_name,
+            },
+            TypeReferenceNode::Named {
+                symbol: right_symbol,
+                name: right_name,
+            },
+        ) => {
+            if left_symbol.is_valid() && right_symbol.is_valid() {
+                left_symbol == right_symbol
+            } else {
+                left_name == right_name
+            }
+        }
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: left_base,
+                arguments: left_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: right_base,
+                arguments: right_arguments,
+                ..
+            },
+        ) => {
+            let left_handles = typed
+                .type_reference_table
+                .type_reference_handles(*left_arguments);
+            let right_handles = typed
+                .type_reference_table
+                .type_reference_handles(*right_arguments);
+            left_base == right_base
+                && left_handles.len() == right_handles.len()
+                && left_handles
+                    .iter()
+                    .zip(right_handles)
+                    .all(|(left, right)| closed_argument_eq(typed, *left, *right))
+        }
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: left_element,
+                length: left_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: right_element,
+                length: right_length,
+            },
+        ) => {
+            left_length == right_length && closed_argument_eq(typed, *left_element, *right_element)
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: left_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: right_element,
+            },
+        ) => closed_argument_eq(typed, *left_element, *right_element),
+        (
+            TypeReferenceNode::Reference {
+                referee: left_referee,
+                access: left_access,
+                lifetime: left_lifetime,
+            },
+            TypeReferenceNode::Reference {
+                referee: right_referee,
+                access: right_access,
+                lifetime: right_lifetime,
+            },
+        ) => {
+            left_access == right_access
+                && left_lifetime == right_lifetime
+                && closed_argument_eq(typed, *left_referee, *right_referee)
+        }
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
+        _ => false,
+    }
 }
 
 /// One round over still-retained applications against a program prepared from
