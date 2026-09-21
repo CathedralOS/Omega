@@ -15676,6 +15676,76 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   files registered (`bounded_denotation/casts.rs` under
   formation:mathematical-core, `casts/tests.rs` test-only). Verified:
   `python3 tools/trusted_surface_digests.py` exits 0 and
+||||||| parent of 98c9599eda1e (board: TRANSPARENT-TRAIT-REFINEMENTS — reaches-subset leg landed upstream)
+- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
+  implemented and landed (e2974a6a800 is an ancestor of origin/main;
+  the landed re-record c0b2b6e19f registered integer_operations.rs and
+  re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
+  x86-64: `cargo nextest run -p terminal-verifier -E
+  'test(~trusted_surface)'` — 15/15 pass including
+  recorded_digests_match_the_working_tree. Sibling names the same op:
+  TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
+  The self-audit was red at `0f5ae41e7d` (contradicting the resolved
+  siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
+  added `bounded_denotation/integer_operations.rs` (uninterpreted
+  fixed-integer operations as applicative denotations) and bumped
+  `bounded_denotation.rs` without re-recording. Re-recorded in this
+  commit: `integer_operations.rs` registered as a ledger implementation
+  site (`b2bcfe6f…`) and cited by `formation:mathematical-core`,
+  `bounded_denotation.rs` digest re-recorded (`3d15c6eb…`). Green: 9/9
+  trusted_surface on linux x86-64 including
+  `recorded_digests_match_the_working_tree`.
+- **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
+- **TRUSTED-SURFACE-DIGEST-RERECORD.** Resolved — scope verified at `0f5ae41e7d`,
+  implemented on this row's branch: the ledger had renewed drift, so the
+  re-record operation ran for real. `e2974a6a800` split
+  `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
+  (uninterpreted per-operation function constants applied to denoted
+  operands — the `formation:mathematical-core` justification holds: no
+  arithmetic law was added, the operations stay opaque). Re-recorded the
+  parent digest (`3d15c6eb…`), registered the new site (`b2bcfe6f…`), and
+  added the file to the formation's site list. Witness:
+  Re-verified at `2ccef088fb73` (linux x86-64): the subset-check leg
+  landed upstream at `75f8215cf9b1` —
+  `sr2t/declarations/trait_definition.rs:225-260` resolves each clause
+  reach to a boundary service and rejects when any covered machine's
+  base reach row lacks it ("a refinement narrows, it cannot add a
+  reach"), with the empty-base-row rejection at :213-224; `reaches _`
+  is already spelled as the independent abstract row at :227-231
+  (`continue` — bounded by the inherited row). What is still open: the
+  clause-location `ServiceReachRowTable` variant (the code comment's own
+  "pending"), and the downstream evidence-binder fit check — the
+  evidence surface `typed_trees/evidence/proof_only.rs` is fenced by
+  QUOTIENT-RUNTIME-REALIZATION (exp 10:57Z).
+- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
+  implemented and landed (e2974a6a800 is an ancestor of origin/main;
+  the landed re-record c0b2b6e19f registered integer_operations.rs and
+  re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
+  x86-64: `cargo nextest run -p terminal-verifier -E
+  'test(~trusted_surface)'` — 15/15 pass including
+  recorded_digests_match_the_working_tree. Sibling names the same op:
+  TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
+  The self-audit was red at `0f5ae41e7d` (contradicting the resolved
+  siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
+  added `bounded_denotation/integer_operations.rs` (uninterpreted
+  fixed-integer operations as applicative denotations) and bumped
+  `bounded_denotation.rs` without re-recording. Re-recorded in this
+  commit: `integer_operations.rs` registered as a ledger implementation
+  site (`b2bcfe6f…`) and cited by `formation:mathematical-core`,
+  `bounded_denotation.rs` digest re-recorded (`3d15c6eb…`). Green: 9/9
+  trusted_surface on linux x86-64 including
+  `recorded_digests_match_the_working_tree`.
+- **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
+- **TRUSTED-SURFACE-DIGEST-RERECORD.** Resolved — scope verified at `0f5ae41e7d`,
+  implemented on this row's branch: the ledger had renewed drift, so the
+  re-record operation ran for real. `e2974a6a800` split
+  `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
+  (uninterpreted per-operation function constants applied to denoted
+  operands — the `formation:mathematical-core` justification holds: no
+  arithmetic law was added, the operations stay opaque). Re-recorded the
+  parent digest (`3d15c6eb…`), registered the new site (`b2bcfe6f…`), and
+  added the file to the formation's site list. Witness:
+
   `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
   is 15/15 PASS on linux x86-64.
 
