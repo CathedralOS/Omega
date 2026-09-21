@@ -8939,6 +8939,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `route.matching_logic_encoding` flips off `pending` and the
   slice-comparison's candidate columns fill once those records
   regenerate under their own rows.
+- **MATCHING-LOGIC-COMPARISON-METRICS.** Resolved at `577d6ac2ba` —
+  the "records regenerate" leg named on MATCHING-LOGIC-VERTICAL-SLICE:
+  `tools/matching-logic-metrics/records/577d6ac2ba.json` is the first
+  full record with `route.matching_logic_encoding` **measured** (the
+  earlier committed records at `05416dd1a0`/`649d7ca380` were
+  `--skip-cases` stubs with the route `pending`). All 44 pinned
+  positive/negative cases ran `omega --check --offline --timings` on
+  linux x86-64 with 0 mismatches; the encoding column reports the slice
+  checker + sort-encoding inventories, 22 `checkerRules` / 38
+  `encodingClauses`, 1256 summed certificate bytes, and measured
+  slice-corpus timings. Verified: `run_metrics.py validate` 3/3 records
+  conform to `omega-matching-logic-comparison/1`;
+  `test_matching_logic_metrics.py` 16/16 green. Remaining lane legs:
+  the slice-comparison harness's candidate columns fill under
+  MATCHING-LOGIC-VERTICAL-SLICE-COMPARISON's live claim.
 - **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Mined candidate — scope
   verified, covered. The name re-covers two already-owned surfaces: the
   math-proofs checked-call-selection/occurrence leg, resolved with
