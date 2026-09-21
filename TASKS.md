@@ -4178,6 +4178,20 @@ Owners include
     carrier); live fences this wave: COMPONENT-SUBSTRATE item lease ~08:44Z,
     TOPOLOGY-PRIVATE-PIPE-INSTALLATION item lease ~09:52Z. No uncontested
     slice exists on this row.
+    Re-verified at `97be15c1b59` (linux x86-64): the declaration is
+    unmigrated — `source/library/core/interrupt.omg` still spells
+    `InterruptAcknowledgement::complete` as bare `reaches PortIo`, and the
+    pin still asserts `!complete.service_reach_is_installation_bound`
+    (`opaque_boundaries.rs`). The fence map rotated but the surface stays
+    claimed: COMPONENT-SUBSTRATE (~08:44Z) and TOPOLOGY-PRIVATE-PIPE-
+    INSTALLATION (~09:52Z) item leases stand, STARTUP-ENTRY-MECHANICS now
+    holds `external-roots/src/root_entry` (covers `root_validation.rs`,
+    ~15:34Z), EPOCH-RESOURCE-SNAPSHOTS holds the `program_local` cohort
+    legs (~11:32Z), and DYNAMIC-UNIT-CALL-GRAPH-AND-REACH-EDGES holds
+    terminal-verifier's reach/call-graph surfaces (~15:49Z). The
+    completion-route gate is unchanged: co-landing the bounded declaration
+    with a satisfier still waits on TOP-LEVEL-BOUNDARY-REQUIREMENTS'
+    checked-body linear-receiver discharge.
 
   Acceptance: from the shipped core requirement, PIC completion resolves to
   `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
