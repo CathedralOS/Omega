@@ -12217,7 +12217,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-WINDOWS-ROUTE-VALIDATION** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER.** Omega-written product compiler (verify scope, then implement).
-- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; verify scope then implement.
+- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; folded into the
+  canonical row above: scope verified, resolved as a wholesale re-mine of
+  OMEGA-PRODUCT-COMPILER-SOURCE with no separable zergling slice (the
+  `terminal_psi_indexed_receivers` gate stays owned — STATE-LOCAL-VALUE-FRONTIER
+  live claim to ~15:45Z at 53817f8759).
 - **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP** — mined candidate; verify scope then implement.
