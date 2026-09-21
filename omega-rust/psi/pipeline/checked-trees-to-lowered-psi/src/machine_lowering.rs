@@ -5,8 +5,11 @@
 //! that owns its shape, then sequence the work every selected module still
 //! needs: retained custody, float-meaning projections, evidence and proof
 //! recursion, proof-only quotient correspondence rows, operand proof
-//! completion or module validation, and the debug companion. [`lower_bounded_callback_identity_machine`] is the deliberately
-//! narrower callback-body entrance. Unsupported source constructs fail closed.
+//! completion or module validation, and the debug companion.
+//! [`lower_bounded_callback_identity_machine`] is the callback-body entrance:
+//! it lowers the selected machine through this same ordinary route rooted at
+//! the callback entry, then joins the checked callback coordinate onto the
+//! module's entry machine. Unsupported source constructs fail closed.
 
 pub(crate) mod bounded_callbacks;
 pub(crate) mod conformance_publication;
