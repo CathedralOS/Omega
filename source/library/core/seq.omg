@@ -10,6 +10,22 @@ pub data Seq<T> {
     case Cons(head: T, tail: Seq<T>);
 }
 
+// N4 proof views: `Bag` is the multiset view over a slice (Chapter 10).
+// This stage ships the honest packaging form -- the view carries the slice
+// itself, so `Bag(a) == Bag(b)` is the sequence view's equality and never
+// affirms a false multiset fact. The sorted canonical representative
+// (order-insensitive multiplicity) rides the slice-extraction recursion
+// rungs that land later; this is the imported declaration the math_proofs
+// ladder's `Bag(items)` calls select.
+pub data BagView {
+    items: &[u64];
+}
+
+pub machine Bag(items: &[u64]) -> BagView
+{
+    transition { _ -> BagView { items: items } }
+}
+
 // MP6 consuming transforms (2026-07-19). Static machine parameters remain
 // compile-time identities: each call specializes the recursive template and
 // recursive `map<F>` / `filter<Predicate>` edges become direct calls. There is
