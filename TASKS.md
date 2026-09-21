@@ -9288,6 +9288,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   omega-native-differential-test --all-targets` green, only dead-code
   warnings in `terminal_psi_conditional.rs`). The feature-families
   residual stays upstream-gated as recorded; no leg remains here.
+  Re-verified at `138ed79a677` for the parent stub
+  **GRAPH-COST-MODEL-STUDY** (no own marker row — the study doc
+  `wiki/drafts/graph_cost_model_study.md` at `aab67b462f16` is the canonical
+  surface and stands verbatim): the implementing-surface claim this row
+  recorded has rotated out — `pass_manager/` is unfenced tonight; the only
+  live claim on the family is GRAPH-COST-EVIDENCE-CORPUS holding the
+  separate `wiki/drafts/graph_cost_evidence_corpus.md` (11:04Z). The
+  authorization gate is unchanged: the residual feature families remain
+  upstream-gated on the versioned workload corpus + the spec's
+  no-trainer-side-machinery bar, so no leg remains here.
 - **HOST-ALIAS-BUILD-DIR-DETECTION.** Advanced — the race-window residual
   verified at `7452910c6e` (a host alias planted between admission's
   `overlap_key` check and the first write is invisible to the
