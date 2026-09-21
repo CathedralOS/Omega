@@ -68,6 +68,7 @@ def cases():
 
     # The largest requests are constructed lazily and each is observed once.
     yield "exact_theory_capacity", envelope(b"\x00" * (LIMIT - 24)), framed(LIMIT, LIMIT, LIMIT), 1
+    yield "exact_proposition_capacity", envelope(proposition=b"P" * (LIMIT - 24)), framed(24, LIMIT, LIMIT), 1
     yield "exact_certificate_capacity", envelope(certificate=b"\xff" * (LIMIT - 24)), framed(24, 24, LIMIT), 1
     incomplete = b"\x02" + struct.pack("<IIII", 1, LIMIT, LIMIT, LIMIT + 1)
     yield "adjacent_request_capacity", envelope(certificate=b"\x00" * (LIMIT - 23)), incomplete, 1
