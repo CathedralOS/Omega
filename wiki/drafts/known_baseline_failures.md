@@ -561,6 +561,73 @@ unbisected suspects are in the retained-borrow/result-contract lane.
 still slow-flagged, still not a failure. The unattributed tail remains
 empty; all 56 members remain owned by the families' named items.
 
+Residual attribution at 71fb20485e (2026-09-21, Linux x86-64), same command
+with the nonterminating blowup member filtered out of the pass and run
+alone under a 200s bound: 2198 run, 2175 passed, 23 failed — 56 FAIL down
+to 23, every member still on an owned family. The blowup
+`nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+persists: run alone it had not finished at 200s when SIGTERM aborted it,
+so it remains nonterminating/pathological on this host, still owned by
+PROOF-SEARCH-MEASUREMENT.
+
+- Closed since 23392bc467: the 33 bare `Service<R>` fixture spellings
+  (`src/tests.rs:82` panic sites) now pass — the fields migrated to
+  `Service<R>` carriers at 00a69f066b0; the 2 ranked safe-point segment
+  bound members pass again (`terminal-fixed-fuel` charges safe-point rows
+  as single block traversals at 29983459ec1); the scalar-return member
+  `source_replay_requires_the_exact_affine_return_transfer` now passes;
+  and the `established by` call-result qualification member stays closed
+  (it passed at the prior reading too — the count change is 33+2+1 net).
+- Missing checked transitive machine plan (19 tests). Identical
+  `InvalidUnitMachinePlan` "attached Unit closure is missing a checked
+  transitive machine plan" diagnostic on the same members as before:
+  `provider_attachment_source` ×6 (provider_attached_scalar_result_forwards_to_later_call,
+  provider_attachment_tampering_fails_closed,
+  provider_backed_main_retains_attachment_and_exact_installation_requirements,
+  source_projection_is_deterministic_and_perturbations_fail_closed,
+  straight_line_console_projection_accepts_zero_one_two_and_sixteen_writes,
+  unused_provider_field_retains_relevance_and_identity_without_boundary_roots),
+  `unit_state_graph::provider_attachments` ×9 (all five
+  authored_provider_receiver members, canonical_cyclic_attachment_roots,
+  checked_attachment_requirements, checked_graph_replays_boundary_call,
+  cyclic_provider_fields_reload),
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`,
+  and the 3 `unit_plan_omissions` members — two surface the same
+  InvalidUnitMachinePlan (`a_routed_task_result_into_self_rejects_claim_custody_corruption`,
+  `a_routed_task_start_call_plans_and_owned_settle_reaches_module_production`),
+  while `a_provider_carrying_argument_still_stops_at_provider_attachment_requirements`
+  still rejects but its omission stage assertion no longer matches
+  `LocalConstruction{phase:"provider attachment requirements"}` — the
+  closure now stops earlier on the same missing plan, so the test's phase
+  pin needs updating when the family is repaired. Still the
+  provider-attachment lane's claim.
+- Scalar-return custody (3 tests, `tests/owned_record_return_source.rs`).
+  `discarded_scalar_invocation_precedes_whole_owned_return` still fails on
+  the absent unit-effects plan ("ordered body retains a structural result
+  independently of preceding scalar calls" — same `terminal_unit_effects
+  .for_machine` None);
+  `effectful_discarded_call_writes_before_return_across_fuel` still fails
+  with `Lowering(Unsupported("composed Unit scalar call requires
+  structural call custody"))` at
+  `src/unit/attached_unit/composed_control/admission.rs`;
+  `source_replay_rejects_return_parameter_and_carrier_substitution` still
+  panics unwrapping `plan.structural_result` on `None` — no
+  structural-result plan exists to tamper. The fourth member
+  (`source_replay_requires_the_exact_affine_return_transfer`) is repaired.
+- New — fixed-fuel unranked-loop verdict (1 test):
+  `unit_state_graph::bindings::unranked_self_bindings_validate_without_claiming_finite_fuel`
+  asserts `terminal_fixed_fuel::derive_fixed_entry_fuel` returns
+  `Err(FixedFuelError::ControlCycle(actual))` for the changed entry block
+  and the match no longer holds — in-window suspects are the two
+  `terminal-fixed-fuel` commits (05115e3ba88 absence-of-bound reports name
+  the unbounded cycle component; 29983459ec1 safe-point rows as single
+  block traversals). Belongs to the ranked-cycle/fuel lane that owned the
+  now-closed segment-bound pair; not bisected.
+- The near-threshold member
+  `owned_match_nested_record_replays_every_selected_payload` passed at
+  218s — still slow-flagged, still not a failure. The unattributed tail
+  remains empty: all 24 failures (23 FAIL + the blowup member) are owned.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
