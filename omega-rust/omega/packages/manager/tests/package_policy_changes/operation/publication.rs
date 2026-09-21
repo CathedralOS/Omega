@@ -224,33 +224,38 @@ fn planned_publication_preserves_original_lineage_and_landed_source_pin() {
 
 #[test]
 fn executable_build_publication_preserves_mode_and_landed_source_pin() {
+    let (tree, replacement, _, _) = fixture(PURE);
+    let root = tree.path("sources/root");
+    let build = root.join("build.omg");
+    let mut permissions = fs::metadata(&build).unwrap().permissions();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let (tree, replacement, _, _) = fixture(PURE);
-        let root = tree.path("sources/root");
-        fs::set_permissions(root.join("build.omg"), fs::Permissions::from_mode(0o751)).unwrap();
-        let staged = stage(&tree, &replacement);
-        let checked = review_stage(&tree, &staged, TARGET, None);
-        let lock = publish(
-            &root,
-            &replacement,
-            &staged,
-            &[(&checked, &decisions(&checked, "accept"))],
-            None,
-        );
-        assert_eq!(
-            fs::metadata(root.join("build.omg"))
-                .unwrap()
-                .permissions()
-                .mode()
-                & 0o777,
-            0o751
-        );
-        assert_locked(&tree, &lock, &checked);
+        permissions.set_mode(0o751);
+    }
+    // Executable bits exist only on Unix; the read-only attribute is the
+    // permission state every supported host hands the atomic replace.
+    #[cfg(not(unix))]
+    permissions.set_readonly(true);
+    fs::set_permissions(&build, permissions).unwrap();
+    let staged = stage(&tree, &replacement);
+    let checked = review_stage(&tree, &staged, TARGET, None);
+    let lock = publish(
+        &root,
+        &replacement,
+        &staged,
+        &[(&checked, &decisions(&checked, "accept"))],
+        None,
+    );
+    let published = fs::metadata(&build).unwrap().permissions();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(published.mode() & 0o777, 0o751);
     }
     #[cfg(not(unix))]
-    eprintln!("SKIP: executable build-file modes require Unix");
+    assert!(published.readonly());
+    assert_locked(&tree, &lock, &checked);
 }
 
 #[test]
