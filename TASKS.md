@@ -9730,6 +9730,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
   exists; retire or re-scope once the sibling lanes land detection.
 - **C2L-BOUNDARY-BYTE-BUFFER-FAILURES.** — mined candidate; scope verified,
+||||||| parent of 039b0e8a6273 (TASKS: insert C2L-BASELINE-FAILURE-ATTRIBUTION owner row — attribution landed, residual legs sibling-owned)
+- **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified,
+- **C2L-BASELINE-FAILURE-ATTRIBUTION.** Inserted owner row — the name other rows cite as the owner of the checked-trees-to-lowered-psi residual families (scalar-return custody / provider attachment / attached-unit sets); no `**NAME.**` row previously existed. The attribution leg itself is landed: the member-by-member census `wiki/drafts/c2l_failure_census_d936717f.md` (landed `54e321bdf00`) records 2199 members / 24 failures, every one inside an already-owned `known_baseline_failures.md` family, and the §checked-trees-to-lowered-psi ledger re-read stands at `6ef64f6dd6` (2152 run, 2093 passed, 59 failed, 1 SIGTERM). The repair legs the name covers are separately owned and live: scalar-return custody → C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (live claim, `tests/owned_record_return_source.rs`, 10:35Z); provider attachment / attached-unit sets → C2L-RESIDUAL-FAILURE-ATTRIBUTION's lane plus WRITE-ONLY-BORROW fences; bare fixture spellings → ENTRY-CONTENT-ROOTS; the unattributed tail → C2L-UNATTRIBUTED-FAILURE-TAIL (verified empty at `f43b4e8869c`). No unowned slice remains under this name — it is a ledger-owning umbrella, not a repair row.
+- **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified,
   family repaired. Re-mines the boundary-byte-buffer group of
   checked-trees-to-lowered-psi recorded green at the d8d48fe4ff re-reading
   in `wiki/drafts/known_baseline_failures.md`; re-verified at this revision
