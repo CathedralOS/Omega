@@ -3,7 +3,12 @@
 Planner dispatch `NEW-OMS-CALL-CONTAINING-REQUIREMENT-TRANSPORT-DESIGN`;
 owning leg is the OPERATOR-MACHINE-SUPPLY bullet "Finish Terminal transport
 of call-containing scalar requirements" (TASKS.md, re-measured `94e764a6da`).
-Audited at `6f918986063` on linux x86-64.
+Audited at `6f918986063` on linux x86-64; re-verified at `661a4d50c0af`
+(zergling-168) — every anchor still live: `lower_closed_clause` +
+`lower_scalar_contract_predicate` fallback at `contract_plan_facts.rs:387,452`,
+the `unsupported clause` rejection at `scalar_contracts.rs:57`, the five
+`ClosedScalarContractValue` variants at `scalar_contracts.rs:41-62`, and the
+reproducer at `contract_application_terms.rs:172`.
 
 ## The reproducer and where it breaks
 
@@ -139,15 +144,27 @@ check; an artifact with a forged or missing roster row rejects at verify;
 `opaque_receiver_call_cannot_hide_a_changed_requirement_argument`'s
 wrong-argument rejection is retained beside its accepted exact-argument twin.
 
-## Fences to re-check before implementing (audit-time view)
+## Fences to re-check before implementing (refreshed at `661a4d50c0af`)
 
-Live claims overlapping the producing surfaces: PROOF-CERTIFICATION-BRIDGE
-(`checks/contracts/exits`, c2l `proofs/scalar_block_invariants`, exp
-~10:52Z), PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
-(`proof_contracts/contract_entailment/{specification_calls,refuted_requires,
-call_requirements}.rs` + signature_call test dirs, exp ~16:19Z),
-DYNAMIC-UNIT-CALL-GRAPH-AND-REACH-EDGES (terminal-verifier
-call_graph/dynamic_dispatch/root_service_reach, exp ~15:49Z),
-STRUCTURAL-UNIT-LOWERING (c2l `src/unit`, exp ~09:16Z). The doc path itself
-was unfenced at audit time; implementers should claim the specific surfaces
-they touch, not this file.
+Live claims overlapping the producing surfaces, refreshed at `661a4d50c0af`:
+PROOF-CERTIFICATION-BRIDGE (t2c `checks/contracts/exits`, c2l
+`proofs/scalar_block_invariants`, exp ~10:52Z), PROOF-SUBJECT-CHECKED-CALL-
+ATTRIBUTION (`proof_contracts/contract_entailment/{specification_calls,
+refuted_requires,call_requirements}.rs` + signature_call test dirs, exp
+~16:19Z), STRUCTURAL-UNIT-LOWERING (c2l `src/unit`, exp ~09:16Z) — all three
+still held from the audit-time map; DYNAMIC-UNIT-CALL-GRAPH-AND-REACH-EDGES
+has drained. New since that audit: CUSTODY-MATRIX-HARNESS-MIGRATION
+(terminal-codec artifact tests, exp ~09:19Z), REGISTERED-CALLBACK-LIFETIME
+(terminal-verifier `provider_result.rs` + terminal-interpreter src, exp
+~14:37Z), ARITHMETIC-POLICY-REALIZATION (c2l `expression_preparation`, exp
+~16:47Z), RC-GATE-STABILITY-REPAIR (c2l `tests/nominal_affine_source`, exp
+~12:15Z), NEW-CC-BOUNDARY-CRASH-SOURCE-TO-EXECUTION-CONTROLS (c2l
+`tests/scalar_boundary_arguments.rs`, exp ~12:55Z), and a t2c cluster —
+PROVIDER-ATTACHMENT-MACHINE-PLAN (`execution/unit/providers.rs`, ~09:49Z),
+BLOCKEXEC (`checks/multiplicity`, ~10:18Z), CALL-REQUIRES-INDEXED-WRITE-FACTS
+(`flow/transfers.rs`, ~16:29Z), NEW-BSR-CONDITIONAL-ARM-AGREEMENT-PRODUCER
+(`execution/unit/borrowed_windows.rs`, ~16:41Z), FLOW-LITERAL-THRESHOLD-
+MEMOIZATION (`flow/context.rs`, ~16:44Z), NEW-BPC-SLICE-START-BOUND-CANDIDATE
+(`checks/ranges/indexes/validation.rs`, ~16:53Z). The doc path itself
+remains unfenced; implementers should claim the specific surfaces they
+touch, not this file.
