@@ -8651,7 +8651,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the item rules out "a new reflection API or arbitrary generic virtual
   method" — no independent slice exists under this stub. Sibling stubs
   on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH,
-  GENERIC-VIRTUAL-DISPATCH.
+  GENERIC-VIRTUAL-DISPATCH. Fence re-audit at `e7c0099cb2`: the recorded
+  claims have all drained — GENERIC-DYNAMIC-FAMILY-DISPATCH's hold on
+  `dynamic_scalar_calls/` + `monomorphization/dynamic_families.rs` (expired
+  05:31Z, holder now on STRUCTURAL-GENERIC-INFERENCE) and
+  RUNTIME-VALUE-GENERICS' registry claim are both gone, so the implementing
+  surface is currently unfenced but untouched since `8734480a01`. The
+  dependency gate is what holds: the leg cannot start until
+  RUNTIME-VALUE-GENERICS lands the value-binder machinery the roster
+  membership proof runs on — still an open row with no live claim.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
   "region alignment/expansion" parity gap). Resolved — the gap is already
