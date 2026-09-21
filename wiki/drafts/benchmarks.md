@@ -74,13 +74,30 @@ selection (`CopyPropagation` disabled; record
 selection-keyed row, covering the enabled/disabled dimension of the record
 space).
 `cli_mvp` is the canonical compile-and-run smoke subject (expected exit
-0, EOF-tolerant stdin); `prime_counter` was ruled out on this revision
-because its `i32` remainder operation does not legalize to a native
-artifact — see that record's notes when a selection row for it lands.
+0, EOF-tolerant stdin). The `i32` remainder blocker that once ruled
+`prime_counter` out is landed (`3c1ead6df4`, `ExactRemainderI64`
+legalization — the subject compiles and runs to exit 8 under the
+samples harness); its remaining row blocker is package-review
+settlement, recorded in the frontier notes below.
 Cross-target compile legs (`--no-run`) measure compile-time and
 code-size but mark `runtime_ms` as `skipped`.
 
 ## Frontier: `linux_x86_64` rows resumable, hosts still uncovered
+
+Update (z125, `18cebfa1062`, linux x86_64 host): `prime_counter` is
+still unmeasurable end-to-end, but the blocker has moved — package
+review settlement (`omega update`) now fails inside the
+`omega-language-std` candidate check with `routed service field
+`Filesystem::host` has no exact Fused selected-provider-plan join`.
+That is the recorded selected-provider frontier family (the same class
+as the ~90 `Service field Main::<field> requires a selected Fused
+provider` rejections in the native-matrix host docs), not a
+subject-level defect: `omega --check` on `source/library/std/main.omg`
+passes clean, so the rejection lives in the package-candidate check's
+provider-plan join. A settlement-rejected `(subject, target)` still has
+no commit-able record shape — that schema gap is owned by
+BENCHMARK-REJECTED-ROW-RECORDING. No prime_counter record was produced.
+
 
 A w9 benchmarks session attempted two further `linux_x86_64` rows on
 this host at `e48558bd41` — `cli_mvp` with `CopyPropagation` disabled
