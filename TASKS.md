@@ -7003,6 +7003,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   entries (currently unreachable at entry selection), the catalog doc family
   table row (fenced elsewhere this wave), and memory/authority-bearing
   families blocked on UnmodeledMemoryAccess and service admission.
+  **The inventory step was missed once and took native compilation down**
+  (repaired on main by `b1dc444d9dc9` + `6aca16747fe5`): `b8b858b14472`
+  ("asm catalog: contract invd, wbnoinvd and nop") added three
+  `BuiltinFunction` variants and their classification rows but left
+  `CLOSED_POLICY_ROW_COUNT` at 550 against an enumeration of 553. That assert
+  sits inside `committed_policy_mechanisms()`, not a test, so the shipped
+  `omega` binary panicked on **every native compile**. Measured while it was
+  red: `omega --check` was unaffected (exit 0 on a 16-file subject), while an
+  ordinary native compile aborted with "assertion `left == right` failed,
+  left: 553, right: 550" — taking out native artifact production, `omega run`,
+  every native canary and the whole benchmark corpus, with
+  `cargo check --workspace` and the architecture suite still green, which is
+  why no landing gate caught it. When this family grows, the row count and the
+  commitment `policy_identity_binds_version_and_complete_table` pins must move
+  together (545->549, then 549->550 for wbinvd, now 550->553);
+  `TERMINAL_AUTHORITY_POLICY_VERSION` stays 7 by this row's own precedent. An
+  independent recomputation of the new commitment here matched the landed pin
+  byte for byte.
 - **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then
   implement. Landed slice: refusal-coverage completion for the two named
   families in `language-core/src/inline_assembly/mod.rs` — the hidden-exit
@@ -7269,6 +7287,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/drafts/benchmarks.md` + `tools/tests/test_benchmark.py` under
   BENCHMARK-HOST-ROW-MATRIX (22:11Z). Prerequisite: a seeded macOS arm64
   host (per SEED-HOST-CHAIN-LEGS' audited host list).
+  **The prerequisite is satisfied and the row is measured — 2026-09-21T00:34Z
+  on an Apple M4 (darwin/arm64, 10 logical CPUs, rustc 1.100.0-nightly, dev
+  profile).** Only the committed record file is outstanding, and solely
+  because `tools/benchmark/**` + `wiki/drafts/benchmarks.md` are fenced to
+  PRIME-COUNTER-BENCHMARK-ROW (Jarod, exp ~07:21Z); the measurement was taken
+  with `--print --records-dir <scratch>` so nothing was written under the
+  fence. `benchmark.py measure --root
+  samples/cli/arithmetic/wrapping_square_sum/main.omg --target macos_arm64`
+  on this host: compile median **17,177 ms** (min 17,088; stages prepare 14.7
+  / compile 17,112.9 / publish 45.0), compile peak RSS **117,063,680 B**,
+  code size **16,640 B** (`stable: true`), and — the leg no linux host can
+  produce — `runtime_ms.status` **measured**, median **2.83 ms** (min 2.65)
+  over 5 samples, `run_max_rss` 1,376,256 B, every `exit_code` 0. Cross-check
+  against the existing cross-target compile-only record
+  (`wrapping_square_sum__macos_arm64__default.json`, `host.os = linux`,
+  `runtime_ms.status = skipped`): identical 16,640-byte code size, and its
+  24,454 ms median is the Xeon 8559C cross-compile, not this host. The run was
+  only possible after `b1dc444d9dc9`/`6aca16747fe5` repaired the closed-policy
+  inventory count — before those, every native compile panicked (see
+  ASM-CATALOG-FAMILY-EXPANSION). Next action for the fence-holder: commit this
+  record under `tools/benchmark/records/` and add the `benchmarks.md`
+  coverage entry.
 - **BENCHMARK-MEASURABLE-SUBJECT-CORPUS** — mined candidate; verify scope then implement.
 - **BENCHMARK-PRIME-COUNTER-ROW.** Scope verified at `1a772e4ae1`: the
   mined stub names a measured `benchmark.py` row for
