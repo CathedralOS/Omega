@@ -9042,6 +9042,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`GRAPH-COST-MODEL-STUDY` holds `pass_manager/`, exp ~00:04Z).
   Sibling stubs on the same gated surface: GRAPH-COST-EVIDENCE-CORPUS,
   OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
+  Re-verified at `42759dd529544` (linux x86-64): the RC row's stale-fixture
+  attribution under this item's old claim is doubly stale — no live claim
+  holds `tests/native-differential/tests/abstract_publication/decision_custody.rs`
+  and the file compiles clean (the fixture already expects
+  `Optimization::StateSpecialization`; `cargo check -p
+  omega-native-differential-test --all-targets` green, only dead-code
+  warnings in `terminal_psi_conditional.rs`). The feature-families
+  residual stays upstream-gated as recorded; no leg remains here.
 - **HOST-ALIAS-BUILD-DIR-DETECTION.** Advanced — the race-window residual
   verified at `7452910c6e` (a host alias planted between admission's
   `overlap_key` check and the first write is invisible to the
