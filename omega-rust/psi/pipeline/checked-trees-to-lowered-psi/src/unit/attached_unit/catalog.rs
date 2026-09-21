@@ -18,7 +18,7 @@ use super::{
     allocate_dense, content_conservation, dense_identity, lookup_domain_id, lookup_service_id,
     lookup_type_id, terminal_scalar_type, unique_unit_boundary, unsupported,
 };
-use checked_trees::CheckedUnitStructuralTypePlan;
+use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
@@ -660,6 +660,13 @@ pub(super) fn lower_unit_structural_domains_including(
                     .iter()
                     .map(|requirement| &requirement.domain),
             )
+            .chain(match &boundary.result {
+                CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                    qualifications.iter()
+                }
+                CheckedBoundaryMachineResultPlan::Unit
+                | CheckedBoundaryMachineResultPlan::Scalar(_) => [].iter(),
+            })
         {
             if !selected.contains(domain) {
                 selected.push(*domain);

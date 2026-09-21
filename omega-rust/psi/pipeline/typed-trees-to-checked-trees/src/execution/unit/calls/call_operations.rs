@@ -499,7 +499,11 @@ pub(in crate::execution) fn build_call_operation(
         } {
             return None;
         }
-        if !signature_contracts_are_exact_parameter_qualifications(program, signature) {
+        if !signature_contracts_are_exact_parameter_qualifications(
+            program,
+            definition.symbol,
+            signature,
+        ) {
             return None;
         }
         // Suspension parks the activation, which this synchronous call
