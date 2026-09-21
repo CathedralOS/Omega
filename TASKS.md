@@ -5655,7 +5655,7 @@ Language/semantic gaps:
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
 - **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
 - **TERMINAL-SOURCE-CUSTODY-ORDER.** Terminal source-custody gate ordering.
-- **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup.
+- **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup. Landed: `terminal-verifier` test `structural_unit::jumps_and_crash_routes::jump_edge_residual_discards_close_the_projected_argument_root_in_order` pins the Jump-edge sequence — projected successor arguments open partial custody, the residual roster must close it as the exact complement in canonical order (reorder or re-listing a moved child → `InvalidPartialAffineCleanup`), and residual-retired roots are never eligible for the trivial roster (naming one → `EdgeAffineDiscardsInvalid`).
 - **CANARY-EXACT-ENTRY-SELECTION.** Exact entry selection for division/value canaries and entry binding.
 
 Omega-side / native:
