@@ -8361,6 +8361,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   no live same-item claim; the contract-migration residual
   (mathematical trait parameters) sits with
   PROOF-CONTRACT-MIGRATION per the MATHEMATICAL-* sibling rows.
+  Re-verified at `3dac85e5ccce`: both named witnesses green
+  (`contract_clause_calls_naming_no_declaration_skip_call_selection`
+  in syntax-trees-to-symbol-resolved-trees,
+  `undeclared_contract_view_calls_finalize_as_proof_view_intrinsics`
+  in typed-trees-to-checked-trees — 2/2 nextest PASS).
   No independent slice under this name.
 - **BENCHMARK-PROOF-SUBJECT-SELECTION.** Mined candidate; scope verified at
   `1a772e4ae1`, owned — re-mines the proof-subject leg of the benchmarks
