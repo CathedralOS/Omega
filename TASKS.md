@@ -8129,6 +8129,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Remaining open legs on the manifest stay named in their own rows (`omega0`/
   `omega` tapes under OMEGA-C; certificates and admission records per edge).
 - **GENERAL-LICM.** — mined candidate; verify scope then implement.
+- **GENERAL-RELOCATION-ADMISSION.** Mined candidate — slice landed
+  2026-09-21. Re-mines the same EXACT-MACHINE-SIMPLIFICATIONS "one
+  relocation rule over a member run and a destination point" bullet that
+  GENERAL-SCHEDULE-RELOCATION owns and migrates family-by-family
+  (edge/edge_run/predecessor/predecessor_run already landed). This leg
+  moved the in-block run family: `run_relocation/admission.rs` now hands
+  the window to `crossed_window` (its same-block branch derives the
+  positions between the run and the landing — no edges in-block) +
+  `admit_run_relocation` (identical schedulable/hazard/roster/settlement
+  checks, same `RunRelocationRejection` → `UnsupportedPair` mapping as
+  the sibling families); the family's own member/last/destination
+  position gates stay local. Verified at `e70748c995` + this slice
+  (linux x86-64): `cargo check`/`clippy -p
+  selected-instructions-to-selected-instructions --all-targets` clean,
+  `cargo nextest run -p selected-instructions-to-selected-instructions
+  --lib` 1571/1571 PASS. Remaining legs stay with the owner row:
+  multi-path families need audit extensions inside the
+  SCHEDULING-RELOCATION-UNIFICATION fence (`window_hazards.rs` +
+  `diamond_relocation*`, ~11:59Z), and `local_schedule` +
+  `local_relocation` are the next in-block migrations.
 - **GENERAL-SCHEDULE-RELOCATION.** First migration landed — the stub
   re-mines the EXACT-MACHINE-SIMPLIFICATIONS Flag bullet ("one relocation
   rule over a member run and a destination point"). The mechanism already
