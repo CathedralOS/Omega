@@ -265,6 +265,53 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     rebound and stored shapes hit the `ProgramEntry establishment
     rejoins 0 Terminal attachment identities` family), so the family's
     e2e replay leg waits on those upstream gaps. Regressions:
+||||||| parent of d7744b8fbcab (board: TRANSLATION-VALIDATION — re-census physical/ fence, pin descriptor-custody leg shape)
+    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
+    descriptor or parameter ordinals rather than a static callee, and
+    the remaining intrinsic kinds have no span arm. Verified
+    (w9, `fcef01c59a`): those operations do not produce coverage
+    occurrences at all yet — the checked boundary-operator replay
+    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
+    admits only IEEE FMA, structural returns, and float/integer
+    comparisons — so the first work is a new occurrence replay family
+    with demand/realization companions; only then do span arms join the
+    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
+    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
+    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
+    Descriptor-materializing records additionally need relocation custody
+    beyond the single window `derive_span` models (AArch64 table
+    addressing emits two windows) plus a conformance-table symbol join;
+    parameter-routed calls are register-indirect. `physical/` is fenced
+    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Regressions:
+    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
+    descriptor or parameter ordinals rather than a static callee, and
+    the remaining intrinsic kinds have no span arm. Verified
+    (w9, `fcef01c59a`): those operations do not produce coverage
+    occurrences at all yet — the checked boundary-operator replay
+    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
+    admits only IEEE FMA, structural returns, and float/integer
+    comparisons — so the first work is a new occurrence replay family
+    with demand/realization companions; only then do span arms join the
+    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
+    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
+    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
+    Descriptor-materializing records additionally need relocation custody
+    beyond the single window `derive_span` models (AArch64 table
+    addressing emits two windows) plus a conformance-table symbol join;
+    parameter-routed calls are register-indirect. `physical/` is fenced
+    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Re-censused at
+    `ed566863a7c6` (04:12Z): the `physical/` fence drained — no live claim
+    touches `native-artifact/src/physical/` or names DYNAMIC-CALL-
+    OCCURRENCE-SPANS / PHYSICAL-ACCESS-PROFILES, so the descriptor-custody
+    leg is implementable now. Its shape mirrors the existing two-window
+    precedent `NormalizedForeignCallbackRelocations::Aarch64PageAddress`
+    (page + page_offset) in `physical/model.rs`: a new
+    `PhysicalRelocationDisposition` variant for forwarded descriptor
+    calls carrying the callee relocation plus the descriptor-table
+    materialization window(s) and the conformance-table symbol join, with
+    matching evidence hashing in `derivation/evidence.rs` (`relocation_kind_tag`
+    tags are a closed 1-4 range today). Regressions:
+
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection;
