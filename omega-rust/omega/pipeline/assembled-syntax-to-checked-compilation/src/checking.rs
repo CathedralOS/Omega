@@ -288,7 +288,7 @@ impl PreparedCheckedSource {
         >,
         collect_timings: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
-        Self::prepare_with_timing_collection(root_path, package_sources, false)
+        Self::prepare_with_timing_collection(root_path, package_sources, collect_timings)
     }
 
     /// Prepare the immutable source frontier, collecting the internal stage
