@@ -10071,7 +10071,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the prime_counter sample itself natively and runs it to its documented
   exit 8. Sibling re-mine name: PRIME-COUNTER-REMAINDER-LEGALIZATION; the
   benchmark subject row stays with PRIME-COUNTER-BENCHMARK-ROW /
-  BENCHMARK-PRIME-COUNTER-ROW.
+  BENCHMARK-PRIME-COUNTER-ROW. The witness leg had regressed
+  at `2672e80dd95` — `b8b858b1447`'s asm-catalog add (invd, wbnoinvd,
+  nop) grew the closed policy inventory to 553 rows without bumping
+  `CLOSED_POLICY_ROW_COUNT` (550) or the policy-table commitment hash;
+  this commit re-pins both. Re-verified green on linux x86-64 at tip with
+  the pin fix: `runtime_signed_division_exit_canary_runs` (76s) and
+  prime_counter native exit 8 (84s), plus `native-realization`
+  inventory pins 5/5.
 - **PRIME-COUNTER-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
