@@ -257,6 +257,11 @@ fn fail_roster() -> Vec<&'static str> {
                 .iter()
                 .map(|entry| entry.0),
         )
+        .chain(
+            inline_asm::SYSTEM_REGISTER_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
         .chain(task_runtime::FAIL_CANARIES.iter().copied())
         .chain(
             task_runtime::PARKED_CONTINUATION_FAIL_CANARIES

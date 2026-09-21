@@ -113,7 +113,23 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmWriteCr4
         | BuiltinFunction::AsmWriteBackInvalidate
         | BuiltinFunction::AsmInvalidate
-        | BuiltinFunction::AsmWriteBackNoInvalidate => {
+        | BuiltinFunction::AsmWriteBackNoInvalidate
+        | BuiltinFunction::AsmReadSctlrEl1
+        | BuiltinFunction::AsmReadTcrEl1
+        | BuiltinFunction::AsmReadTtbr0El1
+        | BuiltinFunction::AsmReadTtbr1El1
+        | BuiltinFunction::AsmReadMairEl1
+        | BuiltinFunction::AsmReadVbarEl1
+        | BuiltinFunction::AsmReadTpidrEl1
+        | BuiltinFunction::AsmReadEsrEl1
+        | BuiltinFunction::AsmReadFarEl1
+        | BuiltinFunction::AsmWriteSctlrEl1
+        | BuiltinFunction::AsmWriteTcrEl1
+        | BuiltinFunction::AsmWriteTtbr0El1
+        | BuiltinFunction::AsmWriteTtbr1El1
+        | BuiltinFunction::AsmWriteMairEl1
+        | BuiltinFunction::AsmWriteVbarEl1
+        | BuiltinFunction::AsmWriteTpidrEl1 => {
             disposition([TerminalAuthorityClass::MachineControl])
         }
         BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {

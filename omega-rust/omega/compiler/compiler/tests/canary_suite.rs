@@ -796,6 +796,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "ownership/conditional_linear_payload_extraction",
     "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
+    // Graduated from fail/: normalized claim outcome maps now publish for
+    // path-aligned multi-claim results, so the source checks cleanly.
+    "ownership/linear_ambiguous_state_result_mapping",
     "ownership/move_keyword_field_assignment",
     "ownership/compound_assign_add_field",
     "ownership/copy_value_field_read_compile",
@@ -1300,6 +1303,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_wrmsr_requires_u64_value",
     "inline_asm/asm_read_cr3_requires_u64_destination",
     "inline_asm/asm_write_cr3_requires_u64_value",
+    "inline_asm/asm_read_sctlr_el1_requires_u64_destination",
+    "inline_asm/asm_write_sctlr_el1_requires_u64_value",
+    "inline_asm/asm_write_esr_el1_unavailable",
     "inline_asm/asm_port_out_wrong_port_type",
     "inline_asm/asm_port_out_wrong_value_type",
     "inline_asm/asm_port_in_wrong_destination_type",
@@ -4861,6 +4867,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/runtime_popcount_loop_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/statement_call_recursive_argument_compile",
+    // Graduated from fail/: both pinned a lowering-time refusal that has
+    // since lifted, so the native route compiles them end to end.
+    "calls/guarded_value_call_terminal_compile",
+    "calls/machine_self_call_recursion_compile",
     "capabilities/provider_within_ceiling",
     "capabilities/derives_authority_via_boundary",
     "capabilities/acquires_through_helper_return",
@@ -5056,6 +5066,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_popfq_requires_machine_authority",
     "inline_asm/asm_wrmsr_requires_machine_authority",
     "inline_asm/asm_write_cr3_requires_machine_authority",
+    "inline_asm/asm_write_sctlr_el1_requires_machine_authority",
     "ports/asm_port_in_unsettled",
 ];
 
