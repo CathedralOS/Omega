@@ -4936,8 +4936,20 @@ moved to the termination-catalog fence (see that row's refresh note).
   order. The migration legs themselves stay with
   OPERATOR-MACHINE-SUPPLY (TOP-LEVEL-BOUNDARY-REQUIREMENTS generic
   requirements gate the 29 generic rows).
-
-
+- **NEW-OMS-SPECIFICATION-CALL-CONSTRUCTOR-LEAVES.** Mined candidate;
+  slice landed — pin leg on the specification-call surface. A requirement
+  citation whose operand is a constructor leaf is judged by its case:
+  `take_empty(Tree::Empty)` proves `value in Tree::Empty` (the leaf IS
+  the established subject) while `take_empty(Tree::Node { child: k })`
+  rejects at each citation even with `k` established — the constructed
+  value's case, not its field's, decides. Two pins added beside the
+  existing subject-attribution pair in
+  `specification_calls/tests.rs`: matching constructor leaf proves, wrong
+  constructor leaf rejects with the exact requires diagnostic at both
+  occurrences. `cargo nextest run -p validation --lib -E
+  'test(/specification_calls/)'`: 4/4 PASS on linux x86-64; `cargo fmt`
+  clean. Worked unclaimed — no claimable marker for this name and the
+  file tree carries no live fence.
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
   `syntax-trees-to-symbol-resolved-trees/src/preparation/`
