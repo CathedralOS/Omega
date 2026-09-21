@@ -11409,6 +11409,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-ALIGNMENT-STRING-PARSING.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
+- **GEOMETRY-EVIDENCE-REFRESH.** Scope verified — no independent slice.
+  The name re-mines the evidence-retention clause of the squalr
+  application acceptance (:143): "retain results under the app's ignored
+  `build/verification/`, with exact app/compiler pins and host."
+  Refreshing that evidence is a byproduct of a native `verify.py` run on
+  a matching host — the linux x86-64 witness is already recorded on
+  GEOMETRY-NATIVE (:7839, d82697ffca, `Squalr geometry: PASS`), and the
+  Windows leg is GEOMETRY-WINDOWS-VALIDATION's host-bound row. The
+  submodule path is wholesale-fenced at verification time
+  (`samples/apps/squalr` dir-claimed by SQUALR-WINDOWS-GEOMETRY-VALIDATION,
+  dev-88738). Nothing executable exists on this host under this name.
 - **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
   app-board GEOMETRY-PARITY, source:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md)). Run the
