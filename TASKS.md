@@ -3541,6 +3541,10 @@ moved to the termination-catalog fence (see that row's refresh note).
     change. The per-shape pins are now
     `explicit_shared_literal_indexed_argument_names_its_caller_in_the_call_operation`
     and `explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation`.
+    **Corpus re-verified once the ElementView legs unblocked `-p compiler`:
+    `borrow_disjoint_fixed_index_call_mut`, `borrow_premised_call_argument` and
+    the two runtime indexed-parameter write-exit canaries all still compile —
+    4/4, no regression from the widened predicate.**
     Local-rooted indexed receivers stop earlier at
     call-statement shape, and parameter-rooted dynamic `Index` reaches
     receiver reconciliation before dropping. Terminal's owned-root array and
@@ -17610,7 +17614,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   - The one genuinely clean fold — in-block, so `crossed_window` returns on its
     same-block branch before any path walk and the `WorkBudgetExceeded` arm is
     provably inert — is `run_relocation/validation.rs`, whose own producer
-    already does exactly this. Landed on this revision.
+    already does exactly this. Landed on this revision. **Re-verified on the
+    real tree once the ElementView legs unblocked the crate:
+    `cargo nextest run -p selected-instructions-to-selected-instructions` is
+    1737/1737 on macOS arm64, matching exactly the stubbed-copy measurement the
+    fold was developed against.**
 
 - **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build. Re-verified green at `771d0469a1c47` (linux x86-64, same command 2/2); a third bare mined stub further down this board names the same surface — drained by this row. Deduped under NEW-DEDUPE-SCOPED-LOOKUP-MAP-AUDIT-ROWS: the bare repeat stub and the field-note stub below are deleted (the field note itself asked for deletion), and an orphaned stale Squalr-gitlink fragment glued inside this row is removed — its current resolution lives on the SCAN-SCALAR rows.
   covered — landed and self-enforcing (`tests/architecture/scoped_lookup_maps.rs`)
@@ -19437,10 +19445,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Verified: `typed-trees-to-checked-trees --lib` 5107/5107; `validation` +
   `syntax-trees-to-symbol-resolved-trees` + `symbol-resolved-trees-to-typed-trees`
   1749/1749. Sentinel: disabling only the fit check fails the five rejection
-  tests by name while the two admission tests still pass. The `.omg` corpus
-  fixtures could NOT be run -- `-p compiler` does not build while the fenced
-  ElementView legs remain -- so the four `fail/traits/transparent_refinement_*`
-  fixtures and the pass declaration fixture are owed a run once main is whole.
+  tests by name while the two admission tests still pass. **The `.omg` corpus
+  fixtures have since been run, once the ElementView legs unblocked
+  `-p compiler`: all four `fail/traits/transparent_refinement_*` fixtures still
+  reject with their pinned fragments and
+  `pass/traits/transparent_refinement_declaration` still compiles — 5/5, no
+  regression.**
   Re-verified at `6f918986063` (z181, DYNAMIC-CALL-OCCURRENCE-SPANS
   re-dispatch): all anchors intact — `derive_dynamic_call_span` at
   `physical/operator_applications.rs:237` (called from
