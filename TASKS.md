@@ -8169,6 +8169,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ASM-CATALOG-MEMORY-AND-CONTROL (z139, 05:55Z). No independent slice
   exists; sibling stubs ASM-CATALOG-MEMORY-AND-CONTROL and
   ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS mine the same clause.
+||||||| parent of 378ff7d482a7 (board: mark ASM-INSTRUCTION-CATALOG-EXPANSION resolved upstream)
+- **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
+- **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; resolved upstream.
+  Re-witnessed at `4252f00ab216`: the bounded catalog slice landed on main at
+  `b8b858b14472` ("asm catalog: contract invd, wbnoinvd and nop") plus
+  policy-inventory repins `6aca16747fe5`/`0f9a23e3d0d3` — `AsmCacheOperationKind`
+  += `invd`/`wbnoinvd` beside `wbinvd` and `AsmSchedulingHintKind` += `nop`,
+  all contracted members of existing shapes with the full per-member chain
+  (kind enum + helpers, `BuiltinFunction` ordinals 77–79, statement gate,
+  MachineOwner discharge map, terminal-authority inventory). The upstream
+  board annotation (origin/main ~line 6943) already records the verified
+  shape and the wave's unwitnessed-canary caveat (`selected-instructions-to-
+  selected-instructions` `crossed_window`/`CrossingDirection` build break,
+  fenced to the spill/sequencing workers). Residual legs: operand-bearing
+  cache/TLB ops (`invlpg`, `clflush`) stay refused until a modeled
+  memory-operand contract exists — sibling row
+  ASM-MEMORY-AND-TRANSFER-CONTRACTS; atomics, mode transitions and AArch64
+  system ops stay unrecognized per the catalog axis paragraph. No
+  independent slice remains under this name.
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
+
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
