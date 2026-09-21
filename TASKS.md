@@ -15053,6 +15053,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names are retained on `TraitRefinementClause.service_reaches`, pending a
   clause-location variant of the reach-row table), `_` reach wildcards, and
   the evidence-binder fit check that consumes the refinement bound.
+  Re-verified at `6f918986063` (z181, DYNAMIC-CALL-OCCURRENCE-SPANS
+  re-dispatch): all anchors intact — `derive_dynamic_call_span` at
+  `physical/operator_applications.rs:237` (called from
+  `derivation/evidence.rs:388`), witness
+  `dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`
+  at `derivation/tests.rs:1958`, both landing commits ancestors of
+  base. Verdict stands; residuals stay on TRANSLATION-VALIDATION.
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Standing duty, not a one-off: keep
   the trusted-surface digest ledger
   (`omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs`)
