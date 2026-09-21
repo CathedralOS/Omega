@@ -12891,7 +12891,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-REMAPPING** — mined candidate; verify scope then implement.
-- **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; verify scope then implement.
+- **INDEXED-OPERAND-ATTACHED-RECEIVER** — resolved as already landed; mines the resolved BASELINE-T2C-INDEXED-OPERAND-ACCESS row (:5641). `receiver_self_match` (`typed_trees/declarations/operator/indexing.rs:88`) routes indexed operand zero through the attached-receiver loan at HEAD, so `machine [] Buffer::index(&self, ..)` admits a `Buffer` place exactly as `buffer.at(index)` borrows it, and ordinary first parameters gain no receiver adaptation (`ordinary_first_parameter_gains_no_receiver_adaptation` control). Sibling stub INDEXING-ATTACHED-RECEIVER-BORROW (:6033) mines the same row.
 - **INDEXING-ATTACHED-RECEIVER-BORROW** — mined candidate; verify scope then implement.
 - **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **INSTALLATION-ERA-JOURNAL** — mined candidate; verify scope then implement.
