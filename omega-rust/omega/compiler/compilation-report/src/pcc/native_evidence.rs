@@ -1453,11 +1453,20 @@ mod tests {
         FinalImageMemory,
     };
 
+    /// The fixtures declare one fixed target rather than the host's: the
+    /// planted footprint carries x86-64 registers, and decode binds every
+    /// footprint register to the section's declared architecture, so under
+    /// `host()` an aarch64 host would write a section its own decoder must
+    /// reject as foreign.
+    fn fixture_target() -> target::NativeTarget {
+        target::NativeTarget::linux_x64()
+    }
+
     /// Build a real placed inventory over a small text through the production
     /// `place_executable_regions`, so test evidence rows carry honest digests.
     fn placed_inventory(text: &[u8]) -> image::PlacedExecutableRegionInventory {
         let mut image = FinalImage::with_capacity(
-            target::NativeTarget::host(),
+            fixture_target(),
             FinalImageMemory {
                 text: text.to_vec(),
                 ..FinalImageMemory::default()
@@ -1501,7 +1510,7 @@ mod tests {
     fn empty_data_inventory() -> image::PlacedDataRegionInventory {
         image::place_data_regions(
             &FinalImage::with_capacity(
-                target::NativeTarget::host(),
+                fixture_target(),
                 FinalImageMemory::default(),
                 Default::default(),
                 0,
@@ -1515,7 +1524,7 @@ mod tests {
 
     fn evidence_over(text: &[u8], text_file_offset: u64) -> NativePlacedImageEvidence {
         NativePlacedImageEvidence::from_parts(
-            target::NativeTarget::host(),
+            fixture_target(),
             text_file_offset,
             placed_inventory(text),
             0,
@@ -1576,7 +1585,7 @@ mod tests {
         // Two regions written out of offset order reject rather than being
         // silently re-sorted into a canonical-looking section.
         let mut image = FinalImage::with_capacity(
-            target::NativeTarget::host(),
+            fixture_target(),
             FinalImageMemory {
                 text: vec![0xabu8; 12],
                 ..FinalImageMemory::default()
@@ -1609,7 +1618,7 @@ mod tests {
         let mut inventory = inventory;
         inventory.regions.swap(0, 1);
         let evidence = NativePlacedImageEvidence::from_parts(
-            target::NativeTarget::host(),
+            fixture_target(),
             0,
             inventory,
             0,
