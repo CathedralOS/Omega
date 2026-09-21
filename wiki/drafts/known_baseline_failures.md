@@ -1047,3 +1047,44 @@ On this host, route `omega` invocations through an explicit `--target` (for
 example `linux_x86_64`) and report native-host coverage as unavailable rather
 than re-running the baseline; a `MacosX64` host profile is open board work,
 not a fix to inline into a task.
+
+## workspace `--lib` cluster (RC-REPOSITORY-CLOSURE)
+
+The `cargo nextest run --workspace --lib --no-fail-fast` leg of
+**RC-REPOSITORY-CLOSURE** ([TASKS.md](../../TASKS.md)) measured RED 13 of 16,169
+on linux x86-64 at `5958706064` (2026-09-20, cargo, no mbx). That row owns the
+live measurement; the names are carried here so an exact-name search finds the
+attribution. Every member below reproduces at that revision without a task
+diff:
+
+- `package-manager` 6:
+  `operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`,
+  `operations::compile_project::tests::receiving_admission::accepted_console_customer_receives_admission_only_under_a_sufficient_policy`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_exit_permission_as_a_blocking_row`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_output_and_input_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::review_publishes_the_named_component_description_for_an_independent_selection`.
+- `checked-trees-to-lowered-psi` 2:
+  `tests::structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`,
+  `tests::structural_control_cases::ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`.
+- `compilation-report` 1:
+  `pcc::native_evidence::tests::section_round_trips_canonically`.
+- `compiler` 1:
+  `compiler::tests::native_publication_writes_only_declared_products`.
+- `external-roots` 1:
+  `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`.
+- `native-realization` 1:
+  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`.
+- `package-evidence` 1:
+  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`.
+
+Host divergence: a macOS aarch64 reading of the same gate at `7b7d0fa8d5`
+(12 failed of 16,290) reproduces the package-manager 6 and the
+native-realization and package-evidence singletons, passes the
+checked-trees-to-lowered-psi 2 and the compilation-report, compiler and
+external-roots singletons, and adds four terminal-codec members that pass on
+linux — `sections::structural_block_wire_tests::{primitive_local_operations_round_trip_with_exact_result_and_operand_identities,structural_block_bindings_round_trip_and_bind_each_argument_order}`
+and `sections::trust_graph::tests::{canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation,current_graph_is_closed_canonical_and_explicitly_not_fully_derived}`
+(the two trust_graph members fail on a missing graph root and were confirmed
+pre-existing by re-running at `50559da3ab`). Neither reading alone is the
+baseline; cite the row for the matching host.
