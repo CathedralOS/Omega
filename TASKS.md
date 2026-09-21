@@ -58,6 +58,17 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   use domains. This is deletion and migration, not a compatibility mode or a
   new compiler-provided range domain.
 
+  Size, measured at `7a9a7b8287` so this can be planned rather than
+  discovered mid-migration: the revoked suffix appears **1598 times across 544
+  `.omg` files**, and the Rust side names a range type-constraint in **41
+  files**. The authored corpus dominates — 456 of those files are under
+  `tests/omega`, then 48 under `samples/cli`, 14 under `source/library`, 11
+  under `tests/native-differential`, 7 under `omega-rust/psi`, 4 under
+  `samples/gui`. The parse site is `parse_type.rs:779-801`
+  (`TypeConstraintNode::Range`, both inclusive and exclusive forms). Expect
+  the corpus migration, not the compiler deletion, to be the bulk of it, and
+  expect it to want several sessions.
+
   Owners: Psi's `tokens-to-syntax-trees/src/type_syntax/parse_type.rs`,
   syntax/resolved/typed type-constraint representations,
   `validation/src/proof_contracts/arithmetic_domains/`, and downstream
