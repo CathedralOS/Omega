@@ -8803,7 +8803,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `typed-trees-to-checked-trees/src/execution/unit/*`, Fused custody in
   `selected-dispatch`) sit in PROVIDER-ATTACHMENT-MACHINE-PLAN /
   ENTRY-CONTENT-ROOTS / GENERAL-CYCLIC-EXECUTION lanes — outside this item's
-  fixture fence; the windows run leg is host-gated by design.
+  fixture fence; the windows run leg is host-gated by design.  Re-verified 2026-09-20 (ffival) at `59e0b5ec22`: compile stop UNCHANGED —
+  `Main::gui requires a selected Fused provider for boundary Gui` witnessed via
+  OMEGA_PASS_CANARY_FILTER=runtime_gui_foreground_window_exit (1 fail). Fence
+  probes exit 2 on both producing surfaces: execution/unit held by
+  PROVIDER-ATTACHMENT-MACHINE-PLAN (Zergling-200, ~09:49Z Sep 21) +
+  CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP (~08:46Z); selected-dispatch held
+  by RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL (z140, ~15:31Z Sep 21). Fixture
+  claim b7ba6f3a released.
+
+
 - **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT.** — mined candidate; scope verified
   2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
   _literal_dispatch_exit` pair in the known-baseline-failures InvalidUnitMachinePlan
