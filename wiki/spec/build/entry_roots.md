@@ -72,12 +72,16 @@ A native test harness instead binds an ordinary executable entry normally.
 
 ## Entry shape and arrival bridge
 
-An entry shape names distinct physical and semantic arrival requirements,
-target-authored bootstrap adapter and physical result map, visible parameters,
-semantic result, and receiver mode `None` or `ProvisionedZii`. For example, a
-hosted Windows ProgramEntry may join WindowsProcessEntry under WindowsX86_64
-calling policy to ProgramStorageEntry through WindowsProgramBootstrap and
-WindowsProcessExitMap, exposing no ordinary parameters to source.
+An entry shape names distinct physical and semantic arrival requirements, the
+boundary schema and physical contract package that own its generated arrival
+bridge and physical result map, visible parameters, semantic result, and a
+receiver provisioning mode (the catalogued `NoneOrProvisionedZii` admits a free
+machine or one provisioned `&mut self` receiver). For example, a hosted Windows
+`ProgramEntry` joins the `WindowsProcessEntry::enter` process arrival under the
+`WindowsX86_64CallingPolicy` calling policy to the `ProgramStorageEntry::enter`
+semantic continuation through the `WindowsX86_64Application` boundary schema's
+generated bridge; the authored contract's `u32` return maps to the process
+exit code, and no ordinary parameters are exposed to source.
 
 The platform calling plan validates the generated physical shell; the target's
 entry shape validates the selected source signature. Resolve the slot first,
