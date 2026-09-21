@@ -1564,6 +1564,19 @@ Owners include
   `authored_startup_contract_survives_terminal_and_native_production`).
   Remaining: (2) real receipt ingress under BOUNDARY-ISSUANCE; (3) the
   Windows/macOS/QEMU legs, which are host-unavailable here. Re-witnessed at `f600f8400b` (swarm-w9-ffival, linux x86-64): `compiler --test secondary_processor_startup` 4/4 PASS (nondispatch-withdrawal+late-arrival, installed-entry reach, stale-evidence/resource-conflict rejection, terminal-and-native contract survival; 47.8s). The ledger dir itself stays fenced to UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z); the authored canary + startup test were claimed-and-released for this witness.
+||||||| parent of be51459933b1 (board: AP-BRINGUP re-verified — 4/4 green; residual legs host/hardware-bound)
+  Windows/macOS/QEMU legs, which are host-unavailable here.
+  Windows/macOS/QEMU legs, which are host-unavailable here.
+  Re-verified at `faf902cea487` on linux x86-64: all 4
+  `secondary_processor_startup` tests PASS (43.7s). Both residual legs
+  stay non-executable on this host — (2) needs the hardware/provider
+  boundary path (the ledger-side ingress audit landed at `8973814b6a`,
+  246/246 external-roots; the source-issued frontier is
+  BOUNDARY-ISSUANCE's own row, and real AP arrival receipts need
+  firmware/APIC premises), and (3) is host-bound. The implementing
+  files are unfenced: no live claim covers `secondary_processor*`,
+  `compiler/tests/secondary_processor_startup.rs` or the canary
+  fixture (`uefi_bootstrap` stays fenced by UEFI-PHYSICAL-SEMANTIC-ENTRY).
 
   Reuse installed-code, per-processor stack/state and retirement joins. Bind the
   provider-declared profile to its selected contract; low-memory/vector geometry
