@@ -15163,7 +15163,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   row, not a standalone completion: the release contract still requires
   all eight gates on one clean commit across the four required hosts, and
   the test surface is owned by PORTABLE-TERMINAL-RELOAD work.
-- **RC-PORTABLE-PSI-RELOAD.** Resolved — re-mines the completed
+- **RC-PORTABLE-PSI-RELOAD.** Resolved — re-verified at `18cebfa1062`.
+  Re-mines the completed
   **PORTABLE-TERMINAL-RELOAD** item (landed; row-removed at `8ae40607a3`):
   `canary_suite/portable_terminal_reload.rs` proves both halves of the
   portable-product boundary for every `RELOAD_CANARIES` fixture — a
