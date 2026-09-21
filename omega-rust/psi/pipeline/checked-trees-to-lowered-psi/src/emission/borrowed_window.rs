@@ -263,6 +263,17 @@ impl BorrowedWindowLedger {
             )),
         }
     }
+
+    /// The ledger a reconverged block continues with: the incoming
+    /// frontiers must agree on the exact open holes, so the shared holes
+    /// collapse to one open window each. Frontier identity excludes the
+    /// arm-local `moved` binding, and `emit_store` never consults `moved`
+    /// when reseating, so the joined frontier keeps this side's rows
+    /// verbatim. A driver joining more than two edges folds this pairwise.
+    pub(crate) fn joined(&self, other: &Self) -> Result<Self, LoweringError> {
+        self.require_same_frontier(other)?;
+        Ok(self.clone())
+    }
 }
 
 fn unpinned(place: &str, reason: &'static str) -> LoweringError {
@@ -1287,6 +1298,84 @@ mod tests {
                 .ledger
                 .require_same_frontier(&untouched.ledger)
                 .unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+    }
+
+    #[test]
+    fn a_joined_frontier_collapses_arm_local_bindings_to_one_open_window() {
+        let receiver = envelope_receiver();
+        let mut left_arm = Emission::new();
+        left_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the first path");
+        let mut right_arm = Emission::new();
+        right_arm.next_place = 3;
+        right_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the second path");
+
+        let mut joined = left_arm
+            .ledger
+            .joined(&right_arm.ledger)
+            .expect("same hole opened on both paths joins");
+        assert_eq!(joined.open_windows().len(), 1);
+
+        // The hole stays open on the joined path: extracting it again
+        // still rejects, and reseating names the exact place — neither
+        // arm-local `moved` binding is consulted.
+        let mut extraction = joined.clone();
+        // The overlap refusal fires before the place counter is read.
+        let mut next_place = 8;
+        assert_unpinned(
+            extraction
+                .emit_move(
+                    &checked_place(&fields(&["left"]), CELL),
+                    &cell_binding(),
+                    &receiver,
+                    &structural_types(),
+                    &type_ids(),
+                    &mut next_place,
+                    &mut OperationBuffer::new(0),
+                )
+                .unwrap_err(),
+            "self.left",
+            "already absent",
+        );
+        joined
+            .emit_store(
+                &checked_place(&fields(&["left"]), CELL),
+                BorrowedWindowRepairValue {
+                    place: joined.open_windows()[0].moved,
+                    structural_type: cell(),
+                },
+                &receiver,
+                &structural_types(),
+                &type_ids(),
+                &mut OperationBuffer::new(0),
+            )
+            .expect("the joined frontier's shared hole reseats");
+        joined
+            .require_closed()
+            .expect("closed once the shared hole is reseated");
+    }
+
+    #[test]
+    fn a_joined_frontier_rejects_when_paths_disagree() {
+        let receiver = envelope_receiver();
+        let mut opened = Emission::new();
+        opened
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open");
+        let closed = Emission::new();
+        assert_unpinned(
+            opened.ledger.joined(&closed.ledger).unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+        assert_unpinned(
+            closed.ledger.joined(&opened.ledger).unwrap_err(),
             "self.left",
             "reconverging paths disagree",
         );
