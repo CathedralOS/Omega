@@ -52,6 +52,8 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> String {
+    // Derived, not spelled: the root identity names the exact format and
+    // vocabulary it certifies, so a marker bump cannot leave it behind.
     format!(
         "root:canonical-terminal-bytes-format-{FORMAT_MARKER}-vocabulary-{}",
         terminal_psi::VocabularyMarker::CURRENT.get()
