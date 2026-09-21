@@ -7722,6 +7722,26 @@ Proof/evidence:
   and imported rules must respect the classicality boundary. An
   independently checked translation — not a trusted import — is the only
   sound route, per MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT's verified row.
+- **GAMMA-CERT-CHAIN-PRODUCTION.** Inserted row — scope verified,
+  host-blocked. Re-mines the chain-production leg of the
+  GAMMA-CERTIFICATE-PRODUCTION cluster (resolved sibling two rows below,
+  which records this name's earlier claims as expired): "produce the
+  certificate through the selected chain" is the TASKS_BOOTSTRAP.md
+  bullet whose only remaining surface is a seed-execution host — the
+  AlphaBootstrapV5 evaluator frames requests inside a 128 GiB `M` arena
+  and the selected chain requires macOS arm64 or Windows x64, neither
+  available on this linux x86-64 host by landed design. The
+  host-portable leg already landed upstream:
+  `tests/gamma/beta-encoding-theory/run.sh --produce-request`
+  materializes the complete certificate request artifact (135,485,028
+  bytes) on any python3 host, and `a31bdf79e5129` bound the compiled-in
+  136,314,880-byte extent so the request passes admission. The host-side
+  stepper gate is recorded as diagnostic production, not the selected
+  chain. Live fences on the implementing surfaces:
+  `tests/gamma/beta-encoding-check` + `bootstrap/proofs/checker` under
+  GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE, `tools/bootstrap/proofs` under
+  CHAIN-CERTIFICATE-ADMISSION-BINDING. No implementable slice on this
+  host class. Re-verified at `96bc0ef81043` head fetch.
 - **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check (includes GAMMA-CERTIFICATE-CHECK).
 - **PROOF-RULE-CLASSICALITY-AUDIT.** Audit proof rules for classical/constructive boundary (matching-logic lane). Landed: `wiki/spec/proofs/classicality.md` audits every certificate rule — all are constructive or constructive-by-decidable-domain, `SemanticAxiom` is the only trusted admission, and the proposition grammar cannot express a classical principle. `AcceptedProofRule::foundation` (`proof-admission/src/classicality.rs`) enforces the classification by exhaustive match with tests pinning the boundary. Resolved at `bc772bf7cd7e`: the two stated remaining legs landed at `d0044250f357` — the doc now classifies the obligation-side lemma library and deciders in `psi/semantics/proof` (all constructive-decidable / plan-formation / instrumentation; no decider decides an undecidable relation) and the verifier's semantic-axiom reconstruction inventory row-by-row under `terminal-verifier/src/trusted_surface/` (certificate-gated rows are the only non-trusted emissions and rest on already-classified rules). A residual `use super::*` in `classicality.rs`'s test module is GLOB-SELF-IMPORTS-REPAIR's accounting, fenced to PROOF-KERNEL-CORE (exp 09:49Z).
 - **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check
