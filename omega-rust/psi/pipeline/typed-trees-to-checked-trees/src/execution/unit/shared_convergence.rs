@@ -317,13 +317,16 @@ pub(crate) fn shared_integer_runtime_parameter_positions_for_test(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        CheckFacts, CheckedScalarBinding, CheckedScalarExpression, CheckedScalarExpressionRole,
+        CheckedStructuralScalarReturnCleanupAction, PrimitiveType, SymbolHandle,
+        checked_shared_boolean_convergence,
+    };
     use checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedBooleanExpression,
         CheckedIntegerComparisonKind, CheckedLocatedScalarExpression,
         CheckedScalarBindingDestination, CheckedScalarBindingValue,
-        CheckedStructuralPredicatePathSegment as Segment,
-        CheckedUnitNominalAffineCleanupPlan,
+        CheckedStructuralPredicatePathSegment as Segment, CheckedUnitNominalAffineCleanupPlan,
     };
 
     fn direct_field(parameter_position: u32, field: &str) -> CheckedBooleanExpression {
@@ -340,14 +343,16 @@ mod tests {
     ) -> Option<checked_trees::CheckedStructuralBooleanConvergencePlan> {
         let mut facts = CheckFacts::default();
         let state = SymbolHandle::from_parts(1, 1);
-        facts.values.scalar_expressions.expressions.push(
-            CheckedLocatedScalarExpression {
+        facts
+            .values
+            .scalar_expressions
+            .expressions
+            .push(CheckedLocatedScalarExpression {
                 state,
                 statement_ordinal: 0,
                 role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
                 expression: CheckedScalarExpression::Boolean(Box::new(binding_expression)),
-            },
-        );
+            });
         let bindings = [CheckedScalarBinding {
             statement_ordinal: 0,
             destination: CheckedScalarBindingDestination::Immutable,
@@ -419,7 +424,10 @@ mod tests {
             left: Box::new(Boolean::Parameter { position: 0 }),
             right: Box::new(Boolean::StructuralParameterField {
                 parameter_position: 0,
-                path: vec![Segment::Field("wrap".to_owned()), Segment::Field("flag".to_owned())],
+                path: vec![
+                    Segment::Field("wrap".to_owned()),
+                    Segment::Field("flag".to_owned()),
+                ],
             }),
         };
         assert!(convergence(nested, 1, &[0]).is_none());
