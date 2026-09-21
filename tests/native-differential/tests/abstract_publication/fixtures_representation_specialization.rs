@@ -20,6 +20,18 @@ const ESTABLISHED_MEMBERSHIPS_SOURCE: &str = r#"
     }
 "#;
 
+/// Two scalar field reads observe one established place: `p.x` folds to `37`
+/// and `p.flag` folds to `true` inside a single candidate covering the place
+/// under the `EstablishRecord` producer basis, so the field-value rule
+/// commits exactly once.
+const ESTABLISHED_FIELDS_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    machine probe() -> bool {
+        let p: Point = Point { x: 37, flag: true };
+        (p.x == 37) == p.flag
+    }
+"#;
+
 /// A real source-produced membership machine: the full Psi front half lowers
 /// `probe` to Terminal Psi, then the ordinary artifact admission builds the
 /// verified optimization unit — no hand-constructed structural places.
@@ -33,5 +45,21 @@ pub(super) fn representation_specialization_membership_verified() -> VerifiedPsi
     let typed = lower_symbol_resolved_trees(&resolved).expect("type established memberships");
     let checked = lower_typed_trees(typed).expect("check established memberships");
     let lowered = lower_machine(&checked, "probe").expect("lower established memberships");
+    verified(lowered.semantic_module, lowered.proof_bundle)
+}
+
+/// A real source-produced field-read machine: the full Psi front half lowers
+/// `probe` to Terminal Psi, then the ordinary artifact admission builds the
+/// verified optimization unit — no hand-constructed structural places.
+pub(super) fn representation_specialization_field_value_verified() -> VerifiedPsiOptimizationUnit {
+    let tokens = Lexer::new(ESTABLISHED_FIELDS_SOURCE)
+        .tokenize()
+        .expect("tokenize established field values");
+    let syntax = parse_syntax_trees(&tokens).expect("parse established field values");
+    let resolved =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve established field values");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type established field values");
+    let checked = lower_typed_trees(typed).expect("check established field values");
+    let lowered = lower_machine(&checked, "probe").expect("lower established field values");
     verified(lowered.semantic_module, lowered.proof_bundle)
 }

@@ -51,7 +51,8 @@ pub use range::*;
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
-    DominatingScalarCommonSubexpressionRewrite, FoldedCaseMembershipRow, IntegerConstantRewrite,
+    DominatingScalarCommonSubexpressionRewrite, FieldValueSpecializationRewrite,
+    FoldedCaseMembershipRow, FoldedFieldValue, FoldedFieldValueRow, IntegerConstantRewrite,
     IntegerEvaluationWitness, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
     NodeLocation, NonAdjacentBlockMergeRewrite, OwnershipFrontierWitness,
     OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite, PhiTranslatedScalarGvnRewrite,

@@ -10,9 +10,9 @@ use optimization::PsiOptimization;
 use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
 use super::passes::{
-    case_membership_specialization_rule_registrations, control_flow_cleanup_rule_registrations,
-    copy_propagation_rule_registrations, dead_scalar_elimination_rule_registrations,
-    global_value_numbering_rule_registrations, proof_check_elision_rule_registrations,
+    control_flow_cleanup_rule_registrations, copy_propagation_rule_registrations,
+    dead_scalar_elimination_rule_registrations, global_value_numbering_rule_registrations,
+    proof_check_elision_rule_registrations, representation_specialization_rule_registrations,
     sparse_conditional_constant_propagation_rule_registrations,
     state_specialization_rule_registrations,
 };
@@ -93,7 +93,7 @@ pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 8] = [
     ),
     PsiPassCatalogEntry::new(
         PsiOptimization::RepresentationSpecialization,
-        case_membership_specialization_rule_registrations,
+        representation_specialization_rule_registrations,
     ),
 ];
 

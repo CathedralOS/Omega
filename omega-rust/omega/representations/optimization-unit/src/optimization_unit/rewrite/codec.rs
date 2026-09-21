@@ -5,8 +5,8 @@ use super::canonical_encoding::{
 };
 use super::model::*;
 use super::{
-    BlockId, OptimizationRuleContract, OptimizationUnitIdentity, OwnershipFrontierSite,
-    PsiProvenance,
+    BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract, OptimizationUnitIdentity,
+    OwnershipFrontierSite, PsiProvenance,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -400,6 +400,59 @@ pub(super) fn encode_candidate(
                 bytes.extend_from_slice(&row.observed_case.get().to_le_bytes());
                 bytes.extend_from_slice(&row.proven_case.get().to_le_bytes());
                 bytes.push(u8::from(row.outcome));
+            }
+        }
+        PsiRewritePatch::SpecializeFieldValue(patch) => {
+            bytes.push(19);
+            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.place.get().to_le_bytes());
+            bytes.extend_from_slice(
+                &patch
+                    .producer
+                    .map(|producer| producer.get())
+                    .unwrap_or(0)
+                    .to_le_bytes(),
+            );
+            encode_len(&mut bytes, patch.reads.len());
+            for row in &patch.reads {
+                encode_location(&mut bytes, row.site);
+                bytes.extend_from_slice(&row.psi_operation.get().to_le_bytes());
+                bytes.extend_from_slice(&row.result.get().to_le_bytes());
+                bytes.extend_from_slice(&row.source.get().to_le_bytes());
+                encode_len(&mut bytes, row.path.len());
+                for segment in &row.path {
+                    match segment {
+                        CanonicalStructuralPathSegment::Field(identity) => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&identity.get().to_le_bytes());
+                        }
+                        CanonicalStructuralPathSegment::FixedIndex(index) => {
+                            bytes.push(2);
+                            bytes.extend_from_slice(&index.to_le_bytes());
+                        }
+                        CanonicalStructuralPathSegment::Case(identity) => {
+                            bytes.push(3);
+                            bytes.extend_from_slice(&identity.get().to_le_bytes());
+                        }
+                    }
+                }
+                bytes.extend_from_slice(&row.field.get().to_le_bytes());
+                bytes.extend_from_slice(
+                    &row.producer
+                        .map(|producer| producer.get())
+                        .unwrap_or(0)
+                        .to_le_bytes(),
+                );
+                match row.value {
+                    FoldedFieldValue::Boolean(constant) => {
+                        bytes.push(1);
+                        bytes.push(u8::from(constant));
+                    }
+                    FoldedFieldValue::Integer(constant) => {
+                        bytes.push(2);
+                        encode_integer_value(&mut bytes, constant);
+                    }
+                }
             }
         }
     }

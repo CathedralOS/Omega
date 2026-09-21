@@ -437,6 +437,33 @@ pub(super) fn validate(
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
+        PsiRewritePatch::SpecializeFieldValue(patch) => {
+            if patch.reads.is_empty()
+                || patch
+                    .reads
+                    .windows(2)
+                    .any(|pair| pair[0].site >= pair[1].site)
+                || patch.reads.iter().any(|row| {
+                    row.site.machine != patch.machine
+                        || row.source != patch.place
+                        || !affected_blocks.contains(&row.site.block)
+                })
+                || provenance.is_empty()
+                || provenance.iter().any(|row| {
+                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                        return true;
+                    };
+                    site.machine() != patch.machine
+                        || site
+                            .node()
+                            .is_some_and(|location| !affected_blocks.contains(&location.block))
+                })
+                || !substitutions.is_empty()
+                || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+            {
+                return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+            }
+        }
         PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
             let pruned = patch
                 .machines
