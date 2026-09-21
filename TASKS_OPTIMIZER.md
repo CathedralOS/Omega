@@ -1009,13 +1009,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `records/cli_mvp__linux_x86_64__default.json` measured at
   87d8b22713 on a Linux x86-64 host (dev-profile `omega`, 3 compile +
   5 run samples, exit 0). Remaining: rows for further subjects and
-  nonempty selections through the same `measure` command — at
-  e48558bd41 every `depend()`-ing subject fails native realization with
-  `Terminal proposal must retain every integer comparison occurrence
-  exactly once` (the uncovered comparison is std-internal; verified on
-  `cli_mvp` at default and `CopyPropagation`-disabled selections, ~23.5
-  min to rejection), so new linux_x86_64 rows wait on the
-  comparison-occurrence producer covering std plumbing — and the
+  nonempty selections through the same `measure` command. The
+  e48558bd41 rejection — every `depend()`-ing subject failing native
+  realization with `Terminal proposal must retain every integer
+  comparison occurrence exactly once` — is lifted: at ff782bdf21 the
+  `measure` compile leg over `cli_mvp`/linux_x86_64 with
+  `--accept-admissions` publishes native output (the comparison-occurrence
+  producer now covers std plumbing), so linux_x86_64 rows are unblocked.
+  The remaining work is row authorship (`PRIME-COUNTER-BENCHMARK-ROW`
+  owns `tools/benchmark` and `wiki/drafts/benchmarks.md`) plus the
   windows_x86_64, macos_arm64, linux_arm64, and uefi_x86_64 legs on
   matching hosts — unavailable on this host and recorded as such in
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md).
