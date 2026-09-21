@@ -107,7 +107,8 @@ appeared:
   `kernel.rs`, `lib.rs`, `evidence.rs`) that have since changed; the ledger
   needs re-recording by the lane that changed them, after review. It also
   reports `proof-admission/src/mathematical_core/tests/strict_layer.rs` as
-  an unregistered source file under a trusted root.
+  an unregistered source file under a trusted root. Fix leaf: the standing
+  **TRUSTED-SURFACE-DIGEST-RE-RECORDING** item on the board.
 - Repaired: `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`
   and `unranked_views::every_cyclic_view_jump_checks_exact_arity` saw
   `InvalidPartialAffineCleanup` in place of `UnknownTargetBlock(BlockId(99))`
@@ -192,7 +193,9 @@ lowering custody validation to reject unconditionally leaves those canaries
 green, so a checked-only registration pins checked semantics and cannot
 exercise a lowering repair. Where the subject is lowering or native
 realization, the fixture needs an executing roster that reaches that stage,
-or a crate-level test beside the code.
+or a crate-level test beside the code. Fix leaf: roster registration and
+the repeat-the-measurement sweep are corpus maintenance — **CANARY-CORPUS**
+on the board.
 
 ## compiler canary suite (pass canaries)
 
@@ -414,6 +417,14 @@ reasons again (`OMEGA_FAIL_CANARY_FILTER` covering all named members on
 now; `generics/authored_const_call_operator_unselected_provider` is still
 unregistered. Section closed pending the next audit.
 
+||||||| parent of 46a9ef596511 (board/known-baseline-failures: attach fix-leaf names to every recorded cluster)
+Fix leaf for this whole section: **CANARY-CORPUS** — stale `expected.txt`
+re-pinning, per-member repair or retirement of the five true failures, and
+the roster-gap registrations are all corpus maintenance; none of the
+fragments above changes the semantic question the member exists to pin, so
+no member needs a production-side bisect before the corpus lane re-pins it.
+
+
 ## checked-trees-to-lowered-psi
 
 Repaired: `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
@@ -505,7 +516,8 @@ Service<R> family). The current failure set attributes to six families:
   `machine_symbol` is not rejected by
   `terminal_production::TerminalProductionRequest::produce_artifact`, a
   source-replay verification gap. This is the continuing "scalar-return
-  pure source custody" group.
+  pure source custody" group; its fix leaf on the board is
+  **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES**.
 - `established by` call-result qualification (1 test).
   `registered_callback_lifetime::interpreted_register_unregister_round_trip_drives_the_ledger`
   fails at source check with ``cannot establish call-result qualification
@@ -829,7 +841,8 @@ and
 `x86_feature_admission::terminal_product_retains_exact_fma_operation_plan_and_x86_admission`,
 both with `native artifact native instruction selection failed: FMA provider
 transport is not implemented in the common instruction pipeline`. x86 FMA
-provider transport is unimplemented; the failure is not host-specific.
+provider transport is unimplemented; the failure is not host-specific. Fix
+leaf: **FMA-PROVIDER-PIPELINE-TRANSPORT** on the board.
 
 Re-measured at 7b224763615 (2026-09-21, linux x86-64): 118 run, 112
 passed, 6 failed — the suite grew and two members joined the FMA pair.
@@ -875,7 +888,10 @@ regression rather than eight rows. The remainder are
 authored call-selection occurrence left unresolved after successful
 checking, one generated-dependency handoff, and
 `one_root_source_cannot_join_both_dependency_scopes`, whose noncanonical
-directory mode is bound to the macOS temp directory. Not bisected.
+directory mode is bound to the macOS temp directory. Not bisected. Fix
+leaf: **BASELINE-PACKAGE-COMPILATION-INPUTS** on the board — its newer
+reading at `1f7301b71020` (linux x86-64) already shows the tail down to
+three failures, so this section's 13-failure macOS census is stale.
 
 The three composition-mode admission failures earlier recorded on the
 COMPONENT-SUBSTRATE board item are closed (0e6c25c4dc attributed, fixed at
