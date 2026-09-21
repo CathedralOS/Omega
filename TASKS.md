@@ -12092,7 +12092,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-REWRITE-ORPHANS, PIPELINE-WRAPPER-OBJECT-ORPHAN (field note:
   those two rows above/below still read as unverified stubs — fold this
   verdict into them or retire them; do not re-sweep the same 19 modules).
-- **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
+- **PIPELINE-WRAPPER-OBJECT-ORPHAN.** Resolved — covered-alias of the
+  `optimized_semantic_wrapper_{encoding,object}` keep/move/delete
+  disposition settled on sibling rows WRAPPER-OBJECT-OWNERSHIP /
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION (which lists this name
+  verbatim): an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION in
+  TASKS_OPTIMIZER.md, with the codec-move leg deferred to
+  DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner
+  decision. Re-verified at `6f918986063`: both modules sit under
+  `omega/compiler/native-realization/src/` unrelocated; the one new
+  consumer since the prior sweep is same-crate —
+  `native_realization/optimized_fragment_projection.rs` imports
+  `bind_semantic_contract`/`receiver_layout` from wrapper_object — so
+  the disposition question (relocate the pair to their owning
+  representation stage or keep them beside the sequencer) is unchanged:
+  still no cross-crate caller. No independent slice exists here.
 - **PKG-INPUTS-FLOAT-IDENTITY-LANDING.** Mined candidate — scope verified,
   resolved — landed at `742a2f1d84` ("psi: evaluate and independently replay
   floating constant declarations"): public floating module constants retain
