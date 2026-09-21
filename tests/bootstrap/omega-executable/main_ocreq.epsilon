@@ -1,0 +1,496 @@
+// OCREQ V1 request entry adapter for the Omega-D executable gate.
+//
+// Unlike the diagnostic adapter (main.epsilon), which reads raw source bytes
+// and maps the compiler status onto bare exit codes, this entry reads the
+// canonical compiler request: `OmegaRequestStructure::check` runs the real
+// OCREQ envelope and subject/invocation shape passes, and every refusal
+// publishes the assigned OCOUT V1 frame through `OmegaOutcomeFrame::encode`
+// before halting with the outcome tag. A Complete result publishes the
+// unwrapped emitted tape exactly as the standalone contract specifies.
+//
+// Admitted slice of the route: product `alpha_bootstrap_tape`, target
+// profile `alpha_bootstrap`, empty admissions (the contract assigns no
+// kinds), the root package an application whose snapshot supplies exactly
+// one `*.omg` regular file - the gate's canonical single-source shape.
+// A shape-valid request outside this slice refuses as malformed_request at
+// the first out-of-slice coordinate: the assigned Reject codes name every
+// request refusal this route can publish, and unassigned coverage stays
+// unassigned rather than inventing wire numbers. The 32-byte subject
+// commitment is shape-checked here; its SHA-256 binding belongs to the
+// contract's commitment phase, not this shape pass. The selected entry name
+// is `main`, the machine `alpha_bootstrap::ProgramEntry` binds in
+// source/omega/build.omg - the route's target supplies the entry contract,
+// not an adapter-supplied spelling.
+
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    compiler: OmegaScalarCompiler;
+    request: [u8; 131072];
+    length: i32;
+    structure: OmegaRequestStructure;
+    frame: OmegaOutcomeFrame;
+    // Package-row start offsets recorded while walking the validated
+    // subject, so the extraction pass can re-enter the selected root row.
+    package_rows: [i32; 256];
+    source_start: i32;
+    source_end: i32;
+    selected_files: i32;
+}
+
+machine Main::main(&mut self) {
+    self.length = 0;
+    self.source_start = 0;
+    self.source_end = 0;
+    self.selected_files = 0;
+    transition true { true -> read() }
+
+    state read() {
+        let value: i32 = self.console.read_byte();
+        transition value == -1 {
+            true -> check_request()
+            _ -> append(value)
+        }
+    }
+
+    state append(value: i32) {
+        transition self.length < 131072 {
+            true -> retain(value)
+            _ -> incomplete(self.length)
+        }
+    }
+
+    state retain(value: i32) {
+        self.request[self.length] = value;
+        self.length = self.length + 1;
+        transition true { true -> read() }
+    }
+
+    // The envelope and field/tag shape passes are D's own; a refusal already
+    // carries the canonical malformed_request tuple.
+    state check_request() {
+        self.structure.check(self.request.as_slice[0..self.length]);
+        transition self.structure.complete {
+            1 -> extract()
+            _ -> refuse(self.structure.outcome_coordinate)
+        }
+    }
+
+    // Walk the validated subject again: record each package row's start,
+    // then admit the slice constraints this route implements.
+    state extract() {
+        self.structure.cursor = self.structure.envelope.subject_start;
+        self.structure.section_end = self.structure.envelope.subject_end;
+        transition true { true -> package_count() }
+    }
+
+    state package_count() {
+        let count: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition (count >= 1) && (count <= 256) {
+            true -> package_row(0, count)
+            _ -> refuse(self.structure.cursor - 4)
+        }
+    }
+
+    state package_row(index: i32, count: i32) {
+        transition index < count {
+            true -> package_name(index, count)
+            _ -> edge_count()
+        }
+    }
+
+    state package_name(index: i32, count: i32) {
+        self.package_rows[index] = self.structure.cursor;
+        let start: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition start >= 0 {
+            true -> package_lineage(index, count)
+            _ -> internal()
+        }
+    }
+
+    state package_lineage(index: i32, count: i32) {
+        let kind: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let lineage: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let revision: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let tree: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let content: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let member: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition (kind >= 0) && (lineage >= 0) && (revision >= 0) && (tree >= 0) && (content >= 0) && (member >= 0) {
+            true -> package_role(index, count)
+            _ -> internal()
+        }
+    }
+
+    state package_role(index: i32, count: i32) {
+        let role: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let snapshots: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition (role >= 0) && (snapshots >= 0) {
+            true -> snapshot_row(index, count, 0, snapshots)
+            _ -> internal()
+        }
+    }
+
+    state snapshot_row(index: i32, count: i32, row: i32, rows: i32) {
+        transition row < rows {
+            true -> snapshot_kind(index, count, row, rows)
+            _ -> package_row(index + 1, count)
+        }
+    }
+
+    state snapshot_kind(index: i32, count: i32, row: i32, rows: i32) {
+        let kind: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let path: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition (kind >= 0) && (path >= 0) {
+            true -> snapshot_payload(index, count, row, rows, kind)
+            _ -> internal()
+        }
+    }
+
+    state snapshot_payload(index: i32, count: i32, row: i32, rows: i32, kind: i32) {
+        transition kind {
+            1 -> snapshot_row(index, count, row + 1, rows)
+            2 -> snapshot_file(index, count, row, rows)
+            _ -> snapshot_link(index, count, row, rows)
+        }
+    }
+
+    state snapshot_file(index: i32, count: i32, row: i32, rows: i32) {
+        let executable: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let content: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition (executable >= 0) && (content >= 0) {
+            true -> snapshot_row(index, count, row + 1, rows)
+            _ -> internal()
+        }
+    }
+
+    state snapshot_link(index: i32, count: i32, row: i32, rows: i32) {
+        let target: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition target >= 0 {
+            true -> snapshot_row(index, count, row + 1, rows)
+            _ -> internal()
+        }
+    }
+
+    state edge_count() {
+        let count: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition count >= 0 {
+            true -> edge_row(0, count)
+            _ -> internal()
+        }
+    }
+
+    state edge_row(index: i32, count: i32) {
+        transition index < count {
+            true -> edge_fields(index, count)
+            _ -> root_package()
+        }
+    }
+
+    state edge_fields(index: i32, count: i32) {
+        let requester: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let scope: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let alias: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let target: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition (requester >= 0) && (scope >= 0) && (alias >= 0) && (target >= 0) {
+            true -> edge_row(index + 1, count)
+            _ -> internal()
+        }
+    }
+
+    state root_package() {
+        let root: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition (root >= 0) && (root < self.structure.package_count) {
+            true -> root_role(root)
+            _ -> refuse(self.structure.cursor - 4)
+        }
+    }
+
+    // The executable route admits an application root; a package root names
+    // a library and has no machine body for this adapter to enter.
+    state root_role(root: i32) {
+        let role: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition role == 2 {
+            true -> source_begin(root)
+            _ -> refuse(self.structure.cursor - 4)
+        }
+    }
+
+    // Re-enter the selected root package row and locate its one .omg file.
+    state source_begin(root: i32) {
+        self.structure.cursor = self.package_rows[root];
+        self.structure.section_end = self.structure.envelope.subject_end;
+        transition true { true -> source_name(root) }
+    }
+
+    state source_name(root: i32) {
+        let start: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition start >= 0 {
+            true -> source_lineage(root)
+            _ -> internal()
+        }
+    }
+
+    state source_lineage(root: i32) {
+        let kind: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let lineage: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let revision: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let tree: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let content: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let member: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition (kind >= 0) && (lineage >= 0) && (revision >= 0) && (tree >= 0) && (content >= 0) && (member >= 0) {
+            true -> source_rows(root)
+            _ -> internal()
+        }
+    }
+
+    state source_rows(root: i32) {
+        let role: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let rows: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition (role >= 0) && (rows >= 0) {
+            true -> source_row(root, 0, rows)
+            _ -> internal()
+        }
+    }
+
+    state source_row(root: i32, row: i32, rows: i32) {
+        transition row < rows {
+            true -> source_kind(root, row, rows)
+            _ -> have_source(root)
+        }
+    }
+
+    state source_kind(root: i32, row: i32, rows: i32) {
+        let row_start: i32 = self.structure.cursor;
+        let kind: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let path_start: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition (kind >= 0) && (path_start >= 0) {
+            true -> source_payload(root, row, rows, kind, row_start, path_start)
+            _ -> internal()
+        }
+    }
+
+    state source_payload(root: i32, row: i32, rows: i32, kind: i32,
+        row_start: i32, path_start: i32) {
+        transition kind {
+            1 -> source_row(root, row + 1, rows)
+            2 -> source_file(root, row, rows, row_start, path_start)
+            _ -> source_link(root, row, rows)
+        }
+    }
+
+    state source_link(root: i32, row: i32, rows: i32) {
+        let target: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition target >= 0 {
+            true -> source_row(root, row + 1, rows)
+            _ -> internal()
+        }
+    }
+
+    // The route's source unit is the root snapshot's single .omg regular
+    // file; other members are package data, never compiled here.
+    state source_file(root: i32, row: i32, rows: i32,
+        row_start: i32, path_start: i32) {
+        let path_end: i32 = self.structure.cursor;
+        let executable: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        let content_start: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        transition (executable >= 0) && (content_start >= 0) {
+            true -> source_file_check(root, row, rows, row_start,
+                path_start, path_end, executable, content_start)
+            _ -> internal()
+        }
+    }
+
+    state source_file_check(root: i32, row: i32, rows: i32,
+        row_start: i32, path_start: i32, path_end: i32,
+        executable: i32, content_start: i32) {
+        transition (path_end - path_start) >= 4 {
+            true -> source_file_suffix(root, row, rows, row_start,
+                path_end, executable, content_start)
+            _ -> source_row(root, row + 1, rows)
+        }
+    }
+
+    state source_file_suffix(root: i32, row: i32, rows: i32,
+        row_start: i32, path_end: i32,
+        executable: i32, content_start: i32) {
+        let is_omg: i32 = self.compiler.span_equals(
+            self.request.as_slice[0..self.length],
+            path_end - 4, path_end, ".omg");
+        transition is_omg {
+            1 -> source_file_decide(root, row, rows, row_start,
+                executable, content_start)
+            _ -> source_row(root, row + 1, rows)
+        }
+    }
+
+    // An executable `.omg` member is outside this route's admitted slice;
+    // a non-executable one is the source unit.
+    state source_file_decide(root: i32, row: i32, rows: i32,
+        row_start: i32, executable: i32, content_start: i32) {
+        transition executable {
+            0 -> source_file_take(root, row, rows, row_start, content_start)
+            _ -> refuse(row_start)
+        }
+    }
+
+    state source_file_take(root: i32, row: i32, rows: i32,
+        row_start: i32, content_start: i32) {
+        self.selected_files = self.selected_files + 1;
+        transition self.selected_files {
+            1 -> source_first(root, row, rows, content_start)
+            _ -> refuse(row_start)
+        }
+    }
+
+    state source_first(root: i32, row: i32, rows: i32, content_start: i32) {
+        self.source_start = content_start;
+        self.source_end = self.structure.cursor;
+        transition true { true -> source_row(root, row + 1, rows) }
+    }
+
+    state have_source(root: i32) {
+        transition self.selected_files {
+            1 -> invocation_product()
+            _ -> refuse(self.package_rows[root])
+        }
+    }
+
+    state invocation_product() {
+        self.structure.cursor = self.structure.envelope.invocation_start;
+        self.structure.section_end = self.structure.envelope.invocation_end;
+        let product: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition product == 4 {
+            true -> invocation_target()
+            _ -> refuse(self.structure.cursor - 4)
+        }
+    }
+
+    state invocation_target() {
+        let start: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
+        let matches: i32 = self.compiler.span_equals(
+            self.request.as_slice[0..self.length],
+            start, self.structure.cursor, "alpha_bootstrap");
+        transition (start >= 0) && (matches == 1) {
+            true -> invocation_admissions()
+            _ -> refuse(start)
+        }
+    }
+
+    // The contract assigns no admission kinds, so the shape pass already
+    // refused any present row; the count is walked for completeness.
+    state invocation_admissions() {
+        let count: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
+        transition count == 0 {
+            true -> invocation_commitment()
+            _ -> refuse(self.structure.cursor - 4)
+        }
+    }
+
+    state invocation_commitment() {
+        let start: i32 = self.structure.take_fixed(32);
+        transition start >= 0 {
+            true -> compile()
+            _ -> internal()
+        }
+    }
+
+    state compile() {
+        self.compiler.compile(
+            self.request.as_slice[self.source_start..self.source_end],
+            "main");
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Complete -> publish(0)
+            OmegaScalarCompilationStatus::Reject -> compiler_reject()
+            OmegaScalarCompilationStatus::Incomplete -> compiler_incomplete()
+            OmegaScalarCompilationStatus::ResourceFailure -> compiler_incomplete()
+            _ -> compiler_internal()
+        }
+    }
+
+    state compiler_reject() {
+        self.publish_frame(self.compiler.outcome_tag,
+            self.compiler.outcome_space, self.compiler.outcome_code,
+            self.compiler.outcome_coordinate,
+            self.compiler.outcome_package_ordinal,
+            self.compiler.outcome_unit_ordinal,
+            self.compiler.outcome_limit, self.compiler.outcome_requested);
+        transition true { true -> halt(self.compiler.outcome_tag) }
+    }
+
+    state compiler_incomplete() {
+        self.publish_frame(2, self.compiler.outcome_space,
+            self.compiler.outcome_code, self.compiler.outcome_coordinate,
+            0, 0,
+            self.compiler.outcome_limit, self.compiler.outcome_requested);
+        transition true { true -> halt(2) }
+    }
+
+    state compiler_internal() {
+        self.publish_frame(3, 3, 1, 0, 0, 0, 0, 0);
+        transition true { true -> halt(3) }
+    }
+
+    state publish(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> byte(index)
+            _ -> return
+        }
+    }
+
+    state byte(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> publish(index + 1) }
+    }
+
+    state refuse(offset: i32) {
+        self.publish_frame(1, 1, 1, offset, 0, 0, 0, 0);
+        transition true { true -> halt(1) }
+    }
+
+    state incomplete(offset: i32) {
+        self.publish_frame(2, 1, 1, offset, 0, 0, 67108864, 0);
+        transition true { true -> halt(2) }
+    }
+
+    state internal() {
+        self.publish_frame(3, 3, 1, 0, 0, 0, 0, 0);
+        transition true { true -> halt(3) }
+    }
+
+    state halt(tag: i32) {
+        transition true { true -> self.console.exit_process(tag) }
+    }
+}
+
+// Publishes one encoded OCOUT V1 frame when the tuple is assigned; an
+// unassigned tuple publishes nothing, per the contract's unpublished-code
+// rule. The frame never truncates the artifact path: encode's refusal leaves
+// the wire clean.
+machine Main::publish_frame(&mut self, tag: i32, space: i32, code: i32,
+    coordinate: i32, package_ordinal: i32, unit_ordinal: i32,
+    limit: i32, requested: i32) {
+    let encoded: i32 = self.frame.encode(tag, space, code, coordinate,
+        package_ordinal, unit_ordinal, limit, requested);
+    transition encoded {
+        1 -> write(0)
+        _ -> return
+    }
+
+    state write(index: i32) {
+        transition index < self.frame.length {
+            true -> byte(index)
+            _ -> return
+        }
+    }
+
+    state byte(index: i32) {
+        self.console.write_byte(self.frame.bytes[index]);
+        transition true { true -> write(index + 1) }
+    }
+}

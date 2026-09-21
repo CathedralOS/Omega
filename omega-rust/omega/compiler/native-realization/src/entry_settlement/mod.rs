@@ -66,7 +66,7 @@ pub fn validate_native_program_entry_settlement(
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
     if let Some(eligibility) = checked_entry.receiver_eligibility() {
-        // Only exact source Service<...> in Bound fields require these rows.
+        // Only exact source Service<...> fields require these rows.
         // Runtime erasure alone also covers ordinary proof fields, and cannot
         // classify a service. Retain completeness before self/ABI erasure can
         // bypass the physical receiver binder; existing replay below still

@@ -1,7 +1,7 @@
 //! Runtime scalar observations require the original receiver, not an attachment.
 use super::super::CheckedScalarExpression;
 use super::{CheckFacts, TypedTrees};
-use crate::execution::terminal_unit::is_reference;
+use crate::execution::terminal_unit::{is_reference, structural_parameter_candidate};
 use checked_trees::{CheckedBooleanExpression, CheckedScalarComputationKind};
 
 pub(in crate::execution::terminal_unit) fn reads_receiver(
@@ -14,6 +14,19 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
         .iter()
         .position(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
     else {
+        return false;
+    };
+    // Structural argument plans address the dense structural namespace, so a
+    // `Place` subject rooted at the receiver carries the count of structural
+    // candidates ahead of it, not the authored position.
+    let Ok(receiver_source) = u32::try_from(
+        program
+            .state_parameters(state)
+            .iter()
+            .take(position)
+            .filter(|parameter| structural_parameter_candidate(program, parameter))
+            .count(),
+    ) else {
         return false;
     };
     let Ok(position) = u32::try_from(position) else {
@@ -46,25 +59,33 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
         }
         let node = computations.nodes.get(handle);
         match &node.kind {
-            CheckedScalarComputationKind::StructuralField { .. } => {}
-            CheckedScalarComputationKind::CaseMembership {
-                subject:
-                    checked_trees::CheckedScalarComputationStructuralArgument::Place(_)
-                    | checked_trees::CheckedScalarComputationStructuralArgument::Array { .. },
-                ..
-            } => {}
-            CheckedScalarComputationKind::CaseMembership {
-                subject: checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
-                ..
-            } => {
-                pending.extend(
-                    computations
-                        .case_fields
-                        .span_or_empty(subject.fields)
-                        .iter()
-                        .map(|field| field.value),
-                );
+            CheckedScalarComputationKind::StructuralField { subject, .. } => {
+                if subject.source_parameter_index() == Some(receiver_source) {
+                    return true;
+                }
             }
+            CheckedScalarComputationKind::CaseMembership { subject, .. } => match subject {
+                checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
+                    if place.source_parameter_index() == Some(receiver_source) {
+                        return true;
+                    }
+                }
+                checked_trees::CheckedScalarComputationStructuralArgument::Array {
+                    elements,
+                    ..
+                } => {
+                    pending.extend_from_slice(computations.operands.span_or_empty(*elements));
+                }
+                checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
+                    pending.extend(
+                        computations
+                            .case_fields
+                            .span_or_empty(subject.fields)
+                            .iter()
+                            .map(|field| field.value),
+                    );
+                }
+            },
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }
@@ -126,6 +147,7 @@ fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
             scalar_reads(operand, receiver)
         }
@@ -150,7 +172,8 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
         | CheckedBooleanExpression::Or { left, right } => {
             boolean_reads(left, receiver) || boolean_reads(right, receiver)
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_reads(left, receiver) || scalar_reads(right, receiver)
         }
         CheckedBooleanExpression::IeeeFloatComparison { left, right, .. }

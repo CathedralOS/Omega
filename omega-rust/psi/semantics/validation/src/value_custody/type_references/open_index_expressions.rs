@@ -1,7 +1,9 @@
 use super::{TypeParameterScope, TypeReferenceOwner, type_reference_label, type_references_match};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
+use std::collections::HashMap;
 use std::fmt;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -72,9 +74,13 @@ pub(crate) fn validate_indexed_qualification_arguments(
     );
 }
 
-/// Bind every retained open index operator to one exact public operator and
-/// one proved associative/commutative algebra instance before type identity or
-/// compatibility checking consumes it.
+/// Bind every retained open index operator to the consuming machine's
+/// explicit conformance bound — `Alg: T satisfies IndexAdd<u64>` — whose
+/// carrier trait declares the spelled requirement and the checked
+/// commutativity/associativity law slots, before type identity or
+/// compatibility checking consumes it. The bound's trait argument at the
+/// requirement's operand parameter position names the index type the
+/// operation is licensed for.
 pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut sites = Vec::new();
     for (_, _, constraints) in program
@@ -153,14 +159,17 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
         }
     }
 
+    let binder_owners = const_binder_owners(program);
     let mut diagnostics = Vec::new();
     let mut normalizations = Vec::new();
     for (expression, index_type) in sites {
         let mut operations = Vec::new();
+        let owner = open_index_expression_owner(program, expression, &binder_owners);
         normalize_open_index_expression_operations(
             program,
             expression,
             index_type,
+            owner,
             &mut operations,
             &mut diagnostics,
         );
@@ -179,10 +188,89 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
     }
 }
 
+/// Maps each generic const/value binder symbol to the declaration that owns
+/// it. The open index walk sees only shared expression tables, so the owning
+/// machine is recovered from the expression's binder leaves — an open index
+/// expression is parameterized by exactly one declaration's binders.
+fn const_binder_owners(program: &TypedTrees) -> HashMap<SymbolHandle, SymbolHandle> {
+    let mut owners = HashMap::new();
+    let mut seed = |parameters: &[typed_trees::data::TypeParameter], owner: SymbolHandle| {
+        for parameter in parameters {
+            owners.insert(parameter.symbol, owner);
+        }
+    };
+    for machine in program.machines() {
+        seed(program.machine_type_parameters(machine), machine.symbol);
+    }
+    for data in program.data_definitions() {
+        seed(program.data_type_parameters(data), data.symbol);
+    }
+    for domain in program.domain_definitions() {
+        seed(program.domain_type_parameters(domain), domain.symbol);
+    }
+    for operator in program.operators() {
+        seed(program.operator_type_parameters(operator), operator.symbol);
+    }
+    for trait_definition in program.traits() {
+        seed(
+            program.trait_type_parameters(trait_definition),
+            trait_definition.symbol,
+        );
+        for signature in program.trait_machine_signatures(trait_definition) {
+            seed(
+                program.state_signature_type_parameters(signature),
+                trait_definition.symbol,
+            );
+        }
+    }
+    for conformance in program.conformances() {
+        seed(
+            program.conformance_type_parameters(conformance),
+            conformance.symbol,
+        );
+    }
+    owners
+}
+
+/// The single declaration whose binder leaves parameterize this expression —
+/// its machine's conformance bounds license the spelled operations. `None`
+/// when no leaf is a generic binder (a fully concrete arithmetic expression
+/// never carries open-index authority).
+fn open_index_expression_owner(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    binder_owners: &HashMap<SymbolHandle, SymbolHandle>,
+) -> Option<SymbolHandle> {
+    use typed_trees::expression::ExpressionNode;
+
+    let mut owner = None;
+    let mut leaves = vec![expression];
+    while let Some(handle) = leaves.pop() {
+        match program.expression_table.expression(handle) {
+            ExpressionNode::Name(path) => {
+                if let Some(candidate) = binder_owners.get(&path.symbol)
+                    && let Some(existing) = owner.replace(*candidate)
+                    && existing != *candidate
+                {
+                    return None;
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                leaves.push(binary.left);
+                leaves.push(binary.right);
+            }
+            ExpressionNode::Unary(unary) => leaves.push(unary.operand),
+            _ => {}
+        }
+    }
+    owner
+}
+
 fn normalize_open_index_expression_operations(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
     index_type: TypeReferenceHandle,
+    owner: Option<SymbolHandle>,
     operations: &mut Vec<typed_trees::typed_trees::OpenIndexOperationSelection>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -199,94 +287,146 @@ fn normalize_open_index_expression_operations(
         BinaryOperator::Divide => OperatorSpelling::Divide,
         _ => return,
     };
-    let candidates = typed_trees::operator::resolve_spelling_for_operands(
-        program,
-        spelling,
-        &[Some(index_type), Some(index_type)],
-    );
-    let [selected] = candidates.as_slice() else {
+    let Some(owner) = owner else {
+        // No declaration's binder parameterizes this arithmetic — it is a
+        // concrete index expression, never an algebra selection.
+        return;
+    };
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner)
+    else {
         diagnostics.push(Diagnostic::error(format!(
-            "open index operator `{}` requires one exact operator over `{}`, but {} candidates were found",
+            "open index operator `{}` requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine",
             spelling.symbol(),
+        )));
+        return;
+    };
+    let TypeReferenceNode::Named { .. } = program.type_reference_table.type_reference(index_type)
+    else {
+        return;
+    };
+    // Specialized clones carry cleared bounds; their open sites inherit the
+    // license their template declared and resolve the binder to the
+    // conformance that specialization selected. The template's own sites
+    // resolve the same binder through its specialization's conformance
+    // arguments when any exist.
+    let (bound_machine, evidence_spec) = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            specialization.instance == machine.symbol && specialization.template != machine.symbol
+        })
+        .and_then(|specialization| {
+            program
+                .machines()
+                .iter()
+                .find(|candidate| candidate.symbol == specialization.template)
+                .map(|template| (template, Some(specialization)))
+        })
+        .unwrap_or_else(|| {
+            (
+                machine,
+                program
+                    .machine_specializations
+                    .iter()
+                    .find(|specialization| specialization.template == machine.symbol),
+            )
+        });
+    let mut candidates = Vec::new();
+    for (bound_index, bound) in bound_machine.conformance_bounds.iter().enumerate() {
+        let Some(trait_definition) = program
+            .traits()
+            .iter()
+            .find(|trait_definition| trait_definition.symbol == bound.carrier)
+        else {
+            continue;
+        };
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            if requirement.spelling != Some(spelling) {
+                continue;
+            }
+            // The requirement's operand is one shared trait parameter; the
+            // bound's trait argument at that parameter's position names the
+            // index type this binder licenses the spelling for.
+            let Some(parameter) =
+                binary_requirement_trait_parameter(program, trait_definition, requirement)
+            else {
+                continue;
+            };
+            let Some(argument) = bound.arguments.get(parameter) else {
+                continue;
+            };
+            if !type_references_match(program, *argument, index_type) {
+                continue;
+            }
+            candidates.push((bound_index, bound, trait_definition, requirement));
+        }
+    }
+    let [(bound_index, bound, trait_definition, requirement)] = candidates.as_slice() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "open index operator `{}` requires one exact conformance bound on machine `{}` supplying a `{}` operation spelled `{}`, but {} were found",
+            spelling.symbol(),
+            bound_machine.name,
             type_reference_label(program, index_type),
+            spelling.symbol(),
             candidates.len()
         )));
         return;
     };
-    if !type_references_match(program, selected.operator.return_type, index_type) {
-        diagnostics.push(Diagnostic::error(format!(
-            "open index operator `{}` returns `{}`, but the indexed domain requires `{}`",
-            spelling.symbol(),
-            type_reference_label(program, selected.operator.return_type),
-            type_reference_label(program, index_type)
-        )));
-        return;
-    }
-    let path = program.operator_path_members(selected.operator.name);
-    let [namespace, requirement] = path else {
-        diagnostics.push(Diagnostic::error(
-            "an open index operator must have an exact `Namespace::operation` contract path",
-        ));
-        return;
-    };
-    let providers = program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            program
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| {
-                    conformance.name.as_str() == namespace.as_str()
-                        && conformance.requirement.as_ref().map(|name| name.as_str())
-                            == Some(requirement.as_str())
-                })
-                && typed_trees::operator::resolve_satisfied_checked_operator(
-                    program,
-                    machine,
-                    namespace.as_str(),
-                    requirement.as_str(),
-                )
-                .is_some_and(|operator| operator.symbol == selected.operator.symbol)
-        })
-        .collect::<Vec<_>>();
-    let [provider] = providers.as_slice() else {
-        diagnostics.push(Diagnostic::error(format!(
-            "open index operator `{}` requires one exact checked provider for `{namespace}::{requirement}`, but {} were found",
-            spelling.symbol(),
-            providers.len()
-        )));
-        return;
-    };
-    let algebras = crate::proof_contracts::contract_entailment::proved_index_algebras_for_provider(
-        program, provider,
+    let laws = crate::proof_contracts::contract_entailment::declared_index_algebra_laws(
+        program,
+        trait_definition,
+        requirement.name.as_str(),
     );
-    let [algebra] = algebras.as_slice() else {
-        diagnostics.push(Diagnostic::error(format!(
-            "open index operator `{}` provider `{}` requires one exact proved associative/commutative algebra instance, but {} were found",
-            spelling.symbol(),
-            provider.name,
-            algebras.len()
-        )));
-        return;
-    };
-    operations.push(typed_trees::typed_trees::OpenIndexOperationSelection {
-        expression,
-        spelling,
-        operator: selected.operator.symbol,
-        operation_contract_identity: typed_trees::operator::boundary_operator_requirement_identity(
-            program,
-            selected.operator,
-        ),
-        provider: provider.symbol,
-        algebra_trait: algebra.trait_symbol,
-        algebra_requirement: algebra.requirement.clone(),
-        algebra_alias: algebra.alias.clone(),
-    });
+    // The bound supplies the operation either way; only a carrier trait with
+    // both checked law slots licenses normalization. Without them the
+    // expression keeps its structural identity — the operation stays usable,
+    // the rewrites stay unauthorized.
+    if !laws.commutativity.is_empty() && !laws.associativity.is_empty() {
+        let subject = program.normalized_type_identity(index_type).into_string();
+        // Evidence binders are ordered by declaration; the same position in a
+        // specialization's `conformance_arguments` names the selected
+        // conformance once the call sites have supplied it.
+        let evidence_position = bound_machine.conformance_bounds[..*bound_index]
+            .iter()
+            .filter(|candidate| candidate.binder.is_some())
+            .count();
+        let selected_conformance = evidence_spec
+            .and_then(|specialization| specialization.conformance_arguments.get(evidence_position))
+            .and_then(|symbol| {
+                program
+                    .conformances()
+                    .iter()
+                    .find(|conformance| conformance.symbol == *symbol)
+            });
+        operations.push(typed_trees::typed_trees::OpenIndexOperationSelection {
+            expression,
+            spelling,
+            operator: requirement.symbol,
+            operation_contract_identity: format!(
+                "trait::{}::{}({subject},{subject})->{subject}",
+                program.symbols.display_path(trait_definition.symbol, "::"),
+                requirement.name,
+            ),
+            provider: selected_conformance
+                .map(|conformance| conformance.symbol)
+                .or(bound.binder)
+                .unwrap_or(requirement.symbol),
+            algebra_trait: trait_definition.symbol,
+            algebra_requirement: requirement.name.as_str().to_owned(),
+            algebra_alias: selected_conformance
+                .and_then(|conformance| conformance.alias.as_ref())
+                .or(bound.binder_name.as_ref())
+                .map(|name| name.as_str().to_owned()),
+        });
+    }
     normalize_open_index_expression_operations(
         program,
         binary.left,
         index_type,
+        Some(owner),
         operations,
         diagnostics,
     );
@@ -294,9 +434,43 @@ fn normalize_open_index_expression_operations(
         program,
         binary.right,
         index_type,
+        Some(owner),
         operations,
         diagnostics,
     );
+}
+
+/// A trait requirement spelled for index normalization must be the binary
+/// operation on one shared trait parameter: two operands and the result all
+/// bind the same parameter. Returns that parameter's position in the trait's
+/// parameter list — the bound's trait argument at the position is the index
+/// type the binder licenses the spelling for. `Self`-operand requirements
+/// name no parameter position, and a bound's subject is always one of the
+/// machine's own binders, so they cannot carry an index type.
+fn binary_requirement_trait_parameter(
+    program: &TypedTrees,
+    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    requirement: &typed_trees::signature::StateSignature,
+) -> Option<usize> {
+    let trait_parameters = program.trait_type_parameters(trait_definition);
+    let parameter_position = |type_reference: TypeReferenceHandle| {
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+        else {
+            return None;
+        };
+        trait_parameters
+            .iter()
+            .position(|parameter| parameter.symbol == *symbol)
+    };
+    let parameters = program.state_signature_parameters(requirement);
+    let [left, right] = parameters else {
+        return None;
+    };
+    let operand = parameter_position(left.type_reference)?;
+    (parameter_position(right.type_reference) == Some(operand)
+        && parameter_position(requirement.return_type) == Some(operand))
+    .then_some(operand)
 }
 
 fn validate_indexed_domain_argument_pack(

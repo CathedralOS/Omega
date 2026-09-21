@@ -111,3 +111,257 @@ fn call_through_view_element_retires_the_written_element() {
         &["parameter row.bytes requires"],
     );
 }
+const PREDICATE_DEFINITIONS: &str = r#"
+data Choice [copy] {
+    case Empty;
+    case Some(value: u32);
+}
+domain Choice::NonEmpty requires self in Choice::Some;
+data Command [copy] {
+    case Move;
+    case Say(text: u32);
+    case Quit;
+}
+domain Command::Interactive requires self in Command::Move | Command::Say;
+data Pair [copy] { a: u32; b: u32; flag: bool; }
+domain Pair::ZeroA requires self.a == 0;
+domain Pair::Nested requires self.a == 0 && self.flag;
+"#;
+
+/// A predicate-only domain annotation on a local is an obligation on its
+/// initializer, not a free establishment route: `Choice::Empty` under
+/// `requires self in Choice::Some` must reject, not mint a `NonEmpty` fact.
+#[test]
+fn predicate_domain_initializer_rejects_wrong_case() {
+    {
+        assert_rejected(
+            "predicate_domain_initializer_rejects_wrong_case",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let value: Choice in Choice::NonEmpty = Choice::Empty {{ }};
+                value.value
+            }}
+        "#
+            ),
+            &[
+                "cannot prove initializer of `value`",
+                "domain `Choice::NonEmpty`",
+            ],
+        );
+    }
+}
+
+/// The same annotation on a construction whose selected case satisfies the
+/// predicate — `Choice::Some {{ value: 3 }}`, `Choice::Some {{ .. }}`, or a bare case path
+/// — establishes membership and accepts.
+#[test]
+fn predicate_domain_initializer_accepts_satisfying_case() {
+    {
+        assert_accepted(
+            "predicate_domain_initializer_accepts_satisfying_case",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let first: Choice in Choice::NonEmpty = Choice::Some {{ value: 3 }};
+                let second: Choice in Choice::NonEmpty = Choice::Some {{ value: 4 }};
+                let union: Command in Command::Interactive = Command::Move {{ }};
+                first.value
+            }}
+        "#
+            ),
+        );
+    }
+}
+
+/// A union case predicate accepts any member of the union and rejects a case
+/// outside it.
+#[test]
+fn predicate_domain_initializer_union_membership() {
+    {
+        assert_accepted(
+            "predicate_domain_initializer_union_membership",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let moved: Command in Command::Interactive = Command::Move {{ }};
+                let said: Command in Command::Interactive = Command::Say {{ text: 1 }};
+                0
+            }}
+        "#
+            ),
+        );
+        assert_rejected(
+            "predicate_domain_initializer_union_rejects_outside_case",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let quit: Command in Command::Interactive = Command::Quit {{ }};
+                0
+            }}
+        "#
+            ),
+            &["cannot prove initializer of `quit`"],
+        );
+    }
+}
+
+/// Member predicates on a record literal evaluate the field initializers
+/// themselves: `self.a == 0` accepts `a: 0` and rejects `a: 1`; a conjunctive
+/// predicate needs every conjunct.
+#[test]
+fn predicate_domain_initializer_member_predicates() {
+    {
+        assert_accepted(
+            "predicate_domain_initializer_member_predicates",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let pair: Pair in Pair::ZeroA = Pair {{ a: 0, b: 9, flag: false }};
+                let nested: Pair in Pair::Nested = Pair {{ a: 0, b: 0, flag: true }};
+                pair.a
+            }}
+        "#
+            ),
+        );
+        assert_rejected(
+            "predicate_domain_initializer_member_predicate_rejects",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let pair: Pair in Pair::ZeroA = Pair {{ a: 1, b: 0, flag: true }};
+                pair.a
+            }}
+        "#
+            ),
+            &["cannot prove initializer of `pair`"],
+        );
+        assert_rejected(
+            "predicate_domain_initializer_nested_partially_true_rejects",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let pair: Pair in Pair::Nested = Pair {{ a: 0, b: 0, flag: false }};
+                pair.a
+            }}
+        "#
+            ),
+            &["cannot prove initializer of `pair`"],
+        );
+    }
+}
+
+/// A non-literal initializer satisfies a case predicate from live evidence:
+/// a parameter declared in the domain, a call returning the domain, or a
+/// place whose current assigned case is selected.
+#[test]
+fn predicate_domain_initializer_live_evidence() {
+    {
+        assert_accepted(
+            "predicate_domain_initializer_live_evidence",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine produce() -> Choice in Choice::NonEmpty {{ Choice::Some {{ value: 7 }} }}
+            machine forward(input: Choice in Choice::NonEmpty) -> u32 {{
+                let value: Choice in Choice::NonEmpty = input;
+                let made: Choice in Choice::NonEmpty = produce();
+                let selected: Choice = Choice::Some {{ value: 1 }};
+                let alias: Choice in Choice::NonEmpty = selected;
+                value.value
+            }}
+        "#
+            ),
+        );
+    }
+}
+
+/// Stale case evidence cannot establish membership: a place reassigned to a
+/// different case before the qualified `let` no longer satisfies `self in
+/// Choice::Some`.
+#[test]
+fn predicate_domain_initializer_stale_evidence_rejects() {
+    {
+        assert_rejected(
+            "predicate_domain_initializer_stale_evidence_rejects",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            machine read() -> u32 {{
+                let mut value: Choice = Choice::Some {{ value: 1 }};
+                value = Choice::Empty {{ }};
+                let qualified: Choice in Choice::NonEmpty = value;
+                qualified.value
+            }}
+        "#
+            ),
+            &["cannot prove initializer of `qualified`"],
+        );
+    }
+}
+
+/// A foreign same-named variant constructs the foreign type: `Other::Some`
+/// under `Choice::NonEmpty` fails the owner check before domain discharge,
+/// and the same-named `Other::Occupied` domain correctly discharges an
+/// `Other` initializer but not the foreign `None` case.
+#[test]
+fn predicate_domain_initializer_wrong_owner_rejects() {
+    {
+        assert_rejected(
+            "predicate_domain_initializer_wrong_owner_rejects",
+            &format!(
+                r#"{PREDICATE_DEFINITIONS}
+            data Other [copy] {{
+                case None;
+                case Some(value: u32);
+            }}
+            domain Other::Occupied requires self in Other::Some;
+            machine read() -> u32 {{
+                let held: Other in Other::Occupied = Other::Some {{ value: 1 }};
+                let value: Other in Other::Occupied = Other::None {{}};
+                0
+            }}
+        "#
+            ),
+            &["cannot prove initializer of `value`"],
+        );
+    }
+}
+
+/// An equality live at a write's incoming boundary transports through the
+/// write: `counter.count`'s exit value is the stored source expression with
+/// the entry equality substituted, so `counter.count == before + 1` follows
+/// from `counter.count = counter.count + 1` under `counter.count == before`.
+/// A wrong update to the same shape still rejects.
+#[test]
+fn write_transport_carries_entry_equality_across_scalar_write() {
+    assert_accepted(
+        "write_transport_carries_entry_equality_across_scalar_write",
+        r#"
+        data Counter { count: u32; }
+        machine bump(counter: &mut Counter, before: u32 [0..=4095])
+            requires
+                counter.count == before
+                counter.count <= 4095
+            ensures
+                counter.count == before + 1
+        {
+            counter.count = counter.count + 1;
+        }
+    "#,
+    );
+    assert_rejected(
+        "write_transport_rejects_a_wrong_update",
+        r#"
+        data Counter { count: u32; }
+        machine bump(counter: &mut Counter, before: u32 [0..=4095])
+            requires
+                counter.count == before
+                counter.count <= 4095
+            ensures
+                counter.count == before + 1
+        {
+            counter.count = counter.count + 2;
+        }
+    "#,
+        &["cannot prove ensures"],
+    );
+}

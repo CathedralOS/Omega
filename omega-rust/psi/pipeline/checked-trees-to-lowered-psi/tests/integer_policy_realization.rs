@@ -27,9 +27,13 @@
 //! - Trapping scalar operations: `checked_integer_binary_kind` carries
 //!   Trapping shifts only, so a Trapping `+` still gets no value fact and the
 //!   statement sequence stops before a plan exists.
-//! - Saturating conversion: admitted by checking but represented by no checked
-//!   cast kind, so it stops at the same no-value-fact boundary — or, in a
-//!   return position, at the missing bound-expression lookup.
+//! - Saturating conversion: unsigned-to-unsigned narrowings now carry
+//!   `IntegerSaturatingCast` and lower through the same modular-bound shape as
+//!   the wrapping neighbour (`value - (value sat_sub target_max)`, then a
+//!   remainder that supplies the exact-cast bound). A saturating cast with a
+//!   signed carrier still has no checked cast kind — a two-sided clamp needs a
+//!   comparison that unsigned saturating subtraction cannot spell — so those
+//!   spellings keep the no-value-fact boundary.
 //!
 //! Each rejection is paired with the admitted neighbour that differs in one
 //! coordinate, so a repair has to move the actual boundary rather than widen a
@@ -44,7 +48,7 @@
 
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{resolve, ResolutionRequest};
+use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -91,6 +95,7 @@ fn scalar_expressions_contain(
             | Expression::IntegerWiden { operand, .. }
             | Expression::IntegerExactCast { operand, .. }
             | Expression::IntegerWrappingCast { operand, .. }
+            | Expression::IntegerSaturatingCast { operand, .. }
             | Expression::IntegerTrappingCast { operand, .. }
             | Expression::StructuralParameterIndexedRead { index: operand, .. } => {
                 contains(operand, predicate)
@@ -526,15 +531,17 @@ fn a_trapping_arithmetic_operation_has_no_checked_scalar_kind() {
 }
 
 /// `narrow_*_saturating` in the library clamps through an explicit
-/// `transition`, because an `in Saturating` cast itself has no checked cast
-/// kind: checking admits the spelling, but `construct_integer_cast` retains no
-/// expression for it. In a local initializer the statement sequence stops like
-/// the Trapping shift; in a return position the bound-expression lookup fails
-/// instead. Saturating `+` on the same carriers lowers through
-/// `SaturatingIntegerAdd`, so only the conversion is missing.
+/// `transition`; an unsigned narrowing `in Saturating` cast now carries
+/// `IntegerSaturatingCast`, whose lowering is the wrapping neighbour's
+/// remainder-bound shape around `min(value, target_max)` — spelled
+/// `value - (value sat_sub target_max)` since unsigned saturating
+/// subtraction floors at zero. Saturating `+` on the same carriers already
+/// lowers through `SaturatingIntegerAdd`. A signed carrier still has no
+/// checked cast kind: a two-sided clamp needs a comparison the unsigned
+/// saturating-subtraction spelling cannot express, so that boundary stays.
 #[test]
-fn a_saturating_conversion_has_no_checked_scalar_cast() {
-    let (machine, omission) = unit_plan_omission(
+fn a_saturating_conversion_composes_on_unsigned_narrowing() {
+    lowers(
         r#"
         data Main {}
         machine narrow(value: u16) {
@@ -543,25 +550,28 @@ fn a_saturating_conversion_has_no_checked_scalar_cast() {
         machine Main::main(value: u16) { narrow(value); }
     "#,
     );
-    assert_eq!(machine, "Main::main");
-    assert_eq!(
-        omission,
-        "`Main::main` calls `narrow`, which has no plan; `narrow` has no admitted body \
-         (local construction stopped at statement sequence: local data: scalar local: \
-         pure initializer, statement 0)"
-    );
-    let error = lowering_error(
+    lowers(
         r#"
         data Main {}
         machine narrow(value: u16) -> u8 { (value as u8 in Saturating) as u8 }
         machine Main::main(value: u16) { let narrowed: u8 = narrow(value); }
     "#,
     );
+    let (machine, omission) = unit_plan_omission(
+        r#"
+        data Main {}
+        machine narrow(value: i16) {
+            let narrowed: i8 in Saturating = (value as i8 in Saturating) as i8;
+        }
+        machine Main::main(value: i16) { narrow(value); }
+    "#,
+    );
+    assert_eq!(machine, "Main::main");
     assert_eq!(
-        error,
-        checked_trees_to_lowered_psi::LoweringError::Unsupported(
-            "scalar computation needs one checked expression and one source binding"
-        )
+        omission,
+        "`Main::main` calls `narrow`, which has no plan; `narrow` has no admitted body \
+         (local construction stopped at statement sequence: local data: scalar local: \
+         pure initializer, statement 0)"
     );
     lowers(
         r#"

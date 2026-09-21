@@ -36,6 +36,13 @@ pub enum SuspensionCallPlanError {
     TypeMismatch,
     InvalidClaimFrontier,
     InvalidCallArgument,
+    /// A site/plan pair names an operation whose own possibly-suspending
+    /// demand marker is absent or bound to a different crossing.
+    UnmarkedCallSide,
+    /// An operation declares a possibly-suspending crossing demand that no
+    /// retained site/plan pair satisfies: coordinated deletion of the paired
+    /// rows cannot erase a required crossing.
+    MissingCallSidePlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +68,26 @@ pub enum ModuleError {
     /// range cannot admit: the argument is neither a constant inside the
     /// authored range nor a caller parameter whose own range is subsumed.
     ScalarFloatRangeDelivery {
+        caller: MachineId,
+        operation: OperationId,
+        callee: MachineId,
+        parameter: ValueId,
+    },
+    /// A retained authored integer range row is malformed: unknown machine
+    /// or parameter, a non-integer or address carrier, a carrier that
+    /// disagrees with the parameter's declared type, endpoints outside the
+    /// carrier or unordered, or bounds the owner contract does not publish
+    /// as `requires` propositions.
+    InvalidScalarIntegerRange {
+        machine: MachineId,
+        parameter: ValueId,
+        reason: &'static str,
+    },
+    /// A call delivers an exact integer constant the callee parameter's
+    /// retained integer range cannot admit. Other producers discharge the
+    /// same delivery through the published `requires` propositions and their
+    /// reconstructed proof obligations, not through this early check.
+    ScalarIntegerRangeDelivery {
         caller: MachineId,
         operation: OperationId,
         callee: MachineId,
@@ -416,6 +443,7 @@ pub enum ModuleError {
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     DuplicateStructuralDomain(StructuralDomainId),
+    NonCanonicalStructuralEstablishmentRoutes(StructuralDomainId),
     InvalidStructuralDomainIdentity(StructuralDomainId),
     InvalidStructuralDomainContentProjection(StructuralDomainId),
     UnknownStructuralDomain(StructuralDomainId),
@@ -472,6 +500,13 @@ pub enum ModuleError {
         domain: StructuralDomainId,
     },
     NonCanonicalStructuralQualifications(PlaceId),
+    /// An establishment binding on a structural result is malformed: the
+    /// roster is unordered, names no member qualification of the result, or
+    /// its operation is not an occurrence the authorized route can establish.
+    MalformedQualificationEstablishment {
+        operation: OperationId,
+        domain: Option<StructuralDomainId>,
+    },
     InvalidProjectedStructuralQualificationPath {
         place: PlaceId,
         path: Vec<StructuralPathSegment>,
@@ -685,6 +720,25 @@ pub enum ModuleError {
     /// admitted — erased actuals stay inside the caller's own value scope.
     ErasedCallArgumentUnknownValue {
         operation: OperationId,
+    },
+    /// A call supplies a different number of erased proof actuals than the
+    /// callee contract's `erased_proof_formals` roster declares.
+    ErasedProofArgumentArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    /// An erased proof actual names a formal position the caller's block does
+    /// not declare — proof actuals stay inside the caller's own proof scope.
+    ErasedProofArgumentUnknownFormal {
+        operation: OperationId,
+    },
+    /// An erased proof actual's carrier type differs from the callee formal's
+    /// declared type identity at the same roster position.
+    ErasedProofArgumentTypeMismatch {
+        operation: OperationId,
+        expected: String,
+        actual: String,
     },
     UnknownBoundaryCallArgument {
         operation: OperationId,
@@ -1120,7 +1174,7 @@ pub enum ModuleError {
     ContentPartitionProducerArgumentMismatch(OperationId),
     NonCanonicalBoundaryContentGuarantees(BoundaryMachineId),
     InvalidBoundaryContentGuarantee(BoundaryMachineId),
-    RetainedBorrowBoundaryIsNotExecutable {
+    InvalidRetainedBorrowBoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },

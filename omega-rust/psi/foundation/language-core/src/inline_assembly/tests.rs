@@ -1,9 +1,11 @@
 //! Inline assembly tests.
 
 use super::{
-    AsmAuthorityRequirement, AsmCatalogEntry, AsmControlRegister, AsmFenceKind, AsmFlagsDataFlow,
-    AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape, AsmInterruptFlagEffect,
-    AsmMemoryOrdering, AsmOperandAccess, AsmTargetApplicability, asm_catalog_entry,
+    AsmAuthorityRequirement, AsmCacheOperationKind, AsmCatalogEntry, AsmControlRegister,
+    AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
+    AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptFlagEffect,
+    AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess, AsmSchedulingHintKind,
+    AsmTargetApplicability, asm_catalog_entry,
 };
 
 #[test]
@@ -204,20 +206,400 @@ fn control_register_contracts_pin_exact_u64_flow_and_machine_authority() {
 }
 
 #[test]
+fn register_move_contracts_delegate_operand_checking_to_the_assignment() {
+    for mnemonic in ["mov", "movq"] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("register-move contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::RegisterMove);
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.target, AsmTargetApplicability::Any);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
 fn catalog_names_semantic_refusal_classes() {
-    assert_eq!(
-        asm_catalog_entry("ret"),
-        Some(AsmCatalogEntry::Refused(
-            AsmInstructionRefusal::HiddenControlExit
-        ))
-    );
-    assert_eq!(
-        asm_catalog_entry("ldr"),
-        Some(AsmCatalogEntry::Refused(
-            AsmInstructionRefusal::UnmodeledMemoryAccess
-        ))
-    );
-    assert_eq!(asm_catalog_entry("db"), None);
+    for mnemonic in [
+        "ret", "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd", "iretw",
+        "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl", "br", "blr",
+        "b", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab", "blraaz",
+        "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz", "loop", "loope",
+        "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1", "int3", "into", "je",
+        "jne", "jz", "jnz", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg", "jge",
+        "jl", "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp", "jpe", "jnp",
+        "jpo", "jc", "jnc",
+    ] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::HiddenControlExit
+            )),
+            "{mnemonic} stays a hidden-exit refusal"
+        );
+    }
+    for mnemonic in [
+        // Every literal of the arm except `ldax`, which is almost certainly a
+        // slip for `ldaxr` (also listed) and is left unpinned so it can be
+        // removed without editing this test.
+        "ldp",
+        "stp",
+        "ldnp",
+        "stnp",
+        "push",
+        "pop",
+        "pushq",
+        "popq",
+        "pushw",
+        "pushl",
+        "pushf",
+        "pushfd",
+        "pusha",
+        "pushal",
+        "pushad",
+        "popa",
+        "popal",
+        "popad",
+        "popw",
+        "popl",
+        "popf",
+        "popfd",
+        "enter",
+        "leave",
+        "ldrb",
+        "ldrh",
+        "ldrsb",
+        "ldrsh",
+        "ldrsw",
+        "strb",
+        "strh",
+        "ldur",
+        "stur",
+        "ldurb",
+        "ldurh",
+        "ldursb",
+        "ldursh",
+        "ldursw",
+        "sturb",
+        "sturh",
+        "ldtr",
+        "ldtrb",
+        "ldtrh",
+        "ldtrsb",
+        "ldtrsh",
+        "ldtrsw",
+        "sttr",
+        "sttrb",
+        "sttrh",
+        "ldapr",
+        "ldaprb",
+        "ldaprh",
+        "ldaprsb",
+        "ldaprsh",
+        "ldaprsw",
+        "ldapur",
+        "ldapurb",
+        "ldapurh",
+        "ldapursb",
+        "ldapursh",
+        "ldapursw",
+        "stlur",
+        "stlurb",
+        "stlurh",
+        "ldlar",
+        "ldlarb",
+        "ldlarh",
+        "stllr",
+        "stllrb",
+        "stllrh",
+        "ldxr",
+        "ldxrb",
+        "ldxrh",
+        "stxr",
+        "stxrb",
+        "stxrh",
+        "ldaxr",
+        "ldaxrb",
+        "ldaxrh",
+        "stlxr",
+        "stlxrb",
+        "stlxrh",
+        "ldxp",
+        "stxp",
+        "ldaxp",
+        "stlxp",
+        "ldar",
+        "ldarb",
+        "ldarh",
+        "stlr",
+        "stlrb",
+        "stlrh",
+        "ld64b",
+        "st64b",
+        "st64bv",
+        "st64bv0",
+        "ld1",
+        "st1",
+        "ld2",
+        "st2",
+        "ld3",
+        "st3",
+        "ld4",
+        "st4",
+        "ld1r",
+        "ld2r",
+        "ld3r",
+        "ld4r",
+        "swp",
+        "swpb",
+        "swph",
+        "swpa",
+        "swpal",
+        "swpl",
+        "swpab",
+        "swpah",
+        "swpalb",
+        "swpalh",
+        "swplb",
+        "swplh",
+        "cas",
+        "casb",
+        "cash",
+        "casa",
+        "casal",
+        "casl",
+        "casab",
+        "casah",
+        "caslb",
+        "caslh",
+        "casalb",
+        "casalh",
+        "casp",
+        "caspa",
+        "caspal",
+        "caspl",
+        "ldadd",
+        "ldaddb",
+        "ldaddh",
+        "ldadda",
+        "ldaddab",
+        "ldaddah",
+        "ldaddl",
+        "ldaddlb",
+        "ldaddlh",
+        "ldaddal",
+        "ldaddalb",
+        "ldaddalh",
+        "ldclr",
+        "ldclrb",
+        "ldclrh",
+        "ldclra",
+        "ldclrab",
+        "ldclrah",
+        "ldclrl",
+        "ldclrlb",
+        "ldclrlh",
+        "ldclral",
+        "ldclralb",
+        "ldclralh",
+        "ldeor",
+        "ldeorb",
+        "ldeorh",
+        "ldeora",
+        "ldeorab",
+        "ldeorah",
+        "ldeorl",
+        "ldeorlb",
+        "ldeorlh",
+        "ldeoral",
+        "ldeoralb",
+        "ldeoralh",
+        "ldset",
+        "ldsetb",
+        "ldseth",
+        "ldseta",
+        "ldsetab",
+        "ldsetah",
+        "ldsetl",
+        "ldsetlb",
+        "ldsetlh",
+        "ldsetal",
+        "ldsetalb",
+        "ldsetalh",
+        "ldsmax",
+        "ldsmaxb",
+        "ldsmaxh",
+        "ldsmaxa",
+        "ldsmaxab",
+        "ldsmaxah",
+        "ldsmaxl",
+        "ldsmaxlb",
+        "ldsmaxlh",
+        "ldsmaxal",
+        "ldsmaxalb",
+        "ldsmaxalh",
+        "ldsmin",
+        "ldsminb",
+        "ldsminh",
+        "ldsmina",
+        "ldsminab",
+        "ldsminah",
+        "ldsminl",
+        "ldsminlb",
+        "ldsminlh",
+        "ldsminal",
+        "ldsminalb",
+        "ldsminalh",
+        "ldumax",
+        "ldumaxb",
+        "ldumaxh",
+        "ldumaxa",
+        "ldumaxab",
+        "ldumaxah",
+        "ldumaxl",
+        "ldumaxlb",
+        "ldumaxlh",
+        "ldumaxal",
+        "ldumaxalb",
+        "ldumaxalh",
+        "ldumin",
+        "lduminb",
+        "lduminh",
+        "ldumina",
+        "lduminab",
+        "lduminah",
+        "lduminl",
+        "lduminlb",
+        "lduminlh",
+        "lduminal",
+        "lduminalb",
+        "lduminalh",
+        "xchg",
+        "xadd",
+        "cmpxchg",
+        "cmpxchg8b",
+        "cmpxchg16b",
+        "xlat",
+        "xlatb",
+        "lds",
+        "les",
+        "lss",
+        "lfs",
+        "lgs",
+        "sgdt",
+        "sidt",
+        "lgdt",
+        "movnti",
+        "movntq",
+        "movntdq",
+        "movntdqa",
+        "bound",
+        "fxsave",
+        "fxrstor",
+        "xsave",
+        "xsavec",
+        "xsaves",
+        "xsaveopt",
+        "xrstor",
+        "xrstors",
+        "movs",
+        "movsb",
+        "movsw",
+        "movsq",
+        "lods",
+        "lodsb",
+        "lodsw",
+        "lodsq",
+        "lodsd",
+        "stos",
+        "stosb",
+        "stosw",
+        "stosq",
+        "stosd",
+        "scas",
+        "scasb",
+        "scasw",
+        "scasq",
+        "scasd",
+        "cmps",
+        "cmpsb",
+        "cmpsw",
+        "cmpsq",
+        "ins",
+        "outs",
+        "insb",
+        "insw",
+        "insd",
+        "outsb",
+        "outsw",
+        "outsd",
+    ] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::UnmodeledMemoryAccess
+            )),
+            "{mnemonic} stays an unmodeled-memory refusal"
+        );
+    }
+    // Supervisor traps are service-admission candidates, not hidden exits;
+    // address arithmetic and ordering barriers access no memory. Each keeps
+    // the unknown-mnemonic failure rather than borrowing a semantic refusal.
+    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dmb", "dsb"] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            None,
+            "{mnemonic} stays an unknown mnemonic"
+        );
+    }
+}
+
+#[test]
+fn memory_transfer_contracts_pin_place_operands_and_operand_order() {
+    // The canonical unordered transfers carry the modeled memory contract:
+    // the operand is a typed Omega place, so provenance, permission and
+    // exact-type checking are the place's own, and no authority, ordering
+    // obligation or realized clobber is invented.
+    for (mnemonic, kind) in [
+        ("ldr", AsmMemoryTransferKind::Load),
+        ("str", AsmMemoryTransferKind::Store),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("memory-transfer contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::MemoryTransfer(kind));
+        assert_eq!(contract.target, AsmTargetApplicability::Aarch64);
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+    // Width-suffixed, offset/unscaled, ordered and multi-register spellings
+    // are each a different contract and stay refused.
+    for mnemonic in [
+        "ldrb", "ldrsw", "strh", "ldur", "sturh", "ldxr", "stxrh", "ldar",
+    ] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::UnmodeledMemoryAccess
+            )),
+            "{mnemonic} stays an unmodeled-memory refusal"
+        );
+    }
 }
 
 #[test]
@@ -235,6 +617,113 @@ fn fence_contracts_pin_ordering_without_invented_clobbers() {
         assert_eq!(contract.memory_ordering, AsmMemoryOrdering::Fence(kind));
         assert_eq!(contract.target, AsmTargetApplicability::X86_64);
         assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
+fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
+    for (mnemonic, kind, target) in [
+        (
+            "serialize",
+            AsmInstructionSerializationKind::Serialize,
+            AsmTargetApplicability::X86_64,
+        ),
+        (
+            "isb",
+            AsmInstructionSerializationKind::InstructionSynchronizationBarrier,
+            AsmTargetApplicability::Aarch64,
+        ),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("serialization contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(
+            contract.shape,
+            AsmInstructionShape::InstructionSerialization(kind)
+        );
+        assert_eq!(contract.target, target);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+
+    for (mnemonic, kind, target) in [
+        (
+            "pause",
+            AsmSchedulingHintKind::SpinPause,
+            AsmTargetApplicability::X86_64,
+        ),
+        (
+            "yield",
+            AsmSchedulingHintKind::Yield,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "nop",
+            AsmSchedulingHintKind::Nop,
+            AsmTargetApplicability::Any,
+        ),
+        (
+            "wfe",
+            AsmSchedulingHintKind::WaitForEvent,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "wfi",
+            AsmSchedulingHintKind::WaitForInterrupt,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "sev",
+            AsmSchedulingHintKind::SendEvent,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "sevl",
+            AsmSchedulingHintKind::SendEventLocal,
+            AsmTargetApplicability::Aarch64,
+        ),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("scheduling-hint contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::SchedulingHint(kind));
+        assert_eq!(contract.target, target);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
+fn cache_operation_contracts_pin_machine_owner_and_no_operands() {
+    for (mnemonic, kind) in [
+        ("wbinvd", AsmCacheOperationKind::WriteBackInvalidate),
+        ("invd", AsmCacheOperationKind::Invalidate),
+        ("wbnoinvd", AsmCacheOperationKind::WriteBackNoInvalidate),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("cache-operation contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::CacheOperation(kind));
+        assert_eq!(contract.target, AsmTargetApplicability::X86_64);
+        assert_eq!(
+            contract.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
         assert!(contract.operands.is_empty());
         assert!(contract.clobbers.is_empty());
     }

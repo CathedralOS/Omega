@@ -627,6 +627,36 @@ class SwarmTests(unittest.TestCase):
                                             [session], "skipped")
         self.assertEqual(hints, {})
 
+    def test_partition_hints_flag_resolution_language(self):
+        self.write_board(
+            "- **ITEM-ONE.** Resolved — scope verified, already landed at "
+            "`abc123`.\n- **ITEM-TWO.** Second item.\n")
+        session = {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
+                   "owning_paths": ["src/one"]}
+        hints = self.module.partition_hints(self.repository, session,
+                                            [session], "skipped")
+        self.assertIn("resolution_language", hints)
+        self.assertIn("already landed", hints["resolution_language"])
+        self.assertIn("resolved —", hints["resolution_language"])
+
+    def test_commit_signal_classifies_landed_commits(self):
+        (self.repository / "src" / "one" / "code.rs").write_text(
+            "// changed\n", encoding="utf-8")
+        self.git(self.repository, "add", "-A")
+        self.git(self.repository, "commit", "-m", "content")
+        content = self.git(self.repository, "rev-parse", "HEAD")[:10]
+        self.write_board("- **ITEM-ONE.** swept row\n")
+        self.git(self.repository, "add", "TASKS.md")
+        self.git(self.repository, "commit", "-m", "board ledger")
+        board = self.git(self.repository, "rev-parse", "HEAD")[:10]
+        self.git(self.repository, "commit", "--allow-empty", "-m", "empty")
+        empty = self.git(self.repository, "rev-parse", "HEAD")[:10]
+        rows = [{"commits": [f"{content} content", f"{board} board ledger",
+                             f"{empty} empty", "deadbeef00 not fetched"]}]
+        self.assertEqual(
+            self.module.commit_signal(self.repository, rows),
+            {"commits": 3, "board_only": 1, "empty": 1, "unresolved_refs": 1})
+
     def local_manifest(self):
         record = manifest(sessions=[
             {"name": "alpha", "board": "TASKS.md", "item": "ITEM-ONE",

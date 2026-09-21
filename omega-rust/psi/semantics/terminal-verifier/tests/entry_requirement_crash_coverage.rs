@@ -51,6 +51,7 @@ fn machine(identity: u64) -> TerminalMachine {
         entry: BlockId::new(identity).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(identity).unwrap(),
             parameters: Vec::new(),
@@ -62,6 +63,7 @@ fn machine(identity: u64) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(identity).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -98,6 +100,7 @@ fn module(scalar_call: bool) -> TerminalModule {
         });
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -106,6 +109,7 @@ fn module(scalar_call: bool) -> TerminalModule {
             }),
             kind: OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -115,10 +119,12 @@ fn module(scalar_call: bool) -> TerminalModule {
     } else {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -275,6 +281,7 @@ fn current_body_values_are_not_entry_requirement_assumptions() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

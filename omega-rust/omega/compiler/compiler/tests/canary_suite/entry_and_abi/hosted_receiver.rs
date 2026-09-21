@@ -51,7 +51,7 @@ fn compile_and_run_hosted_receiver(
             r#"machine build(builder: &mut Build) {{
     builder.application("hosted-receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }}
 "#
@@ -64,7 +64,7 @@ fn compile_and_run_hosted_receiver(
         ""
     };
     let console_type = if bound_service {
-        "Service<Console> in Bound"
+        "Service<Console>"
     } else {
         "Console"
     };
@@ -195,7 +195,7 @@ machine Main::main(&mut self) reaches Console {{
 "#
         ),
     )
-    .expect("write receiver storage and Fused Console customer");
+    .expect("write receiver storage and fused Console customer");
     let result = compile(CanaryCompileSpec {
         root_path: project.0.join("main.omg"),
         build_dir: Some(project.0.join("build")),
@@ -203,14 +203,12 @@ machine Main::main(&mut self) reaches Console {{
         product: CanaryCompileProduct::NativeArtifact,
     });
     if !bound_service {
-        let diagnostics = result.expect_err("a bare interface field supplies no Bound occurrence");
+        let diagnostics = result.expect_err("a bare interface field is not a service carrier");
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "macOS hosted receiver bridge lost exact contract, storage, or entry custody"
-                )),
-            "unexpected missing-establishment rejection: {diagnostics:#?}"
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+            "unexpected bare-carrier rejection: {diagnostics:#?}"
         );
         return;
     }
@@ -321,7 +319,7 @@ fn hosted_receiver_explicit_process_exit_preserves_its_distinct_outcome() {
 }
 
 #[test]
-fn hosted_receiver_rejects_bare_interface_without_bound_establishment() {
+fn hosted_receiver_rejects_bare_interface_field() {
     compile_and_run_hosted_receiver(false, false, ReceiverObservation::ScalarMutation);
 }
 
@@ -368,8 +366,8 @@ fn hosted_receiver_provisions_record_arrays_and_the_zero_tag_sum_case() {
 
 #[test]
 fn hosted_receiver_provisions_ieee_float_leaves_for_constant_stores() {
-    // The authored fixture declares `f64` and `f32` fields beside the Bound
-    // Console carrier and runs the `runtime_float_constant_store_exit` store
+    // The authored fixture declares `f64` and `f32` fields beside the Console
+    // service carrier and runs the `runtime_float_constant_store_exit` store
     // sequence. The bridge zero-fills the receiver, and all-zero bits are the
     // exact positive `0.0` of both IEEE formats, so the float leaves are
     // zero-valid storage: before this admission the same program was refused
@@ -412,7 +410,7 @@ fn hosted_erased_receiver_preserves_source_cleanup_eligibility() {
             .to_string_lossy()
             .replace('\\', "/");
         let provider = if bound_service {
-            "builder.select_provider<Console, ConsoleNativeProvider>();"
+            "builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();"
         } else {
             ""
         };
@@ -436,7 +434,7 @@ machine build(builder: &mut Build) {{
             ""
         };
         let service_field = if bound_service {
-            "console: Service<Console> in Bound;"
+            "console: Service<Console>;"
         } else {
             ""
         };
@@ -513,7 +511,7 @@ machine Main::main(&mut self) {{}}
 fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
     let checked =
         compile_reviewed_repository_fixture(CheckedCompileRequest::new(root, Some("macos_arm64")))
-            .expect("check the actual core Bound service and selected provider");
+            .expect("check the actual core service carrier and selected provider");
     let selected = checked.selected_program_entry().unwrap();
     let source = selected.source_signature();
     let produced = terminal_production::TerminalProductionRequest::for_machine_symbol(
@@ -556,6 +554,6 @@ fn assert_erased_service_settlement_requires_its_source_row(root: &Path) {
             target::NativeTarget::macos_arm64(),
         ),
         Err(native_realization::NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift),
-        "removing the unused Bound service row must not bypass establishment",
+        "removing the unused service row must not bypass establishment",
     );
 }

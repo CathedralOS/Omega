@@ -87,10 +87,13 @@
 //! when a crossed-edge move inserts there, while a same-block move leaves
 //! every settlement position unchanged.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the touched blocks, roster, and settlements to equal the independently
-//! computed motion, and restores the complete source by content.
+//! Proposal and validation share only the contract: the validator never
+//! calls the producer's admission. It re-derives the motion's legality from
+//! the source records — the store's roster row, the operand surface, the
+//! forward walk and its landing, the crossed-edge audits, and the
+//! settlement remap — rebuilds the demanded function itself, requires the
+//! proposed program to equal it, and restores the complete source by
+//! content.
 
 mod admission;
 mod rewrite;

@@ -4,8 +4,11 @@ use super::scalar_abi::{
 };
 use super::shared::*;
 
+mod ieee_float_fma_settlements;
+mod installed_provider_calls;
 pub(crate) mod native_callbacks;
 mod projected_qualifications;
+mod settlement_roster;
 
 #[cfg(test)]
 pub(crate) fn lower_to_target_operations_with_settlements(
@@ -64,232 +67,24 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .iter()
         .map(|boundary| (boundary.id, boundary))
         .collect::<BTreeMap<_, _>>();
-    let mut settlements_by_boundary = BTreeMap::new();
-    for binding in settlement_bindings {
-        if settlements_by_boundary
-            .insert(binding.boundary, binding.clone())
-            .is_some()
-        {
-            return Err(LoweringError::DuplicateBoundarySettlement(binding.boundary));
-        }
-        if !plan
-            .boundary_machines
-            .iter()
-            .any(|boundary| boundary.id == binding.boundary)
-        {
-            return Err(LoweringError::UnknownBoundarySettlement(binding.boundary));
-        }
-    }
-    let abstract_fma = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.operations)
-        .filter_map(|operation| match operation {
-            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
-                psi_operation,
-                format,
-                ..
-            } => Some((*psi_operation, *format)),
-            _ => None,
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut settled_ieee_float_fma = BTreeSet::new();
-    for settlement in ieee_float_fma {
-        if settled_ieee_float_fma.contains(&settlement.terminal_operation) {
-            return Err(LoweringError::DuplicateIeeeFloatFmaSettlement(
-                settlement.terminal_operation,
-            ));
-        }
-        let Some(format) = abstract_fma.get(&settlement.terminal_operation) else {
-            return Err(LoweringError::UnknownIeeeFloatFmaSettlement(
-                settlement.terminal_operation,
-            ));
-        };
-        let expected_slot = match format {
-            IeeeFloatFormat::Binary32 => target::X86ScalarFmaSlot::Binary32,
-            IeeeFloatFormat::Binary64 => target::X86ScalarFmaSlot::Binary64,
-        };
-        let expected_selected_requirement = expected_slot.selected_plan_requirement_identity();
-        let provider = settlement.provider;
-        let plan = settlement.provider_plan;
-        if settlement.format != *format
-            || settlement.slot != expected_slot
-            || target.architecture != Architecture::X86_64
-            || !provider.has_canonical_identity()
-            || provider.profile().native_target() != target
-            || !provider.admits(provider.requirement(), settlement.slot)
-            || plan.target != provider.profile().target_name()
-            || !matches!(plan.rows.as_slice(), [row]
-                if row.requirement_identity == expected_selected_requirement
-                    && matches!(row.binding,
-                        effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }))
-        {
-            return Err(LoweringError::InvalidIeeeFloatFmaSettlement(
-                settlement.terminal_operation,
-            ));
-        }
-        settled_ieee_float_fma.insert(settlement.terminal_operation);
-    }
-    if let Some(missing) = abstract_fma
-        .keys()
-        .find(|operation| !settled_ieee_float_fma.contains(operation))
-    {
-        return Err(LoweringError::MissingIeeeFloatFmaSettlement(*missing));
-    }
-    let installed_calls = installation
-        .map(|installation| {
-            if installation.psi() != plan.psi {
-                return Err(LoweringError::ProviderInstallationIdentityMismatch);
-            }
-            Ok(installation.installed_provider_calls())
-        })
-        .transpose()?
-        .unwrap_or_default();
-    let mut installed_by_call = BTreeMap::new();
-    for installed in installed_calls {
-        let key = (
-            installed.caller,
-            installed.psi_operation,
-            installed.boundary,
-        );
-        if installed_by_call.insert(key, installed).is_some() {
-            return Err(LoweringError::DuplicateInstalledProviderCall {
-                machine: key.0,
-                operation: key.1,
-                boundary: key.2,
-            });
-        }
-    }
-    let boundary_calls = plan
-        .functions
-        .iter()
-        .flat_map(|function| {
-            function
-                .operations
-                .iter()
-                .filter_map(move |operation| match operation {
-                    AbstractOperation::BoundaryCall {
-                        psi_operation,
-                        boundary,
-                        ..
-                    } => Some(((function.machine, *psi_operation, *boundary), operation)),
-                    _ => None,
-                })
-        })
-        .collect::<BTreeMap<_, _>>();
+    let settlements_by_boundary =
+        settlement_roster::index_settlement_bindings(plan, settlement_bindings)?;
+    ieee_float_fma_settlements::validate_ieee_float_fma_settlements(plan, target, ieee_float_fma)?;
+    let installed_by_call =
+        installed_provider_calls::index_installed_provider_calls(plan, installation)?;
+    let boundary_calls = installed_provider_calls::index_boundary_calls(plan);
     let native_callbacks_by_operation =
         native_callbacks::bind_native_callback_arguments(plan, target, native_callbacks)?;
-    for (key, installed) in &installed_by_call {
-        let Some(AbstractOperation::BoundaryCall {
-            result,
-            arguments,
-            structural_arguments,
-            completion_claim_sources,
-            completion_receipts,
-            ..
-        }) = boundary_calls.get(key).copied()
-        else {
-            return Err(LoweringError::UnknownInstalledProviderCall {
-                machine: key.0,
-                operation: key.1,
-                boundary: key.2,
-            });
-        };
-        let exact_sources = completion_claim_sources
-            .iter()
-            .map(|source| InstalledProviderCompletionClaimSource {
-                claim: source.claim,
-                entry: source.entry.clone(),
-                content: source.content.clone(),
-            })
-            .collect::<Vec<_>>();
-        let exact_result = match (result, &installed.result) {
-            (
-                abstract_operations::AbstractBoundaryResult::Unit,
-                terminal_psi::OperationResult::Unit,
-            ) => true,
-            (
-                abstract_operations::AbstractBoundaryResult::Structural(actual),
-                terminal_psi::OperationResult::Structural(expected),
-            ) => actual == expected,
-            _ => false,
-        };
-        let declared_result_matches = plan
-            .boundary_machines
-            .iter()
-            .find(|declaration| declaration.id == key.2)
-            .is_some_and(|declaration| match (result, &declaration.result) {
-                (
-                    abstract_operations::AbstractBoundaryResult::Unit,
-                    terminal_psi::BoundaryMachineResult::Unit,
-                ) => true,
-                (
-                    abstract_operations::AbstractBoundaryResult::Structural(actual),
-                    terminal_psi::BoundaryMachineResult::Structural(expected),
-                ) => {
-                    actual.structural_type == expected.structural_type
-                        && actual.multiplicity == expected.multiplicity
-                        && actual.qualifications == expected.qualifications
-                }
-                _ => false,
-            });
-        if !exact_result
-            || !declared_result_matches
-            || installed.scalar_arguments != *arguments
-            || installed.structural_arguments != *structural_arguments
-            || installed.completion_claim_sources != exact_sources
-            || installed.completion_receipts != *completion_receipts
-            || installed.provider.boundary != key.2
-            || !plan
-                .provider_candidates
-                .iter()
-                .any(|candidate| candidate == &installed.provider)
-        {
-            return Err(LoweringError::InstalledProviderCallEvidenceMismatch {
-                machine: key.0,
-                operation: key.1,
-                boundary: key.2,
-            });
-        }
-    }
-    let installed_boundaries = installed_by_call
-        .keys()
-        .map(|(_, _, boundary)| *boundary)
-        .collect::<BTreeSet<_>>();
-    if let Some(boundary) = settlements_by_boundary
-        .keys()
-        .find(|boundary| installed_boundaries.contains(boundary))
-    {
-        return Err(LoweringError::BoundarySettlementOverlapsInstalledProvider(
-            *boundary,
-        ));
-    }
-    if let Some((machine, operation, boundary)) = boundary_calls
-        .keys()
-        .find(|key| installed_boundaries.contains(&key.2) && !installed_by_call.contains_key(key))
-        .copied()
-    {
-        return Err(LoweringError::PartialInstalledProviderBoundary {
-            machine,
-            operation,
-            boundary,
-        });
-    }
-    let required_settlements = boundary_calls
-        .keys()
-        .filter_map(|key| (!installed_by_call.contains_key(key)).then_some(key.2))
-        .collect::<BTreeSet<_>>();
-    for boundary in &required_settlements {
-        if !settlements_by_boundary.contains_key(boundary) {
-            return Err(LoweringError::MissingBoundarySettlement(*boundary));
-        }
-    }
-    if let Some(extra) = settlements_by_boundary
-        .keys()
-        .find(|boundary| !required_settlements.contains(boundary))
-    {
-        return Err(LoweringError::UnusedBoundarySettlement(*extra));
-    }
+    installed_provider_calls::validate_installed_provider_calls(
+        plan,
+        &installed_by_call,
+        &boundary_calls,
+    )?;
+    settlement_roster::validate_settlement_roster(
+        &settlements_by_boundary,
+        &installed_by_call,
+        &boundary_calls,
+    )?;
     let target_plan = TargetOperationPlan {
         psi: plan.psi,
         target,

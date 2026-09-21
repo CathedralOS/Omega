@@ -11,7 +11,7 @@ use super::super::super::OptimizedProgramStorageSemanticWrapperObjectCustodyRece
 use super::super::{
     OptimizedProgramStorageSemanticWrapperObjectError,
     decode_optimized_program_storage_semantic_wrapper_object,
-    encode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object, encoding,
 };
 use super::fixture::staged_parts;
 use crate::optimized_semantic_wrapper_object::custody::custody;
@@ -28,7 +28,8 @@ type ReceiptMutation = fn(&mut OptimizedProgramStorageSemanticWrapperObjectCusto
 fn wrapper_object_container_rejects_every_one_field_substitution() {
     let (object, container, manifest, _) = staged_parts();
     let expected_container =
-        encode_optimized_program_storage_semantic_wrapper_object(&object).unwrap();
+        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding().template())
+            .unwrap();
 
     // `container.object` substitution: the manifest does not bind this field,
     // so the join that rejects it is the staged whole-container comparison

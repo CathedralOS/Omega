@@ -250,6 +250,9 @@ pub(crate) fn decode_boundary_settlements(
 ) -> Result<Vec<ObjectBoundarySettlement>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyBoundarySettlements)?;
+    if count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut boundary_settlements = Vec::with_capacity(count);
     for _ in 0..count {
         let machine = MachineId::new(reader.u64()?)
@@ -587,6 +590,7 @@ fn decode_structural_operation_result(
         });
     }
     Ok(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type,
         multiplicity,
@@ -1075,6 +1079,7 @@ mod tests {
                 StructuralTypeId::new(9).unwrap(),
             ),
             result: StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: PlaceId::new(8).unwrap(),
                 structural_type: StructuralTypeId::new(9).unwrap(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

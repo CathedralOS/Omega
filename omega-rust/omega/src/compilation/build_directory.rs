@@ -29,6 +29,15 @@ pub enum BuildDirConflict {
     },
     /// A live marker says another invocation is compiling into it.
     Occupied { build_dir: PathBuf, detail: String },
+    /// The spelled directory resolved to a different directory after admission
+    /// than at admission — an alias (symlink, rename, mount) moved inside the
+    /// admission window, or the admitted directory was renamed away and a new
+    /// one created under its name — so record writes would land under a
+    /// different identity than the one that was checked.
+    MovedDuringAdmission {
+        build_dir: PathBuf,
+        observed: PathBuf,
+    },
 }
 
 impl std::fmt::Display for BuildDirConflict {
@@ -51,6 +60,18 @@ impl std::fmt::Display for BuildDirConflict {
                  if that compile is gone, remove `{OCCUPANT_FILE}`",
                 build_dir.display()
             ),
+            Self::MovedDuringAdmission {
+                build_dir,
+                observed,
+            } => write!(
+                formatter,
+                "build directory `{}` moved or was replaced during acquisition \
+                 (the spelling now resolves to `{}`); a renamed or symlinked \
+                 ancestor changed underneath the admission check — retry, or \
+                 use the canonical spelling directly",
+                build_dir.display(),
+                observed.display()
+            ),
         }
     }
 }
@@ -63,6 +84,17 @@ impl std::error::Error for BuildDirConflict {}
 #[derive(Debug)]
 pub struct BuildDirOccupancy {
     occupant: PathBuf,
+    /// The canonical directory identity this invocation admitted. Records and
+    /// downstream writes bind to it, so a spelling swapped underneath the
+    /// admission window cannot redirect or shadow them.
+    directory: PathBuf,
+}
+
+impl BuildDirOccupancy {
+    /// The canonical build directory the records and artifact writes belong to.
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
 }
 
 impl Drop for BuildDirOccupancy {
@@ -74,15 +106,18 @@ impl Drop for BuildDirOccupancy {
 /// Claim `build_dir` for one compile of `root_path`. Canonicalization folds
 /// spelling aliases (`..`, `.`, symlinks) before ownership is compared, so the
 /// same root keeps working under a different working-directory spelling while
-/// a genuinely different root refuses.
+/// a genuinely different root refuses. The owner and occupant records are
+/// written through the canonical directory name, and the spelling is rechecked
+/// after acquisition so an alias swapped in during admission cannot redirect
+/// the records or shadow them from later artifact writes.
 pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, BuildDirConflict> {
     if fs::create_dir_all(build_dir).is_err() {
         return Err(occupied_io(build_dir));
     }
     let root = display_path(canonicalize_or_literal(root_path));
-    let canonical_dir = canonicalize_or_literal(build_dir);
-    check_owner(build_dir, &root)?;
-    let occupant = build_dir.join(OCCUPANT_FILE);
+    let admitted = directory_identity(build_dir);
+    check_owner(&admitted.canonical, &root)?;
+    let occupant = admitted.canonical.join(OCCUPANT_FILE);
     match File::create_new(&occupant) {
         Ok(mut marker) => {
             let _ = writeln!(marker, "{OCCUPANT_MAGIC}");
@@ -90,19 +125,81 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
             let _ = writeln!(marker, "pid {}", std::process::id());
             let _ = writeln!(marker, "host {}", host_name());
             let _ = writeln!(marker, "unix_ms {}", unix_millis());
-            Ok(BuildDirOccupancy { occupant })
+            if let Err(conflict) = confirm_admitted(build_dir, &admitted) {
+                // The record is ours but the spelling moved; leave the admitted
+                // directory without a live marker rather than publish into an
+                // identity the caller did not request.
+                let _ = fs::remove_file(&occupant);
+                return Err(conflict);
+            }
+            Ok(BuildDirOccupancy {
+                occupant,
+                directory: admitted.canonical,
+            })
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             let detail = fs::read_to_string(&occupant)
                 .map(|contents| contents.lines().skip(1).collect::<Vec<_>>().join(", "))
                 .unwrap_or_else(|_| "unreadable occupant record".to_owned());
             Err(BuildDirConflict::Occupied {
-                build_dir: canonical_dir,
+                build_dir: admitted.canonical,
                 detail,
             })
         }
         Err(_) => Err(occupied_io(build_dir)),
     }
+}
+
+/// A build directory's host identity: the canonical spelling plus the
+/// filesystem object behind it, so renaming the admitted directory away and
+/// recreating a fresh one at the same spelling still reads as a different
+/// directory. A host that cannot report the object degrades to the canonical
+/// spelling alone.
+#[derive(Debug, PartialEq, Eq)]
+struct DirectoryIdentity {
+    canonical: PathBuf,
+    object: Option<(u64, u64)>,
+}
+
+fn directory_identity(spelled: &Path) -> DirectoryIdentity {
+    let canonical = canonicalize_or_literal(spelled);
+    let object = directory_object(&canonical);
+    DirectoryIdentity { canonical, object }
+}
+
+#[cfg(unix)]
+fn directory_object(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path)
+        .ok()
+        .map(|metadata| (metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn directory_object(path: &Path) -> Option<(u64, u64)> {
+    use std::os::windows::fs::MetadataExt;
+    fs::metadata(path)
+        .ok()
+        .and_then(|metadata| Some((metadata.volume_serial_number()?, metadata.file_index()?)))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn directory_object(_path: &Path) -> Option<(u64, u64)> {
+    None
+}
+
+/// The directory `spelled` names must still be the one `admitted` recorded: a
+/// symlink, rename, or mount swapped inside the admission window must not let
+/// record writes follow an identity the caller never asked about.
+fn confirm_admitted(spelled: &Path, admitted: &DirectoryIdentity) -> Result<(), BuildDirConflict> {
+    let observed = directory_identity(spelled);
+    if observed != *admitted {
+        return Err(BuildDirConflict::MovedDuringAdmission {
+            build_dir: admitted.canonical.clone(),
+            observed: observed.canonical,
+        });
+    }
+    Ok(())
 }
 
 fn check_owner(build_dir: &Path, root: &str) -> Result<(), BuildDirConflict> {
@@ -292,5 +389,71 @@ mod tests {
         drop(guard);
         assert!(build.join(OWNER_FILE).is_file());
         assert!(!build.join(OCCUPANT_FILE).exists());
+    }
+
+    #[test]
+    fn acquired_directory_is_the_canonical_spelling() {
+        let mut fixture = Fixture::new();
+        let build = fixture.directory("build");
+        let root = fixture.root("source-a");
+        let spelled = build.join("nested").join("..");
+        std::fs::create_dir_all(&spelled).unwrap();
+        let guard = acquire(&spelled, &root).unwrap();
+        assert_eq!(guard.directory(), &std::fs::canonicalize(&build).unwrap());
+        drop(guard);
+    }
+
+    #[test]
+    fn a_spelling_that_no_longer_names_the_admitted_directory_is_refused() {
+        let mut fixture = Fixture::new();
+        let parent = fixture.directory("parent");
+        let build = parent.join("build");
+        let moved = parent.join("moved");
+        std::fs::create_dir_all(&build).unwrap();
+        let admitted = super::directory_identity(&build);
+        // The admission-time identity leaves the spelling entirely; the
+        // object lookup fails, so the observed identity can no longer match.
+        std::fs::rename(&build, &moved).unwrap();
+        match super::confirm_admitted(&build, &admitted) {
+            Err(BuildDirConflict::MovedDuringAdmission { build_dir, .. }) => {
+                assert_eq!(build_dir, admitted.canonical);
+            }
+            other => panic!("expected MovedDuringAdmission, got {other:?}"),
+        }
+        // A fresh directory taking over the same spelling is still a different
+        // directory: its filesystem object no longer matches the admitted one.
+        std::fs::create_dir_all(&build).unwrap();
+        assert!(matches!(
+            super::confirm_admitted(&build, &admitted),
+            Err(BuildDirConflict::MovedDuringAdmission { .. })
+        ));
+        // Re-admitted under the same name, the new directory checks out.
+        assert!(super::confirm_admitted(&build, &super::directory_identity(&build)).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn records_bind_the_canonical_directory_under_a_symlinked_spelling() {
+        use std::os::unix::fs::symlink;
+        let mut fixture = Fixture::new();
+        let real = fixture.directory("real-build");
+        let links = fixture.directory("links");
+        let alias = links.join("alias");
+        symlink(&real, &alias).unwrap();
+        let root = fixture.root("source-a");
+        let guard = acquire(&alias, &root).unwrap();
+        // Records and the admitted directory name the target, not the link.
+        assert!(alias.is_symlink());
+        assert!(real.join(OWNER_FILE).is_file());
+        assert!(real.join(OCCUPANT_FILE).is_file());
+        assert_eq!(guard.directory(), &std::fs::canonicalize(&real).unwrap());
+        drop(guard);
+        // A stale marker left at the link itself does not shadow the target's.
+        std::fs::write(
+            real.join(OCCUPANT_FILE),
+            "omega-build-directory-occupant 1\npid 9\nhost h\n",
+        )
+        .unwrap();
+        assert!(acquire(&alias, &root).is_err());
     }
 }

@@ -58,7 +58,7 @@ pub(super) fn derive(
         object,
         image,
         PhysicalRelocationDisposition::DirectInstructionBytes,
-        None,
+        &[],
     )
     .map(Some)
 }

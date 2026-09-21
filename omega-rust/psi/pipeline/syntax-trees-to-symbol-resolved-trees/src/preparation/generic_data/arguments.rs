@@ -10,7 +10,9 @@ use diagnostics::Diagnostic;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
+use syntax_trees::item::DomainDefinition;
 use syntax_trees::item::Item;
+use syntax_trees::item::TypeParameter;
 use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeConstraintNode;
@@ -287,7 +289,7 @@ pub(crate) fn type_reference_slug(
                         .integer_range_normalization(handle, ordinal)?;
                     rendered.push(format!("[{}..={}]", range.minimum, range.maximum));
                 } else {
-                    rendered.push(constraint_slug(constraint)?);
+                    rendered.push(constraint_slug(syntax, constraint)?);
                 }
             }
             if rendered.is_empty() {
@@ -301,13 +303,26 @@ pub(crate) fn type_reference_slug(
 
 /// Nameable behavior/domain tags. Ranges need their exact owner observation,
 /// handled by the caller, rather than rendering an arbitrary expression here.
-pub(crate) fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
+/// An indexed declared domain renders its name with the index tuple.
+pub(crate) fn constraint_slug(
+    syntax: &SyntaxTrees,
+    constraint: &TypeConstraintNode,
+) -> Option<String> {
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
-        TypeConstraintNode::Domain(domain) if domain.arguments.is_empty() => {
-            Some(domain.name.as_str().to_string())
+        TypeConstraintNode::Domain(domain) => {
+            let arguments = syntax
+                .type_references
+                .type_reference_handles(domain.arguments);
+            if arguments.is_empty() {
+                return Some(domain.name.as_str().to_string());
+            }
+            let indices = arguments
+                .iter()
+                .map(|argument| type_reference_slug(syntax, *argument))
+                .collect::<Option<Vec<_>>>()?;
+            Some(format!("{}<{}>", domain.name.as_str(), indices.join(",")))
         }
-        TypeConstraintNode::Domain(_) => None,
         TypeConstraintNode::ArithmeticDomain(domain) => Some(domain.name().to_string()),
         TypeConstraintNode::Range { .. } => None,
     }
@@ -471,7 +486,13 @@ pub(crate) fn closed_argument_identity(
                         ClosedConstraintIdentity::Arithmetic(*domain)
                     }
                     TypeConstraintNode::Domain(domain) if !domain.arguments.is_empty() => {
-                        return None;
+                        indexed_domain_identity(
+                            syntax,
+                            selection,
+                            domain.name.as_str(),
+                            &base,
+                            domain.arguments,
+                        )?
                     }
                     TypeConstraintNode::Named(name)
                     | TypeConstraintNode::Domain(syntax_trees::types::DomainConstraint {
@@ -583,4 +604,94 @@ pub(crate) fn closed_argument_identity(
         }
         _ => None,
     }
+}
+
+/// The family's index telescope and whether its leading type binder names the
+/// carrier: `domain<T> T::Foreign` reserves its first parameter for the
+/// generic carrier, while a concrete carrier like
+/// `domain<const C: u64> u64::AtMost<C>` keeps every declared parameter as an
+/// index. Mirrors the structural matcher's rule in
+/// `type_structure::applications`.
+fn domain_index_parameters(
+    syntax: &SyntaxTrees,
+    definition: &DomainDefinition,
+) -> (Vec<TypeParameter>, bool) {
+    let parameters = syntax.items.type_parameters(definition.type_parameters);
+    let target_name = match syntax
+        .type_references
+        .type_reference(definition.target_type)
+    {
+        TypeReferenceNode::Named(target) => Some(target.as_str()),
+        _ => None,
+    };
+    let generic_carrier = parameters.first().is_some_and(|parameter| {
+        matches!(parameter.kind, TypeParameterKind::Type)
+            && target_name == Some(parameter.name.as_str())
+    });
+    (
+        parameters[usize::from(generic_carrier)..].to_vec(),
+        generic_carrier,
+    )
+}
+
+/// Identity for an indexed declared-domain application: the declaration the
+/// authored name selects on this carrier plus each index argument's own
+/// closed identity under the family's declared index telescope. Selection
+/// follows the structural matcher's name law — exact qualified name or leaf
+/// with the declared target matching the carrier — rather than
+/// `selection.domain`, which declines generic families by design. Competing
+/// or carrier-mismatched owners decline rather than equate spellings; a
+/// generic-carrier family (`domain<T> T::Foreign`) has no closed index
+/// identity either.
+fn indexed_domain_identity(
+    syntax: &SyntaxTrees,
+    selection: Option<&constant_selection::ConstantSelection>,
+    authored: &str,
+    carrier: &ClosedArgumentIdentity,
+    arguments: HandleSpan<TypeReferenceHandle>,
+) -> Option<ClosedConstraintIdentity> {
+    let authored_leaf = authored.rsplit("::").next().unwrap_or(authored);
+    let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
+        let Item::Domain(definition) = syntax.root_item(*handle) else {
+            return false;
+        };
+        let declared = definition.name.as_str();
+        let declared_leaf = declared.rsplit("::").next().unwrap_or(declared);
+        if declared != authored && declared_leaf != authored_leaf {
+            return false;
+        }
+        closed_argument_identity(syntax, selection, definition.target_type, false).as_ref()
+            == Some(carrier)
+    });
+    let declaration = candidates.next()?;
+    if candidates.next().is_some() {
+        return None;
+    }
+    let Item::Domain(definition) = syntax.root_item(declaration) else {
+        return None;
+    };
+    let (index_parameters, generic_carrier) = domain_index_parameters(syntax, definition);
+    if generic_carrier {
+        return None;
+    }
+    let arguments = syntax.type_references.type_reference_handles(arguments);
+    if index_parameters.len() != arguments.len() {
+        return None;
+    }
+    let indices = index_parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            closed_argument_identity(
+                syntax,
+                selection,
+                *argument,
+                matches!(parameter.kind, TypeParameterKind::Const { .. }),
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(ClosedConstraintIdentity::IndexedDeclaration(
+        declaration,
+        indices,
+    ))
 }

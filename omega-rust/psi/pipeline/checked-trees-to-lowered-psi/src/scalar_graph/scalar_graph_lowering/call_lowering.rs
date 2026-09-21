@@ -14,6 +14,8 @@ use crate::scalar_graph::{
     QualifiedScalarType, StructuralAccess, StructuralArgument, StructuralPathSegment,
     StructuralTypeDeclaration, scalar_carriers, unsupported,
 };
+use checked_trees::CheckedErasedProofParameterPlan;
+use semantic_vocabulary::ProofTerm;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_checked_direct_call_binding(
@@ -30,6 +32,7 @@ pub(crate) fn lower_checked_direct_call_binding(
     result_type: QualifiedScalarType,
     caller_value_types: &[QualifiedScalarType],
     scalar_bindings: &storage::ScalarBindings,
+    caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     source_custody::direct_calls::validate(
         checked,
@@ -71,6 +74,7 @@ pub(crate) fn lower_checked_direct_call_binding(
         arguments,
         Vec::new(),
         ScalarCallCrashScope::CallerValues,
+        caller_erased_proof_parameters,
     )
 }
 
@@ -90,6 +94,7 @@ pub(crate) fn lower_scalar_call(
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<StructuralArgument>,
     crash_scope: ScalarCallCrashScope,
+    caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target = if structural_arguments.is_empty() {
         crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find(
@@ -153,6 +158,33 @@ pub(crate) fn lower_scalar_call(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // Proof-only actuals sit on the adjacent lane under the same
+    // `ErasedUnitCallArgument` role, in the target's erased-proof roster
+    // order; each converts through the caller machine's roster so forwarded
+    // `Formal` positions stay dense.
+    let erased_proof_arguments = (0..target.erased_proof_parameters().len())
+        .map(|erased_ordinal| {
+            let role = checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
+                call_ordinal,
+                erased_ordinal: u32::try_from(erased_ordinal).map_err(|_| {
+                    LoweringError::Unsupported("scalar call erased proof ordinal exceeds u32")
+                })?,
+            };
+            let term = checked
+                .facts
+                .values
+                .proof_terms
+                .term_at(caller_state, statement_ordinal, role)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar call erased proof actual is absent",
+                ))?;
+            crate::scalar_graph::scalar_contracts::checked_proof_term(
+                checked,
+                term,
+                caller_erased_proof_parameters,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let checked_call = checked
         .facts
         .contract_plans
@@ -212,6 +244,7 @@ pub(crate) fn lower_scalar_call(
         result_type,
         arguments,
         erased_arguments,
+        erased_proof_arguments,
         structural_arguments,
         // The selected body owns storage even when its public signature has
         // only scalars. Graph and ordered-body callers use the same decision.
@@ -237,6 +270,7 @@ pub(crate) fn lower_scalar_graph_successor(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
+        Vec<ProofTerm>,
     ),
     LoweringError,
 > {
@@ -293,7 +327,11 @@ pub(crate) fn lower_scalar_graph_successor(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let target = structural_values::exit_target(
+    // `exit_target` answers a lowered branch-state index: the edge lands on
+    // the cleanup wrapper it may have pushed, not on the checked target's
+    // position in `states`. Keep the two index spaces apart — the erased
+    // proof roster below still reads `states[target]` by checked position.
+    let lowered_target = structural_values::exit_target(
         checked,
         source_state,
         scalar_bindings,
@@ -309,13 +347,14 @@ pub(crate) fn lower_scalar_graph_successor(
         successor,
         scalar_bindings,
         source_value_types,
-        target,
+        lowered_target,
         &target_parameter_types,
         &structural_arguments,
     )? {
         return Ok((
             entry,
             computations::parameters(source_value_types),
+            Vec::new(),
             Vec::new(),
         ));
     }
@@ -375,5 +414,32 @@ pub(crate) fn lower_scalar_graph_successor(
                 ))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok((target, arguments, erased_arguments))
+    let erased_proof_arguments = plans
+        .erased_proof_arguments
+        .span(successor.erased_proof_arguments)
+        .ok_or(LoweringError::Unsupported(
+            "scalar successor erased proof span is stale",
+        ))?;
+    if erased_proof_arguments.len() != states[target].erased_proof_parameters.len() {
+        return unsupported("scalar graph successor erased proof roster drifted from its target");
+    }
+    let erased_proof_arguments = erased_proof_arguments
+        .iter()
+        .map(|term| {
+            crate::scalar_graph::scalar_contracts::checked_proof_term(
+                checked,
+                term,
+                &source.erased_proof_parameters,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    // The edge lands on the lowered successor frontier `exit_target` chose —
+    // the affine-cleanup wrapper when owners had to be rebound — never on the
+    // checked-state position still held by `target`.
+    Ok((
+        lowered_target,
+        arguments,
+        erased_arguments,
+        erased_proof_arguments,
+    ))
 }

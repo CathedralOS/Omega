@@ -51,6 +51,29 @@ pub struct IndependentComponentDiscovery {
     pub evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
 }
 
+/// Retained restricted-request consent a consuming caller binds to one
+/// checked activation.
+///
+/// With a binding present, each restricted build-host request the admitted
+/// build machine projects joins here — in issue order — before that
+/// request's own build effect executes; a refusal fails the compile without
+/// running it. The binding owns what it consults: the compile worker runs on
+/// its own thread, so retained consent crosses as owned meaning, not a
+/// borrow.
+///
+/// `None` is observation-only: requests still project into the compile's
+/// retained custody, where a review presents or a lock retains them, but the
+/// activation admits without consulting accepted request meaning. Audit-only
+/// callers pass no binding and issue no grants.
+pub trait RestrictedBuildGrants: Send {
+    /// Join one projected restricted build request. `Err` carries the
+    /// diagnostics the checked compile returns unchanged.
+    fn admit(
+        &mut self,
+        request: &build_evaluation::RestrictedBuildRequest,
+    ) -> Result<(), Vec<Diagnostic>>;
+}
+
 /// Inputs for checked-Psi compilation, without native publication authority.
 /// All requests use the same source identity, package admission, and
 /// sponsored build execution checks.
@@ -95,6 +118,18 @@ pub struct CheckedCompileRequest<'a> {
     /// descriptions and compile again with them attached. The discovery is
     /// reported whether the compile settles or rejects.
     pub independent_component_discovery_output: Option<&'a mut IndependentComponentDiscovery>,
+    /// Occurrence-bound consent this activation's projected restricted build
+    /// requests join before their own build effects execute. `None` admits
+    /// without consulting retained acceptance and issues no grants.
+    pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    /// Collect the internal stage ladder into the produced
+    /// `CheckedCompilation`'s timing record. Off by default: the ladder
+    /// measures nothing until a caller asks for it, and the rows stay on the
+    /// checked record until a report-facing leg prints them. When the
+    /// request reuses a caller-prepared source, collection follows how that
+    /// source was prepared; this flag steers only the request-owned fresh
+    /// preparation.
+    pub collect_timings: bool,
 }
 
 impl<'a> CheckedCompileRequest<'a> {
@@ -112,6 +147,8 @@ impl<'a> CheckedCompileRequest<'a> {
             optimization_rollback: crate::OptimizationRollback::default(),
             prepared_source_output: None,
             independent_component_discovery_output: None,
+            restricted_build_grants: None,
+            collect_timings: false,
         }
     }
 
@@ -137,6 +174,8 @@ impl<'a> CheckedCompileRequest<'a> {
                 evaluation_sponsor: self.evaluation_sponsor,
                 build_snapshot: self.build_snapshot,
                 optimization_rollback: self.optimization_rollback,
+                restricted_build_grants: self.restricted_build_grants,
+                collect_timings: self.collect_timings,
                 prepared_source_output: None,
                 independent_component_discovery_output: None,
             },
@@ -177,6 +216,9 @@ struct CheckedChildExecution<'a> {
     /// build evaluation and provider settlement so the roster survives a
     /// closure-fence rejection.
     independent_component_discovery: Option<&'a mut IndependentComponentDiscovery>,
+    /// Consent binding this child's projected restricted build requests join
+    /// before their own build effects execute.
+    restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
 
 impl CheckedChildExecution<'_> {
@@ -192,6 +234,7 @@ impl CheckedChildExecution<'_> {
             build_snapshot: None,
             optimization_rollback: crate::OptimizationRollback::default(),
             independent_component_discovery: None,
+            restricted_build_grants: None,
         }
     }
 }
@@ -234,6 +277,7 @@ impl PreparedCheckedSource {
             build_snapshot: request.build_snapshot.as_ref(),
             optimization_rollback: request.optimization_rollback,
             independent_component_discovery: Some(independent_component_discovery),
+            restricted_build_grants: request.restricted_build_grants,
         })
     }
 
@@ -242,6 +286,21 @@ impl PreparedCheckedSource {
         package_sources: Option<
             std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
         >,
+        collect_timings: bool,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::prepare_with_timing_collection(root_path, package_sources, collect_timings)
+    }
+
+    /// Prepare the immutable source frontier, collecting the internal stage
+    /// ladder into the accumulator the produced checked compilations seal
+    /// when `collect_timings` is set. The rows stay on the checked record
+    /// until a report-facing leg prints them.
+    pub fn prepare_with_timing_collection(
+        root_path: &Path,
+        package_sources: Option<
+            std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
+        >,
+        collect_timings: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         // Source discovery accepts no target attachments. Adapt the shared graph
         // to the frontend's package-routing view without consulting a child.
@@ -254,7 +313,11 @@ impl PreparedCheckedSource {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        let mut shared_timings = CompileTimings::default();
+        let mut shared_timings = if collect_timings {
+            CompileTimings::enabled()
+        } else {
+            CompileTimings::default()
+        };
         let source_checkpoint = ImmutableSourceParseCheckpoint::prepare(
             root_path,
             package_inputs.as_ref(),
@@ -314,6 +377,7 @@ impl PreparedCheckedSource {
             build_snapshot: build_snapshot.or(automatic_snapshot.as_ref()),
             optimization_rollback: optimization_rollback.clone(),
             independent_component_discovery: None,
+            restricted_build_grants: None,
         })
     }
 
@@ -418,12 +482,13 @@ fn compile_checked_worker(
         .map_err(|diagnostic| vec![diagnostic])?;
     let prepared = match prepared {
         Some(prepared) => prepared,
-        None => PreparedCheckedSource::prepare(
+        None => PreparedCheckedSource::prepare_with_timing_collection(
             &request.root_path,
             request
                 .package_inputs
                 .as_ref()
                 .map(PackageCompilationInputs::source_inputs),
+            request.collect_timings,
         )?,
     };
     let retained_source = retain_source.then(|| prepared.clone());

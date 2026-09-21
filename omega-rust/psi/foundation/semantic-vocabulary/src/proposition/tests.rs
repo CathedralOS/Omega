@@ -1,8 +1,8 @@
 //! Tests for integer types, scalar terms and propositions.
 
 use super::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-    PropositionError, ScalarTerm, ScalarType,
+    IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofTerm,
+    ProofTermField, Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
 };
 use crate::ValueId;
 
@@ -769,6 +769,133 @@ fn wrapping_multiply_reduces_at_the_declared_width_for_all_edge_shapes() {
         i128_type.wrapping_mul(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1)),
         Some(IntegerValue::Signed(i128::MIN))
     );
+}
+
+#[test]
+fn deeply_nested_terms_validate_off_the_call_stack() {
+    // The validators used to recurse on their trees, so a term nested deeper
+    // than the thread stack overflowed before validation could answer. The
+    // worklists keep the same first-error order without spending stack.
+    // `forget` skips the still-recursive drop glue on the boxed trees.
+    const DEPTH: usize = 100_000;
+
+    let mut math = IntegerMathTerm::literal(IntegerValue::Unsigned(0));
+    for _ in 0..DEPTH {
+        math = IntegerMathTerm::Add(
+            Box::new(math),
+            Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+        );
+    }
+    assert_eq!(math.validate(), Ok(()));
+    std::mem::forget(math);
+
+    let mut scalar = ScalarTerm::boolean(true);
+    for _ in 0..DEPTH {
+        scalar = ScalarTerm::BooleanNot {
+            operand: Box::new(scalar),
+        };
+    }
+    assert_eq!(scalar.validate(), Ok(()));
+    std::mem::forget(scalar);
+
+    // Errors still surface from the bottom of the nest first: the innermost
+    // `BooleanNot` sees an integer operand and rejects before its parents run.
+    let mut bad_scalar = ScalarTerm::integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+        IntegerValue::Unsigned(1),
+    )
+    .expect("u8 literal");
+    for _ in 0..DEPTH {
+        bad_scalar = ScalarTerm::BooleanNot {
+            operand: Box::new(bad_scalar),
+        };
+    }
+    assert_eq!(
+        bad_scalar.validate(),
+        Err(PropositionError::BooleanNotTypeMismatch(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"))
+        ))
+    );
+    std::mem::forget(bad_scalar);
+
+    let mut proposition = Proposition::Truth;
+    for _ in 0..DEPTH {
+        proposition = Proposition::Implication {
+            premise: Box::new(Proposition::Truth),
+            conclusion: Box::new(proposition),
+        };
+    }
+    assert_eq!(proposition.validate(), Ok(()));
+    let context = PropositionContext::from_value_types([]).expect("empty context");
+    assert_eq!(context.validate(&proposition), Ok(()));
+    std::mem::forget(proposition);
+
+    let mut proof_term = ProofTerm::Formal { position: 0 };
+    for _ in 0..DEPTH {
+        proof_term = ProofTerm::Construction {
+            type_identity: "Nat".to_owned(),
+            case_identity: None,
+            fields: vec![ProofTermField {
+                field_identity: "pred".to_owned(),
+                term: proof_term,
+            }],
+        };
+    }
+    assert_eq!(proof_term.validate(), Ok(()));
+    std::mem::forget(proof_term);
+}
+
+#[test]
+fn deeply_nested_terms_evaluate_off_the_call_stack() {
+    // The constant evaluators recursed on their trees the way the validators
+    // did, so a deep literal nest overflowed the thread stack before producing
+    // a value. The worklist plus operand-value stack keeps the same answer
+    // without spending stack. `forget` skips the still-recursive drop glue.
+    const DEPTH: usize = 100_000;
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+
+    let mut integer = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(1)).expect("u8 literal");
+    for _ in 0..DEPTH {
+        integer = ScalarTerm::IntegerBitwiseNot {
+            scalar_type: u8_type,
+            operand: Box::new(integer),
+        };
+    }
+    // u8 bitwise-not alternates 1 <-> 254; an even depth returns the literal.
+    assert_eq!(
+        integer.integer_value(),
+        Some((u8_type, IntegerValue::Unsigned(1)))
+    );
+    std::mem::forget(integer);
+
+    let mut boolean = ScalarTerm::boolean(true);
+    for _ in 0..DEPTH {
+        boolean = ScalarTerm::BooleanNot {
+            operand: Box::new(boolean),
+        };
+    }
+    assert_eq!(boolean.boolean_value(), Some(true));
+    std::mem::forget(boolean);
+
+    // A boolean node over a deep integer subtree delegates to the iterative
+    // integer evaluator rather than recursing through `boolean_value`.
+    let mut deep_integer =
+        ScalarTerm::integer(u8_type, IntegerValue::Unsigned(0)).expect("u8 literal");
+    for _ in 0..DEPTH {
+        deep_integer = ScalarTerm::IntegerBitwiseNot {
+            scalar_type: u8_type,
+            operand: Box::new(deep_integer),
+        };
+    }
+    let equal = ScalarTerm::IntegerEqual {
+        scalar_type: u8_type,
+        left: Box::new(deep_integer),
+        right: Box::new(
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(0)).expect("u8 literal"),
+        ),
+    };
+    assert_eq!(equal.boolean_value(), Some(true));
+    std::mem::forget(equal);
 }
 
 #[test]
