@@ -1410,6 +1410,23 @@ fn a_binding_without_a_registered_schema_is_refused_at_admission() {
 }
 
 #[test]
+fn a_second_schema_registration_for_one_contract_is_refused_as_substitution() {
+    let (_, _, plan) = payment_pair();
+    let contract = plan.instances[0].endpoints[0].contract;
+    let mut schemas = OperationSchemas::new();
+    schemas
+        .register(contract, payment_operation_schema())
+        .expect("the contract's first operation table registers");
+    // Two operation tables for one contract identity is substitution, not
+    // versioning: re-presenting a registration for the governed contract
+    // refuses rather than replacing the law the codec enforces.
+    assert_eq!(
+        schemas.register(contract, OperationSchema::new([(77, PayloadSchema::Empty)])),
+        Err(SchemaRegistrationError::ContractAlreadyRegistered { contract })
+    );
+}
+
+#[test]
 fn a_schema_violating_frame_closes_the_binding() {
     let (mut installed, _) = installed_payment();
     let (request_id, request_token) = {
