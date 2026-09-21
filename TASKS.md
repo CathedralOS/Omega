@@ -8564,8 +8564,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is path-claimed under TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION
   (Zergling-112) this wave. No independent implementable slice exists.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
-- **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
-  `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
+- **ATTACHED-UNIT-CLOSURE-PLAN.** Mined candidate; scope verified at
+  `35e1b19198f3`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
   (TASKS.md:1071 — "first refusing emission stage remains attached-Unit
   closure"). Two concrete gaps: (a) a bodied `boundary machine` carries no
   boundary plan when called by a unit caller, and (b) scalar-returning
@@ -8636,6 +8636,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   progress_profile_installation, opaque_callback_replacement) and
   `image-emission/src/hosted_unit_entry.rs` is intact; the settled
   verdict stands (dispatcher re-dispatched the resolved alias).
+  BACKEND-STARTUP-ENTRY-MECHANICS.
+||||||| parent of 709589027301 (board: repair marker + restamp ATTACHED-UNIT-CLOSURE-PLAN at 35e1b19198f3)
+  surfaces are under live claims (UEFI-OS-HANDOFF until 20:00Z,
+  UEFI-PHYSICAL-SEMANTIC-ENTRY 22:59Z, OPAQUE-BY-VALUE-BOUNDARY-ABI and
+  TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
+  landable from this row.
+- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
+  surfaces are under live claims (UEFI-OS-HANDOFF until 10:19Z,
+  UEFI-PHYSICAL-SEMANTIC-ENTRY 08:44Z, OPAQUE-BY-VALUE-BOUNDARY-ABI
+  13:58Z; TV-BOUNDARY-SETTLEMENTS-REPLAY has since drained). No
+  independent slice is landable from this row.
+- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
   cb01abfa42 — audit that every vocabulary operation reaching the backend is
