@@ -5737,7 +5737,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity.
 - **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
-- **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators.
+- **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators. Landed (`samples/apps/squalr`): `NormalizedRegion` ports upstream's `Ord`/`PartialOrd` — `NormalizedRegion::TotalOrder` is a `satisfies Order::before` conformance (the named-trait surface a trait-selected sort binds), all four fixed-token operators (`machine <`/`<=`/`>`/`>=`) are declared comparing `base_address` alone, and `base_address_order(&self, other)` is the callable spelling exercised natively in squalr-tests' `ordering` state (strict order both directions, base-tie order-equal while `equals` still distinguishes sizes). Compiler edge recorded: token operators need owned operands and by-value data arguments do not cross the selected ProgramEntry boundary ("rejoins 0 Terminal attachment identities"), so the `<`/`<=`/`>`/`>=` bindings are declared but unreachable from application code today. `Hash` deferred until a hash-keyed region collection is ported.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Seed parity.
 - **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput.
