@@ -19,8 +19,11 @@ FIXTURE_PARENT=$(mktemp -d)
 trap 'rm -rf -- "$FIXTURE_PARENT"' EXIT HUP INT TERM
 FIXTURE_ROOT="$FIXTURE_PARENT/repository"
 mkdir "$FIXTURE_ROOT"
-# Snapshot current files, including new source members and excluding deletions.
-# This keeps the gate, path registry, manifests, and their bytes from one state.
+# Snapshot every tracked and untracked non-ignored file, including new source
+# members and excluding deletions. No root list is spelled out: a new
+# top-level owner tree enters the fixture with the rest of the checkout, so
+# the cases below exercise it instead of silently missing it. This keeps the
+# gate, path registry, manifests, and their bytes from one state.
 python3 - "$OMEGA_REPO_ROOT" "$FIXTURE_ROOT" <<'PY'
 import shutil
 import subprocess
@@ -30,8 +33,7 @@ from pathlib import Path
 source, destination = map(Path, sys.argv[1:])
 paths = subprocess.check_output([
     "git", "-C", str(source), "ls-files", "--cached", "--others",
-    "--exclude-standard", "-z", "--", ".gitignore", "bootstrap", "source",
-    "tests", "tools", "wiki", "README.md", "TASKS_BOOTSTRAP.md",
+    "--exclude-standard", "-z",
 ])
 for spelling in set(paths.split(b"\0")) - {b""}:
     relative = Path(spelling.decode())
