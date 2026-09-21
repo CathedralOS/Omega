@@ -34,7 +34,14 @@ report `blocked` with the named owner and reason; do not retry with
 
 ## Collision rules
 
-Edit only your item's board text. Never touch these excluded items: {exclusions}.
+Never edit board or coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`,
+`tools/swarm/waves/`): board text is the coordinator's, and `landing.py`
+refuses candidates that touch only those files or change nothing — do not
+land `board:` commits or empty ledger commits. Record durable findings on
+your claim ticket instead — `python3 tools/claims.py note --ticket <ticket>
+--text "<finding>"` — and repeat them in the structured output; the
+coordinator writes board updates at drain. Never touch these excluded items:
+{exclusions}.
 If your fix needs a path owned by another item in the wave, stop and report
 `blocked` with the needed path so the coordinator can arrange a handoff. Apply
 the same rule to a confirmed active claim outside this wave

@@ -1,7 +1,8 @@
 # Optimizer source-organization audit
 
 [mod.rs](mod.rs) runs the inventory, entrance, catalog, and
-retired-path checks. The [implementation overview](../../../omega-rust/optimization.md)
+retired-path checks; entrance rows additionally pin each stage's declared
+consumers so a produced route cannot become an orphan output. The [implementation overview](../../../omega-rust/optimization.md)
 identifies stage owners; this directory owns the enforceable navigation rules.
 
 ## Navigation contract

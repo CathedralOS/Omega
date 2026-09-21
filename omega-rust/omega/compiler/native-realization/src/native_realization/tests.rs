@@ -581,6 +581,64 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
     }
 }
 
+/// A provisioned hosted receiver keeps its private-stack boundary: a request
+/// that still carries callback or thunk occupancy rejects instead of
+/// publishing an entry whose callback custody nobody could provision.
+#[test]
+fn admitted_receiver_entry_rejects_callback_occupancy() {
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::WindowsX64);
+    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let target = signature.target_slot().owner.native_target();
+    let (thunk_artifact, lowering_receipt) =
+        crate::tests::native_realization::callback_custody::callback_thunk_artifact();
+    let boundary =
+        crate::tests::native_realization::callback_custody::callback_boundary_entry_plan(target);
+    let thunks = [
+        crate::tests::native_realization::callback_custody::callback_thunk_settlement(
+            &thunk_artifact,
+            boundary.plan(),
+            lowering_receipt,
+            0,
+            "__omega_private_callback_0",
+        ),
+    ];
+    let rejected = crate::realize_native_artifact(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+            .expect("replay the canonical artifact"),
+        NativeRealizationRequest {
+            checked_scope: Some(&scope),
+            callback_thunks: &thunks,
+            program_entry: NativeProgramEntrySettlement::new(
+                &signature,
+                plans
+                    .as_ref()
+                    .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                &[],
+            )
+            .with_checked_entry(&receipt),
+            ..request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            )
+        },
+    )
+    .expect_err("a provisioned hosted receiver does not admit callback occupancy");
+    assert!(
+        rejected.diagnostics().iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not yet admit callback occupancy")),
+        "{:?}",
+        rejected.diagnostics(),
+    );
+}
+
 #[test]
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     let (produced, signature, plans) =
@@ -626,6 +684,7 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
         &admitted_providers.settlements,
         None,
         None,
+        &artifact,
         &request,
     )
     .expect("emission alone never provisions the receiver");
@@ -643,16 +702,24 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
         fused_service_establishments: Vec::new(),
         placed_view_establishments: Vec::new(),
     };
-    let diagnostics = super::validate_emitted_receiver_binding(&emitted.object, Some(&settlement))
-        .expect_err("an admitted receiver that never reached the object must reject");
+    let diagnostics = super::validate_emitted_receiver_binding(
+        &emitted.object,
+        emitted.semantic_wrapper_object.is_some(),
+        Some(&settlement),
+    )
+    .expect_err("an admitted receiver that never reached the object must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("did not reach the emitted object")),
         "unexpected diagnostics: {diagnostics:?}"
     );
-    super::validate_emitted_receiver_binding(&emitted.object, None)
-        .expect("no admitted receiver and no binding stays consistent");
+    super::validate_emitted_receiver_binding(
+        &emitted.object,
+        emitted.semantic_wrapper_object.is_some(),
+        None,
+    )
+    .expect("no admitted receiver and no binding stays consistent");
 }
 
 #[test]
@@ -698,6 +765,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         &admitted_providers.settlements,
         None,
         None,
+        &artifact,
         &request,
     )
     .expect("emission alone never provisions the receiver");
@@ -729,7 +797,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
     assert!(object.hosted_receiver_binding().is_some());
 
     // Bypassed provisioning: an emitted binding no admission ever granted.
-    let diagnostics = super::validate_emitted_receiver_binding(&object, None)
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, None)
         .expect_err("an emitted binding without admission must reject");
     assert!(
         diagnostics
@@ -750,7 +818,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         fused_service_establishments: Vec::new(),
         placed_view_establishments: Vec::new(),
     };
-    let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, Some(&settlement))
         .expect_err("a settlement without the emitted contract must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -778,7 +846,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         source: redirected_source,
         ..settlement
     };
-    let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, Some(&settlement))
         .expect_err("a substituted receiver source signature must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

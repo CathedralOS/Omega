@@ -1,1 +1,1 @@
-use omega::language::std::console;
+use omega_language_std::console;

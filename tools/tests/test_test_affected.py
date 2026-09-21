@@ -59,6 +59,7 @@ class SelectionTests(unittest.TestCase):
         for path in ["README.md", "TASKS.md", "AGENTS.md", "CLAUDE.md",
                      "OWNER_QUESTIONS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
                      "wiki/proposals/example.md", "wiki/new.md",
+                     "tools/testing.md", "tools/benchmark/README.md",
                      "omega-rust/omega/representations/optimization-core/rules.md",
                      "omega-rust/omega/representations/optimization-core/promotions/rule.md"]:
             with self.subTest(path=path):
@@ -137,9 +138,9 @@ class SelectionTests(unittest.TestCase):
             plan = affected.make_plan(self.root, "mbx", "verified-base")
         self.assertEqual(plan["slow_tail"], [
             {"package": "native-realization", "test": "stack_probe_commit",
-             "measured_seconds": 324},
+             "measured_seconds": affected.SLOW_TEST_OWNERS["native-realization"][0][1]},
             {"package": "native-realization", "test": "runtime_spill_pressure",
-             "measured_seconds": 356},
+             "measured_seconds": affected.SLOW_TEST_OWNERS["native-realization"][1][1]},
         ])
 
     def test_plan_without_a_slow_owner_reports_no_tail(self):

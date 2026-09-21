@@ -185,6 +185,11 @@ impl RequestedNativeArtifactError {
 pub struct SettledNativeArtifact {
     pub(crate) artifact: RequestedNativeArtifact,
     pub(crate) program_entry: ValidatedNativeProgramEntrySettlement,
+    /// Validated semantic-entry wrapper object custody when the admitted entry
+    /// is a source-authored semantic shell (the UEFI receiver route); `None`
+    /// on the hosted receiver route and for ordinary (receiver-free) entries.
+    pub(crate) semantic_wrapper_object:
+        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
 }
 
 impl SettledNativeArtifact {
@@ -196,12 +201,26 @@ impl SettledNativeArtifact {
         &self.program_entry
     }
 
+    /// The staged semantic-entry wrapper object custody, when the settled
+    /// entry emitted one. The staged join owns the object plan, container,
+    /// manifest and custody receipt over the exact emitted child.
+    pub const fn semantic_wrapper_object(
+        &self,
+    ) -> Option<&crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject> {
+        self.semantic_wrapper_object.as_ref()
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         RequestedNativeArtifact,
         ValidatedNativeProgramEntrySettlement,
+        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
     ) {
-        (self.artifact, self.program_entry)
+        (
+            self.artifact,
+            self.program_entry,
+            self.semantic_wrapper_object,
+        )
     }
 }

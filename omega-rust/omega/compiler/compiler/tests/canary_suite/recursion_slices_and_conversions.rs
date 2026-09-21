@@ -14,3 +14,5 @@ mod recursion_and_declared_domains;
 mod string_concat_and_mutable_parameters;
 #[path = "recursion_slices_and_conversions/subslice_parameters_and_ranges.rs"]
 mod subslice_parameters_and_ranges;
+#[path = "recursion_slices_and_conversions/wait_wake_boundary.rs"]
+mod wait_wake_boundary;

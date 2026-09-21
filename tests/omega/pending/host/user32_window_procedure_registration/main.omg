@@ -1,0 +1,452 @@
+// PENDING FFIVAL: the Windows `user32` boundary-coherence canary. An Omega
+// window procedure registers through the generic private-callback route —
+// the `PrivateCallbackSlot` conformance reserves the callback destination
+// inside the authored class specification's layout, and the registrar
+// operation's `where machine ... satisfies` binder selects the exact
+// requirement overload. No raw function pointer and no Win32-only compiler
+// escape appears anywhere in the program.
+//
+// The customer run registers, observes a rejection and retries with a
+// distinct name, replaces the registration by reusing the returned slot and
+// capacity, creates the window (WM_NCCREATE enters the procedure before
+// create returns), pumps one message through DispatchMessage, destroys the
+// window, and unregisters with the capacity occurrence handed back.
+//
+// First unreached dependency, pinned by the pending watcher: the routed
+// `Registration::Live` domain cannot yet authorize the
+// `RegisterClassOutcome::Registered` case payload
+// (`cannot prove requires contract`), so the observed-rejection sum cannot
+// be written yet — and case data has no boundary shape, so the outcome
+// arrives through a by-reference parameter rather than the call result.
+// Behind it stand CALLBACK-PRIVATE-MATERIALIZATION (callback ABI transport
+// in the common instruction pipeline) and the Windows host leg itself,
+// which other hosts report unavailable.
+use omega::language::core::layout;
+use omega::language::core::service;
+use omega_language_std::calling;
+use omega_language_std::console;
+
+// The canonical requirement the foreign host enters. `context` is the
+// protocol's context parameter: a checked token recoverable from the
+// callback arguments, so the procedure reaches per-window state without an
+// ambient closure.
+boundary trait WindowProcedure {
+    machine window_procedure(window: u64, context: u64, message: u32, wparam: u64, lparam: u64) -> u64;
+}
+
+// The class registration record the foreign registrar consumes. Its layout
+// plan reserves the window-procedure destination by citing the slot
+// conformance — the authored shape of WNDCLASSEX.lpfnWndProc.
+data WindowClass {
+    style: u32;
+    context: u64;
+    class_name: [u8; 13];
+}
+
+WindowProcedureSlot:
+    WindowClass satisfies PrivateCallbackSlot<WindowProcedure::window_procedure>;
+
+machine WindowClass::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    let plan: Plan = Plan {
+        entries: entries,
+        entry_count: 3,
+        size_fixed: 40,
+        size_is_dynamic: false,
+        align: 8,
+    };
+    Plan::place_private<WindowProcedureSlot>(plan, 32)
+}
+
+// Registration capacity and the linear authority token the registrar hands
+// the program. `Live` content bounds each live registration at one
+// RegistrationSlot, so capacity counts outstanding registrations — never
+// emitted thunks.
+data RegistrationSlot {
+}
+
+data CountedQuantity<Unit> {
+    magnitude: u64;
+}
+
+trait Content<A> {
+    machine project(subject: &Self) -> A;
+}
+
+data Registration [linear] {
+    slot: u64;
+}
+
+domain Registration::Live
+established by User32::register_class, User32::unregister_class;
+
+machine Live::content(registration: &Registration) -> CountedQuantity<RegistrationSlot>
+satisfies Content<CountedQuantity<RegistrationSlot>>::project
+{
+    CountedQuantity { magnitude: 1 }
+}
+
+// The registration outcome the program must observe: success yields the
+// linear registration rooted under `Live`; failure hands the capacity back
+// with no root created, so the program can retry on a distinct name.
+data RegisterClassOutcome {
+    case Registered(registration: Registration in Registration::Live);
+    case Rejected(capacity: Registration);
+}
+
+// The registrar's authored calling policy: Microsoft x64, integer class
+// everywhere. `register_class` carries one private callback demand (the
+// cited slot destination) beside its semantic parameters; the remaining
+// operations are ordinary outbound calls validated against the same
+// telescope discipline.
+data User32Policy {
+}
+User32PolicyCalling: User32Policy satisfies CallingPolicy;
+
+machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.callback_demand_count == 1 {
+        true -> check_register(signature)
+        _ -> check_has_result(signature)
+    }
+
+    // register_class carries its outcome through a by-reference parameter
+    // (case data has no boundary shape), so it is the one operation with no
+    // result; every ordinary operation must return a value.
+    state check_has_result(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.has_result {
+            true -> check_ordinary(signature)
+            _ -> reject()
+        }
+    }
+
+    state check_register(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.parameter_count == 3 && signature.native_parameter_count == 3 {
+            true -> bound(signature, true)
+            _ -> reject()
+        }
+    }
+
+    state check_ordinary(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.parameter_count == signature.native_parameter_count
+            && signature.parameter_count <= 4 {
+            true -> bound(signature, false)
+            _ -> reject()
+        }
+    }
+
+    // Shape indices are u64 values the telescope cannot bound by itself:
+    // guard each one before it indexes `signature.shapes`.
+    state bound(signature: BoundarySignature, registration: bool) -> BoundaryPlanResult {
+        let p0: u64 = signature.parameters[0];
+        let p1: u64 = signature.parameters[1];
+        let p2: u64 = signature.parameters[2];
+        let p3: u64 = signature.parameters[3];
+        let result: u64 = signature.result;
+        transition p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && result < 256 {
+            true -> build(signature, registration, p0, p1, p2, p3, result)
+            _ -> reject()
+        }
+    }
+
+    state build(
+        signature: BoundarySignature,
+        registration: bool,
+        p0: u64,
+        p1: u64,
+        p2: u64,
+        p3: u64,
+        result: u64
+    ) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::MicrosoftX64;
+        output.call.parameter_count = signature.parameter_count;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size =
+            signature.shapes[p0].byte_size;
+        output.call.parameters[0].shape.alignment =
+            signature.shapes[p0].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[p0].byte_size,
+        };
+        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.byte_size =
+            signature.shapes[p1].byte_size;
+        output.call.parameters[1].shape.alignment =
+            signature.shapes[p1].alignment;
+        output.call.parameters[1].location_count = 1;
+        output.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rdx,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[p1].byte_size,
+        };
+        output.call.parameters[2].shape.class = AbiValueClass::Integer;
+        output.call.parameters[2].shape.byte_size =
+            signature.shapes[p2].byte_size;
+        output.call.parameters[2].shape.alignment =
+            signature.shapes[p2].alignment;
+        output.call.parameters[2].location_count = 1;
+        output.call.parameters[2].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86R8,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[p2].byte_size,
+        };
+        output.call.parameters[3].shape.class = AbiValueClass::Integer;
+        output.call.parameters[3].shape.byte_size =
+            signature.shapes[p3].byte_size;
+        output.call.parameters[3].shape.alignment =
+            signature.shapes[p3].alignment;
+        output.call.parameters[3].location_count = 1;
+        output.call.parameters[3].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86R9,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[p3].byte_size,
+        };
+        output.call.has_result = signature.has_result;
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        output.call.callback_materialization_count = signature.callback_demand_count;
+        transition signature.has_result && result < 256 {
+            true -> with_result(signature, registration, result, output)
+            _ -> finish_call(signature, registration, output)
+        }
+    }
+
+    state with_result(
+        signature: BoundarySignature,
+        registration: bool,
+        result: u64,
+        output: BoundaryEntryPlan
+    ) -> BoundaryPlanResult {
+        let mut bound_result: BoundaryEntryPlan = output;
+        bound_result.call.result.shape.class = AbiValueClass::Integer;
+        bound_result.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        bound_result.call.result.shape.alignment = signature.shapes[result].alignment;
+        bound_result.call.result.location_count = 1;
+        bound_result.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[result].byte_size,
+        };
+        transition registration {
+            true -> bind_callback(signature, bound_result)
+            _ -> finish(bound_result)
+        }
+    }
+
+    state finish_call(
+        signature: BoundarySignature,
+        registration: bool,
+        output: BoundaryEntryPlan
+    ) -> BoundaryPlanResult {
+        transition registration {
+            true -> bind_callback(signature, output)
+            _ -> finish(output)
+        }
+    }
+
+    state bind_callback(
+        signature: BoundarySignature,
+        output: BoundaryEntryPlan
+    ) -> BoundaryPlanResult {
+        let mut bound: BoundaryEntryPlan = output;
+        bound.call.callback_materializations[0].binder =
+            signature.callback_binders[0].binder;
+        bound.call.callback_materializations[0].destination =
+            signature.callback_demands[0].destination;
+        BoundaryPlanResult::Accepted { plan: bound }
+    }
+
+    state finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid user32 telescope" },
+        }
+    }
+}
+
+// Creation geometry, carried as one borrowed record so the register-leg
+// parameter count stays inside the policy's four-register telescope.
+data WindowGeometry {
+    x: i32;
+    y: i32;
+    width: i32;
+    height: i32;
+}
+
+// The user32 boundary: register/unregister own the linear registration
+// contract; create/pump/destroy are the coherent window legs that may
+// synchronously enter the registered procedure.
+boundary trait User32: Calling<User32Policy> {
+    machine register_class<machine Selected>(
+        specification: &WindowClass,
+        capacity: Registration,
+        outcome: &mut RegisterClassOutcome
+    )
+    where machine Selected satisfies WindowProcedure::window_procedure;
+
+    machine unregister_class(registration: Registration in Live) -> Registration;
+
+    machine create_window(registration: &Registration in Live, style: u32, geometry: &WindowGeometry) -> u64
+    invokes WindowProcedure;
+
+    machine dispatch_message(registration: &Registration in Live, message: &[u64; 6]) -> u64
+    invokes WindowProcedure;
+
+    machine destroy_window(registration: &Registration in Live, window: u64) -> u32;
+}
+
+// The registered procedure: WM_NCCREATE (129) answers nonzero so creation
+// proceeds and recovers the context token; WM_DESTROY (2) answers zero;
+// every other message answers with its message number so the dispatch
+// result identifies the entered path.
+data WindowMessages {
+}
+
+machine WindowMessages::window_procedure(
+    window: u64,
+    context: u64,
+    message: u32,
+    wparam: u64,
+    lparam: u64
+) -> u64
+satisfies WindowProcedure::window_procedure
+{
+    transition message == 129u32 {
+        true -> nccreate(context)
+        _ -> other(message)
+    }
+
+    state nccreate(context: u64) -> u64 {
+        transition context != 0 { true -> 1 _ -> 0 }
+    }
+
+    state other(message: u32) -> u64 {
+        transition message == 2u32 { true -> 0 _ -> widen(message) }
+    }
+
+    state widen(message: u32) -> u64 {
+        message as u64
+    }
+}
+
+data Main {
+    console: Service<Console>;
+    capacity: Registration;
+    class: WindowClass;
+    message: [u64; 6];
+    window: u64;
+}
+
+machine Main::main(&mut self)
+reaches Console + User32 + WindowProcedure
+invokes User32;
+invokes Console;
+{
+    self.class.style = 3;
+    self.class.context = 77;
+    self.class.class_name[0] = 79;
+    self.class.class_name[1] = 109;
+    self.class.class_name[2] = 101;
+    self.class.class_name[3] = 103;
+    self.class.class_name[4] = 97;
+    self.class.class_name[5] = 87;
+    self.class.class_name[6] = 105;
+    self.class.class_name[7] = 110;
+    self.class.class_name[8] = 100;
+    self.class.class_name[9] = 111;
+    self.class.class_name[10] = 119;
+    self.class.class_name[11] = 80;
+    self.class.class_name[12] = 0;
+    let registration_capacity: Registration = Registration { slot: 0 };
+    let mut outcome: RegisterClassOutcome;
+    User32::register_class<WindowMessages::window_procedure>(
+        &self.class,
+        registration_capacity,
+        &mut outcome
+    );
+    transition outcome {
+        RegisterClassOutcome::Registered { registration } -> self.created(registration)
+        RegisterClassOutcome::Rejected { capacity } -> self.reject_observed(capacity)
+    }
+    state created(&mut self, registration: Registration in Registration::Live) {
+        let geometry: WindowGeometry = WindowGeometry {
+            x: 10,
+            y: 10,
+            width: 64,
+            height: 64,
+        };
+        self.window = User32::create_window(&registration, 0, &geometry);
+        transition self.window != 0 {
+            true -> self.pump(registration)
+            _ -> self.release(registration)
+        }
+    }
+    state pump(&mut self, registration: Registration in Registration::Live) {
+        self.message[0] = self.window;
+        self.message[1] = 2;
+        let answer: u64 = User32::dispatch_message(&registration, &self.message);
+        transition answer == 0 {
+            true -> self.destroy(registration)
+            _ -> self.bad(registration)
+        }
+    }
+    state destroy(&mut self, registration: Registration in Registration::Live) {
+        let destroyed: u32 = User32::destroy_window(&registration, self.window);
+        transition destroyed != 0 {
+            true -> self.release(registration)
+            _ -> self.bad(registration)
+        }
+    }
+    state release(&mut self, registration: Registration in Registration::Live) {
+        self.capacity = User32::unregister_class(registration);
+        self.console.exit_process(70);
+    }
+    // The rejected leg keeps the capacity and retries once on a renamed
+    // class before conceding — the observed-rejection path the acceptance
+    // names.
+    state reject_observed(&mut self, capacity: Registration) {
+        self.class.class_name[0] = 82;
+        let mut retry: RegisterClassOutcome;
+        User32::register_class<WindowMessages::window_procedure>(
+            &self.class,
+            capacity,
+            &mut retry
+        );
+        transition retry {
+            RegisterClassOutcome::Registered { registration } -> self.created(registration)
+            RegisterClassOutcome::Rejected { capacity } -> self.concede(capacity)
+        }
+    }
+    state concede(&mut self, capacity: Registration) {
+        self.capacity = capacity;
+        self.console.exit_process(71);
+    }
+    state bad(&mut self, registration: Registration in Registration::Live) {
+        self.capacity = User32::unregister_class(registration);
+        self.console.exit_process(72);
+    }
+}

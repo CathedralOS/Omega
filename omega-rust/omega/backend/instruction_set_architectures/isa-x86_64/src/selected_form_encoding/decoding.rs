@@ -487,7 +487,7 @@ pub(crate) fn decode_one(
             0xf7 if reg == 7 && rex_x == 0 => DecodedInstruction::SignedDivide { divisor: rm },
             0xf7 if (modrm >> 3) & 7 == 3 => DecodedInstruction::Negate { destination: rm },
             0xd3 if reg == 4 => DecodedInstruction::ShiftLeftByCl { destination: rm },
-            0xd3 if reg == 6 => DecodedInstruction::ShiftRightLogicalByCl { destination: rm },
+            0xd3 if reg == 5 => DecodedInstruction::ShiftRightLogicalByCl { destination: rm },
             0xd3 if reg == 7 => DecodedInstruction::ShiftRightArithmeticByCl { destination: rm },
             _ => return Err(X86_64SelectedFormEncodingError::MalformedEncoding),
         };

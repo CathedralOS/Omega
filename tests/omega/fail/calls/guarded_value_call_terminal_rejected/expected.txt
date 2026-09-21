@@ -1,1 +1,0 @@
-Terminal proposal must retain every integer comparison occurrence exactly once

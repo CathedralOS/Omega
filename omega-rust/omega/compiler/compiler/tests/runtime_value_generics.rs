@@ -747,6 +747,47 @@ fn runtime_bound_stale_call_guard_rejects_publication() {
     );
 }
 
+/// A dominating ordered guard is a caller-scope premise: the callee's
+/// declared binder range discharges against it at a statement call, and
+/// overwriting the bound subject retires the premise so the same spelling
+/// still rejects.
+#[test]
+fn runtime_bound_parameter_qualification_follows_the_dominating_guard() {
+    const PARAMETER_BOUND_MACHINES: &str = r#"
+machine sink<Limit: u8>(v: u8[0..=Limit]) {
+}
+
+machine guarded_param(value: u8, limit: u8) -> u8 {
+    transition value <= limit {
+        true -> allowed(value, limit)
+        false -> 0
+    }
+    state allowed(value: u8, limit: u8) {
+        sink<limit>(value);
+        value
+    }
+}
+"#;
+    let tail =
+        "\ndata Main {}\nmachine Main::main(&mut self) { let result: u8 = guarded_param(3, 7); }";
+    check_source(
+        "guarded-parameter-bound",
+        &format!("{PARAMETER_BOUND_MACHINES}{tail}"),
+    )
+    .expect("the dominating guard discharges the call's declared binder range");
+
+    let stale = PARAMETER_BOUND_MACHINES.replace(
+        "state allowed(value: u8, limit: u8) {",
+        "state allowed(value: u8, mut limit: u8) { limit = 0;",
+    );
+    let diagnostic = check_source("stale-parameter-bound", &format!("{stale}{tail}"))
+        .expect_err("a rebound bound subject must retire the guard premise");
+    assert!(
+        diagnostic.contains("cannot prove the declared symbolic const parameter ranges"),
+        "{diagnostic}"
+    );
+}
+
 const EQUAL_RUNTIME_INDEX_MACHINES: &str = r#"
 machine indexed<Bound: u8>() -> u8[0..=Bound] { Bound }
 
@@ -1979,31 +2020,177 @@ fn native_leg_requires_a_macos_arm64_host() {
 }
 
 /// A `data` header admits a runtime `Value` binder on the same spine as a
-/// machine signature (`data Wrap<Count:u32>`). Instantiation is a separate
-/// leg: the static identity of `Wrap<4>` versus `Wrap<7>` and the
-/// construction-time obligation live in typed-tree equality and seeded
-/// instances, so the template refuses loudly at symbol resolution until
-/// those land -- an admitted binder must never erase into an unsound
-/// instance. Both a field-free template and one whose field range would
-/// read the binder refuse with the same deliberate diagnostic.
+/// machine signature (`data Wrap<Count:u32>`). The binder keeps its index as
+/// an implicit leading descriptor field: construction spells the argument by
+/// name, `where` facts over it discharge at the construction gate like any
+/// other field, writes to it re-prove the invariant, and the subject reads
+/// back as ordinary data. An argument spelling in static position
+/// (`Wrap<4>`) unifies across indices -- the runtime-carried index, not the
+/// spelled argument, is the identity.
 #[test]
-fn data_templates_admit_a_runtime_value_binder_then_hold() {
-    for (name, body) in [
-        ("stored-field", "data Wrap<Count: u32> { value: u32; }"),
+fn data_value_binder_keeps_the_index_as_ordinary_data() {
+    check_source(
+        "value-binder-field",
+        r#"
+data Index<Limit: u32> [copy]
+where
+    value < Limit,
+{
+    value: u32;
+}
+
+machine take(i: Index) -> u32 { i.value }
+
+data Main { i: Index; }
+
+machine Main::main(&mut self) -> u32 {
+    let n: u32 = 9;
+    self.i = Index { Limit: n, value: 5 };
+    _ = take(self.i);
+    self.i.Limit
+}
+"#,
+    )
+    .expect("a value binder on data keeps the index as an ordinary field");
+}
+
+/// The descriptor field owes its default domain at construction: a literal
+/// whose `where` fact folds false refuses, and omitting the binder field
+/// reads its ZII zero into the same fact -- `value < Limit` cannot hold with
+/// `Limit` unset.
+#[test]
+fn data_value_binder_owes_its_default_domain_at_construction() {
+    for (name, construction, fragment) in [
         (
-            "field-range",
-            "data Wrap<Limit: u32> { items: u32[0..Limit]; }",
+            "violating-literal",
+            "Index { Limit: 9, value: 15 }",
+            "violates the default domain",
+        ),
+        (
+            "omitted-binder",
+            "Index { value: 5 }",
+            "violates the default domain",
         ),
     ] {
-        let source = format!("{body}\ndata Main {{}}\nmachine Main::main(&mut self) {{}}\n");
-        let diagnostics = check_source(name, &source)
-            .expect_err("a runtime-counted data template must refuse loudly");
-        assert!(
-            diagnostics.contains("a value parameter")
-                && diagnostics.contains("not supported on a data template"),
-            "{name}: {diagnostics}"
-        );
+        let diagnostics = check_source(
+            name,
+            &format!(
+                r#"
+data Index<Limit: u32>
+where
+    value < Limit,
+{{
+    value: u32;
+}}
+
+data Main {{ i: Index; }}
+
+machine Main::main(&mut self) -> u32 {{
+    self.i = {construction};
+    self.i.value
+}}
+"#
+            ),
+        )
+        .expect_err("a construction that cannot prove the default domain refuses");
+        assert!(diagnostics.contains(fragment), "{name}: {diagnostics}");
     }
+}
+
+/// The stored index participates in the standing `where` fact, so the write
+/// net re-proves the domain on every mutation -- a write that would leave
+/// `value < Limit` false refuses at the consumption point.
+#[test]
+fn data_value_binder_write_net_reproves_the_domain() {
+    check_source(
+        "binder-write-satisfies",
+        r#"
+data Index<Limit: u32>
+where
+    value < Limit,
+{
+    value: u32;
+}
+
+data Main { i: Index; }
+
+machine Main::main(&mut self) -> u32 {
+    self.i = Index { Limit: 9, value: 5 };
+    self.i.value = 7;
+    self.i.value
+}
+"#,
+    )
+    .expect("a write preserving the domain is admitted");
+
+    let diagnostics = check_source(
+        "binder-write-violates",
+        r#"
+data Index<Limit: u32>
+where
+    value < Limit,
+{
+    value: u32;
+}
+
+data Main { i: Index; }
+
+machine Main::main(&mut self) -> u32 {
+    self.i = Index { Limit: 9, value: 5 };
+    self.i.value = 15;
+    self.i.value
+}
+"#,
+    )
+    .expect_err("a write leaving the domain false refuses");
+    assert!(diagnostics.contains("default domain"), "{diagnostics}");
+}
+
+/// Runtime binder arguments carry no distinct type identity: `Index<9>` and
+/// `Index<7>` name the same type whose index is stored per value, so a
+/// `[copy]` instance assigns across the spelled applications.
+#[test]
+fn data_value_binder_arguments_carry_no_static_identity() {
+    check_source(
+        "binder-args-unify",
+        r#"
+data Index<Limit: u32> [copy]
+where
+    value < Limit,
+{
+    value: u32;
+}
+
+data Main { a: Index<9>; b: Index<7>; }
+
+machine Main::main(&mut self) -> u32 {
+    self.a = Index { Limit: 9, value: 5 };
+    self.b = self.a;
+    self.b.value
+}
+"#,
+    )
+    .expect("runtime binder applications unify on the shared layout");
+}
+
+/// A field range reading the binder (`items: u32[0..Limit]`) still refuses:
+/// a scope-named maximum belongs to machine state parameters, returns, and
+/// locals, not to a field's declared range. Layout-determining uses of the
+/// runtime index remain a separate leg.
+#[test]
+fn data_value_binder_field_ranges_still_refuse() {
+    let diagnostics = check_source(
+        "binder-field-range",
+        "data Wrap<Limit: u32> { items: u32[0..Limit]; }
+data Main {}
+machine Main::main(&mut self) {}
+",
+    )
+    .expect_err("a field range bound on a value binder must refuse");
+    assert!(
+        diagnostics.contains("declares a range whose bound names a value"),
+        "{diagnostics}"
+    );
 }
 
 /// `const` keeps the static specialization path untouched: a

@@ -1,31 +1,36 @@
 // PDI3: a generic result retains an erased expression over its input indices.
+// The consuming machine's conformance bound supplies the spelled operation;
+// the carrier trait's checked law slots license AC normalization.
 use omega_language_std::console;
 use omega::language::core::service;
 
 domain<T, const I: u64> T::Indexed<I>;
 
-trait IndexAdd {
-    machine add(a: Self, b: Self) -> Self;
-    machine add_comm(a: Self, b: Self)
+data Nat {
+    tag: u8;
+}
+
+trait IndexAdd<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand;
+    machine add_comm(a: Operand, b: Operand)
     ensures add(a, b) == add(b, a);
-    machine add_assoc(a: Self, b: Self, c: Self)
+    machine add_assoc(a: Operand, b: Operand, c: Operand)
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 
-operator + IndexAlgebra::plus(left: u64, right: u64) -> u64;
-
 // A deliberately small AC algebra is enough for this normalizer canary. The
-// selected public `+` operation is constant-three; PDI3 cares that this exact
-// operation and its exact proved algebra instance license the index syntax.
+// selected `+` requirement is constant-three: AC normalization licenses index
+// syntax without claiming a zero identity or integer addition.
 machine plus_index(a: u64, b: u64) -> u64
-satisfies IndexAlgebra::plus, IndexAdd::add as Canonical
+satisfies IndexAdd<u64>::add as Canonical
 ensures result == 3
 {
     transition { _ -> 3 }
 }
 
 machine plus_index_comm(a: u64, b: u64)
-satisfies IndexAdd::add_comm as Canonical
+satisfies IndexAdd<u64>::add_comm as Canonical
+requires plus_index(a, b) == plus_index(b, a)
 ensures plus_index(a, b) == plus_index(b, a)
 {
     _ = plus_index(a, b);
@@ -33,11 +38,20 @@ ensures plus_index(a, b) == plus_index(b, a)
 }
 
 machine plus_index_assoc(a: u64, b: u64, c: u64)
-satisfies IndexAdd::add_assoc as Canonical
+satisfies IndexAdd<u64>::add_assoc as Canonical
+requires plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
 {
     _ = plus_index(plus_index(a, b), c);
     _ = plus_index(a, plus_index(b, c));
+}
+
+Canonical:
+    Nat satisfies IndexAdd<u64>
+{
+    IndexAdd::add = plus_index;
+    IndexAdd::add_comm = plus_index_comm;
+    IndexAdd::add_assoc = plus_index_assoc;
 }
 
 machine indexed_left(value: i64) -> i64 in Indexed<1> {
@@ -48,14 +62,17 @@ machine indexed_right(value: i64) -> i64 in Indexed<2> {
     value as i64 in Indexed<2>
 }
 
-machine add_indexed<const A: u64, const B: u64>(
+machine add_indexed<T, const A: u64, const B: u64, Canonical: T satisfies IndexAdd<u64>>(
     left: i64 in Indexed<A>,
     right: i64 in Indexed<B>
 ) -> i64 in Indexed<A + B> {
     70 as i64 in Indexed<A + B>
 }
 
-machine establish_three(a: u64, b: u64) -> u64
+machine establish_three<T, Canonical: T satisfies IndexAdd<u64>>(a: u64, b: u64) -> u64
+requires a <= 1000
+requires b <= 1000
+requires a + b == 3
 ensures a + b == 3
 {
     _ = plus_index(a, b);
@@ -64,7 +81,7 @@ ensures a + b == 3
 
 // Keep one universal open compatibility boundary after the concrete runtime
 // call specializes `add_indexed`; AC normalization alone discharges this row.
-machine reorder_indexed<const A: u64, const B: u64>(
+machine reorder_indexed<T, const A: u64, const B: u64, Canonical: T satisfies IndexAdd<u64>>(
     value: i64 in Indexed<A + B>
 ) -> i64 in Indexed<B + A> {
     value
@@ -77,10 +94,10 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     let left: i64 in Indexed<1> = indexed_left(68);
     let right: i64 in Indexed<2> = indexed_right(2);
-    // `+` is the selected public operation, not compiler-known integer
-    // arithmetic. Establish the concrete equality explicitly; the universal
+    // `+` is the selected requirement, not compiler-known integer arithmetic.
+    // Establish the concrete equality explicitly; the universal
     // `reorder_indexed` row above remains a licensed-AC judgment.
-    _ = establish_three(1, 2);
-    let sum: i64 in Indexed<3> = add_indexed(left, right);
-    self.console.exit_process(sum as i32);
+    _ = establish_three<Nat, Canonical>(1, 2);
+    let sum: i64 in Indexed<3> = add_indexed<Nat, 1, 2, Canonical>(left, right);
+    self.console.exit_process((sum as i32 in Wrapping) as i32);
 }

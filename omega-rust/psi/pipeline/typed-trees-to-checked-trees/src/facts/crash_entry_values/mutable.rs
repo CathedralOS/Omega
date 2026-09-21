@@ -16,7 +16,9 @@
 //! disjoint sibling projections do not interfere — a case payload field is
 //! disjoint from its siblings in the same variant, and a write spelled under
 //! a different variant cannot execute while the bound snapshot's case still
-//! holds — while an indexed element or any projection the scan cannot
+//! holds — and the same rule reaches statically fixed element selections: a
+//! `collection[1]` or `collection[1..3]` read survives a write provably
+//! outside its window. A dynamic index or any projection the scan cannot
 //! separate stays opaque and reaches everything at or below it.
 
 use symbols::SymbolHandle;
@@ -191,13 +193,50 @@ pub(super) fn self_target_ordinals(
 /// One projection step below a binding's root. `Case` marks a sum's variant
 /// hop — the payload field itself is the following `Field` step, matching the
 /// canonical place spelling `facts::payload_variant_for_field` produces.
-/// `Opaque` marks a position the scan cannot separate — an indexed element or
-/// an unresolvable member — which interferes with every read at or below it.
+/// `FixedIndex` and `FixedRange` carry the canonical algebra's normalized
+/// element identity for a statically known `collection[i]` or
+/// `collection[start..end]` selection, so a write confined to a provably
+/// disjoint element does not dirty the read. `Opaque` marks a position the
+/// scan cannot separate — a dynamic index or an unresolvable member — which
+/// interferes with every read at or below it.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlaceSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),
+    /// A statically selected `collection[i]` element.
+    FixedIndex(usize),
+    /// A statically selected `collection[start..end]` window — half-open like
+    /// the canonical `facts::PlaceSegment::FixedRange`; `start == end`
+    /// selects no element.
+    FixedRange {
+        start: usize,
+        end: usize,
+    },
     Opaque,
+}
+
+/// The element segment an `Indexed` step contributes to a rooted path. The
+/// index is folded by the same `constant_integer_value` normalization the
+/// canonical `FixedIndex`/`FixedRange` segments use; a `start..end` range
+/// index keeps its bounds as one half-open window. Anything not statically
+/// known stays `Opaque` — conservative, since element writes cannot be
+/// separated below the collection root.
+pub(crate) fn fixed_index_segment(program: &TypedTrees, index: ExpressionHandle) -> PlaceSegment {
+    let constant = |expression: ExpressionHandle| {
+        program
+            .expression_table
+            .constant_integer_value(expression)
+            .and_then(|value| usize::try_from(value).ok())
+    };
+    if let ExpressionNode::Range(range) = program.expression_table.expression(index)
+        && let (Some(start), Some(end)) = (constant(range.start), constant(range.end))
+        && let Some(end) = end.checked_add(usize::from(range.end_inclusive))
+    {
+        return PlaceSegment::FixedRange { start, end };
+    }
+    constant(index)
+        .map(PlaceSegment::FixedIndex)
+        .unwrap_or(PlaceSegment::Opaque)
 }
 
 /// A write to `write` reaches a read of `read` only when the two paths cannot
@@ -208,6 +247,11 @@ pub(crate) enum PlaceSegment {
 /// different variant requires re-seating the whole binding, whose root write
 /// interferes on its own — so distinct `Case` hops separate the same way
 /// `canonical_place_segment_pair_may_overlap` rules them non-overlapping.
+/// Fixed element positions separate by the canonical window rules too:
+/// disjoint indices and disjoint half-open windows never overlap, and a
+/// fixed index outside a fixed window is unreachable. A segment kind the
+/// scan cannot order against its counterpart — a dynamic index, an opaque
+/// step, or a heterogeneous pair — stays interfering.
 fn paths_interfere(write: &[PlaceSegment], read: &[PlaceSegment]) -> bool {
     for (write, read) in write.iter().zip(read.iter()) {
         match (write, read) {
@@ -218,6 +262,35 @@ fn paths_interfere(write: &[PlaceSegment], read: &[PlaceSegment]) -> bool {
             }
             (PlaceSegment::Case(write), PlaceSegment::Case(read)) => {
                 if write != read {
+                    return false;
+                }
+            }
+            (PlaceSegment::FixedIndex(write), PlaceSegment::FixedIndex(read)) => {
+                if write != read {
+                    return false;
+                }
+            }
+            (
+                PlaceSegment::FixedRange {
+                    start: write_start,
+                    end: write_end,
+                },
+                PlaceSegment::FixedRange {
+                    start: read_start,
+                    end: read_end,
+                },
+            ) => {
+                if !(write_start < write_end
+                    && read_start < read_end
+                    && write_start < read_end
+                    && read_start < write_end)
+                {
+                    return false;
+                }
+            }
+            (PlaceSegment::FixedRange { start, end }, PlaceSegment::FixedIndex(index))
+            | (PlaceSegment::FixedIndex(index), PlaceSegment::FixedRange { start, end }) => {
+                if !(start < end && start <= index && index < end) {
                     return false;
                 }
             }
@@ -243,7 +316,7 @@ fn rooted_place_path(
         ExpressionNode::Indexed(indexed) => {
             rooted_place_path(program, machine_symbol, indexed.collection).map(
                 |(root, mut path)| {
-                    path.push(PlaceSegment::Opaque);
+                    path.push(fixed_index_segment(program, indexed.index));
                     (root, path)
                 },
             )
@@ -313,7 +386,15 @@ pub(crate) fn statement_may_overwrite_place(
         .map(|segment| match segment {
             facts::PlaceSegment::Field { symbol } => PlaceSegment::Field(*symbol),
             facts::PlaceSegment::Case { variant } => PlaceSegment::Case(*variant),
-            _ => PlaceSegment::Opaque,
+            facts::PlaceSegment::FixedIndex { index } => PlaceSegment::FixedIndex(*index),
+            facts::PlaceSegment::FixedRange { start, end } => PlaceSegment::FixedRange {
+                start: *start,
+                end: *end,
+            },
+            // The canonical producer normalizes fixed selections itself; an
+            // `Index` that still folds to a literal keeps the same identity
+            // here, and a genuinely dynamic index stays opaque.
+            facts::PlaceSegment::Index { expression } => fixed_index_segment(program, *expression),
         })
         .collect();
     statement_may_overwrite(program, machine_symbol, statement, symbol, &read_path)

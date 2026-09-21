@@ -8,7 +8,7 @@
 //! inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId};
+use selected_instructions::SelectedInstructionId;
 
 use super::CommutingInterchangeError;
 use crate::ValidatedSelectedAnalysis;
@@ -16,8 +16,7 @@ use crate::rewrites::commuting_accesses as accesses;
 use crate::rewrites::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     pub block_index: usize,
     /// The earlier member's index in the block body.
     pub earlier_index: usize,
@@ -27,14 +26,14 @@ pub(super) struct Admission<'source> {
     pub later_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     earlier: SelectedInstructionId,
     later: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, CommutingInterchangeError> {
+) -> Result<Admission, CommutingInterchangeError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(CommutingInterchangeError::SourceMismatch);
@@ -159,7 +158,6 @@ pub(super) fn admit<'source>(
         return Err(CommutingInterchangeError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         earlier_index,
         later_index,

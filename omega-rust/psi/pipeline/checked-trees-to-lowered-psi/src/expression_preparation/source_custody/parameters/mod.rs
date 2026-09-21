@@ -19,10 +19,12 @@ pub(crate) fn parameter_storage<'checked>(
     owned::validate(checked, machine, state, &graph.structural_parameters)?;
     let parameters = checked.state_parameters(state);
     // An `[erased]` binding occurrence owns neither a scalar nor a structural
-    // entry; the retained arity is reconstructed from the typed relevance.
+    // entry; the retained arity is reconstructed from the typed relevance. An
+    // ambient borrowed `self` stays on the attachment carrier and owns no
+    // graph entry either.
     let retained_parameters = parameters
         .iter()
-        .filter(|parameter| !parameter.relevance.is_erased())
+        .filter(|parameter| !parameter.relevance.is_erased() && !parameter.is_self)
         .count();
     if retained_parameters != graph.parameter_types.len() + graph.structural_parameters.len()
         || graph.scalar_parameters.len() != graph.parameter_types.len()
@@ -42,11 +44,25 @@ pub(crate) fn parameter_storage<'checked>(
     let mut scalar_position = 0usize;
     let mut structural = graph.structural_parameters.iter();
     for (position, parameter) in parameters.iter().enumerate() {
+        if parameter.is_self {
+            // The receiver never owns a graph entry; graph admission retains
+            // only a borrowed `self`, and this rejoin keeps that exact edge.
+            if !matches!(
+                checked
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                checked_trees::types::TypeReferenceNode::Reference { .. }
+            ) {
+                return unsupported(
+                    "scalar parameter storage disagrees with its authored signature",
+                );
+            }
+            continue;
+        }
         if !parameter.symbol.is_valid()
             || parameters[..position]
                 .iter()
                 .any(|prior| prior.symbol == parameter.symbol)
-            || parameter.is_self
             || parameter.is_const
         {
             return unsupported("scalar parameter storage disagrees with its authored signature");

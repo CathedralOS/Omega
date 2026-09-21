@@ -1,9 +1,10 @@
 use super::{
-    boundary_call_mut, content_entry_claim, content_predicate, executable_nominal_affine_module,
-    five_call_executable_nominal_affine_module, hard_root_module, nominal_affine_module,
-    partial_affine_field_module, projected_unit_call_module, structural_parameter,
-    three_call_executable_nominal_affine_module, two_call_executable_nominal_affine_module,
-    two_element_projected_unit_call_module, unit_call_mut,
+    boundary_call_mut, content_entry_claim, content_predicate, contextual_nominal_affine_module,
+    executable_nominal_affine_module, five_call_executable_nominal_affine_module, hard_root_module,
+    nominal_affine_module, partial_affine_field_module, projected_unit_call_module,
+    structural_parameter, three_call_executable_nominal_affine_module,
+    two_call_executable_nominal_affine_module, two_element_projected_unit_call_module,
+    unit_call_mut,
 };
 use crate::structural_unit::{
     block_id, claim_id, contract_id, domain_id, edge_id, machine_id, obligation_id, operation_id,
@@ -123,7 +124,7 @@ fn exact_five_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
 }
 
 #[test]
-fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
+fn two_call_nominal_affine_cleanup_admits_nonempty_bodies_and_rejects_uncalled_helpers() {
     let mut repeated = two_call_executable_nominal_affine_module();
     let first_callee = match repeated.machines[1].blocks[0].operations[0].kind {
         OperationKind::CallUnit { callee, .. } => callee,
@@ -149,6 +150,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
@@ -157,10 +159,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
                 crash_continuations: Vec::new(),
             },
         });
-    assert!(matches!(
-        validate_module(&nonempty_second),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&nonempty_second).expect("a helper body lowers like any other Unit machine");
 
     let mut third_call = two_call_executable_nominal_affine_module();
     third_call.machines[1].blocks[0].operations.push(Operation {
@@ -169,6 +168,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: Vec::new(),
@@ -177,10 +177,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
             crash_continuations: Vec::new(),
         },
     });
-    assert!(matches!(
-        validate_module(&third_call),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&third_call).expect("recalling an already-called helper is ordinary code");
 
     let mut extra_helper = two_call_executable_nominal_affine_module();
     let mut unused = extra_helper.machines[3].clone();
@@ -200,7 +197,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
 }
 
 #[test]
-fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
+fn one_call_nominal_affine_cleanup_rejects_recursive_and_uncalled_helpers() {
     let mut recursive_target = executable_nominal_affine_module();
     let cleanup_id = recursive_target.machines[1].id;
     let OperationKind::CallUnit { callee, .. } =
@@ -223,6 +220,7 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
@@ -233,7 +231,7 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
         });
     assert!(matches!(
         validate_module(&nonempty_helper),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+        Err(ModuleError::RecursiveCallSliceNotYetSupported(_))
     ));
 
     let mut extra_machine = executable_nominal_affine_module();
@@ -381,6 +379,144 @@ fn nominal_affine_cleanup_rejects_forged_target_and_unsupported_field_type() {
     };
     assert!(matches!(
         validate_module(&unsupported_scalar),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
+fn nominal_affine_cleanup_admits_hook_ensures_and_rejects_other_contract_carriers() {
+    let mut ensured_caller = nominal_affine_module();
+    ensured_caller.machines[0]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: Proposition::Truth,
+        });
+    assert!(matches!(
+        validate_module(&ensured_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut crashing_caller = nominal_affine_module();
+    crashing_caller.machines[0]
+        .contract
+        .crash_routes
+        .push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                content_predicate(place_id(1)),
+            ))],
+        });
+    assert!(matches!(
+        validate_module(&crashing_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut ensured_target = nominal_affine_module();
+    ensured_target.machines[1]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: Proposition::Truth,
+        });
+    validate_module(&ensured_target).expect("the hook may declare ensures like any Unit machine");
+
+    let mut crashing_target = nominal_affine_module();
+    crashing_target.machines[1]
+        .contract
+        .crash_routes
+        .push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                content_predicate(place_id(1)),
+            ))],
+        });
+    assert!(matches!(
+        validate_module(&crashing_target),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut attached_self_caller = nominal_affine_module();
+    attached_self_caller.machines[0].attachment = Some(structural_type_id(1));
+    attached_self_caller.machines[0].structural_parameters[0].is_self = true;
+    attached_self_caller.machines[0].structural_places[0].kind = StructuralPlaceKind::Parameter {
+        position: 0,
+        is_self: true,
+    };
+    assert!(matches!(
+        validate_module(&attached_self_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
+fn executable_nominal_affine_cleanup_helpers_carry_ordinary_contracts() {
+    let mut ensured_helper = executable_nominal_affine_module();
+    ensured_helper.machines[2]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: Proposition::Truth,
+        });
+    validate_module(&ensured_helper).expect("helper contracts are ordinary machine contracts");
+
+    let mut required_helper = executable_nominal_affine_module();
+    required_helper.machines[2]
+        .contract
+        .requires
+        .push(Proposition::Truth);
+    assert!(matches!(
+        validate_module(&required_helper),
+        Err(ModuleError::CallRequirementArityMismatch { .. })
+    ));
+
+    let mut crashing_helper = executable_nominal_affine_module();
+    crashing_helper.machines[2]
+        .contract
+        .crash_routes
+        .push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                content_predicate(place_id(1)),
+            ))],
+        });
+    assert!(matches!(
+        validate_module(&crashing_helper),
+        Err(ModuleError::UnitCallContractPlaceHasNoArgument { .. })
+    ));
+
+    let mut unattached_helper = executable_nominal_affine_module();
+    unattached_helper.machines[2].attachment = None;
+    validate_module(&unattached_helper)
+        .expect("helper attachment is no longer part of the cleanup fence");
+
+    let mut nonempty_helper_attachment = executable_nominal_affine_module();
+    nonempty_helper_attachment.structural_types[1].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            identity: "payload".into(),
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+        }],
+    };
+    validate_module(&nonempty_helper_attachment)
+        .expect("helper attached shapes are ordinary records");
+}
+
+#[test]
+fn contextual_nominal_affine_cleanup_rejects_receiver_colliding_with_live_place() {
+    let mut module = contextual_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(place_id(1));
+    assert!(matches!(
+        validate_module(&module),
         Err(ModuleError::InvalidNominalAffineCleanup { .. })
     ));
 }
@@ -1026,11 +1162,13 @@ fn linear_projected_custody_survives_an_empty_jump() {
         target: block_id(3),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     module.machines[0].blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(3),
         parameters: Vec::new(),
@@ -1386,6 +1524,7 @@ fn projected_move_blocks_later_whole_root_use() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: vec![StructuralArgument {

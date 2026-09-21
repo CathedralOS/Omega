@@ -14,6 +14,7 @@ fn successor(edge: u64, target: u64) -> SuccessorEdge {
         target: id(target, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -22,6 +23,7 @@ fn successor(edge: u64, target: u64) -> SuccessorEdge {
 fn block(identity: u64, terminator: Terminator) -> Block {
     Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(identity, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -44,6 +46,7 @@ fn jump(edge: u64, target: u64) -> Terminator {
         target: id(target, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),

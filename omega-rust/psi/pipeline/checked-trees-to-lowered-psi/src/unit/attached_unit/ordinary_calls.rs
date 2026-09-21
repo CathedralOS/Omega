@@ -35,6 +35,8 @@ pub(super) struct PreparedCall {
     pub arguments: Vec<ValueId>,
     /// Proof-only erased actuals in the callee's erased-formal order.
     pub erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
+    /// Erased proof-only actuals in the callee's erased-proof roster order.
+    pub erased_proof_arguments: Vec<semantic_vocabulary::ProofTerm>,
     pub structural_arguments: Vec<StructuralArgument>,
     /// The emitted transfer roster: checked rows plus each completed-result
     /// `self` consume's minted claim, in canonical order.
@@ -52,6 +54,7 @@ pub(super) fn prepare(
     evaluated_scalar_arguments: Option<&[ValueDeclaration]>,
     caller_scalar_values: &[ValueDeclaration],
     caller_erased_scalar_parameters: &[ValueDeclaration],
+    caller_erased_proof_parameters: &[checked_trees::CheckedErasedProofParameterPlan],
     parameters: &[StructuralParameterDeclaration],
     local_places: &[StructuralPlaceDeclaration],
     structural_result_places: &[(StructuralPlaceDeclaration, bool)],
@@ -68,6 +71,7 @@ pub(super) fn prepare(
         target_machine,
         scalar_arguments,
         erased_scalar_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
     ) = match operation {
@@ -75,6 +79,7 @@ pub(super) fn prepare(
             target_machine,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             ..
@@ -82,6 +87,7 @@ pub(super) fn prepare(
             target_machine,
             scalar_arguments,
             erased_scalar_arguments.as_slice(),
+            erased_proof_arguments.as_slice(),
             structural_arguments,
             claim_transfers.as_slice(),
         ),
@@ -89,6 +95,7 @@ pub(super) fn prepare(
             target_machine,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             custody,
             ..
@@ -96,6 +103,7 @@ pub(super) fn prepare(
             target_machine,
             scalar_arguments,
             erased_scalar_arguments.as_slice(),
+            erased_proof_arguments.as_slice(),
             structural_arguments,
             custody.claim_transfers.as_slice(),
         ),
@@ -104,9 +112,20 @@ pub(super) fn prepare(
     let checked_target = UnitBody::find(plans, *target_machine)?.entry()?;
     if target.erased_scalar_parameters.len() != checked_target.erased_scalar_parameters.len()
         || erased_scalar_arguments.len() != checked_target.erased_scalar_parameters.len()
+        || erased_proof_arguments.len() != checked_target.erased_proof_parameters.len()
     {
         return unsupported("Unit call erased formal roster drifted from its checked target");
     }
+    let erased_proof_arguments = erased_proof_arguments
+        .iter()
+        .map(|argument| {
+            crate::scalar_graph::scalar_contracts::checked_proof_term(
+                checked,
+                argument,
+                caller_erased_proof_parameters,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let erased_arguments = erased_scalar_arguments
         .iter()
         .map(|argument| {
@@ -275,6 +294,7 @@ pub(super) fn prepare(
     Ok(PreparedCall {
         arguments: terminal_scalar_arguments,
         erased_arguments,
+        erased_proof_arguments,
         structural_arguments: terminal_arguments,
         claim_transfers,
         requirement_obligations,
@@ -400,6 +420,7 @@ pub(super) fn emit_structural(
     let PreparedCall {
         arguments,
         erased_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -413,6 +434,7 @@ pub(super) fn emit_structural(
     let kind = if result.multiplicity == Multiplicity::Linear
         && arguments.is_empty()
         && erased_arguments.is_empty()
+        && erased_proof_arguments.is_empty()
     {
         OperationKind::CallStructural {
             callee,
@@ -428,6 +450,7 @@ pub(super) fn emit_structural(
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,

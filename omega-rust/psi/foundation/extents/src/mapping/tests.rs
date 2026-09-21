@@ -125,6 +125,13 @@ fn mapping_id(identity: u64) -> MappingId {
 }
 
 fn mapping_grant(mode: MappingSourceMode) -> MappingGrant {
+    mapping_grant_with_revocation(mode, revocation_obligations())
+}
+
+fn mapping_grant_with_revocation(
+    mode: MappingSourceMode,
+    peer_revocation_obligations: PeerWriteRevocationObligations,
+) -> MappingGrant {
     MappingGrant::from_admitted_provider(
         id(40, MappingGrantId::from_normalized_identity),
         mode,
@@ -137,6 +144,7 @@ fn mapping_grant(mode: MappingSourceMode) -> MappingGrant {
         id(31, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::from_normalized_facts([activation_fact(600)]),
         TranslationReleaseObligations::from_normalized_facts([translation_fact(700)]),
+        peer_revocation_obligations,
     )
 }
 
@@ -465,6 +473,60 @@ fn activated_shared_mapping() -> super::MappedExtent<'static> {
     activated_shared_mapping_with(Box::leak(Box::new(source())), 60)
 }
 
+fn activated_shared_mapping_with_grant(grant: &MappingGrant) -> super::MappedExtent<'static> {
+    let source_loan = Box::leak(Box::new(source()))
+        .loan(0, 0x1000)
+        .expect("shared source");
+    let pending = map_borrowed(source_loan, destination(), mapping_id(60), grant)
+        .expect("borrowed map candidate");
+    let receipt = activate(&pending);
+    pending.complete(receipt).expect("translations installed")
+}
+
+#[test]
+fn peer_write_revocation_demands_the_admitted_grants_fact_set() {
+    let grant = mapping_grant_with_revocation(
+        MappingSourceMode::BorrowedShared,
+        PeerWriteRevocationObligations::from_normalized_facts([
+            id(61, PeerWriteRevocationFactId::from_normalized_identity),
+            id(62, PeerWriteRevocationFactId::from_normalized_identity),
+            id(63, PeerWriteRevocationFactId::from_normalized_identity),
+        ]),
+    );
+    let mapping = activated_shared_mapping_with_grant(&grant);
+    let pending = mapping
+        .begin_peer_write_revocation()
+        .expect("shared custody may revoke the peer write");
+    assert_eq!(
+        pending.revocation_obligations().facts().count(),
+        3,
+        "the demanded set rides the admitted grant, not the caller"
+    );
+
+    let short_receipt = PeerWriteRevocationReceipt::from_admitted_provider(
+        &pending.receipt_context(),
+        true,
+        [
+            id(61, PeerWriteRevocationFactId::from_normalized_identity),
+            id(62, PeerWriteRevocationFactId::from_normalized_identity),
+        ],
+    );
+    let error = pending
+        .complete(short_receipt)
+        .expect_err("the caller-side set cannot substitute for the grant's demand");
+    assert!(error.diagnostic().0.contains("required invalidation facts"));
+    let (pending, _receipt) = error.into_parts();
+
+    let receipt = PeerWriteRevocationReceipt::from_admitted_provider(
+        &pending.receipt_context(),
+        true,
+        grant.peer_revocation_obligations().facts(),
+    );
+    pending
+        .complete(receipt)
+        .expect("the grant's demand completes");
+}
+
 #[test]
 fn shared_mapping_stable_loan_requires_completed_peer_write_revocation() {
     let mapping = activated_shared_mapping();
@@ -475,12 +537,12 @@ fn shared_mapping_stable_loan_requires_completed_peer_write_revocation() {
     assert!(error.0.contains("peer-write-revocation receipt"));
 
     let pending = mapping
-        .begin_peer_write_revocation(revocation_obligations())
+        .begin_peer_write_revocation()
         .expect("shared custody may revoke the peer write");
     assert_eq!(
         pending.revocation_obligations().facts().count(),
         2,
-        "pending carrier exposes the demanded fact set"
+        "pending carrier exposes the grant-demanded fact set"
     );
 
     let short_receipt = PeerWriteRevocationReceipt::from_admitted_provider(
@@ -529,7 +591,7 @@ fn shared_mapping_stable_loan_requires_completed_peer_write_revocation() {
 fn peer_write_revocation_receipt_binds_the_exact_mapping() {
     let mapping = activated_shared_mapping();
     let pending = mapping
-        .begin_peer_write_revocation(revocation_obligations())
+        .begin_peer_write_revocation()
         .expect("shared custody may revoke the peer write");
 
     let foreign_source = Box::leak(Box::new(extent(9, 0x1000, 0x1000, 10, 20, &[100])));
@@ -574,7 +636,7 @@ fn peer_write_revocation_refuses_non_shared_custody() {
     let mapping = pending.complete(receipt).expect("translations installed");
 
     let error = mapping
-        .begin_peer_write_revocation(revocation_obligations())
+        .begin_peer_write_revocation()
         .expect_err("owned sources have no hostile writable peer");
     assert!(error.diagnostic().0.contains("shared source custody"));
     let mapping = error.into_mapping();

@@ -1,7 +1,7 @@
 # Delta internal boundary
 
 Run `sh tests/delta/internal-boundary/run.sh` on macOS arm64 with `python3`
-and `codesign`, or Windows x64 from Git Bash with `python3`. Other hosts fail
+and `codesign`, Linux x86-64, or Windows x64 from Git Bash with `python3`. Other hosts fail
 explicitly; Windows execution remains unvalidated in this change. The gate
 materializes the role-selected Gamma evaluator and
 the exact manifested Delta implementation with canonical and diagnostic
