@@ -13147,6 +13147,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   records-free leg, ~06:46Z). No separable slice: the sibling
   OMEGA-D-SCALAR-{ALPHA-EMISSION,EMISSION-EXTENSION,OPERATION-FRONTIER,
   SEQUENCING} rows name the same file.
+||||||| parent of 7c234e3e35af (board: OMEGA-D-STANDALONE-REQUEST-ROUTE scope-verified — covered)
+- **OMEGA-D-STANDALONE-REQUEST-ROUTE.** Scope verified at
+  `9db0b615de20`, covered — re-mines the standalone-request route leg of
+  the OMEGA-D clause (TASKS_BOOTSTRAP.md:307: "Complete the standalone
+  request field/tag, outcome/phase, and scalar-resource tables" plus
+  :318 "Replace that adapter through the real request and target
+  route"). The landed state is recorded on the resolved sibling rows:
+  the request side ships in `bootstrap/5_omega/request_and_utf8.epsilon`
+  (complete OCREQ V1 parse, exercised end to end by
+  `tests/bootstrap/omega-request`; OMEGA-D-REQUEST-TABLE-COMPLETION /
+  OMEGA-D-REQUEST-TABLES rows), and the entry side resolved at
+  `e76d715c8ee` (OMEGA-D-REQUEST-AND-ENTRY-ROUTE). The clause's open
+  legs are sibling-owned, not this stub's: real `main`-form routing is
+  OMEGA-D-REAL-ENTRY-ROUTE's, trampoline elimination is
+  OMEGA-D-ENTRY-ADAPTER-RETIREMENT's, and request semantic phases
+  3–5/7–8 are the OMEGA-D-REQUEST-{ADMISSION,OUTCOME-TABLES} family's.
+  Every implementing member is live-fenced at verification:
+  `bootstrap/5_omega/request_and_utf8.epsilon` + sources + README under
+  OMEGA-D-REQUEST-ADMISSION/semantics-4-5 (exp 2026-09-22T03:24Z),
+  `tools/bootstrap/omega` + `tests/bootstrap/omega-request` under
+  OMEGA-D-REQUEST-ADMISSION/records-env-request (exp 11:12Z),
+  `outcome.epsilon` + `tests/bootstrap/omega-outcome` under
+  OMEGA-D-REQUEST-V1-TABLES (exp 11:19Z), `tests/epsilon` under
+  DELTA-COMPILER (exp 09:51Z). No independent slice exists.
 - **OMEGA-D-SCALAR-ALPHA-EMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-COMPILATION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
