@@ -33,14 +33,24 @@ its logical result and obligations; an encoded proof cannot select them.
 
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
-qualification catalog follows the entry identity as four counted tables:
+qualification catalog follows the entry identity as five counted tables:
 
 | Catalog table | Row fields |
 | --- | --- |
-| domain definitions | domain id + semantic domain id + canonical identity string + scalar carrier type |
+| domain definitions | domain id + semantic domain id + canonical identity string + scalar carrier type + counted establishment routes |
 | normalized sets | `u64` set identity + counted domain identities |
 | qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
+| integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
+
+Each scalar domain establishment route is a `u8` tag:
+
+<!-- scalar-domain-establishment-route-tags -->
+| Tag | Scalar domain establishment route | Fields after the tag |
+| --- | --- | --- |
+| 0 | CheckedRequirement | requirement identity string |
+| 1 | BoundaryRequirement | requirement identity string |
+| 2 | ExactMachine | machine identity string |
 
 Definitions bind their local and semantic identities, canonical theory
 identity, and scalar carrier, and are strictly ordered by domain identity.
@@ -131,7 +141,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | structural path | counted segments, each `u8`: 1 + `string` field name; 2 + `u64` fixed index; 3 referent |
 | canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id |
 | canonical structural field | root place id + counted canonical path segments |
-| scalar field carrier path | counted segments, each `u8` 1 + field id; record carriers only — other segment tags reject |
+| scalar field carrier path | counted segments, each `u8` 1 + field id or 2 + `u64` fixed index; record carriers only — other segment tags reject |
 | structural access | `u8`: 1 owned, 2 shared borrow, 3 mutable borrow, 4 write-only borrow |
 | structural multiplicity | `u8`: 1 unrestricted, 2 affine, 3 linear |
 | structural argument | place id + structural access + structural path |
@@ -152,6 +162,71 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | residual discard | place id + structural path + structural type id |
 | affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural type id + machine id + optional identity + obligation id list |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
+
+The closed `u8` spaces behind the scalar field forms:
+
+<!-- scalar-type-tags -->
+| Tag | Scalar type | Fields after the tag |
+| --- | --- | --- |
+| 1 | Boolean | — |
+| 2 | Integer | integer type |
+| 3 | IeeeFloat | IEEE float format |
+
+<!-- integer-type-tags -->
+| Tag | Integer type | Fields after the tag |
+| --- | --- | --- |
+| 1 | Signed | `u16` bit width |
+| 2 | Unsigned | `u16` bit width |
+| 3 | Address | `u16` bit width |
+
+<!-- integer-value-tags -->
+| Tag | Integer value | Fields after the tag |
+| --- | --- | --- |
+| 1 | Signed | `i128` |
+| 2 | Unsigned | `u128` |
+
+<!-- ieee-float-value-tags -->
+| Tag | IEEE float value | Fields after the tag |
+| --- | --- | --- |
+| 1 | Binary32 | `u32` bits |
+| 2 | Binary64 | `u64` bits |
+
+<!-- ieee-float-relation-tags -->
+| Tag | IEEE float relation |
+| --- | --- |
+| 0 | Equal |
+| 1 | NotEqual |
+| 2 | Less |
+| 3 | LessOrEqual |
+| 4 | Greater |
+| 5 | GreaterOrEqual |
+
+<!-- ieee-comparison-kind-tags -->
+| Tag | IEEE float comparison kind |
+| --- | --- |
+| 1 | Equal |
+| 2 | NotEqual |
+
+<!-- boolean-tags -->
+| Tag | Boolean |
+| --- | --- |
+| 0 | False |
+| 1 | True |
+
+<!-- optional-identity-tags -->
+| Tag | Optional identity | Fields after the tag |
+| --- | --- | --- |
+| 1 | Present | `id` |
+
+<!-- scalar-field-carrier-path-tags -->
+| Tag | Scalar field carrier segment | Fields after the tag |
+| --- | --- | --- |
+| 1 | Field | field id |
+| 2 | FixedIndex | `u64` index |
+
+The optional-identity byte 0 records absence and carries no fields; the
+shared optional-identity reader decodes it as the absent form rather than a
+table row.
 
 Admission kinds are shared by proof-bundle admission routes and obligation
 classes:
@@ -383,6 +458,28 @@ position + target requirement proposition id + target evidence term id +
 source evidence term id + instantiated proposition id + target parameter
 place id + caller result place id).
 
+The result byte in the operation row header and the operand bytes nested in
+tag-68 and tag-41 rows are their own closed `u8` spaces:
+
+<!-- operation-result-tags -->
+| Tag | Operation result | Fields after the tag |
+| --- | --- | --- |
+| 0 | Unit | — |
+| 1 | Scalar | value declaration |
+| 2 | Structural | structural operation result |
+
+<!-- record-field-value-tags -->
+| Tag | Record field operand | Fields after the tag |
+| --- | --- | --- |
+| 1 | Scalar | value id + optional obligation id |
+| 2 | Structural | structural argument |
+
+<!-- outcome-result-substitution-tags -->
+| Tag | Outcome result substitution | Fields after the tag |
+| --- | --- | --- |
+| 0 | Absent | — |
+| 1 | Present | `u32` argument position + callee result place id + caller result place id |
+
 ## Terminator rows
 
 A terminator row is a `u8` tag followed by its fields.
@@ -407,6 +504,15 @@ noncanonical. Each residual retains place, ordered structural path, and exact
 subtree type; ownership validation reconstructs the complement rather than
 trusting this list.
 
+The affine cleanup actions a terminator carries are a closed `u8` space:
+
+<!-- affine-cleanup-action-tags -->
+| Tag | Affine cleanup action | Fields after the tag |
+| --- | --- | --- |
+| 1 | DiscardRoot | place id |
+| 2 | DiscardResidual | residual discard |
+| 3 | InvokeNominal | place id + structural type id + machine id + optional identity + obligation id list |
+
 ## Machine rows
 
 A boundary declaration stores its counted runtime parameter-order tags after
@@ -422,7 +528,7 @@ the declaration order below and ending with the machine roster.
 <!-- module-table-order -->
 | # | Module table | Row |
 | --- | --- | --- |
-| 1 | scalar qualification catalog | the four counted catalog tables above |
+| 1 | scalar qualification catalog | the five counted catalog tables above |
 | 2 | structural types | counted structural type declarations |
 | 3 | structural domains | counted structural domain declarations |
 | 4 | services | counted service declarations |
@@ -523,7 +629,21 @@ source and target block ids, successor rank value id, and rank comparison:
 | 8 | BlockParameter | block id + `u32` position |
 
 Content rows share these closed `u8` spaces. A content structural place is
-its version byte + root place id + counted segments.
+its version byte + root place id + counted segments. A structural place kind
+byte inside a content row shares the place-kind grammar with tag 8 retired —
+BlockParameter places are machine-local and reject at content positions:
+
+<!-- content-structural-place-kind-tags -->
+| Tag | Content structural place kind | Fields after the tag |
+| --- | --- | --- |
+| 1 | Parameter | `u32` position + `bool` self flag |
+| 2 | Result | — |
+| 3 | TrivialAffineLocal | `u32` declaration ordinal + structural type id; no construction element |
+| 4 | ByteSequenceLiteral | `u32` declaration ordinal + structural type id |
+| 5 | ProviderAttachment | attachment structural type id + field id + boundary machine id |
+| 6 | OperationResult | producer operation id + structural type id |
+| 7 | TrivialAffineLocal | `u32` declaration ordinal + structural type id + root structural type id + `u64` construction index |
+| 8 | — | retired at content positions: BlockParameter places are machine-local |
 
 <!-- content-place-version-tags -->
 | Tag | Content place version | Fields after the tag |
@@ -592,8 +712,9 @@ producer state and rederives every ordering rule.
 | structural type declaration | structural type id + identity string + structural type shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
-| structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection |
+| structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection + counted establishment routes |
 | optional content projection | `u8` 0 absent; `u8` 1 + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression |
+| structural establishment route | `u8` tag per the establishment-route table |
 | service declaration | service id + identity string + counted parent service ids |
 | concrete root service reach | counted service ids |
 | installation reach dependency | requirement identity string + counted service-id upper bound |
@@ -678,6 +799,14 @@ bound strictly ordered.
 | 2 | FixedIndex | `u64` index |
 | 3 | Case | structural case id |
 
+<!-- structural-establishment-route-tags -->
+
+| tag | Structural establishment route | Fields after the tag |
+| --- | --- | --- |
+| 1 | Requirement | requirement identity string |
+| 2 | ExactMachine | machine identity string |
+| 3 | BoundaryRequirement | requirement identity string |
+
 A canonical structural field path is a root place id + counted canonical path
 segments. An IEEE float field path is a root place id + counted canonical
 path segments.
@@ -689,11 +818,19 @@ path segments.
 | 1 | IntervalSet | counted (start capacity scalar + end capacity scalar) bounds |
 | 2 | CountedQuantity | capacity scalar |
 
-A capacity scalar inside a domain declaration is a `u8` tag: 1 SubjectField +
-counted field path strings; 2 RuntimeScalarEmbedding + counted field path
-strings; 3 Natural + natural string; 4 Successor + capacity scalar; 5 Add +
-two capacity scalars; 6 Subtract + two capacity scalars; 7 Multiply + two
-capacity scalars.
+A capacity scalar inside a domain declaration is a `u8` tag:
+
+<!-- content-projection-scalar-tags -->
+
+| tag | Content projection scalar | Fields after the tag |
+| --- | --- | --- |
+| 1 | SubjectField | counted field path strings |
+| 2 | RuntimeScalarEmbedding | counted field path strings |
+| 3 | Natural | natural string |
+| 4 | Successor | capacity scalar |
+| 5 | Add | two capacity scalars |
+| 6 | Subtract | two capacity scalars |
+| 7 | Multiply | two capacity scalars |
 
 ### Placed-view inputs and reborrow custody
 
@@ -908,6 +1045,20 @@ the referenced semantic contract row and is checked against it.
 | 1 | Type |
 | 2 | Const |
 | 3 | Machine |
+
+<!-- proposition-binder-argument-tags -->
+
+| tag | Binder argument selector | Fields after the tag |
+| --- | --- | --- |
+| 0 | Identity | identity string |
+| 1 | EvidenceProjection | evidence projection |
+
+<!-- proposition-evidence-interface-tags -->
+
+| tag | Evidence interface selector | Fields after the tag |
+| --- | --- | --- |
+| 0 | Absent | — |
+| 1 | Present | evidence interface |
 
 <!-- evidence-lane-kind-tags -->
 
@@ -1229,16 +1380,34 @@ cycle certificates + counted evidence producers. Sealed for transport it is
 `PSIPSC\0\0` + `u16` section marker 1 + `u16` vocabulary marker + a 32-byte
 program fingerprint + the bundle bytes.
 
-An obligation evidence row is an obligation id + a `u8` route tag: 1
-KernelDerived + `u8` primitive judgment; 2 CertificateDerived + evidence
-identity + `u16` proof-system marker + proof node; 3 Admitted + admission
-site id + admission kind + authority identity + evidence identity + profile
-decision id. A component certificate is a certificate identity + ranking
-relation id + well-foundedness evidence route + counted edges (obligation id
-+ evidence route). An evidence producer is a producer id + term id +
-conformance string + trait string + counted rows (declaring-trait string +
-counted argument strings + requirement string + machine string + state
-string + `u8` source: 1 Inline, 2 Reference, 3 TraitDefault).
+An obligation evidence row is an obligation id + an evidence route tag. A
+component certificate is a certificate identity + ranking relation id +
+well-foundedness evidence route + counted edges (obligation id + evidence
+route). An evidence producer is a producer id + term id + conformance string
++ trait string + counted rows (declaring-trait string + counted argument
+strings + requirement string + machine string + state string + row source).
+
+<!-- evidence-route-tags -->
+| Tag | Evidence route | Fields after the tag |
+| --- | --- | --- |
+| 1 | KernelDerived | primitive judgment |
+| 2 | CertificateDerived | evidence identity + `u16` proof-system marker + proof node |
+| 3 | Admitted | admission site id + admission kind + authority identity + evidence identity + profile decision id |
+
+<!-- primitive-judgment-tags -->
+| Tag | Primitive judgment |
+| --- | --- |
+| 1 | Truth |
+| 2 | ReflexiveEquality |
+| 3 | ClosedIntegerRelation |
+| 4 | IntegerCarrierBound |
+
+<!-- evidence-producer-row-source-tags -->
+| Tag | Evidence producer row source |
+| --- | --- |
+| 1 | Inline |
+| 2 | Reference |
+| 3 | TraitDefault |
 
 A proof node is its conclusion proposition, a `u8` rule tag, the node's
 children — each recursively a proof node, written before the parent suffix —
@@ -1250,7 +1419,7 @@ rejects nesting deeper than 256.
 <!-- proof-rule-tags -->
 | Tag | Proof rule | Children | Suffix fields |
 | --- | --- | --- | --- |
-| 1 | Primitive | 0 | `u8` primitive judgment (1 Truth, 2 ReflexiveEquality, 3 ClosedIntegerRelation, 4 IntegerCarrierBound) |
+| 1 | Primitive | 0 | primitive judgment |
 | 2 | SemanticAxiom | 0 | `u32` axiom index |
 | 3 | Assumption | 0 | `u32` assumption index |
 | 4 | ConjunctionIntroduction | counted | — |
