@@ -18,6 +18,11 @@ Retain a dated/revision-bound failure only when it determines where to resume;
 rerun that customer before assuming the old diagnosis still applies. New
 evidence supersedes, never accrues: a landing or rerun replaces the dated
 paragraph it makes stale, so an open item states its current frontier once.
+A confirmation that changes nothing is not board evidence: record it on the
+claim's notes (`claims.py note`) and in the session verdict instead — a row
+carries at most one current verification line, and a resolved or covered row
+is not stamped again. Reopen a closed row only when the new evidence changes
+its frontier.
 Cite revisions as published on `main` (landing rewrites worktree SHAs) and
 prefer symbol or test names over line numbers, which drift.
 Live assignments belong in the [timestamped, expiring work-claim registry](tools/claims.md),
