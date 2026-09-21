@@ -385,6 +385,27 @@ def route_check(sessions, freshness_by_name):
         raise SwarmError("\n".join(failures))
 
 
+def stale_check(sessions, hints_by_name):
+    """Fail slots whose item text already reads as resolved.
+
+    partition_hints reports resolution_language as advisory; this is its
+    enforcement. Board-sweep vocabulary ("Resolved —", "already landed",
+    "row consumed") means the board lagged landed reality — manifesting the
+    slot pays a session to re-witness closure (the wave-6 loss pattern in
+    wiki/drafts/swarm_commit_signal.md). A coordinator who has verified the
+    item still names unfinished work manifests it as probe_only or drops it.
+    """
+    failures = []
+    for session in sessions:
+        if session.get("probe_only"):
+            continue
+        hint = hints_by_name.get(session["name"], {}).get("resolution_language")
+        if hint:
+            failures.append(f"{session['name']}: {session['item']}: {hint}")
+    if failures:
+        raise SwarmError("\n".join(failures))
+
+
 DEPENDENCY_LANGUAGE = ("depends on", "join", "joins", "preceding task",
                        "blocks on", "after the")
 RESOLUTION_LANGUAGE = ("resolved —", "resolved -", "row consumed",
@@ -681,6 +702,12 @@ def command_local(arguments, repository):
     }
     if not arguments.skip_route_check:
         route_check(sessions, freshness)
+    hints = {
+        session["name"]: partition_hints(repository, session, sessions,
+                                         route_data)
+        for session in sessions
+    }
+    stale_check(sessions, hints)
     claims_state = claims_report(repository, sessions,
                                  skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent
@@ -738,8 +765,7 @@ def command_local(arguments, repository):
             "claims": claims_state[session["name"]],
             "probe_only": bool(session.get("probe_only", False)),
             "freshness": freshness[session["name"]],
-            "partition_hints": partition_hints(repository, session, sessions,
-                                               route_data),
+            "partition_hints": hints[session["name"]],
         })
     emit({"command": "local", "wave": manifest["wave"], "base": base,
           "skipped_non_local_sessions": skipped, "sessions": rows})
@@ -839,6 +865,12 @@ def command_plan(arguments, repository):
     }
     if not skip_route_check:
         route_check(sessions, freshness)
+    hints = {
+        session["name"]: partition_hints(repository, session, sessions,
+                                         route_data)
+        for session in sessions
+    }
+    stale_check(sessions, hints)
     claims_state = claims_report(repository, sessions,
                                  skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
@@ -866,8 +898,7 @@ def command_plan(arguments, repository):
             "claims": claims_state[session["name"]],
             "probe_only": bool(session.get("probe_only", False)),
             "freshness": freshness[session["name"]],
-            "partition_hints": partition_hints(repository, session, sessions,
-                                               route_data),
+            "partition_hints": hints[session["name"]],
             "body": request_body(manifest, session, prompt),
         })
     emit({"command": "plan", "wave": manifest["wave"],
@@ -889,6 +920,11 @@ def command_launch(arguments, repository):
         }
         if not arguments.skip_route_check:
             route_check(sessions, freshness)
+        stale_check(sessions, {
+            session["name"]: partition_hints(repository, session, sessions,
+                                             route_data)
+            for session in sessions
+        })
         claims_report(repository, sessions,
                       skip=arguments.skip_claims_check)
     template = (Path(__file__).resolve().parent / "prompt_template.md").read_text(
@@ -1027,9 +1063,17 @@ def report_summary(repository, rows):
     for row in rows:
         key = str(row.get("result"))
         results[key] = results.get(key, 0) + 1
+    # Closure is the wave's unit of output; the honest signal is what closing
+    # an item cost in commits, not the wave's raw commit rate.
+    closed_commits = {}
+    for row in rows:
+        if row.get("item_closed") is True and row.get("item"):
+            closed_commits[row["item"]] = (closed_commits.get(row["item"], 0)
+                                           + row.get("commit_count", 0))
     return {"sessions": len(rows), "results": results,
             "items_closed": sum(1 for row in rows
                                 if row.get("item_closed") is True),
+            "commits_per_closed_item": closed_commits,
             "acus_consumed": sum(row["acus_consumed"] for row in rows
                                  if isinstance(row.get("acus_consumed"),
                                                (int, float))),
@@ -1040,7 +1084,8 @@ def save_outcomes(repository, wave, rows, summary):
     outcomes_path = (repository / "tools" / "swarm" / "waves"
                      / f"{wave}.outcomes.json")
     fields = ("name", "board", "item", "result", "acus_consumed",
-              "item_closed", "commits", "remaining_dependency")
+              "item_closed", "commits", "commit_count",
+              "remaining_dependency")
     sessions = [{key: row[key] for key in fields if key in row}
                 for row in rows]
     record = {"wave": wave,
@@ -1069,12 +1114,14 @@ def command_report(arguments, repository):
                    "acus_consumed": status.get("acus_consumed"),
                    "url": receipt["url"]}
         else:
+            commits = [f"{c.get('sha', '')[:10]} {c.get('subject', '')}"
+                       for c in output.get("commits", [])]
             row = {
                 "name": receipt["name"],
                 "result": output.get("result"),
                 "acus_consumed": status.get("acus_consumed"),
-                "commits": [f"{c.get('sha', '')[:10]} {c.get('subject', '')}"
-                            for c in output.get("commits", [])],
+                "commits": commits,
+                "commit_count": len(commits),
                 "checks": [f"{c.get('command')} ({c.get('host')}) exit {c.get('exit')}"
                            for c in output.get("checks", [])],
                 "remaining_dependency": output.get("remaining_dependency"),
@@ -1100,8 +1147,8 @@ def command_report(arguments, repository):
         lines.append(f"## {row['name']}")
         lines.append(f"- result: {row['result']}")
         lines.append(f"- acus_consumed: {row.get('acus_consumed')}")
-        for key in ("item", "item_closed", "commits", "checks",
-                    "remaining_dependency", "unrelated_failures",
+        for key in ("item", "item_closed", "commits", "commit_count",
+                    "checks", "remaining_dependency", "unrelated_failures",
                     "lease_expiries", "first_build_seconds", "url"):
             if key in row:
                 value = row[key]
