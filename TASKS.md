@@ -2247,6 +2247,19 @@ moved to the termination-catalog fence (see that row's refresh note).
   at most 64 clauses) to make the decimal loop's bound inductive. Its output is
   a proposal the verifier re-proves, so it is not a trust hole, but it is a
   recognizer for one customer's arithmetic, not a general strengthening rule.
+
+  Fence map at `1d8feeeb4fe` (this wave, so no slice is claimable right
+  now): `checked-trees-to-lowered-psi/src/unit` is wholesale-claimed by
+  STRUCTURAL-UNIT-LOWERING (z130); `terminal-codec/src/sections/
+  semantic_module` — required for any new `OperationKind` variant's wire
+  form — is claimed by DOMAIN-ISSUER-ROUTES (z73);
+  `terminal-psi-to-abstract-operations/src/lowering/control_flow` by
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (z37); `t2c/execution/unit/state_graph`
+  + `composed_control.rs` + `t2a2/artifact_admission/native.rs` by
+  GENERAL-CYCLIC-EXECUTION-OPTIMIZER (z139); `c2l/machine_lowering` by
+  STATE-LOCAL-VALUE-FRONTIER (z126). The named resume leg (field-path
+  byte-read leaf through Terminal `OperationKind`) crosses the codec and
+  unit surfaces at minimum, so it waits on those drains.
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
   operators, nested structural paths, calls, cycles, execution and package review.
   Owners include `facts/operator_crashes.rs`, `CrashPlan::checked_operators`,
