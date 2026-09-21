@@ -6492,7 +6492,27 @@ Omega-side / native:
   An unrelated upstream regression witnessed on that row's base also
   applies: `derive_fused_program_entry_establishments` rejects
   `Service<R>`-fielded ProgramEntry receivers — a Service-carrier custody
-  item, not this one.
+  item, not this one. Re-measured at `94e764a6da` (linux x86-64): leg (a)
+  now landed on main (`2a6e06f1c496`) — `unit.rs` dispatches
+  `AbstractOperation::NearestIeeeFloatFusedMultiplyAdd` into
+  `unit/ieee_float.rs::validate` with exact `IeeeFloatImmediate` custody;
+  `nextest -p target-operations-to-selected-instructions
+  -E 'test(~ieee_float)'` 5/5 green incl.
+  `fused_multiply_add_replays_exact_constant_sources` +
+  `fused_multiply_add_rejects_any_operand_drift`. Legs (b)/(c) still
+  fenced: `object_emission.rs:34` transport-stop message pinned PASS
+  (64.5s), `optimization_stage.rs:27` "optimized nearest-FMA custody"
+  still returns, and no `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma`
+  references exist in s2s/s2rh/machine-emission src. Live claim map:
+  `legalization/`+`control_flow/sources.rs` under
+  X86-FMA-PROVIDER-TRANSPORT (Jarod, canonical owner); the
+  object_emission/program_entry/native_realization surfaces under
+  UEFI-PHYSICAL-SEMANTIC-ENTRY; `selection/construction` under
+  CALLBACK-PRIVATE-MATERIALIZATION; `s2rh/unsequenced_spill_stages` under
+  POC-SPILL-FAMILY-SEQUENCING. `optimization_stage.rs` is the only
+  unfenced residual file but its fence is only removable once the
+  transport it gates exists. Record:
+  `wiki/drafts/float_fma_native_transport.md`.
 
 Proof/evidence:
 
