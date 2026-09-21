@@ -931,6 +931,13 @@ No test attribute, special method name, test-only calling mode, or parallel
 compiler pipeline. The [guide](wiki/language_guide/chapter_23_testing.md) gives
 the source shape; these items track implementation, not further design.
 
+  **DESIGN-BLOCKED (verified 2026-09-21).**
+  `wiki/spec/build/embedding.md:271-272` states interpreted target-specific
+  inline assembly is undetermined and names the decision
+  `interpreted-inline-assembly` (OWNER_QUESTIONS.md:312); `assembly.md` repeats
+  the deferral. This row's own customer is assembly-bearing Cathedral boot, so
+  it cannot proceed past that decision.
+
 - **BUILD-TEST-GROUPS.** (new-scope) Deliver the service-free end-to-end path:
   `builder.tests.group<ExactRequirement>()`, normalized group enablement,
   package-local concrete satisfaction discovery, separate runner roots, and
@@ -2593,6 +2600,15 @@ moved to the termination-catalog fence (see that row's refresh note).
   families are customers too, but no repro separates their
   `InvalidUnitMachinePlan` stop from GENERAL-CYCLIC-EXECUTION's; rerun them
   before attributing it.
+
+  **DESIGN-BLOCKED (verified 2026-09-21).** `wiki/spec/terminal-psi/observations.md`
+  binds the reconstructed-row profile in closed order, and its only crash-bearing
+  groups are edge-ordered crash sites and `BoundaryCall` routes; :59 forbids the
+  escape hatch outright -- "A boundary crash is observed at its calling
+  operation, not on a fabricated terminator edge." A trapping `a + b` is neither
+  an edge nor a boundary call, and no operation-level non-boundary crash row is
+  stated. Open as `terminal-operation-level-trap-crash-site`
+  (OWNER_QUESTIONS.md:154).
 
 - **PROOF-KERNEL-CORE.** Finish the common mathematical term/declaration model
   and independent checker in Psi under the
@@ -6173,6 +6189,14 @@ moved to the termination-catalog fence (see that row's refresh note).
   satisfy default field obligations, while corrupted elements and stale
   aliased fields reject at calls, transitions, and returns.
 
+  **DESIGN-BLOCKED (verified 2026-09-21).**
+  `wiki/spec/language/dependent_values.md` says only that machine-owned storage
+  may begin zeroed while gated fields stay inaccessible until established, and
+  elsewhere makes a call a consumption point where the domain must be proved
+  again -- but never says whether the receiver place at a method call is the
+  callee's machine storage or a caller-obligated place. Open as
+  `mutable-self-receiver-declared-field-rows` (OWNER_QUESTIONS.md:54).
+
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,
   calls, and partial initialization, under the
@@ -8155,6 +8179,16 @@ Proof/evidence:
 Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`):
 
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: a bounded model-free search over the validated candidate interface and any search-scale revalidation-cost study are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification. The seam such a search would plug into already exists — every pass runs bounded on all five `OptimizationWorkBudget` axes (iterations, rule evaluations, candidates, validation steps, commits), `choose_baseline` selects deterministically over independently validated `ValidatedCandidateSummary` rows with duplicate-candidate rejection and a strictly decreasing convergence measure per commit, `pass_manager/external_policy` replays explicitly supplied decisions on exact context and row equality, candidates are revalidated against the exact input revision they bind (`validate_psi_rewrite_candidate` per iteration; `CandidateContractAxis::Input` rejects stale-input candidates), and `AnalysisManager::commit_revision(validate_retained)` cold-recomputes every supposedly retained analysis and fails `UndeclaredInvalidation` on drift — so revalidation at scale is the existing behavior's measured cost, not a missing mechanism. The versioned workload corpus and measurement protocol its evaluation needs are gated under WORKLOAD-CORPUS-AND-MULTIVERSIONING, with the comparison protocol scoped in `wiki/drafts/graph_cost_model_study.md`. Seam re-verified live at `18cebfa1062b` — `cargo nextest run -p abstract-operations-to-abstract-operations --lib`: 485/485 green (linux x86-64). The 7 `loop_invariant_scalar_motion` failures recorded at the 1edade1a480 reading are repaired — GENERAL-LICM's leg landed; the suite's only earlier caveat is gone. Re-verified at `1257982206` on linux x86-64 for the dispatched alias CANDIDATE-REVALIDATION-AT-SEARCH-SCALE (this row's merged name): the authorization gate is unchanged — `learned_optimization_policy.md` authorizes no implementation, the workload corpus stays gated under WORKLOAD-CORPUS-AND-MULTIVERSIONING, and the revalidation-at-search-scale question remains the existing bounded machinery's measured cost, not a missing mechanism. The settled verdict stands.
+  **DESIGN-BLOCKED, with a caveat (verified 2026-09-21).** `wiki/spec/` has
+  exactly seven areas -- build, language, layouts, packages, proofs, resources,
+  terminal-psi -- and NO optimizer surface; searching it for the row's own
+  vocabulary returns zero files. The only source is
+  `wiki/drafts/learned_optimization_policy.md`, which says it "authorize[s] no
+  implementation". CAVEAT worth an owner ping rather than a spec amendment:
+  `wiki/spec/build/optimizations.md` explicitly FORBIDS trainer and corpus
+  machinery, so this may be resolved-by-prohibition rather than genuinely
+  undecided. Sibling row at :8158.
+
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: a bounded model-free search over the validated candidate interface and any search-scale revalidation-cost study are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification. The seam such a search would plug into already exists — every pass runs bounded on all five `OptimizationWorkBudget` axes (iterations, rule evaluations, candidates, validation steps, commits), `choose_baseline` selects deterministically over independently validated `ValidatedCandidateSummary` rows with duplicate-candidate rejection and a strictly decreasing convergence measure per commit, `pass_manager/external_policy` replays explicitly supplied decisions on exact context and row equality, candidates are revalidated against the exact input revision they bind (`validate_psi_rewrite_candidate` per iteration; `CandidateContractAxis::Input` rejects stale-input candidates), and `AnalysisManager::commit_revision(validate_retained)` cold-recomputes every supposedly retained analysis and fails `UndeclaredInvalidation` on drift — so revalidation at scale is the existing behavior's measured cost, not a missing mechanism. The versioned workload corpus and measurement protocol its evaluation needs are gated under WORKLOAD-CORPUS-AND-MULTIVERSIONING, with the comparison protocol scoped in `wiki/drafts/graph_cost_model_study.md`. Seam re-verified live at 066d3b3472 — `cargo nextest run -p abstract-operations-to-abstract-operations --lib`: 481/481 PASS (Linux x86-64); the 7 `loop_invariant_scalar_motion` failures recorded at 1edade1a480 are now green on main (GENERAL-LICM leg landed).
 - **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
   Verified scope: the name re-mines the optimizer half of
@@ -11012,6 +11046,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered — whole-composition extraction deferred by spec until a protocol/safety-profile customer exists; no slice
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `dccdfd1fd1`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
   covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface
+  **DESIGN-BLOCKED (verified 2026-09-21).** `wiki/spec/language/concurrency.md:135-139`
+  names the dimensions a sealed erased model must retain for whole-composition
+  proof and then explicitly declines to state the extraction rule: "This
+  extraction remains deferred, not implicit authority supplied by a bounded
+  search or a proposed graph format." No graph format is specified anywhere, so
+  no code can be written without an owner deciding one. The code agrees:
+  `task-plans/src/composition_model/mod.rs` carries
+  `CompositionCrossActivationEdges::NotRetained`. Siblings on the same decision:
+  CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-INTERACTION-EXTRACTION,
+  WHOLE-COMPOSITION-EXTRACTION.
+
 - **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`; re-verified again at `fff3918dc42f3` (z140 leg): all three gate facts unchanged — concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226; re-verified at `32a6a7fa330` (z157 leg): all three gate facts unchanged). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
   covered — whole-composition extraction deferred by spec until a protocol/safety-profile customer exists; no slice
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `a84ebca972`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION. Re-verified at `796814691e4` (linux x86-64) (z153): all three gate facts unchanged — concurrency.md:138 deferral sentence, chapter_18:399-400 whole-composition deferral, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at `task-plans/src/composition_model/mod.rs:226`; no concrete protocol or safety-profile customer has surfaced, so activation stays gated.
@@ -13368,6 +13413,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   algorithmic and the traced producer calls still return their proofs — and a
   `--no-fail-fast` run of `checked-trees-to-lowered-psi` reports no SIGTERM
   member.
+
+  **DESIGN-BLOCKED for the remaining leg (verified 2026-09-21).**
+  `wiki/spec/proofs/kernel_metatheory.md` speaks only per-conversion, and says
+  `DEFAULT_CONVERSION_STEPS` "is a policy default, not part of the calculus";
+  `grep -c aggregate` over that file is 0. Nothing states what the compiler owes
+  for the AGGREGATE of individually-bounded acceptances, which is exactly what a
+  containment bound would have to be. Open as `compile-time-proof-work-ceiling`
+  (OWNER_QUESTIONS.md:196) with three unchosen answers. NOTE: this is the
+  remaining leg only -- the measured O(N^2) centre was `record_premise`'s linear
+  scan and is FIXED, and the other cost centres are landed.
 
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
   (Zergling-181): the "typed-to-one-sorted encoding" bullet of the bounded
@@ -17320,6 +17375,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (sibling stub RUNTIME-SIZED-ACTIVATION-STORAGE) must land first;
   RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT is the same chapter and resolves
   as this item's alias. Re-mine once a claim surface is authorized.
+  **DESIGN-BLOCKED (verified 2026-09-21).**
+  `wiki/spec/resources/activation_storage.md:14` gives the SEMANTICS -- an
+  admitted claim surface requests the region by supplying a committed extent and
+  its bound, and yields a linear extent claim over the result -- but no language
+  chapter states the authored SPELLING, and `dependent_values.md`'s only mention
+  is a forward reference back to the same chapter. A checker node cannot be
+  written against a construct with no surface syntax. Sibling row at :17656.
+
 - **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT** — mined candidate; scope verified, residual owned — re-mines the activation-storage leg of the state-local value frontier (STATE-LOCAL-VALUE-FRONTIER lane, owner of indexed primitive storage/replacements). On `main`: runtime-extent `Buffer<count>` binders retain a runtime extent but the spec explicitly does NOT authorize runtime-sized inline stack storage (`dependent_values.md`), and scalar-array establishment has no abstract storage realization — `LoweringError::UnsupportedScalarArray` rejects `EstablishScalarArray` in `terminal-psi-to-abstract-operations/src/lowering` (audit-pinned by `scalar_array_without_structural_result_rejects`). No independent slice to carve: the contract's remaining work is the owned frontier's indexed-storage realization, not a separate admission. Sibling stubs: RUNTIME-SIZED-ACTIVATION-CONTRACT, RUNTIME-SIZED-ACTIVATION-STORAGE.
   covered — residual is STATE-LOCAL-VALUE-FRONTIER's indexed-storage realization
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
@@ -19073,6 +19136,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wrapper, with a test pinning both ISAs; or the refusal is pinned as the
   intended contract by a test that names the architecture, and this row is
   removed.
+
+  **DESIGN-BLOCKED (verified 2026-09-21).**
+  `wiki/spec/build/entry_roots.md`'s entry-shape section gives only the
+  Windows/UEFI x86-64 worked example and defers the rest to "the exact target
+  adapter", stating no rule for a register-fragment semantic ProgramStorage
+  arrival (no copy, no `shadow_bytes`). `target/src/lib.rs` gives AArch64 only
+  `HostedApplication`/`None`, so there is no `ProgramStorageApplication`
+  instance to build a request from even if one wanted to.
 
 - **STALE-CUSTODY-GATE-EXPECTATIONS.** Scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
