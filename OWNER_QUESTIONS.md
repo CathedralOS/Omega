@@ -235,6 +235,79 @@ it instantiates. A reviewer verifies those citations before the framing.
    without this decision would silently abandon obligations the compiler can
    discharge, which is worse than the hang.
 
+5. **On AArch64, where the target-authored semantic `ProgramStorageEntry::enter`
+   plan passes both Extents by value in x0–x3, what does the compiler-private
+   semantic ProgramStorage wrapper owe?** (named decision:
+   `aarch64-semantic-wrapper-arrival-shape`).
+   [Target slots and program entry](wiki/spec/build/entry_roots.md) settles who
+   authors the surface and says nothing about this shape. It requires a
+   "target-authored bootstrap adapter and physical result map" and gives the
+   validation to the target — "The exact target adapter validates them,
+   installs scoped providers, establishes semantic arrival, and supplies only
+   schema-declared source arguments" — while its Slots and Entry-shape sections
+   name no wrapper, no frame geometry, and no compiler-authored copy area.
+   [Storage](wiki/spec/resources/storage.md#stack-demand-and-backing), cited
+   there for stack supply, governs demand against target StackPlan supply, not
+   the layout of one compiler-private frame.
+
+   The x86-64 wrapper is not an arbitrary encoding: every number in it is read
+   off a target declaration. `source/library/std/targets/uefi_x86_64/entry.omg`
+   places each semantic Extent as `ValueLocation::Indirect { pointer:
+   Register(X86Rcx/X86Rdx), has_copy: true, copy_stack_byte_offset: 32 / 48 }`
+   and sets `output.call.shadow_bytes = 32`, and
+   `program-entry-plan/src/optimized_semantic_wrapper/recipe.rs` reproduces
+   exactly those numbers — shadow 32, copies landing at 32/40/48/56, outgoing
+   address binds at 32 and 48. Microsoft-x64 makes the *caller* own the
+   by-reference copy, so materializing a fresh copy and passing its address is
+   the wrapper's whole purpose.
+
+   Both AArch64 targets author the opposite arrival. `MacosArm64::extent_value`
+   and `LinuxArm64::extent_value` place each Extent as two `ValueLocation::
+   Register { Aarch64X }` fragments — `parameters[0] = extent_value(0, 1)`,
+   `parameters[1] = extent_value(2, 3)` — with no copy offset, and neither file
+   sets `shadow_bytes`; `linux_arm64/entry.omg` states it plainly: "The
+   generated bridge passes the image and initial-storage roots in the first
+   four AAPCS64 integer registers." The wrapper's `CallPrivateTerminalContinuation`
+   step calls the continuation under the same plan fingerprint the wrapper
+   arrived on, so on AArch64 the four words are already in the registers the
+   continuation reads. Three candidate answers, and they are not encoding
+   variants of one template: (a) the wrapper degenerates — inbound and outbound
+   placement coincide, so the body is a single `b` to the private Terminal
+   continuation, or the lane declines to interpose at all, which keeps the
+   compiler from authoring a layout no target declared but leaves the recipe's
+   fixed eleven-step shape, its four copies, and its two address binds empty on
+   AArch64; (b) the wrapper still materializes a compiler-owned 16-byte copy
+   per root and passes its address, which requires the compiler to author frame
+   offsets and a shadow-equivalent that no AArch64 target declares and hands
+   the continuation pointers in x0/x1 instead of the four value words the
+   authored plan specifies — a second, undeclared calling contract on the same
+   fingerprint; (c) the AArch64 semantic crossing belongs to the hosted bridge
+   and this lane is UEFI-only by construction.
+
+   (c) is not obviously wrong, which is why this is a decision rather than an
+   omission: `TargetProfile::program_entry_slot` in
+   `omega-rust/omega/representations/target/src/lib.rs` gives
+   `ProgramEntrySchema::ProgramStorageApplication` with
+   `ImageAndInitialStorage` to `UefiX64` alone, while `MacosArm64` and
+   `LinuxArm64` are `HostedApplication` with `ProgramEntryVisibleParameters::
+   None`. The lane keys off two *visible* Extent parameters, so there is no
+   AArch64 instance of its own input contract to write a test against today —
+   an AArch64 acceptance test would have to invent a profile.
+
+   The requirement behind the question is the arm64 targets themselves, not a
+   test: `linux_arm64` and `macos_arm64` are shipping profiles that must
+   eventually realize program entry, and NATIVE-WRAPPER-ENCODING-AARCH64 on
+   `TASKS.md` cannot choose an encoder before the shape is fixed. The ISA half
+   needs no ruling and is recorded on that row; answering (a), (b), or (c)
+   fixes the step vocabulary, the frame geometry, and whether the relocation is
+   a `b` or a `bl`. Whichever is chosen, the relocation vocabulary is x86-shaped
+   and must gain a peer: the single variant
+   `OptimizedProgramStorageSemanticWrapperRelocationKind::X86Relative32PrivateContinuationV1`
+   carries `byte_width: 4` and resolves by overwriting four bytes with
+   `i32::to_le_bytes`, whereas an AArch64 branch carries `imm26` in bits [25:0]
+   of the instruction word, scaled by 4, resolved as a masked merge into the
+   retained opcode.
+
 ## Squalr scalar-scan port: surface-driven shape choices
 
 The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced

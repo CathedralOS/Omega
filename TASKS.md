@@ -10730,39 +10730,59 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) — the optimized program
   storage semantic wrapper encoding lane has no AArch64 implementation.
   `select_optimized_program_storage_semantic_wrapper_encoding`
-  (`omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_encoding/mod.rs:29`)
+  (`omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_encoding/mod.rs`)
   calls `encode_x86_64_semantic_unit_wrapper_template` unconditionally, with
   no `Architecture` switch, so on AArch64 the lane cannot produce a template.
   It refuses cleanly rather than miscompiling — the error surfaces as
   `NonCanonicalRequest` — so this is a missing peer implementation, not a
-  correctness hole. Found at `716cb194aa` while auditing backend vocabulary
-  rejection; flagged there as outside that item's territory and owned by no
-  other row.
-
-  Context that bounds the work: the rest of the backend is an ISA peer. All
-  78 `SelectedInstructionKind` variants encode on both ISAs, neither scalar
-  encoder carries a bare `_ =>` over the kind, and per-ISA row lowering in
-  `post-allocation-machine-to-selected-form-encoding/src/row_encoding/mod.rs:120`
-  is exhaustive over `Architecture`. This wrapper lane is the one place that
-  hard-codes x86-64.
-
-  An AArch64 template is owed; that question is settled, so start from the
-  encoder rather than re-deciding it. The lane's own module doc calls this
-  the "target-owned semantic ProgramStorage wrapper", and
+  correctness hole. An AArch64 template is owed: the lane's own module doc
+  calls this the "target-owned semantic ProgramStorage wrapper", and
   [entry roots](wiki/spec/build/entry_roots.md) frames the whole surface as
-  per-target — a "target-authored bootstrap adapter and physical result map",
-  with "the exact target adapter" validating the environment's physical
-  values. A lane that hard-codes one ISA's encoder contradicts that. Both
-  AArch64 targets reach it: `ProgramStorageEntry` is declared in
-  `source/library/std/targets/linux_arm64/entry.omg` and
-  `.../macos_arm64/entry.omg`, alongside the x86-64 and UEFI targets. Give
-  the lane an `Architecture` switch and an AArch64 template beside the
-  x86-64 one.
+  per-target, a "target-authored bootstrap adapter and physical result map".
 
-  Acceptance: either the lane selects a template per architecture and an
-  AArch64 host encodes its own wrapper, with a test pinning both ISAs; or the
-  refusal is pinned as the intended contract by a test that names the
-  architecture, and this row is removed.
+  Blocked on owner question 5 (`aarch64-semantic-wrapper-arrival-shape`):
+  what that template *is* is undetermined, not merely unwritten. The x86-64
+  template exists because the UEFI target authors a by-reference semantic
+  arrival — `ValueLocation::Indirect { pointer: Register(X86Rcx), has_copy:
+  true, copy_stack_byte_offset: 32 }` and `shadow_bytes = 32` in
+  `source/library/std/targets/uefi_x86_64/entry.omg` — so every number in
+  `program-entry-plan/src/optimized_semantic_wrapper/recipe.rs` (shadow 32,
+  copies into 32/40/48/56, address binds at 32/48) is read off that
+  declaration. Both AArch64 targets author the opposite: `extent_value(0, 1)`
+  and `extent_value(2, 3)` place each Extent as two `Aarch64X` register
+  fragments with no copy, and neither file sets `shadow_bytes`
+  (`macos_arm64/entry.omg`, `linux_arm64/entry.omg`, whose comment reads "the
+  generated bridge passes the image and initial-storage roots in the first
+  four AAPCS64 integer registers"). The wrapper calls its continuation under
+  the same plan fingerprint it arrived on, so on AArch64 there is no
+  caller-owned copy to re-materialize, and `validate_root_placement` rejects a
+  register-fragment placement outright. Separately, no AArch64 profile
+  declares `ProgramStorageApplication`/`ImageAndInitialStorage`
+  (`target/src/lib.rs` `program_entry_slot` gives `MacosArm64` and
+  `LinuxArm64` `HostedApplication`/`None`), so the lane's own input contract
+  has no AArch64 instance to construct a test from today.
+
+  The ISA half needs no decision and is on record. Independently assembled
+  with Apple clang (`clang -c -arch arm64`, read back with `otool -t`) on
+  macOS 24.5.0: `sub sp, sp, #48` is `d100c3ff`, `str x30, [sp, #40]` is
+  `f90017fe`, `str x0, [sp]` is `f90003e0`, `add x1, sp, #16` is `910043e1`,
+  `bl` is `9400_0000 | imm26`, `b` is `1400_0000 | imm26`, and `ret` is
+  `d65f03c0`. The call relocation field is not the x86-64 shape: `BL` carries
+  `imm26` in bits [25:0] of the branch word, scaled by 4 and ranged to
+  128 MiB either way, sharing the word with opcode `0b100101`.
+  `X86_64SemanticUnitWrapperEncodingRequest.relocation_field_byte_width = 4`,
+  resolved by overwriting four bytes with `i32::to_le_bytes`, and the
+  plan-level `OptimizedProgramStorageSemanticWrapperRelocationKind::X86Relative32PrivateContinuationV1`
+  with `byte_width: 4`, cannot describe it. AArch64 resolution is a masked
+  merge into the retained opcode word, and its unresolved state is "bits
+  [25:0] are zero", not "four zero bytes"; a peer needs its own relocation
+  kind rather than the shared 32-bit byte-displacement field.
+
+  Acceptance: once owner question 5 fixes the arrival shape, either the lane
+  selects a template per architecture and an AArch64 host encodes its own
+  wrapper, with a test pinning both ISAs; or the refusal is pinned as the
+  intended contract by a test that names the architecture, and this row is
+  removed.
 
 - **STALE-CUSTODY-GATE-EXPECTATIONS.** Scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
