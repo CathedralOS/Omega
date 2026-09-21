@@ -78,7 +78,7 @@ pub(crate) fn operator_route_is_false(
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    let contexts = InvocationContexts::from_flow(flow, operator_use, operands);
+    let contexts = InvocationContexts::from_flow(flow, semantic, operator_use, operands);
     expression_has_polarity(
         program,
         semantic,
@@ -110,7 +110,7 @@ pub(crate) fn named_operator_route_is_false(
     operand_labels: &[String],
     expression: ExpressionHandle,
 ) -> bool {
-    let contexts = InvocationContexts::from_named_use(flow, named_use, operands);
+    let contexts = InvocationContexts::from_named_use(flow, semantic, named_use, operands);
     expression_has_polarity(
         program,
         semantic,
@@ -358,8 +358,12 @@ pub(super) fn selected_binary_requires_diagnostics(
         let operand_labels = crate::facts::operator_crashes::named_call_operand_labels(
             program, parameters, &operands,
         );
-        let invocation_contexts =
-            InvocationContexts::from_named_use(&facts.flow, named_use_handle, &operands);
+        let invocation_contexts = InvocationContexts::from_named_use(
+            &facts.flow,
+            &facts.semantic,
+            named_use_handle,
+            &operands,
+        );
 
         for fact in requires_facts {
             let proven = requires_fact_proven(

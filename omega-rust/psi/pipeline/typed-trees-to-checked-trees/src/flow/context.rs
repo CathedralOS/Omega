@@ -499,6 +499,8 @@ impl<'plans> FlowBuildContext<'plans> {
         discard_output_arena(&mut self.control.statements);
         discard_output_arena(&mut self.control.operator_invocations);
         discard_output_arena(&mut self.control.operator_operands);
+        discard_output_arena(&mut self.control.operand_referents);
+        discard_output_arena(&mut self.control.operand_referent_segments);
         discard_output_arena(&mut self.control.calls);
         discard_output_arena(&mut self.control.exits);
         discard_output_arena(&mut self.control.exit_parameter_origins);

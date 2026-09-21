@@ -18,7 +18,7 @@ pub use contexts::*;
 pub use control::*;
 pub use dynamic_scalar_calls::*;
 pub use invalidations::*;
-pub use operator_operand::FlowOperatorOperandFact;
+pub use operator_operand::{FlowOperandReferent, FlowOperatorOperandFact};
 pub use ownership::*;
 pub use roots::*;
 pub use semantic_dependencies::*;
