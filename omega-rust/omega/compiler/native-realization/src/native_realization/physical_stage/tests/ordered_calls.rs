@@ -90,9 +90,10 @@ fn source_ordered_calls_reach_executable_publication() {
             let target_stage =
                 lower_realization_target_stage(optimization, None, &[], &request).unwrap();
             let physical = lower_realization_physical_stage(target_stage, &request).unwrap();
-            let (object, _) = emit_optimized_fragments(
+            let (object, _, _) = emit_optimized_fragments(
                 physical,
                 OptimizedFragmentPublicationRequest {
+                    terminal: None,
                     hosted_receiver: None,
                     boundary_application_coverage: None,
                     private_functions: &[],
@@ -182,9 +183,10 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let target_stage =
                 lower_realization_target_stage(optimization, None, &[], &request).unwrap();
             let physical = lower_realization_physical_stage(target_stage, &request).unwrap();
-            let (object, _) = emit_optimized_fragments(
+            let (object, _, _) = emit_optimized_fragments(
                 physical,
                 OptimizedFragmentPublicationRequest {
+                    terminal: None,
                     hosted_receiver: None,
                     boundary_application_coverage: None,
                     private_functions: &[],
