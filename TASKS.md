@@ -10158,6 +10158,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   as a design decision rather than a transcription, say so and this becomes
   an owner question instead.
 
+  Settle one thing first, because the read operation cannot be written
+  without it: **does `Slice::index` require a `[copy]` element?** Three
+  sources disagree. `source/library/core/slice.omg:19` and the language
+  guide chapter 5 line 244 both declare
+  `boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T`, while
+  chapter 19 line 46 declares the same machine as
+  `Slice::index<T [copy]>`. [ownership](wiki/spec/language/ownership.md)
+  makes Affine the default for owned data and permits "move at most once",
+  so returning a non-copy `T` by value out of a shared `&[T]` would move out
+  of borrowed storage — which points at chapter 19 being right and the
+  library declaration being under-constrained. Nothing in the tree settles
+  it: the only in-tree uses of `Slice::index` are fail fixtures pinning
+  duplicate-operator rejection
+  (`fail/operators/root_operator_{duplicate,alpha_equivalent_generic_duplicate}`),
+  which carry `<T>` incidentally and decide nothing. `byte_views.md` gives no
+  guidance either, since `ByteSequenceRead -> u8` is trivially copyable.
+  Resolve this from the checker's actual behaviour if you can; if the checker
+  does not decide it, it is an owner question about the core surface, not a
+  choice to make while implementing.
+
   Acceptance: a callee taking `&[T]` for a non-byte `T` reads its length,
   indexes it and takes a subslice, reaching native production; the nine
   "borrowed slice view has no Terminal descriptor" rejections are replaced by
