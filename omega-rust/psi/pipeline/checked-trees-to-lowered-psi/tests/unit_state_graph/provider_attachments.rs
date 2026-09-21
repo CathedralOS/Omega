@@ -572,3 +572,35 @@ fn canonical_cyclic_attachment_roots_reject_missing_extra_and_substituted_identi
         );
     }
 }
+
+/// A carrier path is direct storage access on one referent. A record field
+/// that is itself a borrow names separate storage, so stepping through it
+/// would publish a pointer hop as an inline field offset --
+/// "Cases, reference crossings and nonprimitive leaves reject"
+/// (wiki/spec/terminal-psi/structural_access.md, Store vocabulary). Admitting
+/// borrow-carrying attachment records must not admit that path with them.
+const REFERENCE_CARRIER_SOURCE: &str = r#"
+    boundary trait Output {
+        machine write(value: u64) reaches Output;
+    }
+    data Inner { value: u64; }
+    data Outer<'s> { inner: &'s mut Inner; output: &'s mut Output; }
+    machine Outer::run(&mut self) reaches Output {
+        self.inner.value = 7;
+        self.output.write(9);
+    }
+"#;
+
+#[test]
+fn a_store_path_never_crosses_a_borrowed_carrier_field() {
+    let checked = checked(REFERENCE_CARRIER_SOURCE);
+    let error = format!(
+        "{:?}",
+        checked_trees_to_lowered_psi::lower_machine(&checked, "Outer::run")
+            .expect_err("a carrier hop through `&mut Inner` is not an inline field offset")
+    );
+    assert!(
+        error.contains("missing a checked transitive machine plan"),
+        "unexpected rejection: {error}"
+    );
+}
