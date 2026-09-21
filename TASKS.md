@@ -12534,6 +12534,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that 7b259409073 run — read the draft, not this row, for current
   counts; the six sibling RC-NATIVE-MATRIX-* stubs still read as
   unverified and should be folded into RC-NATIVE-MATRIX-LINUX-X86-64.
+  drift repaired.) Re-checked at `f72122f71e4` (swarm-w9-ffival): claim probe exit 2 — the linux_x86_64 draft is live-fenced to the canonical owner RC-NATIVE-MATRIX-LINUX-X86-64 (devin-swarm-rnmx, ~11:30Z Sep 21); the recorded run at 7b259409073 (22 pass / 16 fail, pipeline_ownership drift repaired upstream) is the current record.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
