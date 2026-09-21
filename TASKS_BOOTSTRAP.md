@@ -213,7 +213,7 @@ prerequisite to every lower-rung milestone.
   implements Gamma; that trust assumption stays explicit. No proof search,
   producer-selected root, trusted assembler primitive, or general-purpose
   extension.
-
+  Fence stamp `836bb681a265` (swarm-w9-ffival): the residual leg's surfaces are live-fenced — claim probe exit 2, both `tests/gamma/beta-encoding-check` and `bootstrap/proofs/checker` held by GAMMA-CERTIFICATE-NATIVE-EXECUTION (zergling/z78, exp ~12:58Z); GAMMA-CERTIFICATE-CHECK (zergling-182) also carries an open claim by name. The pending evaluator `Checked` run and mutation legs belong to those lanes; nothing unfenced remains to drive here.
 ## P4 - Epsilon to Omega and self-hosting
 
 - **OMEGA-D.** Complete the Epsilon closure selected by
