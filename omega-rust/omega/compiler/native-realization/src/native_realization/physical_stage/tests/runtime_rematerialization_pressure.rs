@@ -204,15 +204,16 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
 
 fn lower(
     target: target::NativeTarget,
+    artifact: &(Vec<u8>, Vec<u8>),
 ) -> (
     abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     optimization_core::PostTerminalOptimizationSelectionProjection,
 ) {
-    let (semantic, proof) = artifact();
+    let (semantic, proof) = artifact;
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
+            semantic_bytes: semantic,
+            proof_bytes: proof,
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),
@@ -236,136 +237,139 @@ fn lower(
 
 #[test]
 fn loop_carried_immediate_pressure_recovers_through_rematerialization() {
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, _) = lower(target);
-        let register_environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        let selected =
-            target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                target_program,
-                register_environment,
-            )
-            .unwrap();
-        let selected =
-            selected_instructions_to_selected_instructions::optimize_selected_instructions(
-                selected,
-            )
-            .unwrap();
-        let allocation =
-            selected_instructions_to_register_homes::stage_register_allocation(selected)
-                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let current = allocation.current();
-        assert!(
-            matches!(
-                current.evidence(),
-                selected_instructions_to_register_homes::AllocationEvidence::RuntimeSpill(_)
-            ),
-            "{target:?}: {:?}",
-            current.evidence()
-        );
-        let record = current.post_allocation_manifest().record();
-        let rematerializations = record
-            .selected_transformations
-            .iter()
-            .filter(|transformation| {
+    let encoded = artifact();
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, _) = lower(target, &encoded);
+            let register_environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let selected =
+                target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+                    target_program,
+                    register_environment,
+                )
+                .unwrap();
+            let selected =
+                selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                    selected,
+                )
+                .unwrap();
+            let allocation =
+                selected_instructions_to_register_homes::stage_register_allocation(selected)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let current = allocation.current();
+            assert!(
+                matches!(
+                    current.evidence(),
+                    selected_instructions_to_register_homes::AllocationEvidence::RuntimeSpill(_)
+                ),
+                "{target:?}: {:?}",
+                current.evidence()
+            );
+            let record = current.post_allocation_manifest().record();
+            let rematerializations = record
+                .selected_transformations
+                .iter()
+                .filter(|transformation| {
+                    matches!(
+                        transformation,
+                        selected_instructions_to_register_homes::PostAllocationSelectedTransformation::RuntimeRematerialization(_)
+                    )
+                })
+                .count();
+            assert!(
+                rematerializations != 0,
+                "{target:?}: pressured immediate materializations must be regenerated \
+                 before spilling: {:?}",
+                record.selected_transformations
+            );
+            // The recorded spill status must match the realized ledger
+            // exactly: rematerialization alone realizes no private storage.
+            let spilled = record.selected_transformations.iter().any(|transformation| {
                 matches!(
                     transformation,
-                    selected_instructions_to_register_homes::PostAllocationSelectedTransformation::RuntimeRematerialization(_)
+                    selected_instructions_to_register_homes::PostAllocationSelectedTransformation::RuntimeSpill(_)
                 )
-            })
-            .count();
-        assert!(
-            rematerializations != 0,
-            "{target:?}: pressured immediate materializations must be regenerated \
-             before spilling: {:?}",
-            record.selected_transformations
-        );
-        // The recorded spill status must match the realized ledger exactly:
-        // rematerialization alone realizes no private storage.
-        let spilled = record.selected_transformations.iter().any(|transformation| {
-            matches!(
-                transformation,
-                selected_instructions_to_register_homes::PostAllocationSelectedTransformation::RuntimeSpill(_)
-            )
-        });
-        assert_eq!(
-            record.spills,
-            if spilled {
-                selected_instructions_to_register_homes::PostAllocationSpillStatus::RealizedInSelectedProgram
-            } else {
-                selected_instructions_to_register_homes::PostAllocationSpillStatus::NotRequiredForValidatedHomePlan
-            },
-            "{target:?}"
-        );
-        let (target_program, post_terminal) = lower(target);
-        crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-    }
+            });
+            assert_eq!(
+                record.spills,
+                if spilled {
+                    selected_instructions_to_register_homes::PostAllocationSpillStatus::RealizedInSelectedProgram
+                } else {
+                    selected_instructions_to_register_homes::PostAllocationSpillStatus::NotRequiredForValidatedHomePlan
+                },
+                "{target:?}"
+            );
+            super::continue_staged_physical_tail(target, allocation);
+        },
+    );
 }
 
 #[test]
 fn loop_carried_rematerialization_replays_through_callable_publication() {
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, post_terminal) = lower(target);
-        let physical = crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let emitted = machine_emission::stage_optimized_function_fragment_emission(
-            physical.into_function_fragment_emission_source(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let function = emitted.fragments().functions.first().unwrap();
-        let has_backward_branch = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .filter_map(|row| row.branch.as_deref())
-            .any(|branch| match branch {
-                machine_code::FunctionFragmentBranchEvidence::Conditional(branch) => {
-                    branch.byte_displacement < 0
-                }
-                machine_code::FunctionFragmentBranchEvidence::Jump(jump) => {
-                    jump.byte_displacement < 0
-                }
-            });
-        assert!(has_backward_branch, "{target:?}: loop back edge");
-        let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+    let encoded = artifact();
+    let module = terminal_codec::decode_module(&encoded.0).unwrap();
+    let proof = terminal_codec::decode_proof_section_for(&module, &encoded.1).unwrap();
+    let optimization =
+        terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, post_terminal) = lower(target, &encoded);
+            let physical = crate::stage_optimized_verified_physical_pipeline(
+                target_program,
+                post_terminal.selections(),
+            )
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+            let emitted = machine_emission::stage_optimized_function_fragment_emission(
+                physical.into_function_fragment_emission_source(),
+            )
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let object = object_file::stage_optimized_relocation_free_object_container(text)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let (semantic, proof) = artifact();
-        let module = terminal_codec::decode_module(&semantic).unwrap();
-        let proof = terminal_codec::decode_proof_section_for(&module, &proof).unwrap();
-        let optimization =
-            terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
-        let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
-            &module,
-            &proof,
-            &optimization,
-            None,
-        )
-        .unwrap();
-        let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let callable = native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
-    }
+            let function = emitted.fragments().functions.first().unwrap();
+            let has_backward_branch = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|row| row.branch.as_deref())
+                .any(|branch| match branch {
+                    machine_code::FunctionFragmentBranchEvidence::Conditional(branch) => {
+                        branch.byte_displacement < 0
+                    }
+                    machine_code::FunctionFragmentBranchEvidence::Jump(jump) => {
+                        jump.byte_displacement < 0
+                    }
+                });
+            assert!(has_backward_branch, "{target:?}: loop back edge");
+            let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let object = object_file::stage_optimized_relocation_free_object_container(text)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
+                &module,
+                &proof,
+                &optimization,
+                None,
+            )
+            .unwrap();
+            let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let callable =
+                native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
+        },
+    );
 }
