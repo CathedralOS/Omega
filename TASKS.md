@@ -7496,6 +7496,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
   RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
   UNATTRIBUTED-SET remain named on the parent row.
+- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN.** Mined candidate — resolved,
+  already landed. The stub names the canary
+  `tests/omega/pass/capabilities/acquires_through_helper_return` (chapter
+  18 nested-acquires: `Vault::pick` mints `Folder::Writable` at the
+  `Desktop` boundary, `Backup::stage` and `Main::main` receive it through
+  helper returns — the authority-flow report must propagate `acquires`
+  up the call graph with helper provenance). The machinery lives in
+  `typed-trees-to-checked-trees/src/facts/capabilities.rs`
+  (`propagate_nested_capability_flows` fixpoints
+  returns/derives/acquires over the service-reach call edges);
+  `d96a0fda39`-era board notes recorded it claimed at 23:30Z in the
+  InvalidUnitMachinePlan family, but the family failure it was grouped
+  with never touched this canary. Re-verified at `e70748c995` on linux
+  x86-64: `OMEGA_PASS_CANARY_FILTER=acquires_through_helper_return`
+  pass_canaries_compile PASS (18.3s) and
+  `capability_flows_retain_exact_direct_and_propagated_sites` PASS —
+  both propagated routes (`Backup::stage acquires via Vault::pick`,
+  `Main::main acquires via Backup::stage`) pinned by the roster.
+  Record: `wiki/drafts/canary_acquires_through_helper_return.md`.
 - **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
   verified at 1edade1a48 — names the canary
   `tests/omega/pass/filesystem/native_wrapper_write_all_result` (the
