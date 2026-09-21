@@ -14627,6 +14627,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   lost to coordination-ref push races (exit 1, never exit 2) — board-line
   edit rides unclaimed by convention. Sibling stub: RC-PCC-REPLAY-GATE.
 - **RC-PLATFORM-RUN-RECORDS.** — scope verified 2026-09-20: re-mines the
+||||||| parent of e63e6c9299e8 (board: insert RC-PCC-REPLAY-HOSTILE-EVIDENCE scoped row)
+- **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
+- **RC-PLATFORM-RUN-RECORDS** — scope verified 2026-09-20: re-mines the
+- **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-HOSTILE-EVIDENCE.** Scope verified at `54e321bdf00` —
+  sub-leg re-mine of RC-PCC-REPLAY's acceptance in
+  [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md):
+  "hostile or substituted evidence rejects before PCC-required
+  interpretation or lowering". Status inherits the parent: RC-PCC-REPLAY
+  is an open bare stub (release record e12b9e8e06: "not completed —
+  dispatched at this base, did not reach a verdict"), and the gate leg
+  RC-PCC-REPLAY-GATE is under a live claim (Devin / rc-pcc-replay-gate,
+  "run the RC-PCC-REPLAY gate command set on linux x86-64 and record the
+  reading"). No independent slice exists — work this leg inside the
+  parent's lane.
+- **RC-PLATFORM-RUN-RECORDS** — scope verified 2026-09-20: re-mines the
   "required platform runs" contract in
   [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
   — the four runner rows that must be recorded on matching hosts before the
