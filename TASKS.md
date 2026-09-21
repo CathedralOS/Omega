@@ -590,7 +590,20 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
     nested-call arguments, composed initializers, and `&mut` premise-carrier
     writes still reject (checked-stage coverage in
     `rank_ranges/call_components.rs::prefix_let_call_bindings_*`). Composed
-    initializers, bodyless boundary/requirement callees, and writes through
+    initializers, bodyless boundary/requirement callees, and writes through Re-verified at
+    `74dda185a13` (linux x86-64): the let-initializer leg is now fully
+    corpus-pinned — `call_tree_initializer_preserves_entry` admits nested
+    call arguments and composed initializers alike, and
+    `tests/omega/pass/termination/rank_range_prefix_let_call_argument`
+    carries the nested-argument control beside the direct-call
+    `rank_range_prefix_let_binding`. Remaining legs are unchanged:
+    boundary/requirement callees deliberately reject (a signature-state
+    body summary would claim an exclusive argument write never happened —
+    needs selected-provider settlement machinery), `&mut` premise-carrier
+    writes stay refused, native acceptance stays gated on
+    STATE-LOCAL-VALUE-FRONTIER's checked scalar control plan, and the
+    non-polynomial substitution / rank-role-correspondence legs stay with
+    this row's owner lane.
     the bound result remain open.
   - Use STATE-LOCAL-VALUE-FRONTIER's checked computation route to retire
     generated operand-call states. Do not add termination-only provenance for
@@ -4993,6 +5006,21 @@ moved to the termination-catalog fence (see that row's refresh note).
   Re-verified at `8921697ff1` on linux x86-64: the paragraph is intact on
   main (verification.md `### Trusted-surface inventory`). No slice remains
   under this name.
+- **NEW-CPMS-PACKAGE-MODE-SIGNAL-DESIGN.** Resolved — the dispatched name's
+  scoped deliverable already landed: `bddf64b16a25` ("wiki: canary
+  package-mode signal design for NEW-CPMS-PACKAGE-SIGNAL-DESIGN") wrote
+  `wiki/drafts/canary_package_mode_signal.md`, the design record for
+  CANARY-PACKAGE-MODE-SIGNAL — parsed `DependencyRow` +
+  canonical-path resolution replaces the `fixture_declares_ordinary_std`
+  substring probe, a roster `PACKAGE_MODE` marker covers the zero-edge
+  package opt-in, and the acceptance mapping covers the
+  `quotient_define_managed_compile` exception deletion plus the
+  escaping-path refusal. Re-verified at `4b0569d183` on linux x86-64: the
+  draft is intact and its implementation legs still name live surfaces
+  (`canary_suite.rs` substring probe at :3410, the roster rosters,
+  `repository_build_declarations.rs` exception). No slice remains under
+  this name; the implementation legs it lists belong to the parent
+  CANARY-PACKAGE-MODE-SIGNAL row.
 - **NEW-FOLD-LEDGER-DRAFTS-BATCH-3.** Resolved — ledger-draft fold per
   the batch-8 precedent (adcad974bd2): each verdict folded into its
   owning board row, per-lane ledger deleted.
@@ -11564,6 +11592,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   duplicate production catalogs; UEFI-OS-HANDOFF untouched), so there is
   no EFI row to promote and no lane slice. Record:
   `wiki/drafts/efi_matrix_promotion.md`.
+  Re-verified at `4b0569d183` (linux x86-64): unchanged — the hosted
+  matrix still lists exactly the four hosted rows with EFI a separately
+  stated milestone (rust_compiler_completion.md:21), both UEFI
+  precondition legs remain open rows, and the promotion stays a
+  milestone decision, not a lane task.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
   the extension point is concrete and bounded —
   `bootstrap/5_omega/scalar_compilation.epsilon` `fold_operator` admits 10 of
@@ -12343,6 +12376,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   previously cited wholesale fences (SQUALR-TARGETS-AND-THROUGHPUT,
   GEOMETRY-ALIGNMENT-REGIONS) have drained. Submodule pin remains
   `5b0307c352`.
+  Re-verified at `bbffdafe0498` (z116): still doubly gated — no Windows
+  development host in this environment, `samples/apps/squalr` remains
+  dir-fenced (SQUALR-DEBUG-ASSERTIONS ~16:25Z) with the
+  GEOMETRY-WINDOWS-VALIDATION item claim still live (~13:53Z). Submodule
+  pin has moved to `ef6682f75f`.
 - **GEOMETRY-WINDOWS-REVALIDATION.** Mined candidate — scope verified at
   `94e764a6da`, re-mine of the settled adjacent row
   GEOMETRY-WINDOWS-VALIDATION (scope verified `8734480a01`): both names
@@ -13345,6 +13383,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   worded stubs kept per keep-both-sides. The upstream cause — diff3
   `|||||||` markers landing as board content — still ships on main; each
   downstream worker strips them on rebase.
+
+- **NEW-ECR-ESTABLISHED-BY-RETURN-SHAPE.** Inserted row — scope verified at
+  `500878c473f4` (planner-scoped to `typed-trees/src/typed_trees/calls/
+  service.rs` + `typed-trees-to-checked-trees/src/checking/
+  program_validation.rs` and its dir). The item names the residual recorded
+  on the Service-carrier migration row (:1316): "`established by` expects
+  the old return shape". On inspection the return-shape judgment for
+  establishment routes lives entirely outside the assigned files:
+  `facts/qualification_evidence.rs::return_type_matches_domain_target`
+  (unwrapped `signature.return_type` vs `domain.target_type`, with the
+  nominal-head fallback) authorizes `BoundaryRequirement` routes, and
+  `checks/content/call_results.rs::{result_type_issuance_route,
+  case_payload_issuance_route}` own the `-> T in D` and case-payload
+  spellings; route construction is s2t `declarations/domain.rs`. Inside the
+  fence both halves are already coherent: `service.rs` exposes
+  `exact_bound_service_requirement` — the identity extraction a
+  `Service<R>`-returning establishment shape would match on — and the
+  classifier's `Constrained` rejection is a stated contract ("the carrier
+  is closed"), not a gap; `program_validation.rs`'s bare-boundary-trait
+  return gate admits `Service<R>` heads by construction (`Service` resolves
+  to a data definition, not a boundary trait, so no rejection fires). No
+  bounded slice exists inside the fence: admitting a service-carrier return
+  shape means changing what establishment-route consumers match, and those
+  consumers (`facts/qualification_evidence.rs`,
+  `checks/content/call_results.rs`, s2t route construction) are all
+  outside the assigned paths. The cross-file leg needs its own dispatch.
 - **NEW-ENTRY-RECEIVER-CLEANUP-OCCUPANCY-LEDGER.** Inserted row — scope
   verified, owner-fenced. Re-mines the ENTRY-CONTENT-ROOTS bullet (its own
   row at :1247): "Complete receiver nominal-cleanup and callback/signal
@@ -17552,7 +17616,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `selected_stage`/`liveness_stage`/`live_range_stage`/`source_legality_stage`
   hops to the named custody/replay file inventory — ancestry climbs are
   contract inputs, not data reads. No independent slice exists under this
-  name.
+  name. Re-verified at `416e9dd7e6` (z175 leg, linux x86-64): `cargo nextest run -p selected-instructions-to-selected-instructions --test ancestry_contract` 2/2 PASS and zero `.optimized_target()` data reads remain under the crate's `src` (the ratchet's four named custody/replay hops stand).
 - **SELECTED-REWRITE-CATALOG-EXECUTION.** Mined candidate; scope verified
   at 6d00135b89 — re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
   (TASKS_OPTIMIZER.md:641) — "give the stage an execution route under
@@ -17730,6 +17794,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `match_dispatch.rs`/`result_type.rs` expired), so the surface is
   owned-but-unclaimed rather than live-fenced; the parser expansion
   legs still belong to that owner item.
+  Re-verified at `796814691e4` (linux x86-64, ~10:05Z): adjudication
+  unchanged — owner files `match_dispatch.rs`/`result_type.rs` still
+  present; MATCH-SELECTIVE-LOWERING still absent from the claims
+  registry, and the RC-REPOSITORY path fence previously covering
+  `result_type.rs`/`reference_values.rs` no longer lists the
+  `value_custody/expression_types` owners (live RC-REPOSITORY claim
+  ~14:39Z covers other surfaces). Surface stays owned-but-unclaimed;
+  no independent slice under this name.
 - **SELECTIVE-EVALUATION-EXPANSION.** Resolved 2026-09-21 — named sibling
   re-mine of the selective-evaluation parser surface settled on
   **SELECTIVE-ARITHMETIC-EXPANSION**'s row above, which lists this stub
@@ -19136,7 +19208,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   green at `f44a1177ed` — `recorded_digests_match_the_working_tree`
   1/1 PASS; no re-record needed this wave.
 
-- **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
+- **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; scope verified,
+  resolved — covered alias at `4b8d3f36b7`. The name joins two surfaces,
+  both already adjudicated: the intrinsic half re-mines
+  **TV-INTRINSIC-SPAN-ARMS**'s closed span-arm surface (every intrinsic
+  family that produces coverage occurrences has its arm — IEEE FMA via
+  `derive_fma_span`, integer comparisons via `derive_integer_comparison_
+  span`, float comparisons via `fragment_comparison::derive`, structural
+  returns through the checked-body call span; `operator_applications.rs`
+  dispatch still at :50-58), and the dynamic half re-mines the landed
+  CallDynamic* occurrence coverage pinned by
+  `native-artifact/.../derivation/tests.rs:1959`
+  `dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`
+  (green at `28a3cc7fea`). Re-verified the demand side at this revision:
+  `replay_scope.rs` still replays exactly the four families
+  (`local_initializers`, `structural_returns`, `float_comparisons`,
+  `integer_comparisons`), so a further arm has nothing to join —
+  occurrence production for the remaining intrinsic kinds stays with
+  **TV-OPERATOR-APPLICATIONS-REPLAY** per both resolved rows. Sibling
+  stubs on the same surface: INTRINSIC-PHYSICAL-SPAN-ARMS,
+  REMAINING-INTRINSIC-SPAN-ARMS. No independent slice.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS** — verified 14e6f8f72e: the span-arm surface
   for every intrinsic family that produces coverage occurrences is
