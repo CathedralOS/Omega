@@ -2,7 +2,12 @@
 
 Scoped record for the planner item NEW-SV-CONST-GENERIC-INFERRED-EXTENT-RANGE-SCOPE,
 written at `8f58b6676b00` (linux x86-64). Board stub at TASKS.md (~:9498) is a
-wave restub of the settled const-generic extent surface.
+wave restub of the settled const-generic extent surface. Re-verified at
+`416e9dd7e63` on linux x86-64: both named witnesses are still green —
+`const_generic_extent_{index,range}_discharge` 2/2 in
+typed-trees-to-checked-trees and
+`inline_const_generic_selectors_execute_distinct_inferred_extents` in
+checked-interpreter's borrowed_subslices suite. The verdict below stands.
 
 ## What the name covers
 
