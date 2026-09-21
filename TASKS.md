@@ -6212,6 +6212,14 @@ moved to the termination-catalog fence (see that row's refresh note).
   `atomics_and_target_canaries::atomic_global_order_operations_canary_checks`
   1/1 green; `abstract-operations` `~atomic` 22/22 and
   `optimization-unit-semantics` `~atomic_coherence` 11/11 green.
+  Re-verified at `3dac85e5cc` (linux x86-64): absence gate unchanged —
+  no atomic operation type in `target-operations`,
+  `selected-instructions`, or `abstract-operations-to-target-operations`;
+  all three pinned suites green (`atomic_global_order_operations_canary_checks`
+  1/1, `abstract-operations` `~atomic` 22/22,
+  `optimization-unit-semantics` `~atomic_coherence` 11/11); TR3-TR8 still
+  lacks a real selected runtime, so no leg opens — the surface carries no
+  sibling claims.
 
 - **BLOCKEXEC.** Implement a package-level blocking executor with bounded
   queues, moved custody, linear completion claims, suspension, and provider
