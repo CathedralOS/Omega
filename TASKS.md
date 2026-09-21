@@ -12887,7 +12887,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **HOST-ALIAS-BUILD-DIR-DETECTION** — mined candidate; verify scope then implement.
 - **HOSTED-BUILTIN-SETTLEMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; verify scope then implement.
-- **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
+- **HOSTED-PLATFORM-RUN-MATRIX** — resolved as already landed; mines the landed BENCHMARK-HOST-ROW-MATRIX row (ee30bfcf1865). `benchmark.py matrix` renders the hosted-platform run matrix: `HOST_LEGS` enumerates every catalogued `TargetProfile` host leg — linux_arm64, linux_x86_64, macos_arm64, macos_x86_64 (structurally blocked pending native realization), windows_x86_64 (peak-RSS leg explicit-unavailable, no os.wait4), uefi_x86_64 (runtime leg unavailable pending QEMU/hardware), plus cross_platform_cli, local_unchecked, and alpha_bootstrap — and `matrix_rows` emits one measured row per committed record plus one explicit row per uncovered leg, so no host leg is implied. `tools/tests/test_benchmark.py` pins TargetProfile drift (21 tests pass); `wiki/drafts/benchmarks.md` renders the matrix. Residual record-row authorship belongs to the fenced tools/benchmark owners, not this stub.
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-REMAPPING** — mined candidate; verify scope then implement.
