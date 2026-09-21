@@ -35,9 +35,13 @@ pub data Table {
     storage: Extent in Granted;
 }
 
-// The mask selecting a frame base inside a raw entry: bits 12..52, spelled
-// as 2^52 - 2^12 = 4503599627370496.
-pub const TableEntry::FRAME_MASK: u64 = 4503599627370496;
+// The mask selecting a frame base inside a raw entry: bits 12..51, i.e.
+// 2^52 - 2^12 = 4503599627366400 = 0x000FFFFFFFFFF000. The previous value
+// 4503599627370496 is 2^52 itself -- a single bit above the frame range -- so
+// `frame_base & FRAME_MASK` discarded every frame-address bit. Cathedral's own
+// page-table source declares the same mask as
+// X86_MAX_ALIGNED_PHYSICAL_FRAME_ADDRESS.
+pub const TableEntry::FRAME_MASK: u64 = 4503599627366400;
 
 // The inert empty slot: every flag clear. `remove` writes it over the leaf
 // entry a teardown retires.
