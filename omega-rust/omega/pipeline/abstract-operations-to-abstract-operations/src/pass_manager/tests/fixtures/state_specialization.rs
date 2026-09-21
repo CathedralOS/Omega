@@ -72,25 +72,32 @@ fn return_unit(edge: u64) -> Terminator {
     }
 }
 
-/// A single-`Conditional` dispatch block parameter is bound by two incoming
-/// unconditional edges: `pred_true` supplies the proven literal `flag`, while
-/// `pred_false` supplies the machine parameter `seed`, which no sparse
-/// constant lattice can prove. Exactly the constant-supplied edge specializes.
+/// A single-`Conditional` dispatch block parameter is bound by three incoming
+/// edges across both admitted predecessor shapes: `pred_true`'s unconditional
+/// jump and `pred_cond`'s `when_true` conditional arm each supply the proven
+/// literal `flag`, while `pred_false` supplies the machine parameter `seed`,
+/// which no sparse constant lattice can prove. Exactly the two
+/// constant-supplied edges specialize; the conditional's sibling arm keeps
+/// the still-variable route through `pred_false` untouched.
 ///
-/// `entry -[seed]-> {pred_true, pred_false} -> dispatch(state) -> {yes, no}`.
+/// `entry -[seed]-> {pred_true, pred_cond} ; pred_cond -[flag]-> dispatch
+/// and `-[ ]-> pred_false ; {pred_true, pred_false} -[flag|seed]-> dispatch
+/// -> {yes, no}`.
 pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
 -> VerifiedPsiOptimizationUnit {
-    let (entry, pred_true, pred_false, dispatch, yes, no) = (
+    let (entry, pred_true, pred_cond, pred_false, dispatch, yes, no) = (
         BlockId::new(5_602).unwrap(),
         BlockId::new(5_603).unwrap(),
         BlockId::new(5_604).unwrap(),
         BlockId::new(5_605).unwrap(),
         BlockId::new(5_606).unwrap(),
         BlockId::new(5_607).unwrap(),
+        BlockId::new(5_608).unwrap(),
     );
-    let seed = ValueId::new(5_608).unwrap();
-    let flag = ValueId::new(5_609).unwrap();
-    let state = ValueId::new(5_610).unwrap();
+    let seed = ValueId::new(5_609).unwrap();
+    let flag = ValueId::new(5_610).unwrap();
+    let state = ValueId::new(5_612).unwrap();
+    let gate = ValueId::new(5_611).unwrap();
     let successor = |edge: u64, target, arguments| SuccessorEdge {
         erased_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
@@ -114,7 +121,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
             declared_service_reach: Vec::new(),
             id: MachineId::new(5_601).unwrap(),
             attachment: None,
-            parameters: vec![boolean(5_608)],
+            parameters: vec![boolean(5_609)],
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Unit,
@@ -134,14 +141,14 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
-                        id: OperationId::new(5_611).unwrap(),
-                        result: OperationResult::Scalar(boolean(5_609)),
+                        id: OperationId::new(5_613).unwrap(),
+                        result: OperationResult::Scalar(boolean(5_610)),
                         kind: OperationKind::BooleanConstant { value: true },
                     }],
                     terminator: Terminator::Conditional {
                         condition: seed,
-                        when_true: successor(5_612, pred_true, Vec::new()),
-                        when_false: successor(5_613, pred_false, Vec::new()),
+                        when_true: successor(5_614, pred_true, Vec::new()),
+                        when_false: successor(5_615, pred_cond, vec![seed]),
                     },
                 },
                 Block {
@@ -150,7 +157,19 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                     id: pred_true,
                     parameters: Vec::new(),
                     operations: Vec::new(),
-                    terminator: jump(5_614, vec![flag]),
+                    terminator: jump(5_616, vec![flag]),
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: pred_cond,
+                    parameters: vec![boolean(5_611)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition: gate,
+                        when_true: successor(5_617, dispatch, vec![flag]),
+                        when_false: successor(5_618, pred_false, Vec::new()),
+                    },
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
@@ -158,18 +177,18 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                     id: pred_false,
                     parameters: Vec::new(),
                     operations: Vec::new(),
-                    terminator: jump(5_615, vec![seed]),
+                    terminator: jump(5_619, vec![seed]),
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: dispatch,
-                    parameters: vec![boolean(5_610)],
+                    parameters: vec![boolean(5_612)],
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition: state,
-                        when_true: successor(5_616, yes, Vec::new()),
-                        when_false: successor(5_617, no, Vec::new()),
+                        when_true: successor(5_620, yes, Vec::new()),
+                        when_false: successor(5_621, no, Vec::new()),
                     },
                 },
                 Block {
@@ -178,7 +197,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                     id: yes,
                     parameters: Vec::new(),
                     operations: Vec::new(),
-                    terminator: return_unit(5_618),
+                    terminator: return_unit(5_622),
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
@@ -186,7 +205,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                     id: no,
                     parameters: Vec::new(),
                     operations: Vec::new(),
-                    terminator: return_unit(5_619),
+                    terminator: return_unit(5_623),
                 },
             ],
         }),
