@@ -21,7 +21,14 @@ pub(super) fn prove(
         (OperatorSpelling::Range, ExpressionNode::Range(range)) => [range.start, range.end],
         (OperatorSpelling::Index, _) => [indexed.index, ExpressionHandle::invalid()],
         _ => return false,
-    };
+    }
+    .map(|operand| {
+        if operand.is_valid() {
+            super::zero_offset_reduced_expression(program, operand)
+        } else {
+            operand
+        }
+    });
     let non_negative = operands.map(|expression| {
         if !expression.is_valid() {
             // Omitted range endpoints mean zero and the collection length.

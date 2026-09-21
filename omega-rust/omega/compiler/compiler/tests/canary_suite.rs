@@ -466,6 +466,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "core/placement_vocabulary_core_surface",
     "core/slice_core_surface",
     "core/vec_core_surface",
+    "core/range_slice_zero_offset_start",
     "operators/slice_index_via_spelling_compile",
     "parser/deep_nesting_within_limit",
     "parser/invariant_is_an_identifier",
