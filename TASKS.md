@@ -8050,6 +8050,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claim (~01:42Z). No independent slice remains; the open board owners
   are C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (the four-test family)
   and C2L-RESIDUAL-FAILURE-ATTRIBUTION (in flight).
+
+  Re-verified at `a84ebca972` (linux x86-64, scoped): the attribution has
+  drifted in the green direction — the **ranked safe-point segment
+  bounds** family the 6ef64f6dd6 reading opened (bisected to
+  7591b2607c77) is now GREEN: both
+  `ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
+  and `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`
+  pass, repaired by the terminal-fixed-fuel bounded-walk series
+  (`0d0f85459ad`/`8c6294fcfc8`/`9b6aed267fe`/`faf902cea48`/
+  `94e764a6da6`). `closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
+  stays green (closed at 7af30a1f839a). The scalar-return custody family
+  is still red at an identical signature —
+  `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`
+  fails `Lowering(Unsupported("composed Unit scalar call requires
+  structural call custody"))` — while the other sampled
+  owned_record_return_source members pass; ownership unchanged
+  (C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES, live ~10:35Z on
+  `tests/owned_record_return_source.rs`). The ledger doc needs a
+  one-line refresh for the ranked pair whenever its fence next opens
+  (LOWERED-UNIT-FAILURE-ATTRIBUTION lane); verdict otherwise holds.
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET.** — scope verified and
   bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
   three members the 6ef64f6dd6 reading opened as two new families, now
