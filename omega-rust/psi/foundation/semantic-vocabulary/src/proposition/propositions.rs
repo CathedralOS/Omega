@@ -72,87 +72,92 @@ pub enum Proposition {
 
 impl Proposition {
     pub fn validate(&self) -> Result<(), PropositionError> {
-        match self {
-            Self::Truth | Self::Falsehood => Ok(()),
-            Self::Atom(_) => Ok(()),
-            Self::Equal(left, right) => require_same_type(left, right),
-            Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
-                require_same_integer_type(left, right)
+        // An explicit worklist keeps deep propositions off the call stack:
+        // children push in reverse so they still validate left to right, and
+        // each node's own checks run in the same order the recursive
+        // validator produced.
+        let mut pending = vec![self];
+        while let Some(proposition) = pending.pop() {
+            match proposition {
+                Self::Truth | Self::Falsehood => {}
+                Self::Atom(_) => {}
+                Self::Equal(left, right) => require_same_type(left, right)?,
+                Self::LessThan(left, right) | Self::LessOrEqual(left, right) => {
+                    require_same_integer_type(left, right)?
+                }
+                Self::IntegerMathEqual(left, right) => {
+                    left.validate()?;
+                    right.validate()?;
+                    if left > right {
+                        return Err(PropositionError::NonCanonicalIntegerMathEqualityOperands);
+                    }
+                }
+                Self::IntegerMathLessThan(left, right)
+                | Self::IntegerMathLessOrEqual(left, right) => {
+                    left.validate()?;
+                    right.validate()?;
+                }
+                Self::IeeeFloatComparison { left, right, .. } => {
+                    if left.path.is_empty() || right.path.is_empty() {
+                        return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
+                    }
+                    if left > right {
+                        return Err(PropositionError::NonCanonicalIeeeFloatComparisonOperands);
+                    }
+                }
+                Self::ScalarIeeeFloatComparison {
+                    format,
+                    left,
+                    right,
+                    ..
+                } => {
+                    require_ieee_float_operands(*format, left, right)?;
+                    if left > right {
+                        return Err(
+                            PropositionError::NonCanonicalScalarIeeeFloatComparisonOperands,
+                        );
+                    }
+                }
+                Self::ByteSequenceEqual { left, right } => {
+                    if left.path.is_empty() || right.path.is_empty() {
+                        return Err(PropositionError::EmptyByteSequenceStructuralFieldPath);
+                    }
+                    if left > right {
+                        return Err(PropositionError::NonCanonicalByteSequenceEqualOperands);
+                    }
+                }
+                Self::StructuralCaseMembership { .. } => {}
+                Self::Conjunction(conjuncts) => {
+                    if conjuncts.len() < 2 {
+                        return Err(PropositionError::NonCanonicalConjunctionArity(
+                            conjuncts.len(),
+                        ));
+                    }
+                    for conjunct in conjuncts.iter().rev() {
+                        pending.push(conjunct);
+                    }
+                }
+                Self::Disjunction(disjuncts) => {
+                    if disjuncts.len() < 2 {
+                        return Err(PropositionError::NonCanonicalDisjunctionArity(
+                            disjuncts.len(),
+                        ));
+                    }
+                    for disjunct in disjuncts.iter().rev() {
+                        pending.push(disjunct);
+                    }
+                }
+                Self::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    pending.push(conclusion);
+                    pending.push(premise);
+                }
+                Self::ContentConservation(conservation) => conservation.validate()?,
             }
-            Self::IntegerMathEqual(left, right) => {
-                left.validate()?;
-                right.validate()?;
-                if left > right {
-                    return Err(PropositionError::NonCanonicalIntegerMathEqualityOperands);
-                }
-                Ok(())
-            }
-            Self::IntegerMathLessThan(left, right) | Self::IntegerMathLessOrEqual(left, right) => {
-                left.validate()?;
-                right.validate()
-            }
-            Self::IeeeFloatComparison { left, right, .. } => {
-                if left.path.is_empty() || right.path.is_empty() {
-                    return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
-                }
-                if left > right {
-                    return Err(PropositionError::NonCanonicalIeeeFloatComparisonOperands);
-                }
-                Ok(())
-            }
-            Self::ScalarIeeeFloatComparison {
-                format,
-                left,
-                right,
-                ..
-            } => {
-                require_ieee_float_operands(*format, left, right)?;
-                if left > right {
-                    return Err(PropositionError::NonCanonicalScalarIeeeFloatComparisonOperands);
-                }
-                Ok(())
-            }
-            Self::ByteSequenceEqual { left, right } => {
-                if left.path.is_empty() || right.path.is_empty() {
-                    return Err(PropositionError::EmptyByteSequenceStructuralFieldPath);
-                }
-                if left > right {
-                    return Err(PropositionError::NonCanonicalByteSequenceEqualOperands);
-                }
-                Ok(())
-            }
-            Self::StructuralCaseMembership { .. } => Ok(()),
-            Self::Conjunction(conjuncts) => {
-                if conjuncts.len() < 2 {
-                    return Err(PropositionError::NonCanonicalConjunctionArity(
-                        conjuncts.len(),
-                    ));
-                }
-                for conjunct in conjuncts {
-                    conjunct.validate()?;
-                }
-                Ok(())
-            }
-            Self::Disjunction(disjuncts) => {
-                if disjuncts.len() < 2 {
-                    return Err(PropositionError::NonCanonicalDisjunctionArity(
-                        disjuncts.len(),
-                    ));
-                }
-                for disjunct in disjuncts {
-                    disjunct.validate()?;
-                }
-                Ok(())
-            }
-            Self::Implication {
-                premise,
-                conclusion,
-            } => {
-                premise.validate()?;
-                conclusion.validate()
-            }
-            Self::ContentConservation(conservation) => conservation.validate(),
         }
+        Ok(())
     }
 }
 
@@ -211,186 +216,197 @@ impl PropositionContext {
     }
 
     fn validate_value_terms(&self, proposition: &Proposition) -> Result<(), PropositionError> {
-        match proposition {
-            Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
-            Proposition::Equal(left, right)
-            | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
-                self.validate_term(left)?;
-                self.validate_term(right)
-            }
-            Proposition::IntegerMathEqual(left, right)
-            | Proposition::IntegerMathLessThan(left, right)
-            | Proposition::IntegerMathLessOrEqual(left, right) => {
-                self.validate_integer_math_term(left)?;
-                self.validate_integer_math_term(right)
-            }
-            Proposition::IeeeFloatComparison { left, right, .. } => {
-                for field in [left, right] {
-                    if !self.structural_places.contains_key(&field.root) {
-                        return Err(PropositionError::UnknownStructuralPlace(field.root));
+        // Same worklist contract as `Proposition::validate`: children push in
+        // reverse so they still check left to right off the call stack.
+        let mut pending = vec![proposition];
+        while let Some(proposition) = pending.pop() {
+            match proposition {
+                Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+                Proposition::Equal(left, right)
+                | Proposition::LessThan(left, right)
+                | Proposition::LessOrEqual(left, right) => {
+                    self.validate_term(left)?;
+                    self.validate_term(right)?;
+                }
+                Proposition::IntegerMathEqual(left, right)
+                | Proposition::IntegerMathLessThan(left, right)
+                | Proposition::IntegerMathLessOrEqual(left, right) => {
+                    self.validate_integer_math_term(left)?;
+                    self.validate_integer_math_term(right)?;
+                }
+                Proposition::IeeeFloatComparison { left, right, .. } => {
+                    for field in [left, right] {
+                        if !self.structural_places.contains_key(&field.root) {
+                            return Err(PropositionError::UnknownStructuralPlace(field.root));
+                        }
                     }
                 }
-                Ok(())
-            }
-            Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
-                self.validate_term(left)?;
-                self.validate_term(right)
-            }
-            Proposition::ByteSequenceEqual { left, right } => {
-                for field in [left, right] {
-                    if !self.structural_places.contains_key(&field.root) {
-                        return Err(PropositionError::UnknownStructuralPlace(field.root));
+                Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+                    self.validate_term(left)?;
+                    self.validate_term(right)?;
+                }
+                Proposition::ByteSequenceEqual { left, right } => {
+                    for field in [left, right] {
+                        if !self.structural_places.contains_key(&field.root) {
+                            return Err(PropositionError::UnknownStructuralPlace(field.root));
+                        }
                     }
                 }
-                Ok(())
-            }
-            Proposition::StructuralCaseMembership { subject, .. } => {
-                if !self.structural_places.contains_key(&subject.root) {
-                    return Err(PropositionError::UnknownStructuralPlace(subject.root));
+                Proposition::StructuralCaseMembership { subject, .. } => {
+                    if !self.structural_places.contains_key(&subject.root) {
+                        return Err(PropositionError::UnknownStructuralPlace(subject.root));
+                    }
                 }
-                Ok(())
-            }
-            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
-                for proposition in propositions {
-                    self.validate_value_terms(proposition)?;
+                Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                    for proposition in propositions.iter().rev() {
+                        pending.push(proposition);
+                    }
                 }
-                Ok(())
-            }
-            Proposition::Implication {
-                premise,
-                conclusion,
-            } => {
-                self.validate_value_terms(premise)?;
-                self.validate_value_terms(conclusion)
-            }
-            Proposition::ContentConservation(conservation) => {
-                self.validate_content_term(conservation.left())?;
-                self.validate_content_term(conservation.right())
+                Proposition::Implication {
+                    premise,
+                    conclusion,
+                } => {
+                    pending.push(conclusion);
+                    pending.push(premise);
+                }
+                Proposition::ContentConservation(conservation) => {
+                    self.validate_content_term(conservation.left())?;
+                    self.validate_content_term(conservation.right())?;
+                }
             }
         }
+        Ok(())
     }
 
     fn validate_integer_math_term(&self, term: &IntegerMathTerm) -> Result<(), PropositionError> {
-        match term {
-            IntegerMathTerm::MathValue { source_type, value } => {
-                let Some(expected) = self.value_types.get(value) else {
-                    return Err(PropositionError::UnknownValue(*value));
-                };
-                let actual = ScalarType::Integer(*source_type);
-                if expected != &actual {
-                    return Err(PropositionError::ValueTypeMismatch {
-                        id: *value,
-                        expected: *expected,
-                        actual,
-                    });
+        let mut pending = vec![term];
+        while let Some(term) = pending.pop() {
+            match term {
+                IntegerMathTerm::MathValue { source_type, value } => {
+                    let Some(expected) = self.value_types.get(value) else {
+                        return Err(PropositionError::UnknownValue(*value));
+                    };
+                    let actual = ScalarType::Integer(*source_type);
+                    if expected != &actual {
+                        return Err(PropositionError::ValueTypeMismatch {
+                            id: *value,
+                            expected: *expected,
+                            actual,
+                        });
+                    }
                 }
-            }
-            IntegerMathTerm::IntegerLiteral(_) => {}
-            IntegerMathTerm::Add(left, right)
-            | IntegerMathTerm::Subtract(left, right)
-            | IntegerMathTerm::Multiply(left, right) => {
-                self.validate_integer_math_term(left)?;
-                self.validate_integer_math_term(right)?;
-            }
-            IntegerMathTerm::ShiftLeft { value, count } => {
-                self.validate_integer_math_term(value)?;
-                self.validate_integer_math_term(count)?;
+                IntegerMathTerm::IntegerLiteral(_) => {}
+                IntegerMathTerm::Add(left, right)
+                | IntegerMathTerm::Subtract(left, right)
+                | IntegerMathTerm::Multiply(left, right) => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                IntegerMathTerm::ShiftLeft { value, count } => {
+                    pending.push(count);
+                    pending.push(value);
+                }
             }
         }
         Ok(())
     }
 
     fn validate_content_term(&self, term: &ContentTerm) -> Result<(), PropositionError> {
-        match term {
-            ContentTerm::Projection { subject, .. } => {
-                let Some(kind) = self.structural_places.get(&subject.root) else {
-                    return Err(PropositionError::UnknownStructuralPlace(subject.root));
-                };
-                if subject.version == ContentPlaceVersion::Entry
-                    && matches!(
+        let mut pending = vec![term];
+        while let Some(term) = pending.pop() {
+            match term {
+                ContentTerm::Projection { subject, .. } => {
+                    let Some(kind) = self.structural_places.get(&subject.root) else {
+                        return Err(PropositionError::UnknownStructuralPlace(subject.root));
+                    };
+                    if subject.version == ContentPlaceVersion::Entry
+                        && matches!(
+                            kind,
+                            StructuralPlaceKind::Result
+                                | StructuralPlaceKind::OperationResult { .. }
+                        )
+                    {
+                        return Err(PropositionError::EntryResultStructuralPlace(subject.root));
+                    }
+                    if matches!(
                         kind,
-                        StructuralPlaceKind::Result | StructuralPlaceKind::OperationResult { .. }
-                    )
-                {
-                    return Err(PropositionError::EntryResultStructuralPlace(subject.root));
+                        StructuralPlaceKind::TrivialAffineLocal { .. }
+                            | StructuralPlaceKind::BlockParameter { .. }
+                    ) {
+                        return Err(PropositionError::UnsupportedContentLocalStructuralPlace(
+                            subject.root,
+                        ));
+                    }
                 }
-                if matches!(
-                    kind,
-                    StructuralPlaceKind::TrivialAffineLocal { .. }
-                        | StructuralPlaceKind::BlockParameter { .. }
-                ) {
-                    return Err(PropositionError::UnsupportedContentLocalStructuralPlace(
-                        subject.root,
-                    ));
+                ContentTerm::Separate(terms) => {
+                    for term in terms.iter().rev() {
+                        pending.push(term);
+                    }
                 }
-                Ok(())
-            }
-            ContentTerm::Separate(terms) => {
-                for term in terms {
-                    self.validate_content_term(term)?;
-                }
-                Ok(())
             }
         }
+        Ok(())
     }
 
     fn validate_term(&self, term: &ScalarTerm) -> Result<(), PropositionError> {
-        match term {
-            ScalarTerm::Value { id, scalar_type } => {
-                let Some(expected) = self.value_types.get(id) else {
-                    return Err(PropositionError::UnknownValue(*id));
-                };
-                if expected != scalar_type {
-                    return Err(PropositionError::ValueTypeMismatch {
-                        id: *id,
-                        expected: *expected,
-                        actual: *scalar_type,
-                    });
+        let mut pending = vec![term];
+        while let Some(term) = pending.pop() {
+            match term {
+                ScalarTerm::Value { id, scalar_type } => {
+                    let Some(expected) = self.value_types.get(id) else {
+                        return Err(PropositionError::UnknownValue(*id));
+                    };
+                    if expected != scalar_type {
+                        return Err(PropositionError::ValueTypeMismatch {
+                            id: *id,
+                            expected: *expected,
+                            actual: *scalar_type,
+                        });
+                    }
                 }
-            }
-            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
-                if !self.structural_places.contains_key(root) {
-                    return Err(PropositionError::UnknownStructuralPlace(*root));
+                ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
+                    if !self.structural_places.contains_key(root) {
+                        return Err(PropositionError::UnknownStructuralPlace(*root));
+                    }
                 }
+                ScalarTerm::ExactIntegerAdd { left, right, .. }
+                | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+                | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+                | ScalarTerm::ExactIntegerDivide { left, right, .. }
+                | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+                | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+                | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+                | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+                | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+                | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+                | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+                | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+                | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+                | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+                | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
+                | ScalarTerm::BooleanEqual { left, right }
+                | ScalarTerm::IntegerEqual { left, right, .. }
+                | ScalarTerm::IntegerLessThan { left, right, .. }
+                | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+                | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+                | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+                | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+                | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+                | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+                | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                    pending.push(count);
+                    pending.push(value);
+                }
+                ScalarTerm::BooleanNot { operand }
+                | ScalarTerm::IntegerBitwiseNot { operand, .. }
+                | ScalarTerm::IntegerWiden { operand, .. }
+                | ScalarTerm::IntegerExactCast { operand, .. } => pending.push(operand),
+                ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
             }
-            ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
-            | ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-                self.validate_term(left)?;
-                self.validate_term(right)?;
-            }
-            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                self.validate_term(value)?;
-                self.validate_term(count)?;
-            }
-            ScalarTerm::BooleanNot { operand }
-            | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. }
-            | ScalarTerm::IntegerExactCast { operand, .. } => self.validate_term(operand)?,
-            ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
         }
         Ok(())
     }

@@ -1301,13 +1301,83 @@ impl ScalarTerm {
     }
 
     pub fn validate(&self) -> Result<(), PropositionError> {
+        // An explicit worklist keeps deep terms off the call stack, matching
+        // the canonical-order guards in terminal-codec: `Visit` pushes a
+        // `Finalize` step behind the term's operands so each node's own
+        // typing rule runs only after its operands validated — the same
+        // post-order position the recursive validator gave it. Children push
+        // in reverse so the left operand still validates first.
+        enum Step<'a> {
+            Visit(&'a ScalarTerm),
+            Finalize(&'a ScalarTerm),
+        }
+        let mut pending = vec![Step::Visit(self)];
+        while let Some(step) = pending.pop() {
+            match step {
+                Step::Visit(term) => match term {
+                    Self::BooleanNot { operand }
+                    | Self::IntegerBitwiseNot { operand, .. }
+                    | Self::IntegerWiden { operand, .. }
+                    | Self::IntegerExactCast { operand, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(operand));
+                    }
+                    Self::WrappingIntegerShiftLeft { value, count, .. }
+                    | Self::WrappingIntegerShiftRight { value, count, .. }
+                    | Self::ExactIntegerShiftLeft { value, count, .. }
+                    | Self::ExactIntegerShiftRight { value, count, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(count));
+                        pending.push(Step::Visit(value));
+                    }
+                    Self::BooleanEqual { left, right }
+                    | Self::IntegerEqual { left, right, .. }
+                    | Self::IntegerLessThan { left, right, .. }
+                    | Self::IntegerLessOrEqual { left, right, .. }
+                    | Self::IntegerBitwiseAnd { left, right, .. }
+                    | Self::IntegerBitwiseOr { left, right, .. }
+                    | Self::IntegerBitwiseXor { left, right, .. }
+                    | Self::ExactIntegerAdd { left, right, .. }
+                    | Self::ExactIntegerSubtract { left, right, .. }
+                    | Self::ExactIntegerMultiply { left, right, .. }
+                    | Self::ExactIntegerDivide { left, right, .. }
+                    | Self::ExactIntegerRemainder { left, right, .. }
+                    | Self::WrappingIntegerDivide { left, right, .. }
+                    | Self::WrappingIntegerRemainder { left, right, .. }
+                    | Self::SaturatingIntegerDivide { left, right, .. }
+                    | Self::SaturatingIntegerRemainder { left, right, .. }
+                    | Self::WrappingIntegerAdd { left, right, .. }
+                    | Self::SaturatingIntegerAdd { left, right, .. }
+                    | Self::WrappingIntegerSubtract { left, right, .. }
+                    | Self::SaturatingIntegerSubtract { left, right, .. }
+                    | Self::WrappingIntegerMultiply { left, right, .. }
+                    | Self::SaturatingIntegerMultiply { left, right, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(right));
+                        pending.push(Step::Visit(left));
+                    }
+                    Self::Value { .. }
+                    | Self::BooleanField { .. }
+                    | Self::IntegerField { .. }
+                    | Self::Boolean(_)
+                    | Self::Integer { .. } => pending.push(Step::Finalize(term)),
+                },
+                Step::Finalize(term) => term.validate_after_operands()?,
+            }
+        }
+        Ok(())
+    }
+
+    /// The node's own typing rule, run once its operands have validated:
+    /// literal range admission, operand type agreement, and cast or shift
+    /// legality. Never walks children — `validate` drives the traversal.
+    fn validate_after_operands(&self) -> Result<(), PropositionError> {
         match self {
             Self::Value { .. }
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
             | Self::Boolean(_) => Ok(()),
             Self::BooleanNot { operand } => {
-                operand.validate()?;
                 if operand.scalar_type() != ScalarType::Boolean {
                     return Err(PropositionError::BooleanNotTypeMismatch(
                         operand.scalar_type(),
@@ -1320,7 +1390,6 @@ impl ScalarTerm {
                 target_type,
                 operand,
             } => {
-                operand.validate()?;
                 let expected = ScalarType::Integer(*source_type);
                 if operand.scalar_type() != expected || !source_type.can_exact_cast_to(*target_type)
                 {
@@ -1333,8 +1402,6 @@ impl ScalarTerm {
                 Ok(())
             }
             Self::BooleanEqual { left, right } => {
-                left.validate()?;
-                right.validate()?;
                 if left.scalar_type() != ScalarType::Boolean
                     || right.scalar_type() != ScalarType::Boolean
                 {
@@ -1350,8 +1417,6 @@ impl ScalarTerm {
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::IntegerEqualTypeMismatch {
@@ -1371,16 +1436,11 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
-            }
+            } => validate_integer_operands(*scalar_type, left, right),
             Self::IntegerBitwiseNot {
                 scalar_type,
                 operand,
             } => {
-                operand.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if operand.scalar_type() != expected {
                     return Err(PropositionError::IntegerBitwiseNotTypeMismatch {
@@ -1395,7 +1455,6 @@ impl ScalarTerm {
                 target_type,
                 operand,
             } => {
-                operand.validate()?;
                 let expected = ScalarType::Integer(*source_type);
                 if operand.scalar_type() != expected || !source_type.can_widen_to(*target_type) {
                     return Err(PropositionError::IntegerWidenTypeMismatch {
@@ -1420,11 +1479,7 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
-            }
+            } => validate_integer_operands(*scalar_type, left, right),
             Self::WrappingIntegerShiftLeft {
                 value_type,
                 count_type,
@@ -1448,11 +1503,7 @@ impl ScalarTerm {
                 count_type,
                 value,
                 count,
-            } => {
-                value.validate()?;
-                count.validate()?;
-                validate_integer_shift_operands(*value_type, *count_type, value, count)
-            }
+            } => validate_integer_shift_operands(*value_type, *count_type, value, count),
             Self::Integer { scalar_type, value } => {
                 if scalar_type.admits(*value) {
                     Ok(())
@@ -1468,8 +1519,6 @@ impl ScalarTerm {
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::WrappingIntegerAddTypeMismatch {
@@ -1484,90 +1533,52 @@ impl ScalarTerm {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::ExactIntegerSubtract {
+            | Self::ExactIntegerSubtract {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::ExactIntegerMultiply {
+            | Self::ExactIntegerMultiply {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::ExactIntegerDivide {
+            | Self::ExactIntegerDivide {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::ExactIntegerRemainder {
+            | Self::ExactIntegerRemainder {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::WrappingIntegerDivide {
+            | Self::WrappingIntegerDivide {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::WrappingIntegerRemainder {
+            | Self::WrappingIntegerRemainder {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::SaturatingIntegerDivide {
+            | Self::SaturatingIntegerDivide {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
             }
-            Self::SaturatingIntegerRemainder {
+            | Self::SaturatingIntegerRemainder {
                 scalar_type,
                 left,
                 right,
-            } => {
-                left.validate()?;
-                right.validate()?;
-                validate_integer_operands(*scalar_type, left, right)
-            }
+            } => validate_integer_operands(*scalar_type, left, right),
             Self::SaturatingIntegerAdd {
                 scalar_type,
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::SaturatingIntegerAddTypeMismatch {
@@ -1583,8 +1594,6 @@ impl ScalarTerm {
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::WrappingIntegerSubtractTypeMismatch {
@@ -1600,8 +1609,6 @@ impl ScalarTerm {
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::SaturatingIntegerSubtractTypeMismatch {
@@ -1617,8 +1624,6 @@ impl ScalarTerm {
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::WrappingIntegerMultiplyTypeMismatch {
@@ -1634,8 +1639,6 @@ impl ScalarTerm {
                 left,
                 right,
             } => {
-                left.validate()?;
-                right.validate()?;
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::SaturatingIntegerMultiplyTypeMismatch {
