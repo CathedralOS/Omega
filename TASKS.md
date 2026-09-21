@@ -12565,6 +12565,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `call_requirements` under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION (~04:00Z)
   and PROOF-SUBJECT-CALL-SELECTION (~05:39Z), `arithmetic_judgment` under
   the SIGNED-CALL-PREMISES family (~22:38Z).
+  Fence-rotation re-audit at `90df29812c` (z161, 08:18Z): the cited
+  entailment claims have drained — `specification_calls`,
+  `arithmetic_judgment`, and `inductive_judgment` under
+  `proof_contracts/contract_entailment/` are now unfenced (only the
+  `ranking_range` sibling stays claimed, by TERMINATION-RANKING-CHECKS to
+  ~10:50Z), and PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION /
+  PROOF-SUBJECT-CALL-SELECTION / SIGNED-CALL-PREMISES are no longer live.
+  PROOF-CERTIFICATION-BRIDGE still holds `checks/contracts/exits` and
+  `proofs/scalar_block_invariants` to ~10:52Z. The substrate is still
+  unwired — no `proves_element`/`contains_index`/`LemmaFacts` caller in
+  `validation/` or `typed-trees-to-checked-trees/` — so the surviving
+  blocker is the row's substantive gate, not a fence: producing and
+  consulting quantified facts is unspec'd surgery on the fail-closed
+  proof engine, which the delegated PROOF-CERTIFICATION cluster owns.
+  No independent slice exists under this name.
 - **PROOF-SEARCH-DERIVATION-CACHE.** Resolved — the derivation recheck
   consultation is wired into `check_proof_plan`: a caller-supplied
   `ProofDerivationCache` (`checker::derivation_cache`, entered via
