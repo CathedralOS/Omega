@@ -64,6 +64,18 @@ OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256=b48c672f09c8263d9d352fdb37af66a82c3083d
 OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE=3863
 OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256=8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0
 
+# D's OCREQ request entry: program.omg, the canonical Omega source the
+# request names as D's compilation subject. The executable gate feeds it to
+# the bound customer as sealed input after the packed compiler and entry
+# bytes; other gates frame their own requests. Like the gate-local entries
+# above it is a separate input from the manifested members, bound here so
+# the canonical request's subject is an audited identity rather than a
+# per-gate framing. The identical record lives in tools/bootstrap/README.md;
+# the gate's own README record and run.sh/identity-gate wiring land with the
+# omega-executable claim fence.
+OMEGA_OCREQ_ENTRY_SIZE=174
+OMEGA_OCREQ_ENTRY_SHA256=b880031336a824e41ce6021dda44e1a64aaa9e849a6b25ab658ea6fc612c1b2e
+
 # require_omega_compiler_identity : the canonical manifest is the bound file
 # and repacking it reproduces exactly the bound D closure. Every
 # materialization runs it; tests may call it directly. bootstrap_sha256 and
@@ -171,4 +183,19 @@ require_omega_executable_entries_identity() {
       "$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/$1" "$2" "$3" \
       "tests/bootstrap/omega-executable/README.md" || return $?
   done
+}
+
+# require_omega_ocreq_entry_identity : the canonical OCREQ request entry —
+# the Omega source D's request asks it to compile — is the bound file. The
+# request entry is a separate input from the canonical closure and never
+# part of the manifested members, so consumers that frame a request around
+# it run this before packing; tests may call it directly. It is not part of
+# the canonical closure and does not run during materialization. A digest
+# here is an identity check on the request entry source; it is not a proof
+# of the request's judgment.
+require_omega_ocreq_entry_identity() {
+  require_bound_identity "program.omg" \
+    "$OMEGA_PATH_OMEGA_OCREQ_ENTRY" "$OMEGA_OCREQ_ENTRY_SIZE" \
+    "$OMEGA_OCREQ_ENTRY_SHA256" \
+    "tools/bootstrap/README.md"
 }
