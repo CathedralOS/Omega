@@ -9356,7 +9356,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
 - **RC-REPRESENTATIVE-PROGRAMS-PER-HOST** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
-- **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-SOURCE-SEMANTICS-CLOSURE.** Mined candidate — scope verified,
+  covered re-mine of the RC matrix's `RC-SOURCE-SEMANTICS` gate row
+  (`wiki/drafts/rust_compiler_completion.md`: "every accepted positive
+  fixture reaches its promised checked or product stage; every negative
+  fixture rejects; individual semantic integration tests pass" —
+  `mbx nextest run -p compiler --all-targets --no-fail-fast`). "Closure"
+  here is per-host: RC-NATIVE-MATRIX runs that gate on every required
+  host, and resolved sibling NATIVE-MATRIX-MATCHING-HOSTS already
+  records that every required host row is separately owned and live
+  (RC-NATIVE-MATRIX-LINUX-X86-64 / -LINUX-ARM64 / -MACOS-ARM64 /
+  -WINDOWS-X64 plus the RC-NATIVE-MATRIX-HOSTS/-HOST-RUNS/-HOST-LEGS/
+  -HOST-EXECUTION coordination rows); missing or unavailable runners
+  stay explicit open rows per the platform table. The gate itself
+  currently reads red on main (fmt + arch-test + 13 libtest legs per
+  RC-REPOSITORY-BASELINE-GREEN's measurement), so closure is the sum of
+  the owned per-host legs, not a landable slice here. Sibling stub
+  RC-SOURCE-SEMANTICS-GATE (adjacent) re-mines the same gate row.
 - **RC-SOURCE-SEMANTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-WINDOWS-X64-NATIVE-ROW.** Residual leg needs a Windows x86-64 host: execute the emitted PE (hosted_receiver_windows cfg-gated run) on its matching runner; compile-side lanes verified green 2026-09-20.
   Re-verified the gate shape at `d8041919ad`: nothing linux-runnable
