@@ -15,7 +15,12 @@ program waits until Enter. On Linux x86-64 the compiler-library regression
 compiles and publishes natively and the receipt-bound executable exits 0 with
 stdin closed, producing the documented output — that harness supplies its own
 acceptance, so the ordinary CLI review route on Linux remains unverified.
-Windows execution and the ordinary Linux CLI route remain open in
+The Linux x86-64 ordinary route was attempted at `b53c7ea26032`: `omega
+update --project . --target linux_x86_64` rejects inside the
+`omega-language-std` package candidate check with `routed service field
+Filesystem::host has no exact Fused selected-provider-plan join`, before any
+review decision — a shared std-dependency gate, not a sample defect. Windows
+execution remains open in
 [SAMPLE-CORPUS](../../../../TASKS.md). Cross-compilation is not host execution.
 
 ## Review the project
