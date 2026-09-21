@@ -14,9 +14,7 @@
 //! observed executed prefix changes.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedTerminator,
-};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator};
 
 use super::PredecessorRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -26,8 +24,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The run's own block — the edge's successor.
     pub block_index: usize,
     /// The run's first member index in the block body.
@@ -45,15 +42,15 @@ pub(super) struct Admission<'source> {
     pub landing_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,
     last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, PredecessorRunRelocationError> {
+) -> Result<Admission, PredecessorRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(PredecessorRunRelocationError::SourceMismatch);
@@ -224,7 +221,6 @@ pub(super) fn admit<'source>(
         return Err(PredecessorRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,
