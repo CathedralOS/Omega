@@ -131,27 +131,37 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// (carrier assumptions interleaved with authored declarations in use
 /// order), and each authored declaration's signature position.
 pub(crate) struct CheckedMathematicalSignature {
-    // Downstream consumption of the checked signature is a separate leg;
-    // only the checking gate and tests read these today.
-    #[allow(dead_code)]
+    /// The arena every `TermHandle` in `signature` resolves against; the
+    /// two travel together — a signature's declarations mean nothing
+    /// without it.
     arena: TermArena,
-    #[allow(dead_code)]
+    /// The re-decided declaration list: carrier assumptions interleaved
+    /// with authored declarations in signature order.
     signature: Signature,
     /// Kernel signature position of each authored declaration, in
     /// authored declaration order.
-    #[allow(dead_code)]
     authored: Vec<u32>,
 }
 
 impl CheckedMathematicalSignature {
-    #[cfg(test)]
-    pub(crate) fn signature(&self) -> &Signature {
-        &self.signature
+    /// The arena and the checked signature, for the Terminal evidence
+    /// encoding leg that hands them to the signature codec.
+    #[allow(dead_code)]
+    pub(crate) fn evidence(&self) -> (&TermArena, &Signature) {
+        (&self.arena, &self.signature)
+    }
+
+    /// Kernel signature position of each authored declaration, in authored
+    /// declaration order — which signature positions are authored
+    /// declarations rather than interned carrier assumptions.
+    #[allow(dead_code)]
+    pub(crate) fn authored(&self) -> &[u32] {
+        &self.authored
     }
 
     #[cfg(test)]
-    pub(crate) fn authored(&self) -> &[u32] {
-        &self.authored
+    pub(crate) fn signature(&self) -> &Signature {
+        &self.signature
     }
 
     #[cfg(test)]

@@ -14,11 +14,15 @@ mod evidence_codec;
 mod proof_node_codec;
 mod proposition_codec;
 mod scalar_term_codec;
+mod signature_codec;
 mod synopsis;
 mod validation;
 mod wire;
 
 pub use codec_error::ProofCodecError;
+pub use signature_codec::{
+    DecodedMathematicalSignature, decode_mathematical_signature, encode_mathematical_signature,
+};
 pub use synopsis::render_verified_proof_synopsis;
 
 use crate::sections::proof_bundle::evidence_codec::{
