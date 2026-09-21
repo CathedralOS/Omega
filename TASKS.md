@@ -8392,6 +8392,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   here. Sibling re-mines of the same coverage: BENCHMARK-SELECTION-MATRIX,
   BENCHMARK-SELECTION-ROW-MATRIX, BENCHMARK-SELECTION-VARIANT-ROWS,
   BENCHMARK-SELECTION-CONTRAST-ROWS.
+  Re-verified at `97be15c1b5` (z102, linux x86-64): the census has grown to
+  ten committed rows — `cli_mvp` + `structural_proofs` linux_x86_64
+  defaults, `wrapping_square_sum` defaults on `linux_x86_64`/`linux_arm64`/
+  `macos_arm64`/`macos_x86_64`/`uefi_x86_64`/`windows_x86_64` plus its two
+  non-default `sel-` contrast rows — and the "remaining gap" this stub
+  recorded is closed: `wrapping_square_sum__linux_x86_64__default`
+  (source_revision `e7c0099cb2`) was committed at `f5323f461a`, so the
+  re-measured linux_x86_64 default-selection row exists and
+  BENCHMARK-LINUX-X64-ROW-REFRESH's named leg is discharged. Current
+  fences: `tools/benchmark/records` + `wiki/drafts/benchmarks.md` stay under
+  BENCHMARK-PROOF-SUBJECT-SELECTION (~14:19Z); the remaining unfilled
+  matrix cells stay host-gated per BENCHMARK-ROW-RESUMPTION's row. No
+  independent slice.
 - **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-VARIANT-ROWS.** Mined candidate — scope
   verified, coverage landed. Bare re-mine of the variant-selection leg
