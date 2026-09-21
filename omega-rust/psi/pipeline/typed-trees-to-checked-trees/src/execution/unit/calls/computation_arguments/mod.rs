@@ -251,12 +251,8 @@ fn shared_nominal_argument(
         return None;
     }
     let target_identity = if target.is_self {
-        let owner = program.machines().iter().find(|owner| {
-            program
-                .machine_states(owner)
-                .first()
-                .is_some_and(|entry| entry.symbol == call.target_symbol)
-        })?;
+        let (owner, _) =
+            crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
         let reference = program
             .type_reference_table
             .find_named_type_reference(owner.attached_data_symbol)?;

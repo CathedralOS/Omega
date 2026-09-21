@@ -655,13 +655,8 @@ fn checked_binding_value(
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }
-    let target_machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry.symbol == call.target_symbol)
-    })?;
-    let target_state = program.machine_states(target_machine).first()?;
+    let (target_machine, target_state) =
+        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     let parameters = program.state_parameters(target_state);
     let authored_arguments = program
         .expression_table
