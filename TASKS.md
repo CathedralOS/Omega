@@ -8947,6 +8947,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the ATOMIC-MEMORY-MODEL serial surface (matrix pins + coherence replay,
   still green). No residual slice exists under this name; re-dispatch when
   TR3-TR8's selected runtime exists.
+- **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING.** Resolved 2026-09-21 — minted
+  sibling stub of the CHAIN-MANIFEST OCREQ request-entry surface already
+  bound on main (see CHAIN-MANIFEST-OCREQ-ENTRY-BINDING /
+  CHAIN-OCREQ-ENTRY-BINDING): `tools/bootstrap/omega/compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`
+  plus the sealed-request fixture pair and `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`
+  (19,253 bytes); provisions 25-26 sit in `bootstrap/5_omega/outcome.epsilon`
+  + `wiki/spec/build/compiler_request.md`. Re-witnessed at `59e0b5ec22`
+  on linux x86-64: `sh tests/bootstrap/omega-request/run.sh --identity`
+  PASS — all bound identities verified (622,933-byte receipt request,
+  565,909-byte customer, 45-byte expected observation); executing half
+  stays seed-host-gated per the frontier. No unbound residual under this
+  name.
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
   main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):
