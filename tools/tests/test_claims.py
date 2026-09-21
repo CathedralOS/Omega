@@ -331,6 +331,27 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(notes["count"], 1)
         self.assertEqual(notes["notes"][0]["text"], "finding one")
 
+    def test_transport_stall_bounds_installed_without_overriding(self):
+        """Remote calls inherit bounded, non-interactive transports; an
+        operator's own environment always wins."""
+        module = load_claims()
+        names = ("GIT_HTTP_LOW_SPEED_LIMIT", "GIT_HTTP_LOW_SPEED_TIME",
+                 "GIT_SSH_COMMAND")
+        saved = {name: os.environ.pop(name, None) for name in names}
+        try:
+            module.Claims(str(self.a), "origin")
+            self.assertTrue(all(os.environ.get(name) for name in names))
+            self.assertIn("BatchMode=yes", os.environ["GIT_SSH_COMMAND"])
+            os.environ["GIT_HTTP_LOW_SPEED_TIME"] = "7"
+            module.Claims(str(self.a), "origin")
+            self.assertEqual(os.environ["GIT_HTTP_LOW_SPEED_TIME"], "7")
+        finally:
+            for name, value in saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
     def test_unknown_record_format_is_not_replaced(self):
         tree = self.git(self.a, "mktree")
         identity = self.git(self.a, "commit-tree", tree, "-F", "-",

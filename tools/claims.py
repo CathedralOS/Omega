@@ -17,6 +17,7 @@ claims.md.
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import random
 import re
@@ -50,6 +51,20 @@ PROBE_ATTEMPTS = 3
 PROBE_BACKOFF_SECONDS = 0.3
 SNAPSHOT_ATTEMPTS = 3
 MAINTENANCE_LIMIT = 20
+# Transport stall bounds. ls-remote, fetch, and push are the only calls that
+# leave the local machine, and a dead connection there must fail fast into the
+# retry loops instead of parking the whole command — the write path was
+# observed hung >=120s under swarm load while local operations stayed healthy.
+# Git reads these bounds from the environment, which coordination.git forwards:
+# the libcurl low-speed pair aborts an HTTPS transfer silent for
+# TRANSPORT_STALL_SECONDS (including a stalled connect), and GIT_SSH_COMMAND
+# gives ssh remotes a non-interactive session with keepalive expiry. Values an
+# operator already set win; the git:// transport has no knob and stays
+# unbounded.
+TRANSPORT_LOW_SPEED_LIMIT = "100"  # bytes/sec; a live transfer exceeds it fast
+TRANSPORT_STALL_SECONDS = "20"
+SSH_TRANSPORT_BOUND = ("ssh -o BatchMode=yes -o ConnectTimeout=10 "
+                       "-o ServerAliveInterval=5 -o ServerAliveCountMax=2")
 ITEM_MARKER = re.compile(r"\*\*([A-Za-z0-9][A-Za-z0-9_-]*)\.\*\*")
 
 ClaimsError = coordination.CoordinationError
@@ -187,6 +202,9 @@ def pending_notes(record):
 class Claims:
     def __init__(self, repository, remote):
         self.repository = Path(repository).resolve()
+        os.environ.setdefault("GIT_HTTP_LOW_SPEED_LIMIT", TRANSPORT_LOW_SPEED_LIMIT)
+        os.environ.setdefault("GIT_HTTP_LOW_SPEED_TIME", TRANSPORT_STALL_SECONDS)
+        os.environ.setdefault("GIT_SSH_COMMAND", SSH_TRANSPORT_BOUND)
         self.push_url = coordination.push_url(self.repository, remote)
 
     def git(self, *arguments, input_text="", allow_failure=False):
