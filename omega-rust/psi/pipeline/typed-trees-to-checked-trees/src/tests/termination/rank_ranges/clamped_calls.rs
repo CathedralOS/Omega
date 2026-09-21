@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const PAIR: &str = r#"
 data Main {}
@@ -24,7 +25,7 @@ fn clamped_call_ranges_allow_entry_and_forwarding_beyond_the_bound() {
     for cursor in [4, 6, 9] {
         let source =
             format!("{PAIR} machine Main::main(&mut self) -> u64 {{ self.first(6, {cursor}, 8) }}");
-        lower_typed_trees(typed(&source))
+        lower_typed_trees(typed(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
@@ -36,7 +37,8 @@ fn clamped_call_ranges_still_check_exclusive_ceilings_and_positive_floors() {
         .replace("bound <= ceiling", "bound < ceiling")
         .replace("0..=capacity", "0..capacity")
         .replace("0..=ceiling", "0..ceiling");
-    lower_typed_trees(typed(&exclusive)).expect("positive exclusive ceiling");
+    lower_typed_trees(typed(&exclusive), &CheckingRequest::settled())
+        .expect("positive exclusive ceiling");
     for source in [
         PAIR.replace("0..=capacity", "1..=capacity"),
         PAIR.replace("0..=ceiling", "0..ceiling"),
@@ -46,13 +48,17 @@ fn clamped_call_ranges_still_check_exclusive_ceilings_and_positive_floors() {
             "false -> self.first(bound, position, ceiling)",
         ),
     ] {
-        assert!(lower_typed_trees(typed(&source)).is_err(), "{source}");
+        assert!(
+            lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
+            "{source}"
+        );
     }
 }
 
 #[test]
 fn admitted_clamped_ranking_preserves_authored_entry_requirements() {
-    let checked = lower_typed_trees(typed(PAIR)).expect("ranked component");
+    let checked =
+        lower_typed_trees(typed(PAIR), &CheckingRequest::settled()).expect("ranked component");
     let machine = &checked.machines()[1];
     let contract = checked
         .facts
@@ -78,7 +84,8 @@ fn admitted_clamped_ranking_does_not_bypass_arithmetic_totality() {
     let source = PAIR.replace("position + 1", "position + 2");
     // Overshooting a positive distance decreases the clamped rank, but the
     // addition itself can overflow when bound is the carrier's maximum.
-    let diagnostics = lower_typed_trees(typed(&source)).expect_err("unchecked addition");
+    let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+        .expect_err("unchecked addition");
     assert!(
         diagnostics
             .iter()

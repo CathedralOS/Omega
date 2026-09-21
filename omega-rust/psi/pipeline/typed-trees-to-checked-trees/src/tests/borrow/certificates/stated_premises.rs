@@ -113,8 +113,9 @@ fn disequality_separates_exclusive_call_arguments_not_duplicate_elements() {
     "#;
     checked_source(source);
     let invalid = source.replace("&mut view[right_index]", "&mut view[left_index]");
-    let diagnostics = crate::lower_typed_trees(typed_source(&invalid))
-        .expect_err("a disequality premise cannot separate two uses of the same element");
+    let diagnostics =
+        crate::lower_typed_trees(typed_source(&invalid), &crate::CheckingRequest::settled())
+            .expect_err("a disequality premise cannot separate two uses of the same element");
     assert!(
         diagnostics
             .iter()
@@ -339,7 +340,9 @@ fn typed_source(source: &str) -> typed_trees::TypedTrees {
 }
 
 fn assert_borrow_conflict(source: &str) {
-    let Err(diagnostics) = crate::lower_typed_trees(typed_source(source)) else {
+    let Err(diagnostics) =
+        crate::lower_typed_trees(typed_source(source), &crate::CheckingRequest::settled())
+    else {
         panic!("premise-insufficient windows must reject: {source}");
     };
     assert!(
@@ -578,8 +581,9 @@ fn foreign_machine_requires_offers_no_premise() {
 fn mutable_premise_subject_offers_no_premise() {
     // `last` is mutable, so `cut <= last` decomposes to no normalized bound
     // and the windows stay unordered.
-    let Err(_) = crate::lower_typed_trees(typed_source(
-        r#"
+    let Err(_) = crate::lower_typed_trees(
+        typed_source(
+            r#"
         data Main { items: [i32; 4]; }
 
         machine Main::split(&mut self, cut: u64, mut last: u64) -> u64
@@ -590,7 +594,9 @@ fn mutable_premise_subject_offers_no_premise() {
             left.len + right.len
         }
     "#,
-    )) else {
+        ),
+        &crate::CheckingRequest::settled(),
+    ) else {
         panic!("a premise over a mutable subject cannot certify disjointness");
     };
 }

@@ -27,7 +27,11 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter")
         .expect("primitive local Terminal producer");
     let establishment = lowered

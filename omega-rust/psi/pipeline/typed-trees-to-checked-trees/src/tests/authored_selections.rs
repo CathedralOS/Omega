@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use crate::CheckingRequest;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
@@ -50,8 +51,11 @@ fn root_binding_statement_checks_the_exact_build_parameter_without_resolving_pro
         let source = format!(
             "data Build {{}} machine build({name}: &mut Build) {{ {name}.roots.bind(Target::ProgramEntry, Product::start); }}"
         );
-        let checked = lower_typed_trees(typed_root_binding_fixture(&source, true))
-            .expect("direct compiler Build parameter checks");
+        let checked = lower_typed_trees(
+            typed_root_binding_fixture(&source, true),
+            &CheckingRequest::settled(),
+        )
+        .expect("direct compiler Build parameter checks");
         let binding = checked
             .machines()
             .iter()
@@ -110,11 +114,18 @@ fn root_binding_statement_rejects_forged_build_and_non_mutable_receivers() {
 #[test]
 fn root_binding_has_no_value_context_or_ordinary_bind_call_exception() {
     let ordinary = "data Build {} machine bind() {} machine build(builder: &mut Build) { bind(); }";
-    lower_typed_trees(typed_root_binding_fixture(ordinary, true))
-        .expect("ordinary bind is an ordinary call");
+    lower_typed_trees(
+        typed_root_binding_fixture(ordinary, true),
+        &CheckingRequest::settled(),
+    )
+    .expect("ordinary bind is an ordinary call");
     let source = "data Build {} machine build(builder: &mut Build) { let value: u64 = builder.roots.bind(Target::ProgramEntry, Product::start); }";
     assert!(
-        lower_typed_trees(typed_root_binding_fixture(source, true)).is_err(),
+        lower_typed_trees(
+            typed_root_binding_fixture(source, true),
+            &CheckingRequest::settled()
+        )
+        .is_err(),
         "root binding cannot yield a value"
     );
     let source = "data Roots {} data Carrier { roots: Roots; } machine Roots::bind(&mut self) {} machine inspect(carrier: &mut Carrier) { carrier.roots.bind(Target::ProgramEntry, Product::start); }";
@@ -138,9 +149,13 @@ fn root_binding_checks_helpers_and_retained_mutable_aliases() {
         let source = format!(
             "data Build {{}} machine configure(builder: &mut Build) {{ {body} }} machine build(builder: &mut Build) {{ configure(builder); }}"
         );
-        lower_typed_trees(typed_root_binding_fixture(&source, true)).unwrap_or_else(
-            |diagnostics| panic!("borrowed helper must check: {body}: {diagnostics:?}"),
-        );
+        lower_typed_trees(
+            typed_root_binding_fixture(&source, true),
+            &CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!("borrowed helper must check: {body}: {diagnostics:?}")
+        });
     }
 }
 
@@ -151,8 +166,11 @@ fn root_binding_rejects_active_conflicting_build_aliases() {
         "let alias: &mut Build = &mut builder; let nested: &mut Build = &mut alias; alias.roots.bind(Target::ProgramEntry, Product::start); nested.roots.bind(Target::ProgramEntry, Product::start);",
     ] {
         let source = format!("data Build {{}} machine build(builder: &mut Build) {{ {body} }}");
-        let diagnostics = lower_typed_trees(typed_root_binding_fixture(&source, true))
-            .expect_err("binding cannot bypass an active exclusive loan");
+        let diagnostics = lower_typed_trees(
+            typed_root_binding_fixture(&source, true),
+            &CheckingRequest::settled(),
+        )
+        .expect_err("binding cannot bypass an active exclusive loan");
         assert!(
             diagnostics
                 .iter()
@@ -173,8 +191,11 @@ fn root_binding_helper_mutation_preserves_caller_loan_exclusion() {
         let source = format!(
             "data Build {{}} machine retain(builder: &mut Build) -> &mut Build {{ transition {{ _ -> (builder) }} }} machine configure(builder: &mut Build) {{ {helper_body} }} machine build(builder: &mut Build) {{ let alias: &mut Build = &mut builder; configure(builder); alias.roots.bind(Target::ProgramEntry, Product::start); }}"
         );
-        let diagnostics = lower_typed_trees(typed_root_binding_fixture(&source, true))
-            .expect_err("helper root binding must expose its exclusive receiver use to the caller");
+        let diagnostics = lower_typed_trees(
+            typed_root_binding_fixture(&source, true),
+            &CheckingRequest::settled(),
+        )
+        .expect_err("helper root binding must expose its exclusive receiver use to the caller");
         assert!(
             diagnostics
                 .iter()
@@ -229,8 +250,11 @@ fn root_binding_computed_index_operand_retains_its_collection_access() {
 #[test]
 fn root_binding_rejects_uninitialized_receiver_and_live_shared_loan() {
     let source = "data Build {} machine build(builder: &mut Build) { let alias: &mut Build; alias.roots.bind(Target::ProgramEntry, Product::start); }";
-    let diagnostics = lower_typed_trees(typed_root_binding_fixture(source, true))
-        .expect_err("a type annotation cannot manufacture a live Build loan");
+    let diagnostics = lower_typed_trees(
+        typed_root_binding_fixture(source, true),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("a type annotation cannot manufacture a live Build loan");
     assert!(
         diagnostics
             .iter()
@@ -239,8 +263,11 @@ fn root_binding_rejects_uninitialized_receiver_and_live_shared_loan() {
     );
 
     let source = "data Build {} machine inspect(builder: &Build) {} machine build(builder: &mut Build) { let shared: &Build = &builder; builder.roots.bind(Target::ProgramEntry, Product::start); inspect(shared); }";
-    let diagnostics = lower_typed_trees(typed_root_binding_fixture(source, true))
-        .expect_err("binding must exclude a shared loan used afterwards");
+    let diagnostics = lower_typed_trees(
+        typed_root_binding_fixture(source, true),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("binding must exclude a shared loan used afterwards");
     assert!(
         diagnostics
             .iter()
@@ -296,7 +323,8 @@ fn explicit_state_arguments_finalize_nested_record_member_selections() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("explicit state transfer checks");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("explicit state transfer checks");
     let selections = checked.authored_declaration_selections();
     let selected = selections
         .iter()
@@ -367,7 +395,7 @@ fn successful_checking_finalizes_authored_call_occurrences() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -415,9 +443,8 @@ fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked =
-        crate::lower_typed_trees_with_selected_generic_operator_providers(typed, &[], &[], &[])
-            .expect("package checking must retain the exact comptime call target");
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("package checking must retain the exact comptime call target");
 
     assert!(
         checked.authored_declaration_selections().all_finalized(),
@@ -442,7 +469,7 @@ fn checked_operator_contract_context_disambiguates_named_overloads() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     let selected = checked
         .authored_declaration_selections()
@@ -483,7 +510,7 @@ fn resultless_trait_law_equality_is_proposition_equality() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     let law_equalities = checked
         .authored_declaration_selections()
@@ -529,7 +556,7 @@ fn successful_checking_finalizes_wire_codec_calls_as_exact_intrinsics() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let calls = checked
         .authored_declaration_selections()
         .iter()
@@ -577,7 +604,7 @@ fn successful_checking_finalizes_nominal_calls_in_proof_owned_expressions() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selected = checked
         .authored_declaration_selections()
         .iter()
@@ -624,7 +651,7 @@ fn path_qualified_call_custody_rejects_a_same_named_target_from_another_owner() 
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostic = lower_typed_trees(typed)
+    let diagnostic = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a same-named state under another nominal owner must not be selected");
 
     assert!(
@@ -739,7 +766,7 @@ fn successful_checking_finalizes_declared_operator_occurrences() {
     );
 
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -898,7 +925,8 @@ fn endpoint_operator_candidates_retain_explicit_literal_carriers() {
             "{source}"
         );
         if expected_candidates == 0 {
-            let checked = lower_typed_trees(typed).expect("check primitive endpoint");
+            let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+                .expect("check primitive endpoint");
             assert!(checked.authored_declaration_selections().all_finalized());
         }
     }
@@ -918,7 +946,7 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -960,7 +988,7 @@ fn data_where_collection_measures_finalize_as_intrinsics() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
     for (member_name, intrinsic) in [
@@ -998,7 +1026,7 @@ fn successful_checking_finalizes_operator_occurrence_retained_on_folded_float_li
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -1024,7 +1052,7 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let operators = checked
         .authored_declaration_selections()
         .iter()
@@ -1071,7 +1099,7 @@ fn successful_checking_finalizes_index_and_range_operator_occurrences() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let operators = checked
         .authored_declaration_selections()
         .iter()
@@ -1129,7 +1157,7 @@ fn successful_checking_retains_inferred_generic_call_conformance() {
         .expect("GoodMarker conformance")
         .symbol;
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     assert!(
         checked
@@ -1188,7 +1216,7 @@ fn successful_checking_retains_inferred_statement_call_conformance() {
         .expect("GoodMarker conformance")
         .symbol;
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let call = checked
         .authored_declaration_selections()
         .iter()
@@ -1232,7 +1260,7 @@ fn successful_checking_finalizes_attached_calls_through_parameter_fields() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     assert!(
         checked
             .authored_declaration_selections()
@@ -1263,7 +1291,7 @@ fn declared_call_wins_over_byte_predicate_intrinsic_spelling() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let selections = checked.authored_declaration_selections();
 
     assert!(selections.iter().any(|selection| {
@@ -1302,7 +1330,7 @@ fn successful_checking_binds_boundary_calls_through_parameter_fields() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let call = checked
         .expression_table
         .iter_expressions()
@@ -1342,7 +1370,7 @@ fn successful_checking_canonicalizes_local_selections_across_specializations() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     assert!(
         checked.authored_declaration_selections().all_finalized(),
         "selections={:#?}",
@@ -1361,7 +1389,8 @@ fn public_conformance_rejects_private_header_declarations() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("private header must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("private header must reject");
     let rendered = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -1384,7 +1413,8 @@ fn undeclared_contract_view_calls_finalize_as_proof_view_intrinsics() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("admitted proof view checks");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("admitted proof view checks");
     let proof_view_selections = checked
         .authored_declaration_selections()
         .iter()
@@ -1528,7 +1558,7 @@ fn a_sealed_quotient_request_call_resolves_as_a_proof_only_intrinsic() {
         .map(|selection| selection.source_span())
         .expect("the sealed request is a late-bound call selection");
 
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("the checked route admits the managed direct define after checked termination");
     let selections = checked.authored_declaration_selections();
     let request = selections

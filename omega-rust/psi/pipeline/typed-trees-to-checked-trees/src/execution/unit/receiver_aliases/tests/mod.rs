@@ -19,7 +19,8 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    crate::lower_typed_trees(typed).expect("checked alias fixture")
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("checked alias fixture")
 }
 
 fn fixture(access: &str, prefix: &str, body: &str) -> checked_trees::CheckedTrees {

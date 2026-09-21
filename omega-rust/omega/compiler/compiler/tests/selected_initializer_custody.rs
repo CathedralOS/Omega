@@ -45,8 +45,11 @@ fn settled_selected_initializer_lowers_and_cannot_be_deleted() {
     let [provider] = plans.as_slice() else {
         panic!("one authored operator realization");
     };
-    let mut checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check selected initializer");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check selected initializer");
     let caller = checked
         .machines()
         .iter()

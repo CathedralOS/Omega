@@ -16,6 +16,7 @@ use terminal_psi_to_abstract_operations::{
     lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
@@ -41,7 +42,7 @@ fn artifact(source: &str) -> (terminal_psi::TerminalModule, Vec<u8>, Vec<u8>) {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = lower_typed_trees(typed).unwrap();
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();

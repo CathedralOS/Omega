@@ -18,6 +18,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::{TerminalMachineResult, Terminator};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -77,7 +78,8 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
     let syntax = parse_syntax_trees(&tokens).expect("parse content custody exit");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve content custody exit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type content custody exit");
-    let checked = lower_typed_trees(typed).expect("check content custody exit");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check content custody exit");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("content-bearing boundary custody should lower");
     let module = &lowered.semantic_module;
@@ -181,7 +183,8 @@ fn source_content_custody_unit_exit_retains_projection_and_consumes_claim() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve Unit content custody exit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type Unit content custody exit");
-    let checked = lower_typed_trees(typed).expect("check Unit content custody exit");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check Unit content custody exit");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::exit")
         .expect("content-bearing Unit boundary custody should lower");
     let module = &lowered.semantic_module;
@@ -244,7 +247,8 @@ fn result_bearing_boundary_retains_exact_bounded_installation_reach() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve bounded result boundary");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded result boundary");
-    let checked = lower_typed_trees(typed).expect("check bounded result boundary");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check bounded result boundary");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("bounded result boundary should lower");
     let module = &lowered.semantic_module;
@@ -373,7 +377,8 @@ fn literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi() {
     let syntax = parse_syntax_trees(&tokens).expect("parse indexed custody");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve indexed custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type indexed custody");
-    let checked = lower_typed_trees(typed).expect("check indexed custody");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check indexed custody");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("literal fixed-array custody should lower");
     let module = &lowered.semantic_module;
@@ -505,7 +510,8 @@ fn literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblin
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve ordinary indexed custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type ordinary indexed custody");
-    let checked = lower_typed_trees(typed).expect("check ordinary indexed custody");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check ordinary indexed custody");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("ordinary literal fixed-index custody should lower");
     let root = &lowered.semantic_module.machines[0];

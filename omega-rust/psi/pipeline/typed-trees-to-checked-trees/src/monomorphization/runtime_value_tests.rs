@@ -237,7 +237,7 @@ fn const_binder_still_rejects_a_runtime_subject() {
         "machine prefix_count<const Count: u32>(base: u32) -> u32 { Count }
          machine main(base: u32) -> u32 { let n: u32 = 3; prefix_count<n>(base) }",
     );
-    let error = crate::lower_typed_trees(program)
+    let error = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("a const binder cannot close over a runtime subject");
     assert!(error.iter().any(|diagnostic| {
         diagnostic
@@ -425,7 +425,7 @@ fn runtime_value_requires_accepts_a_guarded_or_known_subject() {
              state denied(&mut self) -> u32 { 0 }
          }",
     ] {
-        crate::lower_typed_trees(typed(source))
+        crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
@@ -462,7 +462,7 @@ fn runtime_value_requires_rejects_unestablished_and_stale_subjects() {
              state denied(&mut self) -> u32 { 0 }
          }",
     ] {
-        let error = crate::lower_typed_trees(typed(source))
+        let error = crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
             .expect_err("an unestablished subject must still owe the requirement");
         assert!(
             error.iter().any(|diagnostic| {
@@ -535,11 +535,14 @@ fn specialized_value_machine_writes_its_own_attached_data() {
     // The specialized clone is a generated root, not an authored child of the
     // program root. Validation must still resolve the clone's own machine
     // symbol so `self.x` is owned data the `&mut self` state may write.
-    crate::lower_typed_trees(typed(
-        "data Main { x: u32; }
+    crate::lower_typed_trees(
+        typed(
+            "data Main { x: u32; }
          machine Main::put<Count: u32>(&mut self, v: u32) { self.x = v; }
          machine Main::main(&mut self) { let n: u32 = 3; self.put<n>(10); }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("a specialized clone keeps ownership of its attached data");
 }
 
@@ -549,8 +552,9 @@ fn runtime_value_indexes_an_attached_array_field_under_requires() {
     // lower bound and `requires Count <= 7` proves the length, on reads and
     // writes alike, after the source variable is reassigned to a new subject,
     // and for a second distinct subject sharing the one specialized body.
-    crate::lower_typed_trees(typed(
-        "data Main { values: [u32; 8]; }
+    crate::lower_typed_trees(
+        typed(
+            "data Main { values: [u32; 8]; }
          machine Main::at<Count: u32>(&self) -> u32
          requires
              Count <= 7;
@@ -569,7 +573,9 @@ fn runtime_value_indexes_an_attached_array_field_under_requires() {
              let b: u32 = self.at<m>();
              let s: u32 = self.at<6>();
          }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("an established bound indexes attached array fields");
 }
 
@@ -577,11 +583,14 @@ fn runtime_value_indexes_an_attached_array_field_under_requires() {
 fn runtime_value_index_without_a_bound_still_rejects() {
     // The carrier `u32` proves non-negativity but nothing proves `Count < 8`,
     // so the indexed read must still be refused.
-    let error = crate::lower_typed_trees(typed(
-        "data Main { values: [u32; 8]; }
+    let error = crate::lower_typed_trees(
+        typed(
+            "data Main { values: [u32; 8]; }
          machine Main::at<Count: u32>(&self) -> u32 { self.values[Count] }
          machine Main::main(&mut self) { let n: u32 = 3; let a: u32 = self.at<n>(); }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect_err("an unproven index bound must still reject");
     assert!(
         error
@@ -596,8 +605,9 @@ fn generic_to_generic_requires_instantiates_against_the_forwarded_subject() {
     // `bounded<Count>` requires `Count <= 10`; `forward<K>` calls `bounded<K>`,
     // so the instantiated obligation is `K <= 10` on `forward`'s own binder.
     // `forward`'s requires contract establishes that fact for every caller.
-    crate::lower_typed_trees(typed(
-        "machine bounded<Count: u32>(base: u32) -> u32
+    crate::lower_typed_trees(
+        typed(
+            "machine bounded<Count: u32>(base: u32) -> u32
          requires
              Count <= 10;
          { Count }
@@ -606,7 +616,9 @@ fn generic_to_generic_requires_instantiates_against_the_forwarded_subject() {
              K <= 10;
          { bounded<K>(base) }
          machine main() -> u32 { let n: u32 = 3; forward<n>(7) }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("the callee's requires discharges against the forwarded subject");
 }
 
@@ -615,14 +627,17 @@ fn generic_to_generic_requires_still_owes_the_unestablished_fact() {
     // Without `forward`'s own `requires K <= 10`, the instantiated obligation
     // names the forwarded `K` subject — not the callee's `Count` binder and
     // not a literal — and nothing establishes it.
-    let error = crate::lower_typed_trees(typed(
-        "machine bounded<Count: u32>(base: u32) -> u32
+    let error = crate::lower_typed_trees(
+        typed(
+            "machine bounded<Count: u32>(base: u32) -> u32
          requires
              Count <= 10;
          { Count }
          machine forward<K: u32>(base: u32) -> u32 { bounded<K>(base) }
          machine main() -> u32 { let n: u32 = 3; forward<n>(7) }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect_err("an unestablished forwarded subject must still owe the requirement");
     assert!(
         error.iter().any(|diagnostic| {
@@ -731,8 +746,8 @@ fn runtime_value_subjects_reach_transition_targets_in_a_cloned_machine() {
     // keeps its composed plan, and the entry conditional's edges record the
     // forwarded subject as an exact scalar argument per target.
     let clone_symbol = instance.symbol;
-    let checked =
-        crate::lower_typed_trees(program).expect("forwarded transition subjects validate");
+    let checked = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("forwarded transition subjects validate");
     let plan = checked
         .facts
         .flow
@@ -766,15 +781,18 @@ fn runtime_bound_result_range_discharges_through_checking() {
     // subject in its maximum, and the call's result proves `Bound <= n`
     // through the captured-argument binding. The authored total keeps its
     // declared carrier; the relation rides on the inferred temporary.
-    crate::lower_typed_trees(typed(
-        "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
+    crate::lower_typed_trees(
+        typed(
+            "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
          machine main() -> u64 {
              let n: u64 = 7;
              let captured: u64[0..=n] = ranged<n>();
              let total: u64 = ranged<n>();
              captured
          }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("a runtime-bound result range checks end to end");
 }
 
@@ -782,15 +800,18 @@ fn runtime_bound_result_range_discharges_through_checking() {
 fn runtime_bound_result_range_still_rejects_an_unproven_subject() {
     // The same relation is enforced in the caller's scope: a bound naming
     // `n` does not admit a result captured against a different argument `m`.
-    let diagnostics = crate::lower_typed_trees(typed(
-        "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
+    let diagnostics = crate::lower_typed_trees(
+        typed(
+            "machine ranged<Bound: u64>() -> u64[0..=Bound] { Bound }
          machine main() -> u64 {
              let n: u64 = 7;
              let m: u64 = 3;
              let wrong: u64[0..=n] = ranged<m>();
              wrong
          }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect_err("the bound names a different subject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

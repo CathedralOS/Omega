@@ -548,6 +548,7 @@ mod tests {
     use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees::statement::{StatementNode, TableCall};
     use typed_trees::types::TypeReferenceHandle;
+    use typed_trees_to_checked_trees::CheckingRequest;
     use typed_trees_to_checked_trees::lower_typed_trees;
 
     pub(super) fn checked(source: &str) -> CheckedTrees {
@@ -555,7 +556,8 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("host-call syntax");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("host-call symbols");
         let typed = lower_symbol_resolved_trees(&resolved).expect("host-call types");
-        lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+        lower_typed_trees(typed, &CheckingRequest::settled())
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
     }
 
     /// Compile `Helper::take(&mut self.line...)` — an ordinary static call the

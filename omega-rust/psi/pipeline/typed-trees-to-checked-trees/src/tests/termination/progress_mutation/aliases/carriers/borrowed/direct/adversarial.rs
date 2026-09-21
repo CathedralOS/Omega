@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::direct::direct_source;
@@ -234,7 +235,7 @@ fn recursive_result_bodies_are_opaque_but_finite_actual_nesting_is_exact() {
         if nested_argument {
             // Exact provenance does not remove the existing realization fence
             // on a machine call used directly as another call's argument.
-            let diagnostics = lower_typed_trees(typed_source(&source))
+            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
                 .expect_err("nested call arguments still require realization support");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic

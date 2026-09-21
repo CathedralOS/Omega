@@ -35,7 +35,11 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
     let mut module = lowered.semantic_module;
     let machine = &mut module.machines[0];

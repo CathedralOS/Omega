@@ -51,7 +51,11 @@ fn standalone_unit_call_before_later_work_checks_without_return_authority() {
                 !validation::unit_return_call_is_supported(&typed, root, state, expression),
                 "the public tail-only contract must remain unchanged"
             );
-            typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+            typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            )
+            .unwrap_or_else(|diagnostics| {
                 panic!("standalone Unit work must check: {diagnostics:#?}\n{source}")
             });
         }
@@ -117,8 +121,11 @@ fn standalone_unit_admission_does_not_grant_value_or_scalar_tail_use() {
         ("-> u16", "records[0].record(17)"),
     ] {
         let source = source(result, "-> ()", body);
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed(&source))
-            .expect_err("Unit cannot supply a local, argument, scalar operand, or scalar tail");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed(&source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("Unit cannot supply a local, argument, scalar operand, or scalar tail");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic
@@ -205,8 +212,11 @@ fn reused_unit_statement_handle_cannot_authorize_a_scalar_return_tail() {
         !validation::unit_return_call_is_supported(&typed, &root, &state, expression),
         "the scalar return contract must still reject the Unit tail"
     );
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("an earlier statement cannot authorize the reused Unit tail");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("an earlier statement cannot authorize the reused Unit tail");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -260,8 +270,11 @@ fn reused_unit_statement_handle_cannot_authorize_a_nested_value_use() {
             1,
             "nested reuse must not become a second direct statement root"
         );
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect_err("a standalone Unit occurrence cannot authorize nested value reuse");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("a standalone Unit occurrence cannot authorize nested value reuse");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message

@@ -1,6 +1,7 @@
 use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 mod call_judgments;
@@ -51,7 +52,8 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     let resolved = resolve(ResolutionRequest::new(&syntax))
         .expect("resolve borrow-certificate fixture identities");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow-certificate fixture");
-    lower_typed_trees(typed).expect("automatic structural compatibility should remain admitted")
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("automatic structural compatibility should remain admitted")
 }
 
 fn sole_certificate(
@@ -496,5 +498,6 @@ fn checked_shared_overlap() -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse shared overlap");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve shared overlap");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type shared overlap");
-    lower_typed_trees(typed).expect("two overlapping shared loans should remain admitted")
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("two overlapping shared loans should remain admitted")
 }

@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees};
 
 mod call_results;
@@ -39,12 +40,12 @@ fn source(form: CallForm, argument: &str, parameter_type: &str, guarantee: &str)
 }
 
 fn accepts(source: &str) -> CheckedTrees {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn rejects(source: &str) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => panic!("invalid anonymous call argument or guarantee was accepted: {source}"),
         Err(diagnostics) => assert!(!diagnostics.is_empty(), "{source}"),
     }

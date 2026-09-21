@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use crate::CheckingRequest;
 
 mod call_components;
 mod clamped_calls;
@@ -50,14 +51,15 @@ fn countdown(range: &str) -> String {
 #[test]
 fn descending_rank_accepts_proved_nonzero_floor_and_exclusive_ceiling() {
     for range in ["1..=5", "0..=5", "1..6"] {
-        lower_typed_trees(typed(&countdown(range))).expect(range);
+        lower_typed_trees(typed(&countdown(range)), &CheckingRequest::settled()).expect(range);
     }
 }
 
 #[test]
 fn descending_rank_rejects_unproved_floor_and_ceiling() {
     for range in ["2..=5", "1..=4", "1..5", "6..=1"] {
-        let diagnostics = lower_typed_trees(typed(&countdown(range))).expect_err(range);
+        let diagnostics = lower_typed_trees(typed(&countdown(range)), &CheckingRequest::settled())
+            .expect_err(range);
         assert!(
             diagnostics
                 .iter()
@@ -71,7 +73,7 @@ fn descending_rank_rejects_unproved_floor_and_ceiling() {
 fn rank_bounds_do_not_excuse_an_out_of_range_backedge() {
     let source = countdown("1..=5").replace("remaining > 1", "remaining > 0");
     assert!(
-        lower_typed_trees(typed(&source)).is_err(),
+        lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
         "the final backedge would deliver zero"
     );
 }
@@ -80,8 +82,8 @@ fn rank_bounds_do_not_excuse_an_out_of_range_backedge() {
 fn acyclic_body_does_not_ignore_an_authored_rank_range() {
     let source =
         "machine walk(remaining: u32) terminates by remaining in 1..=5; -> u32 { remaining }";
-    let diagnostics =
-        lower_typed_trees(typed(source)).expect_err("range is not established by an acyclic body");
+    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
+        .expect_err("range is not established by an acyclic body");
     assert!(
         diagnostics
             .iter()
@@ -105,7 +107,7 @@ fn increasing_view_ranks_distance_not_cursor() {
             }}
         "#
         );
-        lower_typed_trees(typed(&source)).expect(range);
+        lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(range);
     }
 }
 
@@ -141,7 +143,7 @@ fn mutable_parameters_establish_rank_bounds_only_while_the_prefix_preserves_them
     ] {
         crate::checks::termination::check_machine_termination(&typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-        lower_typed_trees(typed(source))
+        lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
     // Live write-frame evidence decides: a prefix store into the ranked
@@ -180,7 +182,8 @@ fn missing_endpoint_custody_cannot_fall_back_to_display_text() {
         .find(|custody| custody.machine == machine)
         .expect("custody")
         .rank_range = None;
-    let diagnostics = lower_typed_trees(program).expect_err("missing endpoints");
+    let diagnostics =
+        lower_typed_trees(program, &CheckingRequest::settled()).expect_err("missing endpoints");
     assert!(
         diagnostics
             .iter()

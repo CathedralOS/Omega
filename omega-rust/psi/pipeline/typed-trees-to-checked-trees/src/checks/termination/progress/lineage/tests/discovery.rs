@@ -39,7 +39,7 @@ fn checked() -> checked_trees::CheckedTrees {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed).unwrap()
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
 }
 
 fn field(program: &typed_trees::TypedTrees, path: &str) -> SymbolHandle {

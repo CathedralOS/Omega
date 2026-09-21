@@ -4,6 +4,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -24,7 +25,8 @@ fn unsigned_identity_views_check_and_execute_each_countdown() {
         let syntax = parse_syntax_trees(&tokens).expect("countdown syntax");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("countdown symbols");
         let typed = lower_symbol_resolved_trees(&resolved).expect("countdown types");
-        let checked = lower_typed_trees(typed).expect("checked unsigned identity view");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect("checked unsigned identity view");
         let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
         assert_eq!(outcome.error, None, "{source}");
         assert_eq!(outcome.exit_code, 7, "{source}");

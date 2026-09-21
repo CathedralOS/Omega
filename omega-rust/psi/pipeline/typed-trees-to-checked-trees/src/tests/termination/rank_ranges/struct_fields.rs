@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -12,11 +13,13 @@ const PINNED_CEILING: &str = include_str!(concat!(
 
 #[test]
 fn field_measure_accepts_a_declared_bound_with_an_invocation_fixed_endpoint() {
-    lower_typed_trees(typed(PINNED_CEILING)).expect("the ceiling is sufficient and stays pinned");
+    lower_typed_trees(typed(PINNED_CEILING), &CheckingRequest::settled())
+        .expect("the ceiling is sufficient and stays pinned");
     let exclusive = PINNED_CEILING
         .replace("ceiling: u64 [5..=10]", "ceiling: u64 [6..=10]")
         .replace("in 0..=ceiling", "in 0..ceiling");
-    lower_typed_trees(typed(&exclusive)).expect("the exclusive ceiling stays above the rank");
+    lower_typed_trees(typed(&exclusive), &CheckingRequest::settled())
+        .expect("the exclusive ceiling stays above the rank");
     let floor = PINNED_CEILING
         .replace(
             "ceiling: u64 [5..=10]",
@@ -24,7 +27,8 @@ fn field_measure_accepts_a_declared_bound_with_an_invocation_fixed_endpoint() {
         )
         .replace("in 0..=ceiling", "in floor..=ceiling")
         .replace("}, ceiling)", "}, ceiling, floor)");
-    lower_typed_trees(typed(&floor)).expect("both endpoints retain their exact input slots");
+    lower_typed_trees(typed(&floor), &CheckingRequest::settled())
+        .expect("both endpoints retain their exact input slots");
 }
 
 #[test]
@@ -81,7 +85,8 @@ fn field_rank_endpoint_requires_preserved_storage_before_the_edge() {
         "    transition",
         "    let mut scratch: u64 = 0;\n    scratch = 5;\n    transition",
     );
-    lower_typed_trees(typed(&disjoint)).expect("disjoint writes preserve the endpoint");
+    lower_typed_trees(typed(&disjoint), &CheckingRequest::settled())
+        .expect("disjoint writes preserve the endpoint");
 }
 
 #[test]
@@ -107,7 +112,8 @@ fn direct_field_measure_proves_its_enforced_rank_range() {
     let program = typed(COUNTDOWN);
     crate::checks::termination::check_machine_termination(&program)
         .expect("declared field range proves the produced rank's bounds");
-    lower_typed_trees(program).expect("guarded reconstruction preserves the constrained field");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("guarded reconstruction preserves the constrained field");
 }
 
 #[test]
@@ -123,15 +129,20 @@ fn direct_field_measure_checks_rank_endpoints_not_storage_or_guard_spelling() {
                 .any(|diagnostic| diagnostic.message.contains("cannot prove rank range"))
         );
     }
-    lower_typed_trees(typed(&COUNTDOWN.replace("in 0..=5", "in 0..6")))
-        .expect("exclusive upper endpoint");
+    lower_typed_trees(
+        typed(&COUNTDOWN.replace("in 0..=5", "in 0..6")),
+        &CheckingRequest::settled(),
+    )
+    .expect("exclusive upper endpoint");
     let nonzero_floor = COUNTDOWN
         .replace("0..=5", "1..=5")
         .replace("remaining > 0", "remaining > 1");
-    lower_typed_trees(typed(&nonzero_floor)).expect("nonzero rank floor");
-    lower_typed_trees(typed(
-        &nonzero_floor.replace("remaining > 1", "remaining >= 2"),
-    ))
+    lower_typed_trees(typed(&nonzero_floor), &CheckingRequest::settled())
+        .expect("nonzero rank floor");
+    lower_typed_trees(
+        typed(&nonzero_floor.replace("remaining > 1", "remaining >= 2")),
+        &CheckingRequest::settled(),
+    )
     .expect("inclusive positive guard");
 }
 
@@ -139,7 +150,10 @@ fn direct_field_measure_checks_rank_endpoints_not_storage_or_guard_spelling() {
 fn direct_field_rank_membership_does_not_excuse_bad_reconstruction_or_descent() {
     for actual in ["countdown.remaining + 1", "countdown.remaining - 2", "6"] {
         let source = COUNTDOWN.replace("countdown.remaining - 1", actual);
-        assert!(lower_typed_trees(typed(&source)).is_err(), "{actual}");
+        assert!(
+            lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
+            "{actual}"
+        );
     }
     for next in ["walk(countdown)", "self"] {
         let source = COUNTDOWN.replace("false -> countdown.remaining", &format!("false -> {next}"));
@@ -206,5 +220,6 @@ fn field_rank_cannot_restart_before_each_decrement() {
         "    transition",
         "    let mut scratch: u64 = 0;\n    scratch = 5;\n    transition",
     );
-    lower_typed_trees(typed(&disjoint)).expect("a disjoint local write preserves the ranked field");
+    lower_typed_trees(typed(&disjoint), &CheckingRequest::settled())
+        .expect("a disjoint local write preserves the ranked field");
 }

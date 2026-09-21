@@ -2,6 +2,7 @@ use super::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest,
     lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 mod identities;
@@ -196,7 +197,8 @@ fn replace_typed_callees(program: &mut TypedTrees, target: SymbolHandle, erase_r
 #[test]
 fn projected_reference_calls_select_the_exact_nominal_method() {
     for form in CALL_FORMS {
-        let mut checked = lower_typed_trees(typed_fixture(form)).expect("projected call checks");
+        let mut checked = lower_typed_trees(typed_fixture(form), &CheckingRequest::settled())
+            .expect("projected call checks");
         assert_exact_selection(&checked);
         if matches!(form, CallForm::Statement) {
             let endpoint = statement_call_mut(&mut checked.typed).receiver_symbol;
@@ -217,7 +219,8 @@ fn erased_projected_callees_can_bind_from_the_exact_receiver() {
     for form in CALL_FORMS {
         let mut typed = typed_fixture(form);
         replace_typed_callees(&mut typed, SymbolHandle::invalid(), false);
-        let checked = lower_typed_trees(typed).expect("exact receiver permits late binding");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect("exact receiver permits late binding");
         assert_exact_selection(&checked);
     }
 }

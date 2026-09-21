@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 const SEQUENCE: &str = r#"
@@ -43,7 +44,7 @@ fn proof_slice_extraction_definition_accepts_guarded_tail_recursion() {
             matches!(subjects.as_slice(), [subject] if matches!(program.expression_table.expression(*subject),
             typed_trees::expression::ExpressionNode::Name(path) if path.symbol == entry_parameter.symbol && path.head_symbol == entry_parameter.symbol))
         );
-        lower_typed_trees(program)
+        lower_typed_trees(program, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{measure}: {diagnostics:#?}"));
     }
 }
@@ -88,7 +89,7 @@ fn proof_slice_recursion_requires_the_same_nonempty_tail_edge() {
             terminates by items -> Slice::Length;
             {{ {body} }}"#
         );
-        let result = lower_typed_trees(typed(&source));
+        let result = lower_typed_trees(typed(&source), &CheckingRequest::settled());
         let Err(diagnostics) = result else {
             panic!("{name}: unproved recursive edge accepted")
         };
@@ -134,7 +135,8 @@ fn nested_proof_slice_calls_cannot_borrow_another_edges_decrease() {
             terminates by items -> Slice::Length;
             {{ {body} }}"#
         );
-        let Err(diagnostics) = lower_typed_trees(typed(&source)) else {
+        let Err(diagnostics) = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+        else {
             panic!("{name}: accepted unproved proof recursion")
         };
         assert!(
@@ -162,7 +164,7 @@ fn proof_slice_tail_cannot_override_a_different_ranking_view() {
             }}
         }}"#
     );
-    assert!(lower_typed_trees(typed(&source)).is_err());
+    assert!(lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err());
 }
 
 #[test]
@@ -178,7 +180,7 @@ fn runtime_slice_ranking_checks_every_recursive_edge() {
             }
         }
     "#;
-    let Err(diagnostics) = lower_typed_trees(typed(source)) else {
+    let Err(diagnostics) = lower_typed_trees(typed(source), &CheckingRequest::settled()) else {
         panic!("the shrinking first edge cannot justify the unchanged second edge");
     };
     assert!(
@@ -283,6 +285,9 @@ fn proof_slice_decrease_requires_exact_witness_and_bare_parameter_identity() {
                 &program, guard, argument, &parameter
             ));
         }
-        assert!(lower_typed_trees(program).is_err(), "{corruption}");
+        assert!(
+            lower_typed_trees(program, &CheckingRequest::settled()).is_err(),
+            "{corruption}"
+        );
     }
 }

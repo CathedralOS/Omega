@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -12,7 +13,7 @@ fn named_ensures_rejects_missing_assignment_on_direct_exit() {
         {
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("every ordinary exit must assign each named ensures term");
     assert!(
         diagnostics
@@ -37,7 +38,7 @@ fn named_ensures_rejects_repeated_assignment_on_one_path() {
             outgoing = incoming;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("one output term cannot be assigned twice on one path");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -60,7 +61,7 @@ fn named_ensures_need_not_be_assigned_on_crash_only_exit() {
             crash Abort;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a crash-only path is not an ordinary proof-output return");
 }
 
@@ -87,7 +88,7 @@ fn named_ensures_are_definitely_assigned_on_every_named_outcome() {
             }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("each named ordinary outcome assigns the output exactly once");
 }
 
@@ -113,7 +114,7 @@ fn named_ensures_rejects_one_unassigned_named_outcome() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the unassigned named outcome must reject");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "named ensures evidence `outgoing` is not definitely assigned on the ordinary exit through forward::right"
@@ -139,7 +140,7 @@ fn named_ensures_assignment_after_terminal_dispatch_does_not_reach_its_arms() {
             state right() {}
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an erased assignment after terminal dispatch cannot backdate itself");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -166,7 +167,7 @@ fn named_requires_call_rejects_ambient_fact_inference() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a visible matching fact must not synthesize an erased argument");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -200,7 +201,7 @@ fn named_transition_evidence_forwards_across_state_arrivals() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("named transition evidence should bind each exact state-arrival lane");
     assert_eq!(checked.facts.proof.contract_evidence_arguments.len(), 2);
     assert!(checked.facts.proof.evidence_terms.iter().any(|(_, term)| {
@@ -230,7 +231,7 @@ fn named_transition_requires_explicit_evidence_lane() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("ambient state-arrival facts must not synthesize erased transition arguments");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -259,7 +260,7 @@ fn named_transition_rejects_wrong_evidence_term() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a transition evidence term must inhabit the exact target-state proposition");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -284,7 +285,7 @@ fn named_state_requires_rejects_fact_only_evidence_binding() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a named state arrival requires must carry witness evidence");
     assert!(
         diagnostics
@@ -323,7 +324,7 @@ fn concrete_trait_named_witness_lanes_bind_inherited_facts_to_satisfier_terms() 
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a concrete satisfier may rename inputs while retaining pinned outputs");
     let machine = checked
         .machines()
@@ -405,7 +406,7 @@ fn concrete_trait_named_witness_lane_rejects_order_or_interface_drift() {
         {}
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("named lanes cannot reorder proposition/interface identities");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
@@ -424,7 +425,7 @@ fn concrete_trait_named_witness_lane_rejects_missing_or_renamed_output() {
         }
         machine run() satisfies Contract::run {}
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(missing))
+    let diagnostics = lower_typed_trees(parse_typed_trees(missing), &CheckingRequest::settled())
         .expect_err("a satisfier cannot omit the requirement's output lane");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -446,7 +447,7 @@ fn concrete_trait_named_witness_lane_rejects_missing_or_renamed_output() {
         ensures renamed: ready()
         { renamed = local; }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(renamed))
+    let diagnostics = lower_typed_trees(parse_typed_trees(renamed), &CheckingRequest::settled())
         .expect_err("a satisfier cannot rename a public output selector");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -471,7 +472,7 @@ fn concrete_trait_named_witness_output_assignment_remains_exactly_once() {
         ensures selected: ready()
         {}
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(missing))
+    let diagnostics = lower_typed_trees(parse_typed_trees(missing), &CheckingRequest::settled())
         .expect_err("the inherited public output still needs an assignment");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -496,7 +497,7 @@ fn concrete_trait_named_witness_output_assignment_remains_exactly_once() {
             selected = local;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate))
+    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate), &CheckingRequest::settled())
         .expect_err("the inherited public output cannot be assigned twice");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -525,7 +526,7 @@ fn named_requires_call_rejects_wrong_proposition_term() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an explicit term of another proposition must not bind by name or visibility");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -551,7 +552,7 @@ fn erased_call_lane_rejects_extra_terms_for_unnamed_callee() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an erased argument cannot be silently dropped");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -579,7 +580,7 @@ fn erased_call_lane_rejects_unknown_source_term() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an evidence-lane name must resolve to a caller requires term");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

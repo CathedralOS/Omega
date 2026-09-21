@@ -28,7 +28,7 @@ fn check_rejecting(source: &str, accepted: bool, fragments: &[&str]) {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match crate::lower_typed_trees(typed) {
+    match crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "restatement accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");

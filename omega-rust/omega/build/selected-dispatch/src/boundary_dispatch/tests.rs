@@ -194,8 +194,11 @@ fn fixture() -> Fixture {
 
 fn checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
     let fixture = fixture();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(fixture.typed)
-        .expect("check exact adapter-dispatch fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        fixture.typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check exact adapter-dispatch fixture");
     (checked, fixture.plans)
 }
 

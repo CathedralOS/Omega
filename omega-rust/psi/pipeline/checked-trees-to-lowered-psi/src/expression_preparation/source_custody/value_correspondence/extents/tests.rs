@@ -30,8 +30,11 @@ fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    let original = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("existing checked extent fixture");
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("existing checked extent fixture");
     let machine = original
         .machines()
         .iter()
@@ -160,8 +163,11 @@ fn slice_backed_extent_keeps_the_retained_view_bounds_plan() {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    let original = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("slice-backed extent fixture");
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("slice-backed extent fixture");
     let machine = original
         .machines()
         .iter()
@@ -277,8 +283,11 @@ fn slice_backed_extent_keeps_the_retained_view_bounds_plan() {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    let moved = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("cross-statement extent fixture");
+    let moved = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("cross-statement extent fixture");
     let moved_machine = moved
         .machines()
         .iter()

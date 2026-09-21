@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 
 #[test]
 fn inline_const_generic_selector_infers_from_its_array_witness() {
@@ -32,7 +33,7 @@ fn window_source(callees: &str, selection: &str) -> String {
 fn check_window(source: &str, accepted: bool) {
     // Parsing, resolution, and typing must succeed before a bounds refusal counts.
     let typed = parse_typed_trees(source);
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproven call-bounded window accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -203,8 +204,9 @@ fn permissive_return_range_declarations_reject_before_bounds() {
         for selection in ["endpoint()..4", "..endpoint()", "..=endpoint()"] {
             let callees = format!("machine endpoint() -> u64 [0..=3] in {policy} {{ 2 }}");
             let source = window_source(&callees, selection);
-            let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-                .expect_err("a permissive policy cannot promise an enforced return range");
+            let diagnostics =
+                lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                    .expect_err("a permissive policy cannot promise an enforced return range");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
                     .message
@@ -220,8 +222,9 @@ fn permissive_return_range_declarations_reject_before_bounds() {
 fn a_callee_must_independently_establish_its_declared_return_range() {
     for returned in ["-1", "5"] {
         let source = format!("machine endpoint() -> i64 [0..=3] {{ {returned} }}");
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("a false return range must reject even without a subslice caller");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("a false return range must reject even without a subslice caller");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message

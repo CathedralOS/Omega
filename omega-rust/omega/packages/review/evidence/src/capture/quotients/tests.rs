@@ -245,7 +245,11 @@ fn total_direct_define_projects_one_deterministic_recoverable_review_row() {
         "ordinary executable validation must remain fail closed"
     );
     assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_ok(),
+        typed_trees_to_checked_trees::lower_typed_trees(
+            program.clone(),
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_ok(),
         "checked lowering admits the proof-only request; the published \
          correspondence gate holds the execution refusal"
     );
@@ -289,7 +293,11 @@ fn transport_backed_lift_projects_one_deterministic_recoverable_review_row() {
         "ordinary executable validation must remain fail closed"
     );
     assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(program.clone()).is_err(),
+        typed_trees_to_checked_trees::lower_typed_trees(
+            program.clone(),
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err(),
         "ordinary checked lowering must not admit the proof-only request"
     );
 

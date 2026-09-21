@@ -3,6 +3,7 @@ use super::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, CheckedTrees,
     ExpressionNode, StatementNode, SymbolHandle, TypedTrees,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::authored_selections::projected_receivers::CALL_FORMS;
 use crate::tests::authored_selections::projected_receivers::CallForm;
@@ -129,7 +130,8 @@ fn replace_expression_endpoints(program: &mut TypedTrees, replacement: SymbolHan
 fn pending_statement_call_fixture() -> CheckedTrees {
     let typed = typed_fixture(CallForm::Statement);
     let mut authored = typed.authored_declaration_selections().clone();
-    let mut checked = lower_typed_trees(typed).expect("untampered projected call checks");
+    let mut checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("untampered projected call checks");
     assert_exact_selection(&checked);
     let pending = authored
         .iter()
@@ -192,7 +194,7 @@ fn foreign_projected_callees_cannot_finalize_the_authored_call() {
         let foreign = method_symbol(&typed, "Decoy");
         assert_ne!(foreign, method_symbol(&typed, "Context"));
         replace_typed_callees(&mut typed, foreign, false);
-        let diagnostics = lower_typed_trees(typed)
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
             .expect_err("a foreign nominal method cannot supply authored call custody");
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -210,7 +212,7 @@ fn a_foreign_projected_endpoint_cannot_override_the_exact_input_root() {
     let call = statement_call_mut(&mut typed);
     call.receiver_symbol = endpoint;
     call.target_symbol = SymbolHandle::invalid();
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the endpoint must belong to the exact receiver projection");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -227,7 +229,7 @@ fn a_missing_projected_input_root_cannot_bind_by_spelling() {
     call.receiver_root_symbol = SymbolHandle::invalid();
     call.receiver_symbol = SymbolHandle::invalid();
     call.target_symbol = SymbolHandle::invalid();
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("carrier.context spelling cannot replace an exact input root");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -249,7 +251,7 @@ fn a_foreign_expression_endpoint_cannot_override_the_exact_input_root() {
     let endpoint = foreign_context_field(&typed);
     replace_expression_endpoints(&mut typed, endpoint);
     replace_typed_callees(&mut typed, SymbolHandle::invalid(), false);
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("an expression endpoint cannot be trusted or silently replaced");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -271,7 +273,7 @@ fn missing_or_foreign_expression_roots_cannot_bind_by_spelling() {
         assert_ne!(replacement, input_symbol(&typed, "inspect"));
         replace_expression_input_roots(&mut typed, replacement);
         replace_typed_callees(&mut typed, SymbolHandle::invalid(), false);
-        let diagnostics = lower_typed_trees(typed)
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
             .expect_err("same-spelled input storage from another state cannot authorize a call");
         assert!(
             diagnostics.iter().any(|diagnostic| {

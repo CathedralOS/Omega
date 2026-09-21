@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -17,7 +18,7 @@ fn accepts_proven_asm_entry_and_exit_facts() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("preserved entry fact should prove both asm assertions");
 }
 
@@ -34,7 +35,7 @@ fn rejects_unproven_asm_requires_at_block_entry() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("unproven asm requires must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -57,7 +58,7 @@ fn rejects_unproven_asm_ensures_at_block_exit() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("authored asm ensures must be proved, not minted");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -83,7 +84,7 @@ fn rejects_asm_ensures_invalidated_by_port_input() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("port input must invalidate facts about its destination");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -109,7 +110,7 @@ fn rejects_asm_ensures_invalidated_by_flags_snapshot() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("flags snapshot must invalidate facts about its destination");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -135,7 +136,7 @@ fn rejects_asm_ensures_invalidated_by_msr_read() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("MSR read must invalidate facts about its destination");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -161,7 +162,7 @@ fn preserves_asm_ensures_across_unrelated_port_input() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a write to value must not invalidate a fact about ready");
 }
 
@@ -178,7 +179,7 @@ fn rejects_non_boolean_asm_fact_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("numeric asm fact must reject before proof discharge");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("asm `requires` fact")
@@ -248,7 +249,7 @@ fn rejects_missing_direct_port_io_service_declaration() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("direct port assembly must publish PortIo");
     assert!(
         diagnostics
@@ -268,7 +269,7 @@ fn checked_helpers_propagate_asm_services_without_repeated_declarations() {
              machine Main::helper(&mut self) reaches {service_name} {{ asm {{ {instruction} }} }}\n\
              machine Main::main(&mut self) {{ self.helper(); }}",
         );
-        let checked = lower_typed_trees(parse_typed_trees(&source))
+        let checked = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .expect("ordinary callers propagate the instruction owner's service contract");
         let machine = checked
             .machines()
@@ -333,7 +334,7 @@ fn asm_value_intrinsic_result_types_reach_the_call_operation_frontier() {
              \x20   asm where clobbers {clobbers} {{ {instruction} }}\n\
              }}",
         );
-        let checked = lower_typed_trees(parse_typed_trees(&source))
+        let checked = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .expect("asm value intrinsic checks cleanly at contract level");
         let machine = checked
             .machines()

@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::values::typed_trees;
 
@@ -25,13 +26,13 @@ fn source(increment: u64) -> String {
 #[test]
 fn byte_store_preserves_transferred_strict_length_bound_for_one_step() {
     let program = source(1);
-    lower_typed_trees(typed_trees(&program))
+    lower_typed_trees(typed_trees(&program), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
 #[test]
 fn byte_store_does_not_strengthen_the_guard_distance() {
-    let diagnostics = lower_typed_trees(typed_trees(&source(2)))
+    let diagnostics = lower_typed_trees(typed_trees(&source(2)), &CheckingRequest::settled())
         .expect_err("a strict length guard permits one step, not two");
     assert!(
         diagnostics
@@ -59,7 +60,7 @@ fn byte_store_cannot_restore_a_length_relation_retired_by_its_rhs_call() {
             "{helper}\n{}",
             source(1).replace("out[position] = byte;", "out[position] = touch(out);")
         );
-        match lower_typed_trees(typed_trees(&program)) {
+        match lower_typed_trees(typed_trees(&program), &CheckingRequest::settled()) {
             Ok(_) => assert!(accepted, "overlapping RHS call retained its prior relation"),
             Err(diagnostics) => {
                 assert!(!accepted, "{diagnostics:#?}");

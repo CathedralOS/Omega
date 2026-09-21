@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -27,7 +28,7 @@ fn closed_boolean_requirements_are_proved_without_inherited_contract_facts() {
         "!(true == false)",
         "(true == true) && (false != true)",
     ] {
-        lower_typed_trees(guarded_call(requirement))
+        lower_typed_trees(guarded_call(requirement), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{requirement}: {diagnostics:#?}"));
     }
 }
@@ -41,7 +42,7 @@ fn false_or_unknown_boolean_requirements_do_not_gain_a_proof() {
         "(true == true) && (false == true)",
         "input == true",
     ] {
-        let diagnostics = lower_typed_trees(guarded_call(requirement))
+        let diagnostics = lower_typed_trees(guarded_call(requirement), &CheckingRequest::settled())
             .expect_err("a false or unknown requirement must remain unproved");
         assert!(
             diagnostics.iter().any(|diagnostic| {
@@ -70,7 +71,7 @@ fn immutable_boolean_normal_result_equality_preserves_exact_return_identity() {
              reaches Host
              {{ {body} }}"
         ));
-        lower_typed_trees(program)
+        lower_typed_trees(program, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{guarantee}, {body}: {diagnostics:#?}"));
     }
 }
@@ -85,7 +86,7 @@ fn boolean_normal_result_equality_cannot_substitute_another_value_or_mutable_ent
         let program = parse_typed_trees(&format!(
             "machine identity({parameters}) -> bool ensures result == value {{ {body} }}"
         ));
-        let diagnostics = lower_typed_trees(program)
+        let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
             .expect_err("a different result or unknown mutable post-state needs its own proof");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -102,7 +103,7 @@ fn authored_boolean_result_parameter_does_not_become_the_returned_value() {
         "machine identity(result: bool, value: bool) -> bool
          ensures result == value { value }",
     );
-    let diagnostics = lower_typed_trees(program)
+    let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
         .expect_err("the result-named formal is not the reserved normal result");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -132,7 +133,7 @@ fn computed_boolean_guarantees_compose_in_the_immutable_return_namespace() {
                  reaches Host
                  {{ Host::finish(false); {computed} }}"
             ));
-            lower_typed_trees(program)
+            lower_typed_trees(program, &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{guarantee}: {diagnostics:#?}"));
         }
     }
@@ -149,7 +150,7 @@ fn computed_boolean_guarantees_do_not_guess_values_or_replay_storage() {
         let program = parse_typed_trees(&format!(
             "machine compute({parameters}) -> bool ensures {guarantee} {{ {body} }}"
         ));
-        let diagnostics = lower_typed_trees(program)
+        let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
             .expect_err("unrelated identities and unevidenced storage cannot prove the guarantee");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -178,7 +179,8 @@ fn saved_boolean_guarantees_follow_immutable_definition_order() {
              ensures result == !value
              reaches Host {{ {body} }}"
         ));
-        lower_typed_trees(program).unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
+        lower_typed_trees(program, &CheckingRequest::settled())
+            .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
     }
 }
 
@@ -197,7 +199,7 @@ fn saved_boolean_guarantees_reject_borrowed_overwrites() {
              machine first(ignored: bool, value: bool) -> bool ensures result == value {{ value }}
              machine compute(value: bool, other: bool) -> bool ensures result == value {{ {body} }}"
         ));
-        let Err(diagnostics) = lower_typed_trees(program) else {
+        let Err(diagnostics) = lower_typed_trees(program, &CheckingRequest::settled()) else {
             panic!("overwritten binding retained its old value: {body}");
         };
         assert!(
@@ -223,7 +225,7 @@ fn saved_boolean_guarantees_do_not_confuse_storage_or_call_results_with_entry_va
             "machine identity(input: bool) -> bool {{ input }}
              machine compute({parameters}) -> bool ensures result == !value {{ {body} }}"
         ));
-        let diagnostics = lower_typed_trees(program)
+        let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
             .expect_err("unevidenced snapshots and calls remain unproved");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
@@ -240,13 +242,16 @@ fn saved_boolean_guarantees_require_exact_source_bound_definitions() {
         CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
         CheckedScalarExpressionRole as Role,
     };
-    let checked = lower_typed_trees(parse_typed_trees(
-        "machine compute(value: bool, other: bool) -> bool ensures result == !value {
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            "machine compute(value: bool, other: bool) -> bool ensures result == !value {
             let first: bool = !value;
             let second: bool = first;
             second
         }",
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("saved guarantee");
     let first_role = Role::LocalInitializer { binding_ordinal: 0 };
     let second_role = Role::LocalInitializer { binding_ordinal: 1 };
@@ -321,14 +326,17 @@ fn saved_boolean_guarantees_require_exact_source_bound_definitions() {
 #[test]
 fn mutable_boolean_snapshots_require_exact_store_custody() {
     use checked_trees::CheckedScalarExpressionRole as Role;
-    let checked = lower_typed_trees(parse_typed_trees(
-        "machine compute(value: bool) -> bool ensures result == !value {
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            "machine compute(value: bool) -> bool ensures result == !value {
             let mut current: bool = value;
             current = !current;
             let saved: bool = current;
             saved
         }",
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("selected store snapshot");
     for mutation in 0..7 {
         let mut facts = checked.facts.clone();
@@ -389,7 +397,7 @@ fn saved_boolean_definition_expansion_has_a_shared_depth_limit() {
         let program = parse_typed_trees(&format!(
             "machine compute(value: bool) -> bool ensures result == !value {{ {body} }}"
         ));
-        let result = lower_typed_trees(program);
+        let result = lower_typed_trees(program, &CheckingRequest::settled());
         if accepted {
             result.expect("ordinary captured-local chain");
         } else {

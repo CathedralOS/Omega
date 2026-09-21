@@ -38,10 +38,16 @@ fn recursive_scalar(argument: &str) -> String {
 
 #[test]
 fn scalar_entry_backedges_reestablish_machine_requires() {
-    crate::lower_typed_trees(typed(&recursive_scalar("1")))
-        .expect("the recursive argument establishes the entry requirement");
-    let diagnostics = crate::lower_typed_trees(typed(&recursive_scalar("0")))
-        .expect_err("the entry assumption cannot prove the recursive argument's requirement");
+    crate::lower_typed_trees(
+        typed(&recursive_scalar("1")),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("the recursive argument establishes the entry requirement");
+    let diagnostics = crate::lower_typed_trees(
+        typed(&recursive_scalar("0")),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect_err("the entry assumption cannot prove the recursive argument's requirement");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -110,7 +116,7 @@ fn internal_named_state_uses_only_its_own_requires_and_no_machine_ensures() {
             state_symbol: destination.symbol,
         }
     );
-    crate::lower_typed_trees(program)
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect("a sibling state need not re-establish the machine's entry == 7");
 }
 
@@ -133,7 +139,7 @@ fn ordinary_invocations_retain_requires_and_ensures() {
             facts.contract_fact_refs.span_or_empty(call.ensures).len(),
             1
         );
-        crate::lower_typed_trees(program).expect(body);
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled()).expect(body);
     }
 }
 
@@ -172,7 +178,7 @@ fn good_ranking_cannot_discharge_an_unsupported_boolean_requirement() {
         &program, machine, goal,
     ));
     assert!(!crate::checks::termination::proves_ranked_entry_requirement(&program, machine, goal,));
-    let diagnostics = crate::lower_typed_trees(program)
+    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("strict descent cannot establish allowed for a false actual");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -204,7 +210,7 @@ fn good_ranking_cannot_discharge_a_noninductive_numeric_requirement() {
         &program, machine, goal,
     ));
     assert!(!crate::checks::termination::proves_ranked_entry_requirement(&program, machine, goal,));
-    let diagnostics = crate::lower_typed_trees(program)
+    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("a readable requirement still needs inductive preservation");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -240,7 +246,8 @@ fn graph_requirement_reuse_checks_internal_arrivals_before_root_reentry() {
         &program.machines()[0],
         goal,
     ));
-    crate::lower_typed_trees(program).expect("both arrivals preserve permission");
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("both arrivals preserve permission");
 
     let changed = source.replace(
         "step(remaining - 1, permission)",
@@ -257,7 +264,7 @@ fn graph_requirement_reuse_checks_internal_arrivals_before_root_reentry() {
             goal,
         )
     );
-    let diagnostics = crate::lower_typed_trees(program)
+    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("an earlier internal arrival can lose the requirement before root reentry");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

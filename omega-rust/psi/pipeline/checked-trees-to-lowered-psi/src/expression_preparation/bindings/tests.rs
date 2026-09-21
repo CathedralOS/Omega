@@ -45,8 +45,11 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    let original = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("checked literal projections");
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked literal projections");
     let state = |name: &str| {
         let machine = original
             .machines()

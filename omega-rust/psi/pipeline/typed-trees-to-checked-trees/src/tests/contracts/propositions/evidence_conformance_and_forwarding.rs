@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -20,7 +21,7 @@ fn explicit_subjectless_conformance_introduces_named_evidence() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an explicit complete subjectless conformance should introduce evidence");
     assert_eq!(checked.facts.proof.evidence_forwardings.len(), 1);
     let assignment = checked
@@ -85,7 +86,7 @@ fn incoming_evidence_binding_shadows_same_named_subjectless_conformance() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the lexical incoming evidence binding should shadow the proof-output conformance");
     let [typed_assignment] = checked.evidence_forwardings.as_slice() else {
         panic!("one typed evidence assignment expected")
@@ -123,7 +124,7 @@ fn producer_conformance_must_match_the_declared_evidence_interface() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a producer for a different carrierless interface must reject");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "subjectless conformance `WrongProducer` does not provide the exact `Evidence` evidence interface required by `outgoing`"
@@ -149,7 +150,7 @@ fn instantiated_generic_producer_interface_selects_exact_conformance() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the concrete proposition argument should instantiate its evidence interface");
     let assignment = checked
         .facts
@@ -215,7 +216,7 @@ fn instantiated_generic_producer_rejects_wrong_exact_argument() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a producer instantiated at u32 must not inhabit Evidence<i32>");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "subjectless conformance `WrongEvidence` does not provide the exact `Evidence<i32>` evidence interface required by `outgoing`"
@@ -236,7 +237,7 @@ fn unresolved_generic_producer_endpoint_remains_fail_closed() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an open generic proposition endpoint cannot select a concrete producer");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "subjectless conformance `ConcreteEvidence` cannot provide unresolved generic evidence interface `Evidence<T>` required by `outgoing`"
@@ -259,7 +260,7 @@ fn unrelated_const_and_machine_binders_do_not_fence_nongeneric_evidence() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("unrelated concrete binders must not erase a closed evidence interface");
     let output = checked
         .facts
@@ -292,7 +293,7 @@ fn outgoing_producer_does_not_retroactively_discharge_a_call_requirement() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an outgoing producer cannot establish an earlier call premise");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -313,7 +314,7 @@ fn evidence_forwarding_rejects_unknown_source() {
             outgoing = absent;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("forwarding must name an exact incoming term");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -334,7 +335,7 @@ fn evidence_forwarding_rejects_assignment_to_incoming_term() {
             incoming = incoming;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("incoming evidence aliases are immutable inputs");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -358,7 +359,7 @@ fn evidence_forwarding_rejects_proposition_mismatch() {
             outgoing = incoming;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("forwarding cannot change proposition identity");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

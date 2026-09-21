@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::flow::check_against_whole_pass as lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -33,7 +34,8 @@ fn indexed_byte_arithmetic_captures_materialized_bounds() {
             self.byte = self.text[self.position] as u8 in Wrapping + 3;
         }
     "#;
-    let checked = lower_typed_trees(parse_typed_trees(source)).expect("indexed byte read checks");
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("indexed byte read checks");
     let ranges = &checked.facts.semantic.integer_ranges;
     assert!(
         ranges
@@ -169,7 +171,7 @@ fn loop_source(initialization: &str, replacement: &str) -> String {
 }
 
 fn check(source: &str, accepted: bool) {
-    let result = lower_typed_trees(parse_typed_trees(source));
+    let result = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled());
     if accepted {
         result.unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     } else {

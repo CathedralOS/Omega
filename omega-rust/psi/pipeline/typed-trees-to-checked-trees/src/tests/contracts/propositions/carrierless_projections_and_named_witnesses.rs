@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::ContractProofFactKind;
 use crate::tests::contracts::parse_typed_trees;
@@ -9,7 +10,7 @@ fn checked_proposition_declarations_retain_public_visibility_without_minting_fac
         proposition hidden();
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("proposition visibility should survive checked lowering");
     let declarations = &checked.facts.proof.proposition_vocabulary.declarations;
     assert_eq!(declarations.len(), 2);
@@ -45,7 +46,7 @@ fn proposition_type_arguments_instantiate_value_parameter_types() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the concrete type argument should instantiate the proposition value signature");
 }
 
@@ -69,7 +70,7 @@ fn carrierless_evidence_projection_cannot_select_an_executable_machine_parameter
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("erased evidence must not become an executable callback");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
@@ -95,7 +96,7 @@ fn carrierless_evidence_projection_binds_the_exact_term_and_requirement_row() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a proof-static projection should bind to checked evidence");
     let projection = checked
         .facts
@@ -131,7 +132,7 @@ fn carrierless_evidence_projection_rejects_an_unknown_requirement() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an unknown proof-static requirement must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
@@ -161,7 +162,7 @@ fn carrierless_evidence_projection_rejects_an_ambiguous_inherited_requirement() 
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an ambiguous inherited proof-static requirement must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
@@ -182,7 +183,7 @@ fn proposition_type_arguments_reject_mismatched_value_arguments() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a bool value cannot satisfy a proposition parameter instantiated as i32");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -210,7 +211,7 @@ fn named_witness_contracts_mint_distinct_positional_checked_terms() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("named witness contracts should lower to checked evidence terms");
     let terms = checked
         .facts
@@ -276,7 +277,7 @@ fn named_requires_arguments_bind_exact_checked_terms_by_position() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an explicit matching evidence term should satisfy the erased call lane");
     let call = checked
         .facts
@@ -321,7 +322,7 @@ fn expression_call_binds_named_requires_evidence_lane() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("value calls must bind the same checked evidence lane as statement calls");
     let call = checked
         .facts
@@ -363,7 +364,7 @@ fn evidence_only_call_binds_after_leading_semicolon() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the leading semicolon must distinguish an evidence-only call lane");
     assert_eq!(checked.facts.proof.contract_evidence_arguments.len(), 1);
 }
@@ -382,7 +383,7 @@ fn forwarding_named_requires_to_ensures_preserves_exact_term_identity() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("matching named evidence terms should forward");
     let forwardings = checked
         .facts

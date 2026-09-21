@@ -1,4 +1,5 @@
 use super::checked;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -27,7 +28,7 @@ fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("partial linear-record extraction needs per-field resource accounting");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -206,8 +207,8 @@ fn transparent_record_partial_move_leaves_sibling_obligation_live() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the untouched sibling remains an obligation");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the untouched sibling remains an obligation");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -232,7 +233,7 @@ fn nominal_drop_rejects_direct_partial_move() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a nominal drop machine requires its whole valid receiver");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -260,7 +261,7 @@ fn nominal_drop_rejects_move_below_nested_prefix() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("every proper nominal-drop prefix retains whole-value entitlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -288,7 +289,7 @@ fn nominal_drop_rejects_move_below_generic_prefix() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("generic substitution preserves a nested nominal drop entitlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -311,7 +312,7 @@ fn nominal_drop_does_not_authorize_borrowed_self_extraction() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a nominal drop hook does not grant ownership of borrowed contents");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -443,7 +444,8 @@ fn transparent_record_rejects_duplicate_field_move() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("one field claim cannot move twice");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("one field claim cannot move twice");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -545,8 +547,8 @@ fn fixed_array_rejects_duplicate_literal_index_move() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the same fixed element cannot move twice");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the same fixed element cannot move twice");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("receipts[0]")
@@ -645,8 +647,8 @@ fn transparent_record_sibling_assignment_transfers_the_source_claim() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("assigning from a sibling must transfer its claim");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("assigning from a sibling must transfer its claim");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

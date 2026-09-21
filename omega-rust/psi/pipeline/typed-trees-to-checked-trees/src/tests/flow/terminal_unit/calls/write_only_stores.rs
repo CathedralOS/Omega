@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::flow::terminal_unit::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
@@ -1074,7 +1075,7 @@ fn write_only_common_field_subloans_retain_independent_roots() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     assert!(
-        lower_typed_trees(typed).is_err(),
+        lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
         "overlapping exclusive arguments must reject"
     );
 }

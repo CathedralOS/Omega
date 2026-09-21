@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -15,7 +16,7 @@ fn assignment_values_prove_nested_domain_outputs_and_preserve_disjoint_fields() 
             machine establish(player: &mut Player) ensures player in Player::Ready {{ {body} }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
     }
 }
@@ -37,7 +38,9 @@ fn assignment_values_cannot_survive_overlapping_or_unknown_writes() {
             ensures player in Player::Valid {{ {body} }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(body);
         assert!(
             diagnostics
                 .iter()
@@ -61,7 +64,9 @@ fn assignment_values_do_not_grant_text_after_an_alias_or_index_write() {
             machine establish(line: &mut [u8; 4]) ensures line in Utf8 {{ {body} }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(body);
         assert!(
             diagnostics
                 .iter()
@@ -84,7 +89,7 @@ fn ascii_byte_replacement_does_not_preserve_arbitrary_utf8() {
         "#
         );
         assert!(
-            lower_typed_trees(parse_typed_trees(&source)).is_err(),
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err(),
             "ASCII replacement may split a multibyte UTF-8 scalar"
         );
     }
@@ -104,7 +109,7 @@ fn ascii_byte_replacement_preserves_a_whole_ascii_carrier() {
             machine establish(line: &mut [u8; 2]) ensures line in Utf8 {{ {body} }}
         "#
         );
-        let lowered = lower_typed_trees(parse_typed_trees(&source));
+        let lowered = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert!(
             lowered.is_ok(),
             "{body}: an ASCII byte written over an all-ASCII carrier keeps it valid UTF-8: {:#?}",
@@ -132,7 +137,7 @@ fn non_ascii_replacement_retires_the_carrier_class() {
         "#
         );
         assert!(
-            lower_typed_trees(parse_typed_trees(&source)).is_err(),
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err(),
             "{body}: a byte outside the carrier's proved class cannot preserve it"
         );
     }
@@ -153,7 +158,7 @@ fn selected_scalar_call_result_preserves_byte_class() {
             line[0] = byte;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -177,7 +182,7 @@ fn selected_scalar_call_result_evaluates_immutable_locals() {
             }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{callee}: {diagnostics:#?}"));
     }
 }
@@ -197,7 +202,7 @@ fn selected_scalar_call_result_captures_projected_assignment() {
             line[1] = narrow(66);
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -220,7 +225,7 @@ fn selected_scalar_call_result_evaluates_local_storage_in_order() {
             line[0] = byte;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -245,7 +250,7 @@ fn trapping_conversion_snapshots_survive_nonwriting_unit_calls() {
             line[1] = narrow(66);
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -277,7 +282,9 @@ fn normal_return_snapshots_do_not_assume_a_safe_conversion_or_carrier() {
             }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(&source);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(&source);
         assert!(
             diagnostics
                 .iter()
@@ -322,7 +329,7 @@ fn numeric_text_writer_captures_field_computations_before_conversion() {
             )
             .replace("formatter.", "self."),
     ] {
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
@@ -355,7 +362,9 @@ fn scalar_snapshots_reject_borrowed_calls_and_effectful_arguments() {
             }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(&source);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(&source);
         assert!(
             diagnostics
                 .iter()
@@ -417,7 +426,9 @@ fn selected_scalar_call_result_rejects_unproved_or_replaced_bytes() {
             ensures line in Utf8 {{ line = "AB"; {body} }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(body);
         assert!(
             diagnostics
                 .iter()

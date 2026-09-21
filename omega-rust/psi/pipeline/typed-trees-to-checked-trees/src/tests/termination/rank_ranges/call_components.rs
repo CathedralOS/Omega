@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const QUOTIENT_PAIR: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -214,12 +215,12 @@ fn symbolic_division_endpoints_cross_recursive_components() {
 }
 
 fn prove(source: &str) {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn reject(source: &str) {
-    let Err(diagnostics) = lower_typed_trees(typed(source)) else {
+    let Err(diagnostics) = lower_typed_trees(typed(source), &CheckingRequest::settled()) else {
         panic!("invalid call component accepted:\n{source}");
     };
     assert!(
@@ -666,7 +667,8 @@ fn mixed_call_range_endpoint_transport_keeps_duplicate_copies_as_alternatives() 
             "ceiling, remaining, floor, ceiling)",
             "ceiling, remaining, floor, ceiling + 1)",
         );
-    let diagnostics = lower_typed_trees(typed(&changed_copy)).expect_err(&changed_copy);
+    let diagnostics = lower_typed_trees(typed(&changed_copy), &CheckingRequest::settled())
+        .expect_err(&changed_copy);
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -826,7 +828,8 @@ fn component_calls_carry_rank_through_duplicated_arrival_copies() {
 }
 
 fn reject_range(source: &str) {
-    let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
+    let diagnostics =
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).expect_err(source);
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("cannot prove rank range")
@@ -837,7 +840,8 @@ fn reject_range(source: &str) {
 }
 
 fn reject_requires(source: &str) {
-    let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
+    let diagnostics =
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).expect_err(source);
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

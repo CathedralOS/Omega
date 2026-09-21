@@ -4,6 +4,7 @@ use super::{
     encoded_arms, execute, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 fn source(guarantee: &str) -> String {
     r#"
         machine bounded() -> u16
@@ -132,7 +133,7 @@ fn false_result_guarantee_is_not_treated_as_a_closed_tautology() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(checked) => {
             assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "value").is_err())

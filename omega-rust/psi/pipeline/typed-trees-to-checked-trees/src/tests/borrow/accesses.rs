@@ -2,6 +2,7 @@ use super::super::{
     BorrowAccessKind, Expression, HandleSpan, Identifier, Machine, NamePath, State, StatementNode,
     SymbolHandle, TableCall,
 };
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::tests::mutable_borrow;
@@ -100,7 +101,8 @@ fn shared_borrow_argument_remains_read_only_through_checked_call_admission() {
     assert_eq!(accesses.len(), 1);
     assert_eq!(accesses[0].kind, BorrowAccessKind::Read);
 
-    lower_typed_trees(typed).expect("shared borrow must not require a writable call root");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("shared borrow must not require a writable call root");
 }
 
 #[test]

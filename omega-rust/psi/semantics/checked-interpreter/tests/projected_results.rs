@@ -123,8 +123,11 @@ fn checked_stored_reference_argument_mutates_the_original_referent() {
                  source
              }}"
         );
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
-            .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed_program(&source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
         let outcome = checked_interpreter::interpret_entry(
             &checked,
             "main",
@@ -161,7 +164,10 @@ fn checked_stored_reference_argument_requires_builtin_indexing() {
                  source
              }}"
         );
-        let result = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source));
+        let result = typed_trees_to_checked_trees::lower_typed_trees(
+            typed_program(&source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        );
         if admitted {
             let checked =
                 result.unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
@@ -196,8 +202,11 @@ fn checked_stored_reference_argument_composes_with_a_value_call() {
             let observed: i32 = replace(held[0].body);
             transition observed == 29 && source == 29 { true -> 29 false -> 0 }
         }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(source))
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_program(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let outcome =
         checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);
@@ -233,8 +242,11 @@ fn checked_stored_reference_argument_cannot_widen_enclosing_access() {
              machine replace(value: &mut i32) {{ value = 29; }}
              machine exercise(held: {parameter}) {{ replace({argument}); }}"
         );
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
-            .expect_err("a selected reference cannot amplify enclosing access");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed_program(&source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("a selected reference cannot amplify enclosing access");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -260,8 +272,11 @@ fn checked_stored_reference_argument_retains_referent_type_and_loan() {
     ] {
         let source =
             format!("{declarations} machine replace(value: &mut i32) {{ value = 29; }} {body}");
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed_program(&source))
-            .expect_err("forwarding does not waive type or live-loan checks");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed_program(&source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("forwarding does not waive type or live-loan checks");
         assert!(
             diagnostics
                 .iter()
@@ -353,8 +368,11 @@ fn checked_projected_argument_evaluates_its_selector_once() {
                       let result: i32 = select(values[index(&mut calls)]);
                       transition calls == 1 && result == 7 { true -> 7 false -> 0 }
                   }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_program(source))
-        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_program(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let outcome =
         checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);

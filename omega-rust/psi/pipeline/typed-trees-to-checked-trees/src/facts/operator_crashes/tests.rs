@@ -22,12 +22,15 @@ fn typed_program(source: &str) -> TypedTrees {
 }
 
 fn check(source: &str) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    crate::lower_typed_trees(typed_program(source))
+    crate::lower_typed_trees(typed_program(source), &crate::CheckingRequest::settled())
 }
 
 fn inspect(source: &str) -> CheckedTrees {
-    crate::checking::lower_typed_trees_for_crash_fact_inspection(typed_program(source))
-        .expect("crash-fact inspection lowers without crash admission")
+    crate::lower_typed_trees(
+        typed_program(source),
+        &crate::CheckingRequest::crash_fact_inspection(),
+    )
+    .expect("crash-fact inspection lowers without crash admission")
 }
 
 fn named_sites(checked: &CheckedTrees) -> Vec<&checked_trees::CheckedCrashOperatorSite> {

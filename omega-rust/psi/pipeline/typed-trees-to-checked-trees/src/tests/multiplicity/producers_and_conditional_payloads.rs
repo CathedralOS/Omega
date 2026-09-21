@@ -1,4 +1,5 @@
 use super::checked;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -54,7 +55,7 @@ fn inactive_call_payload_reconciliation_does_not_waive_real_moves() {
         let syntax = parse_syntax_trees(&tokens).expect("parse ownership control");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve ownership control");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type ownership control");
-        let diagnostics = match lower_typed_trees(typed) {
+        let diagnostics = match lower_typed_trees(typed, &CheckingRequest::settled()) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("invalid ownership control was accepted:\n{source}"),
         };
@@ -380,7 +381,8 @@ fn active_case_partial_move_leaves_same_case_sibling_live() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("the active-case sibling remains live");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the active-case sibling remains live");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -412,7 +414,8 @@ fn active_case_rejects_duplicate_payload_move() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("one payload claim cannot move twice");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("one payload claim cannot move twice");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

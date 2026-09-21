@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -17,7 +18,7 @@ fn whole_copy_preserves_live_nested_predicates_and_disjoint_writes() {
             ensures target.payload.bytes in Utf8 {{ {copy} target.tag = 1; }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{copy}: {diagnostics:#?}"));
     }
 }
@@ -31,7 +32,7 @@ fn whole_copy_cannot_use_another_sources_predicate() {
         ensures target.payload.bytes in Utf8 {{ target = other; }}
     "#
     );
-    assert!(lower_typed_trees(parse_typed_trees(&source)).is_err());
+    assert!(lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err());
 }
 
 #[test]
@@ -48,7 +49,7 @@ fn mutations_retire_copied_nested_predicates() {
         "#
         );
         assert!(
-            lower_typed_trees(parse_typed_trees(&source)).is_err(),
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err(),
             "{mutation}"
         );
     }
@@ -66,5 +67,5 @@ fn whole_copy_cannot_restore_an_invalidated_source_predicate() {
         }}
     "#
     );
-    assert!(lower_typed_trees(parse_typed_trees(&source)).is_err());
+    assert!(lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err());
 }

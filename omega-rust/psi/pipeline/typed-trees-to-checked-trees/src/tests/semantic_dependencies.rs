@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use crate::CheckingRequest;
 use checked_trees::{
     CheckedSemanticDependencyExposure as Exposure, CheckedSemanticDependencyKind as Kind,
 };
@@ -11,7 +12,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 #[test]

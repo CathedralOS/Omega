@@ -6,6 +6,7 @@ use super::{
     Lexer, ResolutionRequest, SymbolHandle, TypeReferenceNode, lower_symbol_resolved_trees,
     parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::types::PrimitiveType;
@@ -15,7 +16,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> SymbolHandle {

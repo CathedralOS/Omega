@@ -25,7 +25,7 @@ fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics:
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
 }
 
 fn free_machine_stores(source: &str) -> Vec<CheckedUnitEffectOperationPlan> {

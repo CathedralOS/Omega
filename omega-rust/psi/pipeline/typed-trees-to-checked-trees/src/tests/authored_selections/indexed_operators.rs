@@ -3,6 +3,7 @@ use super::{
     AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest, lower_symbol_resolved_trees,
     parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::CheckedOperatorResolutionStatus;
 use language_core::operator_spelling::OperatorSpelling;
@@ -105,7 +106,8 @@ fn unrelated_index_declaration_retains_exact_builtin_custody() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("unrelated indexing declaration checks");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("unrelated indexing declaration checks");
     let mut uses = checked
         .facts
         .operators
@@ -143,7 +145,8 @@ fn unrelated_index_declaration_retains_exact_builtin_custody() {
 
 #[test]
 fn indexed_array_custody_selects_the_exact_checked_slice_declaration() {
-    let checked = lower_typed_trees(indexed_program()).expect("checked indexed array");
+    let checked = lower_typed_trees(indexed_program(), &CheckingRequest::settled())
+        .expect("checked indexed array");
     let selected = checked
         .operators()
         .iter()
@@ -251,7 +254,8 @@ fn indexed_array_custody_rejects_missing_or_reassigned_checked_uses() {
     for reassign_expression in [false, true] {
         let typed = indexed_program();
         let authored = typed.authored_declaration_selections().clone();
-        let mut checked = lower_typed_trees(typed).expect("checked indexed array");
+        let mut checked =
+            lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked indexed array");
         checked
             .typed
             .retain_authored_declaration_selections(authored);

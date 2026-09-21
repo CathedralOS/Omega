@@ -31,7 +31,7 @@ fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     let program = &checked.typed;
     let machine = program
         .machines()
@@ -126,7 +126,7 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     let program = &checked.typed;
     let machine = program
         .machines()
@@ -213,7 +213,7 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     let program = &checked.typed;
     let facts = &checked.facts;
     let machine = program
@@ -315,7 +315,7 @@ fn ordered_stores_replay_successor_writes_and_reject_modified_frames() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     let program = &checked.typed;
     let machine = program
         .machines()

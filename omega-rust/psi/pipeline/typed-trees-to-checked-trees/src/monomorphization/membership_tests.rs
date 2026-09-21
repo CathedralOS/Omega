@@ -152,7 +152,7 @@ fn bound_domain_index_forwards_through_generic_calls() {
          machine main() -> i64 { let x: i64 in Coordinate<7> = 9; outer<7>(x) as i64 }",
     ] {
         let typed = typed(source);
-        crate::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
             panic!(
                 "call-bound index forwarding should lower: {}\n{source}",
                 diagnostics
@@ -175,7 +175,7 @@ fn bound_domain_index_rejects_a_mismatched_forwarding() {
          machine relay<J: u32>(value: i64 in Coordinate<J>) -> i64 in Coordinate<J> { value }
          machine outer<N: u32, M: u32>(v: i64 in Coordinate<N>) -> i64 in Coordinate<N> { relay<M>(v) }",
     );
-    let diagnostics = crate::lower_typed_trees(typed)
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .expect_err("forwarding a different index binder must reject");
     assert!(
         diagnostics

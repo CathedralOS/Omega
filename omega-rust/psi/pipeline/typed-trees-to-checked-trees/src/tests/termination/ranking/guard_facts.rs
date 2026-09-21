@@ -1,6 +1,7 @@
 use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn typed_source(source: &str) -> typed_trees::TypedTrees {
@@ -46,7 +47,7 @@ fn countdown_evidence_preserves_both_boolean_arm_orders_and_base_case_polarities
                 components[0].covered_cyclic_edges[0].statement_ordinal,
                 u32::from(first_truth != recursive_truth)
             );
-            lower_typed_trees(typed)
+            lower_typed_trees(typed, &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
@@ -71,7 +72,7 @@ fn distance_ranking_preserves_both_boolean_arm_orders() {
                 !first_truth,
                 target(!first_truth),
             );
-            lower_typed_trees(typed_source(&source))
+            lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
@@ -95,11 +96,11 @@ fn mutual_ranking_uses_each_edges_own_failed_guard() {
             }
         }
     "#;
-    lower_typed_trees(typed_source(source))
+    lower_typed_trees(typed_source(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let stalled = source.replace("false -> value(remaining - 1)", "false -> value(remaining)");
-    let diagnostics =
-        lower_typed_trees(typed_source(&stalled)).expect_err("every mutual edge must decrease");
+    let diagnostics = lower_typed_trees(typed_source(&stalled), &CheckingRequest::settled())
+        .expect_err("every mutual edge must decrease");
     assert!(
         diagnostics
             .iter()
@@ -125,7 +126,8 @@ fn one_decreasing_self_edge_cannot_cover_an_unchanged_fallback_edge() {
         crate::checks::termination::proven_nat_countdown_sccs(&typed, &typed.machines()[0])
             .is_none()
     );
-    let diagnostics = lower_typed_trees(typed).expect_err("unchanged fallback must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("unchanged fallback must reject");
     assert!(
         diagnostics
             .iter()
@@ -146,7 +148,7 @@ fn signed_nonzero_does_not_prove_a_positive_countdown_rank() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(typed_source(source))
+    let diagnostics = lower_typed_trees(typed_source(source), &CheckingRequest::settled())
         .expect_err("nonzero signed input does not establish positive Nat descent");
     assert!(
         diagnostics

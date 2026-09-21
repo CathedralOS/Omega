@@ -982,7 +982,7 @@ mod nested_call_arguments {
         let resolved =
             resolve(ResolutionRequest::new(&syntax)).expect("resolve nested-argument fixture");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type nested-argument fixture");
-        match crate::lower_typed_trees(typed) {
+        match crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()) {
             Ok(_) => Vec::new(),
             Err(diagnostics) => diagnostics,
         }
@@ -997,9 +997,11 @@ mod nested_call_arguments {
         let resolved =
             resolve(ResolutionRequest::new(&syntax)).expect("resolve nested-argument fixture");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type nested-argument fixture");
-        crate::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
-            panic!("nested-argument fixture must reach checked trees: {diagnostics:#?}")
-        })
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap_or_else(
+            |diagnostics| {
+                panic!("nested-argument fixture must reach checked trees: {diagnostics:#?}")
+            },
+        )
     }
 
     fn machine<'program>(

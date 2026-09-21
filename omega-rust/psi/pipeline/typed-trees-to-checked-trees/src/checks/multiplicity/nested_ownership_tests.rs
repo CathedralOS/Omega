@@ -18,7 +18,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
 }
 
 fn caller_events(checked: &checked_trees::CheckedTrees) -> Vec<&FlowPermissionEventFact> {

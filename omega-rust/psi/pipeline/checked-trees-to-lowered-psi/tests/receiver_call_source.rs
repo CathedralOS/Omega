@@ -42,7 +42,11 @@ fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver call");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver call");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type receiver call");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check receiver call")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check receiver call")
 }
 
 fn unit_plan<'a>(

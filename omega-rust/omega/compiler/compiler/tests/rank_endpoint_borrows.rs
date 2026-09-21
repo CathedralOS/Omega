@@ -32,7 +32,11 @@ fn ranked_countdown_with_stored_exclusive_endpoint_checks_and_interprets() {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("rank checks");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("rank checks");
     let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None);
     assert_eq!(outcome.exit_code, 0);

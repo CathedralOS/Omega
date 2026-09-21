@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
@@ -36,7 +37,7 @@ fn check_typed_nominal_self_edge(typed: typed_trees::TypedTrees, source: &str, a
         }),
         "the regression must exercise an actual SelfTarget, not a named call"
     );
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => assert!(
             accepted,
             "a corrupted default field crossed SelfTarget: {source}"
@@ -253,7 +254,7 @@ fn readable_mutable_nominal_parameters_carry_declared_field_facts() {
             let source = format!(
                 "{DEFINITIONS}\nmachine keep({parameter}) ensures packet.payload.bytes in Utf8 {{ {body} }}"
             );
-            lower_typed_trees(parse_typed_trees(&source))
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{parameter}; {body}: {diagnostics:#?}"));
         }
     }
@@ -268,7 +269,7 @@ fn whole_nominal_replacement_reestablishes_declared_field_facts() {
         let source = format!(
             "{DEFINITIONS}\nmachine replace(packet: &mut Packet, replacement: Packet) ensures packet.payload.bytes in Utf8 {{ {body} }}"
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
     }
 }
@@ -287,7 +288,9 @@ fn mutated_nominal_parameter_fields_cannot_reuse_entry_facts() {
             ensures packet.payload.bytes in Utf8 {{ {body} }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(body);
         assert!(
             diagnostics
                 .iter()
@@ -308,16 +311,16 @@ fn write_only_nominal_parameters_grant_only_declared_entry_invariants() {
     let declared = format!(
         "{DEFINITIONS}\nmachine valid(packet: &write Packet) ensures packet.payload.bytes in Utf8 {{ }}"
     );
-    lower_typed_trees(parse_typed_trees(&declared)).unwrap_or_else(|diagnostics| {
-        panic!("declared invariant should discharge: {diagnostics:#?}")
-    });
+    lower_typed_trees(parse_typed_trees(&declared), &CheckingRequest::settled()).unwrap_or_else(
+        |diagnostics| panic!("declared invariant should discharge: {diagnostics:#?}"),
+    );
 
     let undeclared = format!(
         "{DEFINITIONS}\n
          domain [u8; 4]::NoNul requires no_nul(self);
          machine invalid(packet: &write Packet) ensures packet.payload.bytes in NoNul {{ }}"
     );
-    lower_typed_trees(parse_typed_trees(&undeclared))
+    lower_typed_trees(parse_typed_trees(&undeclared), &CheckingRequest::settled())
         .expect_err("write-only repair access does not establish an undeclared content predicate");
 }
 
@@ -333,7 +336,7 @@ fn nominal_parameter_entry_facts_require_valid_caller_fields() {
     "#
     );
     assert!(
-        lower_typed_trees(parse_typed_trees(&source)).is_err(),
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err(),
         "calling a nominal identity cannot repair a broken default field invariant"
     );
 }
@@ -347,7 +350,7 @@ fn nominal_call_inputs_preserve_checked_construction_evidence() {
         let source = format!(
             "{DEFINITIONS}\nmachine consume(packet: Packet) ensures packet.payload.bytes in Utf8 {{ }}\nmachine start() {{ {body} }}"
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
     }
 }
@@ -362,7 +365,7 @@ fn nominal_copy_cannot_repair_an_invalidated_source_field() {
             output.payload = source.payload;
         }}"#
     );
-    assert!(lower_typed_trees(parse_typed_trees(&source)).is_err());
+    assert!(lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err());
 }
 
 #[test]
@@ -381,7 +384,7 @@ fn constructed_field_snapshots_are_invalidated_at_their_destination() {
             }}"#
         );
         assert!(
-            lower_typed_trees(parse_typed_trees(&source)).is_err(),
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err(),
             "{write}"
         );
     }
@@ -398,7 +401,7 @@ fn disjoint_machine_field_updates_preserve_arrival_obligations() {
             state finish(&mut self) { }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -451,7 +454,7 @@ fn constructed_values_do_not_publish_snapshots_at_mutable_indices() {
         );
     }
     assert!(
-        lower_typed_trees(typed).is_err(),
+        lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
         "changing the index must not prove the newly selected row valid"
     );
 }

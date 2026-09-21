@@ -35,8 +35,11 @@ fn mixed_provider_fixture(parameter: bool) -> (CheckedTrees, Vec<ProviderPlan>) 
     .collect::<Vec<_>>();
     assert_eq!(plans.len(), 2);
     bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check mixed intrinsic and checked provider source");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check mixed intrinsic and checked provider source");
     if parameter {
         assert!(
             checked

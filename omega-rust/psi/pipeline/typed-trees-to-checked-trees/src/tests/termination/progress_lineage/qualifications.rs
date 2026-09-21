@@ -1,4 +1,5 @@
 //! Arrival membership is a live fact, independently of progress subject lineage.
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_lineage::PROGRESS_PROFILE;
 use crate::tests::termination::progress_lineage::checked;
@@ -20,7 +21,7 @@ fn source(body: &str) -> String {
 }
 
 fn reject(source: &str, target: &str) {
-    let Err(diagnostics) = lower_typed_trees(typed(source)) else {
+    let Err(diagnostics) = lower_typed_trees(typed(source), &CheckingRequest::settled()) else {
         panic!("missing live qualification must reject call {target}");
     };
     assert!(

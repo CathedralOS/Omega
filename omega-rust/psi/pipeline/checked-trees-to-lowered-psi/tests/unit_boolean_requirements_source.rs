@@ -11,8 +11,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {

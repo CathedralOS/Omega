@@ -6,6 +6,7 @@
 //! a moved endpoint, a prefix write, or a signed leaf each fails on its own
 //! terms.
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const MEMBER: &str = r#"
 data Bag { count: u64 [0..=9]; }
@@ -26,7 +27,7 @@ terminates by bag.count -> Nat::Descending in 0..=9;
 fn prove(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 

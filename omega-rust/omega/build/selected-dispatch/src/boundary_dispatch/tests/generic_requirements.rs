@@ -71,8 +71,11 @@ fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check generic-requirement fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check generic-requirement fixture");
     (checked, plans)
 }
 
@@ -174,8 +177,11 @@ fn ineligible_rows_skip_adapter_resolution() {
     let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![selected])
         .expect("select mutated generic plan");
     bind_fixture_fused_service_erasures(&mut typed, &selected);
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check generic-ineligible fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check generic-ineligible fixture");
     let mut settled = Arc::new(checked);
     let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
         .expect_err("the ineligible requirement is excluded before realization checks");

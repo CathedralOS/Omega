@@ -519,8 +519,11 @@ fn concrete_task_start_fixture() -> (
         &[provider_plans[0].name.clone()],
     )
     .expect("select complete TaskRuntime provider");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check and specialize task start");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check and specialize task start");
 
     (checked, selected, provider_plans)
 }
@@ -622,8 +625,11 @@ fn nested_task_call_fixture() -> (
         &[provider_plans[0].name.clone()],
     )
     .expect("select complete TaskRuntime provider");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check and specialize nested task call");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check and specialize nested task call");
 
     (checked, selected, provider_plans)
 }

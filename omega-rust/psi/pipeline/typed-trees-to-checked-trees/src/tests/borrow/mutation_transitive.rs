@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::tests::StateMutationSummaryCache;
@@ -66,8 +67,8 @@ fn shared_statement_resolver_preserves_aliases_across_binding_replacement() {
         );
         assert_eq!(writes, fresh[statement_index], "prefix {statement_index}");
     }
-    let checked =
-        lower_typed_trees(program).expect("a call-free body still resolves assignment aliases");
+    let checked = lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("a call-free body still resolves assignment aliases");
     assert!(checked.facts.borrow.calls.is_empty());
 }
 

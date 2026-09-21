@@ -40,8 +40,11 @@ fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Provid
             plans.len()
         )
     };
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check fixed-token checked-adapter fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check fixed-token checked-adapter fixture");
     assert!(
         checked.facts.operators.named_uses.is_empty(),
         "the fixture must exercise only spelled operator custody"
@@ -216,8 +219,11 @@ fn self_spelling_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Prov
             plans.len()
         )
     };
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check self-spelling checked-adapter fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check self-spelling checked-adapter fixture");
     (checked, plan.clone())
 }
 

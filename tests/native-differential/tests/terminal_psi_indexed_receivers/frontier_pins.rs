@@ -17,7 +17,10 @@ fn checked_error(source: &str) -> String {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    match typed_trees_to_checked_trees::lower_typed_trees(typed) {
+    match typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) {
         Ok(_) => panic!("expected a checking rejection"),
         Err(error) => format!("{error:?}"),
     }
@@ -34,7 +37,11 @@ fn production_error(source: &str, entry: &str) -> String {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     match terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact() {
         Ok(_) => panic!("{entry}: expected the production frontier, got an artifact"),
         Err(error) => format!("{error:?}"),

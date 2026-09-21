@@ -7,6 +7,7 @@ use super::{
     lower_typed_trees, parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 const MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -201,7 +202,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
     let syntax = parse_syntax_trees(&tokens).expect("parse shared integer-comparison convergence");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve shared integer convergence");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type shared integer convergence");
-    let checked = lower_typed_trees(typed).expect("check shared integer convergence");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check shared integer convergence");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
         .expect("shared integer-comparison convergence lowers");
     let entry = lowered

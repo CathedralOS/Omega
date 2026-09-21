@@ -138,7 +138,8 @@ fn assert_conflict(source: &str) {
     let syntax = parse_syntax_trees(&tokens).expect("parse call control");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve call control");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type call control");
-    let diagnostics = crate::lower_typed_trees(typed).expect_err("unproven separation rejects");
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("unproven separation rejects");
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("while local borrow")
@@ -374,7 +375,8 @@ fn borrow_compatibility_does_not_discharge_callee_preconditions_or_false_guarant
         let syntax = parse_syntax_trees(&tokens).expect("parse unproved contract");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve unproved contract");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type unproved contract");
-        let diagnostics = crate::lower_typed_trees(typed).expect_err("contracts remain obligatory");
+        let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect_err("contracts remain obligatory");
         assert!(
             diagnostics
                 .iter()

@@ -3,6 +3,7 @@
 //! proving membership, pinning and descent exactly as the direct owned-field
 //! route does.
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const NESTED: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -112,7 +113,7 @@ fn nested_projection_relation_checks_through_complete_lowering() {
     for source in [NESTED, NESTED_LIMIT, BORROWED] {
         crate::checks::termination::check_machine_termination(&typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-        lower_typed_trees(typed(source))
+        lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
@@ -295,7 +296,7 @@ fn projected_slice_length_relation_checks_through_complete_lowering() {
     ] {
         crate::checks::termination::check_machine_termination(&typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
-        lower_typed_trees(typed(source))
+        lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }

@@ -35,7 +35,11 @@ const IDENTITY_CALL: &str = "data Value { number: u64; }
     machine Main::caller(value: Value) { let result: Value = forward(value); }";
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    typed_trees_to_checked_trees::lower_typed_trees(typed(source)).expect("check")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check")
 }
 
 fn typed(source: &str) -> typed_trees::TypedTrees {

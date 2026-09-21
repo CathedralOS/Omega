@@ -20,7 +20,11 @@ fn checked_siblings() -> checked_trees::CheckedTrees {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check sibling operands")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check sibling operands")
 }
 
 #[test]

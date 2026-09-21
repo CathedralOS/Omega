@@ -874,8 +874,11 @@ mod tests {
         .expect("resolved");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("typed");
-        let checked =
-            typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked closure");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("checked closure");
         let program = &checked.typed;
         let machine = program
             .machines()

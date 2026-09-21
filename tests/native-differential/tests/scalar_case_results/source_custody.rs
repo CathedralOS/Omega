@@ -18,7 +18,11 @@ fn nested_record_replay_rejects_effectful_operand_and_projected_local_substituti
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let machine = checked
         .machines()
         .iter()
@@ -200,7 +204,10 @@ fn projected_shared_receiver_rejects_overlapping_mutable_field_actual() {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(typed) {
+    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) {
         Ok(_) => panic!("projected shared receiver cannot overlap an exclusive field argument"),
         Err(diagnostics) => diagnostics,
     };
@@ -229,8 +236,11 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("valid projected shared getter source");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("valid projected shared getter source");
     for entry in ["distinct_roots", "projected"] {
         let _artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
             .produce_artifact()
@@ -378,8 +388,11 @@ fn local_record_getter_replay_rejects_substituted_receiver_custody() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("valid local getter source");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("valid local getter source");
     let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
         .produce_artifact()
         .expect("unchanged receiver custody independently replays");

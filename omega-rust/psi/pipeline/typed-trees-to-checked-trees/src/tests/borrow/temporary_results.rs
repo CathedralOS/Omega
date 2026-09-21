@@ -10,7 +10,7 @@ fn check(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(typed).map(|_| ())
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).map(|_| ())
 }
 
 #[test]

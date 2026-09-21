@@ -10,6 +10,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecutionResult {
@@ -17,8 +18,8 @@ fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecution
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked =
-        lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantics = encode_module(&lowered.semantic_module).expect("canonical semantic bytes");

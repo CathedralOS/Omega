@@ -804,7 +804,11 @@ mod tests {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
+        typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap()
     }
 
     /// Production lowering runs the correspondence retention route: the batch

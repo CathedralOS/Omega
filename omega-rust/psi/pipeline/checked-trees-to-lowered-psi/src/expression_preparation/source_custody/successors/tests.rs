@@ -34,8 +34,11 @@ fn fixture(copyable: bool, ranked: bool) -> CheckedTrees {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|diagnostics| panic!("checked mixed successor: {diagnostics:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("checked mixed successor: {diagnostics:#?}"))
 }
 
 fn successor(checked: &CheckedTrees) -> (SymbolHandle, CheckedScalarSuccessor) {

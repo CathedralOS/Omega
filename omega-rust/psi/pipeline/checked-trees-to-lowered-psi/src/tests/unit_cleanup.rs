@@ -16,6 +16,7 @@ use checked_trees::{
 use terminal_psi::{
     OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeShape, Terminator,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
         data Token {}
@@ -27,7 +28,7 @@ fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
@@ -41,7 +42,7 @@ fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 #[test]
@@ -410,7 +411,7 @@ fn partial_affine_unit_checked_fixture() -> CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn nested_partial_affine_unit_checked_fixture() -> CheckedTrees {
@@ -432,7 +433,7 @@ fn nested_partial_affine_unit_checked_fixture() -> CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 #[test]

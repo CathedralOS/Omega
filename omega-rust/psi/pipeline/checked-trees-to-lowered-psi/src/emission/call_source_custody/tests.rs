@@ -20,6 +20,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -27,7 +28,8 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 /// The carrier path of the one field store that reads the one emitted call's
@@ -145,7 +147,7 @@ fn same_statement_field_store_still_refuses_an_unproved_bounded_destination() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(diagnostics) = lower_typed_trees(typed) else {
+    let Err(diagnostics) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("a call result with no range evidence cannot land in a bounded field");
     };
     assert!(

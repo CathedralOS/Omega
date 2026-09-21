@@ -1,4 +1,5 @@
 use super::TerminationGuarantee;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::typed_source;
@@ -238,7 +239,7 @@ fn earlier_operand_writes_distinguish_counter_and_scheduler_qualifications() {
                 ["Carrier::context", "Context::scheduler"]
             );
         } else {
-            let diagnostics = lower_typed_trees(typed_source(&source))
+            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
                 .expect_err("an earlier scheduler write retires the qualification");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic

@@ -339,7 +339,7 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        crate::lower_typed_trees(typed).expect("check")
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check")
     }
 
     fn machine_named<'a>(program: &'a TypedTrees, name: &str) -> &'a Machine {
@@ -558,7 +558,8 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let Err(diagnostics) = crate::lower_typed_trees(typed) else {
+        let Err(diagnostics) = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        else {
             panic!("an invalid authored declaration must fail checking");
         };
         assert!(

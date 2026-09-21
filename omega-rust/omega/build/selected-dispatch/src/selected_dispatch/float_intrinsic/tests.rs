@@ -100,8 +100,11 @@ fn fixture() -> Fixture {
         .find(|plan| plan.schema.trait_name.contains("I32::from_f64"))
         .expect("I32::from_f64 provider plan")
         .clone();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check named-float dispatch fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check named-float dispatch fixture");
     let operator_use = checked
         .facts
         .operators

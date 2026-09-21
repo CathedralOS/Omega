@@ -26,9 +26,11 @@ fn completed_call_tag_guarantee_establishes_a_later_premise() {
              let known: Tree = make(true);\n\
              transition {{ _ -> (selected(known, known)) }} }}"
     );
-    crate::lower_typed_trees(parse_typed_trees(&source)).expect(
-        "a completed call contributes its checked tag guarantee without unfolding its body",
-    );
+    crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("a completed call contributes its checked tag guarantee without unfolding its body");
 }
 
 #[test]
@@ -44,8 +46,11 @@ fn completed_result_can_be_matched_before_a_later_call() {
                  Tree::Node {{ child }} -> child\n\
              }} }}"
     );
-    crate::lower_typed_trees(parse_typed_trees(&source))
-        .expect("matching a completed value refines the selected branch");
+    crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("matching a completed value refines the selected branch");
 }
 
 #[test]
@@ -63,7 +68,10 @@ fn case_citation_keeps_result_identity_through_named_states() {
                  transition {{ _ -> next({arguments}) }}\n\
                  state next(left: Tree, right: Tree) -> Tree {{ transition {{ _ -> (selected(left, right)) }} }} }}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
     }
 }
@@ -76,9 +84,12 @@ fn returned_case_cannot_replace_a_parameter_named_result() {
         requires value in Tree::Empty; ensures result in Tree::Empty;\n\
         terminates; {{ value }}"
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("the result parameter is unrelated to the returned value");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("the result parameter is unrelated to the returned value");
     assert!(
         diagnostics
             .iter()
@@ -102,9 +113,12 @@ fn returned_value_cannot_rebind_result_inside_compound_postconditions() {
                 "{CASE_RESTRICTED}\n\
                 machine bad(result: Tree, choice: Tree) -> Tree ensures {fact}; terminates; {{ {body} }}"
             );
-            let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-                .map(|_| ())
-                .expect_err("compound postconditions retain the input result binder");
+            let diagnostics = crate::lower_typed_trees(
+                parse_typed_trees(&source),
+                &crate::CheckingRequest::settled(),
+            )
+            .map(|_| ())
+            .expect_err("compound postconditions retain the input result binder");
             assert!(
                 diagnostics
                     .iter()
@@ -127,8 +141,11 @@ fn result_parameter_keeps_its_own_hypothesis_when_returned_value_differs() {
         requires result in Tree::Empty; ensures (result in Tree::Empty) && (true == true);\n\
         terminates; {{ {body} }}"
         );
-        crate::lower_typed_trees(parse_typed_trees(&source))
-            .expect("the guarantee constrains the parameter, not the returned Node");
+        crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        )
+        .expect("the guarantee constrains the parameter, not the returned Node");
     }
 }
 
@@ -143,7 +160,10 @@ fn case_citation_requires_preexisting_evidence() {
                  let known: Tree = forward(value);\n\
                  transition {{ _ -> (selected(known, known)) }} }}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
     }
 }
@@ -160,9 +180,12 @@ fn case_citation_does_not_imply_zero_common_fields() {
             transition { _ -> (zero_only(known)) }
         }
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("a case guarantee supplies no common-field equation");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("a case guarantee supplies no common-field equation");
     assert!(
         diagnostics
             .iter()
@@ -182,9 +205,12 @@ fn case_citation_does_not_make_conditional_guarantees_unconditional() {
              let known: Tree = make();\n\
              transition {{ _ -> (selected(known, known)) }} }}"
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("a conditional Empty guarantee cannot establish Empty after a Node return");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("a conditional Empty guarantee cannot establish Empty after a Node return");
     assert!(
         diagnostics
             .iter()
@@ -209,9 +235,12 @@ fn case_citation_cannot_borrow_an_unrelated_same_spelled_field() {
             transition { _ -> (gate(known)) }
         }
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("the caller's field premise is not a fact about the completed result");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("the caller's field premise is not a fact about the completed result");
     assert!(
         diagnostics
             .iter()
@@ -231,7 +260,10 @@ fn case_premise_ignores_common_field_values() {
             "{CASE_RESTRICTED} machine caller()\n\
              ensures selected(Tree::Empty, {argument}) == selected(Tree::Empty, {argument}); {{}}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{argument}: {:?}", result.err());
     }
 }
@@ -244,7 +276,10 @@ fn case_premise_substitutes_only_the_selected_subject() {
              requires value in Tree::Empty;\n\
              ensures selected({arguments}) == selected({arguments}); {{}}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
     }
 }
@@ -257,9 +292,12 @@ fn case_premise_cannot_use_a_current_or_later_fact() {
         "ensures value in Tree::Empty; ensures selected(value, value) == selected(value, value);",
     ] {
         let source = format!("{CASE_RESTRICTED} machine caller(value: Tree) {contracts} {{}}");
-        let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-            .map(|_| ())
-            .expect_err("case premises need independently formed prior evidence");
+        let diagnostics = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        )
+        .map(|_| ())
+        .expect_err("case premises need independently formed prior evidence");
         assert!(
             diagnostics
                 .iter()
@@ -280,7 +318,10 @@ fn case_premise_keeps_exact_state_binders() {
                state next(value: Tree) {premise}\n\
                requires selected(value, value) == selected(value, value); {{}} }}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
     }
 }
@@ -295,7 +336,10 @@ fn case_premise_survives_ordinary_call_state_forwarding() {
                state next(unknown: Tree, known: Tree) -> Tree {{\n\
                  transition {{ _ -> (selected(unknown, known)) }} }} }}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
     }
 }
@@ -311,7 +355,10 @@ fn case_premise_classifies_payloads_without_equating_them() {
              machine node(value: Tree) -> Tree requires value in Tree::Node; terminates; {{ value }}\n\
              machine caller() ensures node({argument}) == node({argument}); {{}}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{argument}: {:?}", result.err());
     }
 }
@@ -334,7 +381,10 @@ fn case_premise_environment_preserves_local_projection_origin() {
                      let candidate: Tree = holder.tree;\n\
                      {body} }}"
             );
-            let result = crate::lower_typed_trees(parse_typed_trees(&source));
+            let result = crate::lower_typed_trees(
+                parse_typed_trees(&source),
+                &crate::CheckingRequest::settled(),
+            );
             assert_eq!(
                 result.is_ok(),
                 accepted,
@@ -363,7 +413,10 @@ fn contract_only_application_establishes_its_selected_premise() {
             ensures restricted(value) == restricted(value);
             {{}}"
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
     }
 }
@@ -376,9 +429,12 @@ fn contract_call_cannot_use_its_own_fact_or_a_later_fact() {
         "ensures value == Nat::Zero; ensures restricted(value) == restricted(value);",
     ] {
         let source = format!("{RESTRICTED} machine caller(value: Nat) {contracts} {{}}");
-        let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-            .map(|_| ())
-            .expect_err("formation cannot assume the current or a future fact");
+        let diagnostics = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        )
+        .map(|_| ())
+        .expect_err("formation cannot assume the current or a future fact");
         assert!(
             diagnostics
                 .iter()
@@ -398,9 +454,12 @@ fn nested_contract_call_checks_the_inner_application_first() {
         {{}}
     "#
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("a total outer call does not make its partial operand total");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("a total outer call does not make its partial operand total");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -425,7 +484,10 @@ fn contract_call_substitutes_the_selected_argument_position() {
             {{}}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
     }
 }
@@ -445,7 +507,10 @@ fn scalar_contract_call_requires_positive_arithmetic_evidence() {
             {{}}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
     }
 }
@@ -459,9 +524,12 @@ fn recursive_contract_cannot_license_its_own_application() {
         terminates;
         { value }
     "#;
-    crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("a cyclic formation dependency is not a proof of totality");
+    crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("a cyclic formation dependency is not a proof of totality");
 }
 
 #[test]
@@ -477,9 +545,12 @@ fn mutually_dependent_contracts_do_not_establish_formation() {
         terminates;
         { value }
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("mutual formation assumptions are circular");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("mutual formation assumptions are circular");
     assert!(
         diagnostics
             .iter()
@@ -504,7 +575,10 @@ fn qualified_contract_calls_keep_their_actual_argument_roster() {
             {{}}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
     }
 }
@@ -526,7 +600,10 @@ fn state_contracts_do_not_confuse_shadowed_parameters() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
     }
 }
@@ -540,8 +617,11 @@ fn contract_call_on_a_closed_satisfying_argument_needs_no_hypothesis() {
         {{}}
     "#
     );
-    crate::lower_typed_trees(parse_typed_trees(&source))
-        .expect("closed arguments can establish their own selected premises");
+    crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("closed arguments can establish their own selected premises");
 }
 
 #[test]
@@ -556,8 +636,11 @@ fn internal_state_specification_call_does_not_inherit_entry_requires() {
             state independent(value: Nat) -> Nat { value }
         }
     "#;
-    crate::lower_typed_trees(parse_typed_trees(source))
-        .expect("selected state entry owes its own requirements, not its machine's initial entry");
+    crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("selected state entry owes its own requirements, not its machine's initial entry");
 }
 
 #[test]
@@ -574,9 +657,12 @@ fn opaque_receiver_call_cannot_hide_a_changed_requirement_argument() {
         requires selected(object, other, evidence) == selected(object, other, evidence);
         {}
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("opaque display text cannot implement parameter substitution");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("opaque display text cannot implement parameter substitution");
     assert!(
         diagnostics
             .iter()
@@ -599,9 +685,12 @@ fn application_unfolding_cannot_erase_different_arguments() {
         requires restricted(false, true) == restricted(false, true);
         {}
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("normalizing distinct applications to identical display text is not evidence");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("normalizing distinct applications to identical display text is not evidence");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -623,15 +712,21 @@ fn omitted_constructor_fields_do_not_prove_equality_to_nonzero_fields() {
             == restricted(Tree::Node { child: Tree::Empty }, Tree::Node { child: Tree::Empty, flag: true });
         {}
     "#;
-    crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("omitted flag is zero, not equal to an explicitly true flag");
+    crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("omitted flag is zero, not equal to an explicitly true flag");
     for (flag, accepted) in [("false", false), ("true", true)] {
         let complete = source.replace(
             "Tree::Node { child: Tree::Empty }",
             &format!("Tree::Node {{ child: Tree::Empty, flag: {flag} }}"),
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&complete));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&complete),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{flag}: {:?}", result.err());
     }
 }
@@ -649,8 +744,11 @@ fn omitted_constructor_runtime_field_establishes_its_zero_value() {
             == restricted(Tree::Node { child: Tree::Empty }, Tree::Node { child: Tree::Empty, flag: false });
         {}
     "#;
-    crate::lower_typed_trees(parse_typed_trees(source))
-        .expect("the omitted runtime bool field denotes false");
+    crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("the omitted runtime bool field denotes false");
 }
 
 #[test]
@@ -664,7 +762,10 @@ fn constructor_body_guarantees_compare_omitted_runtime_fields() {
             {{ transition {{ _ -> Tree::Node {{ child: Tree::Empty }} }} }}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{flag}: {:?}", result.err());
     }
 }
@@ -711,7 +812,10 @@ fn constructor_zero_fields_compose_in_common_nested_and_integer_positions() {
                     {{}}
                 "#
                 );
-                let result = crate::lower_typed_trees(parse_typed_trees(&source));
+                let result = crate::lower_typed_trees(
+                    parse_typed_trees(&source),
+                    &crate::CheckingRequest::settled(),
+                );
                 assert_eq!(
                     result.is_ok(),
                     accepted,
@@ -727,7 +831,10 @@ fn constructor_zero_fields_compose_in_common_nested_and_integer_positions() {
                 {{ transition {{ _ -> {omitted} }} }}
             "#
             );
-            let result = crate::lower_typed_trees(parse_typed_trees(&source));
+            let result = crate::lower_typed_trees(
+                parse_typed_trees(&source),
+                &crate::CheckingRequest::settled(),
+            );
             assert_eq!(
                 result.is_ok(),
                 accepted,
@@ -749,7 +856,10 @@ fn zero_value_case_observation_keeps_common_fields_distinct_from_the_tag() {
         {{}}
     "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(
             result.is_ok(),
             accepted,
@@ -768,7 +878,10 @@ fn zero_value_case_observation_keeps_common_fields_distinct_from_the_tag() {
             {{}}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{ready}: {:?}", result.err());
     }
 }
@@ -787,7 +900,10 @@ fn membership_guarantees_do_not_fix_the_returned_common_fields() {
             {{}}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{other}: {:?}", result.err());
     }
 }
@@ -816,7 +932,10 @@ fn nested_first_case_defaults_must_establish_their_predicate() {
             {{}}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{condition}: {:?}", result.err());
     }
 }
@@ -830,9 +949,12 @@ fn case_membership_requires_does_not_establish_zero_common_fields() {
         ensures value == Tree::Empty;
         {}
     "#;
-    crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("a tag hypothesis says nothing about common fields");
+    crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("a tag hypothesis says nothing about common fields");
 }
 
 #[test]
@@ -856,7 +978,10 @@ fn case_matching_preserves_common_field_values_without_zeroing_them() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(
             result.is_ok(),
             accepted,
@@ -881,9 +1006,12 @@ fn omitted_constructor_fields_do_not_invent_proof_inhabitants_or_gated_values() 
             {{}}
         "#
         );
-        crate::lower_typed_trees(parse_typed_trees(&source))
-            .map(|_| ())
-            .expect_err("omission cannot manufacture an established value or erased proof");
+        crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        )
+        .map(|_| ())
+        .expect_err("omission cannot manufacture an established value or erased proof");
     }
 }
 
@@ -893,9 +1021,12 @@ fn mathematical_value_call_requires_established_premises() {
         "{RESTRICTED}
         machine caller(value: Nat) -> Nat terminates; {{ restricted(value) }}"
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("an unknown precondition prevents mathematical call formation");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("an unknown precondition prevents mathematical call formation");
     assert!(
         diagnostics
             .iter()
@@ -914,8 +1045,11 @@ fn mathematical_value_call_accepts_the_exact_caller_premise() {
         terminates;
         {{ restricted(value) }}"
     );
-    crate::lower_typed_trees(parse_typed_trees(&source))
-        .expect("exact caller premise establishes the call");
+    crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("exact caller premise establishes the call");
 }
 
 #[test]
@@ -945,8 +1079,11 @@ fn recursive_call_establishes_the_premise_at_the_smaller_arguments() {
             }
         }
     "#;
-    crate::lower_typed_trees(parse_typed_trees(source))
-        .expect("constructor injectivity establishes the exact recursive premise");
+    crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("constructor injectivity establishes the exact recursive premise");
 }
 
 #[test]
@@ -965,7 +1102,10 @@ fn state_forwarding_preserves_the_actual_premise_subject() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{argument}: {:?}", result.err());
     }
 }
@@ -985,7 +1125,10 @@ fn branch_premise_covers_only_its_reaching_path() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{other_arm}: {:?}", result.err());
     }
 }
@@ -1004,9 +1147,12 @@ fn later_case_refinement_cannot_establish_an_earlier_call() {
         }}
     "#
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("later case refinement is unavailable at call entry");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("later case refinement is unavailable at call entry");
     assert!(
         diagnostics
             .iter()
@@ -1022,9 +1168,12 @@ fn discarded_mathematical_call_still_owes_its_premise() {
         {{ _ = restricted(value); }}
     "#
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("discarding a result cannot waive the selected contract");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("discarding a result cannot waive the selected contract");
     assert!(
         diagnostics
             .iter()
@@ -1041,9 +1190,12 @@ fn satisfied_premise_does_not_replace_recursive_descent() {
         terminates by value;
         { transition { _ -> (forever(value)) } }
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("exact premises cannot justify an unchanged recursive argument");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("exact premises cannot justify an unchanged recursive argument");
     assert!(
         diagnostics
             .iter()
@@ -1065,9 +1217,12 @@ fn descending_call_still_establishes_its_own_premise() {
             }
         }
     "#;
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
-        .map(|_| ())
-        .expect_err("the predecessor may be Zero despite structural descent");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("the predecessor may be Zero despite structural descent");
     assert!(
         diagnostics
             .iter()
@@ -1090,8 +1245,11 @@ fn earlier_citation_supplies_only_its_established_guarantees() {
         }}
     "#
     );
-    crate::lower_typed_trees(parse_typed_trees(&source))
-        .expect("the completed constant call establishes its result's premise");
+    crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("the completed constant call establishes its result's premise");
 }
 
 #[test]
@@ -1109,9 +1267,12 @@ fn later_state_reentry_cannot_reuse_the_first_arrivals_premise() {
         }}
     "#
     );
-    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
-        .map(|_| ())
-        .expect_err("later arrivals do not preserve the first Zero argument");
+    let diagnostics = crate::lower_typed_trees(
+        parse_typed_trees(&source),
+        &crate::CheckingRequest::settled(),
+    )
+    .map(|_| ())
+    .expect_err("later arrivals do not preserve the first Zero argument");
     assert!(
         diagnostics
             .iter()
@@ -1165,7 +1326,7 @@ fn guard_call_is_checked_before_its_result_refinement() {
         guards > 0,
         "the call is evaluated in the guard, not its selected target"
     );
-    let diagnostics = crate::lower_typed_trees(typed)
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .map(|_| ())
         .expect_err("guard requires is unestablished");
     assert!(

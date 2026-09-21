@@ -13,8 +13,11 @@ fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check sourced dispatch fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check sourced dispatch fixture");
     (checked, plans)
 }
 

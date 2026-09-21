@@ -1,8 +1,10 @@
 //! Typed trees to checked trees.
 //!
-//! Start at `checking.rs` for specialization, validation, and plan construction;
-//! it also owns the open-index normalization and static machine-call
-//! specialization steps that package orchestration reuses on typed snapshots.
+//! Start at `checking.rs`: `lower_typed_trees` is the crate's one lowering
+//! entrance, and a `CheckingRequest` names the package checkpoint and carries
+//! the settled selections. It also owns the open-index normalization and
+//! static machine-call specialization steps that package orchestration reuses
+//! on typed snapshots.
 //! `execution::selected_execution` owns rebuilding plans after provider
 //! settlement; `execution::finalize_execution` owns initial plan completion.
 //! Executable builders live under execution, separately from temporal flow.
@@ -53,10 +55,9 @@ mod product_pruning;
 mod values;
 
 pub use checking::{
-    SelectedBoundaryFamilySpecialization, SelectedGenericOperatorProviderSpecialization,
-    lower_preliminary_typed_trees, lower_typed_trees,
-    lower_typed_trees_with_selected_generic_operator_providers, normalize_open_index_identities,
-    specialize_static_machine_calls,
+    CheckingRequest, SelectedBoundaryFamilySpecialization,
+    SelectedGenericOperatorProviderSpecialization, lower_typed_trees,
+    normalize_open_index_identities, specialize_static_machine_calls,
 };
 pub use execution::selected_execution::{
     SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,

@@ -27,7 +27,7 @@ fn mutable_root_cannot_widen_its_write_only_child() {
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            crate::lower_typed_trees(typed).is_err(),
+            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).is_err(),
             "write-only parent to {access}"
         );
     }

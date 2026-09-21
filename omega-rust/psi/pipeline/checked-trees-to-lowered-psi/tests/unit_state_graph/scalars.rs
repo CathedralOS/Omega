@@ -189,8 +189,11 @@ fn selected_head_read_uses_the_actual_view_length_and_skips_empty_bytes() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let error = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("a selected edge alone does not prove the head is in bounds");
+    let error = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a selected edge alone does not prove the head is in bounds");
     assert!(
         format!("{error:?}").contains("cannot prove index"),
         "{error:?}"

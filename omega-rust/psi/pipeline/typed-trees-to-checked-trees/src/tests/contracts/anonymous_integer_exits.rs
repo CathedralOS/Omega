@@ -1,10 +1,11 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 fn check_expression(expression: &str, target: &str, expected: &str, accepted: bool) {
     let source =
         format!("machine value() -> {target}\nensures result == {expected}\n{{ {expression} }}");
-    match lower_typed_trees(parse_typed_trees(&source)) {
+    match lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved anonymous return accepted: {source}"),
         Err(diagnostics) => assert!(!accepted, "{diagnostics:#?}\n{source}"),
     }
@@ -53,7 +54,7 @@ fn guarded_return_values_land_at_the_declared_destination() {
                 if combined {
                     combine_return_arms(&mut program);
                 }
-                let result = lower_typed_trees(program);
+                let result = lower_typed_trees(program, &CheckingRequest::settled());
                 assert_eq!(
                     result.is_ok(),
                     accepted,
@@ -72,7 +73,7 @@ fn guarded_scalar_returns_read_current_storage_and_keep_saved_values() {
         if combined {
             combine_return_arms(&mut program);
         }
-        lower_typed_trees(program)
+        lower_typed_trees(program, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("combined={combined}: {source}: {diagnostics:?}"));
     }
 }
@@ -142,7 +143,7 @@ fn anonymous_local_initializers_land_without_widths_on_intermediate_values() {
             format!("let mut landed: {target} = 0; landed = {expression};"),
         ] {
             let source = format!("machine value() {{ {body} }}");
-            lower_typed_trees(parse_typed_trees(&source))
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
@@ -164,8 +165,9 @@ fn anonymous_local_landing_enforces_final_carrier_and_refinement_ranges() {
             format!("let mut landed: {target} = 0; landed = {expression};"),
         ] {
             let source = format!("machine value() {{ {body} }}");
-            let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-                .expect_err("a local destination cannot discard its numeric obligations");
+            let diagnostics =
+                lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                    .expect_err("a local destination cannot discard its numeric obligations");
             assert!(
                 diagnostics.iter().any(|diagnostic| {
                     diagnostic.message.contains("does not fit destination")

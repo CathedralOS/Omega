@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 
 const EXACT_SEVEN: [&str; 6] = [
     "7 / 2 * 2",
@@ -34,7 +35,7 @@ const MUTABLE_WINDOWS: [&str; 8] = [
 ];
 
 fn accepts(source: &str) {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
 }
 
@@ -42,7 +43,7 @@ fn rejects(source: &str, expected_fragments: &[&str]) {
     // Earlier syntax, resolution, or typing errors do not witness the checked
     // numeric, bounds, count, or permission contract under test.
     let typed = parse_typed_trees(source);
-    let diagnostics = match lower_typed_trees(typed) {
+    let diagnostics = match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => panic!("invalid window replacement accepted: {source}"),
         Err(diagnostics) => diagnostics,
     };

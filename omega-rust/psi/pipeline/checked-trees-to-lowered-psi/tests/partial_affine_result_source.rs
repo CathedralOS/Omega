@@ -15,6 +15,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, Terminator};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[path = "partial_affine_result_source/continuations.rs"]
@@ -222,7 +223,8 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 }
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
-    lower_typed_trees(typed(source)).unwrap_or_else(|errors| panic!("{source}\n{errors:#?}"))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
+        .unwrap_or_else(|errors| panic!("{source}\n{errors:#?}"))
 }
 
 fn source(boundary: bool, nested: bool, body: &str) -> String {
@@ -780,7 +782,7 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
             "let again: Pair = Root::forward(result); Sink::take(result.left);",
         ] {
             let source = source(boundary, false, body);
-            if let Ok(checked) = lower_typed_trees(typed(&source)) {
+            if let Ok(checked) = lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
                 assert!(
                     terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
                         .produce_artifact()

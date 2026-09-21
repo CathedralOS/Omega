@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -38,7 +39,7 @@ fn direct_crash_fallthrough_projects_immutable_entry_snapshots() {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed)
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("guard {guard}: {diagnostics:?}"));
         let plan = checked
             .facts
@@ -76,7 +77,8 @@ fn direct_crash_fallthrough_does_not_project_unproven_boolean_operands() {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let diagnostics = lower_typed_trees(typed).expect_err("route is not implied");
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect_err("route is not implied");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic
@@ -106,7 +108,8 @@ fn direct_crash_fallthrough_does_not_confuse_state_and_entry_parameters() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("distinct entry and state snapshots");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("distinct entry and state snapshots");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -124,7 +127,7 @@ fn check_fallthrough_coverage(
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn assert_covered_site(source: &str) {
@@ -415,7 +418,8 @@ fn crash_bucket_identity_includes_cause_routes_and_unconditional_presence() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let fingerprint = |name: &str| {
         let symbol = symbol_of_checked(&checked, name);
         checked
@@ -500,7 +504,8 @@ fn empty_record_equality_retains_existing_boolean_constant_carriers() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let scalar = |name: &str| {
         let contract = checked
             .facts
@@ -593,7 +598,8 @@ fn address_field_equality_stays_outside_structural_crash_predicates() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     for name in ["whole_equal", "field_equal"] {
         let contract = checked
             .facts
@@ -657,7 +663,8 @@ fn ieee_float_fields_retain_atomic_structural_equality() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let scalar = |name: &str| {
         let contract = checked
             .facts
@@ -746,7 +753,8 @@ fn byte_sequence_fields_retain_atomic_content_equality() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     for name in ["borrowed", "bounded"] {
         let contract = checked
@@ -816,7 +824,8 @@ fn payloadless_sum_equality_retains_closed_case_roster() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let expression = |name: &str| {
         let contract = checked
             .facts
@@ -920,7 +929,8 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let contract = checked
         .facts
         .contract_plans
@@ -1030,7 +1040,8 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     for name in ["equal", "different"] {
         let contract = checked
@@ -1151,7 +1162,8 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     for name in ["equal", "different"] {
         let contract = checked

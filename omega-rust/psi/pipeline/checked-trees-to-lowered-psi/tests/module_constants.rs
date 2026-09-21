@@ -11,6 +11,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -47,7 +48,8 @@ fn module_constants_publish_exact_values_without_producer_state() {
     })
     .expect("resolve module constants");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type substituted module values");
-    let checked = lower_typed_trees(typed).expect("check substituted module values");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check substituted module values");
     let mut artifacts = Vec::new();
     for (qualified, expected) in [
         ("combat::value", 7u128),

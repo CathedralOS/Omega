@@ -24,6 +24,7 @@ use terminal_psi_to_abstract_operations::{
 };
 use terminal_verifier::ProofBundle;
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn straight_line_console_source(write_count: usize, exit_status: i32) -> String {
@@ -143,7 +144,7 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     })
     .expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
-    let checked = lower_typed_trees(typed).expect("check O1 source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check O1 source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .expect("lower O1 source to terminal Psi");
     (

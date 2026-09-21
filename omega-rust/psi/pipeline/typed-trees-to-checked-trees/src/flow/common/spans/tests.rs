@@ -31,7 +31,8 @@ fn repeated_call_checking_retains_shared_context_storage() {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = crate::lower_typed_trees(typed).expect("check repeated calls");
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("check repeated calls");
     let flow = &checked.facts.flow;
     assert_eq!(flow.control.calls.len(), 64);
     let selected_context_rows: usize = flow

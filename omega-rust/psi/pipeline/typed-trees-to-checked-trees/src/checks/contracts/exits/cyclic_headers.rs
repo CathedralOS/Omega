@@ -1009,12 +1009,16 @@ fn is_unsigned(primitive: PrimitiveType) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::CheckingRequest;
     use crate::lower_typed_trees;
 
     fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-        lower_typed_trees(crate::tests::parse_typed_trees_with_core_service(&format!(
-            "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"
-        )))
+        lower_typed_trees(
+            crate::tests::parse_typed_trees_with_core_service(&format!(
+                "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"
+            )),
+            &CheckingRequest::settled(),
+        )
     }
 
     /// A named cyclic state as its own header: the carried `p` relates the

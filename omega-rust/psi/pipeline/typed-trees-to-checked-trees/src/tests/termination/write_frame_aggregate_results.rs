@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -385,7 +386,8 @@ fn aggregate_helper_result_producer_writes_do_not_become_later_call_writes() {
         paths.dedup();
         assert_eq!(paths, expected, "{query}");
     }
-    lower_typed_trees(program).expect("audited result has an explicit retained input lifetime");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("audited result has an explicit retained input lifetime");
 }
 
 #[test]
@@ -400,14 +402,17 @@ fn aggregate_helper_results_reach_checked_trees() {
         "let local: View = make_transition(&mut self.value); write_view(local);",
         "let local: Outer = Outer { inner: make_view(&mut self.value) }; write_outer(local);",
     ] {
-        lower_typed_trees(aggregate_result_program(body, "", "u64"))
-            .expect("aggregate result reaches checked trees");
+        lower_typed_trees(
+            aggregate_result_program(body, "", "u64"),
+            &CheckingRequest::settled(),
+        )
+        .expect("aggregate result reaches checked trees");
     }
     lower_typed_trees(aggregate_result_program(
         "let local: View = routed_view(&mut self.value); write_view(local);",
         "machine routed_view(value: &mut u64) -> View { transition { _ -> finish(value) } state finish(source: &mut u64) { View { body: source } } }",
         "u64",
-    ))
+    ), &CheckingRequest::settled())
     .expect("named-state aggregate result reaches checked trees");
 }
 
@@ -544,7 +549,8 @@ fn aggregate_helper_results_keep_independent_input_lifetimes_and_origins() {
         paths.dedup();
         assert_eq!(paths, expected);
     }
-    lower_typed_trees(program).expect("independent result lifetimes reach checked trees");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("independent result lifetimes reach checked trees");
 }
 
 #[test]
@@ -612,7 +618,8 @@ fn aggregate_helper_result_from_exclusive_self_retains_owned_field_origin() {
             .collect();
         assert_eq!(paths, vec!["self.cell.value"]);
     }
-    lower_typed_trees(program).expect("attached aggregate result reaches checked trees");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("attached aggregate result reaches checked trees");
 }
 
 #[test]

@@ -1,10 +1,11 @@
 use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees(typed_source(source))
+    lower_typed_trees(typed_source(source), &CheckingRequest::settled())
 }
 
 fn typed_source(source: &str) -> typed_trees::TypedTrees {

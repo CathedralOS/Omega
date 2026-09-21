@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
@@ -66,7 +67,8 @@ fn computed_reference_method_receiver_reaches_checked_trees() {
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("computed reference receiver keeps its selected input loan");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("computed reference receiver keeps its selected input loan");
 }
 
 #[test]

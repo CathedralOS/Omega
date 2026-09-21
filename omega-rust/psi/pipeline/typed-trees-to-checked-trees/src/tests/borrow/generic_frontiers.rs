@@ -145,7 +145,7 @@ fn concrete_decode_realization_and_call_are_checked_by_the_complete_pipeline() {
         }}
     "#
     );
-    crate::lower_typed_trees(typed_program(&source))
+    crate::lower_typed_trees(typed_program(&source), &crate::CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("closed implementation and call: {diagnostics:#?}"));
 }
 
@@ -179,7 +179,7 @@ fn a_non_template_incomplete_frontier_is_not_deferred() {
         declaration_lifetime_frontier(&program, result, &[]),
         DeclarationLifetimeFrontier::Incomplete
     );
-    let diagnostics = crate::lower_typed_trees(program)
+    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("ordinary unresolved shape is not a type template");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

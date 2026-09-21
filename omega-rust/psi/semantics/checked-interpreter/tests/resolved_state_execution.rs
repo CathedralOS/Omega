@@ -12,7 +12,11 @@ fn checked_program(source: &str) -> checked_trees::CheckedTrees {
     .expect("symbols");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("types");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked program")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked program")
 }
 
 #[test]

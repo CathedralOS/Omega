@@ -34,8 +34,9 @@ fn rendered(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
 
 #[test]
 fn ordinary_lowering_rejects_copyable_opaque_without_receipt() {
-    let diagnostics = crate::lower_typed_trees(typed(COPY_OPAQUE))
-        .expect_err("ordinary Psi lowering must not mint an opaque copy receipt");
+    let diagnostics =
+        crate::lower_typed_trees(typed(COPY_OPAQUE), &crate::CheckingRequest::settled())
+            .expect_err("ordinary Psi lowering must not mint an opaque copy receipt");
     assert!(rendered(diagnostics).contains("without an admitted property receipt"));
 }
 
@@ -43,11 +44,9 @@ fn ordinary_lowering_rejects_copyable_opaque_without_receipt() {
 fn exact_opaque_copy_receipt_is_consumed_once() {
     let program = typed(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
-    crate::lower_typed_trees_with_selected_generic_operator_providers(
+    crate::lower_typed_trees(
         program,
-        &[],
-        &[],
-        &[receipt],
+        &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),
     )
     .expect("the exact orchestration receipt should close opaque copy validation");
 }
@@ -56,22 +55,18 @@ fn exact_opaque_copy_receipt_is_consumed_once() {
 fn duplicate_and_wrong_declaration_receipts_reject() {
     let duplicate = typed(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&duplicate, "Token"));
-    let diagnostics = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let diagnostics = crate::lower_typed_trees(
         duplicate,
-        &[],
-        &[],
-        &[receipt, receipt],
+        &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt, receipt]),
     )
     .expect_err("duplicate opaque property receipts must reject");
     assert!(rendered(diagnostics).contains("repeat one exact declaration"));
 
     let wrong = typed(COPY_OPAQUE);
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&wrong, "Main"));
-    let diagnostics = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let diagnostics = crate::lower_typed_trees(
         wrong,
-        &[],
-        &[],
-        &[receipt],
+        &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),
     )
     .expect_err("a transparent declaration cannot receive an opaque property receipt");
     assert!(rendered(diagnostics).contains("targets non-opaque declaration"));
@@ -87,11 +82,9 @@ machine Main::main(&mut self) {}
 "#,
     );
     let receipt = validation::OpaqueDataPropertyReceipt::copy(data_symbol(&program, "Token"));
-    let diagnostics = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let diagnostics = crate::lower_typed_trees(
         program,
-        &[],
-        &[],
-        &[receipt],
+        &crate::CheckingRequest::settled().with_opaque_property_receipts(&[receipt]),
     )
     .expect_err("a copy receipt must match the declaration's exact property claim");
     assert!(rendered(diagnostics).contains("does not claim `[copy]`"));

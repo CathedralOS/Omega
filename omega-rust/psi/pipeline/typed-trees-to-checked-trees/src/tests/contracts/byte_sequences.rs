@@ -1,8 +1,9 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 fn check(source: &str, accepted: bool) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved indexed byte write accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -62,7 +63,7 @@ fn copied_byte_predicates_follow_materialized_storage() {
             ensures output.bytes in Ascii {{ {body} }}
             "#
         );
-        let result = lower_typed_trees(parse_typed_trees(&source));
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert_eq!(result.is_ok(), succeeds, "{body}: {result:#?}");
         if let Err(diagnostics) = result {
             assert!(
@@ -98,7 +99,7 @@ fn direct_computed_byte_stores_use_selected_arithmetic() {
             ensures output in Ascii {{ {body} }}
             "#
         );
-        let result = lower_typed_trees(parse_typed_trees(&source));
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert_eq!(
             result.is_ok(),
             succeeds,
@@ -189,7 +190,7 @@ fn computed_byte_stores_use_live_scalar_snapshots() {
             ensures output in Ascii {{ {body} }}
             "#
         );
-        let result = lower_typed_trees(parse_typed_trees(&source));
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert_eq!(result.is_ok(), succeeds, "{body}: {result:#?}");
         if let Err(diagnostics) = result {
             assert!(
@@ -222,7 +223,7 @@ fn dynamic_byte_stores_preserve_only_proved_carrier_predicates() {
             }}
             "#
         );
-        let result = lower_typed_trees(parse_typed_trees(&source));
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert_eq!(result.is_ok(), succeeds, "{predicate}/{byte}: {result:#?}");
         if let Err(diagnostics) = result {
             assert!(
@@ -252,7 +253,8 @@ fn concatenation_establishes_a_raw_output_from_nested_live_operands() {
         }}
         "#
     );
-    lower_typed_trees(parse_typed_trees(&source)).expect("nested concatenation establishes output");
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect("nested concatenation establishes output");
 }
 
 #[test]
@@ -268,7 +270,9 @@ fn concatenation_requires_every_operand_to_have_a_live_predicate() {
             ensures output in Utf8 {{ {body} }}
             "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(body);
         assert!(
             diagnostics
                 .iter()
@@ -290,7 +294,8 @@ fn concatenated_output_does_not_replay_a_later_source_mutation() {
         }}
         "#
     );
-    lower_typed_trees(parse_typed_trees(&source)).expect("copied bytes are independent of input");
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect("copied bytes are independent of input");
 }
 
 #[test]
@@ -308,7 +313,9 @@ fn concatenated_output_predicates_are_retired_by_destination_mutations() {
             ensures output in Utf8 {{ output = input.bytes + "!"; {mutation} }}
             "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(mutation);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(mutation);
         assert!(
             diagnostics
                 .iter()
@@ -327,7 +334,8 @@ fn concatenation_reads_the_prewrite_value_for_an_inplace_append() {
         ensures output in Utf8 {{ output = output + "!"; }}
         "#
     );
-    lower_typed_trees(parse_typed_trees(&source)).expect("in-place append reads the old value");
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect("in-place append reads the old value");
 }
 
 #[test]
@@ -452,8 +460,9 @@ fn declared_ranges_do_not_bound_mutably_borrowed_storage() {
             ensures output in Ascii {{ {body} }}
             "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("borrowed storage must not retain its declared range");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("borrowed storage must not retain its declared range");
         assert!(
             diagnostics
                 .iter()
@@ -644,7 +653,7 @@ fn concatenation_uses_the_shared_predicate_law_without_domain_names() {
             ensures output in OutputProperty {{ output = input + "{literal}"; }}
             "#
         );
-        let result = lower_typed_trees(parse_typed_trees(&source));
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert_eq!(
             result.is_ok(),
             succeeds,

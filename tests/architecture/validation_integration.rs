@@ -267,8 +267,11 @@ fn checked_progress_call_instantiates_and_covers_the_exact_public_subject() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("the selected call premise should match the authored public schema");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the selected call premise should match the authored public schema");
     let process = checked
         .machines()
         .iter()
@@ -314,8 +317,11 @@ fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("provider-receiver progress must remain a composition demand");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("provider-receiver progress must remain a composition demand");
     let process = checked
         .machines()
         .iter()
@@ -378,8 +384,11 @@ fn admitted_provider_receiver_receipt_removes_build_bound_demand() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("the exact local receipt should discharge provider progress");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the exact local receipt should discharge provider progress");
     let process = checked
         .machines()
         .iter()
@@ -423,8 +432,11 @@ fn checked_progress_call_rejects_an_unpublished_subject_dependency() {
         "#,
     );
 
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("a parameter qualification must not silently become a public progress schema");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a parameter qualification must not silently become a public progress schema");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -469,8 +481,11 @@ fn private_progress_dependencies_substitute_through_the_exact_helper_call() {
         "#,
     );
 
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("a private helper should forward its exact derived premise by position");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("a private helper should forward its exact derived premise by position");
 }
 
 #[test]
@@ -493,8 +508,11 @@ fn measured_entry_back_edge_retains_its_checked_termination_summary() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("the measured entry back-edge should validate");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the measured entry back-edge should validate");
     let countdown = checked
         .machines()
         .iter()
@@ -593,8 +611,11 @@ fn measured_entry_back_edge_retains_exact_progress_subject_lineage() {
         .expect("weak-fair progress profile")
         .semantic_id;
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("the measured entry back-edge should preserve its exact progress subject");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the measured entry back-edge should preserve its exact progress subject");
     let countdown = checked
         .machines()
         .iter()
@@ -625,9 +646,10 @@ fn measured_entry_back_edge_rejects_a_scheduler_consumed_by_the_wait_call() {
             "machine wait(scheduler: SchedulerHandle)",
         )
         .replace("runtime.wait(&scheduler);", "runtime.wait(scheduler);");
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed_program_from_source(
-        &source,
-    ))
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_program_from_source(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
     .expect_err(
         "a consuming wait cannot leave the affine scheduler available to the machine backedge",
     );
@@ -669,8 +691,11 @@ fn admitted_local_progress_receipt_discharges_the_selected_call_premise() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("the exact locally admitted receipt should discharge the wait premise");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the exact locally admitted receipt should discharge the wait premise");
     let process = checked
         .machines()
         .iter()
@@ -726,8 +751,11 @@ fn progress_subject_identity_threads_through_named_state_transitions() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("the transition should preserve the exact public progress subject");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the transition should preserve the exact public progress subject");
     let process = checked
         .machines()
         .iter()
@@ -788,8 +816,11 @@ fn progress_subject_alternatives_across_state_predecessors_remain_explicit() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("both exact predecessor subjects are covered by the public contract");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("both exact predecessor subjects are covered by the public contract");
     let process = checked
         .machines()
         .iter()
@@ -1148,8 +1179,11 @@ fn proposition_contract_requires_exact_normalized_application() {
         "#,
     );
 
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("a transparent alias must establish its normalized expansion");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("a transparent alias must establish its normalized expansion");
 }
 
 #[test]
@@ -1171,8 +1205,11 @@ fn proposition_contract_rejects_different_application() {
         "#,
     );
 
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("a different proposition argument tuple must not be accepted");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a different proposition argument tuple must not be accepted");
     assert!(diagnostics.iter().any(|diagnostic| {
         (diagnostic
             .message
@@ -1203,8 +1240,11 @@ fn transparent_boolean_proposition_normalizes_to_boolean_fact() {
         "#,
     );
 
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("a transparent Boolean proposition must normalize to its Boolean fact");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("a transparent Boolean proposition must normalize to its Boolean fact");
 }
 
 #[test]
@@ -1974,8 +2014,11 @@ fn local_dynamic_coercion_retains_one_complete_nominal_conformance() {
     );
 
     validate_program(&typed).expect("one complete conformance is selected uniquely");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("checked lowering retains the exact selection");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked lowering retains the exact selection");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
     };
@@ -2011,8 +2054,11 @@ fn local_dynamic_coercion_retains_closed_conformance_rows() {
     );
 
     validate_program(&typed).expect("the closed conformance should license local dyn selection");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("checked lowering should retain the selected row map");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked lowering should retain the selected row map");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
     };
@@ -2045,8 +2091,11 @@ fn local_dynamic_coercion_retains_an_instantiated_trait_default_row() {
     );
 
     validate_program(&typed).expect("the instantiated default row should validate");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("checked dyn facts should retain the instantiated default row");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked dyn facts should retain the instantiated default row");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
     };
@@ -2079,8 +2128,11 @@ fn local_dynamic_coercion_retains_each_result_overload_row() {
     );
 
     validate_program(&typed).expect("both exact overload rows should license dyn selection");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("checked dyn facts should retain both exact overload rows");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked dyn facts should retain both exact overload rows");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one dynamic conformance selection");
     };
@@ -2303,8 +2355,11 @@ fn named_local_dynamic_coercion_selects_one_exact_conformance() {
     );
 
     validate_program(&typed).expect("an exact named conformance resolves ambiguity");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("checked lowering retains the exact named selection");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked lowering retains the exact named selection");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one named dynamic conformance selection");
     };
@@ -2336,8 +2391,11 @@ fn dynamic_statement_call_retains_exact_inherited_requirement_symbol() {
         "#,
     );
 
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("an inherited dynamic requirement should resolve exactly");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("an inherited dynamic requirement should resolve exactly");
     let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
         panic!("one selected conformance");
     };
@@ -2421,8 +2479,11 @@ fn dynamic_call_rejects_ambiguous_inherited_requirement_spelling() {
         .expect("dynamic statement call");
     call.target_symbol = left_ping;
 
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("a provisional inherited symbol cannot resolve an ambiguous leaf spelling");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a provisional inherited symbol cannot resolve an ambiguous leaf spelling");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "dynamic call `Both::ping` is ambiguous across inherited requirements: Left::ping, Right::ping",
@@ -6720,8 +6781,11 @@ mod effects_analysis {
     }
 
     fn lower_checked_calls(source: &str) -> (TypedTrees, Vec<BoundaryCallCoordinate>) {
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(lower(source))
-            .expect("checked lowering");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            lower(source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("checked lowering");
         let flow = &checked.facts.flow.control;
         let mut calls = Vec::new();
         for (_, state) in flow.states.iter() {

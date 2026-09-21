@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
@@ -102,7 +103,7 @@ fn direct_exclusive_results_keep_identity_separate_from_helper_writes() {
         if preserved {
             assert_input_premise(&check_source(&source));
         } else {
-            let diagnostics = lower_typed_trees(typed_source(&source))
+            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
                 .expect_err("returning the reference cannot restore a changed qualification");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic
@@ -124,5 +125,6 @@ fn raw_exclusive_member_results_forward_the_declared_reference_type() {
     );
     let program = typed_source(&source);
     adversarial::assert_identity(&program, "borrowed", true);
-    lower_typed_trees(program).expect("an exact reference field is already a reference value");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("an exact reference field is already a reference value");
 }

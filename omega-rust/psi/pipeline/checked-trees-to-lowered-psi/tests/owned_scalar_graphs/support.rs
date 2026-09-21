@@ -31,9 +31,11 @@ pub fn check(source: &str) -> CheckedTrees {
     .expect("resolve with source map");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type owned scalar graph");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
-        panic!("check owned scalar graph: {diagnostics:#?}\n{source}")
-    })
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("check owned scalar graph: {diagnostics:#?}\n{source}"))
 }
 
 pub fn publish(source: &str, entry: &str) -> (CheckedTrees, TerminalModule, Vec<u8>, Vec<u8>) {

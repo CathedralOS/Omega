@@ -9,6 +9,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -41,7 +42,7 @@ fn source(
 }
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
-    let checked = lower_typed_trees(typed(source))
+    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
@@ -166,7 +167,7 @@ fn source_calls_cannot_satisfy_boolean_requirements_with_false_arguments() {
         ),
     ] {
         let source = source(parameters, requirement, body, arguments, true);
-        let diagnostics = match lower_typed_trees(typed(&source)) {
+        let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("the caller must prove the entry requirement: {source}"),
         };

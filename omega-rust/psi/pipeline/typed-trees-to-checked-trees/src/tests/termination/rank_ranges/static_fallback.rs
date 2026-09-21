@@ -1,6 +1,7 @@
 //! Static membership and relational descent remain separate obligations.
 
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const DESCENDING: &str =
     "machine walk(n: u32 [0..=10]) terminates by n -> Nat::Descending in 0..=10; -> u32";
@@ -9,7 +10,7 @@ const INCREASING: &str = "machine climb(limit: u32 [0..=10], index: u32 [0..=10]
 fn prove(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {diagnostics:#?}\n{source}"));
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {diagnostics:#?}\n{source}"));
 }
 

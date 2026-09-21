@@ -787,7 +787,7 @@ fn real_source_mutation_retains_mutation_certificates() {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let mut checked = crate::lower_typed_trees(typed)
+    let mut checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .expect("a disjoint write beside a live borrow stays admitted");
 
     let certificates = checked

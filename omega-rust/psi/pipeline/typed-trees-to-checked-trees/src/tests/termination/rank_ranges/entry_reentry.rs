@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = r#"
 machine walk(remaining: u32 [0..=5])
@@ -20,7 +21,7 @@ terminates by remaining in 0..=5;
 fn prove(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
@@ -64,7 +65,8 @@ fn entry_parameter_refinements_still_require_valid_arrivals() {
     // Ranking may assume a state's parameter refinement, but complete checking
     // must reject the back-edge that leaves that refinement.
     let source = "machine walk(n: u32 [1..=5]) requires 1 <= n && n <= 5; terminates by n in 0..=5; -> u32 { transition { _ -> walk(n - 1) } }";
-    let diagnostics = lower_typed_trees(typed(source)).expect_err(source);
+    let diagnostics =
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).expect_err(source);
     assert!(!diagnostics.is_empty(), "{source}");
 }
 

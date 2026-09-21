@@ -1,5 +1,5 @@
 fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    crate::lower_typed_trees(typed(source))
+    crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
 }
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -31,8 +31,8 @@ fn selected_as_slice_target_cannot_supply_builtin_array_extent() {
         panic!("view call");
     };
     call.target_symbol = target;
-    let diagnostics =
-        crate::lower_typed_trees(program).expect_err("selected target is not a builtin view");
+    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect_err("selected target is not a builtin view");
     assert!(
         diagnostics
             .iter()

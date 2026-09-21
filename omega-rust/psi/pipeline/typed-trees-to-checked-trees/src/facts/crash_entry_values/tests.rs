@@ -917,7 +917,7 @@ fn mutable_field_snapshots_discharge_the_selected_crash_route() {
                  }}
              }}"
         ));
-        match crate::lower_typed_trees(program) {
+        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1429,7 +1429,7 @@ fn a_state_arrival_actual_discharges_the_selected_crash_route() {
                  state next(input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
         ));
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
     }
 }
@@ -1453,7 +1453,7 @@ fn a_state_arrival_actual_retains_the_exact_entry_origin() {
                  state next(input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
         ));
-        match crate::lower_typed_trees(program) {
+        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1482,7 +1482,7 @@ fn mutable_state_arrivals_refine_the_selected_crash_route() {
                  state next(mut input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
         ));
-        match crate::lower_typed_trees(program) {
+        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1505,7 +1505,7 @@ fn mutable_state_arrivals_refine_the_selected_crash_route() {
                  state next(mut input: bool) -> bool {{ let r: bool = trigger(input); r }}
              }}"
         ));
-        match crate::lower_typed_trees(program) {
+        match crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
             Ok(_) => assert!(expect_ok, "{declaration} must not check"),
             Err(diagnostics) => {
                 assert!(!expect_ok, "{declaration}: {diagnostics:#?}");
@@ -1547,7 +1547,7 @@ fn divergent_or_mutable_state_arrivals_still_reject_at_checking() {
             "{TRIGGER}
 {source}"
         ));
-        let diagnostics = crate::lower_typed_trees(program)
+        let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .expect_err("unproven state provenance must stay conservative");
         assert!(
             diagnostics

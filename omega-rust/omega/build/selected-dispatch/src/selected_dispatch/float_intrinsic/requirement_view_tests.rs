@@ -59,7 +59,11 @@ fn checked_with_plans(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check");
     (checked, plans)
 }
 

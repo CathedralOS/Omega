@@ -89,7 +89,10 @@ pub(super) fn zero_argument_invocation_discharges(
     // owning program has not reached settlement, so the probe lowers in the
     // same mode. Contract checking is not gated on the mode, so authored
     // `requires` premises are still decided at the synthesized call.
-    let Ok(checked) = typed_trees_to_checked_trees::lower_preliminary_typed_trees(probe) else {
+    let Ok(checked) = typed_trees_to_checked_trees::lower_typed_trees(
+        probe,
+        &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+    ) else {
         return false;
     };
     matches!(

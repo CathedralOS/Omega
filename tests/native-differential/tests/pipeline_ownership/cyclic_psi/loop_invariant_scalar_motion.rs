@@ -17,6 +17,7 @@ use optimization_unit::{
     ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
     recompute_psi_optimization_unit_identity,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 
 const NATURAL_LOOP_SOURCE: &str = r#"
     data Root {}
@@ -106,8 +107,8 @@ fn lowered_unit(
         .unwrap_or_else(|error| panic!("resolve {label}: {error:?}"));
     let typed = lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
-    let checked =
-        lower_typed_trees(typed).unwrap_or_else(|error| panic!("check {label}: {error:?}"));
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
         .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)

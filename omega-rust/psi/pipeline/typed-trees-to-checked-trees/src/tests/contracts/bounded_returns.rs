@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use typed_trees::expression::ExpressionNode;
@@ -28,7 +29,7 @@ fn guarded_arrival_requirement_proves_bounded_increment() {
             { value + 1 }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the checked arrival requirement bounds the return");
 }
 
@@ -39,7 +40,8 @@ fn machine_entry_requirement_refolds_a_bounded_return() {
         requires value < 4
         { value + 1 }
     "#;
-    lower_typed_trees(parse_typed_trees(source)).expect("entry-scoped requirement");
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("entry-scoped requirement");
 }
 
 #[test]
@@ -48,7 +50,7 @@ fn absent_arrival_premise_keeps_the_declared_range() {
         machine increment(value: u32 [0..=4]) -> u32 [0..=4] { value + 1 }
     "#;
     proof_rejects(&parse_typed_trees(source));
-    assert!(lower_typed_trees(parse_typed_trees(source)).is_err());
+    assert!(lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).is_err());
 }
 
 #[test]
@@ -65,7 +67,7 @@ fn a_guard_does_not_discharge_a_different_delivered_value() {
             { value + 1 }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("proving a body under requires must not authorize an invalid arrival");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -176,7 +178,8 @@ fn disjoint_writes_and_pure_calls_preserve_the_arrival_premise() {
             {{ {body} }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source)).expect("disjoint prefix preserves arrival");
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+            .expect("disjoint prefix preserves arrival");
     }
 }
 

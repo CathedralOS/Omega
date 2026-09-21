@@ -4,6 +4,7 @@ use super::{
     TerminalScalarValue, checked_arms, encoded_arms, execute, lower_symbol_resolved_trees,
     lower_typed_trees, parse_syntax_trees, resolve,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn call_bearing_integer_operations_execute_inside_selected_boolean_operands() {
     for (expression, expected) in [
@@ -362,7 +363,7 @@ fn unproved_computed_narrowing_does_not_gain_a_runtime_conversion() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = lower_typed_trees(typed).unwrap_err();
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_err();
     assert!(
         diagnostics
             .iter()

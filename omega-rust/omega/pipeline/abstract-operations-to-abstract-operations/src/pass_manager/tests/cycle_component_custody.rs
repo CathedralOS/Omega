@@ -50,8 +50,11 @@ fn certified_countdown_session() -> VerifiedPsiOptimizationSession {
     .expect("resolve certified countdown");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type certified countdown");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check certified countdown");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check certified countdown");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
         .expect("lower certified countdown");
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(

@@ -15,6 +15,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -26,7 +27,7 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 }
 
 fn check(source: &str) -> CheckedTrees {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
@@ -154,7 +155,7 @@ fn out_of_range_constant_delivery_is_rejected() {
             "#,
         );
         assert!(
-            lower_typed_trees(typed(&source)).is_err(),
+            lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
             "{argument} is outside u64[0..=3] and must reject at check: {source}"
         );
     }

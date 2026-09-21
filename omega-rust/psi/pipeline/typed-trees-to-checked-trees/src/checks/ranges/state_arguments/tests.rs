@@ -227,9 +227,9 @@ fn complete_checked_evidence_and_bounds_diagnostics_match_whole_pass() {
         .unwrap();
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let actual = crate::lower_typed_trees(program.clone());
+        let actual = crate::lower_typed_trees(program.clone(), &crate::CheckingRequest::settled());
         let _restore = Restore(WHOLE_PASS_REFERENCE.replace(true));
-        let reference = crate::lower_typed_trees(program);
+        let reference = crate::lower_typed_trees(program, &crate::CheckingRequest::settled());
         assert_eq!(actual, reference);
         assert_eq!(actual.is_ok(), incoming == "2", "{actual:?}");
     }
@@ -246,7 +246,7 @@ fn check_source(source: &str) -> Result<(), Vec<String>> {
     .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(program)
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .map(|_| ())
         .map_err(|diagnostics| {
             diagnostics

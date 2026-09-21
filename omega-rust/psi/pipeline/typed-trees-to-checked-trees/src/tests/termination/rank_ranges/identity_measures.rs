@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -120,7 +121,7 @@ fn prove(source: &str) {
         crate::infer_machine_termination_summary(&program, program.machines()[0].symbol),
         Some(language_semantics::TerminationGuarantee::Terminates { .. })
     ));
-    let checked = lower_typed_trees(program)
+    let checked = lower_typed_trees(program, &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     let witness = checked.machines()[0]
         .termination_plan
@@ -138,7 +139,7 @@ fn reject(source: &str) {
     let program = typed(source);
     crate::checks::termination::check_machine_termination(&program)
         .expect_err("the authored measure still owes range and descent proofs");
-    assert!(lower_typed_trees(program).is_err());
+    assert!(lower_typed_trees(program, &CheckingRequest::settled()).is_err());
 }
 
 #[test]

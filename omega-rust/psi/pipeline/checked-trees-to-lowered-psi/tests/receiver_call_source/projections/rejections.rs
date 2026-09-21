@@ -11,7 +11,10 @@ fn rejects_source(source: &str, expected: &str) {
     let syntax = parse_syntax_trees(&tokens).expect("parse receiver rejection");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver rejection");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type receiver rejection");
-    let Err(diagnostics) = typed_trees_to_checked_trees::lower_typed_trees(typed) else {
+    let Err(diagnostics) = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) else {
         panic!("source access or aliasing must reject before Terminal planning: {source}")
     };
     assert!(

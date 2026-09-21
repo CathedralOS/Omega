@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -10,8 +11,9 @@ fn ordinary_empty_transition_arms_owe_machine_postconditions() {
         let source = format!(
             "data Main {{ flag: bool; }} machine Main::run(&mut self) ensures false {{ {body} }}"
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("ordinary Unit exit owes ensures");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("ordinary Unit exit owes ensures");
         assert!(
             diagnostics
                 .iter()
@@ -23,19 +25,23 @@ fn ordinary_empty_transition_arms_owe_machine_postconditions() {
 
 #[test]
 fn crash_and_named_dispatch_do_not_create_fallthrough_exits() {
-    let checked = lower_typed_trees(parse_typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            r#"
         machine fail()
         crashes Abort
         ensures false
         { crash Abort; }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("crash does not return ordinarily");
     assert_eq!(checked.facts.proof.contract_exits.len(), 0);
 
-    let checked = lower_typed_trees(parse_typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            r#"
         data Main {}
         machine Main::run(&mut self)
         ensures true
@@ -44,7 +50,9 @@ fn crash_and_named_dispatch_do_not_create_fallthrough_exits() {
             state done(&mut self) {}
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("the final named state, not its incoming jump, returns");
     let exits = checked
         .facts
@@ -81,7 +89,7 @@ fn returning_arm_guards_prove_only_their_own_truth_value() {
             }}
         "#
         );
-        let result = lower_typed_trees(parse_typed_trees(&source));
+        let result = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{ensures}: {result:#?}");
     }
     let source = r#"
@@ -91,7 +99,7 @@ fn returning_arm_guards_prove_only_their_own_truth_value() {
             state fail(&mut self) { crash Abort; }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("false arm retains negative guard evidence");
 }
 
@@ -108,7 +116,7 @@ fn branch_call_postconditions_do_not_leak_to_sibling_returns() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a sibling guarantee cannot prove an unknown return arm");
     assert!(
         diagnostics
@@ -131,7 +139,7 @@ fn target_writes_invalidate_all_copies_of_multi_place_guard_evidence() {
             state fail(&mut self) { crash Abort; }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("one changed guard input invalidates the complete condition");
     assert!(
         diagnostics
@@ -155,7 +163,7 @@ fn target_selector_writes_invalidate_guarded_member_reads() {
             state fail(&mut self) { crash Abort; }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("selector writes invalidate the selected member condition");
     assert!(
         diagnostics
@@ -177,7 +185,7 @@ fn renamed_output_reference_establishes_the_entry_postcondition() {
             machine fill(out_line: &mut [u8; 4]) ensures out_line in Utf8 {{ {route} }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{route}: {diagnostics:#?}"));
     }
 }
@@ -195,8 +203,9 @@ fn named_exits_cannot_reuse_stale_entry_requires() {
             ensures out_line in Utf8 {{ {route} }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("renaming cannot refresh a stale entry assumption");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("renaming cannot refresh a stale entry assumption");
         assert!(
             diagnostics
                 .iter()
@@ -229,7 +238,7 @@ fn loop_carried_reference_origins_retain_the_entry_output() {
             }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{repeat_target}: {diagnostics:#?}"));
     }
 }
@@ -256,8 +265,9 @@ fn loop_carried_reference_origins_do_not_choose_between_swapped_inputs() {
             }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("a loop can exchange the two independently borrowed outputs");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("a loop can exchange the two independently borrowed outputs");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -281,7 +291,7 @@ fn loop_exits_do_not_refresh_authored_entry_assumptions() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("identity preservation is not preservation of an earlier domain fact");
     assert!(
         diagnostics
@@ -320,8 +330,9 @@ fn loop_reference_origins_retain_unknown_incoming_alternatives() {
             }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("the direct entry edge cannot erase an unknown loop-carried origin");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("the direct entry edge cannot erase an unknown loop-carried origin");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -351,7 +362,7 @@ fn loop_reference_origins_follow_immutable_local_alias() {
             state write(result: &mut [u8; 4]) { result = "ok"; }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an immutable local alias forwards the loop-carried parameter origin");
 }
 
@@ -367,7 +378,7 @@ fn unreachable_predecessors_do_not_contaminate_reference_origins() {
             state write(destination: &mut [u8; 4]) { destination = "ok"; }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an entry-unreachable component supplies no runtime incoming reference");
 }
 
@@ -384,7 +395,7 @@ fn named_exit_reference_origin_requires_a_stable_final_binding() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the final write belongs to the replacement, not the old entry output");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -404,7 +415,7 @@ fn entry_exit_reference_origin_requires_a_stable_final_binding() {
             output = "okay";
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("rebinding the entry parameter cannot qualify the original caller referent");
     assert!(
         diagnostics
@@ -424,7 +435,7 @@ fn ambiguous_named_origins_do_not_select_one_incoming_reference() {
             state write(destination: &mut [u8; 4]) { destination = "ok"; }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a destination that may name another input cannot prove this output");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -453,7 +464,7 @@ fn named_origin_mapping_does_not_use_equal_names_or_transformed_values() {
         }
         "#,
     ] {
-        let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
             .expect_err("a fresh target binding is not the entry value");
         assert!(
             diagnostics
@@ -502,7 +513,7 @@ fn named_reference_origin_requires_a_stable_input_binding() {
             stable,
             "{prefix}"
         );
-        let result = lower_typed_trees(program);
+        let result = lower_typed_trees(program, &CheckingRequest::settled());
         assert_eq!(result.is_ok(), stable, "{prefix}: {result:#?}");
     }
 }
@@ -556,7 +567,7 @@ fn named_reference_origin_requires_consistent_whole_name_symbols() {
             panic!("argument");
         };
         path.symbol = symbol;
-        let result = lower_typed_trees(program);
+        let result = lower_typed_trees(program, &CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{name}: {result:#?}");
     }
 }
@@ -572,7 +583,7 @@ fn named_state_self_receives_enforced_field_domains_not_stale_requires() {
             state read(&mut self) { consume(self.line); }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the explicit self parameter retains enforced field qualifications");
 
     let source = r#"
@@ -586,7 +597,7 @@ fn named_state_self_receives_enforced_field_domains_not_stale_requires() {
         }
     "#;
     assert!(
-        lower_typed_trees(parse_typed_trees(source)).is_err(),
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).is_err(),
         "an invalid field write cannot re-establish its domain by jumping"
     );
 }
@@ -617,7 +628,7 @@ fn rebased_contexts_grow_linearly_and_stay_scoped_to_their_state() {
             }}
         "#
         );
-        let checked = lower_typed_trees(parse_typed_trees(&source))
+        let checked = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .expect("state-local declared field facts preserve the output qualification");
         let semantic = &checked.facts.semantic;
         let machine = checked
@@ -695,7 +706,7 @@ fn crash_exits_cannot_carry_ordinary_edge_obligations() {
     }
 
     fn expect_isolation_rejection(program: typed_trees::TypedTrees, edge: &str, context: &str) {
-        let diagnostics = lower_typed_trees(program)
+        let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
             .expect_err("a crash exit cannot keep ordinary edge obligations");
         assert!(
             diagnostics
@@ -708,7 +719,8 @@ fn crash_exits_cannot_carry_ordinary_edge_obligations() {
     // Control: the same edge kept Ordinary owes `ensures` and rejects.
     let ordinary =
         parse_typed_trees("machine m() -> bool ensures false { transition { _ -> true } }");
-    lower_typed_trees(ordinary).expect_err("an ordinary value return cannot evade ensures");
+    lower_typed_trees(ordinary, &CheckingRequest::settled())
+        .expect_err("an ordinary value return cannot evade ensures");
 
     // Re-labeling that value edge as a crash keeps the return target while
     // contract exits and ensures attach only to `Ordinary` exits; covered by
@@ -789,7 +801,7 @@ fn rebased_exit_requirements_do_not_become_sibling_entry_facts() {
             state bad(&mut self) {}
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the good exit's guarantee is not a premise at the bad state");
     assert!(
         diagnostics
@@ -801,6 +813,6 @@ fn rebased_exit_requirements_do_not_become_sibling_entry_facts() {
         "state bad(&mut self) {}",
         "state bad(&mut self) { self.line = \"ok\"; }",
     );
-    lower_typed_trees(parse_typed_trees(&repaired))
+    lower_typed_trees(parse_typed_trees(&repaired), &CheckingRequest::settled())
         .expect("both branches establish their own output instead of sharing a guarantee");
 }

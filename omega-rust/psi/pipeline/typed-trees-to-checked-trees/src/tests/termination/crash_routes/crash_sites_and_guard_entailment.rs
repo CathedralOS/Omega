@@ -1,9 +1,8 @@
-use crate::checking::lower_typed_trees_for_crash_fact_inspection;
-use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
     symbol_of_checked,
 };
+use crate::{CheckingRequest, lower_typed_trees};
 
 #[test]
 fn checked_crash_sites_are_body_evidence_not_contract_identity() {
@@ -123,7 +122,7 @@ fn checked_crash_sites_are_body_evidence_not_contract_identity() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees_for_crash_fact_inspection(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::crash_fact_inspection())
         .expect("raw crash-fact inspection should succeed before production admission");
     let plan = |name: &str| {
         checked
@@ -339,7 +338,7 @@ fn crash_guard_entailment_normalizes_boolean_literal_relations() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("Boolean literal relations should imply their normalized operand polarity");
     let plan = |name: &str| {
         checked
@@ -645,7 +644,7 @@ fn crash_guard_entailment_normalizes_comparison_equivalences() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees_for_crash_fact_inspection(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::crash_fact_inspection())
         .expect("raw comparison coverage facts should form before production admission");
     let plan = |name: &str| {
         checked
@@ -797,7 +796,8 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let plan = |name: &str| {
         checked
             .facts

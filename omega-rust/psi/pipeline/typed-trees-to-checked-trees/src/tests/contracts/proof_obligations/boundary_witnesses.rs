@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::{parse_typed_trees, parse_typed_trees_with_service};
 
@@ -27,8 +28,11 @@ fn boundary_witness_survives_disjoint_internal_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("a disjoint internal frame should preserve the boundary range witness");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a disjoint internal frame should preserve the boundary range witness");
 }
 
 #[test]
@@ -58,8 +62,11 @@ fn boundary_witness_survives_disjoint_recast_local_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("an exact mutable-recast frame should preserve a disjoint boundary range witness");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("an exact mutable-recast frame should preserve a disjoint boundary range witness");
 }
 
 #[test]
@@ -88,8 +95,11 @@ fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("an overlapping mutable-recast frame must invalidate the range witness");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("an overlapping mutable-recast frame must invalidate the range witness");
     assert!(
         diagnostics
             .iter()
@@ -129,7 +139,11 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect(
         "an exact named-transition alias frame should preserve the disjoint boundary range witness",
     );
 }
@@ -159,8 +173,11 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("an overlapping internal frame must invalidate the range witness");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("an overlapping internal frame must invalidate the range witness");
     assert!(
         diagnostics
             .iter()
@@ -199,9 +216,11 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
-        "an overlapping named-transition alias frame must invalidate the range witness",
-    );
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("an overlapping named-transition alias frame must invalidate the range witness");
     assert!(
         diagnostics
             .iter()
@@ -242,8 +261,11 @@ fn boundary_witness_survives_disjoint_projected_alias_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("an exact projected-alias frame should preserve a witness on a disjoint sibling");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("an exact projected-alias frame should preserve a witness on a disjoint sibling");
 }
 
 #[test]
@@ -278,8 +300,11 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("an overlapping projected-alias frame must invalidate the range witness");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("an overlapping projected-alias frame must invalidate the range witness");
     assert!(
         diagnostics
             .iter()
@@ -320,7 +345,7 @@ fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source), &CheckingRequest::settled()).expect(
         "the indexed projection should retain its intermediate collection and preserve a sibling witness",
     );
 }
@@ -357,7 +382,11 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err(
         "the retained intermediate collection must invalidate an overlapping indexed witness",
     );
     assert!(
@@ -399,9 +428,11 @@ fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
-        "a direct member-after-index frame should preserve a witness outside its collection",
-    );
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a direct member-after-index frame should preserve a witness outside its collection");
 }
 
 #[test]
@@ -434,7 +465,11 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err(
         "the direct member-after-index frame must invalidate an overlapping collection witness",
     );
     assert!(
@@ -472,9 +507,11 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
-        "writes through a reference-free local collection must not invalidate caller facts",
-    );
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("writes through a reference-free local collection must not invalidate caller facts");
 }
 
 #[test]
@@ -509,8 +546,11 @@ fn boundary_witness_survives_transparently_forwarded_local_collection() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("a transparent helper preserves the caller-isolated origin of a local collection");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a transparent helper preserves the caller-isolated origin of a local collection");
 }
 
 #[test]
@@ -546,9 +586,11 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
-        "a direct identity-result chain should preserve a witness outside its argument origin",
-    );
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a direct identity-result chain should preserve a witness outside its argument origin");
 }
 
 #[test]
@@ -587,9 +629,11 @@ fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
-        "a complete empty call frame for isolated scratch must preserve the returned origin",
-    );
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a complete empty call frame for isolated scratch must preserve the returned origin");
 }
 
 #[test]
@@ -633,8 +677,11 @@ fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("a nonempty scratch-call frame must invalidate its written witness");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("a nonempty scratch-call frame must invalidate its written witness");
     assert!(
         diagnostics
             .iter()
@@ -674,9 +721,11 @@ fn boundary_witness_survives_disjoint_projected_call_result_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
-        "a direct projected call result should preserve a witness outside its argument origin",
-    );
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a direct projected call result should preserve a witness outside its argument origin");
 }
 
 #[test]
@@ -709,7 +758,11 @@ fn boundary_witness_dies_under_projected_call_result_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err(
         "a projected indexed call result must invalidate an overlapping collection witness",
     );
     assert!(
@@ -747,7 +800,11 @@ fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect(
         "a collection-coarse indexed alias frame should preserve a witness on disjoint storage",
     );
 }
@@ -778,8 +835,11 @@ fn boundary_witness_dies_under_indexed_alias_collection_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("the whole collection frame must invalidate an indexed boundary witness");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("the whole collection frame must invalidate an indexed boundary witness");
     assert!(
         diagnostics
             .iter()
@@ -811,7 +871,7 @@ fn incoming_guard_conjuncts_jointly_bound_operands_after_disjoint_write() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("surviving lower and upper conjuncts must jointly bound the operand");
 }
 
@@ -848,8 +908,10 @@ fn incoming_guard_conjuncts_do_not_revive_invalidated_or_unestablished_facts() {
             machine Main::reset_signed(&mut self) {{ self.signed = -5; }}
             "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("an invalidated or unestablished conjunct cannot justify the subtraction");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).expect_err(
+                "an invalidated or unestablished conjunct cannot justify the subtraction",
+            );
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -889,7 +951,7 @@ fn incoming_guard_survives_pure_value_call_before_bounded_assignment() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a pure value-call frame should preserve the incoming counter guard");
 }
 
@@ -924,7 +986,7 @@ fn incoming_guard_dies_when_value_call_writes_guarded_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an overlapping value-call frame must invalidate the incoming guard");
     assert!(
         diagnostics
@@ -951,7 +1013,7 @@ fn incoming_guard_survives_the_consuming_assignment_destination_write() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the destination is written after the bounded value has been consumed");
 }
 
@@ -981,9 +1043,9 @@ fn incoming_guard_dies_under_the_consuming_assignment_value_call() {
     "#;
 
     let pure_call = source.replace("self.value = 9;", "");
-    lower_typed_trees(parse_typed_trees(&pure_call))
+    lower_typed_trees(parse_typed_trees(&pure_call), &CheckingRequest::settled())
         .expect("the same bounded call result preserves the guard when its frame is pure");
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the consuming value call invalidates the incoming guard before addition");
     assert!(
         diagnostics
@@ -1019,8 +1081,11 @@ fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("a bounded Utf8 carrier should carry Utf8 through its slice projection");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a bounded Utf8 carrier should carry Utf8 through its slice projection");
 }
 
 #[test]
@@ -1049,11 +1114,15 @@ fn bounded_byte_domain_projection_proves_the_requested_predicate_independently()
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees_with_service(
-        &source.replace(r"G\x00te", "Gate"),
-    ))
+    lower_typed_trees(
+        parse_typed_trees_with_service(&source.replace(r"G\x00te", "Gate")),
+        &CheckingRequest::settled(),
+    )
     .expect("known bytes may independently establish both domain predicates");
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees_with_service(source)) else {
+    let Err(diagnostics) = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    ) else {
         panic!("a carrier projection must not conflate different domain theories");
     };
     assert!(

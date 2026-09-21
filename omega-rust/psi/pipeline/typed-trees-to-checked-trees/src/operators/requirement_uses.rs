@@ -155,7 +155,7 @@ mod tests {
         .expect("symbols");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("types");
-        crate::lower_typed_trees(typed).expect("check")
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check")
     }
 
     const SOURCE: &str = r#"

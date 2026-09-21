@@ -11,6 +11,7 @@ mod indexed_and_domain_operator_selection;
 mod invocations;
 mod trait_operator_bindings;
 
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::operators::build_operator_facts;
 use crate::tests::{
@@ -67,7 +68,7 @@ fn checked_program_from_source(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("checked lowering")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked lowering")
 }
 
 fn has_selected_domain_add(checked: &checked_trees::CheckedTrees) -> bool {

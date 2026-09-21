@@ -1,10 +1,12 @@
 use super::{rendered_rejection, typed};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
 fn direct_unconstrained_primitive_record_field_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Pair {
                 left: u8;
                 right: u16;
@@ -15,14 +17,17 @@ fn direct_unconstrained_primitive_record_field_is_writable() {
                 pair.right = 2;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("one-level primitive record-field writes should lower");
 }
 
 #[test]
 fn nested_unconstrained_primitive_record_field_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { value: u8; }
             data Outer { inner: Inner; }
 
@@ -30,14 +35,17 @@ fn nested_unconstrained_primitive_record_field_is_writable() {
                 outer.inner.value = 1;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("nested invariant-free record-field writes should lower");
 }
 
 #[test]
 fn exact_common_field_write_only_subloan_is_forwardable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { value: u16; sibling: u16; }
             data Outer { inner: Inner; other: Inner; }
 
@@ -49,14 +57,17 @@ fn exact_common_field_write_only_subloan_is_forwardable() {
                 replace(&write outer.inner.value);
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("an exact common-field path may form a narrower write-only subloan");
 }
 
 #[test]
 fn exact_literal_indexed_write_only_subloan_is_forwardable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { values: [u16; 2]; sibling: u16; }
             data Outer { inner: Inner; other: Inner; }
 
@@ -68,14 +79,17 @@ fn exact_literal_indexed_write_only_subloan_is_forwardable() {
                 replace(&write outer.inner.values[1]);
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("one exact literal fixed-array index may finish a common-field subloan");
 }
 
 #[test]
 fn exact_direct_root_literal_indexed_write_only_subloan_is_forwardable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine replace(value: &write u16) {
                 value = 7;
             }
@@ -84,14 +98,17 @@ fn exact_direct_root_literal_indexed_write_only_subloan_is_forwardable() {
                 replace(&write values[1]);
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("one exact literal index may narrow a direct write-only fixed-array root");
 }
 
 #[test]
 fn finite_literal_index_suffix_may_narrow_a_direct_write_only_root() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine replace(value: &write u16) {
                 value = 7;
             }
@@ -100,14 +117,17 @@ fn finite_literal_index_suffix_may_narrow_a_direct_write_only_root() {
                 replace(&write values[1][2][3][4][5][6]);
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a finite literal-index suffix may narrow a nested direct write-only array root");
 }
 
 #[test]
 fn finite_literal_index_suffix_may_finish_a_common_field_subloan() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Outer { values: [[[[[[u16; 7]; 6]; 5]; 4]; 3]; 2]; sibling: u16; }
 
             machine replace(value: &write u16) {
@@ -118,7 +138,9 @@ fn finite_literal_index_suffix_may_finish_a_common_field_subloan() {
                 replace(&write outer.values[1][2][3][4][5][6]);
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a finite literal-index suffix may finish a common-field write-only subloan");
 }
 
@@ -135,7 +157,7 @@ fn literal_indexed_write_only_subloan_narrows_a_local_root() {
                 replace(&write alias[1]);
             }
         "#,
-    ))
+    ), &CheckingRequest::settled())
     .expect("the shared projection walk narrows a write-only local root by literal index at the call boundary, exactly as local formation admits the same place");
 }
 
@@ -154,7 +176,7 @@ fn literal_indexed_write_only_subloan_interleaves_member_and_index_hops() {
                 replace(&write outer.inners[0].values[1]);
             }
         "#,
-    ))
+    ), &CheckingRequest::settled())
     .expect("member and literal-index hops compose under the shared projection walk, matching local formation of the same place");
 }
 
@@ -548,7 +570,7 @@ fn qualified_scalar_write_only_referees_are_admitted() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!("{name}: qualified `&write` referee should lower: {errors:?}")
         });
     }
@@ -640,7 +662,7 @@ fn qualified_field_write_only_subloans_carry_exact_atoms() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!("{name}: exact-atom `&write` subloan should lower: {errors:?}")
         });
     }
@@ -830,7 +852,7 @@ fn projected_write_only_locals_capture_primitive_and_record_paths() {
                  machine fill(value: &write u16) {{ value = 17; }}
                  machine forward(outer: &{access} Outer) {{ {body} }}"
             );
-            lower_typed_trees(typed(&source))
+            lower_typed_trees(typed(&source), &CheckingRequest::settled())
                 .unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
         }
     }
@@ -865,7 +887,7 @@ fn projected_write_only_local_requires_builtin_indexing() {
                  let held: &write Record = &write records[1]; held.value = 17;
              }}"
         );
-        let result = lower_typed_trees(typed(&source));
+        let result = lower_typed_trees(typed(&source), &CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}");
     }
 }
@@ -972,7 +994,7 @@ fn mut_rooted_exact_atom_write_only_subloans_are_forwardable() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!(
                 "{name}: an exact-atom `&write` subloan lent from a mutable place should lower: {errors:?}"
             )
@@ -1120,8 +1142,9 @@ fn mut_rooted_write_only_reads_stay_legal() {
     // Mutable formation sources are never write-only roots: ordinary reads
     // through an `&mut` place in a state that forms `&write` subloans must
     // keep passing expression validation unchanged.
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Outer { value: u8 [0..=10]; }
 
             machine replace(value: &write u8 [0..=10]) {
@@ -1133,7 +1156,9 @@ fn mut_rooted_write_only_reads_stay_legal() {
                 outer.value
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("reading through a mutable place beside a `&write` formation must stay legal");
 }
 
@@ -1238,7 +1263,7 @@ fn mut_value_binding_exact_atom_write_only_subloans_are_forwardable() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!(
                 "{name}: an exact-atom `&write` subloan lent from a `mut` value binding should lower: {errors:?}"
             )
@@ -1583,7 +1608,7 @@ fn transient_reborrow_arguments_keep_writable_authority() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!("{name}: a legal reborrow of a writable binding must stay admitted: {errors:?}")
         });
     }
@@ -1625,7 +1650,7 @@ fn mut_value_sources_stay_readable_beside_write_only_formation() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!(
                 "{name}: reading through a `mut` value binding beside a `&write` formation must stay legal: {errors:?}"
             )
@@ -1755,7 +1780,7 @@ fn consuming_receiver_exact_atom_write_only_subloans_are_forwardable() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!(
                 "{name}: an exact-atom `&write` subloan lent from a consuming `self` should lower: {errors:?}"
             )
@@ -2010,8 +2035,9 @@ fn consuming_receiver_stays_readable_beside_write_only_formation() {
     // A consuming `self` is a formation source, never a write-only root:
     // ordinary reads through it in a state that forms `&write` subloans keep
     // passing expression validation unchanged.
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Boxed { value: u8 [0..=10]; }
 
             machine replace(value: &write u8 [0..=10]) {
@@ -2023,6 +2049,8 @@ fn consuming_receiver_stays_readable_beside_write_only_formation() {
                 self.value
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("reading through a consuming `self` beside a `&write` formation must stay legal");
 }

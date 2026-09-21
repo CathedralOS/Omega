@@ -1,6 +1,7 @@
 use super::{
     HandleSpan, Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
@@ -10,7 +11,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     let syntax = parse_syntax_trees(&tokens).expect("parse operator invocation");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve operator invocation");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type operator invocation");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 #[test]

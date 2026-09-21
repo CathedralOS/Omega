@@ -173,8 +173,11 @@ fn case_membership_executes_checked_nested_structural_equality_synthesis() {
         assert!(typed.expression_table.expression_entries().any(|(_, node)| {
             matches!(node, ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::CaseMembership)
         }));
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let outcome = crate::interpret_entry(&checked, "main", &[], InterpretOptions::default());
         assert_eq!(outcome.error, None, "{source}");
         assert_eq!(outcome.exit_code, expected, "{source}");

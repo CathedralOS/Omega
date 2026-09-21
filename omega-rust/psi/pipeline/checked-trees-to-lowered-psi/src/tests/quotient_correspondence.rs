@@ -8,6 +8,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 use super::super::{LoweringError, lower_machine};
@@ -300,7 +301,7 @@ fn baseline_module() -> terminal_psi::TerminalModule {
     )
     .expect("resolve baseline");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type baseline");
-    let checked = lower_typed_trees(typed).expect("check baseline");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check baseline");
     lower_machine(&checked, "baseline")
         .expect("lower baseline")
         .semantic_module

@@ -15,8 +15,11 @@ fn interpret_main(source: &str) -> checked_interpreter::InterpretOutcome {
     .expect("symbols");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("types");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
     checked_interpreter::interpret_entry(&checked, "main", &[], InterpretOptions::default())
 }
 

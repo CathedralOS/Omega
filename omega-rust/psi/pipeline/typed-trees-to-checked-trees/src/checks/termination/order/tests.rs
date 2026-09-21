@@ -2,6 +2,7 @@
 //! its declaration: a program that declares its own `Nat::Descending` does
 //! not turn the spelling into the builtin natural countdown.
 
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -13,7 +14,7 @@ fn check(source: &str) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed");
-    lower_typed_trees(typed).map(|_| ())
+    lower_typed_trees(typed, &CheckingRequest::settled()).map(|_| ())
 }
 
 const COUNTDOWN: &str = r#"

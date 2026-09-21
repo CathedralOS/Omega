@@ -9,6 +9,7 @@
 //! `self.out.bytes = "XXX"` establishes three live bytes, `self.out.bytes[2]`
 //! reads inside them only while that evidence survives, and a call that
 //! retires it turns the read into a bounds rejection.
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -20,7 +21,7 @@ const DEFINITIONS: &str = r#"
 "#;
 
 fn check(source: &str, extent_survives: bool) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(
             extent_survives,
             "the call must retire the read extent:\n{source}"
@@ -106,7 +107,9 @@ fn unrepresentable_exclusive_actual_keeps_the_conservative_retirement() {
 /// The retirement observed through scalar facts a call never hands back:
 /// `count == 7` survives a call exactly where the call could not write.
 fn check_scalar_survivals(source: &str, retired: &[&str], surviving: &[&str]) {
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+    else {
         panic!("the retired scalar facts must reject their contract calls:\n{source}");
     };
     let unproved = |place: &str| {
@@ -256,7 +259,7 @@ fn candidate_reference_result_call_requires_every_candidate_domain() {
         }}
     "#
     );
-    lower_typed_trees(parse_typed_trees(&source)).expect(
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).expect(
         "both candidates carry the declared domain and the disjoint operand preserves them",
     );
     let corrupted = format!(
@@ -276,7 +279,9 @@ fn candidate_reference_result_call_requires_every_candidate_domain() {
         }}
     "#
     );
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&corrupted)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(&corrupted), &CheckingRequest::settled())
+    else {
         panic!("a corrupted candidate must keep the call rejected");
     };
     assert!(
@@ -309,7 +314,7 @@ fn write_through_two_candidate_alias_keeps_both_candidates_domains() {
         }}
     "#
     );
-    lower_typed_trees(parse_typed_trees(&source))
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
         .expect("both candidates keep their declared domain across the alias write");
     let corrupted = format!(
         r#"{CANDIDATE_DEFINITIONS}
@@ -326,7 +331,9 @@ fn write_through_two_candidate_alias_keeps_both_candidates_domains() {
         }}
     "#
     );
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&corrupted)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(&corrupted), &CheckingRequest::settled())
+    else {
         panic!("a corrupting alias write through the candidates must not be handed back");
     };
     for candidate in ["spare.others[0].bytes", "spare.others[1].bytes"] {

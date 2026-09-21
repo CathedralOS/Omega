@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, parse_typed_trees,
@@ -25,7 +26,7 @@ fn immediate_proof_output_binds_a_fresh_erased_evidence_term() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the first proof-only output rung should check");
     let [typed_invocation] = checked.proof_output_calls.as_slice() else {
         panic!("one typed proof-output invocation expected")
@@ -98,7 +99,7 @@ fn immediate_proof_output_completely_binds_multiple_fresh_terms() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a complete multi-field proof-only call should check");
     let [typed_invocation] = checked.proof_output_calls.as_slice() else {
         panic!("one typed proof-output invocation expected")
@@ -160,7 +161,7 @@ fn argumented_proof_output_substitutes_value_arguments_and_binds_erased_inputs()
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("proof-output calls substitute value arguments and bind exact erased inputs");
     let invocation = checked
         .facts
@@ -225,7 +226,7 @@ fn closed_generic_proof_output_retains_its_concrete_application() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a fully explicit closed generic proof-output call should check");
     let invocation = checked
         .facts
@@ -289,7 +290,7 @@ fn cloned_generic_proof_output_call_retains_its_lexical_evidence() {
             relayed = local;
         }
     "#;
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("cloned proof-output calls retain exact lexical evidence");
     for specialization in &checked.machine_specializations {
         assert!(
@@ -347,7 +348,7 @@ fn argumented_proof_output_rejects_wrong_erased_input_after_substitution() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the erased input must inhabit the call-substituted proposition");
     assert!(
         diagnostics
@@ -384,7 +385,7 @@ fn discarded_argumented_proof_output_contributes_the_substituted_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a discarded output contributes its call-substituted proposition fact");
 }
 
@@ -406,7 +407,7 @@ fn proof_output_lane_allows_selective_capture() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("unmentioned proof outputs contribute facts without minting local terms");
 }
 
@@ -433,7 +434,7 @@ fn omitted_proof_output_contributes_its_fact_without_a_local_term() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an omitted proof selector still contributes its proposition fact");
     let invocation = checked
         .facts
@@ -469,8 +470,11 @@ fn proof_output_rejects_duplicate_fields_and_local_names() {
             two = local_two;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate_field))
-        .expect_err("a proof-output selector cannot be repeated");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees(duplicate_field),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("a proof-output selector cannot be repeated");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -484,8 +488,11 @@ fn proof_output_rejects_duplicate_fields_and_local_names() {
         "first: local_one, first: local_two",
         "first: local_one, second: local_one",
     );
-    let diagnostics = lower_typed_trees(parse_typed_trees(&duplicate_local))
-        .expect_err("caller-local evidence names must remain unique");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees(&duplicate_local),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("caller-local evidence names must remain unique");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -513,7 +520,7 @@ fn proof_output_terms_are_copyable_and_have_no_use_count() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("one proof term may be copied while another remains unused");
     let invocation = checked
         .facts
@@ -574,7 +581,7 @@ fn proof_output_retains_explicit_proposition_discard() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("copyable proposition evidence may be explicitly discarded");
     let invocation = checked
         .facts
@@ -612,7 +619,7 @@ fn proof_output_rejects_a_field_not_published_by_the_callee() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a proof-output selector cannot be forged");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -648,7 +655,7 @@ fn immediate_proof_output_binds_one_runtime_scalar_call_and_proofs() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the immediate scalar value and complete proof output should check");
     let [typed_invocation] = checked.proof_output_calls.as_slice() else {
         panic!("one typed proof-output invocation expected")
@@ -709,7 +716,7 @@ fn proof_output_lane_requires_a_runtime_binding_for_a_runtime_result() {
         { let (; outgoing: local) = produce(); relayed = local; }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a runtime proof-output binding must bind its Type result");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -762,7 +769,7 @@ fn proof_output_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value()
             one
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate))
+    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate), &CheckingRequest::settled())
         .expect_err("a named proof output is unique");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -781,7 +788,7 @@ fn proof_output_rejects_value_on_unit_and_duplicate_or_discarded_runtime_value()
         ensures relayed: ready()
         { let (_; outgoing: local) = produce(); relayed = local; }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(discarded))
+    let diagnostics = lower_typed_trees(parse_typed_trees(discarded), &CheckingRequest::settled())
         .expect_err("runtime Type values are not proposition evidence");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -817,7 +824,7 @@ fn proof_output_preserves_a_callee_with_runtime_body_work() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a Unit proof-output call must retain its runtime body work");
     let invocation = checked
         .facts
@@ -870,7 +877,7 @@ fn proof_output_binding_is_not_visible_to_its_own_call() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a newly bound proof-output term cannot feed its own invocation");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -909,7 +916,7 @@ fn proof_output_is_not_visible_before_its_binding() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a future proof output cannot flow backwards");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -928,7 +935,7 @@ fn proof_output_bound_term_may_remain_unused() {
         machine produce() ensures outgoing: ready() { outgoing = ConcreteEvidence; }
         machine relay() { let (; outgoing: local) = produce(); }
     "#;
-    lower_typed_trees(parse_typed_trees(unused))
+    lower_typed_trees(parse_typed_trees(unused), &CheckingRequest::settled())
         .expect("a copyable proposition term has no usage-count obligation");
 }
 
@@ -942,7 +949,7 @@ fn proof_output_runtime_value_cannot_use_proposition_discard() {
         { outgoing = ConcreteEvidence; 7 }
         machine relay() { let (_; outgoing: _) = produce(); }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the ordinary runtime Type field is not proposition evidence");
     assert!(
         diagnostics.iter().any(|diagnostic| {

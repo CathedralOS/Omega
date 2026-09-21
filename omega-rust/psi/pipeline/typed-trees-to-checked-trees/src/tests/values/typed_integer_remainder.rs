@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 const ANONYMOUS_REMAINDERS: [(&str, &str); 3] = [("7 % 2", "1"), ("8 % 2", "0"), ("-3 % 2", "-1")];
@@ -15,7 +16,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, String> {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).map_err(|error| format!("{error:?}"))?;
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|error| format!("{error:?}"))?;
-    lower_typed_trees(typed).map_err(|error| format!("{error:?}"))
+    lower_typed_trees(typed, &CheckingRequest::settled()).map_err(|error| format!("{error:?}"))
 }
 
 fn accepts(source: &str) {

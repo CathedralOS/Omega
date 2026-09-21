@@ -11,6 +11,7 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeShape, TerminalModule, Terminator,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -242,7 +243,7 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Root::enter").expect("lower write-only forwarding");
     let module = &lowered.semantic_module;
 
@@ -574,7 +575,7 @@ fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Root::forward").expect("lower projected forwarding");
     let module = &lowered.semantic_module;
 
@@ -658,7 +659,7 @@ fn direct_root_literal_indexed_write_only_subloan_crosses_codec_and_verification
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered =
         lower_machine(&checked, "Root::forward").expect("lower direct indexed forwarding");
     let module = &lowered.semantic_module;
@@ -749,7 +750,7 @@ fn finite_literal_index_suffix_crosses_source_codec_and_verification() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered =
         lower_machine(&checked, "Root::forward").expect("lower finite literal-index forwarding");
     let module = &lowered.semantic_module;
@@ -864,7 +865,7 @@ fn field_prefixed_finite_literal_index_suffix_crosses_terminal() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Root::forward")
         .expect("lower field-prefixed finite literal-index forwarding");
     let module = &lowered.semantic_module;
@@ -925,7 +926,7 @@ fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered =
         lower_machine(&checked, "Root::forward").expect("lower literal-indexed forwarding");
     let module = &lowered.semantic_module;
@@ -1071,7 +1072,7 @@ fn bounded_installation_reach_lowers_source_free_terminal_dependency() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let root = checked
         .machines()
         .iter()

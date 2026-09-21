@@ -51,7 +51,7 @@ fn check_source(source: &str) -> Result<(), Vec<String>> {
     .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(program)
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .map(|_| ())
         .map_err(|diagnostics| {
             diagnostics
@@ -163,7 +163,7 @@ fn call_index_proves_through_ensured_result_bounds() {
         .expect("resolve");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -235,7 +235,7 @@ fn call_index_alongside_the_source_call_keeps_occurrence_custody() {
         .expect("resolve");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -292,7 +292,7 @@ fn receiver_call_index_reads_the_callee_ensures() {
         .expect("resolve");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -339,7 +339,7 @@ fn call_result_alias_carries_the_ensured_result_bounds() {
         .expect("resolve");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics
@@ -452,7 +452,7 @@ fn call_index_on_unknown_slice_meets_ensured_bounds_against_length_facts() {
         .expect("resolve");
         let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .map(|_| ())
             .map_err(|diagnostics| {
                 diagnostics

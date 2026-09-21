@@ -14,6 +14,7 @@ use terminal_interpreter::TerminalStructuralInputs;
 use terminal_psi::{
     Block, OperationKind, StructuralPathSegment, SuccessorEdge, Terminator, ValueDeclaration,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn replaced_byte_field_length_reaches_canonical_interpretation() {
     let checked = checked_source(
@@ -442,7 +443,7 @@ fn bounded_byte_replacements_require_capacity_and_exact_domain_predicate() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            lower_typed_trees(typed).is_err(),
+            lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
             "{domain}: {literal:?} must fail source checking"
         );
     }

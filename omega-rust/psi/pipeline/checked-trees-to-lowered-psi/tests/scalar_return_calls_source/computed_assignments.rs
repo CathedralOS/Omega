@@ -6,6 +6,7 @@ use super::{
 };
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarExpressionRole};
 use typed_trees::statement::StatementNode;
+use typed_trees_to_checked_trees::CheckingRequest;
 
 fn assert_assignment_roots(
     checked: &checked_trees::CheckedTrees,
@@ -322,7 +323,7 @@ fn assignment_destination_carrier_does_not_prove_unbounded_call_result_narrowing
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(checked) => assert!(
             checked_trees_to_lowered_psi::lower_machine(&checked, "value").is_err(),

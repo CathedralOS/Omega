@@ -516,8 +516,11 @@ fn write_only_indexed_reads_reject_during_checking() {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let error = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect_err("a write-only indexed read cannot grant observation");
+        let error = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("a write-only indexed read cannot grant observation");
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains("write-only"),

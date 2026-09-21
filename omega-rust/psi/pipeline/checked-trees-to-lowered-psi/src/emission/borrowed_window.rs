@@ -1425,8 +1425,11 @@ mod tests {
         .expect("resolve");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect("the borrowed window checks");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("the borrowed window checks");
         let machine = checked
             .machines()
             .iter()
@@ -1503,8 +1506,11 @@ mod tests {
         .expect("resolve");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect("the borrowed window checks");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("the borrowed window checks");
         let machine = checked
             .machines()
             .iter()

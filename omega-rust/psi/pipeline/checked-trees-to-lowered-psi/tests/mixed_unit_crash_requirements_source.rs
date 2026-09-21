@@ -10,8 +10,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
 }
 
 const SOURCE: &str = r#"
@@ -521,8 +524,11 @@ fn scalar_call_requirements_reject_weaker_bounds_and_disjoint_subjects() {
         let syntax = parse_syntax_trees(&tokens).unwrap();
         let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect_err("caller bounds must imply the requirement on the same scalar subject");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("caller bounds must imply the requirement on the same scalar subject");
         assert!(
             diagnostics
                 .iter()
@@ -782,8 +788,11 @@ fn mixed_arithmetic_rejects_missing_nonzero_signed_overflow_and_count_bounds() {
         let syntax = parse_syntax_trees(&tokens).unwrap();
         let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect_err("mixed specification arithmetic still needs complete totality facts");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("mixed specification arithmetic still needs complete totality facts");
         assert!(
             diagnostics
                 .iter()

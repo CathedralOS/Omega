@@ -329,7 +329,7 @@ fn concrete_call_summary_preserves_authored_comparison_meaning() {
             .find(|machine| machine.name.as_str() == "caller")
             .unwrap()
             .symbol;
-        let checked = crate::lower_typed_trees(program);
+        let checked = crate::lower_typed_trees(program, &crate::CheckingRequest::settled());
         if custom {
             if let Ok(checked) = checked {
                 assert_ne!(
@@ -375,7 +375,7 @@ fn callee_boolean_meaning_cannot_authorize_custom_actual_comparison() {
             .find(|machine| machine.name.as_str() == "caller")
             .unwrap()
             .symbol;
-        if let Ok(checked) = crate::lower_typed_trees(program) {
+        if let Ok(checked) = crate::lower_typed_trees(program, &crate::CheckingRequest::settled()) {
             assert_ne!(
                 infer_checked_machine_crash_causes(&checked.typed, &checked.facts, caller),
                 Some(Vec::new()),
@@ -811,7 +811,7 @@ fn call_site_buckets(
     .unwrap();
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(program)
+    let checked = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let machine = checked
         .machines()

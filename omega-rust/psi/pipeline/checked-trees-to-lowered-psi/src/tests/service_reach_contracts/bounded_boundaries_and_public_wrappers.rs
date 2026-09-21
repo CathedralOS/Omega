@@ -10,6 +10,7 @@ use crate::unit::attached_unit::{
 };
 use language_semantics::{ServiceReachInterface, ServiceReachPlan};
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
@@ -156,8 +157,8 @@ fn top_level_bounded_boundary_keeps_fixed_invocation_reach() {
             let syntax = parse_syntax_trees(&tokens).expect("parse");
             let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
             let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-            let diagnostics =
-                lower_typed_trees(typed).expect_err("bound does not waive direct declaration");
+            let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+                .expect_err("bound does not waive direct declaration");
             assert!(
                 diagnostics
                     .iter()

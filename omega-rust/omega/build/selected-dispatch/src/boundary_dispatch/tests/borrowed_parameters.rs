@@ -55,7 +55,11 @@ fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     let selected = selected_plan(&plans, "Output");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     (checked, selected)
 }
 

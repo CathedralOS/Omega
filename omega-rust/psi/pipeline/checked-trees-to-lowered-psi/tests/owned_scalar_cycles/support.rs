@@ -27,8 +27,11 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
     .expect("resolve with source/debug custody");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type walk");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|error| panic!("check unhoisted walk: {error:#?}\n{source}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|error| panic!("check unhoisted walk: {error:#?}\n{source}"));
     let machine = checked
         .machines()
         .iter()

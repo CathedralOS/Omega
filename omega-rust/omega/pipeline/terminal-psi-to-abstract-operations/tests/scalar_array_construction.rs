@@ -73,8 +73,11 @@ fn assert_array_retention(source: &str, entry: &str) {
     .expect("resolve exact array selection");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type array source");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check array source");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check array source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .expect("selected array reaches Terminal");
     let semantic = encode_module(&lowered.semantic_module).expect("encode array semantics");

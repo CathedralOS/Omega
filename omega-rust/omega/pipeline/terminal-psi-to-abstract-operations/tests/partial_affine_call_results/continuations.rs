@@ -4,6 +4,7 @@ use super::{
     lower_artifact_for_optimization, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve, validate_psi_optimization_unit,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
     for boundary in [false, true] {
@@ -57,7 +58,7 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
             let syntax = parse_syntax_trees(&tokens).unwrap();
             let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
             let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-            let checked = lower_typed_trees(typed).unwrap();
+            let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
             let terminal =
                 checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
             let semantic = encode_module(&terminal.semantic_module).unwrap();

@@ -27,6 +27,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::Terminator;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
@@ -835,7 +836,7 @@ fn checked_source() -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn checked_result_boundary_source() -> checked_trees::CheckedTrees {
@@ -846,5 +847,5 @@ fn checked_result_boundary_source() -> checked_trees::CheckedTrees {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve result boundary custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type result boundary custody");
-    lower_typed_trees(typed).expect("check result boundary custody")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check result boundary custody")
 }

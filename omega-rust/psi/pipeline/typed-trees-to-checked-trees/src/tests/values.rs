@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, StatementNode, lower_symbol_resolved_trees, parse_syntax_trees,
     resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::values::build_value_facts;
 use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
@@ -49,7 +50,7 @@ fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() 
         let source = format!(
             "{declarations} {signature} -> u8 {{ let mut current: u8 = 3; let mut flag: bool = false; let saved: u8 = current; transition {{ _ -> finish({arguments}) }} state finish({target_parameters}) -> u8 {{ prior }} }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source))
+        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let states = checked.machine_states(&checked.machines()[0]);
         let state = &states[0];
@@ -182,7 +183,8 @@ fn scalar_transition_continuation_has_independent_argument_custody() {
     program.machine_states_mut(&machine)[0].statement_nodes =
         arena::HandleSpan::from_parts(nodes.start(), nodes.count() - 1);
 
-    let checked = lower_typed_trees(program).expect("both combined arms remain checked");
+    let checked = lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("both combined arms remain checked");
     let state = &checked.machine_states(&checked.machines()[0])[0];
     let plans = &checked.facts.values.scalar_expressions;
     for (target, role) in [
@@ -360,7 +362,8 @@ fn scalar_return_custody_retains_filtered_parameters_and_dense_prior_locals() {
         let source = format!(
             "data Packet [copy] {{ value: u64; }} machine mixed(packet: Packet, count: u8, bytes: [u8; 2], flag: bool) -> {result_type} {{ let owned: Packet = packet; let mut scratch: u8 = 9; let chosen: bool = flag; let first: u8 = count; let second: u8 = first; {returned} }}"
         );
-        let checked = lower_typed_trees(typed_trees(&source)).expect("mixed return source checks");
+        let checked = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
+            .expect("mixed return source checks");
         let machine = checked
             .machines()
             .iter()
@@ -457,8 +460,9 @@ fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrenc
     use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
     use typed_trees::{statement::TransitionTargetNode, types::PrimitiveType};
 
-    let checked = lower_typed_trees(typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        typed_trees(
+            r#"
         data Packet [copy] { value: u64; }
         machine choose(packet: Packet, input: u8, flag: bool) -> u8 {
             transition flag {
@@ -477,7 +481,9 @@ fn scalar_return_custody_keeps_same_spelling_state_bindings_and_source_occurrenc
             }
         }
     "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("explicit state argument source checks");
     let machine = checked
         .machines()
@@ -571,7 +577,7 @@ fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("implicit-self transition arguments should reach checked lowering");
     let machine = checked
         .machines()
@@ -631,7 +637,7 @@ fn borrowed_self_scalar_loop_keeps_ambient_receiver_and_authored_positions() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the borrowed-self scalar loop should reach checked lowering");
     let rot = checked
         .machines()
@@ -747,7 +753,7 @@ fn owned_self_scalar_loop_stays_outside_the_scalar_graph_route() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the owned-self loop still reaches checked lowering");
     let spin = checked
         .machines()
@@ -777,7 +783,7 @@ fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the direct scalar call should reach checked lowering");
     let caller = checked
         .facts
@@ -1070,7 +1076,7 @@ fn checked_scalar_plan_retains_guard_proved_exact_integer_cast_range() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the dominating guard proves the exact narrowing cast");
     let cast = checked
         .facts
@@ -1095,7 +1101,7 @@ fn boolean_integer_cast_keeps_binary_range_for_exact_shift() {
         }
     "#;
 
-    lower_typed_trees(typed_trees(source))
+    lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("a Boolean integer cast is confined to zero or one before the exact shift");
 }
 
@@ -1107,7 +1113,7 @@ fn exact_integer_widen_keeps_source_range_for_exact_shift() {
         }
     "#;
 
-    lower_typed_trees(typed_trees(source))
+    lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the exact widening retains u32 bounds before the exact shift");
 }
 
@@ -1124,7 +1130,7 @@ fn checked_scalar_plan_retains_guard_proved_exact_right_shift() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the dominating guard proves the exact right-shift count");
     assert!(
         checked
@@ -1163,7 +1169,7 @@ fn checked_scalar_plan_retains_guard_proved_exact_left_shift() {
         }
     "#;
 
-    let checked = lower_typed_trees(typed_trees(source))
+    let checked = lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .expect("the dominating guards prove exact left-shift count and value safety");
     assert!(
         checked
@@ -1232,8 +1238,9 @@ fn saved_argument_reads_a_bounds_precision_snapshot() {
     // `self.out[0]` captures only the bounds-precision snapshot [88, 88] on
     // `byte`: the indexed-read plan keeps bounds, not an exact scalar. The
     // transition argument must still read that exact observation back.
-    let checked = lower_typed_trees(typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        typed_trees(
+            r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
         machine Record::measure(&mut self) {
@@ -1243,7 +1250,9 @@ fn saved_argument_reads_a_bounds_precision_snapshot() {
             state done(&mut self, observed: u8) {}
         }
     "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("indexed read checks");
     assert!(
         entry_scalar_values(&checked, "done", "observed").contains(&facts::ScalarValue::Integer(
@@ -1258,8 +1267,9 @@ fn byte_carrier_live_length_reaches_the_saved_state_argument() {
     // `self.out.len` is the live length of a bounded byte carrier: an exact
     // u64 observation of the caller's "XXX" entry snapshot, not a carrier-wide
     // u64 guess.
-    let checked = lower_typed_trees(typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        typed_trees(
+            r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
         machine Record::measure(&mut self) {
@@ -1269,7 +1279,9 @@ fn byte_carrier_live_length_reaches_the_saved_state_argument() {
             state done(&mut self, count: u64) {}
         }
     "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("live length checks");
     assert!(
         entry_scalar_values(&checked, "done", "count").contains(&facts::ScalarValue::Integer(
@@ -1284,8 +1296,9 @@ fn retired_byte_carrier_literal_supplies_no_live_length() {
     // The element write retires the whole-carrier literal before the `.len`
     // read, so neither the retired snapshot nor the static capacity may
     // stand in as the live length at the saved argument.
-    let checked = lower_typed_trees(typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        typed_trees(
+            r#"
         domain [u8;3]::Utf8 requires valid_utf8(self);
         data Record { out: [u8;3] in Utf8; }
         machine Record::measure(&mut self) {
@@ -1296,7 +1309,9 @@ fn retired_byte_carrier_literal_supplies_no_live_length() {
             state done(&mut self, count: u64) {}
         }
     "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("retired carrier checks");
     assert!(
         entry_scalar_values(&checked, "done", "count")
@@ -1313,8 +1328,9 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
     // assignment statement and `self.seven()` occupies 1. Both must reach the
     // borrowed/collected call set and resolve back through find_call_site,
     // or the target-side call silently executes with no flow fact.
-    let checked = lower_typed_trees(typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        typed_trees(
+            r#"
         data Main {
             cells: [u8; 4];
         }
@@ -1330,7 +1346,9 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
             self.cells[self.pick()] = self.seven();
         }
     "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("indexed target call checks");
     let program = &checked.typed;
     let entry = |name: &str| {

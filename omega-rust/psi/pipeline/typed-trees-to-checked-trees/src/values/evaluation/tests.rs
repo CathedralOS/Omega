@@ -462,8 +462,8 @@ fn generated_return_plan_preserves_explicit_integer_landing() {
     .expect("resolve");
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let program =
-        crate::lower_typed_trees(program).expect("checked lowering retains landed operands");
+    let program = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("checked lowering retains landed operands");
     let plans = &program.facts.values.scalar_expressions;
     let state = &program.machine_states(&program.machines()[0])[0];
     let expression = plans

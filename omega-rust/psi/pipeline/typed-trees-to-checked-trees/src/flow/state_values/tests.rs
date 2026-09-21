@@ -107,7 +107,10 @@ fn check(source: &str, accepted: bool) {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match super::super::builder::tests::check_against_whole_pass(typed) {
+    match super::super::builder::tests::check_against_whole_pass(
+        typed,
+        &crate::CheckingRequest::settled(),
+    ) {
         Ok(_) => assert!(accepted, "unproved input accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -192,7 +195,8 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = crate::lower_typed_trees(typed).expect("checked scalar jump");
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("checked scalar jump");
     let program = &checked.typed;
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
@@ -309,7 +313,7 @@ fn sibling_continuation_values_have_independent_capture() {
         first.continuation = continuation;
         typed.machine_states_mut(&machine)[0].statement_nodes =
             arena::HandleSpan::from_parts(nodes.start(), 1);
-        let result = crate::lower_typed_trees(typed);
+        let result = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
     }
 }

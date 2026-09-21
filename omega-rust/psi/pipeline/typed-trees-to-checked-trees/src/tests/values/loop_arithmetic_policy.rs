@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::values::typed_trees;
 
@@ -18,7 +19,7 @@ fn check_loop(carrier: &str, policy: &str, operation: &str, guard: &str, accepte
 }
 
 fn check_source(source: &str, accepted: bool) {
-    match lower_typed_trees(typed_trees(source)) {
+    match lower_typed_trees(typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved loop index accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{source}\n{diagnostics:#?}");

@@ -1,8 +1,9 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::values::typed_trees;
 
 fn check(source: &str, accepted: bool) {
-    match lower_typed_trees(typed_trees(source)) {
+    match lower_typed_trees(typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(
             accepted,
             "authored Boolean equality supplied a bound: {source}"

@@ -18,12 +18,16 @@ thread_local! {
     pub(super) static SWEEP_LIMIT: std::cell::Cell<usize> = const { std::cell::Cell::new(usize::MAX) };
 }
 
+/// Mirror of `crate::lower_typed_trees` that also checks the incremental
+/// flow pass against the whole-pass reference under the same request.
 pub(crate) fn check_against_whole_pass(
     program: typed_trees::TypedTrees,
+    request: &crate::CheckingRequest<'_>,
 ) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let reference_program = program.clone();
-    let result = crate::lower_typed_trees(program);
-    let reference = with_whole_pass_reference(|| crate::lower_typed_trees(reference_program));
+    let result = crate::lower_typed_trees(program, request);
+    let reference =
+        with_whole_pass_reference(|| crate::lower_typed_trees(reference_program, request));
     assert_eq!(
         result, reference,
         "complete checked facts or diagnostics changed"
@@ -47,9 +51,10 @@ fn exhausted_sweep_budget_discards_provisional_constants() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let program = lower_symbol_resolved_trees(&resolved).unwrap();
-    check_against_whole_pass(program.clone()).expect("the complete fixed point proves 3");
+    check_against_whole_pass(program.clone(), &crate::CheckingRequest::settled())
+        .expect("the complete fixed point proves 3");
     let _restore = Restore(SWEEP_LIMIT.replace(1));
-    let diagnostics = check_against_whole_pass(program)
+    let diagnostics = check_against_whole_pass(program, &crate::CheckingRequest::settled())
         .expect_err("fallback must discard every provisional constant");
     assert!(
         diagnostics
@@ -175,9 +180,11 @@ fn complete_checking_matches_reference_with_reverse_chain_and_cycle() {
             let before = STATE_BUILDS.get();
             let start = std::time::Instant::now();
             let result = if reference {
-                with_whole_pass_reference(|| crate::lower_typed_trees(input))
+                with_whole_pass_reference(|| {
+                    crate::lower_typed_trees(input, &crate::CheckingRequest::settled())
+                })
             } else {
-                crate::lower_typed_trees(input)
+                crate::lower_typed_trees(input, &crate::CheckingRequest::settled())
             };
             let elapsed = start.elapsed();
             let builds = STATE_BUILDS.get() - before;

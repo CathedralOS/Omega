@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const NAMED_QUOTIENT: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -6,7 +7,7 @@ const NAMED_QUOTIENT: &str = include_str!(concat!(
 ));
 
 fn accepts_named(source: &str) {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
@@ -182,7 +183,7 @@ fn symbolic_division_endpoint_rechecks_formation_after_arrival() {
 }
 
 fn rejects_named(source: &str) {
-    let Err(diagnostics) = lower_typed_trees(typed(source)) else {
+    let Err(diagnostics) = lower_typed_trees(typed(source), &CheckingRequest::settled()) else {
         panic!("invalid rank range accepted:\n{source}");
     };
     assert!(
@@ -305,22 +306,24 @@ const COUNTDOWN: &str = include_str!(concat!(
 
 #[test]
 fn field_rank_accepts_bounded_arithmetic_over_pinned_inputs() {
-    lower_typed_trees(typed(COUNTDOWN)).expect("both ceiling inputs stay fixed");
+    lower_typed_trees(typed(COUNTDOWN), &CheckingRequest::settled())
+        .expect("both ceiling inputs stay fixed");
     for endpoint in [
         "ceiling + 1",
         "ceiling * 2",
         "ceiling + padding - 0",
         "ceiling / 1 + padding",
     ] {
-        lower_typed_trees(typed(
-            &COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};")),
-        ))
+        lower_typed_trees(
+            typed(&COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"))),
+            &CheckingRequest::settled(),
+        )
         .expect(endpoint);
     }
     let remainder = COUNTDOWN
         .replace("ceiling: u64 [5..=10]", "ceiling: u64")
         .replace("ceiling + padding;", "ceiling % 5 + 6;");
-    lower_typed_trees(typed(&remainder))
+    lower_typed_trees(typed(&remainder), &CheckingRequest::settled())
         .expect("the result is bounded even when its input exceeds i64");
 }
 
@@ -374,6 +377,6 @@ fn constant_rank_endpoints_preserve_landing_and_rational_meaning() {
         .expect_err("the exact rational floor is one, not zero");
     for endpoint in ["1 / 2 * 12", "6u8 + 1u8", "ceiling + (1 / 2 * 2)"] {
         let source = COUNTDOWN.replace("ceiling + padding;", &format!("{endpoint};"));
-        lower_typed_trees(typed(&source)).expect(endpoint);
+        lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(endpoint);
     }
 }

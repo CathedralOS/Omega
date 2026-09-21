@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
@@ -25,7 +26,8 @@ fn explicit_generic_conformance_lifetime_closes_its_trait_identity() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("explicit conformance lifetime");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("explicit conformance lifetime");
     let application = checked
         .machine_specializations
         .iter()
@@ -60,7 +62,8 @@ fn generic_conformance_lifetime_elides_from_one_ordinary_borrow_constraint() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("uniquely elided conformance lifetime");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("uniquely elided conformance lifetime");
     let application = checked
         .machine_specializations
         .iter()
@@ -95,7 +98,8 @@ fn explicit_generic_conformance_lifetime_must_match_the_ordinary_borrow_constrai
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("mismatched explicit lifetime");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("mismatched explicit lifetime");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -136,7 +140,8 @@ fn generic_conformance_lifetime_elision_rejects_conflicting_borrow_constraints()
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("ambiguous elision must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("ambiguous elision must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -168,7 +173,8 @@ fn generic_conformance_lifetime_elision_rejects_zero_borrow_candidates() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("zero-candidate elision must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("zero-candidate elision must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -204,7 +210,8 @@ fn bare_generic_conformance_name_does_not_infer_its_owned_arguments() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("bare generic name must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("bare generic name must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
@@ -242,7 +249,8 @@ fn members_of_one_generic_conformance_family_have_distinct_identity() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("two closed family applications");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("two closed family applications");
     let applications = checked
         .machine_specializations
         .iter()
@@ -288,7 +296,8 @@ fn nested_generic_conformance_application_specializes_its_selected_row() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("instantiated selected row");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("instantiated selected row");
     let application = checked
         .machine_specializations
         .iter()
@@ -345,7 +354,8 @@ fn distinct_generic_conformance_applications_specialize_distinct_selected_rows()
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("two instantiated selected rows");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("two instantiated selected rows");
     let mut row_instances = checked
         .machine_specializations
         .iter()

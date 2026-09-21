@@ -39,8 +39,11 @@ fn fixture() -> (CheckedTrees, ProviderPlan) {
     let [plan] = plans.as_slice() else {
         panic!("floating Match fixture must derive exactly one plan")
     };
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check floating Match fixture");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check floating Match fixture");
     bind_plan(&mut checked, plan);
     (checked, plan.clone())
 }

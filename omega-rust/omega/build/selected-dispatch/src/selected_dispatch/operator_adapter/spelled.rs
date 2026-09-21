@@ -208,8 +208,11 @@ mod tests {
         let [plan] = plans.as_slice() else {
             panic!("fixed-token dispatch fixture must derive one provider plan")
         };
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect("check fixed-token dispatch fixture");
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("check fixed-token dispatch fixture");
         let (use_handle, mut operator_use) = checked
             .facts
             .operators

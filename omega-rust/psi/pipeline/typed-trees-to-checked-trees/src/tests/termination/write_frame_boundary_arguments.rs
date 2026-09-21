@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
@@ -53,7 +54,7 @@ fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
             ),
             "{argument}: value shape does not erase initializer writes",
         );
-        lower_typed_trees(typed).unwrap_or_else(|errors| {
+        lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!("{argument}: disjoint field fact must survive: {errors:#?}")
         });
         for written in expected {
@@ -62,7 +63,7 @@ fn boundary_reference_metadata_preserves_disjoint_facts_and_argument_effects() {
                 .expect("parse negative control");
             let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
             let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-            let errors = lower_typed_trees(typed)
+            let errors = lower_typed_trees(typed, &CheckingRequest::settled())
                 .expect_err("a boundary or argument write invalidates its old field fact");
             assert!(
                 errors
@@ -86,7 +87,8 @@ fn indexed_method_receiver_reaches_checked_trees() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("indexed method receiver reaches checking");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("indexed method receiver reaches checking");
 }
 
 #[test]
@@ -293,7 +295,7 @@ fn boundary_forwarded_reference_reaches_checked_trees() {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed);
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled());
         if let Some(expected) = expected_diagnostic {
             let diagnostics = checked.expect_err("reference result access and referee must match");
             assert!(

@@ -7,6 +7,7 @@ use crate::nominal_affine_source::{
     decode_module, encode_module, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn three_distinct_nominal_roots_cross_source_codec_and_verifier_in_reverse_order() {
@@ -16,7 +17,7 @@ fn three_distinct_nominal_roots_cross_source_codec_and_verifier_in_reverse_order
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("three distinct cleanup targets lower");
 
@@ -72,7 +73,7 @@ fn three_nominal_roots_may_share_one_executable_target_and_helper() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("three shared executable cleanup actions lower");
 
@@ -125,7 +126,7 @@ fn one_call_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("one-call nominal cleanup lowers");
 
@@ -205,7 +206,7 @@ fn two_call_nominal_cleanup_preserves_source_order_through_codec_and_verifier() 
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("two-call nominal cleanup lowers");
 
@@ -292,7 +293,7 @@ fn three_call_nominal_cleanup_preserves_exact_source_order_through_codec_and_ver
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("three-call nominal cleanup lowers");
 

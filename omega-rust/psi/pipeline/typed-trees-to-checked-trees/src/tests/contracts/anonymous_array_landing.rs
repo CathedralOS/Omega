@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 use checked_trees::CheckedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -74,14 +75,14 @@ fn source(destination: Destination, nested: bool, expression: &str) -> String {
 }
 
 fn accepts(source: &str) -> CheckedTrees {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn rejects(source: &str, expected_fragments: &[&str]) {
     // A syntax, resolution, or typing failure is not an arithmetic rejection witness.
     let typed = parse_typed_trees(source);
-    let diagnostics = match lower_typed_trees(typed) {
+    let diagnostics = match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => panic!("invalid integer array element accepted: {source}"),
         Err(diagnostics) => diagnostics,
     };

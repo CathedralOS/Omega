@@ -63,7 +63,10 @@ impl CheckedInitializers {
         for machine in machines {
             bodies.push_machine(machine);
         }
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(bodies)?;
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            bodies,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )?;
         let instances = checked
             .typed
             .machine_specializations
@@ -214,13 +217,16 @@ impl Invocation<'_> {
             concrete,
             entry.return_type,
         );
-        let checked =
-            typed_trees_to_checked_trees::lower_typed_trees(probe).map_err(|diagnostics| {
-                format!(
-                    "constant invocation of `{}` failed checking: {diagnostics:?}",
-                    machine.name
-                )
-            })?;
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            probe,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .map_err(|diagnostics| {
+            format!(
+                "constant invocation of `{}` failed checking: {diagnostics:?}",
+                machine.name
+            )
+        })?;
         let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
             &checked.typed,
             &checked.facts,

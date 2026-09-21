@@ -3,6 +3,7 @@ use super::super::super::super::{
 };
 
 use super::fixture_source;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::inputs::assert_input_subject;
 use crate::tests::termination::progress_mutation::check_source;
@@ -27,7 +28,8 @@ fn reject_exposed_input(access: &str, preceding: &str, operand: &str, extra: &st
         ),
         extra,
     );
-    let Err(diagnostics) = lower_typed_trees(typed_source(&source)) else {
+    let Err(diagnostics) = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
+    else {
         panic!("exposure cannot preserve an input reference's requires evidence");
     };
     assert!(
@@ -128,7 +130,9 @@ fn a_referent_scheduler_write_retires_the_input_qualification() {
     ] {
         let source =
             referent_method_source(preceding, operand, "self.scheduler = SchedulerHandle {};");
-        let Err(diagnostics) = lower_typed_trees(typed_source(&source)) else {
+        let Err(diagnostics) =
+            lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
+        else {
             panic!("{preceding} / {operand}: a replaced scheduler has no qualification");
         };
         assert!(
@@ -190,7 +194,7 @@ fn a_referent_method_does_not_replace_a_saved_reference_binding() {
         );
         // Reference identity is not permission to mutate through the parent
         // while the saved exclusive loan remains live.
-        let Err(diagnostics) = lower_typed_trees(program) else {
+        let Err(diagnostics) = lower_typed_trees(program, &CheckingRequest::settled()) else {
             panic!("{preceding} / {operand}: a live exclusive loan must reject mutation");
         };
         assert!(

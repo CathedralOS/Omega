@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn check(source: &str, accepted: bool) {
@@ -6,7 +7,7 @@ fn check(source: &str, accepted: bool) {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "stale computed bounds accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -60,7 +61,7 @@ fn assert_range_rejection(diagnostics: &[diagnostics::Diagnostic], source: &str)
 }
 
 fn check_range(source: &str, accepted: bool) {
-    match lower_typed_trees(typed_fixture(source)) {
+    match lower_typed_trees(typed_fixture(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "stale computed bounds accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "check: {diagnostics:#?}\n{source}");
@@ -248,7 +249,9 @@ fn local_field_name_conflict_rejects_ambiguous_computed_boundary_source() {
         } else {
             // This source is rejected by the existing declaration fence before
             // range checking; it is not a computed-dependency identity test.
-            let Err(diagnostics) = lower_typed_trees(typed_fixture(&source)) else {
+            let Err(diagnostics) =
+                lower_typed_trees(typed_fixture(&source), &CheckingRequest::settled())
+            else {
                 panic!("a local cannot shadow the attached field");
             };
             assert!(
@@ -353,7 +356,7 @@ fn an_opaque_call_frame_retires_computed_bounds() {
              let cut: i64 = original - 1;
              let view: &[i32] = items[0..cut]; view.len
          }";
-    let mut checked = lower_typed_trees(typed_fixture(source))
+    let mut checked = lower_typed_trees(typed_fixture(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("known empty frame: {diagnostics:#?}\n{source}"));
     let machine = checked
         .typed

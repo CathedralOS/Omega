@@ -35,8 +35,11 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     let syntax = parse_syntax_trees(&tokens).expect("parse countdown");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve countdown");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type countdown");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("ranked primitive-array receiver checks");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("ranked primitive-array receiver checks");
     let plan = checked
         .facts
         .flow

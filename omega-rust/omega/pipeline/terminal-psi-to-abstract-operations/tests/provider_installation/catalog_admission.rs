@@ -24,6 +24,7 @@ use terminal_psi_to_abstract_operations::{
 };
 use terminal_verifier::{ModuleError, validate_module};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -519,7 +520,7 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = lower_typed_trees(typed).unwrap();
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
     let machine = checked
         .typed
         .machines()

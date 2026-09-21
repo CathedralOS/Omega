@@ -13,6 +13,7 @@ use terminal_interpreter::{
     interpret_terminal_artifact, interpret_terminal_artifact_measured,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
@@ -21,8 +22,8 @@ fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    let checked =
-        lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (

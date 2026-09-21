@@ -31,8 +31,11 @@ fn selected_operator_crash_invocations_reject_terminal_custody() {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect("matched ceiling or false route must pass source checking");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("matched ceiling or false route must pass source checking");
         let diagnostics = validate_selected_operator_terminal_custody(
             &checked,
             &effects::SelectedProviderPlanFacts::default(),
@@ -132,8 +135,11 @@ fn fixture_from_source(source: &str) -> Fixture {
         .find(|plan| plan.schema.trait_name.contains("OtherMath::offset_zero"))
         .expect("OtherMath provider plan")
         .clone();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check operator dispatch fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check operator dispatch fixture");
     let operator_use = checked
         .facts
         .operators

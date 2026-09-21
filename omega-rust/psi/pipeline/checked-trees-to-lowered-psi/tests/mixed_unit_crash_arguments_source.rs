@@ -16,8 +16,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
 }
 
 const SOURCE: &str = r#"
@@ -453,8 +456,11 @@ fn mixed_structural_scalar_crash_divisors_still_require_totality() {
         let syntax = parse_syntax_trees(&tokens).unwrap();
         let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect_err("a mixed signature does not make an unproven divisor total");
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("a mixed signature does not make an unproven divisor total");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message

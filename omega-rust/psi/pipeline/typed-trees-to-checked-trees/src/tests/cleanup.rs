@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
@@ -6,7 +7,8 @@ fn diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect_err("invalid cleanup declaration must reject")
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("invalid cleanup declaration must reject")
 }
 
 fn rejects(source: &str, expected: &str) {
@@ -24,7 +26,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn machine_symbol(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
@@ -46,7 +48,8 @@ fn accepts_reserved_cleanup_shape() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("reserved cleanup shape should check");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("reserved cleanup shape should check");
 }
 
 #[test]
@@ -61,7 +64,8 @@ fn accepts_exact_one_call_executable_cleanup_shape() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("exact one-call cleanup shape should check");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("exact one-call cleanup shape should check");
 }
 
 #[test]
@@ -81,7 +85,8 @@ fn accepts_exact_two_call_executable_cleanup_shape() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("exact two-call cleanup shape should check");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("exact two-call cleanup shape should check");
 }
 
 #[test]
@@ -110,7 +115,8 @@ fn accepts_exact_five_call_executable_cleanup_shape() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("exact five-call cleanup shape should check");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("exact five-call cleanup shape should check");
 }
 
 #[test]
@@ -199,7 +205,8 @@ fn ordinary_drop_spelling_remains_callable() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("ordinary drop spellings should remain callable");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("ordinary drop spellings should remain callable");
 }
 
 #[test]
@@ -238,7 +245,8 @@ fn accepts_repeated_nonempty_or_argumented_hook_bodies() {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        lower_typed_trees(typed).expect("an ordinary hook body is checked like any Unit machine");
+        lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect("an ordinary hook body is checked like any Unit machine");
     }
 }
 
@@ -252,7 +260,8 @@ fn accepts_cleanup_for_generic_attached_data() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("attached-data generics are inherited through exact Self");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("attached-data generics are inherited through exact Self");
 }
 
 #[test]
@@ -312,7 +321,8 @@ fn bodyless_cleanup_requires_published_termination() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("terminating bodyless cleanup should check");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("terminating bodyless cleanup should check");
 }
 
 #[test]

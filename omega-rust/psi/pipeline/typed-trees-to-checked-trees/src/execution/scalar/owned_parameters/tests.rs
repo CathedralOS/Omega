@@ -19,7 +19,8 @@ fn checked() -> checked_trees::CheckedTrees {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }
 
 #[test]

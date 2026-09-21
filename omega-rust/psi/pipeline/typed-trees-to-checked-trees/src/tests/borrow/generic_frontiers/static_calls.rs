@@ -83,13 +83,19 @@ fn source(view: bool) -> String {
 
 #[test]
 fn exact_static_callable_substitution_allows_only_closed_view_free_results() {
-    crate::lower_typed_trees(typed_program(&source(false)))
-        .unwrap_or_else(|diagnostics| panic!("closed arbitrary service result: {diagnostics:#?}"));
+    crate::lower_typed_trees(
+        typed_program(&source(false)),
+        &crate::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("closed arbitrary service result: {diagnostics:#?}"));
     let direct = source(false).replace("submit<work>(job)", "submit<work>(Job { value: 9 })");
-    crate::lower_typed_trees(typed_program(&direct))
+    crate::lower_typed_trees(typed_program(&direct), &crate::CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("exact direct constructor: {diagnostics:#?}"));
-    let diagnostics = crate::lower_typed_trees(typed_program(&source(true)))
-        .expect_err("a rejected job would carry a view requiring caller-specific loans");
+    let diagnostics = crate::lower_typed_trees(
+        typed_program(&source(true)),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect_err("a rejected job would carry a view requiring caller-specific loans");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

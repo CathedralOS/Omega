@@ -56,8 +56,11 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
             self.left = 9;
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
-        .expect("ordered receiver stores check");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("ordered receiver stores check");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::replace")
         .produce_artifact()
         .expect("every authored store and intervening call reaches Terminal");
@@ -182,8 +185,11 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
             self.current = scratch;
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
-        .expect("local snapshot and current storage field assignments check");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("local snapshot and current storage field assignments check");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::replace")
         .produce_artifact()
         .expect("field stores receive immutable bindings and primitive storage independently");
@@ -386,8 +392,11 @@ fn assert_receiver_store_with_access(
         ),
         _ => panic!("store fixture requires writable borrowed access"),
     };
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(&source))
-        .expect("ordinary writable receiver stores check");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("ordinary writable receiver stores check");
     let machine = checked
         .machines()
         .iter()
@@ -653,11 +662,13 @@ fn shared_receiver_store_rejects_during_source_checking() {
             self.value = 17;
         }
     "#;
-    let diagnostics =
-        match typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source)) {
-            Ok(_) => panic!("a shared receiver store must fail source checking"),
-            Err(diagnostics) => diagnostics,
-        };
+    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) {
+        Ok(_) => panic!("a shared receiver store must fail source checking"),
+        Err(diagnostics) => diagnostics,
+    };
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -668,8 +679,11 @@ fn shared_receiver_store_rejects_during_source_checking() {
 
 #[test]
 fn canonical_verifier_rejects_shared_access_substituted_for_mutable_receiver() {
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(SOURCE)).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::direct")
         .produce_artifact()
         .unwrap();
@@ -698,8 +712,11 @@ fn ranged_field_store_proves_a_nonnegative_bitwise_and_mask() {
             self.masked = self.current & 15;
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
-        .expect("ranged bitwise-and store checks");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("ranged bitwise-and store checks");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Cell::mask")
         .produce_artifact()
         .expect("the mask image proves into the declared range");
@@ -721,11 +738,13 @@ fn ranged_field_store_rejects_a_mask_image_wider_than_the_field() {
             self.masked = self.current & 255;
         }
     "#;
-    let diagnostics =
-        match typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source)) {
-            Ok(_) => panic!("a mask image wider than the field cannot prove the store"),
-            Err(diagnostics) => diagnostics,
-        };
+    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) {
+        Ok(_) => panic!("a mask image wider than the field cannot prove the store"),
+        Err(diagnostics) => diagnostics,
+    };
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -757,8 +776,11 @@ fn ranged_field_store_proves_a_guard_bounded_binary_operand() {
             state bad(&mut self) {}
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
-        .expect("guarded binary operand store checks");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("guarded binary operand store checks");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
         .produce_artifact()
         .expect("the guard-bounded operand proves the sum into the declared range");
@@ -787,11 +809,13 @@ fn ranged_field_store_rejects_a_guard_bounded_sum_past_the_field() {
             state bad(&mut self) {}
         }
     "#;
-    let diagnostics =
-        match typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source)) {
-            Ok(_) => panic!("a guarded sum wider than the field cannot prove the store"),
-            Err(diagnostics) => diagnostics,
-        };
+    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) {
+        Ok(_) => panic!("a guarded sum wider than the field cannot prove the store"),
+        Err(diagnostics) => diagnostics,
+    };
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

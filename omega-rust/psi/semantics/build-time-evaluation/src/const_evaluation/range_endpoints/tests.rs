@@ -596,8 +596,11 @@ fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
         pre_check
             .evaluate(&mut program)
             .unwrap_or_else(|errors| panic!("{argument}: pre-check: {errors:?}"));
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(program)
-            .unwrap_or_else(|errors| panic!("{argument}: checked lowering: {errors:?}"));
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            program,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|errors| panic!("{argument}: checked lowering: {errors:?}"));
         let keep = checked
             .typed
             .machines()
@@ -1016,7 +1019,11 @@ fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
     let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|error| vec![error])?;
     pre_check.evaluate(&mut program)?;
-    typed_trees_to_checked_trees::lower_typed_trees(program).map(|_| ())
+    typed_trees_to_checked_trees::lower_typed_trees(
+        program,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .map(|_| ())
 }
 
 #[test]
@@ -1328,11 +1335,18 @@ machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64
     let Some(pending) = pre_check.evaluate_or_defer(&mut program).unwrap() else {
         panic!("a provider-dependent endpoint must defer its pre-check continuation");
     };
-    typed_trees_to_checked_trees::lower_preliminary_typed_trees(program.clone()).unwrap_or_else(
-        |errors| panic!("the marked endpoint must survive interim checking: {errors:?}"),
-    );
-    let errors = typed_trees_to_checked_trees::lower_typed_trees(program.clone())
-        .expect_err("final checking must refuse a lost deferred continuation");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        program.clone(),
+        &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+    )
+    .unwrap_or_else(|errors| {
+        panic!("the marked endpoint must survive interim checking: {errors:?}")
+    });
+    let errors = typed_trees_to_checked_trees::lower_typed_trees(
+        program.clone(),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("final checking must refuse a lost deferred continuation");
     assert!(
         errors
             .iter()
@@ -1349,8 +1363,11 @@ machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64
             },
         )
         .unwrap_or_else(|errors| panic!("deferred endpoint: {errors:?}"));
-    typed_trees_to_checked_trees::lower_typed_trees(program)
-        .unwrap_or_else(|errors| panic!("the folded endpoint must check: {errors:?}"));
+    typed_trees_to_checked_trees::lower_typed_trees(
+        program,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|errors| panic!("the folded endpoint must check: {errors:?}"));
 }
 
 #[test]
@@ -1613,7 +1630,11 @@ fn whole_endpoint_without_calls_uses_the_same_shared_evaluator() {
     assert!(pending_endpoints(&program).unwrap().is_empty());
     evaluate_const_range_endpoints(&mut program, None).unwrap();
     assert_eq!(folded_maximum(&program).as_deref(), Some("257"));
-    typed_trees_to_checked_trees::lower_typed_trees(program).unwrap();
+    typed_trees_to_checked_trees::lower_typed_trees(
+        program,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -1649,7 +1670,11 @@ fn optional_endpoint_probes_preserve_dependent_bounds_and_invalid_roots() {
         typed("machine keep(value: u64[0..=(match true { true -> false, false -> true })]) {}");
     evaluate_const_range_endpoints(&mut program, None).unwrap();
     assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(program).is_err(),
+        typed_trees_to_checked_trees::lower_typed_trees(
+            program,
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err(),
         "optional probing cannot accept an invalid Boolean range bound"
     );
 }
@@ -1690,7 +1715,13 @@ fn optional_endpoint_preparation_failure_leaves_authored_roots_unchanged() {
         assert_eq!(program.expression_table.expression(root), &original);
     }
     assert_eq!(program.pending_const_range_endpoints, marks);
-    assert!(typed_trees_to_checked_trees::lower_typed_trees(program).is_err());
+    assert!(
+        typed_trees_to_checked_trees::lower_typed_trees(
+            program,
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -1706,8 +1737,11 @@ fn policy_parameters_execute_the_declared_width_without_changing_initial_landing
             evaluate_const_range_endpoints(&mut program, None)
                 .unwrap_or_else(|errors| panic!("{policy} {argument}: {errors:?}"));
             assert_eq!(folded_maximum(&program).as_deref(), Some(expected));
-            typed_trees_to_checked_trees::lower_typed_trees(program)
-                .unwrap_or_else(|errors| panic!("{policy} checked: {errors:?}"));
+            typed_trees_to_checked_trees::lower_typed_trees(
+                program,
+                &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            )
+            .unwrap_or_else(|errors| panic!("{policy} checked: {errors:?}"));
         }
         for argument in [
             "256",
@@ -1770,7 +1804,11 @@ fn policy_endpoint_publication_retains_its_landed_policy() {
                 .to_string(),
             expected,
         );
-        typed_trees_to_checked_trees::lower_typed_trees(program).unwrap();
+        typed_trees_to_checked_trees::lower_typed_trees(
+            program,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap();
     }
 }
 
