@@ -744,6 +744,34 @@ fn validate_parameter_dynamic_dispatches(
     Ok(())
 }
 
+/// The validated `CallDynamicScalar`/`CallDynamicUnit` operation consumes
+/// exactly one indirect or stored dispatch row, and that row names the
+/// realization machine the call invokes. Graph consumers recompute the
+/// callee from the same catalog so a Unit-returning dispatch contributes the
+/// same edge as a scalar one.
+pub(super) fn dynamic_call_realization(
+    module: &TerminalModule,
+    owner: MachineId,
+    operation: OperationId,
+) -> Option<MachineId> {
+    module
+        .dynamic_dispatch
+        .indirect_dispatches
+        .iter()
+        .find(|dispatch| dispatch.owner == owner && dispatch.operation == operation)
+        .map(|dispatch| dispatch.realization)
+        .or_else(|| {
+            module
+                .dynamic_dispatch
+                .stored_dispatches
+                .iter()
+                .find_map(|dispatch| {
+                    (dispatch.owner == owner && dispatch.operation == operation)
+                        .then_some(dispatch.realization)
+                })
+        })
+}
+
 fn invalid_dispatch(owner: MachineId, operation: OperationId) -> ModuleError {
     ModuleError::InvalidDirectDynamicDispatch { owner, operation }
 }

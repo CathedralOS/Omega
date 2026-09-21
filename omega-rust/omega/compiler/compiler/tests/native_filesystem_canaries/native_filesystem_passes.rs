@@ -100,10 +100,11 @@ fn posix_directory_wrappers_drain_multiple_native_fills() {
     let source = format!(
         r#"use omega::language::std::filesystem;
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {{
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     result: IoResult;
     stats_result: DirStatsResult;
     entry_result: DirEntryResult;

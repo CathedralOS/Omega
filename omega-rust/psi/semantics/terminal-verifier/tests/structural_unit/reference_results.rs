@@ -31,6 +31,7 @@ fn reference_result(place: u64) -> OperationResult {
         multiplicity: StructuralMultiplicity::Affine,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        qualification_establishments: Vec::new(),
         claims: Vec::new(),
     })
 }
@@ -48,6 +49,7 @@ fn reference_place(place: u64, producer: u64) -> StructuralPlaceDeclaration {
 fn release(operation: u64, place: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(operation),
         result: OperationResult::Unit,
         kind: OperationKind::ReleaseReference {
@@ -59,6 +61,7 @@ fn release(operation: u64, place: u64) -> Operation {
 fn establish(operation: u64, place: u64, source: StructuralArgument) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(operation),
         result: reference_result(place),
         kind: OperationKind::EstablishReference { source },
@@ -115,6 +118,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
             [
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(18),
                     result: OperationResult::Scalar(ValueDeclaration {
                         id: value_id(10),
@@ -127,6 +131,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(19),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -156,6 +161,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
     writer.blocks[0].id = block_id(3);
     writer.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(30),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -180,6 +186,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
     caller.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: reference_result(2),
             kind: OperationKind::CallStructural {
@@ -194,10 +201,12 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: vec![value_id(1)],
                 structural_arguments: vec![argument(2, true)],
@@ -209,6 +218,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         release(3, 2),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(2),
@@ -265,6 +275,7 @@ fn reference_result_rejects_parent_read_write_and_call_before_release() {
         2,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -334,8 +345,10 @@ fn reference_result_rejects_wrong_formal_and_local_escape() {
     });
     relay.blocks[0].operations[1] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(19),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(13),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -410,6 +423,7 @@ fn jump(edge: u64, target: u64, discards: Vec<PlaceId>) -> Terminator {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: discards,
         residual_affine_discards: Vec::new(),
@@ -426,6 +440,7 @@ fn reference_result_edge_discard_releases_permission_before_continuing_read() {
     caller.blocks[0].terminator = jump(4, 4, vec![place_id(2)]);
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -454,6 +469,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
     caller.blocks[0].operations.push(Operation {
         id: operation_id(5),
         static_reach_binding: None,
+        suspension_crossing: None,
         result: OperationResult::Scalar(ValueDeclaration {
             id: value_id(5),
             scalar_type: ScalarType::Boolean,
@@ -466,6 +482,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -479,6 +496,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
     caller.blocks.extend([
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -487,6 +505,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(5),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -495,6 +514,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(6),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -521,6 +541,7 @@ fn reference_result_alias_writes_invalidate_reaching_store_but_permission_events
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(7),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -574,6 +595,7 @@ fn reference_result_mutable_carrier_lends_only_the_callees_declared_access() {
         if access == StructuralAccess::SharedBorrow {
             callee.blocks[0].operations[0] = Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(30),
                 result: OperationResult::Scalar(ValueDeclaration {
                     id: value_id(31),
@@ -699,8 +721,10 @@ fn record_reference_module() -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(3),
                 structural_type: structural_type_id(3),
                 multiplicity: StructuralMultiplicity::Affine,
@@ -724,6 +748,7 @@ fn record_reference_module() -> TerminalModule {
     caller.blocks[0].terminator = jump(4, 4, vec![place_id(3)]);
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -917,6 +942,7 @@ fn returned_record_reference_module() -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: construction.result.clone(),
             kind: OperationKind::CallStructural {
@@ -1047,6 +1073,7 @@ pub(super) fn owned_reference_record_module(two_leaves: bool, consumes: bool) ->
         call.result = OperationResult::Unit;
         call.kind = OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(4),
             arguments: Vec::new(),
             structural_arguments: vec![owned],
@@ -1506,6 +1533,7 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(18),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(10),
@@ -1546,6 +1574,7 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(19),
             result: OperationResult::Structural(StructuralOperationResult {
                 place: place_id(16),
@@ -1553,6 +1582,7 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             }),
             kind: OperationKind::EstablishPrimitiveLocal {

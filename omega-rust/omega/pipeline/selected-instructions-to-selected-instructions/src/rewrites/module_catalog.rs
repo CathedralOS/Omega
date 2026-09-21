@@ -14,9 +14,14 @@
 /// How a rewrite module reaches — or fails to reach — the production route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RewriteModuleRoute {
-    /// An executable route reaches the module; names the production file
-    /// whose call runs or selects it (repository-relative).
-    Routed(&'static str),
+    /// An executable route reaches the module: `caller` names the production
+    /// file whose call runs or selects it (repository-relative), and
+    /// `evidence` is the route symbol that file must contain — the reconcile
+    /// test fails a `Routed` row whose named caller stops calling it.
+    Routed {
+        caller: &'static str,
+        evidence: &'static str,
+    },
     /// Called only from the module's own tests. Names the execution-board
     /// item that owns giving the module a stage-catalog row or deleting it.
     Orphaned(&'static str),
@@ -44,9 +49,10 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // `selected_allocation_recovery_rule` is consulted during native
         // phase selection and its `fixed_view_copy` materialization runs
         // under the routed `fixed_view` stage entrances.
-        route: RewriteModuleRoute::Routed(
-            "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/phase_selections.rs",
-        ),
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/phase_selections.rs",
+            evidence: "selected_allocation_recovery_rule",
+        },
     },
     RewriteModuleRow {
         module: "arm_relocation",
@@ -71,6 +77,10 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
         module: "bypass_run_relocation",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
+    },
+    RewriteModuleRow {
+        module: "catalog",
+        route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
         module: "commuting_accesses",
@@ -153,9 +163,10 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // Register allocation stages `stage_optimized_fixed_precolored_
         // segment_homes` and `stage_optimized_fixed_view_copies` from its
         // assignment recovery.
-        route: RewriteModuleRoute::Routed(
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/recovery.rs",
-        ),
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/recovery.rs",
+            evidence: "stage_optimized_fixed_view_copies",
+        },
     },
     RewriteModuleRow {
         module: "fork_relocation",
@@ -174,26 +185,13 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        // The flag on EXACT-MACHINE-SIMPLIFICATIONS moves the folds that
-        // duplicate cataloged pair rules to candidate nomination here.
-        module: "literal_arithmetic",
-        route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
-    },
-    RewriteModuleRow {
-        module: "literal_compare",
-        route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
-    },
-    RewriteModuleRow {
         module: "literal_folds",
         // The selected-lowering executor: `run_selected_lowering_
         // optimizations` is the only rewrite the stage entrance runs.
-        route: RewriteModuleRoute::Routed(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
-        ),
-    },
-    RewriteModuleRow {
-        module: "literal_minuend",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            evidence: "run_selected_lowering_optimizations",
+        },
     },
     RewriteModuleRow {
         module: "load_forwarding",
@@ -232,6 +230,12 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
+        // The one member-run relocation admission every scheduling family
+        // delegates to once the window derivation is shared.
+        module: "relocation",
+        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
+    },
+    RewriteModuleRow {
         module: "run_interchange",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
@@ -243,25 +247,28 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         module: "runtime_rematerialization",
         // Register allocation replays `rematerialize_selected_runtime_value`
         // through its runtime-spill route.
-        route: RewriteModuleRoute::Routed(
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
-        ),
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
+            evidence: "rematerialize_selected_runtime_value",
+        },
     },
     RewriteModuleRow {
         module: "runtime_spill",
         // Register allocation's `assignment/runtime_spill` executes and
         // replays `spill_selected_runtime_value`.
-        route: RewriteModuleRoute::Routed(
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
-        ),
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
+            evidence: "spill_selected_runtime_value",
+        },
     },
     RewriteModuleRow {
         module: "selected_lowering",
         // Its rule catalog is resolved by the `literal_folds` executor and
         // consulted during native phase selection.
-        route: RewriteModuleRoute::Routed(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
-        ),
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
+            evidence: "resolve_selected_lowering_rules",
+        },
     },
     RewriteModuleRow {
         module: "store_motion",
@@ -283,8 +290,8 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::path::PathBuf;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::{Path, PathBuf};
 
     use super::{REWRITE_MODULE_CATALOG, RewriteModuleRoute};
 
@@ -346,11 +353,26 @@ mod tests {
             cataloged,
             "catalog row order must match mod.rs declaration order"
         );
+
+        let rewrites_dir = repository_root().join(
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites",
+        );
+        let missing_backing: Vec<&String> = declared
+            .iter()
+            .filter(|name| {
+                !rewrites_dir.join(format!("{name}.rs")).is_file()
+                    && !rewrites_dir.join(name).join("mod.rs").is_file()
+            })
+            .collect();
+        assert!(
+            missing_backing.is_empty(),
+            "declared modules with no backing file (<name>.rs or <name>/mod.rs): {missing_backing:?}"
+        );
     }
 
-    /// A `Routed` row's named production caller must exist; an `Orphaned`
-    /// row's owner must be a live execution-board item (`**ITEM.**` in
-    /// `TASKS_OPTIMIZER.md`).
+    /// A `Routed` row's named production caller must exist and still contain
+    /// the row's route symbol; an `Orphaned` row's owner must be a live
+    /// execution-board item (`**ITEM.**` in `TASKS_OPTIMIZER.md`).
     #[test]
     fn module_catalog_dispositions_resolve() {
         let repository = repository_root();
@@ -359,12 +381,17 @@ mod tests {
         let mut violations = Vec::new();
         for row in REWRITE_MODULE_CATALOG {
             match row.route {
-                RewriteModuleRoute::Routed(caller) => {
-                    if !repository.join(caller).is_file() {
-                        violations.push(format!(
+                RewriteModuleRoute::Routed { caller, evidence } => {
+                    match std::fs::read_to_string(repository.join(caller)) {
+                        Ok(contents) if contents.contains(evidence) => {}
+                        Ok(_) => violations.push(format!(
+                            "{}: routed caller {caller} no longer contains route symbol `{evidence}`",
+                            row.module
+                        )),
+                        Err(_) => violations.push(format!(
                             "{}: routed caller does not exist: {caller}",
                             row.module
-                        ));
+                        )),
                     }
                 }
                 RewriteModuleRoute::Orphaned(owner) => {
@@ -381,6 +408,130 @@ mod tests {
         assert!(
             violations.is_empty(),
             "rewrite module catalog violations:\n{}",
+            violations.join("\n")
+        );
+    }
+
+    /// An `Orphaned` row must stay called only from tests. A production-file
+    /// reference to one of its public functions means the module gained a
+    /// route: the row must move to `Routed { caller, evidence }` rather than
+    /// let the catalog go stale.
+    #[test]
+    fn orphaned_modules_have_no_production_callers() {
+        let repository = repository_root();
+        let rewrites_dir = repository.join(
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites",
+        );
+
+        /// Public functions declared by a source file (`pub fn name`).
+        fn public_functions(contents: &str) -> Vec<String> {
+            contents
+                .match_indices("pub fn ")
+                .filter_map(|(offset, _)| {
+                    let name: String = contents[offset + "pub fn ".len()..]
+                        .chars()
+                        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                        .collect();
+                    (!name.is_empty()).then_some(name)
+                })
+                .collect()
+        }
+
+        /// One module's backing sources: its `<module>.rs` root plus the
+        /// `<module>/**/*.rs` members it declares — test members excluded
+        /// (their helpers are not entrances).
+        fn module_files(module: &str, rewrites_dir: &Path) -> Vec<PathBuf> {
+            let mut files = Vec::new();
+            let root = rewrites_dir.join(format!("{module}.rs"));
+            if root.is_file() {
+                files.push(root);
+            }
+            collect_rust_files(&rewrites_dir.join(module), &mut files);
+            files.retain(|path| path.file_name().unwrap() != "tests.rs");
+            files
+        }
+
+        fn collect_rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    collect_rust_files(&path, out);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+
+        // Function name → set of cataloged modules defining it. A name defined
+        // by exactly one module is that module's entrance; shared result
+        // accessors (`transformed`, `shared_transformed`, …) are defined by
+        // many modules and are not call evidence.
+        let mut definitions: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut backing: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+        for module in declared_modules() {
+            let files = module_files(&module, &rewrites_dir);
+            for path in &files {
+                let contents = std::fs::read_to_string(path).unwrap_or_default();
+                for name in public_functions(&contents) {
+                    definitions.entry(name).or_default().insert(module.clone());
+                }
+            }
+            backing.insert(module, files);
+        }
+
+        // Production callers are workspace Rust files outside test code; an
+        // orphan's own backing files always name its functions by definition.
+        let mut rust_files = Vec::new();
+        collect_rust_files(&repository.join("omega-rust"), &mut rust_files);
+        let is_test_file = |path: &Path| {
+            path.components().any(|component| {
+                component.as_os_str() == "tests" || component.as_os_str() == "test_support"
+            }) || path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("tests.rs")
+        };
+
+        let identifier = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+        let mut violations = Vec::new();
+        for row in REWRITE_MODULE_CATALOG {
+            let RewriteModuleRoute::Orphaned(_) = row.route else {
+                continue;
+            };
+            let entrances: Vec<&str> = definitions
+                .iter()
+                .filter(|(_, owners)| owners.len() == 1 && owners.contains(row.module))
+                .map(|(name, _)| name.as_str())
+                .collect();
+            let own: BTreeSet<&PathBuf> = backing[row.module].iter().collect();
+            for file in rust_files
+                .iter()
+                .filter(|f| !is_test_file(f) && !own.contains(*f))
+            {
+                let contents = std::fs::read_to_string(file).unwrap_or_default();
+                for entrance in &entrances {
+                    let called = contents.match_indices(entrance).any(|(offset, _)| {
+                        !identifier(contents[..offset].chars().next_back())
+                            && !identifier(contents[offset + entrance.len()..].chars().next())
+                    });
+                    if called {
+                        violations.push(format!(
+                            "{}: orphaned entrance `{entrance}` is named by production file {}; \
+                             promote the row to Routed or move the call back under test code",
+                            row.module,
+                            file.strip_prefix(&repository).unwrap_or(file).display(),
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "orphaned rewrite modules with production callers:\n{}",
             violations.join("\n")
         );
     }

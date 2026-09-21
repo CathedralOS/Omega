@@ -9,11 +9,11 @@ use std::sync::Arc;
 use crate::{
     BuildTimeSelectionAuthority, FoldedArrayLength, PlacedViewRecord, PlanLaidRecord,
     SelectedBuildTimeBinaryOperator, SelectedBuildTimeProviderBody,
-    const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
-    const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
-    const_evaluation::const_lengths, const_evaluation::range_arguments,
-    const_evaluation::range_endpoints, layouts::placed_views, layouts::plan_laid,
-    layouts::wire_plans,
+    const_evaluation::const_applications, const_evaluation::const_domain_facts,
+    const_evaluation::const_generic_calls, const_evaluation::const_generic_expressions,
+    const_evaluation::const_initializers, const_evaluation::const_lengths,
+    const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::placed_views,
+    layouts::plan_laid, layouts::wire_plans,
 };
 
 /// Inputs retained by package-aware probes and generated extension evaluation.
@@ -194,8 +194,13 @@ impl PreCheckEvaluation {
                 typed,
                 self.selection_authority.clone(),
             )?
+            || const_applications::pending_const_applications_need_operator_selection(
+                typed,
+                self.selection_authority.clone(),
+            )?
         {
             range_endpoints::defer_pending_endpoint_calls(typed)?;
+            const_applications::defer_pending_const_applications(typed)?;
             return Ok(Some(self));
         }
         self.evaluate(typed)?;
@@ -216,8 +221,9 @@ impl PreCheckEvaluation {
     /// `provider_bodies` the exact selected checked provider bodies; each
     /// retained occurrence keeps its own row so a stale or substituted
     /// selection can never stand in for the current one. The remaining typed
-    /// const positions (range endpoints and concrete domain-fact memberships
-    /// today) observe the same rows when the continuation resumes.
+    /// const positions (range endpoints, concrete domain-fact memberships, and
+    /// retained const-generic applications) observe the same rows when the
+    /// continuation resumes.
     pub fn evaluate_selected_operators(
         mut self,
         typed: &mut typed_trees::TypedTrees,
@@ -253,6 +259,14 @@ impl PreCheckEvaluation {
             },
         )?;
         const_domain_facts::evaluate_selected_domain_facts(
+            typed,
+            self.selection_authority.clone(),
+            SelectedBuildTimeOperators {
+                operators: &self.selected_operators,
+                provider_bodies: &self.provider_bodies,
+            },
+        )?;
+        const_applications::evaluate_selected_const_applications(
             typed,
             self.selection_authority.clone(),
             SelectedBuildTimeOperators {

@@ -5,7 +5,7 @@ use super::{
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, ValidatedPhysicalRegisterModel,
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
-    X86_64SelectedFormFootprint, x86_64_physical_register_model,
+    X86_64SelectedFormFootprint,
 };
 pub fn encode_x86_64_selected_jump_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -25,7 +25,7 @@ pub fn validate_x86_64_selected_jump_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if alternative
@@ -74,8 +74,8 @@ mod tests {
     use super::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
         encode_x86_64_selected_jump_form, validate_x86_64_selected_jump_form,
-        x86_64_physical_register_model,
     };
+    use crate::x86_64_physical_register_model;
     #[test]
     fn jump_round_trip_rejects_wrong_target_and_opcode() {
         let physical =

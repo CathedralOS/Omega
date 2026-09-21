@@ -1015,14 +1015,19 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
 #[test]
 fn duplicate_overload_and_visibility_admissions_reject() {
     // Duplicate-admission pins: identical free-machine overloads, the same
-    // machine name arriving through two sibling-module `use`s, a local data
-    // declaration colliding with an imported name, and the original
-    // recursive-argument collision shape. Each fixture pins its expected.txt
-    // fragment through checked semantics.
+    // machine name arriving through two sibling-module `use`s, colliding
+    // trait machine requirements, a local data declaration colliding with
+    // an imported name, a requester-local source colliding with the bundled
+    // `omega::language` namespace, and the original recursive-argument
+    // collision shape.
+    // Each fixture pins its expected.txt fragment through checked semantics.
     for name in [
         fixture_roster::DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::DUPLICATE_ATTACHED_MACHINE_OVERLOAD_REJECTED,
         fixture_roster::DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED,
         fixture_roster::IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,
+        fixture_roster::BUNDLED_CORE_NAME_COLLISION_REJECTED,
         fixture_roster::RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED,
     ] {
         let canary = fail_canary(name);

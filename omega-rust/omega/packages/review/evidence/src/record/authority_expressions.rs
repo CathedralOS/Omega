@@ -197,6 +197,11 @@ pub enum PackageReviewBooleanExpression {
         left: PackageReviewStructuralParameterField,
         right: PackageReviewStructuralParameterField,
     },
+    ScalarIeeeFloatComparison {
+        kind: PackageReviewIeeeFloatComparisonKind,
+        left: Box<PackageReviewScalarExpression>,
+        right: Box<PackageReviewScalarExpression>,
+    },
     ByteSequenceEqual {
         left: PackageReviewStructuralParameterField,
         right: PackageReviewStructuralParameterField,

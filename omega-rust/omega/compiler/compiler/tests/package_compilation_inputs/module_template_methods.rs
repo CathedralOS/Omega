@@ -120,7 +120,7 @@ fn instantiated_methods_keep_each_package_use_authority() {
     TempTree::write(middle.join("main.omg"), "data Middle {}");
     TempTree::write(
         root.join("main.omg"),
-        "use leaf::first::Envelope; data Envelope { root: bool; } machine Envelope::read(&self) -> bool { self.root } machine read(value: &leaf::first::Envelope<u64>) -> u64 { value.read() }",
+        "use leaf::first::Envelope; data RootEnvelope { root: bool; } machine RootEnvelope::read(&self) -> bool { self.root } machine read(value: &leaf::first::Envelope<u64>) -> u64 { value.read() }",
     );
     for (direct, public) in [(true, true), (true, false), (false, true)] {
         TempTree::write(

@@ -38,10 +38,13 @@
 //!   fixed scalar literal vocabulary have shared signed binary definitions;
 //!   larger closed mathematical values retain opaque `Int` constants.
 //!   Open mathematical and unevaluated exact scalar addition and subtraction
-//!   share their respective functions applied to their operands. An already-
+//!   share their respective functions applied to their operands; every other
+//!   fixed-integer scalar operation denotes an uninterpreted per-operation
+//!   function applied to its operands, keeping equality transport's
+//!   rewrites visible inside `op l r`. An already-
 //!   admitted open mathematical
 //!   arithmetic term stays opaque if a previously skipped child exceeds evaluation
-//!   resources; other open operations also stay opaque. Thus
+//!   resources. Thus
 //!   evaluated `2 + 0 = 2` remains reflexive without a decision assumption.
 //!   `IntLt` and `IntLe` are the two relation constants `Π(_ : Int). Π(_ : Int).
 //!   Type 0`, and `IntegerMathEqual`/lifted `Equal` the `Id Int`
@@ -134,8 +137,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{
-    ContentAlgebra, ContentTerm, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, ValueId,
+    ContentAlgebra, ContentTerm, IntegerMathLiteral, IntegerMathTerm, IntegerValue, Proposition,
+    PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
 use super::certificate::{
@@ -153,9 +156,9 @@ use crate::proof::integer_math_normalization::{
     lift_fixed_integer_relation, propositions_match_under_integer_math_normalization,
 };
 use crate::proof::{
-    AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, ProofError, ProofNode,
-    ProofRule, equality_rules, integer_bound_rules, integer_order_rules, order_discreteness,
-    strict_order_transitivity, subtract_order,
+    AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, PremiseRoster, ProofError,
+    ProofNode, ProofRule, equality_rules, integer_bound_rules, integer_order_rules,
+    order_discreteness, strict_order_transitivity, subtract_order,
 };
 
 /// A bound on the proof nodes one denotation walks — a resource refusal,
@@ -166,7 +169,9 @@ const MAX_ELABORATION_NODES: u64 = 1 << 16;
 mod addition;
 mod binary_numerals;
 mod booleans;
+mod casts;
 mod equality_transport;
+mod integer_operations;
 mod subtraction;
 
 /// One bounded certificate elaborated into the common mathematical core.
@@ -250,15 +255,22 @@ fn propositions_match(retained: &Proposition, requested: &Proposition) -> bool {
     propositions_match_under_integer_math_normalization(retained, requested)
 }
 
-fn record_premise(premises: &mut Vec<AcceptedPremise>, index: usize, proposition: &Proposition) {
-    if !premises
-        .iter()
-        .any(|premise| premise.index == index && premise.proposition == *proposition)
-    {
-        premises.push(AcceptedPremise {
-            index,
-            proposition: proposition.clone(),
-        });
+/// The `IntegerValue` a canonical math literal denotes when its magnitude
+/// fits the fixed numeral range — i128::MIN's unsigned magnitude
+/// included. A literal outside it denotes to an opaque `Int` constant no
+/// checked numeral-operation equation can name, so `None` callers keep
+/// their explicit instance fallback.
+fn math_literal_value(literal: IntegerMathLiteral) -> Option<IntegerValue> {
+    if literal.negative() {
+        if literal.magnitude() == (i128::MAX as u128) + 1 {
+            Some(IntegerValue::Signed(i128::MIN))
+        } else {
+            i128::try_from(literal.magnitude())
+                .ok()
+                .map(|magnitude| IntegerValue::Signed(-magnitude))
+        }
+    } else {
+        Some(IntegerValue::Unsigned(literal.magnitude()))
     }
 }
 
@@ -702,12 +714,31 @@ struct Denotation {
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
     /// `Id Int c c` — and open terms intern by the term itself.
     math_terms: BTreeMap<MathTermKey, u32>,
-    /// Sparse scalar terms whose operations have no compositional Int
-    /// denotation yet. Values/closed literals use math_terms; subtraction
-    /// applications retain child handles, not cloned prefix source trees.
+    /// Sparse scalar terms outside the compositional Int denotation:
+    /// field projections and any constructor `integer_operation_term`
+    /// does not classify. Values/closed literals use math_terms; every
+    /// classified operation denotes its uninterpreted function applied to
+    /// the operand terms rather than a whole-term constant here.
     scalar_integer_terms: BTreeMap<ScalarTerm, u32>,
+    /// Uninterpreted fixed-integer operation → `Π` assumption position,
+    /// interned per operation constructor and machine types. Sharing one
+    /// function per operation keeps transport's operand rewrites inside
+    /// `op l r` applications visible; one constant per applied term
+    /// would hide them.
+    integer_operations: BTreeMap<integer_operations::IntegerOperation, u32>,
+    /// Exact cast/widen operation → the position of its identity law
+    /// `Π(x : Int). Id Int (op x) x` — the denoted content of the
+    /// checked chain's "every edge preserves the mathematical integer"
+    /// invariant, interned once per operation like the other fixed laws.
+    cast_identities: BTreeMap<integer_operations::IntegerOperation, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
+    /// `(operand, lower)` → assumption position of the operand's
+    /// carrier-membership bound — `IntLe min' op'` or `IntLe op' max'`.
+    /// A `Truth` bound over an open operand contributes exactly this
+    /// fact; interning it per operand keeps the closure's named
+    /// assumption the membership bound itself, not a rule implication.
+    carrier_bounds: BTreeMap<(ScalarTerm, bool), u32>,
     /// Bounded rule instance → decision-assumption position. The key is
     /// the instance's premise propositions in rule order plus its
     /// conclusion — exactly what determines the axiom's `Π` type — so
@@ -750,7 +781,10 @@ impl Denotation {
             addition: addition::Addition::default(),
             math_terms: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
+            integer_operations: BTreeMap::new(),
+            cast_identities: BTreeMap::new(),
             decisions: HashMap::new(),
+            carrier_bounds: BTreeMap::new(),
             rule_axioms: BTreeMap::new(),
             constants: HashMap::new(),
             denotations: BTreeMap::new(),
@@ -804,13 +838,17 @@ impl Denotation {
         Ok(self.constant(position))
     }
 
-    /// Selected Boolean computation or an opaque scalar constant. A closed integer
+    /// Selected Boolean computation, an applicative value-level integer
+    /// comparison, or an opaque scalar constant. A closed integer
     /// term is interned by its evaluated literal — the denotation is by
     /// value, so `2 + 0` and `2` name one constant and a decided
     /// `Equal(2 + 0, 2)` is `refl`-provable rather than admitted.
     fn scalar_term(&mut self, term: &ScalarTerm) -> Result<TermHandle, BoundedDenotationError> {
         if let Some(boolean) = self.boolean_term(term)? {
             return Ok(boolean);
+        }
+        if let Some(relation) = self.integer_relation_term(term)? {
+            return Ok(relation);
         }
         let key = match term.integer_value() {
             Some((integer_type, value)) => {
@@ -1032,9 +1070,12 @@ impl Denotation {
     }
 
     /// Keep one carrier for fixed scalar equations and orders, including
-    /// mixed symbolic/compound endpoints. Other open operations remain opaque;
-    /// exact addition and subtraction have compositional denotations.
-    fn fixed_scalar_term(
+    /// mixed symbolic/compound endpoints. Every fixed-integer operation
+    /// denotes its uninterpreted function applied to the operand terms —
+    /// exact addition and subtraction additionally carry their fixed
+    /// arithmetic laws — while field projections and unclassified
+    /// constructors stay per-term opaque.
+    pub(super) fn fixed_scalar_term(
         &mut self,
         term: &ScalarTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
@@ -1060,6 +1101,9 @@ impl Denotation {
                     }
                 }
                 _ => {
+                    if let Some(applied) = self.integer_operation_term(term)? {
+                        return Ok(applied);
+                    }
                     if let Some(&position) = self.scalar_integer_terms.get(term) {
                         return Ok(self.constant(position));
                     }
@@ -1623,8 +1667,9 @@ impl Denotation {
                 // the `Int` vocabulary — `Id Int` for `Equal`, the
                 // `IntLt`/`IntLe` application for the orders — so fixed
                 // and `IntegerMath*` forms share one type. Compound fixed
-                // scalar operands also use Int, with compositional exact
-                // subtraction and opaque other open operations. This does
+                // scalar operands also use Int, with law-carrying
+                // addition/subtraction and applicative uninterpreted other
+                // open operations. This does
                 // not broaden the bounded premise matcher's lift. Other
                 // carriers retain `Id S` equality and atomic orders.
                 if let Some(lifted) = lift_fixed_integer_relation(proposition) {
@@ -1768,8 +1813,8 @@ struct Elaboration<'a> {
     depth: u32,
     steps: u64,
     rules: BTreeSet<AcceptedProofRule>,
-    assumptions: Vec<AcceptedPremise>,
-    semantic_axioms: Vec<AcceptedPremise>,
+    assumptions: PremiseRoster,
+    semantic_axioms: PremiseRoster,
 }
 
 impl<'a> Elaboration<'a> {
@@ -1805,8 +1850,8 @@ impl<'a> Elaboration<'a> {
             depth,
             steps: 0,
             rules: BTreeSet::new(),
-            assumptions: Vec::new(),
-            semantic_axioms: Vec::new(),
+            assumptions: PremiseRoster::default(),
+            semantic_axioms: PremiseRoster::default(),
         })
     }
 
@@ -1894,7 +1939,7 @@ impl<'a> Elaboration<'a> {
                 }
                 self.same_denotation(&axiom, &proof.conclusion)?;
                 self.rules.insert(AcceptedProofRule::SemanticAxiom);
-                record_premise(&mut self.semantic_axioms, *index, &axiom);
+                self.semantic_axioms.record(*index, &axiom);
                 let position = self.ambient + *index;
                 let position = u32::try_from(position)
                     .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
@@ -2148,13 +2193,13 @@ impl<'a> Elaboration<'a> {
                 // Both propositions reach the same normalized denotation
                 // goal; when their terms already agree — a canonical
                 // `Equal`/`IntegerMathEqual` pair — the premise evidence
-                // inhabits the goal with no axiom at all.
-                if self
+                // inhabits the goal with no axiom at all. A reversal nested
+                // inside a connective converts through nested `J`s instead.
+                if let Some(term) = self
                     .denotation
-                    .arena
-                    .structurally_equal(premise_ty, goal_ty)
+                    .oriented_evidence(premise_ty, goal_ty, evidence)
                 {
-                    return Ok(evidence);
+                    return Ok(term);
                 }
                 self.rule_instance(
                     AcceptedProofRule::PredicateDenotation,
@@ -2383,12 +2428,40 @@ impl<'a> Elaboration<'a> {
                 for &index in &cited {
                     definitions.push(self.cited_axiom(index)?);
                 }
+                if let Some(evidence) = self.denotation.correlated_subtract_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
+                    &definitions,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
                 if let Some(evidence) = self.denotation.correlated_add_bound_evidence(
                     &root_bound.conclusion,
                     root,
                     witness,
                     &proof.conclusion,
                     &definitions,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
+                if let Some(evidence) = self.denotation.direct_add_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
+                if let Some(evidence) = self.denotation.direct_subtract_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
                 )? {
                     self.rules.insert(AcceptedProofRule::IntegerAffineBound);
                     return Ok(evidence);
@@ -2425,6 +2498,19 @@ impl<'a> Elaboration<'a> {
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
                 let (definition, variable) = self.cited_axiom(*definition_axiom)?;
+                if let Some(evidence) = self.denotation.exact_add_definition_bound_evidence(
+                    &left_bound.conclusion,
+                    left,
+                    &right_bound.conclusion,
+                    right,
+                    &definition,
+                    variable,
+                    &proof.conclusion,
+                )? {
+                    self.rules
+                        .insert(AcceptedProofRule::IntegerExactAddDefinitionBound);
+                    return Ok(evidence);
+                }
                 self.rule_instance(
                     AcceptedProofRule::IntegerExactAddDefinitionBound,
                     vec![
@@ -2441,7 +2527,7 @@ impl<'a> Elaboration<'a> {
                 witness,
             } => {
                 let root = self.node(root_bound)?;
-                integer_bound_rules::cast_bound_relation(
+                let chain = integer_bound_rules::cast_bound_relation(
                     self.context,
                     self.axioms,
                     &root_bound.conclusion,
@@ -2457,6 +2543,17 @@ impl<'a> Elaboration<'a> {
                     let (proposition, variable) = self.cited_axiom(index)?;
                     premises.push(proposition);
                     evidence.push(variable);
+                }
+                if let Some(derived) = self.denotation.cast_bound_evidence(
+                    &root_bound.conclusion,
+                    evidence[0],
+                    &chain,
+                    &evidence[1..],
+                    self.axioms,
+                    &proof.conclusion,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerCastBound);
+                    return Ok(derived);
                 }
                 self.rule_instance(
                     AcceptedProofRule::IntegerCastBound,
@@ -2524,7 +2621,7 @@ impl<'a> Elaboration<'a> {
         self.same_denotation(&assumption, conclusion)?;
         self.rules.insert(AcceptedProofRule::Assumption);
         if index < self.ambient {
-            record_premise(&mut self.assumptions, index, &assumption);
+            self.assumptions.record(index, &assumption);
         }
         let position = self.positions[index];
         Ok(self.variable(position))
@@ -2583,7 +2680,7 @@ impl<'a> Elaboration<'a> {
                 ProofError::UnknownAssumption(index),
             ));
         }
-        record_premise(&mut self.assumptions, index, &proposition);
+        self.assumptions.record(index, &proposition);
         let position = self.positions[index];
         let variable = self.variable(position);
         Ok((proposition, variable))
@@ -2601,7 +2698,7 @@ impl<'a> Elaboration<'a> {
                 ProofError::UnknownSemanticAxiom(index),
             ));
         };
-        record_premise(&mut self.semantic_axioms, index, &proposition);
+        self.semantic_axioms.record(index, &proposition);
         let position = u32::try_from(self.ambient + index)
             .map_err(|_| BoundedDenotationError::DepthLimitExceeded)?;
         let variable = self.variable(position);
@@ -2745,8 +2842,8 @@ impl<'a> Elaboration<'a> {
                 expected,
             },
             rules: rules.into_iter().collect(),
-            assumptions,
-            semantic_axioms,
+            assumptions: assumptions.premises,
+            semantic_axioms: semantic_axioms.premises,
         }
     }
 }

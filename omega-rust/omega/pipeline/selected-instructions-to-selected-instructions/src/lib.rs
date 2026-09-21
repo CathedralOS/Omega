@@ -65,5 +65,10 @@ use selected_instructions::{
     live_range_identity,
 };
 
+// Durable transform-output identities live with the selected-instruction
+// representation; the transform publishes them under its root so callers keep
+// one vocabulary.
+pub use selected_instructions::{FixedViewCopyIdentity, PressureRematerializationIdentity};
+
 #[cfg(test)]
 use selected_instructions::InstructionLiveness;

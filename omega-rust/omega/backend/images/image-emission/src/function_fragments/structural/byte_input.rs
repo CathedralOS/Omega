@@ -419,6 +419,7 @@ mod tests {
             let operation = OperationId::new(number).unwrap();
             let place = PlaceId::new(number).unwrap();
             let result = StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,

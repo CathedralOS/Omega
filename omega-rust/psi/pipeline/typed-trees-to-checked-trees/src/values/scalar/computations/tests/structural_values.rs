@@ -184,6 +184,7 @@ machine observe(selector: u64) {
             result,
             value,
             calls,
+            operand_source: _,
             discard_result_on_return: false,
         },
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },

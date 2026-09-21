@@ -106,7 +106,7 @@ use checked_trees::{
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseSuccessorPlan,
     CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedGuardedJumpPlan, CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
     CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
@@ -153,6 +153,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod borrowed_windows;
 pub(crate) mod calls;
 mod candidate_closure;
 mod cleanup;
@@ -190,8 +191,8 @@ use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
 use structural_scalar_store::build_structural_scalar_field_store;
-pub(crate) use types::strips_erased_parameter;
 use types::*;
+pub(crate) use types::{is_reference, strips_erased_parameter, structural_parameter_candidate};
 
 /// Scalar callees available to this planning pass, independent of published facts.
 #[derive(Clone, Copy)]
@@ -463,7 +464,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     for machine in program
         .machines()
         .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        // A bodied `boundary machine` is a checked adapter: its body is
+        // authored in-package, so it competes as an ordinary Unit candidate.
+        .filter(|machine| {
+            machine.supply_mode == MachineSupplyMode::CheckedBody
+                || (machine.supply_mode == MachineSupplyMode::Boundary && machine.body_is_present)
+        })
     {
         let trace = LocalConstructionTrace::default();
         match build_checked_machine_traced(
@@ -604,6 +610,14 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     // different: its internal calls admit only Unit-roster targets, so a
     // callee a composed plan still invokes keeps its Unit entry. Run this
     // exclusion after closure pruning so only surviving callers count.
+    // A plan whose only operation is the terminal `Complete` describes a
+    // bare forwarder: no ordered calls or stores need the Unit replay, so
+    // only such effect-free plans leave the catalogs here.
+    let has_effects = |operations: &[CheckedUnitEffectOperationPlan]| {
+        operations
+            .iter()
+            .any(|operation| !matches!(operation, CheckedUnitEffectOperationPlan::Complete { .. }))
+    };
     let mut composed_call_targets = composed_machines
         .iter()
         .flat_map(|graph| graph.states.iter())
@@ -620,21 +634,26 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     composed_call_targets.sort_unstable();
     composed_call_targets.dedup();
     candidates.retain(|plan| {
-        facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_for_machine(plan.machine)
-            .is_none()
+        has_effects(&plan.operations)
+            || facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_for_machine(plan.machine)
+                .is_none()
             || composed_call_targets
                 .binary_search(&omission_key(plan.machine))
                 .is_ok()
     });
     composed_machines.retain(|graph| {
-        facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_for_machine(graph.machine)
-            .is_none()
+        graph
+            .states
+            .iter()
+            .any(|state| has_effects(&state.operations))
+            || facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_for_machine(graph.machine)
+                .is_none()
             || composed_call_targets
                 .binary_search(&omission_key(graph.machine))
                 .is_ok()
@@ -902,7 +921,14 @@ impl OmissionLedger {
         let unplanned = program
             .machines()
             .iter()
-            .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+            // Same roster as the candidate scan above: a bodied `boundary
+            // machine` adapter competes as an ordinary candidate, so its
+            // local-construction failure must name a row too.
+            .filter(|machine| {
+                machine.supply_mode == MachineSupplyMode::CheckedBody
+                    || (machine.supply_mode == MachineSupplyMode::Boundary
+                        && machine.body_is_present)
+            })
             .filter(|machine| !ledger.admitted.contains(&omission_key(machine.symbol)))
             .map(|machine| machine.symbol)
             .collect::<Vec<_>>();

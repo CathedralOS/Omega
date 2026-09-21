@@ -8,6 +8,7 @@ mod crash_site_truth;
 mod dynamic_dispatch;
 mod entry_requirement_crash_coverage;
 mod float_ranges;
+mod integer_ranges;
 mod operation_crash_contracts;
 mod ranked_scc;
 mod reborrow_restored_call_use;

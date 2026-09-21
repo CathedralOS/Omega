@@ -336,6 +336,114 @@ fn primitive_scalar_call_keeps_dense_scalar_actual_positions() {
 }
 
 #[test]
+fn declared_range_runtime_index_produces_indexed_write_only_store() {
+    for access in ["&mut", "&write"] {
+        let checked = checked(&format!(
+            r#"
+            machine forward(values: {access} [u16; 4], index: u64 [0..=3]) {{
+                values[index] = 17;
+            }}
+        "#
+        ));
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "forward"))
+            .unwrap_or_else(|| panic!("{access} declared-range runtime index store"));
+        let [
+            CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+                statement_index: 0,
+                destination:
+                    checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                path,
+                index,
+                value,
+            },
+            CheckedUnitEffectOperationPlan::Complete { .. },
+        ] = plan.operations.as_slice()
+        else {
+            panic!("{access} runtime index keeps one indexed write-only store");
+        };
+        assert!(
+            path.is_empty(),
+            "the runtime selector stays an operand; the path terminates at the array"
+        );
+        assert!(
+            matches!(
+                index,
+                CheckedScalarExpression::Parameter {
+                    position: 0,
+                    primitive_type: PrimitiveType::U64,
+                }
+            ),
+            "the retained index is the declared scalar parameter"
+        );
+        assert!(matches!(value,
+            checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
+            if literal.value_u64() == Some(17)));
+    }
+}
+
+#[test]
+fn runtime_index_store_fails_closed_without_a_proven_bound() {
+    for source in [
+        // No declared range: nothing proves `index < extent`.
+        "machine forward(values: &mut [u16; 4], index: u64) { values[index] = 17; }",
+        // Declared range whose maximum is not below the array extent.
+        "machine forward(values: &mut [u16; 4], index: u64 [0..=4]) { values[index] = 17; }",
+        // A computed selector is not a proven scalar carrier.
+        "machine forward(values: &mut [u16; 4], index: u64 [0..=3]) { values[index + 1] = 17; }",
+    ] {
+        let source = format!("boundary trait PortIo {{}}\n{source}");
+        let tokens = super::super::super::Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = super::super::super::parse_syntax_trees(&tokens).expect("parse");
+        let resolved =
+            super::super::super::resolve(super::super::super::ResolutionRequest::new(&syntax))
+                .expect("resolve");
+        let typed = super::super::super::lower_symbol_resolved_trees(&resolved).expect("type");
+        crate::lower_typed_trees(typed)
+            .expect_err("unproven runtime index must not produce a store plan");
+    }
+}
+
+#[test]
+fn literal_index_store_stays_on_the_static_path() {
+    let checked = checked(
+        r#"
+        machine forward(values: &mut [u16; 4]) {
+            values[2] = 17;
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "forward"))
+        .expect("literal index store");
+    let [
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index: 0,
+            path,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("literal index keeps the static write-only store");
+    };
+    assert!(matches!(
+        path.as_slice(),
+        [checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+            2
+        )]
+    ));
+}
+
+#[test]
 fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration() {
     let original = checked(SOURCE);
     let caller = machine_named(&original, "enter");

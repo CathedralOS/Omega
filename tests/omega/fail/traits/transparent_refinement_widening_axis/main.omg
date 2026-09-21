@@ -1,0 +1,10 @@
+// A refinement narrows axes the base already permits: asserting `suspends`
+// where the base requirement does not declare it widens the contract.
+
+trait Logger {
+    machine write(&mut self);
+}
+
+trait LocalLogger = Logger {
+    machine Logger::write suspends true;
+}

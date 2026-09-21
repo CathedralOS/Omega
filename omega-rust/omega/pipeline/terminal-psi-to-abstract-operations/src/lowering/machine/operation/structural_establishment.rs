@@ -80,24 +80,36 @@ pub(super) fn lower(
                 .iter()
                 .find(|(place, _, _)| place.id == destination)
                 .copied()
-                .ok_or(LoweringError::UnsupportedStructuralReturn {
+                .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
-                    edge: block.terminator.edge(),
+                    edge: block
+                        .terminator
+                        .edges()
+                        .next()
+                        .expect("every terminator carries an edge"),
                 })?;
             let declaration = structural_types
                 .iter()
                 .find(|declaration| declaration.id == structural_type)
                 .cloned()
-                .ok_or(LoweringError::UnsupportedStructuralReturn {
+                .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
-                    edge: block.terminator.edge(),
+                    edge: block
+                        .terminator
+                        .edges()
+                        .next()
+                        .expect("every terminator carries an edge"),
                 })?;
             if usize::try_from(ordinal) != Ok(lowered_unit_affine_locals.len())
                 || !matches!(declaration.shape, StructuralTypeShape::Record { ref fields } if fields.is_empty())
             {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
-                    edge: block.terminator.edge(),
+                    edge: block
+                        .terminator
+                        .edges()
+                        .next()
+                        .expect("every terminator carries an edge"),
                 });
             }
             lowered_unit_affine_locals.push((operation.id, *place, declaration.clone()));
@@ -111,7 +123,11 @@ pub(super) fn lower(
             let Some(result) = operation.result.structural().cloned() else {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
-                    edge: block.terminator.edge(),
+                    edge: block
+                        .terminator
+                        .edges()
+                        .next()
+                        .expect("every terminator carries an edge"),
                 });
             };
             AbstractOperation::EstablishRecord {

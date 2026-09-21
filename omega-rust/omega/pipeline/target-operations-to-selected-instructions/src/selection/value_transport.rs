@@ -112,7 +112,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::StructuralCaseMembership { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }
-                | Instruction::BoundarySettlement(_) => {}
+                | Instruction::BoundarySettlement(_)
+                | Instruction::DynamicParameterCall(_) => {}
             }
         }
         let mut bind = |successor: &legalized_operations::LegalizedScalarSuccessor| {

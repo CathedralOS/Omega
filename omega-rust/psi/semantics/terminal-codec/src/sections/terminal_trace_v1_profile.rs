@@ -753,6 +753,7 @@ mod tests {
                 entry: block,
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
@@ -761,6 +762,7 @@ mod tests {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: id(13, ContractId::new),
                     crash_routes,
                     requires: Vec::new(),
@@ -906,6 +908,7 @@ mod tests {
         module.machines[0].blocks[0].operations = vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(2, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -932,6 +935,7 @@ mod tests {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(1, OperationId::new),
                 result: OperationResult::Unit,
                 kind: OperationKind::PortWrite {

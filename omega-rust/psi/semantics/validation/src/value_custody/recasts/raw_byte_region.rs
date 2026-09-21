@@ -123,8 +123,21 @@ pub(super) fn interior_byte_region_source(
                 let high = interval.high()?;
                 (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
             });
-            declared_high
-                .or_else(|| incoming_guard_offset_bound(program, machine, state, indexed.index))
+            // A composite offset (`k * 2`) bounds through the structural
+            // walk over its own operands; where a declared range also
+            // resolves, the tighter of the two upper bounds is the sound
+            // one.
+            let composite_high = super::offset_bounds::composite_offset_upper_bound(
+                program,
+                machine,
+                state,
+                indexed.index,
+            );
+            let upper = match (declared_high, composite_high) {
+                (Some(declared), Some(composite)) => Some(declared.min(composite)),
+                (declared, composite) => declared.or(composite),
+            };
+            upper.or_else(|| incoming_guard_offset_bound(program, machine, state, indexed.index))
         }
     };
     match offset {
@@ -144,15 +157,19 @@ pub(super) fn push_offset_unproven(
     context: &str,
     offset_display: &str,
     region_length: i64,
+    source_span: source::SourceSpan,
 ) {
-    diagnostics.push(Diagnostic::error(format!(
-        "{context}: cannot bound the recast offset `{offset_display}` -- the region holds \
-         {region_length} bytes, but no declared range, dominating incoming guard, or \
-         boundary-ensures witness bounds the offset below the footprint. Bound it: declare \
-         a range on the offset param, guard the transition arm (`transition \
-         {offset_display} <= K {{ true -> ... }}`), or `ensures`-bound the boundary \
-         out-param that feeds it",
-    )));
+    diagnostics.push(
+        Diagnostic::error(format!(
+            "{context}: cannot bound the recast offset `{offset_display}` -- the region holds \
+             {region_length} bytes, but no declared range, dominating incoming guard, or \
+             boundary-ensures witness bounds the offset below the footprint. Bound it: declare \
+             a range on the offset param, guard the transition arm (`transition \
+             {offset_display} <= K {{ true -> ... }}`), or `ensures`-bound the boundary \
+             out-param that feeds it",
+        ))
+        .with_source_span(source_span),
+    );
 }
 
 /// Mutable byte views must preserve every target fact after arbitrary writes.

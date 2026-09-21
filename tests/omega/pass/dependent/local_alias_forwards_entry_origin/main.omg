@@ -1,0 +1,30 @@
+// An immutable `let` local keeps custody of the entry parameter it was bound
+// from: forwarding `held` into `last` preserves the exact incoming origin, so
+// the exit `ensures result == input` still proves. Mutability and unrelated
+// bindings stay opaque (sibling fail canaries).
+machine held_local(input: i32) -> i32
+ensures result == input
+{
+    let held: i32 = input;
+    transition { _ -> last(held) }
+    state last(carried: i32) {
+        carried
+    }
+}
+
+machine held_chained(input: i32) -> i32
+ensures result == input
+{
+    let a: i32 = input;
+    let b: i32 = a;
+    transition { _ -> last(b) }
+    state last(carried: i32) {
+        carried
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
