@@ -10033,7 +10033,38 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unit_closure cli_mvp, and every family `*_from_authored_program_
   entry_bindings` cohort (algorithm/interpreter/gui/collection/probe/
   rendering/simulation/text/system/arithmetic/all_samples).
-- **RC-REPRESENTATIVE-PROGRAMS-PER-HOST.** — mined candidate; verify scope then implement.
+- **RC-REPRESENTATIVE-PROGRAMS-PER-HOST.** Mined candidate; scope verified,
+  per-host leg measured red on linux-x86_64. This stub is the per-host axis of
+  the same `wiki/drafts/rust_compiler_completion.md` matrix row measured by
+  RC-REPRESENTATIVE-PROGRAMS-CLOSURE/-GATE/-GREEN: the gate must pass on
+  linux_x86_64, linux_arm64, macos_arm64, and windows_x86_64 alike, so the
+  item's slice is a fresh measurement of the host leg this machine can run —
+  the other three host legs remain host-gated (unavailable on this host per
+  protocol), not skips. Measured at `3343c54bef3` on linux x86-64
+  (`RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test
+  samples_compile --no-fail-fast`; cargo, no mbx): 9 pass / 19 fail / 5 legs
+  bounded by SIGINT at >45–145 min (arithmetic, all_samples_reach_checked_trees,
+  samples_with_documented_exit_run_correctly, system, text cohorts), elapsed
+  8688s. Passing legs: dutch_flag, euclid_gcd, cli_mvp, generic_counter,
+  both native_acceptance, recursive_slice, standard_sample_discovery, and
+  `sample_entry_exceptions_are_explicit_and_non_runnable` (stays green after
+  the device_extent_access pin). Failure families, all mapping to the named
+  fenced lanes: ProgramEntry establishment rejoins-0 on
+  linux_x86_64/linux_arm64/macos_arm64 (~180 diagnostics;
+  ENTRY-CONTENT-ROOTS); windows_x86_64 `named-callable(WindowsProcessEntry::
+  enter)` schema rejection of bundled std `entry.omg` (79; TOP-LEVEL-BOUNDARY
+  lane); Fused-provider Service fields `Main::{clock,clock2,input,gui,raw}`
+  (42; gui/simulation/probe legs); `[u8; N]::Utf8` domain-field
+  (print_number/format_number/caesar/print_squares/text legs;
+  DOMAIN-REFINEMENT lane); index-within-length proofs in write_pixel and
+  CompactBinary (20; OPERATOR-MACHINE/proof lanes); `authored Operator
+  selection occurrence 108 remained unresolved (CheckedOperator)` on
+  binary_search_viz (4). Per-host verdict: linux_x86_64 leg measured here;
+  linux_arm64/macos_arm64/windows_x86_64 legs host-gated, unrun. Gate stays
+  open on every measured host axis until the fenced lanes land.
+- **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
+- **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-SOURCE-SEMANTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-WINDOWS-X64-NATIVE-ROW.** Residual leg needs a Windows x86-64 host: execute the emitted PE (hosted_receiver_windows cfg-gated run) on its matching runner; compile-side lanes verified green 2026-09-20.
   Re-verified the gate shape at `d8041919ad`: nothing linux-runnable
   remains — the emitted-PE execution leg (hosted_receiver_windows
