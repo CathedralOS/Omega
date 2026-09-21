@@ -129,3 +129,84 @@ this gate can even exercise the contract it names.
 The gate remains a matrix row: the release contract still requires all
 eight gates green on one clean commit across the four required hosts;
 this records the linux_x86_64 leg.
+
+---
+
+## Hostile-evidence leg
+
+Witnessed row for the hostile/substituted-evidence half of the
+`RC-PCC-REPLAY` release gate
+(`wiki/drafts/rust_compiler_completion.md:39`). Recorded 2026-09-21 at
+base `5ae1ed1fe51c`, host `x86_64-unknown-linux-gnu`, cargo-nextest
+(mbx unavailable).
+
+Gate command per the contract:
+
+```sh
+mbx nextest run -p checked-trees-to-lowered-psi -p terminal-codec \
+  -p terminal-verifier -p terminal-interpreter \
+  -p terminal-psi-to-abstract-operations --no-fail-fast
+```
+
+The five-crate selection cannot produce a verdict on this host:
+`checked-trees-to-lowered-psi` contains the documented non-terminating
+member that C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT owns (SIGTERM'd at
+~892s/~900s), so `--no-fail-fast` never finishes. This row therefore
+measures the other four crates and the rejection axis directly.
+
+## Scoped full run (four crates)
+
+```text
+cargo nextest run -p terminal-codec -p terminal-verifier \
+  -p terminal-interpreter -p terminal-psi-to-abstract-operations \
+  --no-fail-fast
+Summary: 1636 tests run: 1605 passed, 31 failed (~5s)
+```
+
+Red clusters, all wave drift on the evidence surfaces rather than PCC
+mechanics:
+
+- terminal-codec (~22): canonical round-trip/identity pins —
+  `canonical::suspension_and_scalar_round_trips`,
+  `canonical::operation_crash_contracts`,
+  `canonical::bounded_integer_fields`,
+  `canonical::structural_call_results`,
+  `canonical::quotient_correspondence`, `trust_graph::tests`,
+  `ledger_spike` exact-bytes fixtures, and `publication` pins including
+  `valid_but_substituted_terminal_meaning_rejects_when_expected_is_bound`
+  — a substituted-evidence rejection pin currently red.
+- terminal-verifier (4): `structural_unit::nominal_affine_cleanup`
+  rejection family.
+- terminal-interpreter (3): `affine_cleanups` edge-charge ordering,
+  `case_membership` extended-format pin.
+- terminal-psi-to-abstract-operations (2): partial-affine continuations
+  and singleton structural-return custody pins.
+
+## Rejection axis (hostile/substituted evidence)
+
+```text
+cargo nextest run -p terminal-verifier -p terminal-codec \
+  -E 'test(~substitut) | test(~tamper) | test(~freshness) \
+      | test(~hostile) | test(~forg) | test(~reject)' --no-fail-fast
+Summary: 337 tests run: 330 passed, 7 failed
+```
+
+The seven reds are the same drift clusters (two codec canonical
+round-trips, the substituted-meaning publication pin, and the four
+`nominal_affine_cleanup` rejections). The rest of the axis is green:
+substitution matrices, freshness checks, counterfeit/rejection rows in
+`structural_unit`, `suspension_call_plan`, `crash_site_truth`, and
+`artifact::trust_graph_custody` all reject as pinned.
+
+## Disposition
+
+Coverage exists and is broad — hostile or substituted evidence is
+rejected across the verifier and codec surfaces — but the gate stays
+red on this base for two independent reasons: (a) the documented
+`checked-trees-to-lowered-psi` hang blocks the full five-crate command
+upstream of any PCC result (owned by C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT),
+and (b) the drifted identity/rejection pins above must be repaired by
+their surfaces' live claims (CRASH-CONTRACT, PCC-CANONICAL-SEMANTIC-
+LEDGER, CUSTODY-MATRIX-HARNESS-MIGRATION, UEFI-OS-HANDOFF) before the
+substituted-evidence row re-witnesses green. No `records/` row emitted:
+the gate has no verdict, and the committed-records surface is fenced.
