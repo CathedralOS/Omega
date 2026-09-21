@@ -14219,6 +14219,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`cargo nextest run -p typed-trees-to-checked-trees --lib`, filtered to
   the trio). No independent slice exists; refreshing the stale draft row
   belongs to the KNOWN-BASELINE-FAILURES-REFRESH items.
+  Re-witnessed at `b868b9ee8f` (linux x86-64, z161): `cargo nextest run
+  -p typed-trees-to-checked-trees --lib -E 'test(~field_endpoint_formation_never_uses_final_cancellation)
+  | test(~field_endpoints_require_defined_intermediates) |
+  test(~constant_rank_endpoints_preserve_landing)'` — 3/3 pass; the
+  trio still stands resolved and the draft row still awaits its refresh
+  item.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** — scope verified 2026-09-20:
   re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
   gap that a trait requirement expressing an arbitrary nondecidable validity
