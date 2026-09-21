@@ -3283,6 +3283,24 @@ moved to the termination-catalog fence (see that row's refresh note).
   Extend the shared place/loan sequencer under **STATE-LOCAL-VALUE-FRONTIER**;
   do not reintroduce one producer family per arrangement of calls and stores.
 
+- **PROMOTION-ROLLBACK-REJOIN-LEGS.** — mined candidate; resolved as
+  covered (verified `53817f8759e`): identical surface to WR-REJOIN-LEGS —
+  the WORKSPACE-ROLLOUT row's rollback-evidence legs
+  (TASKS_OPTIMIZER.md): every-target `--disable-optimization` rejoin
+  coverage in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`
+  (per-rule `*_rollback_rejoins_exact_ordinary_path_on_every_target` for
+  CopyPropagation, GlobalValueNumbering, ProofCheckElision,
+  SparseConditionalConstantPropagation, the dead-scalar leg, and the
+  ControlFlowCleanup-selected empty-selection leg), and all six
+  `optimization-core/promotions/` records carry completed `Rollback
+  evidence` fields citing those tests across `HOSTED_NATIVE_TARGETS`,
+  re-verified on the parent row at `b8d336adcf2`. Remaining promotion legs
+  (`Approved status`, owner approval, `Measurement evidence` gated on the
+  BENCHMARKS native-realization failure) are owner/product decisions, not
+  implementable slices. Sibling stubs on the same covered surface:
+  PROMOTION-REJOIN-EVIDENCE, RULE-PROMOTION-EVIDENCE,
+  RULE-PROMOTION-EVIDENCE-COMPLETION, WR-REJOIN-LEGS.
 - **WRITE-ONLY-BORROW-RESIDUE.** Mined candidate — scope verified at
   `82741ec4391`, no unfenced slice. Re-mines the residual bullets of
   WRITE-ONLY-BORROW; each leg's implementing surface is live-fenced or
