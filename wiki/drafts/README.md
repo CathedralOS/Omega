@@ -40,6 +40,9 @@ the existing task boards, not in a second tracking system.
   (calling-policy primitives, assembly catalog, sealed materialization symbols,
   root-reach bound) — and where non-admitted values or authored extension
   reject; delete once a permanent spec section owns it.
+- [Replacement rejection inventory](replacement_rejection_inventory.md): catalog
+  of every spec-named component-replacement rejection obligation mapped to its
+  enforcement site or residual owner; delete once the residual rows land.
 
 Keep useful temporary residue here after review; delete obsolete or redundant
 history. Concrete proposed language or toolchain changes belong in proposals.
