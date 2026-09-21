@@ -206,6 +206,33 @@ there, and the same unsigned-carrier re-spelling should close it. As of the
 was bounded; the other four tests in the command pass, so the roster,
 fail-canary fragments, and umbrella membership are all consistent.
 
+2026-09-20 refresh (Linux x86-64, c2ccb2a202): the wire `runtime_*_exit`
+canaries moved to a new diagnostic family. `pass_canaries_compile` under
+`OMEGA_PASS_CANARY_FILTER=exact_array_without_count` now fails
+`wire/runtime_wire_exact_array_without_count_exit` with "selected
+ProgramEntry establishment rejoins 0 Terminal attachment identities;
+expected one" — verified identical on the unmodified fixture — and the
+`*_canary_runs` legs for `runtime_wire_encode_primitive_exit`,
+`runtime_wire_decode_rejects_wrong_era_exit`,
+`runtime_wire_roundtrip_repeated_exit`, and
+`runtime_wire_exact_array_without_count_exit` all fail compile with the
+same diagnostic at ~43 s each. Every one of these calls a synthesized
+`Schema::encode`/`decode` with `&mut self.buffer`/`&mut self.written`
+field borrows, so the whole wire codec-call shape is red at the entry
+gate; this is the same attachment-identity family that drops composed
+plans on `&[u8]`-bearing unit-machine calls (also recorded under
+CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT's swarm verdict). An
+interrupted full-corpus sweep in the same window additionally showed the
+`runtime_text_and_transitions` family red. The 2026-09-18 row's
+`InvalidUnitMachinePlan` distribution is superseded for the wire set, not
+refuted: the old failures were measured before the attachment-identity
+rework landed.
+`roster::registered_pass_canaries_have_source_on_every_host` is also red
+at c2ccb2a202 on two unregistered fixtures —
+`core/wait_wake_boundary_surface` (11dd1d8084) and
+`generics/authored_const_application_local_destination` (e6a5bbe37a) —
+each added by a same-day commit without a roster entry.
+
 ## checked-trees-to-lowered-psi
 
 Repaired: `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
@@ -418,6 +445,33 @@ and the expectation now names it.)
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
   expectation from 2694d433d3, not bisected.
 
+## native-differential compile floor (2026-09-20 refresh, Linux x86-64)
+
+`cargo nextest run -p omega-native-differential-test --all-targets
+--no-fail-fast` does not compile at c2ccb2a202 (also at 2abada2995):
+
+- `pipeline_ownership/fixtures/ordinary_graph_controls.rs:32` —
+  non-exhaustive match on `LegalizedScalarTerminator::Crash`, added at
+  bf8769cce1 without the fixture arm (file inside the live
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS claim).
+- `abstract_publication/decision_custody.rs:58` — asserts a 6-entry
+  catalog, but `PSI_PASS_CATALOG` has carried 7 entries since 9a9d1a8b32
+  (file inside NATIVE-DIFFERENTIAL-MATRIX / GRAPH-FEATURE-PROJECTION-SCHEMA
+  claims).
+
+Running the 26 buildable targets at 2abada2995 (643 tests): 531 passed,
+112 failed, 1 skipped — dominated (~75) by fixture sources still spelling
+bare boundary-trait fields (`console: Console`, `fs: FilesystemHost`),
+rejected since 32f5182254 requires the intrinsic `Service<R>` carrier;
+plus stale `omega_language_std/` paths in `gui_headless`/`recast_views`
+(layout removed ~24ab0f1c87), a stale `lower_to_target_operations is_err`
+negative (crash leaves emit natively since bf8769cce1),
+`InvalidUnitMachinePlan` attached-closure omissions, hosted-receiver
+custody rejections, and proof-subject mismatches. A 213-test rerun of the
+red set at c2ccb2a202 left ~75 failing in the same families plus a new
+"composed Unit scalar call requires structural call custody" diagnostic in
+`scalar_case_results`.
+
 ## native-differential `pipeline_ownership`
 
 `cargo nextest run -p omega-native-differential-test --test pipeline_ownership
@@ -448,6 +502,17 @@ expression returns a value not provably within its declared range" for a
 `<const N: u64>` endpoint returning `u64 [0..=3]` from an inferred extent; a
 generics checker gap (**STRUCTURAL-GENERIC-MATCHING** / **RUNTIME-VALUE-GENERICS**
 areas, both under live claims when recorded).
+
+## Host note (Linux x86-64, 2026-09-20)
+
+- `cargo fmt --all` is not clean at c2ccb2a202: it rewrites ~18 unrelated
+  files (external-roots interrupt table, module_machine_indices,
+  multiplicity/termination checks, validation tests, ...). Treat
+  repo-wide fmt output as drift, not signal; `cargo fmt --check` on touched
+  files only is the scoped gate.
+- `tools/verify.py` requires `tomllib` (Python 3.11+); this host runs
+  3.10. Equivalent raw `omega --check --build-dir <dir> <app>/main.omg`
+  and `omega run --keep <app>/main.omg` invocations cover the same legs.
 
 ## Host note (macOS)
 
