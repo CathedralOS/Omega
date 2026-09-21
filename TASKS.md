@@ -8590,6 +8590,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ASM-CATALOG-FAMILY-EXPANSION). Next action for the fence-holder: commit this
   record under `tools/benchmark/records/` and add the `benchmarks.md`
   coverage entry.
+- **BENCHMARK-MEASURABLE-SUBJECT-CORPUS.** — mined candidate; resolved —
+  covered alias. The name re-mines the benchmarks.md "no measurable
+  subject" frontier already owned by resolved sibling
+  BENCHMARK-SUBJECT-CORPUS-EXPANSION (~:8855): measurable subjects are
+  `wrapping_square_sum` (committed record on six targets +
+  linux_x86_64 runtime row), `standalone`, `cli_mvp`, and
+  `structural_proofs`; the corpus-expansion residual legs (std-depend
+  subjects gated on the selected-provider-plan join, depend-free runtime
+  legs on the Process-exit contract, `math_proofs` on checked-call
+  selection) stay with that row and the owning items. Sibling stubs on the
+  same sentence: BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT,
+  BENCHMARK-PROOF-SUBJECT-SELECTION. No independent slice.
+  Re-verified at `7d03d489e3` on linux x86-64: 10 committed records under
+  `tools/benchmark/records/`, corpus roster unchanged.
 - **BENCHMARK-PRIME-COUNTER-ROW.** Scope verified at `1a772e4ae1`: the
   mined stub names a measured `benchmark.py` row for
   `samples/cli/arithmetic/prime_counter` (README's example subject,
