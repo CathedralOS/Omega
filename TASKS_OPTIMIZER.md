@@ -184,7 +184,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   promotion, confines every `path`/`path::subject` citation to
   repository-relative names with nonempty subjects, and requires every schema
   label exactly once with no contradictory value, so a promotion leg passes
-  only on the contract's full evidence set.
+  only on the contract's full evidence set. Re-verified at `b8d336adcf2`
+  (linux x86-64): `exact_rule_rollout_is_complete_and_promotion_gated` green;
+  all six records still carry completed `Rollback evidence` with `Approved
+  status`, `Owner approval`, and `Measurement evidence` PENDING — the
+  remaining legs are owner/product decisions plus the BENCHMARKS-gated
+  measurement leg, not implementable slices.
   Acceptance: the command passes from a clean checkout and every promoted
   exact rule has the evidence the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
