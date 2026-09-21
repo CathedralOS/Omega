@@ -10659,19 +10659,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-NATIVE-MATRIX-MACOS-ARM64 (plus per-suite slice claims), and
   RC-NATIVE-MATRIX-WINDOWS-X64; coordination siblings RC-NATIVE-MATRIX-HOSTS
   (recorded), -HOST-RUNS and -HOST-LEGS (live claims) name the same
-  requirement. Re-verified at `f3d0d1748e` (linux x86-64): the umbrella
-  record stands and `cargo check -p omega-native-differential-test
-  --all-targets` still cannot compile the harness — `pipeline_ownership`
-  now carries 7 errors (4 `optimized_target()` → `&Arc<…>` custody drift
-  sites, the uncovered `LegalizedScalarTerminator::Crash` arm in
-  `fixtures/ordinary_graph_controls.rs`, plus the dropped
-  `produce_checked_canonical_integer_proof` symbol in
-  `fixtures/common.rs` + `scalar_return_calls.rs`) and `optimizer_corpus`
-  fails on the same missing symbol at `psi.rs:1636`. Both directories
-  remain under sibling claims (STRUCTURAL-UNIT-CALL-GRAPH-JOINS,
-  NATIVE-DIFFERENTIAL-MATRIX). Re-run per row when the fixture-migration
-  families and host runners land; no independent slice exists under this
-  name.
+  requirement. Re-verified at `a4d396d0de46` (linux x86-64): the
+  harness-compiles blocker is cleared — `cargo check -p
+  omega-native-differential-test --all-targets` finishes clean and the
+  previously-unbuildable `pipeline_ownership` target runs 392/392 pass
+  (the f3d0d1748e-era `optimized_target()` custody drift,
+  `LegalizedScalarTerminator::Crash` arm, and missing
+  `produce_checked_canonical_integer_proof` errors are gone under the
+  landed fixture migrations). What remains is per-host execution
+  evidence: linux_x86_64 needs a fresh full sweep under the compiling
+  harness (its record file is fenced to RC-NATIVE-MATRIX-LINUX-X86-64),
+  and the other three host rows still need foreign runners
+  (RC-NATIVE-MATRIX-LINUX-ARM64/-MACOS-ARM64/-WINDOWS-X64, all
+  live-claimed). Fixture surfaces stay fenced to
+  BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP and
+  SERVICE-CARRIER-FIXTURE-MIGRATION; no independent slice exists under
+  this name.
 - **RC-NATIVE-MATRIX-HOSTS.** — recorded at
   `wiki/drafts/rc_native_matrix_hosts.md` (revision 0977a4249e): all four
   required runner rows enumerated. linux_x86_64 red on a full
