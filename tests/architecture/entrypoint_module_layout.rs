@@ -43,9 +43,7 @@ const MODEL_DIRECTORY_EXCEPTIONS: &[&str] = &[
 const INLINE_TEST_ENTRYPOINTS: &[&str] = &[
     "omega-rust/omega/backend/artifacts/component-candidate/src/lib.rs",
     "omega-rust/omega/backend/instruction_set_architectures/x86-encoding/src/lib.rs",
-    "omega-rust/omega/backend/runtime/runtime-abi/src/lib.rs",
     "omega-rust/omega/representations/function-identity/src/lib.rs",
-    "omega-rust/omega/representations/target/src/lib.rs",
     "omega-rust/psi/pipeline/tokens-to-syntax-trees/src/lib.rs",
     "omega-rust/psi/semantics/terminal-codec/src/lib.rs",
 ];
