@@ -1,0 +1,34 @@
+// A provider-dependent const application whose boundary operator never
+// gains a selected satisfier has no fold to land: the deferred const
+// argument must refuse rather than materialize the application from thin
+// air. There is no `Provider` and no build selection, so `limit()`'s `%`
+// call has no body the selected execution can run.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega::language::core::service;
+
+data Math {}
+
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+
+machine limit() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    transition { _ -> (left % right) }
+}
+
+data Buffer<const N: u64> {
+    values: [u8; N];
+}
+
+data Main {
+    exit: Service<ProcessExit>;
+    value: Buffer<limit()>;
+}
+
+machine Main::main(&mut self) reaches
+    ProcessExit
+{
+    self.value.values[6] = 70;
+    self.exit.exit_process(70);
+}

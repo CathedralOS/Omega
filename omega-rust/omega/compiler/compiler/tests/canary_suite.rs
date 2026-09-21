@@ -1327,6 +1327,11 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/checked_boundary_operator_missing_contract",
     "providers/checked_boundary_operator_parameter_swap",
     "providers/checked_boundary_operator_stronger_requires",
+    // A provider-dependent const application cannot fold against an absent
+    // selection, and the selected body's result is the only admissible
+    // materialization -- a write past that extent rejects.
+    "providers/checked_boundary_operator_const_application_unselected",
+    "providers/checked_boundary_operator_const_application_forged_result",
     "providers/provider_selection_outside_build",
     "providers/adapter_forwarding_bad_lead",
     "recast/recast_size_mismatch_rejected",

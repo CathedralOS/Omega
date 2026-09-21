@@ -182,9 +182,21 @@ fn pending_const_application_folds_let_and_return_destinations() {
         },
     )
     .unwrap_or_else(|errors| panic!("{errors:?}"));
+    // Both destination sites close to the one generated `Buffer<7>`
+    // instance: the only `Generic` still carrying a folded literal is the
+    // instance's recorded origin.
     assert_eq!(
         folded_const_arguments(&program).as_slice(),
-        &["7".to_owned(), "7".to_owned()]
+        &["7".to_owned()]
+    );
+    let instances = program
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.generic_instance.is_some())
+        .count();
+    assert_eq!(
+        instances, 1,
+        "the return type and `let` annotation rejoin one generated instance"
     );
 }
 
