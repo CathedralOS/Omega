@@ -246,7 +246,7 @@ fn lower(
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
 }
 
 #[test]
@@ -313,7 +313,7 @@ fn window_pair_builds_and_validates_its_optimization_unit() {
     let module = window_module();
     let semantic = encode_module(&module).expect("semantic module encodes");
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -321,7 +321,11 @@ fn window_pair_builds_and_validates_its_optimization_unit() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("window pair projects into optimizer input");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

@@ -57,7 +57,7 @@ fn certified_countdown_session() -> VerifiedPsiOptimizationSession {
     .expect("check certified countdown");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
         .expect("lower certified countdown");
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -69,7 +69,11 @@ fn certified_countdown_session() -> VerifiedPsiOptimizationSession {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("certified countdown optimizer admission");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

@@ -32,7 +32,7 @@ fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
     .unwrap();
     let terminal =
         checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -44,7 +44,11 @@ fn indexed_byte_field_rejoins_original_field_even_when_current_bounds_match() {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
@@ -116,7 +120,7 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         .unwrap();
         let terminal =
             checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
-        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        let input = terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
                 proof_bytes: &terminal_codec::encode_proof_section(
@@ -128,7 +132,11 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
             },
             &proof_admission::AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|admitted| {
+            admitted
+                .into_optimization_artifact()
+                .into_optimization_input()
+        })
         .unwrap();
         let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             input,

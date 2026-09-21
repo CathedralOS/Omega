@@ -335,7 +335,7 @@ pub(super) fn assert_malformed_carrier_legs(case: &SelectionMatrix) {
         ))
     ));
     assert!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &[0xde, 0xad, 0xbe, 0xef],
                 proof_bytes: &[],
@@ -347,7 +347,7 @@ pub(super) fn assert_malformed_carrier_legs(case: &SelectionMatrix) {
     );
     // A truncated artifact cannot decode either.
     assert!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &[0x00],
                 proof_bytes: &[0x00],

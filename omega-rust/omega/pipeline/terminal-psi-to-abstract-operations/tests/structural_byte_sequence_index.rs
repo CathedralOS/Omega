@@ -10,9 +10,7 @@ use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_p
 use terminal_psi::{
     Block, Operation, OperationKind, OperationResult, SuccessorEdge, Terminator, ValueDeclaration,
 };
-use terminal_psi_to_abstract_operations::{
-    lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
-};
+use terminal_psi_to_abstract_operations::lower_artifact;
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).unwrap()
@@ -280,9 +278,9 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_plan())
+            .map(|admitted| admitted.into_plan())
             .map(|_| ()),
-            lower_artifact_for_optimization(
+            lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantics,
                     proof_bytes: &proof_bytes,
@@ -290,9 +288,13 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|admitted| {
+                admitted
+                    .into_optimization_artifact()
+                    .into_optimization_input()
+            })
             .map(|_| ()),
-            lower_artifact_for_native_realization(
+            lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantics,
                     proof_bytes: &proof_bytes,
@@ -300,7 +302,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_native_input())
+            .and_then(|admitted| admitted.try_into_native_input(&[]))
             .map(|_| ()),
         ] {
             result.expect("verified indexed field store survives native projection");

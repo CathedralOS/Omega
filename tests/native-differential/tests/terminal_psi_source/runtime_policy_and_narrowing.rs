@@ -218,7 +218,7 @@ fn checked_source_exact_literal_narrowing_relands_before_psi() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("narrowing artifact should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =

@@ -2468,7 +2468,7 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
     .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module)
                 .unwrap_or_else(|error| panic!("encode {label} semantics: {error:?}")),
@@ -2481,7 +2481,11 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap_or_else(|error| panic!("optimizer-only {label} admission: {error:?}"));
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

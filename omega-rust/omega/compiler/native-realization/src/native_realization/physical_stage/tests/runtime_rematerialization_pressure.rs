@@ -210,7 +210,7 @@ fn lower(
     optimization_core::PostTerminalOptimizationSelectionProjection,
 ) {
     let (semantic, proof) = artifact;
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: semantic,
             proof_bytes: proof,
@@ -218,7 +218,11 @@ fn lower(
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let optimized = crate::optimize_verified_abstract_input(
         input,

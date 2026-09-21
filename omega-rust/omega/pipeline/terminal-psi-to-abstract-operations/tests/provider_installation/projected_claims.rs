@@ -24,7 +24,7 @@ fn omega_rebases_projected_provider_claims_and_preserves_sibling_sources() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
@@ -87,7 +87,7 @@ fn projected_provider_replay_rejects_path_receipt_and_provider_substitution() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
 

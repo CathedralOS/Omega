@@ -1,31 +1,27 @@
-//! Ordinary and explicit optimizer lowering share one verified entry identity.
+//! The bare plan and the optimizer downgrade of one admission share one
+//! verified entry identity.
 
 use crate::tests::fixtures::hosted::hosted_custody;
 
 #[test]
-fn ordinary_and_explicit_optimizer_lowering_share_the_verified_entry() {
+fn bare_plan_and_optimizer_downgrade_share_the_verified_entry() {
     let (artifact, ..) = hosted_custody();
-    let ordinary = terminal_psi_to_abstract_operations::lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: artifact.semantic_bytes(),
-            proof_bytes: artifact.proof_bytes(),
-            obligation_ledger_bytes: None,
-        },
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .and_then(|admitted| admitted.try_into_plan())
-    .expect("ordinary native lowering produces a bare abstract plan");
-    let explicit = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: artifact.semantic_bytes(),
-            proof_bytes: artifact.proof_bytes(),
-            obligation_ledger_bytes: None,
-        },
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .and_then(|admitted| admitted.try_into_optimization_input())
-    .expect("an explicit optimizer request retains verified context");
+    let admit = || {
+        terminal_psi_to_abstract_operations::lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: artifact.semantic_bytes(),
+                proof_bytes: artifact.proof_bytes(),
+                obligation_ledger_bytes: None,
+            },
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("native admission of the hosted artifact")
+    };
+    let plan = admit().into_plan();
+    let optimizer = admit()
+        .into_optimization_artifact()
+        .into_optimization_input();
 
-    assert_eq!(ordinary.entry, explicit.plan().entry);
-    assert_eq!(explicit.context().module().entry, explicit.plan().entry);
+    assert_eq!(plan.entry, optimizer.plan().entry);
+    assert_eq!(optimizer.context().module().entry, optimizer.plan().entry);
 }

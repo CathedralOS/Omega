@@ -26,7 +26,7 @@ fn physical_and_object_publication_retain_the_original_abstract_allocation() {
         target::NativeTarget::linux_arm64(),
         target::NativeTarget::macos_arm64(),
     ] {
-        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        let input = terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: artifact.semantic_bytes(),
                 proof_bytes: artifact.proof_bytes(),
@@ -34,7 +34,11 @@ fn physical_and_object_publication_retain_the_original_abstract_allocation() {
             },
             &proof_admission::AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|admitted| {
+            admitted
+                .into_optimization_artifact()
+                .into_optimization_input()
+        })
         .unwrap();
         let selections = optimization_core::OptimizationSelections::default();
         let optimized = crate::optimize_verified_abstract_input(
@@ -202,7 +206,7 @@ fn malformed_unit_inputs_reject_at_legalization() {
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::launch")
         .produce_artifact()
         .unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: artifact.semantic_bytes(),
             proof_bytes: artifact.proof_bytes(),
@@ -210,7 +214,11 @@ fn malformed_unit_inputs_reject_at_legalization() {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let optimized = crate::optimize_verified_abstract_input(
         input,

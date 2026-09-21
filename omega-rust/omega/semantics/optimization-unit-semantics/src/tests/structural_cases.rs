@@ -76,7 +76,7 @@ fn source_machine_unit(source: &str, machine: &str, retain_contracts: bool) -> P
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified abstract lowering");
     let mut unit = reconstruct_psi_optimization_unit_seed(
         &plan,

@@ -19,8 +19,7 @@ use terminal_psi::{
     Operation, OperationKind, OperationResult, ProviderSignatureParameter, StructuralMultiplicity,
 };
 use terminal_psi_to_abstract_operations::{
-    ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation,
-    lower_artifact, lower_artifact_for_optimization,
+    ProviderInstallationError, SelectedProviderAdapter, admit_provider_installation, lower_artifact,
 };
 use terminal_verifier::{ModuleError, validate_module};
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -28,10 +27,8 @@ use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
-fn all_artifact_authorities_preserve_decode_and_replay_diagnostic_order() {
-    use terminal_psi_to_abstract_operations::{
-        ArtifactLoweringError, ArtifactSections, lower_artifact_for_native_realization,
-    };
+fn artifact_admission_preserves_decode_and_replay_diagnostic_order() {
+    use terminal_psi_to_abstract_operations::{ArtifactLoweringError, ArtifactSections};
     let module = provider_module();
     let (semantic, _) = artifact(&module);
     let trust = current_terminal_trust_graph().unwrap();
@@ -62,31 +59,24 @@ fn all_artifact_authorities_preserve_decode_and_replay_diagnostic_order() {
         },
     ];
     for (position, request) in requests.into_iter().enumerate() {
-        for result in [
-            lower_artifact(request, &profile).map(|_| ()),
-            lower_artifact_for_optimization(request, &profile).map(|_| ()),
-            lower_artifact_for_native_realization(request, &profile).map(|_| ()),
-        ] {
-            match position {
-                0 => assert!(matches!(
-                    result,
-                    Err(ArtifactLoweringError::SemanticDecode(_))
-                )),
-                1 => assert!(matches!(
-                    result,
-                    Err(ArtifactLoweringError::ObligationLedgerDecode(_))
-                )),
-                _ => assert!(matches!(result, Err(ArtifactLoweringError::ProofDecode(_)))),
-            }
+        let result = lower_artifact(request, &profile).map(|_| ());
+        match position {
+            0 => assert!(matches!(
+                result,
+                Err(ArtifactLoweringError::SemanticDecode(_))
+            )),
+            1 => assert!(matches!(
+                result,
+                Err(ArtifactLoweringError::ObligationLedgerDecode(_))
+            )),
+            _ => assert!(matches!(result, Err(ArtifactLoweringError::ProofDecode(_)))),
         }
     }
 }
 
 #[test]
-fn admitted_artifacts_retain_rosters_and_reject_custody_free_extraction() {
-    use terminal_psi_to_abstract_operations::{
-        ArtifactLoweringError, ArtifactSections, lower_artifact_for_native_realization,
-    };
+fn admitted_artifacts_retain_rosters_and_reject_unsupplied_native_custody() {
+    use terminal_psi_to_abstract_operations::{ArtifactLoweringError, ArtifactSections};
     let mut module = provider_module();
     let (original_semantic, _) = artifact(&module);
     let trust = current_terminal_trust_graph().unwrap();
@@ -129,33 +119,24 @@ fn admitted_artifacts_retain_rosters_and_reject_custody_free_extraction() {
             proof_bytes: &proof,
             obligation_ledger_bytes,
         };
-        let ordinary = lower_artifact(sections, &profile).unwrap();
-        let optimizer = lower_artifact_for_optimization(sections, &profile).unwrap();
-        let native = lower_artifact_for_native_realization(sections, &profile).unwrap();
-        assert_eq!(ordinary.placed_view_inputs(), module.placed_view_inputs);
-        assert_eq!(optimizer.placed_view_inputs(), module.placed_view_inputs);
+        let native = lower_artifact(sections, &profile).unwrap();
         assert_eq!(native.placed_view_inputs(), module.placed_view_inputs);
+        let optimizer = native.clone().into_optimization_artifact();
+        assert_eq!(optimizer.placed_view_inputs(), module.placed_view_inputs);
+        // The roster stays retained inside the optimizer input's verifier
+        // context module: downgrading authority never erases custody rows.
         assert_eq!(
-            ordinary.clone().into_parts().placed_view_inputs,
+            optimizer
+                .into_optimization_input()
+                .context()
+                .module()
+                .placed_view_inputs,
             module.placed_view_inputs
         );
-        assert_eq!(
-            native
-                .clone()
-                .into_optimization_artifact()
-                .placed_view_inputs(),
-            module.placed_view_inputs
-        );
+        // A declared entry row with no supplied establishment fails custody
+        // at the native input boundary rather than being silently dropped.
         assert!(matches!(
-            ordinary.try_into_plan(),
-            Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
-        ));
-        assert!(matches!(
-            optimizer.try_into_optimization_input(),
-            Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
-        ));
-        assert!(matches!(
-            native.try_into_native_input(),
+            native.try_into_native_input(&[]),
             Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
         ));
     }
@@ -164,16 +145,10 @@ fn admitted_artifacts_retain_rosters_and_reject_custody_free_extraction() {
         proof_bytes: &[],
         obligation_ledger_bytes: Some(&stale_ledger),
     };
-    for result in [
+    assert!(matches!(
         lower_artifact(stale, &profile).map(|_| ()),
-        lower_artifact_for_optimization(stale, &profile).map(|_| ()),
-        lower_artifact_for_native_realization(stale, &profile).map(|_| ()),
-    ] {
-        assert!(matches!(
-            result,
-            Err(ArtifactLoweringError::ObligationReplay(_))
-        ));
-    }
+        Err(ArtifactLoweringError::ObligationReplay(_))
+    ));
 }
 
 #[test]
@@ -189,7 +164,7 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     let trust_graph = current_terminal_trust_graph().expect("current trust graph");
     let obligation_ledger = build_terminal_obligation_ledger(&module, &trust_graph)
@@ -204,11 +179,11 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
             },
             &profile
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("locally replayed artifact lowering"),
         plan
     );
-    let replayed_optimizer_input = lower_artifact_for_optimization(
+    let replayed_optimizer_input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -216,7 +191,11 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("locally replayed optimizer input");
     assert_eq!(replayed_optimizer_input.plan(), &plan);
     assert_eq!(replayed_optimizer_input.context().module(), &module);
@@ -240,7 +219,7 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
             },
             &profile
         )
-        .and_then(|admitted| admitted.try_into_plan()),
+        .map(|admitted| admitted.into_plan()),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
     ));
     assert_eq!(plan.provider_candidates, module.provider_candidates);
@@ -367,7 +346,7 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("identity-tampered artifact remains valid");
     let formerly_selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     assert!(matches!(
@@ -418,7 +397,7 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
@@ -560,7 +539,7 @@ fn check_selected_overload_identity(source: &str, provider_machine: &str, wrong_
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     admit_provider_installation(
         &plan,

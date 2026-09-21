@@ -424,7 +424,7 @@ fn verified_unit(module: &TerminalModule) -> VerifiedPsiOptimizationUnit {
     let semantic = terminal_codec::encode_module(module).expect("semantic module encodes");
     let proof = terminal_codec::encode_proof_section(module, &ProofBundle::default())
         .expect("proof encodes");
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -432,7 +432,11 @@ fn verified_unit(module: &TerminalModule) -> VerifiedPsiOptimizationUnit {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("window module admits into optimizer input");
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

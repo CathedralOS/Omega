@@ -249,10 +249,10 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
     use semantic_vocabulary::{FuelScheduleIdentity, ObligationId, ValueId};
     use terminal_psi_to_abstract_operations::{
         ProviderInstallationError, admit_provider_installation,
-        build_verified_psi_optimization_unit, lower_artifact_for_optimization,
+        build_verified_psi_optimization_unit,
     };
     let profile = AdmissionProfile::default();
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: semantic,
             proof_bytes: proof,
@@ -260,7 +260,11 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified =
         build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap();
@@ -273,7 +277,7 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     let position = plan.functions[0]
         .operations
@@ -378,10 +382,10 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
 fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
     use terminal_psi_to_abstract_operations::{
         ProviderInstallationError, admit_provider_installation,
-        build_verified_psi_optimization_unit, lower_artifact_for_optimization,
+        build_verified_psi_optimization_unit,
     };
     let profile = AdmissionProfile::default();
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: semantic,
             proof_bytes: proof,
@@ -389,7 +393,11 @@ fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = build_verified_psi_optimization_unit(
         input,
@@ -405,7 +413,7 @@ fn validate_retained_read(semantic: &[u8], proof: &[u8]) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     let read_position = plan.functions[0]
         .operations

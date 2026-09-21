@@ -140,7 +140,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified scalar boundary call lowers into Omega");
 
     assert_eq!(plan.boundary_machines, module.boundary_machines);
@@ -190,7 +190,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified boundary crash contract lowers into Omega");
     assert_eq!(
         crashing_plan.boundary_machines[0].crash_routes, crashing.boundary_machines[0].crash_routes,
@@ -266,7 +266,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified structural boundary call lowers into Omega");
     let AbstractOperation::BoundaryCall { result, .. } = &plan.functions[0].operations[0] else {
         panic!("fixture retains its boundary call")

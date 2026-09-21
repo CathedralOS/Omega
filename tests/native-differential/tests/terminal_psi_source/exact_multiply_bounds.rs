@@ -92,7 +92,7 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("exact multiplication should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -180,7 +180,7 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("joint-bound exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -251,7 +251,7 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed joint-bound exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -331,7 +331,7 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("negative signed joint-bound multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -402,7 +402,7 @@ fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("runtime-negation exact multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -499,7 +499,7 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed i64 runtime-bound multiplication should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =

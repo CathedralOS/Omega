@@ -182,7 +182,7 @@ fn joined_record_cannot_move_and_lend_its_child_to_the_same_call() {
     // reconstructed identity; the artifact's section names the unmutated
     // subject, so reseal the discharged bundle against the control module.
     let proof_bytes = terminal_codec::encode_proof_section(&module, &proof).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic_bytes,
             proof_bytes: &proof_bytes,
@@ -190,7 +190,11 @@ fn joined_record_cannot_move_and_lend_its_child_to_the_same_call() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("the valid Terminal control admits to current IR");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
@@ -311,7 +315,7 @@ fn fresh_first_record_arm_keeps_saved_fields_across_child_dispatch() {
 #[test]
 fn selected_record_loan_rejects_changed_origin_geometry_and_home() {
     let artifact = produce_source("choose", SOURCE);
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: artifact.semantic_bytes(),
             proof_bytes: artifact.proof_bytes(),
@@ -319,7 +323,11 @@ fn selected_record_loan_rejects_changed_origin_geometry_and_home() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

@@ -219,7 +219,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("artifact-root abstract lowering decodes and verifies first");
     assert_eq!(artifact_abstract.entry, module.entry);
     assert_eq!(
@@ -252,7 +252,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             },
             &AdmissionProfile::default()
         )
-        .and_then(|admitted| admitted.try_into_plan()),
+        .map(|admitted| admitted.into_plan()),
         Err(ArtifactLoweringError::SemanticDecode(_))
     ));
     let mut malformed_proof = proof_bytes.clone();
@@ -275,7 +275,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             },
             &AdmissionProfile::default()
         )
-        .and_then(|admitted| admitted.try_into_plan()),
+        .map(|admitted| admitted.into_plan()),
         Err(ArtifactLoweringError::ProofDecode(_))
     ));
     let empty_proof_bytes = encode_proof_section(&module, &ProofBundle::default())
@@ -298,7 +298,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             },
             &AdmissionProfile::default()
         )
-        .and_then(|admitted| admitted.try_into_plan()),
+        .map(|admitted| admitted.into_plan()),
         Err(ArtifactLoweringError::Verification(_))
     ));
     assert!(matches!(

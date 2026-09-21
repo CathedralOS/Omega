@@ -308,7 +308,7 @@ fn lower_verified_artifact(
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
 }
 
 fn start_verified_artifact(
@@ -839,7 +839,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("independently verified abstract boundary contract");
     let boundary = abstract_plan
         .boundary_machines

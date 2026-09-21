@@ -39,7 +39,7 @@ pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperatio
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verify and lower canonical artifact")
 }
 

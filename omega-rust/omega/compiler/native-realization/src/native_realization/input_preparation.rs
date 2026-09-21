@@ -149,7 +149,7 @@ pub(crate) fn lower_realization_input_with_placed_view_establishments(
         .map_err(|error| realization_error("semantic section", error))?;
     terminal_codec::decode_proof_section_for(&module, proof_bytes)
         .map_err(|error| realization_error("proof section", error))?;
-    terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+    terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes,
             proof_bytes,
@@ -157,9 +157,7 @@ pub(crate) fn lower_realization_input_with_placed_view_establishments(
         },
         profile,
     )
-    .and_then(|admitted| {
-        admitted.try_into_native_input_with_placed_view_establishments(placed_view_establishments)
-    })
+    .and_then(|admitted| admitted.try_into_native_input(placed_view_establishments))
     .map_err(|error| realization_error("native artifact lowering", error))
 }
 
@@ -248,7 +246,7 @@ mod tests {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_plan())
+            .map(|admitted| admitted.into_plan())
             .expect("independent ordinary lowering");
             assert_eq!(input.plan(), &expected);
             let input = input.into_optimization_input();

@@ -13,7 +13,6 @@ use terminal_interpreter::{
 };
 use terminal_psi_to_abstract_operations::{
     SelectedProviderAdapter, admit_provider_installation, lower_artifact,
-    lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -91,7 +90,7 @@ fn check_source(source: &str) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     let caller = module
         .machines
@@ -125,7 +124,7 @@ fn check_source(source: &str) {
                 &installation,
             );
         assert_eq!(evidence[0].result, operation.result);
-        let optimized = lower_artifact_for_optimization(
+        let optimized = lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
                 proof_bytes: &proof,
@@ -133,7 +132,11 @@ fn check_source(source: &str) {
             },
             &profile,
         )
-        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|admitted| {
+            admitted
+                .into_optimization_artifact()
+                .into_optimization_input()
+        })
         .unwrap();
         let optimized_installation =
             admit_provider_installation(optimized.plan(), &semantic, &proof, &profile, &selected)
@@ -215,7 +218,7 @@ fn installed_affine_result_custody_rejects_changed_plan_and_selection() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     let candidate = &plan.provider_candidates[1];
     let selected = [SelectedProviderAdapter {

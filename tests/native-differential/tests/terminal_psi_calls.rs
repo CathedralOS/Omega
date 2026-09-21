@@ -146,7 +146,7 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("lower scalar call fixture");
     let _target = lower_to_target_operations(
         &abstract_plan,
@@ -314,7 +314,7 @@ fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("lower verified call artifact");
     assert!(matches!(
         abstract_plan.functions[0].operations[1],
@@ -412,7 +412,7 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("lower verified crash-capable call artifact");
     assert!(matches!(
         abstract_plan.functions[0].operations[1],

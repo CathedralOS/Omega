@@ -75,7 +75,7 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("joined dynamic dispatch reaches target-neutral Omega");
 
     let caller = plan

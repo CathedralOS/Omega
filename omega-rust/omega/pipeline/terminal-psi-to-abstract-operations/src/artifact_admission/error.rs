@@ -9,8 +9,9 @@ pub enum ArtifactLoweringError {
     ProofDecode(terminal_codec::ProofCodecError),
     ProofFingerprint(terminal_codec::ProofCodecError),
     Verification(terminal_verifier::VerificationError),
-    /// Consumers that do not own the separate plan-laid input carrier may not
-    /// silently discard the roster.
+    /// A placed-view roster row is bound by its call rather than by the
+    /// executable's host, or a declared direct-entry row was left without a
+    /// supply; the input boundary cannot silently discard either.
     PlacedViewInputsRequireCustodyLowering,
     /// A supplied provider establishment answered no declared direct-entry
     /// roster row.

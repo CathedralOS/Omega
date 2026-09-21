@@ -8,7 +8,7 @@ use super::{
 #[test]
 fn indexed_field_write_replay_rejects_address_extent_and_evidence_changes() {
     let terminal = super::super::indexed::indexed_replacement(false);
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -20,7 +20,11 @@ fn indexed_field_write_replay_rejects_address_extent_and_evidence_changes() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|artifact| artifact.try_into_optimization_input())
+    .map(|artifact| {
+        artifact
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

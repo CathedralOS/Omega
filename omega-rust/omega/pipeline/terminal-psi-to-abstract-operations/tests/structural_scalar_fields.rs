@@ -276,7 +276,7 @@ fn lower(
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
 }
 
 #[test]
@@ -452,7 +452,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
     module.machines = vec![machine];
     let semantic = encode_module(&module).expect("owned record read is canonical Terminal");
     let proof = encode_proof_section(&module, &ProofBundle::default()).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -460,7 +460,11 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("owned read projects without an invented parameter");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

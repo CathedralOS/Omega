@@ -83,7 +83,7 @@ fn checked_source_exact_divide_uses_known_nonzero_divisor() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("exact division should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -145,7 +145,7 @@ fn checked_source_signed_exact_divide_truncates_toward_zero() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("signed exact division should cross the Omega boundary");
         let _target_operations = lower_to_target_operations(
             &abstract_operations,
@@ -229,7 +229,7 @@ fn checked_source_exact_remainder_uses_known_nonzero_divisor() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("exact remainder should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -292,7 +292,7 @@ fn checked_source_signed_exact_remainder_is_truncating() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("signed exact remainder should cross the Omega boundary");
         let _target_operations = lower_to_target_operations(
             &abstract_operations,
@@ -434,7 +434,7 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("wrapping division should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -559,7 +559,7 @@ fn checked_source_signed_wrapping_divide_wraps_minimum_by_negative_one() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("signed wrapping division should cross the Omega boundary");
         let _target_operations = lower_to_target_operations(
             &abstract_operations,
@@ -708,7 +708,7 @@ fn checked_source_wrapping_remainder_uses_known_nonzero_divisor() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("wrapping remainder should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -774,7 +774,7 @@ fn checked_source_signed_wrapping_remainder_returns_zero_for_minimum_by_negative
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("signed wrapping remainder should cross the Omega boundary");
         let _target_operations = lower_to_target_operations(
             &abstract_operations,
@@ -922,7 +922,7 @@ fn checked_source_saturating_divide_uses_known_nonzero_divisor() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("saturating division should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -986,7 +986,7 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed saturating division should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -1143,7 +1143,7 @@ fn checked_source_saturating_remainder_uses_known_nonzero_divisor() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("saturating remainder should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -1207,7 +1207,7 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed saturating remainder should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -1288,7 +1288,7 @@ fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() 
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .unwrap_or_else(|error| panic!("lower {machine}: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(
@@ -1421,7 +1421,7 @@ fn checked_source_guarded_runtime_divisors_cross_every_fixed_integer_policy() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(
@@ -1486,7 +1486,7 @@ fn checked_source_guarded_negative_runtime_divisor_excludes_zero_and_negative_on
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("negative-divisor artifact should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -1546,7 +1546,7 @@ fn checked_source_negative_one_range_uses_policy_appropriate_dividend_evidence()
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .unwrap_or_else(|error| panic!("{machine} should cross Omega: {error:?}"));
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(

@@ -11,7 +11,7 @@ pub(in crate::pass_manager::tests) fn verified_input(
 ) -> VerifiedPsiOptimizationInput {
     let semantic = terminal_codec::encode_module(module).unwrap();
     let proof = terminal_codec::encode_proof_section(module, proof).unwrap();
-    terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -19,7 +19,11 @@ pub(in crate::pass_manager::tests) fn verified_input(
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap()
 }
 
