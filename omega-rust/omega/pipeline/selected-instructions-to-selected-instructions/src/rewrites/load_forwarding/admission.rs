@@ -106,7 +106,6 @@ use crate::rewrites::place_storage::{
 };
 
 pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
     pub block_index: usize,
     pub load_index: usize,
     pub load_id: SelectedInstructionId,
@@ -826,7 +825,6 @@ pub(super) fn admit<'source>(
         return Err(StoredLoadForwardingError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         load_index,
         load_id: load,
