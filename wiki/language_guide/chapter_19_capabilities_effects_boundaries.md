@@ -140,7 +140,7 @@ machine Application::start(
     logging: Binding<LoggingService>
 ) -> Application
 {
-    Application { logging }
+    Application { logging: logging }
 }
 ```
 
@@ -741,7 +741,7 @@ named `MicrosoftX64Policy` conformance is in scope:
 
 ```omega
 boundary trait WindowProcedure:
-    Calling<MicrosoftX64, MicrosoftX64Policy>
+    Calling<MicrosoftX64>
 {
     machine call(
         window: HWnd,

@@ -101,7 +101,7 @@ service and compatible in-memory provider; the compiler does not recognize
 them by spelling. This is a separate example from the arithmetic-only trait.
 
 ```omega
-let memory = builder.tests.group<Tests::memory>();
+let memory: TestGroup = builder.tests.group<Tests::memory>();
 memory.service<Filesystem, MemoryFilesystem>();
 ```
 

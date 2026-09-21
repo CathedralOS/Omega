@@ -451,7 +451,7 @@ data Config {
     rank: u8::Rank;
 }
 
-let ready = Config { rank: 1 };  // omitted level is zero-valid
+let ready: Config = Config { rank: 1 };  // omitted level is zero-valid
 ```
 
 Construction must supply gated fields and prove the whole default domain.
@@ -713,8 +713,8 @@ domain i32::Degrees
 machine + Degrees::add(
     left: i32::Degrees,
     right: i32::Degrees
-) -> sum: i32::Degrees
-    ensures degree_sum(left, right, sum) == true
+) -> i32::Degrees
+    ensures degree_sum(left, right, result) == true
 {
     let raw: i32 = (left as i32) + (right as i32);
     Degrees::normalize(raw)
