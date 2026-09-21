@@ -107,6 +107,10 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "carried binder spellings bound to cells across one activation",
     ),
     (
+        "omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs",
+        "one wire schema's own member field names bound to their types and per-probe reference members",
+    ),
+    (
         "omega-rust/psi/semantics/checked-interpreter/src/value.rs",
         "record field spellings bound to cells inside one value",
     ),
@@ -186,6 +190,10 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
     ),
     // Canonical-identity rejoins and package registries — keys are normalized
     // identities emitted by external catalogs, not authored scoped spellings.
+    (
+        "omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs",
+        "one compile's wire schemas by qualified schema path, joined to their independent codec verifications",
+    ),
     (
         "omega-rust/omega/build/package-compilation/src/package_compilation.rs",
         "dependency alias spellings bound to package key identities",
