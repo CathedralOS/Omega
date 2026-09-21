@@ -14891,6 +14891,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-DEBUG-ASSERTIONS (~16:25Z registry). Operative blocker
   unchanged: acceptance needs a Windows-host `tools/verify.py native`
   run and no Windows host exists in this lane.
+- **NEW-PRM-DYNAMIC-ERASED-LANE-DESIGN.** Scope verified at
+  `2dbccb9bd6`; design deliverable already landed — the exploratory draft
+  `wiki/drafts/dynamic_erased_lane_channel.md` (4c29987622) lays out the
+  three-leg channel for proof-actual erased lanes on dynamic scalar calls
+  (checked representation, terminal emission + vtable roster publication,
+  verifier reconstruction) with invariants, out-of-scope, evidence-to-move
+  and open questions. Re-audited this pass: every anchor intact —
+  `check_dynamic_erased_formal_lane` refusal + `fail/relevance/
+  dynamic_erased_formal_lane` pin, static `erased_arguments` lanes on
+  Call-family operations, roster-arity emission enforcement. The served
+  board clause stays open until the three legs land and the canary flips
+  (execution legs are not this item's scope — planner-assigned deliverable
+  was the draft alone). Stamp recorded in the draft header.
+
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
   Retire or wire the public stage entrances the executed stage-entrance orphan
   sweep named. **Re-verified at `a9286683d0` against the whole repository, and
