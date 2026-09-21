@@ -10546,6 +10546,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-WINDOWS-X64-NATIVE-ROW, and matrix-running to RC-MATRIX-RUNNER. No
   independent unfenced slice exists here. Sibling re-mines:
   RC-PLATFORM-RUNNER-COVERAGE, HOSTED-PLATFORM-RUN-MATRIX.
+- **RC-PLATFORM-RUNNER-COVERAGE.** Mined candidate — scope
+  verified, covered-alias of adjacent RC-PLATFORM-RUN-RECORDS:
+  the four "required platform runs" runner rows of
+  `wiki/drafts/rust_compiler_completion.md` (linux_x86_64
+  witnessed natively but red; linux_arm64 cross-compile-only;
+  windows_x86_64 named-open procedure; macos_arm64 unrecorded).
+  Verified at `ea78f0e486f`: every producible slice is
+  host-gated or claim-held — `tools/release` + `records/` under
+  RC-RELEASE-RECORD-AND-CLOSURE (live, 12:22Z) and matrix
+  running under RC-NATIVE-MATRIX-HOST-RUNS (live, 13:51Z); the
+  other three rows additionally need macOS/Windows/arm64 hosts.
+  No unfenced slice exists on this host.
 - **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
   797e99ead7, re-verified at `9e3edc7be9` — re-mines the release-record
   run clause covered by RC-RELEASE-RECORD-AND-CLOSURE's verified row. The
