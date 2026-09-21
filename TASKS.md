@@ -10856,6 +10856,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is the package boundary on a dynamic return carrying producer-selected
   evidence, pinned by
   STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
+- **OMEGA-PARSER-GATE-WINDOWS** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-GATE-WINDOWS-VALIDATION** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-WINDOWS-ROUTE-VALIDATION** — mined candidate; verify scope then implement.
+- **OMEGA-WRITTEN-PRODUCT-COMPILER.** Omega-written product compiler (verify scope, then implement).
+- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; verify scope then implement.
+- **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
+- **OPTIMIZATION-WORKLOAD-CORPUS** — mined candidate; verify scope then implement.
+- **OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
+- **OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP** — mined candidate; verify scope then implement.
+- **OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION** — mined candidate; verify scope then implement.
+- **OPTIMIZED-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
+- **OPTIMIZED-WRAPPER-OBJECT-RELOCATION** — mined candidate; verify scope then implement.
+- **OPTIMIZER-RULE-AXIS-GATE** — mined candidate; verify scope then implement.
+- **ORPHAN-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
+- **ORPHAN-REWRITE-MODULES-CATALOG** — mined candidate; verify scope then implement.
+- **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
+- **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Mined candidate —
   scope verified, covered (same verdict recorded on origin/main):
