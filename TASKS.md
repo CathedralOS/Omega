@@ -3176,7 +3176,7 @@ moved to the termination-catalog fence (see that row's refresh note).
     `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
     and selection's
     `selection/scalar_call_abi/normalized_foreign.rs` operand views still
-    admit only borrowed single-pointer sources — those two mirrors are the
+    admit only borrowed single-pointer sources — those two mirrors are the Fence stamp `c924529921dd` (swarm-w9-ffival): the selection-side operand-views leg is live-fenced — claim probe on `src/selection` + `src/legalization` exit 2, both held by NEW-NF-LEGALIZER-AGGREGATE-SOURCE-CUSTODY (Devin / z56, exp ~13:34Z); the a2t-admitted Owned/descriptor classes' two mirrors ride that lane.
     remaining legs before matching-host execution.
   - Dynamic descriptor calls. Target lowering produces
     `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
