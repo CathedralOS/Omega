@@ -54,7 +54,6 @@ mod values;
 
 pub use checking::{
     SelectedBoundaryFamilySpecialization, SelectedGenericOperatorProviderSpecialization,
-    lower_package_typed_trees_with_selected_generic_operator_providers,
     lower_preliminary_typed_trees, lower_typed_trees,
     lower_typed_trees_with_selected_generic_operator_providers, normalize_open_index_identities,
     specialize_static_machine_calls,
@@ -105,8 +104,6 @@ pub use monomorphization::{
 mod semantic;
 mod semantic_calls;
 mod semantic_places;
-
-pub use checking::lower_typed_trees as lower_typed_program;
 
 mod proof;
 pub use proof::{
