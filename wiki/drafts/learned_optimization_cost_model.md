@@ -28,3 +28,9 @@ LEARNED-COST-MODEL's stale pointer (TASKS.md:5889 reference, now deleted)
 was updated to carry this record.
 
 > Field note (163618c89557..b53c7ea26032 review): second ledger draft for the same gate as learned_optimization_cost_model_z142.md; keep one, fold the gate citation into LEARNED-COST-MODEL, delete the other.
+> Fold note (z117, NEW-FOLD-LEDGER-DRAFTS-BATCH-7): sibling ledger
+> `optimization_workload_corpus_z142.md` (same resolved/record-only
+> authorization-gate verdict, re-verified `832c55e69b`) folded into the
+> marked OPTIMIZATION-WORKLOAD-CORPUS row and deleted; its unmarked
+> duplicate board stub removed. `learned_optimization_cost_model_z142.md`
+> remains deleted per the note above.

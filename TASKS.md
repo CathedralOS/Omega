@@ -11698,6 +11698,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tools/benchmark record surface stays fenced by the BENCHMARK-* lanes
   (BENCHMARK-PROOF-SUBJECT-SELECTION, BENCHMARK-MACOS-ARM64-ROW);
   WORKLOAD-CORPUS is claimed under Devin/z175 on the same gated surface.
+  The z142 verification ledger is folded here per its field note — same
+  resolved/record-only verdict re-verified at `832c55e69b` (linux x86-64)
+  against unchanged gate text — and its draft
+  `wiki/drafts/optimization_workload_corpus_z142.md` is deleted. The
+  unmarked duplicate stub row that followed this entry is consumed into
+  this row and removed.
 - **OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION.** — mined candidate; scope verified, covered — same settled surface as resolved sibling OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (adjacent row, TASKS.md:8086): the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete disposition is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION in TASKS_OPTIMIZER.md; the codec-move leg is deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. Re-verified at `8ccd793fa8`: both wrapper modules still sit under `native-realization/src/` unrelocated and both module entrances still have no caller outside their own tests (lib.rs re-export only). No independent slice exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
   Verified scope: same orphan-owner surface as WRAPPER-OBJECT-OWNERSHIP's
   landed annotation (the `optimized_semantic_wrapper_{encoding,object}`
@@ -11859,7 +11865,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-WRITTEN-PRODUCT-COMPILER.** Omega-written product compiler (verify scope, then implement).
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; verify scope then implement.
 - **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
-- **OPTIMIZATION-WORKLOAD-CORPUS** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION** — mined candidate; verify scope then implement.
