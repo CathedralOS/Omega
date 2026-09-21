@@ -1,0 +1,40 @@
+omega_lock 3
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 968
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega-land/samples/cli/arithmetic/wrapping_square_sum" "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795"
+selected
+source
+name "wrapping-square-sum"
+lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/Users/zcanann/Documents/Projects/Omega-land/samples/cli/arithmetic/wrapping_square_sum"
+resolution external-local "afcaa5079f964d781a09218ad961a3ff6d769dd944e3f4e6482399c90fe65da0"
+packages 1
+package
+source
+name "wrapping-square-sum"
+lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/Users/zcanann/Documents/Projects/Omega-land/samples/cli/arithmetic/wrapping_square_sum"
+resolution external-local "afcaa5079f964d781a09218ad961a3ff6d769dd944e3f4e6482399c90fe65da0"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 42
+acceptance_schema 2
+rows 0
+end_acceptance
+decisions 203
+omega-policy-decisions 2
+source d265c4e5c9c59b5cbaa282f482c07c7e7c6322c466ddadcaa53b8a85ad3c1279
+baseline none
+comparison 880616b703441be79a8fe9d4b148602d7508c51a424d586e84f0da6d906c4f93
+decisions 0
+end
+end_target
+end
