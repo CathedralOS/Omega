@@ -6,6 +6,103 @@ use package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 
+fn receiver_result_bound_package(
+    overwrite_result: bool,
+) -> (TempTree, std::path::PathBuf, PackageCompilationInputs) {
+    let tree = TempTree::new();
+    let root = tree.package("receiver-probe");
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"receiver-probe\"); }\n",
+    );
+    TempTree::write(
+        root.join("alignment.omg"),
+        r#"module alignment;
+pub data Alignment [copy] { case One; case Four; }
+pub machine Alignment::size(&self) -> u64
+ensures result >= 1 && result <= 8 {
+    transition self { Alignment::One -> (1) Alignment::Four -> (4) }
+}
+"#,
+    );
+    let source = r#"use alignment::Alignment;
+data Probe { base: u64; size: u64; }
+machine Probe::run(&self, width: u64, alignment: Alignment) -> u64
+crashes Abort {
+    let alignment_size: u64 = alignment.size();
+    transition self.base % alignment_size == 0 && self.size >= width {
+        true -> consume(width, alignment_size)
+        false -> violated()
+    }
+    state violated(&self) -> u64 { crash Abort; }
+    state consume(&self, width: u64, alignment_size: u64) -> u64
+    requires alignment_size >= 1 && alignment_size <= 8 { width / alignment_size }
+}
+"#;
+    // Keep the guard's divisor valid: this control isolates the stale copied
+    // argument fact instead of failing earlier on a literal division by zero.
+    let source = if overwrite_result {
+        source
+            .replace(
+                "    transition self.base",
+                "    let mut forwarded_alignment: u64 = alignment_size;\n    forwarded_alignment = 0;\n    transition self.base",
+            )
+            .replace(
+                "consume(width, alignment_size)",
+                "consume(width, forwarded_alignment)",
+            )
+    } else {
+        source.to_owned()
+    };
+    TempTree::write(root.join("main.omg"), &source);
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(
+            identity(1),
+            "receiver-probe",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("receiver package graph should close");
+    (tree, root.join("main.omg"), inputs)
+}
+
+#[test]
+fn package_receiver_result_bounds_reach_named_state_requirements() {
+    let (_tree, root, inputs) = receiver_result_bound_package(false);
+    for target in ["macos_arm64", "windows_x86_64"] {
+        compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root, Some(target))
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("{target}: package identity must preserve the getter's exact normal-return guarantee: {diagnostics:#?}")
+        });
+    }
+}
+
+#[test]
+fn package_receiver_result_bounds_do_not_survive_overwrite() {
+    let (_tree, root, inputs) = receiver_result_bound_package(true);
+    for target in ["macos_arm64", "windows_x86_64"] {
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs.clone()),
+            ..CheckedCompileRequest::new(&root, Some(target))
+        })
+        .expect_err("overwriting the saved result must retire its bound");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("cannot prove requires contract for call consume")
+                    && diagnostic.message.contains("alignment_size >= 1")
+            }),
+            "{target}: expected a state-arrival bound failure: {diagnostics:#?}"
+        );
+    }
+}
+
 #[test]
 fn machine_satisfies_retains_the_exact_result_dispatch_overload() {
     let tree = TempTree::new();

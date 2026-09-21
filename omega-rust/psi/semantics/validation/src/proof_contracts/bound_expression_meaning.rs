@@ -571,6 +571,15 @@ fn operand_type_at_depth(
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
     }
+    // Reserved result occurrences have no ordinary storage symbol. Recover
+    // their carrier from the exact authored postcondition, including declared
+    // field projections, before operator resolution treats an unknown operand
+    // as a wildcard. Otherwise importing unrelated numeric operators can hide
+    // a builtin result bound. This supplies only a type, never its truth, and
+    // another machine's identically typed result is not in this scope.
+    if let Some(result) = crate::reserved_result_place(program, expression) {
+        return (result.machine_symbol == machine.symbol).then_some(result.type_reference);
+    }
     // This is type lookup, not an immutable-value proof: mutable parameters
     // and locals keep ordinary evaluation-snapshot narrowing. Anonymous literal and
     // unresolved computed types remain wildcard candidates, never an assumed

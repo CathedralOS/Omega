@@ -2,6 +2,104 @@ use super::parse_typed_trees;
 use crate::lower_typed_trees;
 
 #[test]
+fn receiver_result_bounds_reach_guarded_subordinate_state_requirements() {
+    let source = "data Alignment [copy] { case One; case Four; }
+         machine Alignment::size(&self) -> u64
+         ensures result >= 1 && result <= 8 {
+             transition self { Alignment::One -> (1) Alignment::Four -> (4) }
+         }
+         data Probe { base: u64; size: u64; }
+         machine Probe::run(&self, width: u64, alignment: Alignment) -> u64
+         crashes Abort {
+             let alignment_size: u64 = alignment.size();
+             transition self.base % alignment_size == 0 && self.size >= width {
+                 true -> consume(width, alignment_size)
+                 false -> violated()
+             }
+             state violated(&self) -> u64 { crash Abort; }
+             state consume(&self, width: u64, alignment_size: u64) -> u64
+             requires alignment_size >= 1 && alignment_size <= 8 { width / alignment_size }
+         }";
+    lower_typed_trees(parse_typed_trees(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
+}
+
+#[test]
+fn receiver_result_bounds_reach_subordinate_state_requirements() {
+    for (binding, statements, argument) in [
+        ("alignment.size()", "", "width"),
+        ("alignment.size()", "let copied: u64 = width;", "copied"),
+        (
+            "alignment.size()",
+            "let unrelated: u64 = other.unbounded();",
+            "width",
+        ),
+    ] {
+        let source = receiver_bound_source(binding, statements, argument);
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
+    }
+}
+
+#[test]
+fn receiver_result_bounds_do_not_survive_substitution_or_overwrite() {
+    for (binding, statements, argument) in [
+        ("alignment.unbounded()", "", "width"),
+        ("alignment.size()", "width = 0;", "width"),
+        (
+            "alignment.size()",
+            "let unknown: u64 = other.unbounded();",
+            "unknown",
+        ),
+        ("alignment.size()", "", "0"),
+        ("alignment.size()", "", "9"),
+    ] {
+        let source = receiver_bound_source(binding, statements, argument);
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+            .expect_err("a different or overwritten value has no getter guarantee");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires contract for call consume")),
+            "{diagnostics:#?}\n{source}"
+        );
+    }
+}
+
+#[test]
+fn receiver_result_bounds_require_a_valid_getter_body() {
+    for invalid_result in ["0", "9"] {
+        let source = receiver_bound_source("alignment.size()", "", "width")
+            .replace("<= 8 { 4 }", &format!("<= 8 {{ {invalid_result} }}"));
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+            .expect_err("using a getter guarantee does not discharge its body obligation");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+            "{diagnostics:#?}\n{source}"
+        );
+    }
+}
+
+fn receiver_bound_source(binding: &str, statements: &str, argument: &str) -> String {
+    format!(
+        "data Alignment [copy] {{ raw: u64; }}
+         machine Alignment::size(&self) -> u64
+         ensures result >= 1 && result <= 8 {{ 4 }}
+         machine Alignment::unbounded(&self) -> u64 {{ self.raw }}
+         data Probe {{ marker: u64; }}
+         machine Probe::run(&self, alignment: Alignment, other: Alignment) -> u64 {{
+             let mut width: u64 = {binding};
+             {statements}
+             transition {{ _ -> consume({argument}) }}
+             state consume(&self, width: u64) -> u64
+             requires width >= 1 && width <= 8 {{ width }}
+         }}"
+    )
+}
+
+#[test]
 fn boundary_result_guarantees_bind_the_exact_invocation() {
     for (actual, after, accepted) in [
         ("input", "", true),
