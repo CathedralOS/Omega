@@ -3416,151 +3416,63 @@ syntax and other terminal services are not prerequisites.
   as empty coverage. An empty admission profile still admits only
   kernel-dischargeable modules.
 
-- **FFIVAL.** Run the Windows `user32` boundary-coherence customer:
-  an Omega window procedure registered with `RegisterClassEx`, entered
-  through `CreateWindowEx`/`WM_NCCREATE` and `DispatchMessage`, then
-  released through `DestroyWindow` and `UnregisterClass`. Use the generic
-  [private-callback route](wiki/spec/build/private_callbacks.md), not a raw
-  function pointer or Win32-specific compiler escape.
+- **FFIVAL.** Complete and run the Windows user32 boundary-coherence
+  customer at `tests/omega/pending/host/user32_window_procedure_registration`,
+  through its authored build root and the generic
+  [private-callback protocol](wiki/spec/build/private_callbacks.md).
+  Reproduce its pinned `cannot prove requires contract` diagnostic before
+  assigning a repair; generic result-payload qualification transport exists,
+  while this customer uses a by-reference outcome.
 
-  Resume from `tests/omega/pending/host/user32_window_procedure_registration`
-  and its `build.omg`. The `canary_suite/layouts_and_pending.rs` watcher
-  currently expects `cannot prove requires contract`; its explanation and
-  fixture comments still describe case-payload authorization as wholly absent,
-  although generic routed result-payload authorization now exists. Reproduce
-  this particular by-reference outcome fixture's current diagnostic before
-  assigning the next repair. REGISTERED-CALLBACK-LIFETIME owns the authored
-  outcome/capacity lifecycle; CALLBACK-PRIVATE-MATERIALIZATION owns the
-  multiple-argument, call-bearing callback and private layout destination.
+  REGISTERED-CALLBACK-LIFETIME owns outcome/capacity lifecycle;
+  CALLBACK-PRIVATE-MATERIALIZATION owns callback/private-layout realization.
+  Supply the package-owned user32 provider/adapter, exact native ABI/layout
+  and explicit per-window context protocol. The fixture currently declares
+  an abstract boundary and a contextual procedure, not completed foreign
+  bindings to Win32's actual callback.
 
-  Acceptance: on Windows, build through the authored root, receive a real
-  foreign callback, recover per-window state without an ambient closure,
-  exercise rejection/retry and capacity reuse, and unregister with quiescence
-  before releasing the code lease. Update the pending watcher and promote the
-  canary only when its corresponding acceptance works; checking alone is not
-  foreign invocation. Other hosts report that runtime leg unavailable.
+  Acceptance on Windows: actual registration, `WM_NCCREATE` and dispatched
+  callback entry, deterministic rejection/retry, teardown and reuse of returned
+  capacity, with quiescence before releasing code leases. No raw callable
+  address, implicit closure or Win32-specific compiler escape. Promote the
+  pending canary only when its corresponding acceptance works; checking and
+  diagnostic watchers alone do not establish foreign invocation. Other hosts
+  explicitly report this runtime leg unavailable.
 
-- **WIRE-RUNTIME-AND-INSTALLATION.** Complete the
-  [admitted executable installation contract](wiki/spec/build/executable_installation.md):
-  reusable artifact validation, consumed placement authority, W^X and
-  instruction-fetch coherence, physical invocation, and the uninstall and
-  replacement joins. Keep arbitrary runtime bytes-to-code, JIT, and raw
-  executable addresses unsupported. The linear state model exists in
-  `omega-rust/omega/backend/runtime/executable-installation/` — admit,
-  materialize, freeze, validate, install, retire, quarantine, each failed
-  transition returning its inputs — and the final image carries the placed
-  executable and initialized-data inventories that
-  `image-emission/src/installed_artifact.rs` binds to an `InstalledCode`
-  occurrence, rejecting unclassified gaps, a truncated compiler prefix and a
-  resolver-claimed uninstalled thunk address. That is custody bookkeeping, not
-  installation: `install_validated` and `retire_installed` have no caller
-  outside tests and `test_support.rs`, no Omega source names any of these
-  states, and loader and provider lifetimes still bind through installation
-  records rather than a live installed occurrence.
+- **WIRE-RUNTIME-AND-INSTALLATION.** Connect the admitted executable
+  installation lifecycle to an authored/package provider route and a
+  matching-host executor under [executable installation](wiki/spec/build/executable_installation.md).
+  Reuse `executable-installation`'s linear transitions, required-fact gates,
+  sealed entry references, replacement/quarantine joins and
+  `image-emission/installed_artifact.rs` custody binding.
+  `OwnedImageProvider` performs convention-controlled buffer operations and
+  its driver composes their gates; its resident-byte borrow does not establish
+  physical invocation or platform execute/cache operations.
 
-  Remaining work:
+  Complete the receiving-provider/executor join: exact admitted content,
+  placement, audience and installed occurrence; target-appropriate
+  write/execute and fetch-visibility completion; invocation through a
+  requirement-compatible sealed entry; live-root/provider custody through
+  return, retirement and replacement. Keep platform operations with their
+  provider rather than adding OS policy to the generic lifecycle model.
+  `ConventionOnly` is permitted when honestly reported; do not universally
+  require hardware enforcement or accept `Unsupported`. Ordinary executable
+  file emission is not receiving installation. The lifecycle states are not
+  prescribed source type names and do not by themselves require new grammar.
 
-  - The contracted provider operation the placement lifecycle names.
-    `InstallAuthority` now names the provider-canonical `InstallationFactDigest`
-    set the operation must establish and `install_validated` rejects a receipt
-    that omits or renames a demanded fact (an established superset installs),
-    returning every input — the same required-facts gate retirement already
-    used. Still open: no provider performs the write-to-execute transition,
-    the target cache and ordering work, or instruction-fetch visibility, so
-    `InstallationReceipt` still only records what a provider would report.
-  - Physical invocation, and the entry references it hands out.
-    `entry_references.rs` owns the
-    [control-flow integrity](wiki/spec/build/executable_installation.md#control-flow-integrity)
-    gate: `InstalledCode::seal_entry_reference` turns an admitted-entry
-    selection into a sealed `InstalledEntryReference` retaining the
-    satisfier — the exact installed occurrence and its declared entry — and
-    the demanded `EntryContractDigest`, gated on provider-established
-    requirement compatibility, instruction-fetch visibility over the entry,
-    and demanded `EntryReferenceFactDigest` completion facts. The reference
-    borrows `InstalledCode`, so the realization cannot retire while an entry
-    remains possible. Still open: no caller invokes installed code through
-    one — the provider write-to-execute operation and physical invocation
-    remain ahead.
-  - The uninstall and replacement joins over that custody, per
-    [visibility and retirement](wiki/spec/build/executable_installation.md#visibility-and-retirement):
-    visibility before entry, quiescence before retirement, and live-site
-    patching through admitted fragments. `uninstall.rs` now owns the
-    drain-or-quarantine join — `uninstall_installed` retires a complete drain
-    and routes any incomplete drain to `replacement_quarantine.rs` when the
-    provider supplies trapping evidence, returning every input when neither
-    ending establishes — and `replacement.rs` now owns the patch-then-drain
-    replacement join: `replace_installed` demands each patched site be a
-    declared entry of the superseded artifact carrying its bound admitted
-    fragment, with instruction-fetch visibility and write re-suspension
-    established before the superseded custody drains. Still open: no provider
-    performs the patching operation itself — the receipts only record what a
-    provider would report.
-  - A route from Omega source: no `.omg` file names an admitted artifact, a
-    placement or installed code, so no canary reaches any of this.
-
-  Re-verified at `8570ba9ae8` (swarm-w9-ffival, linux x86-64): crate 130/130
-  PASS (`cargo nextest run -p executable-installation`), and three of the
-  four bullets above have since landed inside the crate —
-  `owned_image_provider.rs` performs the contracted write-to-execute
-  operation itself (final bytes into the resident image, store ordering,
-  readback, then write-authority suspension minted into the receipt) and its
-  `call` is the physical-invocation leg: it demands the sealed
-  `InstalledEntryReference`, refuses quarantined/retired/write-held states,
-  and returns a `ResidentEntryCall` borrow that structurally blocks
-  retire/patch until release; `provider_driver.rs` composes each provider
-  operation with its lifecycle gate in one call, closing the
-  "no caller outside tests" seam. Sole open bullet: the Omega-source route —
-  no `.omg` still names an admitted artifact, placement, or installed code,
-  so no canary reaches this crate; that leg is grammar + provider-surface
-  work outside `executable-installation` and ahead of the acceptance
-  witness.
-
-  Acceptance: an authored program admits a reusable artifact, materializes and
-  freezes a placement, validates the exact final bytes and footprint, installs
-  through one provider operation and calls into the installed code on a
-  matching host; retirement then proves quiescence, execute removal and
-  restored write authority before returning the placement, and an incomplete
-  drain quarantines the mapping instead. Substituted bytes, a placement spent
-  twice, a transplanted validation and an `Unsupported` W^X provider reject.
-
-  **COMPONENT-SUBSTRATE** owns the verified component closure above this; this
-  item owns generic executable custody.
-
-  Flag resolved 2026-09-19 on `devin/w9-wire-install-facts` (crate tests 66/66
-  pass via `cargo nextest run -p executable-installation`, Linux x86-64):
-  `install_validated` now applies the retirement mechanism — `InstallAuthority`
-  carries `required_facts` (provider-canonical `InstallationFactDigest`
-  values, domain `omega.installation-fact.sha256.v1`) and the receipt's
-  `established_facts` must cover them, else the transition rejects and returns
-  every input. Next acceptance: a provider operation that actually establishes
-  those facts, and physical invocation into installed code.
-
-  Flag resolved 2026-09-19 on `devin/w9-wire-replacement-join` (crate tests
-  71/71 pass via `cargo nextest run -p executable-installation`, Linux x86-64):
-  `replacement.rs` adds the replacement join — `replace_installed` requires a
-  `ReplacementAuthority` scoped to the exact superseded and successor
-  realizations, every demanded site to be a declared entry of the superseded
-  artifact patched with its bound admitted fragment, and instruction-fetch
-  visibility plus write re-suspension plus required `ReplacementFactDigest`
-  completion facts; an established patch drains the superseded custody through
-  `uninstall_installed` toward retirement or quarantine, and every failed
-  transition returns all inputs.
-
-  Flag resolved 2026-09-20 on `devin/w9-wire-install-2` (crate tests 79/79
-  pass via `cargo nextest run -p executable-installation`, Linux x86-64):
-  the control-flow-integrity gate exists — `seal_entry_reference` replays an
-  `EntryReferenceAuthority` scoped to the exact installed occurrence,
-  requires the demanded entry to be a declared entry of the installed
-  artifact, and requires the receipt to establish requirement compatibility,
-  instruction-fetch visibility, and the demanded
-  `EntryReferenceFactDigest` completion facts; any refusal returns the
-  authority and receipt. `EntryContractDigest` and
-  `EntryReferenceFactDigest` are domain-separated provider vocabulary
-  (`omega.entry-contract.sha256.v1`, `omega.entry-reference-fact.sha256.v1`).
-  Next acceptance: a provider operation that performs the
-  write-to-execute/cache-order/fetch-visibility work, a call path consuming
-  a sealed entry reference, and an Omega-source route that names an admitted
-  artifact.
+  Acceptance: an authored program reuses an admitted artifact across distinct
+  linear placements, materializes/freezes/validates exact final bytes and
+  footprint, installs through the contracted provider and actually invokes on
+  a matching host. Retirement requires quiescence, execute removal, restored
+  write authority and demanded facts; incomplete drain quarantines.
+  Replacement patches only declared sites with bound admitted fragments and
+  establishes visibility/write re-suspension before draining old custody.
+  Reject substituted bytes/authority/contracts, transplanted validation,
+  double-spent placement, missing completion facts and unsupported W^X;
+  failed transitions return their inputs. Keep arbitrary bytes-to-code,
+  JIT and raw executable-address routes unsupported.
+  **COMPONENT-SUBSTRATE** owns component closure; this row owns generic
+  executable custody.
 
 ## Rust compiler release closure
 
@@ -3702,7 +3614,7 @@ deliverable host runs, not four implementations of the gate.
 Finish the Rust [completion contract](wiki/drafts/rust_compiler_completion.md)
 before starting the product-language migration. Rust can remain a differential
 implementation afterward, but neither Rust agreement nor Rust-specific machinery
-is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`. NEW-WRI-LINUX-WRITE-TO-EXECUTE-PROVIDER assessed at `bb192d7ea9eb` (swarm-w9-ffival, planner-scoped to `provider_driver.{rs,/}`): a hardware-enforced Linux write-to-execute provider is not a slice of this crate — `executable-installation` is host-independent (no OS calls in `backend/runtime`; the spec's own vocabulary admits `WxEnforcement::ConventionOnly`, and real enforcement belongs to a platform provider, not the model). Within the fence the contract is fully driven: `install_code`/`retire_code`/`uninstall_code`/`replace_code`/`seal_code_entry`/`call_code` compose every gate-consuming operation, `cargo nextest run -p executable-installation` 130/130 PASS; the row's sole open bullet stays the Omega-source route.
+is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the
   Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
@@ -4474,24 +4386,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **ASM-CATALOG-FAMILY-EXPANSION.** — mined candidate; verify scope then
 
-- **ARTIFACT-AUTHORITY-CHECKS** — Retired row — resolved; no independent
-  slice exists under this name. Scope-audited at `f2c1762c2c3` and
-  `c924529921d` ([record](wiki/drafts/scope_artifact_authority_checks.md)),
-  re-verified at `c2530203d7` (swarm-w9-ffival, linux x86-64): the named
-  surface is owned end to end by **WIRE-RUNTIME-AND-INSTALLATION**. Landed
-  substrate — the admit/materialize/freeze/validate/install/retire/
-  quarantine linear state model, `authority_digests.rs` domain-separated
-  identities, `InstallAuthority`'s required-facts gate,
-  `entry_references.rs` sealed-entry control-flow-integrity gate, the
-  drain-or-quarantine and patch-then-drain joins, the
-  `owned_image_provider` write-to-execute operation and its
-  `InstalledEntryReference`-gated `call` invocation leg, and the
-  image-emission `installed_artifact` binding — stands at 130/130
-  (`cargo nextest run -p executable-installation`, re-witnessed at
-  `c2530203d7`). The owning row's sole open bullet is the Omega-source
-  route — no `.omg` names an admitted artifact, placement, or installed
-  code — grammar and provider-surface work outside this crate. Dispatch
-  further work as an explicit WIRE-RUNTIME-AND-INSTALLATION leg.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
   (x86_64) / `isb` (aarch64) instruction-stream serialization plus `pause`
@@ -8939,9 +8833,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRY-CONTENT-ROOTS (`derive_fused_program_entry_establishments` rejects
   `Service<R>` receivers upstream of selection); (c) the
   `program_entry_binding_outside_build` diagnostic drift is assigned to
-  CANARY-CORPUS by the PROGRAM-ENTRY-SELECTION-DIVISION lane. Fence
-  note: `image-emission` is path-claimed under WIRE-RUNTIME-AND-INSTALLATION
-  (Zergling-163) this wave. No independent slice exists; selection work
+  CANARY-CORPUS by the PROGRAM-ENTRY-SELECTION-DIVISION lane.
+  No independent slice exists; selection work
   resumes inside the owning lanes.
 - **SNAPSHOT-STORAGE** — mined candidate; verify scope then implement.
 - **SNAPSHOT-STORAGE-AND-FILTERING.** Scope verified — real item, no
