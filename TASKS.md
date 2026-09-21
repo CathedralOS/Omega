@@ -6923,6 +6923,25 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
 - **TERMINAL-SOURCE-CUSTODY-ORDER.** — mined candidate; scope verified, deliverable landed. The stub names the terminal custody-gate ordering pinned at `be1136849931` ("pin the terminal custody-gate order"): `tests/native-differential/tests/terminal_psi_source/contracts_and_frontend_drop.rs::source_statement_custody_gate_runs_after_the_parameter_custody_gate` proves dropping only the typed statement table leaves the program-level direct-Unit parameter custody gate fully resolved (it is statement-free — machines, states, and state signatures only), so per-machine lowering then reports the narrower authored-statement gap `LoweringError::Unsupported("scalar source custody has no authored statement")` rather than the parameter diagnostic; `wiki/drafts/known_baseline_failures.md` records the ordering as pinned. Re-witnessed green at `39317a770b1` (linux x86-64): `cargo nextest run -p omega-native-differential-test --test terminal_psi_source` — the pin passes (6.9s). The custody-gate expectation slice it left is adjudicated current by STALE-CUSTODY-GATE-EXPECTATIONS (:12024, "the landed custody ordering repins no custody-gate expectation"). Sibling TERMINAL-SOURCE-CUSTODY-GATE-ORDER was swept after landing; no residual leg remains.
 - **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup. Landed: `terminal-verifier` test `structural_unit::jumps_and_crash_routes::jump_edge_residual_discards_close_the_projected_argument_root_in_order` pins the Jump-edge sequence — projected successor arguments open partial custody, the residual roster must close it as the exact complement in canonical order (reorder or re-listing a moved child → `InvalidPartialAffineCleanup`), and residual-retired roots are never eligible for the trivial roster (naming one → `EdgeAffineDiscardsInvalid`).
+- **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
+- **TERMINAL-SOURCE-CUSTODY-ORDER.** Resolved — the frontend-drop custody
+  family is already repaired on `origin/main`: the two terminal_psi_source
+  typed-erasure probes repinned at `27f345e527` to the program-level
+  `validate_direct_unit_parameter_custody` gate, which deliberately runs
+  ahead of per-machine scalar source custody (`machine_lowering.rs` carries
+  the ordering contract at the call site; `expression_preparation/source_custody`
+  fires after). Both tests pass at `5b839c31ab` (omega-native-differential-test
+  terminal_psi_source, linux x86-64). The mined alias
+  TERMINAL-SOURCE-CUSTODY-GATE-ORDER names the same row.
+- **SUCCESSOR-DISCARD-ORDER.** Resolved — same terminal-verifier cleanup-order
+  row as EDGE-CLEANUP-ERROR-PRECEDENCE, already repaired on `origin/main`:
+  edge validation consumes owned successor sources before the residual and
+  trivial discard rosters (`validation/frontier/block_parameters.rs` documents
+  the order; `terminators.rs` runs it), and `d96a0fda39` repinned
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to
+  expect `EdgeAffineDiscardsInvalid` — the more precise diagnostic for discard
+  evidence naming an already-transferred place. All 26
+  `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6`.
 - **CANARY-EXACT-ENTRY-SELECTION.** Exact entry selection for division/value canaries and entry binding.
 
 Omega-side / native:
