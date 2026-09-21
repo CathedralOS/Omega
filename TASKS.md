@@ -8484,6 +8484,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (claimed by DELTA-COMPILER until 21:48Z). Per FEATURE_LEDGER's decision
   method, extension also needs a concrete `D`-side use to cite.
 - **EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
+- **FAULT-INJECTED-TARGET-READER.** Mined candidate — resolved as
+  covered: the surface this claim name has fenced is the image-emission
+  installation-record pairing dispatch for x86_64 Mach-O images with
+  thunk regions (TASKS.md MACOS-X64-HOST-PROFILE residual). That leg
+  landed on main at `769627cc23` — `installation_record/
+  record_validation.rs` dispatches Mach-O import thunk↔binding-slot
+  pairing per `image.target().architecture`, and the x86_64 arm reaches
+  the real validator
+  `image_macho::validate_macho_x86_64_import_binding_pairing`
+  (imports.rs, landed `5a5046d1db`), replaying each closed
+  `jmp [rip+disp32]` thunk against exactly one placed binding slot
+  naming the same symbol. Re-verified at `e7c0099cb2` (linux x86-64):
+  `cargo nextest run -p image-macho` 31/31 PASS, including
+  `x86_64_import_thunks_emit_and_validate_the_closed_jmp_rip_form`,
+  `x86_64_mutated_import_thunk_rejects_final_validation`, and the
+  end-to-end `x86_64_loader_mapping_accepts_eager_import_storage`
+  pairing exercise — HEAD now builds clean (the mid-drift
+  `crossed_window` break that forced the prior reading onto
+  `3533f7d0e8` is resolved). The remaining x86_64-Mach-O residual — a
+  real x86_64-apple-darwin host run — stays host-gated on
+  MACOS-X64-HOST-PROFILE's row. No unbound slice remains here.
 - **FILESYSTEM-SNAPSHOT-ISOLATION.** Verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
   already holds in `build-evaluation/src/evidence/filesystem_scope/
   preparation.rs` + `filesystem_scope.rs`. Captured source snapshots get a
