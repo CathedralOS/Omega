@@ -11825,7 +11825,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   POC-SPILL-FAMILY-SEQUENCING, exp 22:30Z). Folds into that item; no
   independent slice. Sibling stubs: UNSEQUENCED-SPILL-DISPOSITION
   (resolved same-way), UNSEQUENCED-SPILL-STAGE-DISPOSITION,
-  UNSEQUENCED-SPILL-FAMILY-DISPOSITION.
+  UNSEQUENCED-SPILL-FAMILY-DISPOSITION, and
+  UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE (same fold — the
+  sequence-or-delete wording is the canonical item's own disposition
+  verb; re-verified at `11d86399e6` with `unsequenced_spill_stages/`
+  still fenced wholesale under POC-SPILL-FAMILY-SEQUENCING, ~06:53Z,
+  and the canonical item itself claimed ~04:21Z).
 - **UNSEQUENCED-SPILL-STAGES-DISPOSITION.** Finish the disposition owned by
   **SPILL-REALIZATION** and **PIPELINE-OWNER-CONSOLIDATION** in
   [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md). The remaining
