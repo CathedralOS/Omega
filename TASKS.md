@@ -27,6 +27,12 @@ paragraphs ("re-verified a second/third time", "fourth witness") are noise —
 fold a materially new observation into the row's single verification line and
 drop the rest. Reopen a closed row only when the new evidence changes
 its frontier.
+Where a stamp does land, it stays inside its own row: append it after that
+row's last sentence, never splice it mid-sentence or mid-paragraph into the
+row's existing prose or a neighbor's, and never leave it as an orphan
+paragraph detached from its bullet. A mined stub that resolves as a pure
+re-mine of a settled row is folded into that row's sibling list rather than
+carrying its own stamp.
 Cite revisions as published on `main` (landing rewrites worktree SHAs) and
 prefer symbol or test names over line numbers, which drift.
 Live assignments belong in the [timestamped, expiring work-claim registry](tools/claims.md),
