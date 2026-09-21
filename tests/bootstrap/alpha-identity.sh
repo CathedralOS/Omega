@@ -58,6 +58,85 @@ stamp_seed "$TMP/probe.tape" "$TMP/truncated-seed" "$TMP/refused-truncated" \
   fail "truncated seed: destination was written"
 echo "truncate: a truncated container is refused before stamping"
 
+cp "$SEED" "$TMP/appended-seed"
+printf 'tail' >> "$TMP/appended-seed"
+rc=0
+stamp_seed "$TMP/probe.tape" "$TMP/appended-seed" "$TMP/refused-appended" \
+  2>"$TMP/appended.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "appended seed: expected exit 3, got $rc"
+grep -q 'bootstrap/0_alpha/README.md' "$TMP/appended.err" ||
+  fail "appended seed: refusal did not cite the retention inventory"
+[ ! -e "$TMP/refused-appended" ] ||
+  fail "appended seed: destination was written"
+echo "append: a container with trailing bytes is refused before stamping"
+
+# The legs above damage only the host-selected seed. Stamping must also refuse
+# a different audited container, and each container's own bound record must
+# refuse corrupt, truncated, and appended copies — a valid container for
+# another host is not this host's seed.
+for other in alpha_arm64_macos alpha_x64_linux alpha_x64_windows.exe; do
+  [ "$other" = "$ALPHA_SEED" ] && continue
+  case "$other" in
+    alpha_arm64_macos)
+      OTHER_SIZE=$ALPHA_SEED_ARM64_MACOS_SIZE
+      OTHER_SHA256=$ALPHA_SEED_ARM64_MACOS_SHA256 ;;
+    alpha_x64_linux)
+      OTHER_SIZE=$ALPHA_SEED_X64_LINUX_SIZE
+      OTHER_SHA256=$ALPHA_SEED_X64_LINUX_SHA256 ;;
+    *)
+      OTHER_SIZE=$ALPHA_SEED_X64_WINDOWS_SIZE
+      OTHER_SHA256=$ALPHA_SEED_X64_WINDOWS_SHA256 ;;
+  esac
+  OTHER_SEED="$OMEGA_PATH_ALPHA/$other"
+
+  rc=0
+  stamp_seed "$TMP/probe.tape" "$OTHER_SEED" "$TMP/refused-$other" \
+    2>"$TMP/substitute-$other.err" || rc=$?
+  [ "$rc" = 3 ] ||
+    fail "substituted seed $other: expected exit 3, got $rc"
+  grep -q 'bootstrap/0_alpha/README.md' "$TMP/substitute-$other.err" ||
+    fail "substituted seed $other: refusal did not cite the retention inventory"
+  [ ! -e "$TMP/refused-$other" ] ||
+    fail "substituted seed $other: destination was written"
+  echo "substitute: the audited $other container is refused as this host's seed"
+
+  cp "$OTHER_SEED" "$TMP/corrupt-$other"
+  if [ "$(od -An -tx1 -j 100 -N1 "$TMP/corrupt-$other" | tr -d ' ')" = "ff" ]; then
+    printf '\000' | dd of="$TMP/corrupt-$other" bs=1 seek=100 conv=notrunc status=none
+  else
+    printf '\377' | dd of="$TMP/corrupt-$other" bs=1 seek=100 conv=notrunc status=none
+  fi
+  rc=0
+  require_bound_identity "$other" "$TMP/corrupt-$other" \
+    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/0_alpha/README.md" \
+    2>"$TMP/corrupt-$other.err" || rc=$?
+  [ "$rc" = 3 ] ||
+    fail "corrupted $other: expected exit 3, got $rc"
+  grep -q "$OTHER_SHA256" "$TMP/corrupt-$other.err" ||
+    fail "corrupted $other: refusal did not name the audited digest"
+  echo "corrupt: a one-byte $other change fails its bound identity"
+
+  head -c $((OTHER_SIZE - 1)) "$OTHER_SEED" > "$TMP/truncated-$other"
+  rc=0
+  require_bound_identity "$other" "$TMP/truncated-$other" \
+    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/0_alpha/README.md" \
+    2>/dev/null || rc=$?
+  [ "$rc" = 3 ] ||
+    fail "truncated $other: expected exit 3, got $rc"
+  echo "truncate: a truncated $other fails its bound identity"
+
+  cp "$OTHER_SEED" "$TMP/appended-$other"
+  printf 'tail' >> "$TMP/appended-$other"
+  rc=0
+  require_bound_identity "$other" "$TMP/appended-$other" \
+    "$OTHER_SIZE" "$OTHER_SHA256" "bootstrap/0_alpha/README.md" \
+    2>/dev/null || rc=$?
+  [ "$rc" = 3 ] ||
+    fail "appended $other: expected exit 3, got $rc"
+  echo "append: trailing bytes on $other fail its bound identity"
+done
+
 for needle in \
   "$ALPHA_SEED_ARM64_MACOS_SHA256" "$ALPHA_SEED_X64_WINDOWS_SHA256" \
   "$ALPHA_SEED_X64_LINUX_SHA256" \
@@ -68,4 +147,4 @@ do
 done
 echo "records: bound identities match bootstrap/0_alpha/README.md"
 
-echo "Alpha identity: audited seed stamped exactly; corrupted and truncated containers refused"
+echo "Alpha identity: audited seed stamped exactly; corrupted, truncated, appended, and substituted containers refused"
