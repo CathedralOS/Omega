@@ -172,16 +172,17 @@ prerequisite to every lower-rung milestone.
     `beta-encoding-theory` on `sys.path`, so its `import gate` resolved the
     wrong module): the evaluator emits the pinned 116,900-byte theory
     (2.3 s), the host stepper reproduces the pinned request
-    (35.2 s), and the checker runs — then refuses the request with
-    `admission_incomplete` code 1 at its compiled-in 8,388,608-byte request
-    extent. The checker source still carries the pre-selection bound in
-    `implementation/admission/extents.gamma`; applying the selected
-    136,314,880-byte extent there re-pins the checker manifest, the packed
-    and diagnostic source identities, and the admission-boundary vectors in
-    the derivation gates. Remaining: land the extents.gamma extent with
-    that re-pin, then execute on macOS arm64 or Windows x64 and record
-    measured work and time, then run the mutation legs the acceptance
-    document lists.
+    (35.2 s), and the checker runs. The extents.gamma re-pin has since
+    landed at `a31bdf79e5129` ("land the 130 MiB derivation-checker request
+    extent") — `implementation/admission/extents.gamma` now compiles in the
+    selected 136,314,880-byte bound with the checker manifest, packed and
+    diagnostic source identities, and admission-boundary vectors re-pinned
+    across the derivation gates. On linux x86-64 the evaluator now admits
+    the framed request past admission (the recorded `admission_incomplete`
+    code-1 refusal at the pre-selection 8,388,608-byte extent is gone) and
+    enters the long `Checked`-observation run. Remaining: complete that
+    evaluator run on macOS arm64 or Windows x64 and record measured work
+    and time, then run the mutation legs the acceptance document lists.
   - Show that each retained checker rule and encoding helper has a role in
     that certificate, and remove the rest. The audit is resolved: every
     rule except symmetry appears (symmetry stays as one of the five
