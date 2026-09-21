@@ -146,9 +146,12 @@ These private eight-byte slots preserve full GPR payloads. They do not widen
 source referent reads, change scalar signedness, or normalize floating bits.
 
 The [assignment group](src/assignment/mod.rs) holds only the stages that
-route sequences. The compiler-private logical spill, slot-coloring,
-recursive-recovery, pseudo, and access-constraint boundaries live under
-[unsequenced spill stages](src/unsequenced_spill_stages/mod.rs):
+route sequences — including the
+[logical spill-operation boundary](src/assignment/logical_spill_operations/mod.rs),
+whose validated plan the runtime-spill recovery now produces over its input
+facts and re-derives during replay. The remaining compiler-private
+slot-coloring, recursive-recovery, pseudo, and access-constraint boundaries
+live under [unsequenced spill stages](src/unsequenced_spill_stages/mod.rs):
 `stage_register_allocation` does not call them yet, and the native-differential
 `register_allocation` tests and the architecture ladders validate them. These
 are not additional user-selectable optimizations. Each

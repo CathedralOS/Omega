@@ -28,7 +28,10 @@ pub use callback_custody::{
     CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
     realize_native_artifact_with_callback_custody,
 };
-pub use input_preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
+pub use input_preparation::{
+    PreparedNativeRealizationInput, prepare_native_realization_input,
+    prepare_native_realization_input_with_placed_view_establishments,
+};
 pub use program_entry::realize_program_entry_native_artifact;
 pub use realization_request::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
@@ -91,19 +94,29 @@ pub fn realize_native_artifact_with_behavior_exclusions(
     request: NativeRealizationRequest<'_>,
     behavior_exclusions: &build_evaluation::BehaviorExclusions,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    realize_image(artifact, &request, behavior_exclusions).map_err(|diagnostics| {
-        RequestedNativeArtifactError {
+    // The semantic-entry custody can only exist when the request carried a
+    // checked ProgramEntry settlement — the program-entry route below retains
+    // it; callers on this route cannot produce one, and the validated join has
+    // already enforced every invariant before this map.
+    realize_image(artifact, &request, behavior_exclusions)
+        .map(|(artifact, _semantic_wrapper_object)| artifact)
+        .map_err(|diagnostics| RequestedNativeArtifactError {
             image_request: request.image_request,
             diagnostics,
-        }
-    })
+        })
 }
 
-fn realize_image(
+pub(crate) fn realize_image(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
     behavior_exclusions: &build_evaluation::BehaviorExclusions,
-) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
+) -> Result<
+    (
+        RequestedNativeArtifact,
+        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
+    ),
+    Vec<Diagnostic>,
+> {
     if let Some(scope) = request.checked_scope {
         scope
             .validate_for_artifact(&artifact)
@@ -137,6 +150,7 @@ fn realize_image(
     let receiver_settlement = validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
+        input.placed_view_establishments(),
         &artifact,
         request,
     )?;
@@ -168,9 +182,15 @@ fn realize_image(
         &settlements,
         boundary_application_coverage.as_ref(),
         receiver_settlement.as_ref(),
+        &artifact,
         request,
     )?;
-    validate_emitted_receiver_binding(&emitted.object, receiver_settlement.as_ref())?;
+    validate_emitted_receiver_binding(
+        &emitted.object,
+        emitted.semantic_wrapper_object.is_some(),
+        receiver_settlement.as_ref(),
+    )?;
+    let semantic_wrapper_object = emitted.semantic_wrapper_object;
     assemble_requested_native_artifact(
         artifact,
         emitted.object,
@@ -183,14 +203,21 @@ fn realize_image(
         request.image_request.clone(),
         request,
     )
+    .map(|artifact| (artifact, semantic_wrapper_object))
 }
 
 fn validate_executable_entry_receiver(
     plan: &abstract_operations::AbstractOperationPlan,
     terminal: &terminal_psi::TerminalModule,
+    placed_view_establishments: &[terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment],
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<Option<crate::ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
+    // The provider establishments bound into the input are loans the emitted
+    // entry boundary must carry for the invocation's duration. Only the
+    // hosted receiver bridge is such a boundary: an admission that retains
+    // none cannot lend the referents and fails closed rather than publishing
+    // an entry that observes custody nobody supplied.
     // Settlement retains the entry declaration, not an installed receiver.
     // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
@@ -226,7 +253,7 @@ fn validate_executable_entry_receiver(
                 "lowered entry does not preserve the source-selected receiver mode",
             ));
         }
-        return Ok(None);
+        return entry_boundary_without_receiver(placed_view_establishments);
     }
     let lowered_entry = plan
         .functions
@@ -275,7 +302,12 @@ fn validate_executable_entry_receiver(
     let supported_receiver_bridge = request.target == target::NativeTarget::macos_arm64()
         || request.target == target::NativeTarget::linux_x64()
         || request.target == target::NativeTarget::linux_arm64()
-        || request.target == target::NativeTarget::windows_x64();
+        || request.target == target::NativeTarget::windows_x64()
+        // The UEFI entry is not a hosted shim: the authored semantic entry
+        // compiles a private wrapper that provisions `self` inside its own
+        // outgoing frame and calls the semantic child, so the root-backed
+        // bridge for it is the semantic wrapper object join.
+        || request.target == target::NativeTarget::uefi_x64();
     if has_receiver && !supported_receiver_bridge {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",
@@ -305,7 +337,7 @@ fn validate_executable_entry_receiver(
         // Source ZII/no-code disposal and the exact erased projection have
         // been replayed. No physical receiver argument or storage is needed;
         // Fused establishment is still checked independently before this call.
-        return Ok(None);
+        return entry_boundary_without_receiver(placed_view_establishments);
     }
     if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
         return Err(realization_error(
@@ -314,10 +346,29 @@ fn validate_executable_entry_receiver(
         ));
     }
     // This only permits physical construction to begin. The validated
-    // settlement is the demand the object binder must satisfy exactly, and the
-    // final image replay must still prove the disjoint backing, exact entry
-    // pointer, stack switch, and normal-return continuation before publication.
-    Ok(Some(settled))
+    // settlement is the demand the object binder must satisfy exactly — the
+    // bound placed-view establishments ride on it so the emitted entry
+    // boundary is what must lend each referent — and the final image replay
+    // must still prove the disjoint backing, exact entry pointer, stack
+    // switch, and normal-return continuation before publication.
+    Ok(Some(settled.with_placed_view_establishments(
+        placed_view_establishments,
+    )))
+}
+
+/// An admission that retains no hosted receiver boundary emits no shim that
+/// can lend a placed-view referent; bound establishments reaching it reject
+/// rather than publishing an entry whose custody was never supplied.
+fn entry_boundary_without_receiver(
+    placed_view_establishments: &[terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment],
+) -> Result<Option<crate::ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
+    if placed_view_establishments.is_empty() {
+        return Ok(None);
+    }
+    Err(realization_error(
+        "ProgramEntry placed-view custody",
+        "bound placed-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
+    ))
 }
 
 /// Admission is demand, not construction. The emitted object must carry a
@@ -328,11 +379,12 @@ fn validate_executable_entry_receiver(
 /// source selected.
 fn validate_emitted_receiver_binding(
     object: &image_emission::ObjectArtifact,
+    semantic_wrapper_object: bool,
     admitted: Option<&crate::ValidatedNativeProgramEntrySettlement>,
 ) -> Result<(), Vec<Diagnostic>> {
     let binding = object.hosted_receiver_binding();
     let Some(settlement) = admitted else {
-        return if binding.is_none() {
+        return if binding.is_none() && !semantic_wrapper_object {
             Ok(())
         } else {
             Err(realization_error(
@@ -341,6 +393,19 @@ fn validate_emitted_receiver_binding(
             ))
         };
     };
+    if settlement.target() == target::NativeTarget::uefi_x64() {
+        // The authored semantic entry binds through the staged wrapper object's
+        // custody, not a hosted shim: the emitted object must stay
+        // receiver-binding-free and the wrapper object must have been staged.
+        return if binding.is_none() && semantic_wrapper_object {
+            Ok(())
+        } else {
+            Err(realization_error(
+                "ProgramEntry receiver provisioning",
+                "admitted UEFI semantic entry did not reach a staged wrapper object",
+            ))
+        };
+    }
     let Some(binding) = binding else {
         return Err(realization_error(
             "ProgramEntry receiver provisioning",

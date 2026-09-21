@@ -7,10 +7,10 @@
 //! synchronization, or authorize lowering.
 //!
 //! No checked source operation emits these rows. Current constructions are
-//! structural tests, not evidence for a source contract, and the uniform
-//! one-range row is not public ABI. A complete admitted DMA boundary may keep
-//! these roles provider-private; a future checked-driver surface must derive
-//! role-specific payloads from its actual typed operations.
+//! structural tests, not evidence for a source contract, and the provisional
+//! role-coordinate rows are not public ABI. A complete admitted DMA boundary
+//! may keep these roles provider-private; a future checked-driver surface
+//! must derive role-specific payloads from its actual typed operations.
 
 use crate::{AccessPlanDiagnostic, SchemaDeviceCorrespondenceReceiptContext};
 use extents::MappedRangeReceiptContext;
@@ -104,17 +104,67 @@ pub enum DeviceOperation {
     PostedWriteCompletion,
 }
 
+/// The role-specific coordinate set carried by one emitted device-operation
+/// demand.
+///
+/// Per [device ordering](wiki/spec/resources/device_access.md), roles may
+/// relate different data, descriptor, doorbell, read-back, request, or
+/// completion coordinates — a uniform one-range carrier is not a public ABI.
+/// Carrying the role on the variant makes a role/coordinate mismatch
+/// unrepresentable, and the discriminant still participates in canonical
+/// identity through enum equality.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeviceOperationCoordinates {
+    /// DMA publication names the data range it publishes and the descriptor
+    /// place carrying its current write state.
+    DmaPublication {
+        data: MappedRangeReceiptContext,
+        descriptor: MappedRangeReceiptContext,
+    },
+    /// Acquisition consumes a completion tied to the same request.
+    DeviceAcquisition {
+        request: MappedRangeReceiptContext,
+        completion: MappedRangeReceiptContext,
+    },
+    /// Cache maintenance names only the maintained range.
+    CacheMaintenance {
+        maintained: MappedRangeReceiptContext,
+    },
+    /// An MMIO notification relates the doorbell place to its request.
+    MmioNotification {
+        doorbell: MappedRangeReceiptContext,
+        request: MappedRangeReceiptContext,
+    },
+    /// Posted-write completion ties the posted request to the completion that
+    /// proves the device observed it; a bare write proves nothing.
+    PostedWriteCompletion {
+        request: MappedRangeReceiptContext,
+        completion: MappedRangeReceiptContext,
+    },
+}
+
+impl DeviceOperationCoordinates {
+    /// The ordering role this coordinate set belongs to.
+    pub const fn operation(&self) -> DeviceOperation {
+        match self {
+            Self::DmaPublication { .. } => DeviceOperation::DmaPublication,
+            Self::DeviceAcquisition { .. } => DeviceOperation::DeviceAcquisition,
+            Self::CacheMaintenance { .. } => DeviceOperation::CacheMaintenance,
+            Self::MmioNotification { .. } => DeviceOperation::MmioNotification,
+            Self::PostedWriteCompletion { .. } => DeviceOperation::PostedWriteCompletion,
+        }
+    }
+}
+
 /// One provisional candidate demand for structural provider claim.
 ///
-/// Mapping and schema/device fields are full opaque structural contexts, not
-/// compact IDs. The ordering-scope ID remains an inert nominal coordinate in
-/// this first slice; no ordering relation or executable event is inferred from
-/// it.
+/// Coordinate and schema/device fields are full opaque structural contexts,
+/// not compact IDs. The ordering-scope ID remains an inert nominal
+/// coordinate; no ordering relation or executable event is inferred from it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceOperationRequirement {
     identity: DeviceOperationRequirementId,
-    operation: DeviceOperation,
-    range: MappedRangeReceiptContext,
+    coordinates: DeviceOperationCoordinates,
     correspondence: SchemaDeviceCorrespondenceReceiptContext,
     ordering_scope: DeviceOrderingScopeId,
 }
@@ -122,15 +172,13 @@ pub struct DeviceOperationRequirement {
 impl DeviceOperationRequirement {
     pub fn new(
         identity: DeviceOperationRequirementId,
-        operation: DeviceOperation,
-        range: MappedRangeReceiptContext,
+        coordinates: DeviceOperationCoordinates,
         correspondence: SchemaDeviceCorrespondenceReceiptContext,
         ordering_scope: DeviceOrderingScopeId,
     ) -> Self {
         Self {
             identity,
-            operation,
-            range,
+            coordinates,
             correspondence,
             ordering_scope,
         }
@@ -141,11 +189,11 @@ impl DeviceOperationRequirement {
     }
 
     pub const fn operation(&self) -> DeviceOperation {
-        self.operation
+        self.coordinates.operation()
     }
 
-    pub const fn range(&self) -> &MappedRangeReceiptContext {
-        &self.range
+    pub const fn coordinates(&self) -> &DeviceOperationCoordinates {
+        &self.coordinates
     }
 
     pub const fn correspondence(&self) -> &SchemaDeviceCorrespondenceReceiptContext {

@@ -65,6 +65,27 @@ member projection, and immutable snapshot custody, not a fetching-process
 receipt. Host credentials never become package authority. Stronger host
 sandboxing is deployment policy, not source evidence.
 
+## Local source capture
+
+A mutable local package root captures under a package policy that omits
+non-source reservations from its rows and identity. Every `.git` member is
+omitted at any depth; version-control internals are never package source. At
+the root only, the build output directory and the project control files named
+in [locks](locks.md#source-and-control-state) are omitted as well. Nested
+directories of those names, and nested control-named files, remain ordinary
+source.
+
+Omission narrows captured rows, not observed membership: an excluded member
+appearing or vanishing during capture is drift under the quiescent-tree
+premise and rejects. Symlink targets must resolve inside the root; under the
+package policy a target carrying any `.git` component, entering a root control
+file, or entering the root build output rejects rather than smuggling omitted
+state back into the source.
+
+Resolver-owned materializations — published Git trees and stored local
+snapshots — capture exactly what was published, retaining every row including
+locks and build output that a mutable root would omit.
+
 ## Reconciliation and updates
 
 The current resolver performs no semantic-version solving. Requests for one key

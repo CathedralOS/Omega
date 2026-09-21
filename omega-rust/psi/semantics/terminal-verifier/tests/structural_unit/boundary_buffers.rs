@@ -246,6 +246,7 @@ fn boundary_buffer_checks_nested_field_identity_and_relevance() {
 fn boundary_buffer_does_not_infer_view_qualifications() {
     let mut module = buffer_module();
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
         identity: "View::Ready".into(),
@@ -286,6 +287,7 @@ fn byte_field_presentation_does_not_widen_scalar_result_calls() {
     module.machines[0].blocks[0].operations[0].result = OperationResult::Scalar(result);
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: Vec::new(),
         structural_arguments,
@@ -301,6 +303,7 @@ fn byte_field_presentation_does_not_widen_scalar_result_calls() {
     });
     callee.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(100),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -340,6 +343,7 @@ fn ordinary_buffer_module() -> TerminalModule {
         .collect();
     callee.contract = MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: contract_id(2),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -357,6 +361,7 @@ fn ordinary_buffer_module() -> TerminalModule {
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: callee.id,
         arguments: Vec::new(),
         structural_arguments,

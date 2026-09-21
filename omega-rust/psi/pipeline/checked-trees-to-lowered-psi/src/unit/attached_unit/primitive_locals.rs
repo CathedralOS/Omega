@@ -235,8 +235,10 @@ pub(super) fn emit(
     let place = place_id(allocate_dense(next_place)?);
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: producer,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

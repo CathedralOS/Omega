@@ -1,12 +1,12 @@
 use super::{
     AdmittedTable, DIVIDE_ERROR, GENERAL_PROTECTION, PAGE_FAULT, TIMER_TICK, admitted_table,
-    authority_id, established_for, established_table, establishment_id, fatal_member,
-    install_members, member_fixtures, member_fixtures_with_spare, member_vectors, profile_id,
-    publication_id, publication_receipt_id, table_destination, table_installed_code, table_profile,
-    timer_member,
+    authority_id, declared_member_facts, established_for, established_table, establishment_id,
+    fatal_member, fixture_member_admission, install_members, member_admission, member_fixtures,
+    member_fixtures_with_spare, member_vectors, profile_id, publication_id, publication_receipt_id,
+    table_destination, table_installed_code, table_profile, timer_member,
 };
 use crate::interrupts::interrupt_table::{
-    EntryStack, EstablishedInterruptTable, InstalledCodeId, InstalledRootLedger,
+    EstablishedInterruptTable, InstalledCodeId, InstalledRootLedger,
     InterruptTableEstablishedMember, InterruptTableLedger, InterruptTableProfile,
     InterruptTablePublication, InterruptTablePublicationOutcome, InterruptTablePublicationReceipt,
 };
@@ -16,7 +16,7 @@ use crate::{
     RootAdmissionId, RootRemovalReceipt, RootRemovalReceiptId, RootSlotAuthority, RootSlotId,
     RootSlotOwnerId, validate_external_root,
 };
-use calling_conventions::{ArrivalContextId, EntryStackStage};
+use calling_conventions::{ArrivalContextId, EntryStack, EntryStackStage};
 use layout_plans::EntryStubId;
 
 #[test]
@@ -63,7 +63,12 @@ fn interrupt_table_member_admission_rejects_undeclared_vectors() {
     let mut handles = handles.into_iter();
     let spare = handles.nth(4).expect("spare member handle");
     let error = table
-        .admit_interrupt_table_member(&ledger, 0x2e, spare)
+        .admit_interrupt_table_member(
+            &ledger,
+            0x2e,
+            spare,
+            member_admission(timer_member(0x2e, 15, 5), declared_member_facts(15, true)),
+        )
         .expect_err("an undeclared vector cannot enter the table");
     assert!(error.diagnostic().0.contains("declares no member"));
     let _ = error.into_root();
@@ -77,14 +82,31 @@ fn interrupt_table_member_admission_rejects_duplicate_vectors() {
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
-    for vector in member_vectors() {
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
+    {
         table
-            .admit_interrupt_table_member(&ledger, vector, handles.next().expect("member handle"))
+            .admit_interrupt_table_member(
+                &ledger,
+                vector,
+                handle,
+                fixture_member_admission(
+                    *table.profile().member(vector).expect("declared member"),
+                    fixture,
+                ),
+            )
             .expect("admitted interrupt-table member");
     }
     let spare = handles.next().expect("spare member handle");
     let error = table
-        .admit_interrupt_table_member(&ledger, TIMER_TICK, spare)
+        .admit_interrupt_table_member(
+            &ledger,
+            TIMER_TICK,
+            spare,
+            member_admission(
+                timer_member(TIMER_TICK, 14, 4),
+                declared_member_facts(15, true),
+            ),
+        )
         .expect_err("an occupied vector cannot be re-admitted");
     assert!(error.diagnostic().0.contains("already admitted"));
     let _ = error.into_root();
@@ -92,30 +114,41 @@ fn interrupt_table_member_admission_rejects_duplicate_vectors() {
 
 #[test]
 fn interrupt_table_member_admission_requires_the_declared_critical_stack_class() {
+    // The authored verdict binds the declared row's exact arrival facts: a
+    // member whose record arrives on another dedicated class cannot carry a
+    // verdict minted for the declaration.
     let mut members = member_fixtures();
-    // The page-fault handler's boundary arrives on a different dedicated class
-    // than the profile declares for that vector.
     members[2].stack_class = 99;
     let mut code = table_installed_code(1, 300, &members);
     let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
-    for (vector, handle) in member_vectors().into_iter().zip(&mut handles) {
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
+    {
+        let plan = *table.profile().member(vector).expect("declared member");
         if vector == PAGE_FAULT {
+            // The verdict minted against the declared row claims dedicated
+            // class 13; the record's bound arrival is class 99, so the
+            // authored admission cannot bind it.
             let error = table
-                .admit_interrupt_table_member(&ledger, vector, handle)
+                .admit_interrupt_table_member(
+                    &ledger,
+                    vector,
+                    handle,
+                    member_admission(plan, declared_member_facts(13, false)),
+                )
                 .expect_err("the declared critical stack class is exact");
-            assert!(
-                error
-                    .diagnostic()
-                    .0
-                    .contains("dedicated critical stack class")
-            );
+            assert!(error.diagnostic().0.contains("does not bind"));
             let _ = error.into_root();
         } else {
             table
-                .admit_interrupt_table_member(&ledger, vector, handle)
+                .admit_interrupt_table_member(
+                    &ledger,
+                    vector,
+                    handle,
+                    fixture_member_admission(plan, fixture),
+                )
                 .expect("admitted interrupt-table member");
         }
     }
@@ -160,15 +193,21 @@ fn interrupt_table_member_admission_rejects_non_dedicated_stacks() {
             .install(&code, validated, authority, admission)
             .expect("installed member");
         let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
+        // A verdict minted for the declared row claims arrival on dedicated
+        // class 11; this member's record selects no dedicated class, so the
+        // authored admission cannot bind it.
         let error = table
-            .admit_interrupt_table_member(&ledger, DIVIDE_ERROR, handle)
+            .admit_interrupt_table_member(
+                &ledger,
+                DIVIDE_ERROR,
+                handle,
+                member_admission(
+                    fatal_member(DIVIDE_ERROR, 11, 1),
+                    declared_member_facts(11, false),
+                ),
+            )
             .expect_err("a non-dedicated stack is not a critical stack");
-        assert!(
-            error
-                .diagnostic()
-                .0
-                .contains("dedicated critical stack class")
-        );
+        assert!(error.diagnostic().0.contains("does not bind"));
         let _ = error.into_root();
     }
 }
@@ -184,16 +223,31 @@ fn interrupt_table_member_obligations_require_the_declared_acknowledgement_shape
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
-    for (vector, handle) in member_vectors().into_iter().zip(&mut handles) {
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
+    {
+        let plan = *table.profile().member(vector).expect("declared member");
         if vector == TIMER_TICK {
+            // The declared obligation needs an acknowledgement contract the
+            // record lacks; a verdict minted against the declared shape
+            // cannot bind this member's arrival facts.
             let error = table
-                .admit_interrupt_table_member(&ledger, vector, handle)
+                .admit_interrupt_table_member(
+                    &ledger,
+                    vector,
+                    handle,
+                    member_admission(plan, declared_member_facts(14, true)),
+                )
                 .expect_err("the timer member must mint a settle-able acknowledgement");
-            assert!(error.diagnostic().0.contains("acknowledgement contract"));
+            assert!(error.diagnostic().0.contains("does not bind"));
             let _ = error.into_root();
         } else {
             table
-                .admit_interrupt_table_member(&ledger, vector, handle)
+                .admit_interrupt_table_member(
+                    &ledger,
+                    vector,
+                    handle,
+                    fixture_member_admission(plan, fixture),
+                )
                 .expect("admitted interrupt-table member");
         }
     }
@@ -209,14 +263,20 @@ fn interrupt_table_member_obligations_require_the_declared_acknowledgement_shape
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
+    // The verdict claims the fatal obligation's no-acknowledgement shape;
+    // this record minted one, so the authored admission cannot bind it.
     let error = table
         .admit_interrupt_table_member(
             &ledger,
             DIVIDE_ERROR,
             handles.next().expect("member handle"),
+            member_admission(
+                fatal_member(DIVIDE_ERROR, 11, 1),
+                declared_member_facts(11, false),
+            ),
         )
         .expect_err("a fatal exception entry carries no acknowledgement obligation");
-    assert!(error.diagnostic().0.contains("acknowledgement contract"));
+    assert!(error.diagnostic().0.contains("does not bind"));
     let _ = error.into_root();
 }
 
@@ -241,6 +301,10 @@ fn interrupt_table_member_admission_rejects_roots_outside_the_ledger() {
             &foreign_ledger,
             DIVIDE_ERROR,
             foreign_handles.next().expect("foreign handle"),
+            member_admission(
+                fatal_member(DIVIDE_ERROR, 11, 1),
+                declared_member_facts(11, false),
+            ),
         )
         .expect_err("a foreign ledger cannot admit into this table");
     assert!(
@@ -258,6 +322,10 @@ fn interrupt_table_member_admission_rejects_roots_outside_the_ledger() {
             &ledger,
             DIVIDE_ERROR,
             foreign_handles.next().expect("foreign handle"),
+            member_admission(
+                fatal_member(DIVIDE_ERROR, 11, 1),
+                declared_member_facts(11, false),
+            ),
         )
         .expect_err("a foreign member handle is not this ledger's retained root");
     assert!(
@@ -278,10 +346,19 @@ fn interrupt_table_publication_requires_the_complete_declared_set() {
     let profile = table_profile(0x600);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
     let mut handles = handles.into_iter();
-    for (vector, handle) in member_vectors().into_iter().zip(&mut handles) {
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
+    {
         if vector != TIMER_TICK {
             table
-                .admit_interrupt_table_member(&ledger, vector, handle)
+                .admit_interrupt_table_member(
+                    &ledger,
+                    vector,
+                    handle,
+                    fixture_member_admission(
+                        *table.profile().member(vector).expect("declared member"),
+                        fixture,
+                    ),
+                )
                 .expect("admitted interrupt-table member");
         }
     }
@@ -976,9 +1053,18 @@ fn published_table_dispatch_rejoins_the_receipt_against_the_armed_member() {
     let profile = table_profile(0x600);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
     let mut handles = handles.into_iter();
-    for vector in member_vectors() {
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
+    {
         table
-            .admit_interrupt_table_member(&ledger, vector, handles.next().expect("member handle"))
+            .admit_interrupt_table_member(
+                &ledger,
+                vector,
+                handle,
+                fixture_member_admission(
+                    *table.profile().member(vector).expect("declared member"),
+                    fixture,
+                ),
+            )
             .expect("admitted interrupt-table member");
     }
     let spare = handles.next().expect("spare installed root");

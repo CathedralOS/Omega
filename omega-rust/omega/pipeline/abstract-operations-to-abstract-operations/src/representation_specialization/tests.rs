@@ -345,6 +345,38 @@ fn parameter_membership_yields_no_candidate() {
 }
 
 #[test]
+fn cyclic_machine_membership_stays_frozen() {
+    let session = cyclic_membership_session();
+    assert!(
+        !session.cycle_components().components().is_empty(),
+        "the fixture carries an authenticated cyclic component"
+    );
+    let membership_count = session
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                node.operation,
+                AbstractOperation::StructuralCaseMembership { .. }
+            )
+        })
+        .count();
+    assert!(
+        membership_count > 0,
+        "the fixture must actually contain a membership to freeze"
+    );
+    assert!(
+        propose_case_membership_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "no membership inside frozen territory specializes"
+    );
+}
+
+#[test]
 fn unobserved_establishment_yields_no_candidate() {
     let session = lowered_session_entry(NO_MEMBERSHIP_SOURCE, "no-membership decline", "probe");
     assert!(
@@ -1050,4 +1082,234 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
     .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"));
     VerifiedPsiOptimizationSession::new(verified)
         .unwrap_or_else(|error| panic!("verified {label} session: {error:?}"))
+}
+
+/// A roster-proven membership inside an authenticated cyclic machine. Source
+/// cannot express this shape — multi-state machines refuse structural formals,
+/// and the verifier's unranked-cycle fence admits only parameter-sourced
+/// structural work — so the Terminal module is built directly: an unranked
+/// self-loop header observes its owned `Token` parameter, and `Token`'s
+/// sole-case roster proves the verdict. The freeze gate, not missing proof,
+/// is what keeps the candidate set empty.
+fn cyclic_membership_session() -> VerifiedPsiOptimizationSession {
+    use semantic_vocabulary::{
+        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
+        ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
+    };
+    use terminal_psi::{
+        Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
+        StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+        StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+        TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    };
+
+    let value = |raw| ValueId::new(raw).unwrap();
+    let edge = |raw| EdgeId::new(raw).unwrap();
+    let block = |raw| BlockId::new(raw).unwrap();
+    let successor = |edge, target, arguments| SuccessorEdge {
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        edge,
+        target,
+        arguments,
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let token = StructuralTypeId::new(601).unwrap();
+    let only = StructuralCaseId::new(602).unwrap();
+    let token_place = PlaceId::new(520).unwrap();
+
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: MachineId::new(501).unwrap(),
+        structural_types: vec![StructuralTypeDeclaration {
+            id: token,
+            identity: "Token".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![StructuralCaseDeclaration {
+                    id: only,
+                    identity: "Only".into(),
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(603).unwrap(),
+                        identity: "value".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                        )),
+                    }],
+                }],
+            },
+        }],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(501).unwrap(),
+            attachment: None,
+            parameters: vec![ValueDeclaration {
+                qualifications: Default::default(),
+                id: value(502),
+                scalar_type: ScalarType::Boolean,
+            }],
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: token_place,
+                position: 0,
+                is_self: false,
+                structural_type: token,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }],
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: vec![StructuralPlaceDeclaration {
+                id: token_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            }],
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block(503),
+            blocks: vec![
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: block(503),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        edge: edge(504),
+                        target: block(505),
+                        arguments: vec![value(502)],
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: block(505),
+                    parameters: vec![ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: value(506),
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    operations: vec![
+                        Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id: OperationId::new(507).unwrap(),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
+                                id: value(508),
+                                scalar_type: ScalarType::Integer(
+                                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                                ),
+                            }),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(7),
+                            },
+                        },
+                        Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id: OperationId::new(521).unwrap(),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                qualifications: Default::default(),
+                                id: value(522),
+                                scalar_type: ScalarType::Boolean,
+                            }),
+                            kind: OperationKind::StructuralCaseMembership {
+                                source: token_place,
+                                path: Vec::new(),
+                                case: only,
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Conditional {
+                        condition: value(506),
+                        when_true: successor(edge(509), block(505), vec![value(506)]),
+                        when_false: successor(edge(510), block(511), Vec::new()),
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: block(511),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: edge(512),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                id: ContractId::new(513).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let semantic = terminal_codec::encode_module(&module).expect("encode cyclic module");
+    let proof =
+        terminal_codec::encode_proof_section(&module, &terminal_verifier::ProofBundle::default())
+            .expect("encode cyclic proof");
+    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_optimization_input())
+    .expect("cyclic module admits for optimization");
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("cyclic module verifies");
+    VerifiedPsiOptimizationSession::new(verified).expect("cyclic session re-admits")
 }

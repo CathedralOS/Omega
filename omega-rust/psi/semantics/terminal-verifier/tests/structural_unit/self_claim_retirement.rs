@@ -8,7 +8,15 @@
 //! receiver claims cannot be re-rooted or doubled, and crash exits still name
 //! the claim in their frontier lower bound.
 
-use super::*;
+use super::{
+    Block, EntryClaim, ModuleError, Operation, OperationKind, OperationResult, ScalarType,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker, block_id, claim_id, contract_id, edge_id, empty_contract,
+    machine_id, operation_id, place_id, structural_type_id, validate_module, value_id,
+};
 use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
 
 fn self_consumer_machine() -> TerminalMachine {
@@ -49,6 +57,7 @@ fn self_consumer_machine() -> TerminalMachine {
         entry: block_id(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -242,6 +251,7 @@ fn an_owned_self_receiver_claim_retires_at_scalar_return() {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

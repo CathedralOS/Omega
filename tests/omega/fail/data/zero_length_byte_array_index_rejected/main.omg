@@ -1,0 +1,6 @@
+// A zero-length byte array admits no provable index: no element exists, so
+// `self.xs[0]` must reject even though the array itself is admitted.
+use omega::language::std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; xs: [u8; 0]; }
+machine Main::main(&mut self) reaches Console { self.console.exit_process(self.xs[0] as i32); }

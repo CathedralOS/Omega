@@ -11,6 +11,15 @@ use typed_trees::{
     types::TypeReferenceHandle,
 };
 
+#[cfg(test)]
+mod tests;
+
+/// Nested constructors nest without bound in an expression, but each hop
+/// consumes at least one projected segment, so a small frontier suffices —
+/// a deeper literal chain keeps its literal spelling rather than minting an
+/// unbounded walk.
+const CAPTURED_SOURCE_LITERAL_HOPS: usize = 16;
+
 pub(crate) fn value_origin_at_call(
     program: &TypedTrees,
     flow: &FlowFacts,
@@ -111,7 +120,7 @@ where
     )
 }
 
-fn trace_value_origin_before_statement<Resolve, Rebase>(
+pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
     program: &TypedTrees,
     machine: &Machine,
     state: &FlowStateFact,
@@ -290,20 +299,75 @@ where
     if !projections.is_empty() {
         return None;
     }
-    if let Some((call, relative)) =
-        result_call(program, projection.expression, &projection.remaining)
-        && let Some(place) = resolve(state, statement_index, call, &relative)
-    {
-        return Some(place);
+    let mut expression = projection.expression;
+    let mut remaining = projection.remaining;
+    for _ in 0..CAPTURED_SOURCE_LITERAL_HOPS {
+        // A domain or value cast qualifies the same storage, so provenance
+        // continues at the operand it reinterprets.
+        while let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+            expression = cast.value;
+        }
+        if let Some((call, relative)) = result_call(program, expression, &remaining)
+            && let Some(place) = resolve(state, statement_index, call, &relative)
+        {
+            return Some(place);
+        }
+        let mut source = flow::canonical_place_from_expression_in_state(
+            program,
+            state.state_symbol,
+            statement_index,
+            expression,
+        )?;
+        source.segments.extend_from_slice(&remaining);
+        // A member or index peel over a constructor has no storage of its own:
+        // the demanded path arrives from the operand bound for that exact
+        // field or element, which proves its own origin under the same leaf
+        // rules. Only an exact peel qualifies — a dynamic index or range
+        // selects several operands, so it names no single source.
+        let PlaceRoot::Expression(rooted) = source.root else {
+            return Some(source);
+        };
+        match program.expression_table.expression(rooted) {
+            ExpressionNode::StructLiteral(literal) => {
+                if source.segments.is_empty() {
+                    return Some(source);
+                }
+                let literal_type = program
+                    .type_reference_table
+                    .find_named_type_reference(literal.type_symbol)?;
+                let mut projections = flow::literal_value_projections(
+                    program,
+                    rooted,
+                    literal_type,
+                    &source.segments,
+                    false,
+                )?;
+                if projections.len() != 1 {
+                    return None;
+                }
+                let projection = projections.remove(0);
+                expression = projection.expression;
+                remaining = projection.remaining;
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                let Some((PlaceSegment::FixedIndex { index }, rest)) =
+                    source.segments.split_first()
+                else {
+                    if source.segments.is_empty() {
+                        return Some(source);
+                    }
+                    return None;
+                };
+                expression = *program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .get(*index)?;
+                remaining = rest.to_vec();
+            }
+            _ => return Some(source),
+        }
     }
-    let mut source = flow::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        statement_index,
-        projection.expression,
-    )?;
-    source.segments.extend_from_slice(&projection.remaining);
-    Some(source)
+    None
 }
 
 /// Peel member and index projections around a result-position call,

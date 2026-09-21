@@ -1,6 +1,17 @@
 //! Bounded crash proofs from entry requirements and reconstructed site facts.
 //! Call-ceiling coverage supplies only entry requirements; callee continuations
 //! retain their independently reconstructed exact routes.
+//!
+//! Both consumers of this module stage proof search behind a produce/check
+//! split: `certify_crash_sites` and `certify_continuation` run the bounded
+//! denotation-lane searches and emit [`SuppliedCertificate`] rosters, while the
+//! accepting paths only re-decide supplied nodes against goals they reconstruct
+//! themselves. No search runs inside a check.
+//!
+//! The producer-side counterpart of this search is
+//! `checked_trees_to_lowered_psi::entry_requirement_certificates`; moving the
+//! supply onto the artifact and deleting this verifier-side search is the
+//! remaining leg.
 
 use proof_admission::{
     CheckedPredicateDenotations, PredicateDenotationError, PrimitiveJudgment, ProofNode, ProofRule,
@@ -44,6 +55,7 @@ const DENOTATION_LANES: [(bool, DenotationConversion); 2] = [
 /// the producing search ran under and the proof node it emitted. Consumers
 /// re-run only the recorded conversion and re-decide the node; they never
 /// search for a route themselves.
+#[derive(Clone)]
 pub(super) struct SuppliedCertificate {
     with_value_equalities: bool,
     proof: ProofNode,
@@ -91,6 +103,32 @@ impl SiteCertificates {
     pub(super) fn infeasible(&self) -> &[SuppliedCertificate] {
         &self.infeasible
     }
+}
+
+/// The producer's certificate supply for one uncovered call continuation: a
+/// coverage roster per published bucket sharing its cause — paired with the
+/// bucket so the consumer re-derives each union goal itself — plus the
+/// refutation roster over the still-uncovered alternatives.
+pub(super) struct ContinuationCertificates<'a> {
+    coverage: Vec<(&'a CrashRouteBucket, Vec<SuppliedCertificate>)>,
+    refutation: RefutationCertificates<'a>,
+}
+
+/// The refutation supply over one uncovered route roster.
+pub(super) enum RefutationCertificates<'a> {
+    /// The roster named no uncovered predicates: vacuously discharged, no
+    /// certificate needed.
+    Vacuous,
+    /// A non-predicate guard or a context-invalid proposition formed no
+    /// question; nothing supplied can discharge it.
+    Unformed,
+    /// The still-uncovered routes and the nodes produced for their
+    /// complement-conjunction goal. The consumer re-derives the goal from
+    /// `routes`; the supply never determines which question is asked.
+    Supplied {
+        routes: Vec<&'a CrashRouteGuard>,
+        certificates: Vec<SuppliedCertificate>,
+    },
 }
 
 /// Produce certificates for one roster of reconstructed crash sites. Sites
@@ -146,6 +184,150 @@ pub(super) fn certify_crash_sites<'a>(
     Ok(certificates)
 }
 
+/// Producer stage for the call-ceiling questions of one uncovered
+/// continuation: a denotation-lane search per same-cause published bucket and
+/// one over the uncovered roster's complement. Every search this path needs
+/// runs here — [`ContinuationCertificates::discharges`] never searches.
+pub(super) fn certify_continuation<'a>(
+    caller: &'a TerminalMachine,
+    published: impl Iterator<Item = &'a CrashRouteBucket>,
+    uncovered: &[&'a CrashRouteGuard],
+) -> ContinuationCertificates<'a> {
+    let context = entry_context(caller);
+    let coverage = published
+        .map(|bucket| {
+            let certificates = context
+                .as_ref()
+                .zip(coverage_goal(bucket))
+                .map(|(context, goal)| {
+                    prove_certificates(context, &goal, &caller.contract.requires, &[])
+                })
+                .unwrap_or_default();
+            (bucket, certificates)
+        })
+        .collect();
+    let refutation = match context.as_ref() {
+        Some(context) => match refutation_goal(context, uncovered) {
+            RefutationGoal::Vacuous => RefutationCertificates::Vacuous,
+            RefutationGoal::Malformed => RefutationCertificates::Unformed,
+            RefutationGoal::Goal(goal) => RefutationCertificates::Supplied {
+                routes: uncovered.to_vec(),
+                certificates: prove_certificates(context, &goal, &caller.contract.requires, &[]),
+            },
+        },
+        None => RefutationCertificates::Unformed,
+    };
+    ContinuationCertificates {
+        coverage,
+        refutation,
+    }
+}
+
+impl ContinuationCertificates<'_> {
+    /// The uncovered continuation is discharged when a same-cause published
+    /// bucket's reconstructed union goal or the reconstructed complement of
+    /// its uncovered roster re-decides one supplied node. Every verdict runs
+    /// the recorded denotation conversion and the kernel check over supplied
+    /// nodes only; an empty or unformed supply grants nothing.
+    pub(super) fn discharges(&self, caller: &TerminalMachine) -> bool {
+        let Some(context) = entry_context(caller) else {
+            return false;
+        };
+        let covered = self.coverage.iter().any(|(bucket, certificates)| {
+            coverage_goal(bucket).is_some_and(|goal| {
+                certificates.iter().any(|certificate| {
+                    check_supplied_certificate(
+                        &context,
+                        &goal,
+                        &caller.contract.requires,
+                        &[],
+                        certificate,
+                    )
+                })
+            })
+        });
+        covered
+            || match &self.refutation {
+                RefutationCertificates::Vacuous => true,
+                RefutationCertificates::Unformed => false,
+                RefutationCertificates::Supplied {
+                    routes,
+                    certificates,
+                } => match refutation_goal(&context, routes) {
+                    RefutationGoal::Goal(goal) => certificates.iter().any(|certificate| {
+                        check_supplied_certificate(
+                            &context,
+                            &goal,
+                            &caller.contract.requires,
+                            &[],
+                            certificate,
+                        )
+                    }),
+                    // The producer recorded a formed goal; re-deriving a
+                    // vacuous or malformed roster here is unreachable and
+                    // grants nothing.
+                    _ => false,
+                },
+            }
+    }
+}
+
+/// The coverage question one published bucket asks: its single predicate, or
+/// the disjunction of its alternatives (`Truth` remains a member, never
+/// collapses the union). An empty bucket forms no question.
+fn coverage_goal(published: &CrashRouteBucket) -> Option<Proposition> {
+    match published.alternatives.as_slice() {
+        [] => None,
+        [CrashRouteGuard::Predicate(predicate)] => Some(predicate.proposition().clone()),
+        alternatives => Some(Proposition::Disjunction(
+            alternatives
+                .iter()
+                .map(|route| match route {
+                    CrashRouteGuard::Truth => Proposition::Truth,
+                    CrashRouteGuard::Predicate(predicate) => predicate.proposition().clone(),
+                })
+                .collect(),
+        )),
+    }
+}
+
+/// The question one uncovered roster asks for its refutation.
+enum RefutationGoal {
+    /// No uncovered predicates remained: discharged without a certificate.
+    Vacuous,
+    /// A non-predicate guard, an invalid proposition, or a complement the
+    /// vocabulary cannot form: no question exists and nothing is granted.
+    Malformed,
+    /// The complement of every predicate, conjoined into one goal.
+    Goal(Proposition),
+}
+
+fn refutation_goal(context: &PropositionContext, routes: &[&CrashRouteGuard]) -> RefutationGoal {
+    let mut remaining = MAXIMUM_SEARCH_STEPS;
+    let mut goals = Vec::new();
+    for route in routes {
+        let CrashRouteGuard::Predicate(predicate) = route else {
+            return RefutationGoal::Malformed;
+        };
+        // Check the whole route before any denotation simplification. An
+        // unresolved body value must not disappear in a constant branch.
+        if context.validate(predicate.proposition()).is_err() {
+            return RefutationGoal::Malformed;
+        }
+        let Some(goal) = opposite(predicate.proposition(), &mut remaining, 0) else {
+            return RefutationGoal::Malformed;
+        };
+        goals.push(goal);
+    }
+    match goals.len() {
+        0 => RefutationGoal::Vacuous,
+        1 => RefutationGoal::Goal(goals.remove(0)),
+        // All alternatives must be false. One goal bounds conversion and
+        // search across the entire uncovered union, not separately per route.
+        _ => RefutationGoal::Goal(Proposition::Conjunction(goals)),
+    }
+}
+
 /// Check a supplied crash certificate without searching. The recorded
 /// denotation lane is part of the certificate: a node produced under equality
 /// transport is replayed against that conversion exactly as produced.
@@ -172,6 +354,11 @@ pub(super) fn check_supplied_certificate(
 /// Establish a crash predicate from invocation requirements and any exact
 /// independently reconstructed site facts. Call ceilings supply no site facts.
 /// Predicate conversion and the certificate are checked by the proof owner.
+///
+/// This produce-and-check composition remains for the search unit tests; the
+/// accepting paths consume supplies through `certify_crash_sites`,
+/// `certify_continuation`, and `check_supplied_certificate` instead.
+#[cfg(test)]
 pub(super) fn establishes(
     context: &PropositionContext,
     goal: &Proposition,
@@ -445,43 +632,6 @@ fn entry_context(caller: &TerminalMachine) -> Option<PropositionContext> {
     .ok()
 }
 
-/// Disproof is a proof of the opposite predicate, never failure to prove the
-/// route. Only exact invocation formals enter this context; forwarded CFG
-/// parameters must already have been rejoined by the caller. Body definitions,
-/// current storage and the route itself supply no assumptions.
-pub(super) fn refutes<'route>(
-    caller: &TerminalMachine,
-    routes: impl Iterator<Item = &'route CrashRouteGuard>,
-) -> bool {
-    let Some(context) = entry_context(caller) else {
-        return false;
-    };
-    let mut remaining = MAXIMUM_SEARCH_STEPS;
-    let mut goals = Vec::new();
-    for route in routes {
-        let CrashRouteGuard::Predicate(predicate) = route else {
-            return false;
-        };
-        // Check the whole route before any denotation simplification. An
-        // unresolved body value must not disappear in a constant branch.
-        if context.validate(predicate.proposition()).is_err() {
-            return false;
-        }
-        let Some(goal) = opposite(predicate.proposition(), &mut remaining, 0) else {
-            return false;
-        };
-        goals.push(goal);
-    }
-    let goal = match goals.len() {
-        0 => return true,
-        1 => goals.remove(0),
-        _ => Proposition::Conjunction(goals),
-    };
-    // All alternatives must be false. One goal bounds conversion and proof
-    // search across the entire uncovered union, not separately per route.
-    establishes(&context, &goal, &caller.contract.requires, &[])
-}
-
 // The crash predicate vocabulary has no general negation constructor. Form
 // the exact complement of supported scalar propositions; Boolean comparisons
 // retain their operands and use the proof owner's checked denotation rules.
@@ -518,36 +668,6 @@ fn opposite(proposition: &Proposition, remaining: &mut usize, depth: usize) -> O
         }
         _ => return None,
     })
-}
-
-pub(super) fn covers(caller: &TerminalMachine, published: &CrashRouteBucket) -> bool {
-    let Some(context) = entry_context(caller) else {
-        return false;
-    };
-    match published.alternatives.as_slice() {
-        [] => false,
-        [CrashRouteGuard::Predicate(predicate)] => establishes(
-            &context,
-            predicate.proposition(),
-            &caller.contract.requires,
-            &[],
-        ),
-        alternatives => {
-            // A bucket publishes a union, not a chosen route. One checked
-            // union goal shares the conversion and search budgets across all
-            // alternatives, and preserves disjunctive entry requirements.
-            let goal = Proposition::Disjunction(
-                alternatives
-                    .iter()
-                    .map(|route| match route {
-                        CrashRouteGuard::Truth => Proposition::Truth,
-                        CrashRouteGuard::Predicate(predicate) => predicate.proposition().clone(),
-                    })
-                    .collect(),
-            );
-            establishes(&context, &goal, &caller.contract.requires, &[])
-        }
-    }
 }
 
 fn step(remaining: &mut usize, depth: usize) -> Option<()> {
@@ -756,5 +876,136 @@ mod tests {
             other,
         ]);
         assert!(!establishes(&context, &goal, &[leaking_cases], &[]));
+    }
+
+    #[test]
+    fn continuation_supplies_discharge_only_the_reconstructed_questions() {
+        use semantic_vocabulary::{
+            BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+            ScalarTerm, ScalarType, ValueId,
+        };
+        use terminal_psi::{
+            Block, CrashCause, CrashPredicateTerm, CrashRouteGuard, MachineContract,
+            TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+        };
+
+        fn semantic_id<T>(raw: u64, make: impl FnOnce(u64) -> Option<T>) -> T {
+            make(raw).unwrap()
+        }
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let flag = semantic_id(1, ValueId::new);
+        let bound = semantic_id(2, ValueId::new);
+        let boolean = |value| {
+            Proposition::Equal(
+                ScalarTerm::value(flag, ScalarType::Boolean),
+                ScalarTerm::boolean(value),
+            )
+        };
+        // Complement formation lands this strict-order predicate back in the
+        // requirement vocabulary: `opposite(LessThan(bound, zero))` is
+        // `LessOrEqual(zero, bound)`.
+        let zero = ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap();
+        let bounded = Proposition::LessOrEqual(
+            zero.clone(),
+            ScalarTerm::value(bound, ScalarType::Integer(integer)),
+        );
+        let strict =
+            Proposition::LessThan(ScalarTerm::value(bound, ScalarType::Integer(integer)), zero);
+        let caller = TerminalMachine {
+            id: semantic_id(1, MachineId::new),
+            attachment: None,
+            parameters: vec![
+                ValueDeclaration {
+                    id: flag,
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                },
+                ValueDeclaration {
+                    id: bound,
+                    scalar_type: ScalarType::Integer(integer),
+                    qualifications: Default::default(),
+                },
+            ],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            declared_service_reach: Vec::new(),
+            closed_reach_application: None,
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: semantic_id(1, BlockId::new),
+            blocks: vec![Block {
+                id: semantic_id(1, BlockId::new),
+                parameters: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: semantic_id(1, EdgeId::new),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: semantic_id(1, ContractId::new),
+                crash_routes: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                requires: vec![boolean(true), bounded.clone()],
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        };
+        let bucket = |proposition| terminal_psi::CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                proposition,
+            ))],
+        };
+        let route = |proposition| CrashRouteGuard::Predicate(CrashPredicateTerm::new(proposition));
+
+        // Coverage: the produced supply discharges the reconstructed bucket
+        // goal, and the same roster asks nothing of a vacuous refutation.
+        let covered_bucket = bucket(boolean(true));
+        let covered = super::certify_continuation(&caller, [&covered_bucket].into_iter(), &[]);
+        assert!(covered.discharges(&caller));
+
+        // A supply produced for one goal grants nothing to another question:
+        // pairing the same certificates with a different bucket stays
+        // uncovered, and an unformed refutation grants nothing either.
+        let wrong_bucket = bucket(boolean(false));
+        let swapped = super::ContinuationCertificates {
+            coverage: covered
+                .coverage
+                .iter()
+                .map(|(_, certificates)| (&wrong_bucket, certificates.clone()))
+                .collect(),
+            refutation: super::RefutationCertificates::Unformed,
+        };
+        assert!(!swapped.discharges(&caller));
+
+        // Refutation: the reconstructed complement of the uncovered route is
+        // the entry requirement itself, so the produced supply discharges it.
+        let strict_route = route(strict);
+        let refuted = super::certify_continuation(&caller, [].into_iter(), &[&strict_route]);
+        assert!(refuted.discharges(&caller));
+        // A route whose complement is unprovable grants nothing.
+        let bounded_route = route(bounded);
+        let refuted = super::certify_continuation(&caller, [].into_iter(), &[&bounded_route]);
+        assert!(!refuted.discharges(&caller));
+
+        // A `Truth` row forms no refutation question, and an empty supply
+        // grants it nothing.
+        let truth_route = CrashRouteGuard::Truth;
+        let unformed = super::certify_continuation(&caller, [].into_iter(), &[&truth_route]);
+        assert!(!unformed.discharges(&caller));
+
+        // An empty roster is vacuously discharged without any certificate.
+        let vacuous = super::certify_continuation(&caller, [].into_iter(), &[]);
+        assert!(vacuous.discharges(&caller));
     }
 }

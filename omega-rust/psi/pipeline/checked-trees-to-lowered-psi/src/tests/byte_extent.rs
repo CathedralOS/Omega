@@ -94,6 +94,7 @@ fn fixture() -> LoweredPsi {
     block.operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(next_operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -104,6 +105,7 @@ fn fixture() -> LoweredPsi {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(next_operation + 1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

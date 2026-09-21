@@ -145,7 +145,8 @@ pub(crate) fn validate_structural_type_graph(
                     }
                 }
             }
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+            | terminal_psi::StructuralTypeShape::ElementView { element } => {
                 visit(*element, types, active, complete)?;
             }
             terminal_psi::StructuralTypeShape::Sum { cases } => {

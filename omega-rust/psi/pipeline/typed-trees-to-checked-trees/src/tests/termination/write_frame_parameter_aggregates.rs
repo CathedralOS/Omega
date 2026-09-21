@@ -184,10 +184,12 @@ fn parameter_aggregate_moves_preserve_caller_reference_origins() {
             None,
         ),
         (
+            // The leaf-slot rebind writes the parameter's member slot; the
+            // moved carrier's payload write still spells under `input`.
             "reference_field_replacement",
             "View",
             "input.body = audit; let first: View = input; write_view(first);",
-            None,
+            Some("input.body"),
         ),
         (
             // The carrier write claims the replaced parameter's footprint;

@@ -14,13 +14,16 @@
 //! failure, and `arrival_stability.rs` and `return_arrival.rs` carry the
 //! arrival proofs. `measurement.rs` records what each check actually ran:
 //! the obligation mix, certificate-route verdicts, and the kernel receipts
-//! the accepted certificates carried.
+//! the accepted certificates carried. `derivation_cache.rs` retains
+//! kernel-accepted certificates by obligation semantic identity so a
+//! repeated obligation rechecks evidence instead of repeating search.
 
 mod arrival_stability;
 mod assignment_stability;
 mod bounded_checks;
 mod certificate;
 mod dependent_bounds;
+mod derivation_cache;
 mod diagnostics;
 mod float_ranges;
 mod guards;
@@ -30,6 +33,7 @@ mod named_constraints;
 mod return_arrival;
 
 pub use certificate::{CertificateVerdict, guarded_transition_integer_verdict};
+pub use derivation_cache::{DerivationCacheReport, ProofDerivationCache};
 pub use integer_ranges::{
     AssignmentRangeContext, proved_assignment_integer_range,
     proved_assignment_integer_range_with_context,
@@ -40,21 +44,54 @@ use crate::checker::bounded_checks::{
     check_bounded_assignment, check_bounded_call_argument, check_bounded_initializer,
     check_bounded_state_return, check_bounded_transition_argument,
 };
+use crate::checker::derivation_cache::DerivationConsultation;
 use crate::obligations::{ProofObligation, ProofPlan};
 use diagnostics::Diagnostic;
 
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut measurements = ProofPlanMeasurements::default();
-    check_proof_plan_with_measurements(proof_plan, &mut measurements)
+    check_proof_plan_inner(proof_plan, &mut measurements, None)
+}
+
+/// Check the proof plan while consulting `cache`: before a certificate
+/// route re-derives a covered bounded leg, derivations retained under the
+/// obligation's canonical semantic identity are re-decided through the
+/// admission kernel, and the certificates the kernel accepts this run are
+/// retained for later rechecks.
+///
+/// A hit is evidence, not authority — the kernel re-decides every retained
+/// candidate, so a corrupted entry counts as a rejection and the ordinary
+/// derivation still decides the leg. Reuse policy (within one compilation
+/// or across runs) belongs to whoever owns the cache.
+pub fn check_proof_plan_with_derivation_cache(
+    proof_plan: &ProofPlan<'_>,
+    cache: &mut ProofDerivationCache,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut measurements = ProofPlanMeasurements::default();
+    check_proof_plan_inner(proof_plan, &mut measurements, Some(cache))
 }
 
 /// Check the proof plan and record what the check ran in `measurements` —
-/// the obligation mix, the certificate route's verdict per covered leg, and
-/// the kernel's receipt figures the accepted certificates carried.
+/// the obligation mix, the certificate route's verdict per covered leg, the
+/// emitted certificates' node counts, the run's wall-clock cost, and the
+/// kernel's receipt figures the accepted certificates carried.
+///
+/// `OMEGA_PROOF_MEASUREMENTS` prints the recorder's `key=value` line on
+/// stderr at the end of every run, whether the plan discharged or reported
+/// diagnostics — a measured rejection is still a measured run.
 pub fn check_proof_plan_with_measurements(
     proof_plan: &ProofPlan,
     measurements: &mut ProofPlanMeasurements,
 ) -> Result<(), Vec<Diagnostic>> {
+    check_proof_plan_inner(proof_plan, measurements, None)
+}
+
+fn check_proof_plan_inner(
+    proof_plan: &ProofPlan<'_>,
+    measurements: &mut ProofPlanMeasurements,
+    mut derivation_cache: Option<&mut ProofDerivationCache>,
+) -> Result<(), Vec<Diagnostic>> {
+    let started = std::time::Instant::now();
     let mut diagnostics = Vec::new();
     let range_context = AssignmentRangeContext::new(proof_plan);
 
@@ -70,6 +107,13 @@ pub fn check_proof_plan_with_measurements(
             ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_)
         );
         let diagnostics_before = diagnostics.len();
+        let mut consultation = if decided_here {
+            derivation_cache
+                .as_deref_mut()
+                .map(|cache| DerivationConsultation::new(proof_plan, obligation, cache))
+        } else {
+            None
+        };
         match obligation {
             ProofObligation::BoundedAssignment(obligation) => {
                 check_bounded_assignment(
@@ -78,6 +122,7 @@ pub fn check_proof_plan_with_measurements(
                     seed,
                     &mut diagnostics,
                     measurements,
+                    consultation.as_mut(),
                 );
             }
             ProofObligation::BoundedCallArgument(obligation) => {
@@ -87,6 +132,7 @@ pub fn check_proof_plan_with_measurements(
                     seed,
                     &mut diagnostics,
                     measurements,
+                    consultation.as_mut(),
                 );
             }
             ProofObligation::BoundedInitializer(obligation) => {
@@ -96,6 +142,7 @@ pub fn check_proof_plan_with_measurements(
                     seed,
                     &mut diagnostics,
                     measurements,
+                    consultation.as_mut(),
                 );
             }
             ProofObligation::BoundedStateReturn(obligation) => {
@@ -106,6 +153,7 @@ pub fn check_proof_plan_with_measurements(
                     seed,
                     &mut diagnostics,
                     measurements,
+                    consultation.as_mut(),
                 );
             }
             ProofObligation::BoundedTransitionArgument(obligation) => {
@@ -115,6 +163,7 @@ pub fn check_proof_plan_with_measurements(
                     seed,
                     &mut diagnostics,
                     measurements,
+                    consultation.as_mut(),
                 );
             }
             ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_) => {}
@@ -123,6 +172,10 @@ pub fn check_proof_plan_with_measurements(
             measurements.record_outcome(diagnostics.len() != diagnostics_before);
         }
     }
+
+    measurements.check_elapsed_microseconds =
+        u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
+    measurements.emit_if_requested();
 
     if diagnostics.is_empty() {
         Ok(())

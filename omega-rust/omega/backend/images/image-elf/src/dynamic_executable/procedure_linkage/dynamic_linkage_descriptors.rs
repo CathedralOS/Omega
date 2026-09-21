@@ -1,8 +1,8 @@
 //! Address-free ELF section descriptors for validated procedure linkage.
 //!
-//! This layer appends `.plt`, `.got.plt`, and `.rela.plt` to the exact
-//! upstream section-name seed and binds their fixed template byte counts to
-//! semantic ELF metadata. The [generic System V ABI] defines section flags,
+//! This layer appends `.plt`, `.got.plt`, `.rela.plt`, and `.rela.dyn` to the
+//! exact upstream section-name seed and binds their fixed template byte counts
+//! to semantic ELF metadata. The [generic System V ABI] defines section flags,
 //! relocation-section links, and `sh_info`; the [AArch64 ELF ABI] additionally
 //! defines pure-code sections and eight-byte GOT entries, while the target
 //! procedure-linkage layouts come from the [x86-64 psABI] and the [AArch64
@@ -31,14 +31,14 @@ const PROCEDURE_LINKAGE_ALIGNMENT: u64 = 16;
 const PROCEDURE_GOT_ALIGNMENT: u64 = 8;
 const PROCEDURE_RELOCATION_ALIGNMENT: u64 = 8;
 const UPSTREAM_DESCRIPTOR_COUNT: usize = 7;
-const APPENDED_DESCRIPTOR_COUNT: usize = 3;
-const PROCEDURE_LINKAGE_NAME_SUFFIX: &[u8] = b".plt\0.got.plt\0.rela.plt\0";
+const APPENDED_DESCRIPTOR_COUNT: usize = 4;
+const PROCEDURE_LINKAGE_NAME_SUFFIX: &[u8] = b".plt\0.got.plt\0.rela.plt\0.rela.dyn\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-/// Independently validated address-free descriptors for the three procedure-
-/// linkage sections, retaining the exact target templates and prior seven-row
-/// descriptor carrier.
+/// Independently validated address-free descriptors for the four emitted
+/// relocation/linkage sections, retaining the exact target templates and prior
+/// seven-row descriptor carrier.
 ///
 /// The extended name seed is append-only and still is not a completed
 /// `.shstrtab`. This plan grants no final section index, address, placement,
@@ -132,6 +132,7 @@ pub(crate) enum ElfProcedureLinkageSectionKind {
     ProcedureLinkage = 1,
     ProcedureGot = 2,
     ProcedureRelocation = 3,
+    GeneralRelocation = 4,
 }
 
 impl ElfProcedureLinkageSectionKind {
@@ -140,6 +141,7 @@ impl ElfProcedureLinkageSectionKind {
             Self::ProcedureLinkage => b".plt",
             Self::ProcedureGot => b".got.plt",
             Self::ProcedureRelocation => b".rela.plt",
+            Self::GeneralRelocation => b".rela.dyn",
         }
     }
 }
@@ -181,7 +183,7 @@ struct CandidateValidationError {
     diagnostic: Diagnostic,
 }
 
-/// Consume validated target templates into three address-free semantic section
+/// Consume validated target templates into four address-free semantic section
 /// descriptors and an append-only extension of the owning name seed.
 ///
 /// This does not complete `.shstrtab`, assign numeric section indexes, place or
@@ -246,6 +248,18 @@ fn derive_contents(
         )?,
         "procedure relocation name offset",
     )?;
+    let rela_dyn_name_offset = checked_u32(
+        checked_sum(
+            usize::try_from(rela_name_offset)
+                .map_err(|_| Diagnostic::error("procedure relocation name offset exceeds usize"))?,
+            ElfProcedureLinkageSectionKind::ProcedureRelocation
+                .name()
+                .len()
+                + 1,
+            "general relocation name offset",
+        )?,
+        "general relocation name offset",
+    )?;
     let mut section_name_table_seed = Vec::with_capacity(checked_sum(
         base_seed.len(),
         PROCEDURE_LINKAGE_NAME_SUFFIX.len(),
@@ -300,6 +314,19 @@ fn derive_contents(
             ElfProcedureLinkageSectionInfo::RelocatedSection(
                 ElfProcedureLinkageSectionKind::ProcedureGot,
             ),
+        )?,
+        // `.rela.dyn` relocates slots across retained image sections, so the
+        // ABI leaves `sh_info` zero rather than naming one linkage section.
+        descriptor(
+            ElfProcedureLinkageSectionKind::GeneralRelocation,
+            rela_dyn_name_offset,
+            SHT_RELA,
+            SHF_ALLOC | SHF_INFO_LINK,
+            bytes.rela_dyn.len(),
+            PROCEDURE_RELOCATION_ALIGNMENT,
+            ELF64_RELA_SIZE,
+            ElfProcedureLinkageSectionLink::DynamicSymbol,
+            ElfProcedureLinkageSectionInfo::None,
         )?,
     ];
     Ok(ElfProcedureLinkageSectionDescriptorContents {
@@ -409,6 +436,7 @@ fn validate_contents(
             0 => ElfProcedureLinkageSectionKind::ProcedureLinkage,
             1 => ElfProcedureLinkageSectionKind::ProcedureGot,
             2 => ElfProcedureLinkageSectionKind::ProcedureRelocation,
+            3 => ElfProcedureLinkageSectionKind::GeneralRelocation,
             _ => unreachable!("descriptor count checked above"),
         };
         require(
@@ -450,6 +478,15 @@ fn validate_contents(
                 ElfProcedureLinkageSectionInfo::RelocatedSection(
                     ElfProcedureLinkageSectionKind::ProcedureGot,
                 ),
+            ),
+            ElfProcedureLinkageSectionKind::GeneralRelocation => (
+                SHT_RELA,
+                SHF_ALLOC | SHF_INFO_LINK,
+                bytes.rela_dyn.len(),
+                PROCEDURE_RELOCATION_ALIGNMENT,
+                ELF64_RELA_SIZE,
+                ElfProcedureLinkageSectionLink::DynamicSymbol,
+                ElfProcedureLinkageSectionInfo::None,
             ),
         };
         require(

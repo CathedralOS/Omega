@@ -101,31 +101,29 @@ pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
         .collect()
 }
 
-/// Per-plan normalized foreign call rows over the AAPCS64 integer bank.
-/// Variants encode `(register arity, has scalar result)` as
-/// `3000 + arity * 2 + has_result`; stack-passed arguments are outgoing
-/// custody, not row operands, so the family bounds at the eight-register bank.
+/// Normalized foreign scalar calls: integer-only Unit inputs, then mixed Unit
+/// inputs, each with Unit, integer, and IEEE result choices. Stack arguments
+/// remain outgoing custody rather than register-row operands. The trailing
+/// variants are the private-callback-position rows: each integer-bank operand
+/// position of each input bank, again with all three result choices.
 pub fn aarch64_aapcs64_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
-    (0..=8u32)
-        .flat_map(|arity| {
-            (0..=1u32).map(move |has_result| RegisterConstraintKey {
-                family: RegisterConstraintFamily::Call,
-                variant: 3000 + arity * 2 + has_result,
-            })
+    (3000..3243)
+        .chain(3600..4572)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
         })
         .collect()
 }
 
-/// Per-plan normalized foreign call rows over the Darwin AAPCS64 integer
-/// bank. Variants encode `(register arity, has scalar result)` as
-/// `3040 + arity * 2 + has_result`.
+/// The same input/result ordering for the Darwin AAPCS64 banks.
+/// Its range is disjoint from the other convention and existing call families.
 pub fn aarch64_darwin_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
-    (0..=8u32)
-        .flat_map(|arity| {
-            (0..=1u32).map(move |has_result| RegisterConstraintKey {
-                family: RegisterConstraintFamily::Call,
-                variant: 3040 + arity * 2 + has_result,
-            })
+    (3300..3543)
+        .chain(4600..5572)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
         })
         .collect()
 }

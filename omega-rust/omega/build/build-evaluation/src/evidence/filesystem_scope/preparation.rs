@@ -154,11 +154,38 @@ pub fn prepare_filesystem_scope(
                 })?
             }
         };
-        let snapshot_dir = std::env::temp_dir().join(format!(
-            "omega-captured-source-{}-{}",
-            std::process::id(),
-            NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed)
-        ));
+        // The snapshot backing lives under a private parent the occurrence
+        // alone can traverse: create-exclusive 0o700 custody mirrors
+        // `FilesystemSponsor::create_private`, while staying outside the
+        // sponsor's session root keeps snapshot reads on the accounting
+        // bypass every other outside-session read uses. The leaf name is
+        // fixed because the parent is already unique; the release path
+        // removes it once every backing it held is discarded.
+        let snapshot_parent = loop {
+            let candidate = std::env::temp_dir().join(format!(
+                "omega-captured-source-session-{}-{}",
+                std::process::id(),
+                NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed)
+            ));
+            #[cfg_attr(not(unix), allow(unused_mut))]
+            let mut builder = std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            match builder.create(&candidate) {
+                Ok(()) => break candidate,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "could not create the private captured-source snapshot staging directory `{}`: {error}",
+                        candidate.display()
+                    ))]);
+                }
+            }
+        };
+        let snapshot_dir = snapshot_parent.join("captured-source");
         build_machine_filesystem_scope = if package_inputs.is_some()
             && matches!(
                 build_snapshot.capture(),
@@ -187,4 +214,168 @@ pub fn prepare_filesystem_scope(
         .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     Ok(build_machine_filesystem_scope)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AtomicU64, BuildMachineFilesystemSponsor, Ordering, Path, prepare_filesystem_scope,
+    };
+    use build_time_evaluation::BuildMachineFilesystemAccess;
+    use package_compilation::BuildSourceCaptureObligation;
+    use std::path::PathBuf;
+
+    static NEXT_TEST_ROOT: AtomicU64 = AtomicU64::new(0);
+
+    fn fresh_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "omega-prepare-scope-{label}-{}-{}",
+            std::process::id(),
+            NEXT_TEST_ROOT.fetch_add(1, Ordering::Relaxed),
+        ))
+    }
+
+    fn fresh_root(label: &str) -> PathBuf {
+        let root = fresh_path(label);
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("create the test root");
+        root
+    }
+
+    fn seal_source_tree(root: &Path, sealed: bool) {
+        seal_source_tree_mode(root, sealed);
+    }
+
+    #[cfg(unix)]
+    fn seal_source_tree_mode(root: &Path, sealed: bool) {
+        use std::os::unix::fs::PermissionsExt;
+
+        let metadata = std::fs::symlink_metadata(root).expect("inspect the source member");
+        if metadata.is_dir() {
+            if !sealed {
+                std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o755))
+                    .expect("unseal the source directory");
+            }
+            for entry in std::fs::read_dir(root).expect("enumerate the source directory") {
+                seal_source_tree_mode(&entry.expect("read the source entry").path(), sealed);
+            }
+            if sealed {
+                std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o555))
+                    .expect("seal the source directory");
+            }
+        } else {
+            let mode = if sealed { 0o444 } else { 0o644 };
+            std::fs::set_permissions(root, std::fs::Permissions::from_mode(mode))
+                .expect("set the source file mode");
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn seal_source_tree_mode(_root: &Path, _sealed: bool) {}
+
+    fn scoped_snapshot_request() -> crate::BuildSnapshotRequest {
+        crate::BuildSnapshotRequest::scoped(
+            Vec::<Vec<u8>>::new(),
+            package_compilation::BuildSourceCaptureRequest::new([(
+                b"main.omg".to_vec(),
+                BuildSourceCaptureObligation::Required,
+            )])
+            .expect("a canonical capture request"),
+        )
+    }
+
+    fn source_read_root(
+        scope: &crate::BuildMachineFilesystemScope,
+    ) -> (PathBuf, Option<BuildMachineFilesystemSponsor>) {
+        match scope.filesystem_access() {
+            BuildMachineFilesystemAccess::RealScopedSponsored { grants, sponsor } => {
+                (grants.read_roots[0].path().to_path_buf(), Some(sponsor))
+            }
+            BuildMachineFilesystemAccess::RealScoped(grants) => {
+                (grants.read_roots[0].path().to_path_buf(), None)
+            }
+            other => panic!("a scoped build snapshot stays scoped: {other:?}"),
+        }
+    }
+
+    fn prepared_scope(
+        sponsor: BuildMachineFilesystemSponsor,
+    ) -> (PathBuf, PathBuf, crate::BuildMachineFilesystemScope) {
+        let project = fresh_root("project");
+        std::fs::write(project.join("main.omg"), "machine Main;\n")
+            .expect("write the scoped source member");
+        seal_source_tree(&project, true);
+        let request = scoped_snapshot_request();
+        let scope = prepare_filesystem_scope(
+            &project.join("main.omg"),
+            None,
+            &source::SourceMap::default(),
+            None,
+            None,
+            Some(sponsor),
+            Some(&request),
+        )
+        .expect("the scoped snapshot binds a filesystem scope");
+        let (snapshot_backing, _) = source_read_root(&scope);
+        (project, snapshot_backing, scope)
+    }
+
+    /// The snapshot backing's parent is the occurrence's private staging
+    /// directory: create-exclusive and owner-only on unix, and deliberately
+    /// outside the sponsor session so materialized reads keep bypassing
+    /// sponsor accounting like any other outside-session read.
+    fn assert_private_backing(snapshot_backing: &Path) {
+        let parent = snapshot_backing
+            .parent()
+            .expect("the snapshot backing has a private parent");
+        assert_eq!(
+            snapshot_backing.file_name().and_then(|name| name.to_str()),
+            Some("captured-source")
+        );
+        assert!(parent.starts_with(std::env::temp_dir()));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = std::fs::symlink_metadata(parent)
+                .expect("inspect the private snapshot parent")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o700, "the snapshot parent is owner-only");
+        }
+    }
+
+    #[test]
+    fn captured_source_snapshot_backs_onto_a_private_staging_parent() {
+        let sponsor = BuildMachineFilesystemSponsor::create_private(fresh_path("session"))
+            .expect("a private session sponsor");
+        let session_root = sponsor.session_root().expect("the session root");
+        let (project, snapshot_backing, scope) = prepared_scope(sponsor.clone());
+        assert_private_backing(&snapshot_backing);
+        // The backing must not join the sponsor's accounted namespace:
+        // in-session paths stop bypassing sponsor transactions, and a read
+        // staged there collides with pending output writes.
+        assert!(!snapshot_backing.starts_with(&session_root));
+        drop(scope);
+        sponsor.dispose_private_staging().expect("dispose");
+        let _ = std::fs::remove_dir_all(snapshot_backing.parent().unwrap());
+        seal_source_tree(&project, false);
+        let _ = std::fs::remove_dir_all(project);
+    }
+
+    #[test]
+    fn captured_source_snapshot_stays_private_with_a_supplied_session() {
+        let supplied = fresh_root("supplied-session");
+        let sponsor = BuildMachineFilesystemSponsor::new(&supplied).expect("a session sponsor");
+        let session_root = std::fs::canonicalize(&supplied).expect("canonical session root");
+        let (project, snapshot_backing, scope) = prepared_scope(sponsor);
+        assert_private_backing(&snapshot_backing);
+        assert!(!snapshot_backing.starts_with(&session_root));
+        drop(scope);
+        let _ = std::fs::remove_dir_all(snapshot_backing.parent().unwrap());
+        seal_source_tree(&project, false);
+        let _ = std::fs::remove_dir_all(project);
+        let _ = std::fs::remove_dir_all(supplied);
+    }
 }

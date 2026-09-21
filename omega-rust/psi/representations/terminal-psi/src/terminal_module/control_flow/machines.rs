@@ -1,7 +1,8 @@
 use crate::{
     ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition, EntryClaim,
-    MachineContract, Operation, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    TerminalMachineResult, TerminalRankedScc, Terminator, ValueDeclaration,
+    ErasedProofFormal, MachineContract, Operation, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, TerminalMachineResult, TerminalRankedScc, Terminator,
+    ValueDeclaration,
 };
 use semantic_vocabulary::{BlockId, MachineId, ServiceId, StructuralTypeId};
 
@@ -66,6 +67,9 @@ pub struct Block {
     /// propositions; it carries no runtime position, storage, or argument
     /// lane. Every incoming edge supplies one erased argument per roster row.
     pub erased_scalar_formals: Vec<ValueDeclaration>,
+    /// Erased proof-only formals in dense authored order after the scalar
+    /// erased roster. Every incoming edge supplies one `ProofTerm` per row.
+    pub erased_proof_formals: Vec<ErasedProofFormal>,
     /// Ordered structural bindings supplied simultaneously by the selected edge.
     /// Positions are dense and zero-based; `is_self` is false. Entry blocks
     /// declare no structural parameters.

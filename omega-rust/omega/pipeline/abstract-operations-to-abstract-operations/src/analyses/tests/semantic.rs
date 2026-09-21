@@ -2,8 +2,8 @@
 
 use super::fixtures::*;
 use crate::{
-    AnalysisProduct, EffectClass, EffectKnowledge, ExecutableEdgeKnowledge, ScalarConstant,
-    ScalarConstantSupport, analysis_dependencies, compute_analysis,
+    AnalysisProduct, EffectClass, EffectKnowledge, ExecutableEdgeKnowledge, PlaceAliasRelation,
+    PlaceView, ScalarConstant, ScalarConstantSupport, analysis_dependencies, compute_analysis,
 };
 use abstract_operations::AbstractOperation as O;
 use optimization_core::*;
@@ -313,6 +313,213 @@ fn scalar_constants_merge_only_feasible_block_parameter_bindings() {
         analysis_dependencies(AnalysisKind::ScalarConstants)
             .unwrap()
             .contains(AnalysisKind::ControlFlowGraph)
+    );
+}
+
+#[test]
+fn place_aliases_classify_views_from_declared_roots_and_live_claims() {
+    let parameter_a = id(80, PlaceId::new);
+    let parameter_b = id(81, PlaceId::new);
+    let attachment = id(82, PlaceId::new);
+    let mut machine_fn = function(100, 1, vec![(1, Terminator::Return)]);
+    machine_fn.structural_places = vec![
+        terminal_psi::StructuralPlaceDeclaration {
+            id: parameter_a,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        terminal_psi::StructuralPlaceDeclaration {
+            id: parameter_b,
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        },
+        terminal_psi::StructuralPlaceDeclaration {
+            id: attachment,
+            kind: StructuralPlaceKind::ProviderAttachment {
+                attachment: id(83, StructuralTypeId::new),
+                field: id(84, StructuralFieldId::new),
+                boundary: id(85, BoundaryMachineId::new),
+            },
+        },
+    ];
+    machine_fn.declared_places = [parameter_a, parameter_b, attachment].into_iter().collect();
+    let mut input = unit(vec![machine_fn], b"place-aliases");
+    let site = OwnershipFrontierSite::BlockEntry(id(1, BlockId::new));
+    let exit = OwnershipFrontierSite::OperationExit(id(2, OperationId::new));
+    input.ownership_frontier_facts = vec![
+        OwnershipFrontierFact::new(
+            input.psi,
+            input.entry,
+            site,
+            OwnershipFrontierSnapshot {
+                claims: vec![
+                    OwnershipFrontierLiveClaim {
+                        claim: id(90, ClaimId::new),
+                        input: Some(parameter_a),
+                        path: vec![terminal_psi::StructuralPathSegment::from("field")],
+                        multiplicity: Some(terminal_psi::StructuralMultiplicity::Affine),
+                    },
+                    OwnershipFrontierLiveClaim {
+                        claim: id(91, ClaimId::new),
+                        input: None,
+                        path: Vec::new(),
+                        multiplicity: None,
+                    },
+                ],
+                owned_places: Vec::new(),
+                partial_custody: Vec::new(),
+            },
+        ),
+        // The same view at a second site dedupes and joins its evidence.
+        OwnershipFrontierFact::new(
+            input.psi,
+            input.entry,
+            exit,
+            OwnershipFrontierSnapshot {
+                claims: vec![OwnershipFrontierLiveClaim {
+                    claim: id(92, ClaimId::new),
+                    input: Some(parameter_a),
+                    path: vec![terminal_psi::StructuralPathSegment::from("field")],
+                    multiplicity: Some(terminal_psi::StructuralMultiplicity::Affine),
+                }],
+                owned_places: Vec::new(),
+                partial_custody: Vec::new(),
+            },
+        ),
+    ];
+    input.identity = recompute_psi_optimization_unit_identity(&input);
+
+    let AnalysisProduct::PlaceAliases(aliases) =
+        compute_analysis(&input, AnalysisKind::PlaceAliases).unwrap()
+    else {
+        unreachable!()
+    };
+    let machine = aliases.function(input.entry).unwrap();
+    assert_eq!(
+        machine
+            .roots
+            .iter()
+            .map(|root| root.place)
+            .collect::<Vec<_>>(),
+        vec![parameter_a, parameter_b, attachment]
+    );
+    assert_eq!(machine.claims.len(), 1);
+    assert_eq!(
+        machine.claims[0].sites,
+        vec![site, exit],
+        "one deduplicated claim view keeps both frontier sites as evidence"
+    );
+    assert_eq!(machine.unrooted_claims, 1);
+
+    let view = |root: PlaceId, path: &[terminal_psi::StructuralPathSegment]| PlaceView {
+        root,
+        path: path.to_vec(),
+    };
+    let field = terminal_psi::StructuralPathSegment::from("field");
+    let other = terminal_psi::StructuralPathSegment::from("other");
+    // Distinct declared roots are disjoint storage sites.
+    assert_eq!(
+        machine.relation(
+            &view(parameter_a, &[field.clone()]),
+            &view(parameter_b, &[])
+        ),
+        PlaceAliasRelation::Disjoint
+    );
+    // A prefix view contains the longer one.
+    assert_eq!(
+        machine.relation(
+            &view(parameter_a, &[]),
+            &view(parameter_a, &[field.clone()])
+        ),
+        PlaceAliasRelation::Overlapping
+    );
+    // Diverging fields on one root name disjoint extents.
+    assert_eq!(
+        machine.relation(
+            &view(parameter_a, &[field.clone()]),
+            &view(parameter_a, &[other.clone()])
+        ),
+        PlaceAliasRelation::Disjoint
+    );
+    // A continuation crossing the referent boundary leaves the carrier's
+    // storage rather than extending it.
+    assert_eq!(
+        machine.relation(
+            &view(parameter_a, &[field.clone()]),
+            &view(
+                parameter_a,
+                &[field.clone(), terminal_psi::StructuralPathSegment::Referent]
+            )
+        ),
+        PlaceAliasRelation::Disjoint
+    );
+    // A referent crossing can reach storage owned through another root.
+    assert_eq!(
+        machine.relation(
+            &view(
+                parameter_a,
+                &[terminal_psi::StructuralPathSegment::Referent]
+            ),
+            &view(parameter_b, &[])
+        ),
+        PlaceAliasRelation::Unknown
+    );
+    // Provider attachments are evidence without a placeable layout.
+    assert_eq!(
+        machine.relation(&view(parameter_a, &[]), &view(attachment, &[])),
+        PlaceAliasRelation::Unknown
+    );
+    assert_eq!(
+        machine.relation(&view(id(999, PlaceId::new), &[]), &view(parameter_a, &[])),
+        PlaceAliasRelation::Unknown,
+        "a root missing from the declared roster cannot be reasoned about"
+    );
+
+    // The roster-wide premise fails only because the attachment has no layout.
+    assert!(!machine.declared_roots_disjoint());
+    let mut plain = function(100, 1, vec![(1, Terminator::Return)]);
+    plain.structural_places = vec![
+        terminal_psi::StructuralPlaceDeclaration {
+            id: parameter_a,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        terminal_psi::StructuralPlaceDeclaration {
+            id: parameter_b,
+            kind: StructuralPlaceKind::Parameter {
+                position: 1,
+                is_self: false,
+            },
+        },
+        terminal_psi::StructuralPlaceDeclaration {
+            id: attachment,
+            kind: StructuralPlaceKind::Result,
+        },
+    ];
+    plain.declared_places = [parameter_a, parameter_b, attachment].into_iter().collect();
+    let plain_unit = unit(vec![plain], b"place-aliases-plain");
+    let AnalysisProduct::PlaceAliases(aliases) =
+        compute_analysis(&plain_unit, AnalysisKind::PlaceAliases).unwrap()
+    else {
+        unreachable!()
+    };
+    assert!(
+        aliases
+            .function(plain_unit.entry)
+            .unwrap()
+            .declared_roots_disjoint()
+    );
+    assert!(
+        analysis_dependencies(AnalysisKind::PlaceAliases)
+            .unwrap()
+            .contains(AnalysisKind::OwnershipFrontiers),
+        "frontier claims are the producer's evidence, so invalidation must cascade"
     );
 }
 

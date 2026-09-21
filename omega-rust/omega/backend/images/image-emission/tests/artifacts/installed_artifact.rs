@@ -396,6 +396,7 @@ fn installed_artifact_join_requires_complete_placed_custody() {
         object.clone(),
         image.clone(),
         record.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         install(memory.encoded().to_vec()),
     )
     .expect("the complete image binds installed-code custody");
@@ -408,6 +409,7 @@ fn installed_artifact_join_requires_complete_placed_custody() {
             object.clone(),
             image.clone(),
             record.clone(),
+            &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
             install(memory.encoded()[..truncated_len].to_vec()),
         )
         .is_err(),
@@ -421,6 +423,7 @@ fn installed_artifact_join_requires_complete_placed_custody() {
             object.clone(),
             image.clone(),
             record.clone(),
+            &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
             install(drifted_bytes),
         )
         .is_err(),
@@ -441,6 +444,7 @@ fn installed_artifact_join_requires_complete_placed_custody() {
                 object.clone(),
                 image.clone(),
                 record.clone(),
+                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
                 install_flattened_image(
                     object.target().architecture,
                     memory.encoded().to_vec(),
@@ -513,12 +517,72 @@ fn installed_artifact_join_requires_complete_placed_custody() {
                 object.clone(),
                 drifted,
                 record.clone(),
+                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
                 install(memory.encoded().to_vec()),
             )
             .is_err(),
             "{label}: the installed-artifact join must reject it",
         );
     }
+
+    // By-value opaque custody is the record's claim, not a fingerprint: a
+    // record claiming an edge the installed artifact's coverage does not
+    // retain cannot bind, and the artifact's own custody cannot substitute
+    // for an absent claim in the record.
+    let mut claimed = record.clone();
+    *claimed.boundary_opaque_applications_mut_for_test() =
+        boundary_applications::BoundaryOpaqueRepresentationApplications::new(vec![
+            boundary_applications::BoundaryOpaqueRepresentationApplication {
+                requirement_identity: "core::system::Table".into(),
+                shape_root: 3,
+                application_report_fingerprint: 0x5AA5,
+                selected_application_commitment: [0x9C; 32],
+            },
+        ])
+        .expect("custody");
+    let error = bind_installed_artifact(
+        object.clone(),
+        image.clone(),
+        claimed,
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+        install(memory.encoded().to_vec()),
+    )
+    .expect_err("a record claiming custody the artifact does not retain must not bind");
+    assert!(
+        error.diagnostic().contains("by-value opaque custody"),
+        "unexpected diagnostic: {}",
+        error.diagnostic()
+    );
+    let empty_claim = bind_installed_artifact(
+        object.clone(),
+        image.clone(),
+        record.clone(),
+        claimed_custody(),
+        install(memory.encoded().to_vec()),
+    )
+    .expect_err("an artifact retaining custody the record does not claim must not bind");
+    assert!(
+        empty_claim.diagnostic().contains("by-value opaque custody"),
+        "unexpected diagnostic: {}",
+        empty_claim.diagnostic()
+    );
+}
+
+fn claimed_custody() -> &'static boundary_applications::BoundaryOpaqueRepresentationApplications {
+    static CUSTODY: std::sync::LazyLock<
+        boundary_applications::BoundaryOpaqueRepresentationApplications,
+    > = std::sync::LazyLock::new(|| {
+        boundary_applications::BoundaryOpaqueRepresentationApplications::new(vec![
+            boundary_applications::BoundaryOpaqueRepresentationApplication {
+                requirement_identity: "core::system::Table".into(),
+                shape_root: 3,
+                application_report_fingerprint: 0x5AA5,
+                selected_application_commitment: [0x9C; 32],
+            },
+        ])
+        .expect("custody")
+    });
+    &CUSTODY
 }
 
 /// Mach-O lane: an internal call is the typed relocation the writer applies to
@@ -542,6 +606,7 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
         object.clone(),
         image.clone(),
         record.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         install_flattened_image(
             object.target().architecture,
             memory.encoded().to_vec(),
@@ -567,6 +632,7 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
             object.clone(),
             image.clone(),
             record.clone(),
+            &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
             install_flattened_image(
                 object.target().architecture,
                 memory.encoded().to_vec(),
@@ -617,6 +683,7 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
                 object.clone(),
                 drifted,
                 record.clone(),
+                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
                 install_flattened_image(
                     object.target().architecture,
                     memory.encoded().to_vec(),
@@ -674,9 +741,14 @@ fn installed_private_function_entry_binds_exact_row_and_occurrence() {
             resolver(stub_addresses.clone()),
         )
     };
-    let bound =
-        bind_installed_artifact(object.clone(), image.clone(), record.clone(), install(base))
-            .expect("the complete image binds installed-code custody");
+    let bound = bind_installed_artifact(
+        object.clone(),
+        image.clone(),
+        record.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+        install(base),
+    )
+    .expect("the complete image binds installed-code custody");
 
     let attribution =
         bind_installed_compiler_private_function_entry(&bound, private_identity, private_stub)

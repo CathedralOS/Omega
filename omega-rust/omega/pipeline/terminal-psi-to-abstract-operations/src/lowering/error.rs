@@ -22,8 +22,6 @@ pub enum LoweringError {
     /// Terminal preserves the exact payloadless sum case, but Omega has no
     /// target-neutral abstract operation for realizing that structural value.
     UnsupportedPayloadlessCase(semantic_vocabulary::OperationId),
-    /// Scalar-payload sum establishment has no admitted abstract realization yet.
-    UnsupportedScalarCase(semantic_vocabulary::OperationId),
     /// Scalar-array establishment has no abstract storage realization yet.
     UnsupportedScalarArray(semantic_vocabulary::OperationId),
     /// Psi preserves exact byte-sequence literals, but native realization is
@@ -40,12 +38,9 @@ pub enum LoweringError {
     /// descriptor, its initializer/latest selections, and its indirect row.
     InvalidDynamicCall(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
-    /// whole-root write-only parameter and its preceding scalar definition.
+    /// write-only parameter, its storage path or array shape, the u64 runtime
+    /// index, or the preceding scalar definition.
     InvalidWriteOnlyPrimitiveStore(semantic_vocabulary::OperationId),
-    /// Terminal preserves verified runtime-indexed write-only stores, but
-    /// Omega has no abstract storage operation carrying a runtime index and
-    /// its bounds obligation yet.
-    UnsupportedIndexedPrimitiveStore(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// parameter root, structural path and field, or typed scalar value.
     InvalidStructuralScalarFieldStore(semantic_vocabulary::OperationId),

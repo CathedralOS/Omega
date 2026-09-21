@@ -745,6 +745,10 @@ pub(crate) fn physical_evidence_gap_identity(
             digest.update([6]);
             digest.update(occurrence.identity().bytes());
         }
+        NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan { occurrence } => {
+            digest.update([8]);
+            digest.update(occurrence.identity().bytes());
+        }
         NativePhysicalEvidenceGapSubject::UnownedPortEffect {
             machine,
             psi_operation,

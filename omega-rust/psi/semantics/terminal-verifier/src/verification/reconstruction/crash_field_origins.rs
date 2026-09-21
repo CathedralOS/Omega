@@ -9,7 +9,10 @@ pub(super) fn retains_entry_meaning(proposition: &Proposition, machine: &Termina
     match proposition {
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => scalar(left, machine) && scalar(right, machine),
+        | Proposition::LessOrEqual(left, right)
+        | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+            scalar(left, machine) && scalar(right, machine)
+        }
         Proposition::Conjunction(children) | Proposition::Disjunction(children) => children
             .iter()
             .all(|child| retains_entry_meaning(child, machine)),

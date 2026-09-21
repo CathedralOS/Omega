@@ -11,6 +11,8 @@ mod call_sites;
 mod carriers;
 mod construction;
 mod errors;
+#[cfg(test)]
+mod installed_provider_scalar_call_custody_tests;
 mod normalized_foreign_calls;
 mod private_functions;
 pub(crate) mod replay;

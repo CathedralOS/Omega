@@ -2,6 +2,7 @@
 
 use proof_admission::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
+use std::collections::HashSet;
 
 #[cfg(test)]
 mod tests;
@@ -53,8 +54,8 @@ pub(in super::super) fn condition_fact(
 
 /// Re-decide a fixed-shape transport certificate for the reconstructed fact
 /// before it is classified. The selected arm's truth premise —
-/// `condition == Boolean(positive)` — is assumption zero, and every roster
-/// equation headed by an SSA value is cited as a semantic axiom in
+/// `condition == Boolean(positive)` — is assumption zero, and the roster
+/// equations the transport can reach are cited as semantic axioms in
 /// newest-first order so the transport's first-match equation discipline
 /// reproduces the walk's `.rev()` lookup. A certificate the checker rejects
 /// leaves the emission under `fact:branch-condition`'s licensed premise
@@ -68,18 +69,11 @@ fn transport_certified(
     context: &PropositionContext,
 ) -> bool {
     let premise = Proposition::Equal(value_term(condition), ScalarTerm::Boolean(positive));
-    let equalities = axioms
-        .iter()
-        .enumerate()
-        .rev()
-        .filter_map(|(index, axiom)| match axiom {
-            Proposition::Equal(left @ ScalarTerm::Value { .. }, right) if left != right => {
-                Some(ProofNode {
-                    conclusion: axiom.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
-                })
-            }
-            _ => None,
+    let equalities = reachable_axiom_equalities(axioms, [&premise, proposition])
+        .into_iter()
+        .map(|(index, axiom)| ProofNode {
+            conclusion: axiom.clone(),
+            rule: ProofRule::SemanticAxiom { index },
         })
         .collect::<Vec<_>>();
     let certificate = ProofNode {
@@ -100,6 +94,58 @@ fn transport_certified(
         &certificate,
     )
     .is_ok()
+}
+
+/// The `Equal(Value, _)` axiom rows a value-equality transport can consult
+/// for this premise/conclusion pair, in the roster's newest-first order with
+/// the original `SemanticAxiom` indices. A cited equation participates only
+/// when one of its value identities is reachable from the walked terms —
+/// seeded by the premise and conclusion and closed under the cited
+/// equations' own values — so unreachable rows cannot influence the checked
+/// relation and are not cloned into the certificate. A term whose value
+/// identities cannot be completely walked keeps the whole roster cited.
+fn reachable_axiom_equalities<'a>(
+    axioms: &'a [Proposition],
+    roots: [&'a Proposition; 2],
+) -> Vec<(usize, &'a Proposition)> {
+    let roster_row = |(_, axiom): &(usize, &'a Proposition)| matches!(axiom, Proposition::Equal(left @ ScalarTerm::Value { .. }, right) if left != right);
+    let mut reachable = HashSet::new();
+    let mut complete = roots.iter().all(|proposition| {
+        proposition.visit_value_ids(|id| {
+            reachable.insert(id);
+        })
+    });
+    let mut cited = vec![false; axioms.len()];
+    let mut extended = true;
+    while complete && extended {
+        extended = false;
+        for (index, axiom) in axioms.iter().enumerate() {
+            if cited[index] || !roster_row(&(index, axiom)) {
+                continue;
+            }
+            let mut touches = false;
+            complete &= axiom.visit_value_ids(|id| {
+                touches |= reachable.contains(&id);
+            });
+            if !complete {
+                break;
+            }
+            if !touches {
+                continue;
+            }
+            cited[index] = true;
+            extended = true;
+            axiom.visit_value_ids(|id| {
+                reachable.insert(id);
+            });
+        }
+    }
+    axioms
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|row| (!complete || cited[row.0]) && roster_row(row))
+        .collect()
 }
 
 fn condition_proposition(

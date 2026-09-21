@@ -112,6 +112,39 @@ notification is a refill trigger: handle the report, release the ticket, pull
 main, and spawn the replacement subagent in that same turn — the wave does not
 wait for a user message to backfill.
 
+**Keep a handle ledger; let `fill.py` turn notifications into a plan.** Handle
+IDs die with the context that saw them, so `tools/swarm/fill.py` keeps a
+durable `build/swarm/<wave>/slots.json` mapping slot → `{agent_id, state,
+note}` (`running`/`dead`/`done`/`parked`/`recovered`). Update it on every
+lifecycle event — spawn, completion, death, recovery:
+
+```bash
+python3 tools/swarm/fill.py --manifest tools/swarm/waves/<wave>.json \
+    note --slot <name> --agent-id <id> --state running
+python3 tools/swarm/fill.py --manifest tools/swarm/waves/<wave>.json \
+    note --slot <name> --state dead --death "<why>"
+python3 tools/swarm/fill.py --manifest tools/swarm/waves/<wave>.json \
+    note --slot <name> --state done
+```
+
+At every wake run `fill.py --manifest <file>` (`plan`): it joins the manifest,
+worktree state, live claims, and the ledger into a per-slot state and an
+ordered action list (`recover` / `land` / `resume <id>` / `spawn <prompt>` /
+`pick-item` / `check-handle` / `wait`). Act on the plan's actions in order —
+do not re-derive slot state by hand. `fill.py recover --execute` performs the
+WIP-commit + orphan-ticket-release half of recovery for every ledger-dead
+slot in one step; `fill.py sweep --execute` removes clean landed worktrees
+before `.codex/worktrees` grows unboundedly again.
+
+**Pace the refill; do not burst it.** A resume replays the agent's whole
+transcript and a fresh spawn builds a prompt — five or six at once re-trips
+the shared model rate limiter and kills the refill wave itself. Execute the
+plan's actions one per block, ~30-60 s apart while the limiter is hot, and
+resume existing handles before spawning replacements: a resume keeps the
+agent's context and its claim, while a spawn burns both setup cost and a
+fresh slot in the manifest. Fresh items are for genuinely gone handles and
+newly added slots.
+
 Silent deaths produce no completion notification. At every checkpoint —
 completion, backfill, user ping — verify the liveness of EVERY running slot
 through its subagent handle, not just the one that reported. A slot whose
@@ -138,8 +171,10 @@ empty slot, not a count of sessions spawned earlier.
 Rate-limit kills and sleeps leave orphaned claims and dirty worktrees; the
 procedure is in README "Recovering an interrupted wave": status → release
 live-leased orphan tickets → WIP-commit dirty worktrees → relaunch
-continuations. `launch.py local` detects branches with unpublished commits
-and renders a resume prompt — reuse the same manifest to continue.
+continuations. With the ledger kept current, `fill.py recover --execute`
+performs the first three steps mechanically; `launch.py local` detects
+branches with unpublished commits and renders a resume prompt — reuse the
+same manifest to continue.
 
 ## Drain
 
@@ -149,7 +184,12 @@ drain handles. Cloud-sibling sessions are different: archive finished ones via
 `devin_session_interact archive` (see the cloud-swarm skill).
 
 When the user says wrap up: stop backfilling, let running agents finish, then
-sweep — release remaining claim tickets, WIP-commit any dirty worktree worth
+sweep — collect pending worker evidence first (`python3 tools/claims.py
+notes`; workers attach findings to their claim tickets instead of committing
+board files, and `landing.py` refuses their board-only or empty publishes),
+fold what the notes justify into one board sweep commit landed with
+`--board-update`, then `python3 tools/claims.py sweep` marks them consumed —
+release remaining claim tickets, WIP-commit any dirty worktree worth
 keeping (never delete one with uncommitted work), record each parked WIP
 branch and its covered slice as a compact resume line in the item's board
 evidence when the item stays open (replacing the frontier it supersedes, not

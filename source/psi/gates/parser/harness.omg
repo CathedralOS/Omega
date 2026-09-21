@@ -87,12 +87,15 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR7\0`, version
-// 7, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR8\0`, version
+// 8, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
-// field, data-case, and type-reference tables. Type-reference rows append a
-// qualified flag and the domain coordinates (zeros for bare named types). This
-// is hosted development tooling, not an Omega ABI.
+// field, data-case, type-reference, and generic-parameter tables.
+// Type-reference rows append a qualified flag and the domain coordinates
+// (zeros for bare named types). Data-item rows end with the item's
+// generic-parameter base and count, and generic-parameter rows carry kind,
+// name, optional type-reference handle, bounds, and span. This is hosted
+// development tooling, not an Omega ABI.
 machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     self.write_byte(79);
     self.write_byte(77);
@@ -100,9 +103,9 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     self.write_byte(80);
     self.write_byte(65);
     self.write_byte(82);
-    self.write_byte(55);
+    self.write_byte(56);
     self.write_byte(0);
-    self.write_u64(7);
+    self.write_u64(8);
     transition self.parser.output.accepted {
         true -> parse_accepted_header()
         _ -> parse_rejected_header()
@@ -148,6 +151,14 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
             ParseDiagnosticCode::DuplicateDataMultiplicity -> parse_diagnostic(29)
             ParseDiagnosticCode::ConflictingDataMultiplicity -> parse_diagnostic(30)
             ParseDiagnosticCode::ExpectedTypeQualifierDomain -> parse_diagnostic(31)
+            ParseDiagnosticCode::ExpectedDataGenericParameter -> parse_diagnostic(32)
+            ParseDiagnosticCode::ExpectedDataGenericParameterName -> parse_diagnostic(33)
+            ParseDiagnosticCode::ExpectedDataGenericParameterColon -> parse_diagnostic(34)
+            ParseDiagnosticCode::ExpectedDataGenericParameterType -> parse_diagnostic(35)
+            ParseDiagnosticCode::ExpectedDataGenericParameterEnd -> parse_diagnostic(36)
+            ParseDiagnosticCode::DataGenericParameterCapacityExceeded -> parse_diagnostic(37)
+            ParseDiagnosticCode::DataGenericLifetimeOrdering -> parse_diagnostic(38)
+            ParseDiagnosticCode::DuplicateDataGenericParameter -> parse_diagnostic(39)
         }
     }
 
@@ -342,6 +353,8 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         self.write_u64(item.source_span.source.value as u64);
         self.write_u64(item.source_span.span.start);
         self.write_u64(item.source_span.span.end);
+        self.write_u64(item.first_generic_parameter);
+        self.write_u64(item.generic_parameter_count);
         let next: u64 = index + 1;
         transition next < self.parser.output.data_count {
             true -> parse_data_bound(next)
@@ -560,6 +573,105 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     state parse_type_reference_bound(&mut self, next: u64) {
         transition next < 1024 {
             true -> parse_type_reference(next)
+            _ -> parse_generic_count()
+        }
+    }
+
+    state parse_generic_count(&mut self) {
+        self.write_u64(self.parser.output.generic_parameter_count);
+        transition self.parser.output.generic_parameter_count > 0 {
+            true -> parse_generic_parameter(0)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_generic_parameter(&mut self, index: u64 [0..=255]) {
+        let parameter: GenericParameter = self.parser.output.generic_parameters[index];
+        transition parameter.kind {
+            GenericParameterKind::Lifetime -> parse_generic_parameter_kind(parameter, index, 1)
+            GenericParameterKind::Type -> parse_generic_parameter_kind(parameter, index, 2)
+            GenericParameterKind::Const -> parse_generic_parameter_kind(parameter, index, 3)
+            GenericParameterKind::Value -> parse_generic_parameter_kind(parameter, index, 4)
+            GenericParameterKind::Machine -> parse_generic_parameter_kind(parameter, index, 5)
+        }
+    }
+
+    state parse_generic_parameter_kind(
+        &mut self,
+        parameter: GenericParameter,
+        index: u64 [0..=255],
+        kind: u8
+    ) {
+        self.write_byte(kind);
+        transition { _ -> parse_generic_parameter_name(parameter, index) }
+    }
+
+    state parse_generic_parameter_name(
+        &mut self,
+        parameter: GenericParameter,
+        index: u64 [0..=255]
+    ) {
+        self.write_u64(parameter.name.source_span.source.value as u64);
+        self.write_u64(parameter.name.source_span.span.start);
+        self.write_u64(parameter.name.source_span.span.end);
+        transition parameter.has_type_reference {
+            true -> parse_generic_parameter_typed(parameter, index)
+            _ -> parse_generic_parameter_untyped(parameter, index)
+        }
+    }
+
+    state parse_generic_parameter_typed(
+        &mut self,
+        parameter: GenericParameter,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(1);
+        self.write_u64(parameter.type_reference);
+        transition { _ -> parse_generic_parameter_bounds(parameter, index) }
+    }
+
+    state parse_generic_parameter_untyped(
+        &mut self,
+        parameter: GenericParameter,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(0);
+        self.write_u64(0);
+        transition { _ -> parse_generic_parameter_bounds(parameter, index) }
+    }
+
+    state parse_generic_parameter_bounds(
+        &mut self,
+        parameter: GenericParameter,
+        index: u64 [0..=255]
+    ) {
+        transition parameter.bounds {
+            DataMultiplicity::Affine -> parse_generic_parameter_bounded(parameter, index, 0)
+            DataMultiplicity::Unrestricted -> parse_generic_parameter_bounded(parameter, index, 1)
+            DataMultiplicity::Linear -> parse_generic_parameter_bounded(parameter, index, 2)
+        }
+    }
+
+    state parse_generic_parameter_bounded(
+        &mut self,
+        parameter: GenericParameter,
+        index: u64 [0..=255],
+        bounds: u8
+    ) {
+        self.write_byte(bounds);
+        self.write_u64(parameter.source_span.source.value as u64);
+        self.write_u64(parameter.source_span.span.start);
+        self.write_u64(parameter.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.generic_parameter_count {
+            true -> parse_generic_parameter_bound(next)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_generic_parameter_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_generic_parameter(next)
             _ -> parse_done()
         }
     }

@@ -67,6 +67,13 @@ pub(crate) fn encode_structural_types(
                 encode_structural_fields(bytes, fields)?;
                 encode_structural_cases(bytes, cases)?;
             }
+            // Tag 8 matches the other structural-shape encoders
+            // (terminal-codec, optimization-unit, legalized-operations,
+            // register-homes all use tag 8 for ElementView).
+            terminal_psi::StructuralTypeShape::ElementView { element } => {
+                bytes.extend_from_slice(&[8, 0, 0, 0]);
+                push_u64(bytes, element.get());
+            }
         }
     }
     Ok(())
@@ -134,6 +141,11 @@ pub(crate) fn decode_structural_types(
                 }
                 terminal_psi::StructuralTypeShape::Reference { referent, access }
             }
+            8 => terminal_psi::StructuralTypeShape::ElementView {
+                element: StructuralTypeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralReturnIdentity("element-view element type"),
+                )?,
+            },
             tag => {
                 return Err(InstallationError::InvalidStructuralTypeShapeTag(tag));
             }
