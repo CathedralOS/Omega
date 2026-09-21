@@ -4726,6 +4726,16 @@ moved to the termination-catalog fence (see that row's refresh note).
   RC-REPOSITORY fmt leg green, RC-PORTABLE-PSI 1/1 and RC-DIAGNOSTICS 1/1
   PASS, remaining gates not run; `tools/release/records/` still carries no
   committed JSON, closure open. Both drafts deleted. No code change.
+- **NEW-PCSL-VERIFICATION-SPEC-LEDGER-STATUS.** Resolved — the dispatched
+  name's scoped deliverable already landed: `cc56e73fd87` ("docs:
+  verification spec states ledger status reconciliation") added the exact
+  status mechanics to `wiki/spec/terminal-psi/verification.md` —
+  `Unfinished` rows name their gap, only `Unfinished` rows may depend on
+  `Unfinished` rows, and the `Proved` set is an explicit record reconciled
+  on every run (unrecorded additions and regressions both fail).
+  Re-verified at `8921697ff1` on linux x86-64: the paragraph is intact on
+  main (verification.md `### Trusted-surface inventory`). No slice remains
+  under this name.
 - **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
   scope verified, slice landed 2026-09-21 (z181): the inventory of
   the `operator` introducer's retirement surface is committed at
