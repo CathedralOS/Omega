@@ -9457,6 +9457,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-WRAPPER-OBJECT-ORPHAN claim still holds
   `native-realization/src/optimized_semantic_wrapper_object` + lib.rs +
   tests; claim returned exit 2 on the fenced paths.
+  Re-verified at `df7cd4a4322` (linux x86-64): both
+  `optimized_semantic_wrapper_{encoding,object}` modules still sit inside
+  native-realization and the keep/move/delete decision remains enumerated
+  under PIPELINE-OWNER-CONSOLIDATION in TASKS_OPTIMIZER.md. The claim
+  fences have changed hands — PIPELINE-WRAPPER-OBJECT-ORPHAN and
+  POC-REWRITE-ORPHANS expired — but coverage is tighter now:
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (exp 2026-09-21T08:44Z) directly fences both
+  wrapper module dirs plus `native_realization.rs`, and
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION holds a live claim (exp
+  2026-09-21T06:52Z). Verdict unchanged: no independent slice.
 - **PORTABLE-PROCESS-EXIT-OBSERVATION.** Mined candidate; scope verified at
   9ff8673b31 — re-mines sibling row PROCESS-EXIT-PORTABLE-OBSERVATION
   (verified at `b28abc01fe`, same surface word-for-word): the
