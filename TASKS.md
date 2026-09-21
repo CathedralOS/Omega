@@ -6356,6 +6356,21 @@ Platform/cross-host (structurally gated — document host limits):
   FAULT-INJECTED-TARGET-READER — x86_64 Mach-O images with thunk regions
   fail-closed there until it lands), and a real x86_64-apple-darwin host run
   (requires the Intel host; this session ran on linux x86-64).
+  Re-verified at `577d6ac2ba`: the enum-arm leg is transitively fenced, not
+  just dispatch-time fenced — adding `ProgramEntryPhysicalContractPackage::
+  MacosX64` breaks exhaustive per-package matches inside
+  `target/src/uefi_boot_services/mod.rs:568` and `target/src/uefi_system_table/
+  mod.rs:593`, both inside UEFI-PHYSICAL-SEMANTIC-ENTRY's live claim
+  (exp ~07:51Z), so no leg compiles without editing fenced files. The
+  `hosted_receiver.rs` and `record_validation.rs` fences recorded above
+  (ENTRY-CONTENT-ROOTS, FAULT-INJECTED-TARGET-READER) have expired, but
+  both arms' content is the enum variant's downstream consumers and cannot
+  land ahead of it. The `canary_suite.rs` arm stays fenced —
+  `compiler/tests/canary_suite.rs` is held by CLEANUP-HOOK-SELECTION-
+  AND-ERASED-OWNERSHIP (exp ~03:42Z). A slice was drafted and reverted
+  (enum arm + `program_entry_slot` row + `program_entry_plan` exact
+  replay module + `hosted_receiver` bridge arm); it lands after the UEFI
+  fence's claim adds the covering arms or expires.
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
   validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a
   host-free `alpha-beta-edge.sh` leg, validates both committed containers as
