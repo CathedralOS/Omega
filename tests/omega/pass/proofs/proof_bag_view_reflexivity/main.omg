@@ -1,8 +1,11 @@
 // Ladder rung L6 (proof views): the Bag multiset view from the compile-time
 // proofs chapter carries a view equality from requires to ensures unchanged.
 // Lean analog: `Multiset.coe_eq_coe` transport / plain `exact h`.
-// `core::seq` ships `Bag` as the sorted canonical representative over a
-// slice; the calls select that declaration and the identical atom carries.
+// `core::seq` ships `Bag` as the honest packaging form -- `BagView` carries
+// the slice itself, so `Bag(a) == Bag(b)` is the slice view's equality, not
+// an order-insensitive multiset fact; the sorted canonical representative
+// lands with the slice-extraction rungs. The calls select that declaration
+// and the identical atom carries.
 
 use omega::language::core::seq;
 

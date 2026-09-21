@@ -1,8 +1,10 @@
 // False twin of proofs/proof_bag_view_reflexivity (ladder rung L6, proof
 // views). The requires fact asserts the Bag views are equal; the ensures
 // asserts they are not. This must reject. `core::seq` ships `Bag` as the
-// sorted canonical representative, so this pins an unproved exit
-// obligation -- the entailment cannot derive inequality from equality.
+// honest packaging form -- `BagView` carries the slice itself, so view
+// equality is the slice view's equality, not an order-insensitive multiset
+// fact -- so this pins an unproved exit obligation: the entailment cannot
+// derive inequality from equality.
 
 use omega::language::core::seq;
 
