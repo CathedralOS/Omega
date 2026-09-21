@@ -8705,7 +8705,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under a live BOOTSTRAP-SEED-EXECUTION-HOSTS claim this wave. No
   independent slice. Sibling re-mine: ALPHA-WINDOWS-SEED-EXECUTION.
 
-- **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
+- **ARTIFACT-AUTHORITY-CHECKS** — Retired row — resolved; no independent
+  slice exists under this name. Scope-audited at `f2c1762c2c3` and
+  `c924529921d` ([record](wiki/drafts/scope_artifact_authority_checks.md)),
+  re-verified at `c2530203d7` (swarm-w9-ffival, linux x86-64): the named
+  surface is owned end to end by **WIRE-RUNTIME-AND-INSTALLATION**. Landed
+  substrate — the admit/materialize/freeze/validate/install/retire/
+  quarantine linear state model, `authority_digests.rs` domain-separated
+  identities, `InstallAuthority`'s required-facts gate,
+  `entry_references.rs` sealed-entry control-flow-integrity gate, the
+  drain-or-quarantine and patch-then-drain joins, the
+  `owned_image_provider` write-to-execute operation and its
+  `InstalledEntryReference`-gated `call` invocation leg, and the
+  image-emission `installed_artifact` binding — stands at 130/130
+  (`cargo nextest run -p executable-installation`, re-witnessed at
+  `c2530203d7`). The owning row's sole open bullet is the Omega-source
+  route — no `.omg` names an admitted artifact, placement, or installed
+  code — grammar and provider-surface work outside this crate. Dispatch
+  further work as an explicit WIRE-RUNTIME-AND-INSTALLATION leg.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
   (x86_64) / `isb` (aarch64) instruction-stream serialization plus `pause`
