@@ -9440,6 +9440,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   from the stop. The blocker is the item-owned
   OMEGA-PRODUCT-COMPILER-SOURCE frontier, not a fence.
   Remaining: none inside this row.
+- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Mined candidate — resolved:
+  a named sibling in the cross-package dynamic loan-origin cluster closed by
+  SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`); the recorded
+  failure
+  `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+  ("requires an exact retained loan origin for its shared receiver") passes
+  after the retained-lineage/borrow-evidence family landed. Re-verified at
+  `1257982206` (linux x86-64): `cargo nextest run -p compiler --test
+  package_compilation_inputs -E 'test(~cross_package_visibility)'
+  --no-fail-fast` — 21/21 pass including the named evidence-loan control.
+  No independent slice; detail in
+  `wiki/drafts/cross_package_dynamic_loan_origin.md`.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the cross-package dynamic loan-origin cluster already
   closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per the
