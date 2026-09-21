@@ -93,6 +93,7 @@ fn scalar_only_call_cannot_omit_an_owned_record_input() {
         let mut call = caller.blocks[0].operations.pop().unwrap();
         call.kind = OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: module.entry,
             arguments: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -134,6 +135,7 @@ fn scalar_field_read_after_discard_on_predecessor_edge_rejects() {
             target: continuation.id,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: vec![place],
             residual_affine_discards: Vec::new(),
@@ -174,6 +176,7 @@ fn scalar_field_read_after_owned_call_transfer_rejects_but_before_transfer_is_va
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: consumer.id,
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {

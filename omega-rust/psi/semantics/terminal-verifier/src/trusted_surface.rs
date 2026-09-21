@@ -251,6 +251,7 @@ pub const PROVED_ENTRIES: &[&str] = &[
     "fact:boolean-polarity-implications",
     "fact:branch-condition-transport",
     "fact:header-invariant-members",
+    "fact:scalar-carrier-bounds",
     "fact:successor-path-transport",
 ];
 
@@ -864,7 +865,10 @@ fn check_proved_set<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeMap, EntryBinding, LedgerFailure, LedgerFamily, SoundnessStatus, TrustRoot,
+        TrustedSurfaceEntry, check_dependency_edges, check_proved_set, check_soundness_status,
+    };
 
     static UNFINISHED: TrustedSurfaceEntry = TrustedSurfaceEntry {
         id: "test:unfinished-row",

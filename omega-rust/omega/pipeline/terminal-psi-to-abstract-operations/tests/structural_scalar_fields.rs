@@ -27,6 +27,7 @@ fn integer_type() -> ScalarType {
 fn contract(raw: u64) -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id::<ContractId>(raw),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -137,6 +138,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 entry: id::<BlockId>(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id::<BlockId>(1),
                     parameters: Vec::new(),
@@ -175,6 +177,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             }),
                             kind: OperationKind::CallStructuralScalar {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 callee: realization,
                                 arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {
@@ -226,6 +229,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 entry: id::<BlockId>(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id::<BlockId>(2),
                     parameters: Vec::new(),

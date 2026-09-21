@@ -298,6 +298,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let graph_state =
         |state: &checked_trees::state::State| checked_trees::CheckedScalarStateGraph {
             erased_scalar_parameters: Vec::new(),
+            erased_proof_parameters: Vec::new(),
             state: state.symbol,
             structural_parameters: Vec::new(),
             scalar_parameters: checked
@@ -342,6 +343,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let block = |id: u64, parameters| terminal_psi::Block {
         id: BlockId::new(id).unwrap(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         parameters,
         structural_parameters: Vec::new(),
         operations: Vec::new(),
@@ -402,6 +404,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
         ],
         contract: terminal_psi::MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -552,6 +555,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         blocks: vec![terminal_psi::Block {
             id: BlockId::new(1).unwrap(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![terminal_psi::Operation {
@@ -566,6 +570,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
                     callee: MachineId::new(2).unwrap(),
                     arguments: vec![semantic_vocabulary::ValueId::new(1).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                 },
@@ -577,6 +582,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         }],
         contract: terminal_psi::MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -846,7 +852,41 @@ fn semantic_application_rejects_a_row_outside_the_proof_value_table() {
     .expect_err("out-of-range result row fails");
     assert_eq!(
         error,
-        FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow
+        FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow { result: 7 }
+    );
+}
+
+/// The carrier's format is the row's source format, so an application whose
+/// declared result format disagrees with the row's projection format is
+/// refused by name at lowering rather than emitted for the verifier to
+/// reject as a cross-format substitution.
+#[test]
+fn semantic_application_rejects_a_row_of_another_format() {
+    let mut projections = vec![
+        transitional_projection_row(0),
+        transitional_projection_row(1),
+    ];
+    let mut application = add_application(1, binary_add_operands());
+    application.format = IeeeFloatFormat::Binary64;
+    application.operands[0] =
+        CheckedFloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary64);
+    assert_eq!(
+        application.validate(),
+        Ok(()),
+        "the application replays on its own"
+    );
+    let error = rejoin_float_semantic_applications(&[application], &mut projections)
+        .expect_err("a binary64 application cannot take a binary32 row");
+    assert_eq!(
+        error,
+        FloatMeaningProjectionLoweringError::SemanticApplicationFormatMismatch { result: 1 }
+    );
+    assert!(
+        matches!(
+            projections[1].source,
+            FloatMeaningSource::TransitionalInput(_)
+        ),
+        "the refused row keeps its transitional source"
     );
 }
 
@@ -864,7 +904,7 @@ fn semantic_application_rejects_a_row_with_a_resolved_source() {
     .expect_err("a non-transitional row cannot take the application carrier");
     assert_eq!(
         error,
-        FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow
+        FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow { result: 1 }
     );
 }
 
@@ -881,7 +921,7 @@ fn semantic_application_rejects_a_checked_row_that_fails_replay() {
         .expect_err("a self-referential meaning operand fails catalog replay");
     assert!(matches!(
         error,
-        FloatMeaningProjectionLoweringError::InvalidSemanticApplication(_)
+        FloatMeaningProjectionLoweringError::InvalidSemanticApplication { result: 1, .. }
     ));
 }
 

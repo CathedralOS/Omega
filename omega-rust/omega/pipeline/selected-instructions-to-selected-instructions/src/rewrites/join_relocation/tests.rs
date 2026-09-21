@@ -1931,8 +1931,9 @@ fn memory_roster_binds_the_window() {
 /// inside the join's executed prefix, and one positioned past the landing
 /// index observes it inside the head's — both refuse, while positions at
 /// or before either boundary keep the executed set they always had. A
-/// settlement inside an arm never observed the member: the member never
-/// enters an arm's body, so every arm prefix is unchanged.
+/// settlement inside a crossed arm refuses too: the member never enters
+/// an arm's body, but it executes before the arm's point after the move
+/// where it executed after it before.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
@@ -1952,15 +1953,21 @@ fn boundary_settlements_bound_the_window() {
             "join-block settlement at {position}"
         );
     }
-    // The member never enters an arm's body: no arm prefix ever contained
-    // or loses it, so a settlement anywhere in an arm admits.
+    // Every arm position is crossed: the member lands ahead of the arm's
+    // whole body, so a settlement anywhere in an arm observes the member
+    // inside its executed prefix after the move where it never ran there
+    // before.
     for position in [0u32, 1, 2] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        relocate(&settled, &environment, MOVING, TRAIL).unwrap();
+        assert_eq!(
+            relocate(&settled, &environment, MOVING, TRAIL).unwrap_err(),
+            JoinRelocationError::UnsupportedPair,
+            "arm settlement at {position}"
+        );
     }
     // In the head block the bound is the landing index: at or before it
     // the executed prefix is unchanged; past it the member joins the
@@ -2178,12 +2185,13 @@ fn target_mismatch_rejects() {
 }
 
 /// The bounded audit is measured: the full-convergence window prices
-/// every scan, crossed-surface pair, and roster row against the work
+/// every scan, the path walk's edge bound, every crossed position and
+/// crossed edge surface pair, and each roster row against the work
 /// budget, and a budget one step short refuses rather than skimping. The
-/// `TRAIL` landing crosses the join head, both arms with their
-/// terminators and edges, the branch with its two edges, and the head
-/// tail — twenty-two crossed-surface pairs — and naming `LATE` lands the
-/// member one position earlier, adding the head middle's pair.
+/// `TRAIL` landing crosses the join head, both arms' bodies, the two
+/// arm `Jump` edges, the two branch edges, and the head tail — twelve
+/// position pairs and fourteen edge-surface steps — and naming `LATE`
+/// lands the member one position earlier, adding the head middle's pair.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
@@ -2192,11 +2200,14 @@ fn measured_validation_step_boundary() {
     // Each block contributes its body plus its terminator once to the
     // whole-function scan and once to this function's blocks: 14 + 14.
     // The successor scan counts each terminator's edges: 2 + 1 + 1 + 0.
-    // The crossed surfaces pair the member (1) against HEAD (1), both arm
-    // bodies (1 each), both arm `Jump` terminators (1 use + 1 definition
-    // each on x86-64), the branch terminator (2 uses + 1 definition), and
-    // TRAIL (1): 2+2+2+3+2+2+3+4+2 = 22 steps.
-    let steps: u64 = 14 /* whole plan */ + 14 /* this function's blocks */ + 4 /* edges */ + 22;
+    // The path walk is bounded by the function's four edges. The crossed
+    // positions pair the member (1) against HEAD (1), both arm bodies
+    // (1 each), and TRAIL (1): 2+2+2+2+2+2 = 12 steps. The crossed edges
+    // pair the member against each edge's terminator instruction plus its
+    // own surface — the branch (2 uses + 1 definition) twice and each arm
+    // `Jump` (1 use + 1 definition): 4+3+4+3 = 14 steps.
+    let steps: u64 = 14 /* whole plan */ + 14 /* this function's blocks */ + 4 /* edges */
+        + 4 /* path walk edge bound */ + 12 /* crossed positions */ + 14 /* crossed edges */;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_out_of_join(&source, 0, MOVING, TRAIL, &environment, exact)
         .unwrap();

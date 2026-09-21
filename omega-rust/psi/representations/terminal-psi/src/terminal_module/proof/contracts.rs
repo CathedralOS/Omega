@@ -14,6 +14,10 @@ pub struct MachineContract {
     /// roster carries no runtime position, storage, or argument lane. A call
     /// operation must supply one erased argument per roster row.
     pub erased_scalar_formals: Vec<crate::ValueDeclaration>,
+    /// Erased formals whose carriers are proof-only data with no scalar
+    /// layout, in dense authored order after the scalar erased roster. A call
+    /// operation must supply one `ProofTerm` per roster row.
+    pub erased_proof_formals: Vec<crate::ErasedProofFormal>,
     pub requires: Vec<Proposition>,
     pub ensures: Vec<ContractClause>,
     /// Outcome-specific guarantees remain disjoint from unconditional lanes.

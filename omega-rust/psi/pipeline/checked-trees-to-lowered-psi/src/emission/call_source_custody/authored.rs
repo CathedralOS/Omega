@@ -292,7 +292,10 @@ pub(crate) fn target_signature(
         return Ok(TargetSignature {
             parameters: program.state_parameters(state),
             return_type: state.return_type,
-            boundary: machine.supply_mode.is_boundary_declaration(),
+            // A bodied `boundary machine` is a checked adapter: callers reach
+            // its authored body as an ordinary callee; only the bodyless
+            // declaration is a boundary edge.
+            boundary: machine.supply_mode.is_boundary_declaration() && !machine.body_is_present,
             machine: machine.symbol,
             state: state.symbol,
         });

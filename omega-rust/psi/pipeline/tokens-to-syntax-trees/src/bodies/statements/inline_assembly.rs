@@ -377,7 +377,8 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
              (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
-             `serialize`, `isb`, `pause`, `yield`, `pushfq`, `popfq`, `rdmsr`, `wrmsr`, \
+             `serialize`, `isb`, `pause`, `yield`, `wfe`, `wfi`, `sev`, `sevl`, `nop`, `pushfq`, `popfq`, \
+             `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
              structured `read_crN`/`write_crN`); opaque forms (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
@@ -583,6 +584,17 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             input,
         )),
         AsmInstructionShape::SchedulingHint(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::CacheOperation(kind) => Ok((
             ParsedAsmInstruction {
                 statement: zero_operand_asm_intrinsic_call(
                     syntax_trees,

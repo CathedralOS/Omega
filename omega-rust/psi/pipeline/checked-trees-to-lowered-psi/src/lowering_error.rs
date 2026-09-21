@@ -39,6 +39,13 @@ pub enum LoweringError {
         place: String,
         reason: &'static str,
     },
+    /// The checked program carries a `Quotient::define`/`Quotient::lift`
+    /// request outside the batch the proof-only correspondence extractor
+    /// admits; no partial table is retained. Each string is one extraction
+    /// diagnostic naming the failed join.
+    UnadmittedQuotientRequest {
+        diagnostics: Vec<String>,
+    },
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,
     IntegerLandingMismatch,

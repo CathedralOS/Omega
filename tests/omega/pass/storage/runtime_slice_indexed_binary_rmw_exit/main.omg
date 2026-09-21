@@ -11,7 +11,9 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Exit {
-    count: i32;
+    // Defined-overflow domain: the `&mut` slice alias reads are opaque to
+    // snapshot-free bounds, so the RMW increment is wrapping, not exact.
+    count: i32 in Wrapping;
 }
 
 data Room {

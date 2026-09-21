@@ -254,7 +254,7 @@ fn prepared_source_checkpoint_preserves_standalone_child_identity_and_siblings()
     let main = fixture.main.clone();
     let (windows, linux, windows_again) =
         crate::checking::compile_thread::run_on_compile_thread(move || {
-            let prepared = PreparedCheckedSource::prepare(&main, None)
+            let prepared = PreparedCheckedSource::prepare(&main, None, false)
                 .expect("prepare checked source checkpoint");
             let windows = prepared
                 .clone()
@@ -372,4 +372,166 @@ fn retained_checked_request_preserves_identity_and_rejects_foreign_inputs() {
     checked
         .verify_current_source_consumption()
         .expect("fresh checked source custody");
+}
+
+/// Occurrence-bound consent joins each restricted build request before its
+/// own build effect executes: refusal fails the compile without running the
+/// build, and the request's staged output never appears; an admitting
+/// binding runs the same build and projects the request into custody.
+struct GrantDecision {
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    verdict: Result<(), Vec<diagnostics::Diagnostic>>,
+}
+
+impl super::RestrictedBuildGrants for GrantDecision {
+    fn admit(
+        &mut self,
+        _request: &build_evaluation::RestrictedBuildRequest,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        self.verdict.clone()
+    }
+}
+
+#[cfg(unix)]
+fn seal_sources(root: &std::path::Path, sealed: bool) {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = if sealed { 0o555 } else { 0o755 };
+    std::fs::set_permissions(root, std::fs::Permissions::from_mode(mode))
+        .expect("set source root permissions");
+    for entry in std::fs::read_dir(root).expect("enumerate source root") {
+        let path = entry.expect("read source root entry").path();
+        let mode = if sealed { 0o444 } else { 0o644 };
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))
+            .expect("set source entry permissions");
+    }
+}
+
+#[cfg(not(unix))]
+fn seal_sources(_root: &std::path::Path, _sealed: bool) {}
+
+/// A sponsor-bound package build writing staged output projects one
+/// scoped-filesystem restricted request.
+fn sponsored_build_project() -> (PreparedFixture, std::path::PathBuf) {
+    let fixture = PreparedFixture::new();
+    fs::write(
+        fixture.root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+builder.application("restricted-grant-fixture");
+let stamp: BuildPath = builder.output.resolve("stamp.txt");
+let descriptor: i32 = builder.output.create(stamp, 420);
+let written: i64 = builder.output.write(descriptor, "x");
+let closed: i32 = builder.output.close(descriptor);
+}
+"#,
+    )
+    .expect("write sponsor-bound build");
+    let stamp = fixture.root.join("out").join("stamp.txt");
+    (fixture, stamp)
+}
+
+fn sponsor_session(
+    label: &str,
+) -> (
+    std::path::PathBuf,
+    checked_interpreter::FilesystemSponsor,
+    std::path::PathBuf,
+) {
+    let session = std::env::temp_dir().join(format!(
+        "omega-restricted-grant-{label}-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&session);
+    fs::create_dir(&session).expect("create sponsor session");
+    let session = fs::canonicalize(&session).expect("canonicalize sponsor session");
+    let sponsor = checked_interpreter::FilesystemSponsor::new(&session).expect("create sponsor");
+    let build_dir = session.join("output");
+    let bound = sponsor.bind_path(&build_dir).expect("bind output root");
+    let prepared = sponsor
+        .prepare_create_directory(&bound)
+        .expect("prepare output root");
+    fs::create_dir(&build_dir).expect("create output root");
+    prepared.commit().expect("commit output root");
+    (session, sponsor, build_dir)
+}
+
+fn restricted_fixture_inputs(
+    root: &std::path::Path,
+) -> package_compilation::PackageCompilationInputs {
+    let identity = semantic_vocabulary::PackageKeyIdentity::from_digest([97; 32]).unwrap();
+    package_compilation::PackageCompilationInputs::new_package(
+        identity,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                identity,
+                "restricted-grant-fixture",
+                root.to_path_buf(),
+            )
+            .with_canonical_source_metadata()
+            .expect("capture canonical source metadata"),
+        ],
+        vec![],
+    )
+    .expect("single-package build input")
+}
+
+#[test]
+fn ungranted_restricted_build_request_waits_before_its_effect() {
+    let (fixture, _stamp) = sponsored_build_project();
+    let (session, sponsor, build_dir) = sponsor_session("refused");
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    seal_sources(&fixture.root, true);
+    let result = super::compile_to_checked(super::CheckedCompileRequest {
+        build_dir: Some(build_dir.clone()),
+        package_inputs: Some(restricted_fixture_inputs(&fixture.root)),
+        filesystem_sponsor: Some(sponsor),
+        restricted_build_grants: Some(Box::new(GrantDecision {
+            calls: calls.clone(),
+            verdict: Err(vec![diagnostics::Diagnostic::error(
+                "restricted build request waits on granted consent",
+            )]),
+        })),
+        ..super::CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
+    });
+    seal_sources(&fixture.root, false);
+    let diagnostics = result.expect_err("ungranted request refuses before its effect runs");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("waits on granted consent")),
+        "{diagnostics:?}"
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(
+        !build_dir.join("stamp.txt").exists(),
+        "the refused request's own build effect never executed"
+    );
+    let _ = fs::remove_dir_all(&session);
+}
+
+#[test]
+fn granted_restricted_build_request_executes_its_effect() {
+    let (fixture, _stamp) = sponsored_build_project();
+    let (session, sponsor, build_dir) = sponsor_session("granted");
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    seal_sources(&fixture.root, true);
+    let checked = super::compile_to_checked(super::CheckedCompileRequest {
+        build_dir: Some(build_dir.clone()),
+        package_inputs: Some(restricted_fixture_inputs(&fixture.root)),
+        filesystem_sponsor: Some(sponsor),
+        restricted_build_grants: Some(Box::new(GrantDecision {
+            calls: calls.clone(),
+            verdict: Ok(()),
+        })),
+        ..super::CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
+    });
+    seal_sources(&fixture.root, false);
+    let checked = checked.expect("granted request admits and its effect runs");
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert_eq!(checked.restricted_build_requests().len(), 1);
+    assert!(
+        build_dir.join("stamp.txt").exists(),
+        "the granted request's build effect executed"
+    );
+    let _ = fs::remove_dir_all(&session);
 }

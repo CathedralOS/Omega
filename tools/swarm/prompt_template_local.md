@@ -43,10 +43,14 @@ a live session, pick an unclaimed board item that is not in this wave's
 sessions ({wave_items}) or the wave exclusions ({exclusions}), claim that
 instead, and record the pivot in your report. Never pass `--allow-overlap`.
 
-Keep `TASKS*.md` out of claimed paths — board files are hot singletons that
-block every other session's board update for the lease duration. Record board
-evidence in your report, or in a separate `board:` commit when the file is
-unclaimed.
+Keep `TASKS*.md` and other coordination files out of claimed paths — board
+files are hot singletons, and `landing.py` refuses candidates that touch only
+coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`, `tools/swarm/waves/`)
+or change nothing at all. Never land a `board:` commit or an empty ledger
+commit. Record durable evidence on your claim ticket instead —
+`python3 tools/claims.py note --ticket <ticket> --text "<finding>"` —
+and repeat it in your report; the coordinator owns board edits and sweeps
+notes at drain.
 
 Release the claim with `python3 tools/claims.py release --ticket <ticket>`
 on ANY terminal outcome: landed, blocked, superseded, or abandoned.

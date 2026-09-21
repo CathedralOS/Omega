@@ -1,3 +1,8 @@
+// Respelled from the retired nested self-call shape (`self.out = self.pick(flag)`);
+// the direct let-call root is the admitted surface. Still red on the enum/sum-typed
+// persistent-field store surface: `self.out = RewardItem::Gold` and
+// calls/runtime_enum_self_method_exit's `self.s = Signal::Green` stop at the same
+// `structural field store: record literal field` local-construction phase.
 data RewardItem {
     case None;
     case Gold;
@@ -9,7 +14,8 @@ data Main {
 
 machine Main::main(&mut self) {
     let flag: bool = true;
-    self.out = self.pick(flag);
+    let picked: RewardItem = self.pick(flag);
+    self.out = picked;
 }
 
 machine Main::pick(&mut self, flag: bool) -> RewardItem {

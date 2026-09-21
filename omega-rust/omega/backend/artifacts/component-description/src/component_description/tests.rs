@@ -58,18 +58,42 @@ fn complete_roster_description() -> ComponentDescription {
             requirement_identity: "bound:mask".into(),
             bound: vec![ServiceId::new(1).expect("service identity")],
         }],
-        custody: vec![CustodyConstraint {
-            kind: CustodyKind::CompletionReceipt,
-            identity: "custody:receipt".into(),
-            evidence: CustodyEvidence::ModuleDerived,
-        }],
+        custody: vec![
+            CustodyConstraint {
+                kind: CustodyKind::CompletionReceipt,
+                identity: "custody:receipt".into(),
+                evidence: CustodyEvidence::ModuleDerived,
+            },
+            CustodyConstraint {
+                kind: CustodyKind::Mapping,
+                identity: "custody:mapping".into(),
+                evidence: CustodyEvidence::ModuleDerived,
+            },
+            CustodyConstraint {
+                kind: CustodyKind::Lease,
+                identity: "custody:lease".into(),
+                evidence: CustodyEvidence::ModuleDerived,
+            },
+        ],
         providers: Vec::new(),
         provider_closure_digest: [6; 32],
-        obligations: vec![InstallationObligation {
-            kind: ObligationKind::ImportBinding,
-            identity: "obligation:import".into(),
-            detail: "install binds".into(),
-        }],
+        obligations: vec![
+            InstallationObligation {
+                kind: ObligationKind::ImportBinding,
+                identity: "obligation:import".into(),
+                detail: "install binds".into(),
+            },
+            InstallationObligation {
+                kind: ObligationKind::Mapping,
+                identity: "obligation:mapping".into(),
+                detail: "install binds the composition's mapping".into(),
+            },
+            InstallationObligation {
+                kind: ObligationKind::Lease,
+                identity: "obligation:lease".into(),
+                detail: "install admits the component's lease".into(),
+            },
+        ],
         assumptions: vec![[9; 32]],
         realization_identity: Some([7; 32]),
     }

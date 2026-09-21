@@ -69,7 +69,6 @@ use crate::selected_form_encoding::request_validation::{
 use crate::selected_form_encoding::request_validation::{
     validate_alias_partition, validate_request,
 };
-use crate::x86_64_physical_register_model;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64SelectedFormFootprint {
