@@ -1,21 +1,22 @@
 use semantic_vocabulary::{
     BlockId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId,
-    PsiSemanticId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    PsiSemanticId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     BindingRelevance, Block, ClaimTransfer, ClosedConformanceApplication,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceRealizationCallable, ClosedConformanceRow, CrashCause, CrashRouteBucket,
-    CrashRouteGuard, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalDirectDynamicDispatch,
-    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
-    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
-    TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    CrashRouteGuard, MachineContract, Operation, OperationKind, OperationResult,
+    ServiceDeclaration, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
+    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalDynamicRequirement,
+    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalParameterDynamicDispatch, TerminalReboundDynamicDescriptor, Terminator,
+    ValueDeclaration, VocabularyMarker, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
 };
 use terminal_verifier::{ModuleError, validate_module};
 
@@ -947,6 +948,92 @@ fn rejoins_indirect_dispatch_family_tuple_to_the_table_row() {
         validation_error(&nongeneric_row),
         ModuleError::InvalidClosedConformanceApplication { .. }
     ));
+}
+
+/// The Unit-returning form of `rebound_dynamic_dispatch_module`: the same
+/// rebound descriptor and indirect dispatch row, with the operation, its
+/// result, the realization machine, and the table callable all on the Unit
+/// lane.
+fn unit_dynamic_dispatch_module() -> TerminalModule {
+    let mut module = rebound_dynamic_dispatch_module();
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallDynamicUnit {
+        descriptor_ordinal: 0,
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    module.machines[0].blocks[0].operations[0].result = OperationResult::Unit;
+    module.machines[1].result = TerminalMachineResult::Unit;
+    module.machines[1].blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id::<EdgeId>(2),
+        trivial_affine_discards: Vec::new(),
+    };
+    let application = &mut module.closed_conformance_applications[0];
+    application.realization_callables[0].result = ClosedConformanceCallableResult::Unit;
+    refresh_application_identity(application);
+    let (fingerprint, commitment) = (application.report_fingerprint, application.commitment);
+    for selection in &mut module.dynamic_dispatch.selections {
+        selection.conformance_application_report_fingerprint = fingerprint;
+        selection.conformance_application_commitment = commitment;
+    }
+    module
+}
+
+#[test]
+fn admits_exact_unit_dynamic_dispatch() {
+    validate_module(&unit_dynamic_dispatch_module()).expect("exact unit dynamic dispatch is valid");
+}
+
+/// A Unit-returning dynamic dispatch contributes the same call-graph edge as
+/// a scalar one: a realization that is its own caller is a recursive slice.
+#[test]
+fn rejects_unit_dynamic_dispatch_reaching_its_own_caller() {
+    let caller = id::<MachineId>(1);
+    let mut module = unit_dynamic_dispatch_module();
+    module.machines[0].structural_parameters[0] =
+        parameter(1, 2, StructuralMultiplicity::Unrestricted);
+    for selection in &mut module.dynamic_dispatch.selections {
+        selection.source.path.clear();
+    }
+    module.dynamic_dispatch.indirect_dispatches[0].realization = caller;
+    let application = &mut module.closed_conformance_applications[0];
+    application.realization_callables[0].machine = caller;
+    refresh_application_identity(application);
+    let (fingerprint, commitment) = (application.report_fingerprint, application.commitment);
+    for selection in &mut module.dynamic_dispatch.selections {
+        selection.conformance_application_report_fingerprint = fingerprint;
+        selection.conformance_application_commitment = commitment;
+    }
+    assert_eq!(
+        validation_error(&module),
+        ModuleError::RecursiveCallSliceNotYetSupported(caller)
+    );
+}
+
+/// A Unit-returning realization contributes its declared service reach to
+/// the root's exact concrete closure just like a scalar realization.
+#[test]
+fn derives_concrete_reach_through_unit_dynamic_dispatch() {
+    let mut module = unit_dynamic_dispatch_module();
+    module.services = vec![ServiceDeclaration {
+        id: id::<ServiceId>(1),
+        identity: "Console".into(),
+        parents: Vec::new(),
+    }];
+    let published = vec![id::<ServiceId>(1)];
+    module.machines[0].published_service_ceiling = published.clone();
+    module.machines[1].published_service_ceiling = published.clone();
+    module.machines[1].declared_service_reach = published.clone();
+    module.root_service_reach.concrete = published.clone();
+    validate_module(&module).expect("unit realization service reach reaches the root");
+
+    module.root_service_reach.concrete.clear();
+    assert_eq!(
+        validation_error(&module),
+        ModuleError::RootConcreteServiceReachMismatch {
+            declared: Vec::new(),
+            derived: published,
+        }
+    );
 }
 
 /// A descriptor parameter's requirement slot names the same tuple as the
