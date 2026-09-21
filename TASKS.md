@@ -15767,6 +15767,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`
   at `derivation/tests.rs:1958`, both landing commits ancestors of
   base. Verdict stands; residuals stay on TRANSLATION-VALIDATION.
+  Fresh audit at `c3dd8016a74d` (zergling-168, linux x86-64): the z137
+  branch is gone from the remote — parser through typed trees landed on
+  main — and two of the three frontier items have since closed:
+  per-clause `reaches` subset checking against the base row's normalized
+  names landed at `75f8215cf9b10` ("check refinement clause reaches
+  names against the base reach row") and clause-location binding plus
+  `_` wildcard abstract rows landed at `612061f5b694d` ("refinement
+  clause reaches bind at clause location, wildcard mints abstract
+  rows"). Re-verified green on this chain: `nextest -p
+  symbol-resolved-trees-to-typed-trees -E 'test(~refinement) |
+  test(~transparent)'` -> 10/10 PASS (subset rejection, wildcard minting,
+  empty-row narrowing, inheritance). The surviving leg is the
+  evidence-binder fit check alone: `refines`/`refinement_clauses` still
+  have zero consumers below s2t — no reads in checked-trees,
+  typed-trees-to-checked-trees, lowered/terminal representations, or the
+  verifier (the `refines` hits under semantics/ are English comments).
+  Bound carriers `L satisfies Local` remain the legal consumer to
+  implement.
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Standing duty, not a one-off: keep
   the trusted-surface digest ledger
   (`omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs`)
