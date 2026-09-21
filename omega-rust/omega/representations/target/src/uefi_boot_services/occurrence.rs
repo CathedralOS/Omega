@@ -247,7 +247,10 @@ fn crc32_with_zeroed_field(bytes: &[u8], crc32_offset: usize) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        UEFI_BOOT_SERVICES_SIGNATURE, ValidatedUefiBootServicesNativeLayout,
+        crc32_with_zeroed_field, validate_uefi_boot_services_occurrence,
+    };
     use crate::exact_uefi_x64_boot_services_native_layout;
 
     fn layout() -> ValidatedUefiBootServicesNativeLayout {
