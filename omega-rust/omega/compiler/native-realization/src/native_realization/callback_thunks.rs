@@ -107,6 +107,25 @@ fn lower_callback_thunk(
         .iter()
         .find(|function| function.machine == placed.machine)
         .ok_or_else(|| reject("emitted thunk machine is absent from its target operations"))?;
+    let boundary_signature = &settlement.boundary_entry_plan.call;
+    let Some(emitted_signature) = targeted.scalar_abi.as_ref() else {
+        return Err(reject(
+            "callback thunk emits no scalar ABI for its boundary entry signature",
+        ));
+    };
+    if emitted_signature.call_plan.policy != boundary_signature.policy
+        || emitted_signature.parameters.len() != boundary_signature.parameters.len()
+        || emitted_signature
+            .parameters
+            .iter()
+            .zip(boundary_signature.parameters.iter())
+            .any(|(emitted, declared)| emitted.placement != *declared)
+        || boundary_signature.result.as_ref() != Some(&emitted_signature.result.placement)
+    {
+        return Err(reject(
+            "callback thunk signature drifts from its boundary entry plan",
+        ));
+    }
     let offset = usize::try_from(placed.section_offset)
         .map_err(|_| reject("callback thunk text offset exceeds host size"))?;
     let byte_count = usize::try_from(placed.byte_count)
