@@ -5267,9 +5267,16 @@ Owners include
   evidence — a live affine home, an affine reference leaf, or the arrival
   declaration of an unobserved owned parameter (function or block-entry) that
   never received a home. `accepts` now only decides whether owned arrivals
-  suppress their storage homes. Still owed under this flag: residual
-  `DiscardResidual`/`InvokeNominal` actions and Jump/conditional edges, and
-  retiring `accepts` once no admission decision reads it.
+  suppress their storage homes. Re-verified at `a84ebca9720` (z181): Jump
+  edges realize `residual_affine_discards` since `aa698892c9`, after the
+  binding-overlap guard — the earlier Jump bullet is stale. Still owed:
+  `AbstractSuccessor` (conditional edges) and `ReturnStructural` carry
+  only `trivial_affine_discards` — each needs the residual field through
+  representation + producer before lowering can realize it;
+  `InvokeNominal` is executable cleanup-machine work rejected by
+  `plain_home_cleanup` (needs a real call leg, not a home discard); and
+  `accepts` still decides owned-arrival home suppression, so its
+  retirement waits on those legs.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary evaluation/value transport
   in Psi argument normalization, checked scalar computations, call/result plans
