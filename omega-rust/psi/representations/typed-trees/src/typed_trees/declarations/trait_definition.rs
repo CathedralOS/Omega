@@ -52,8 +52,8 @@ pub struct TraitRefinementClause {
     pub requirement: Option<Identifier>,
     /// Operational axes only.
     pub signature: StateSignature,
-    /// Authored `reaches` names retained until the bound fit check consumes
-    /// them; clause reach rows are not interned with signature reach rows.
+    /// Authored `reaches` names retained for the bound fit check's
+    /// diagnostics; `_` members name the pending independent abstract row.
     pub service_reaches: Vec<Identifier>,
     /// How the clause's `reaches` axis binds, resolved at lowering.
     pub service_reach: TraitRefinementReach,
