@@ -15511,6 +15511,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION,
   CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-EXTRACTION,
   WHOLE-COMPOSITION-INTERACTION-EXTRACTION.
+  Re-verified at `8f58b6676b0` (z203 leg): the deferral clauses are
+  unchanged (`task_runtime.md` §library-and-foreign-providers still
+  carries the word/value wait plus wake-one/wake-many direction at
+  ~line 170; `concurrency.md` §protocol-proofs deferral intact), and
+  `CompositionCrossActivationEdges` still publishes `NotRetained` at
+  `composition_model/mod.rs:226` — `canonical_suspension_crossings`
+  remains the only suspension relation. Fence roster rotated: the cited
+  wholesale `task-plans/src` claim (SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT)
+  and `native-realization/providers` (PLACED-ACCESS-NATIVE-OPS) have
+  drained; the surface is now held piecemeal by
+  WHOLE-COMPOSITION-EXTRACTION on `task-plans/src/composition_model`
+  (~15:51Z) while UEFI-OS-HANDOFF keeps provider-planning/selected-
+  dispatch (~10:19Z). Still no implementation slice exists to claim.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION.** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
 - **WINDOWS-FILE-TIME-CARRIER-RESPELL.** — mined candidate; scope verified,
   covered — the stub is the same "unsigned carrier" clause of
