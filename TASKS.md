@@ -9214,6 +9214,60 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   sibling row BETA-ENCODING-SELECTED-CHAIN-PRODUCTION's "extent-supply leg"
   phrasing is partially stale — the request extent is no longer pending on
   this branch.
+||||||| parent of 7a1123dff44e (board: add BENCHMARK-WINDOWS-PEAK-MEMORY scoped row)
+- **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; scope verified, resolved — re-mine of BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES' producer fix (integer comparison-occurrence rejection repaired at `76dc49a99e`; `terminal_product::integer_comparisons` counts selected occurrences only against the artifact-bound checked scope). The "std" residual the name implies — provider coverage for genuinely selected occurrences, std-wide verification — is exactly what the landed publication test pins. Re-verified green at `1edade1a48`: `cargo nextest run -p compiler --test integer_comparison_publication` → `selected_comparison_publication_preserves_complete_custody_among_builtins` PASS (19.9s, linux x86-64). Sibling re-mines named on the parent row: BENCHMARK-COMPARISON-OCCURRENCE-GATE, COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, the INTEGER-COMPARISON-OCCURRENCE-* family.
+- **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
+- **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
+- **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
+- **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-CERTIFICATE-CHECK** — verified 7ec604d7ef: re-mines the
+  certificate surface the sibling annotation on
+  BETA-ENCODING-SELECTED-CHAIN-PRODUCTION already resolved — the selected
+  checker cannot admit the request, so there is nothing to check.
+  `bootstrap/proofs/beta_encoding/PROFILE.md:173-183` records admission
+  settled by owner decision `beta-encoding-certificate-admission` and the
+  coupled provisions (136,314,880-byte request extent, 137,363,456-byte
+  evaluator frame, 67,108,864-unit work counter, 3,387,293,850-pair arena)
+  "pending the Alpha extent-supply leg that realizes them". The checker's
+  rejection controls already landed under BETA-ENCODING-MUTATION-REJECTION
+  (`tests/gamma/beta-encoding-theory/mutations.py`, 18 mutated requests,
+  `--mutations-self-test` green on linux x86-64). Row consumed — residual
+  is the upstream extent-supply leg plus the host-gated `--mutations`
+  verdict run (macOS arm64 / Windows x64 seed hosts).
+- **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; scope verified, resolved — re-mine of BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES' producer fix (integer comparison-occurrence rejection repaired at `76dc49a99e`; `terminal_product::integer_comparisons` counts selected occurrences only against the artifact-bound checked scope). The "std" residual the name implies — provider coverage for genuinely selected occurrences, std-wide verification — is exactly what the landed publication test pins. Re-verified green at `1edade1a48`: `cargo nextest run -p compiler --test integer_comparison_publication` → `selected_comparison_publication_preserves_complete_custody_among_builtins` PASS (19.9s, linux x86-64). Sibling re-mines named on the parent row: BENCHMARK-COMPARISON-OCCURRENCE-GATE, COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, the INTEGER-COMPARISON-OCCURRENCE-* family.
+- **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
+- **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
+- **BENCHMARK-WINDOWS-PEAK-MEMORY.** Scope verified at `5e2d355a02c0` —
+  names the Windows leg of the versioned peak-memory axis
+  (`wiki/drafts/benchmarks.md:51` `peak_memory_bytes` column). The
+  machinery is landed in `tools/benchmark/benchmark.py`: on Windows the
+  measured child runs inside a fresh job object and
+  `_windows_job_peak_bytes` reports the job's `PeakJobMemoryUsed` in
+  bytes (`run_measured`/`_windows_job_assign`, :131-200); hosts with no
+  RSS route record the metric as unavailable rather than guessing.
+  The only remaining leg is the Windows x64 host measurement itself —
+  a `benchmark.py measure` run on Windows producing the recorded row —
+  host-bound; nothing executable on this linux x86-64 host. Sibling
+  stubs on the same surface: BENCHMARK-WINDOWS-PEAK-RSS,
+  WINDOWS-PEAK-MEMORY-MEASUREMENT.
+- **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
+- **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-CERTIFICATE-CHECK** — verified 7ec604d7ef: re-mines the
+  certificate surface the sibling annotation on
+  BETA-ENCODING-SELECTED-CHAIN-PRODUCTION already resolved — the selected
+  checker cannot admit the request, so there is nothing to check.
+  `bootstrap/proofs/beta_encoding/PROFILE.md:173-183` records admission
+  settled by owner decision `beta-encoding-certificate-admission` and the
+  coupled provisions (136,314,880-byte request extent, 137,363,456-byte
+  evaluator frame, 67,108,864-unit work counter, 3,387,293,850-pair arena)
+  "pending the Alpha extent-supply leg that realizes them". The checker's
+  rejection controls already landed under BETA-ENCODING-MUTATION-REJECTION
+  (`tests/gamma/beta-encoding-theory/mutations.py`, 18 mutated requests,
+  `--mutations-self-test` green on linux x86-64). Row consumed — residual
+  is the upstream extent-supply leg plus the host-gated `--mutations`
+  verdict run (macOS arm64 / Windows x64 seed hosts).
+- **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
