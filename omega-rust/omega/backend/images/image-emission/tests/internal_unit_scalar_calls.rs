@@ -1291,6 +1291,71 @@ fn installation_function_integer_constant_rows_reject_every_one_field_substituti
     }
 }
 
+/// Fault-injection coverage for the target's installation record reader: every
+/// prefix truncation and every single-byte substitution of an authentic
+/// envelope must reject — at decode, or at independent replay against the
+/// unchanged image — without panicking or retaining the authentic identity.
+#[test]
+fn installation_record_reader_rejects_every_injected_fault() {
+    let plan = attached_unit_scalar_call_plan();
+    let artifact = build_object_artifact(&plan).expect("scalar-call artifact");
+    let image = emit_executable_image(&artifact, 3).expect("scalar-call image");
+    let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("scalar-call installation");
+    validate_installation_record(&record, &image).expect("exact image binding");
+    let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let authentic = encode_installation_record(&record).expect("encode authentic record");
+
+    assert_eq!(
+        decode_installation_record(&authentic).expect("authentic envelope decodes"),
+        record
+    );
+
+    for end in 0..authentic.len() {
+        assert!(
+            decode_installation_record(&authentic[..end]).is_err(),
+            "truncation to {end} bytes must reject"
+        );
+    }
+
+    let mut validated_survivors: Vec<(usize, u8)> = Vec::new();
+    for position in 0..authentic.len() {
+        for delta in [1_u8, 0xFF] {
+            let mut injected = authentic.clone();
+            injected[position] = injected[position].wrapping_add(delta);
+            let Ok(replayed) = decode_installation_record(&injected) else {
+                continue;
+            };
+            // A surviving decode is a different record: canonical re-encode
+            // agreement forces encode(replayed) == injected != authentic. It
+            // must still recompute a distinct installation identity and reject
+            // at independent replay against the unchanged image.
+            assert_ne!(
+                replayed, record,
+                "byte {position} +{delta:#04x} decoded to the unchanged record"
+            );
+            assert_ne!(
+                installation_fingerprint(&replayed).expect("injected fingerprint"),
+                authentic_fingerprint,
+                "byte {position} +{delta:#04x} recomputed the authentic identity"
+            );
+            if validate_installation_record(&replayed, &image).is_ok() {
+                validated_survivors.push((position, delta));
+            }
+        }
+    }
+    // `profile_decision` (header bytes 68..=75) is caller-chosen metadata that
+    // replay cannot bind to the image, so a mutated decision still decodes,
+    // re-encodes canonically, and validates under a changed identity. Any
+    // other byte surviving validation is a field replay does not check.
+    assert!(
+        validated_survivors
+            .iter()
+            .all(|(position, _)| (68..76).contains(position)),
+        "unexpected injected bytes surviving validation: {validated_survivors:?}"
+    );
+}
+
 /// One attached Unit caller holding one integer constant and two sequential
 /// scalar calls into one scalar-ABI callee. The caller keeps a 16-byte frame
 /// with one durable 8-byte scalar home per call result; each call owns its

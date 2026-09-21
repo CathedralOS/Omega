@@ -294,6 +294,7 @@ fn verifier_rejects_a_scalar_operation_with_a_unit_result_without_panicking() {
     let operation = OperationId::new(901).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Unit,
         kind: OperationKind::BooleanConstant { value: true },
@@ -359,8 +360,10 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -660,11 +663,13 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             entry: BlockId::new(10).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(10).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(10).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -681,6 +686,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(10).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -787,11 +793,13 @@ fn boolean_not_axiom_proves_the_return_contract() {
             entry: BlockId::new(20).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(20).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(20).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -808,6 +816,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(20).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -1044,11 +1053,13 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             entry: BlockId::new(30).expect("block"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(30).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(30).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1065,6 +1076,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(30).expect("contract"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -112,8 +112,8 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 
     // The arm's BOOL-TUPLE shape (bool literals / `_` wildcards only) feeds
     // the block-level exhaustiveness rewrite: a covering matrix's last arm
-    // becomes the fall-through (ch4's canonical `(found, has_next)` example
-    // has no `_ ->` arm; coverage IS the completeness proof).
+    // becomes the fall-through (a matrix that covers every combination needs
+    // no `_ ->` arm; coverage IS the completeness proof).
     let bool_tuple: Option<Vec<Option<bool>>> = patterns
         .iter()
         .map(|pattern| match pattern {

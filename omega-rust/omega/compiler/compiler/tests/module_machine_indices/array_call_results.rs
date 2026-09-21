@@ -258,10 +258,12 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
         id: caller.entry,
         parameters: vec![],
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![],
         operations: vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(10001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -274,8 +276,10 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: returned,
                     structural_type,
                     multiplicity: result.multiplicity,
@@ -287,6 +291,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
                     callee: callee_id,
                     arguments: vec![value],
                     erased_arguments: vec![],
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: vec![],
                     claim_transfers: vec![],
                     returned_claim_transfers: vec![],

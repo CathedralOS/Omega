@@ -7,15 +7,15 @@ use super::super::super::super::super::super::{
 
 use super::{
     AdmissionProfile, EdgeId, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
-    OperationResult, OptimizationSelections, Terminator, ValueDeclaration, ValueId, artifact,
-    compiler_baseline_request_v1, optimize_artifact_sections, publish_scalar_artifacts,
-    reseal_proof,
+    OperationResult, OptimizationSelections, ProofBundle, TerminalModule, Terminator,
+    ValueDeclaration, ValueId, artifact_parts, compiler_baseline_request_v1,
+    encode_fixture_sections, optimize_artifact_sections, publish_scalar_artifacts,
 };
 #[test]
 fn branch_calls_and_join_parameters_reach_common_native_publication() {
     for (equal, expected) in [(true, 37), (false, 41)] {
-        let (semantic, proof) = branch_call_artifact(equal);
-        let mut shuffled = terminal_codec::decode_module(&semantic).unwrap();
+        let (mut shuffled, bundle) = branch_call_artifact_parts(equal);
+        let (semantic, proof) = encode_fixture_sections(&shuffled, &bundle);
         // Keep Terminal's canonical BlockId order, but number the join before
         // both arms. Execution follows edges, not the numeric block order.
         let middle = &mut shuffled.machines[1];
@@ -28,8 +28,7 @@ fn branch_calls_and_join_parameters_reach_common_native_publication() {
             *target = join;
         }
         middle.blocks.sort_by_key(|block| block.id);
-        let shuffled_proof = reseal_proof(&shuffled, &proof);
-        let shuffled = terminal_codec::encode_module(&shuffled).unwrap();
+        let (shuffled, shuffled_proof) = encode_fixture_sections(&shuffled, &bundle);
         publish_scalar_artifacts(
             expected,
             [(semantic, proof.clone()), (shuffled, shuffled_proof)],
@@ -108,8 +107,12 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
 }
 
 pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = artifact(37);
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (module, proof) = branch_call_artifact_parts(equal);
+    encode_fixture_sections(&module, &proof)
+}
+
+pub(super) fn branch_call_artifact_parts(equal: bool) -> (TerminalModule, ProofBundle) {
+    let (mut module, proof) = artifact_parts(37);
     let scalar_type = module.machines[1].parameters[0].scalar_type;
     let value = |raw| ValueId::new(raw).unwrap();
     let block = |raw| BlockId::new(raw).unwrap();
@@ -121,6 +124,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     };
     let constant = |raw, literal| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(raw).unwrap(),
         result: OperationResult::Scalar(declaration(raw)),
         kind: OperationKind::IntegerConstant {
@@ -140,6 +144,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     middle.parameters.push(declaration(28_106));
     let successor = |raw| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: edge(raw),
         target: block(raw),
@@ -148,6 +153,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     };
     let arm = |raw, literal| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block(raw),
         parameters: Vec::new(),
@@ -155,10 +161,12 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             constant(raw, literal),
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(raw + 1).unwrap(),
                 result: OperationResult::Scalar(declaration(raw + 1)),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee,
                     arguments: vec![value(raw)],
                     requirement_obligations: Vec::new(),
@@ -168,6 +176,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         ],
         terminator: Terminator::Jump {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             edge: edge(raw + 1),
             target: block(28_170),
@@ -179,11 +188,13 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     middle.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: middle.entry,
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(28_140).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -205,6 +216,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         arm(28_160, 41),
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(28_170),
             parameters: vec![declaration(28_170)],
@@ -216,8 +228,5 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             },
         },
     ];
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    (module, proof)
 }

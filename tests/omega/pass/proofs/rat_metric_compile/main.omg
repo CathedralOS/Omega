@@ -2,7 +2,10 @@
 // closeness predicate, and its reflexive/symmetric laws are checked machines.
 use omega::language::core::rat;
 
-machine valid_unit_rat() -> Rat {
+machine valid_unit_rat() -> Rat
+requires
+    (gcd(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: Nat::Zero })
+{
     mk_rat(
         Nat::Succ { prev: Nat::Zero },
         Nat::Succ { prev: Nat::Zero },

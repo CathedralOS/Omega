@@ -74,6 +74,7 @@ fn branching_calling_module() -> TerminalModule {
         outcome_specific_ensures: Vec::new(),
         crash_routes: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
     };
     let block = |id: u64,
                  parameters: Vec<ValueDeclaration>,
@@ -82,6 +83,7 @@ fn branching_calling_module() -> TerminalModule {
         id: BlockId::new(id).unwrap(),
         parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         operations,
         terminator,
@@ -111,6 +113,7 @@ fn branching_calling_module() -> TerminalModule {
     };
     let operation = |id: u64, result: OperationResult, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result,
         kind,
@@ -120,6 +123,7 @@ fn branching_calling_module() -> TerminalModule {
         target: BlockId::new(target).unwrap(),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -169,6 +173,7 @@ fn branching_calling_module() -> TerminalModule {
                             callee: MachineId::new(2).unwrap(),
                             arguments: vec![ValueId::new(14).unwrap()],
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             requirement_obligations: Vec::new(),
                             crash_continuations: Vec::new(),
                         },
@@ -201,6 +206,7 @@ fn branching_calling_module() -> TerminalModule {
                     target: BlockId::new(36).unwrap(),
                     arguments: vec![ValueId::new(13).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
@@ -215,6 +221,7 @@ fn branching_calling_module() -> TerminalModule {
                     target: BlockId::new(36).unwrap(),
                     arguments: vec![ValueId::new(13).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),

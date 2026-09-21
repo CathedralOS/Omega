@@ -1,10 +1,10 @@
 # Content-claim production
 
 Contract: [content conservation](../../../../wiki/spec/resources/content_custody.md).
-[content_conservation.rs](src/content_conservation.rs) lowers normalized
+[content_conservation.rs](src/proofs/content_conservation.rs) lowers normalized
 owner projections, entry-claim bindings, identity reshuffles, and authored
 partition compositions. The upstream
-[source contract normalizer](../../semantics/validation/src/content_conservation.rs)
+[source contract normalizer](../../semantics/validation/src/value_custody/content_conservation.rs)
 checks projection calls, entry revisions, separation, and equality; it does not
 infer sealed introductions or custody exits.
 

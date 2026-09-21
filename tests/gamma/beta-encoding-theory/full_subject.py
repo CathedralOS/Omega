@@ -27,6 +27,15 @@ Requires OMEGA_PATH_GAMMA_EVALUATOR_SOURCE and OMEGA_PATH_GAMMA_EVALUATOR_TAPE
 the mode runs on any host with python3:
 
     tests/gamma/beta-encoding-theory/run.sh --full-subject
+
+A second mode materializes the certificate artifact itself:
+
+    tests/gamma/beta-encoding-theory/run.sh --produce-request PATH
+
+writes the complete framed request -- the same 135,485,028 bytes the
+check gate frames for the evaluator -- to PATH after the recorded
+size and digest pin.  It grants no admission: the artifact is the
+untrusted derivation input the selected chain still has to check.
 """
 
 import hashlib
@@ -202,7 +211,14 @@ def census(stepper, proofs, theory):
     return rules, clause_summary, unused_functions, unused_constructors
 
 
-def produce():
+def build():
+    """Produce the complete derivation and assembled request sections.
+
+    Returns every artifact the certificate consumers need: the decoded
+    owner/witness/proof rows, the encoded sections, the whole request, and
+    the Stepper/Theory for term lookup.  Keeps the pinned identity checks
+    and prints of the production gate; adds no admission decision.
+    """
     started = time.monotonic()
 
     expected_theory = identity.fixed_identity()
@@ -244,8 +260,37 @@ def produce():
     request_digest = hashlib.sha256(request).hexdigest()
     check_wire(request, owners, left_ref, right_ref, witnesses, proofs)
 
+    return {
+        "theory_bytes": theory_bytes,
+        "theory": theory,
+        "stepper": stepper,
+        "owners": owners,
+        "left_ref": left_ref,
+        "right_ref": right_ref,
+        "witnesses": witnesses,
+        "proofs": proofs,
+        "owner_section": owner_section,
+        "certificate_section": certificate_section,
+        "request": request,
+        "request_digest": request_digest,
+        "seconds": time.monotonic() - started,
+    }
+
+
+def produce():
+    ctx = build()
+    stepper = ctx["stepper"]
+    theory = ctx["theory"]
+    owners = ctx["owners"]
+    witnesses = ctx["witnesses"]
+    proofs = ctx["proofs"]
+    owner_section = ctx["owner_section"]
+    certificate_section = ctx["certificate_section"]
+    request = ctx["request"]
+    request_digest = ctx["request_digest"]
+
     rule_counts, clause_summary, unused_functions, unused_ctors = (
-        census(stepper, stepper.proofs, theory))
+        census(stepper, proofs, theory))
     depths = premise_depths(stepper.proofs)
 
     measured = {
@@ -265,7 +310,7 @@ def produce():
             raise SystemExit(
                 f"full subject: {key}={measured[key]}, recorded {expected}")
 
-    elapsed = time.monotonic() - started
+    elapsed = ctx["seconds"]
     print(f"full subject: owner_terms={measured['owner_terms']} "
           f"owner_bytes={measured['owner_bytes']} "
           f"witness_terms={measured['witness_terms']} "
@@ -299,14 +344,49 @@ def produce():
           "the exact profile", flush=True)
 
 
+def emit_request(path):
+    """Produce the certificate request and write it to `path` atomically.
+
+    The recorded extent/digest pin applies before the write: a drifted
+    production fails instead of emitting a plausible artifact.  The bytes
+    are exactly the framed request tests/gamma/beta-encoding-check feeds
+    the evaluator.
+    """
+    ctx = build()
+    request = ctx["request"]
+    if (len(request), ctx["request_digest"]) != (RECORDED["request_bytes"],
+                                                 RECORDED["request_sha256"]):
+        raise SystemExit(
+            "full subject: produced request drifts from the recorded "
+            f"identity ({len(request)}/{ctx['request_digest']})")
+    target = Path(path)
+    staging = target.with_name(target.name + ".partial")
+    staging.write_bytes(request)
+    staging.replace(target)
+    print(f"full subject: produced {len(request)}-byte certificate request "
+          f"sha256={ctx['request_digest']} -> {target}", flush=True)
+    print("full subject: diagnostic production only; the certificate still "
+          "has to be produced through the selected chain and checked under "
+          "the exact profile", flush=True)
+
+
 def main():
+    emit_path = None
+    if len(sys.argv) == 3 and sys.argv[1] == "--emit-request":
+        emit_path = sys.argv[2]
+    elif len(sys.argv) != 1:
+        raise SystemExit(
+            "usage: full_subject.py [--emit-request PATH]")
     # evaluate()/prove() recursion follows the derivation's premise depth;
     # run on a thread with an explicitly large stack like any deep fold.
     failure = []
 
     def run():
         try:
-            produce()
+            if emit_path is None:
+                produce()
+            else:
+                emit_request(emit_path)
         except BaseException as error:
             failure.append(error)
 

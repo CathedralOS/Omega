@@ -41,16 +41,18 @@ data Main {
     rng: Random;
 }
 
-machine Main::main(
-    &mut self,
-    depth: u32 in Wrapping,
-    random: &mut RandomState,
-    reward: &mut Reward
-) {
+machine Main::main(&mut self) {
+    let depth: u32 in Wrapping = 5;
+    let mut random: RandomState = RandomState { seed: 1, calls: 0 };
+    let mut reward: Reward = Reward {
+        kind: RewardKind::GoldAndItem,
+        gold: 0,
+        item: ItemKind::RustedDagger
+    };
+
     reward.kind = RewardKind::GoldAndItem;
-    reward.gold = 20 + depth * 8 + self.rng.range(random, 15);
-    reward.item = self.pick(depth, random);
-    
+    reward.gold = 20 + depth * 8 + self.rng.range(&mut random, 15);
+    reward.item = self.pick(depth, &mut random);
 }
 
 machine Main::pick(

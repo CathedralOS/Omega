@@ -390,6 +390,10 @@ pub(super) fn encode_structural_type(
             bytes.u8(1);
             encode_byte_carrier(bytes, *carrier);
         }
+        StructuralTypeShape::ElementView { element } => {
+            bytes.u8(8);
+            bytes.id(*element);
+        }
         StructuralTypeShape::Record { fields } => {
             bytes.u8(2);
             bytes.slice(fields, encode_structural_field);

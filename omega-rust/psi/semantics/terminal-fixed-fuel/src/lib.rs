@@ -44,7 +44,7 @@
 //! `omega inspect-terminal`'s evidence report
 //! (`omega/src/inspection/evidence.rs`).
 
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, Proposition};
+use semantic_vocabulary::{BlockId, CycleComponentId, EdgeId, MachineId, OperationId, Proposition};
 use terminal_codec::{CodecError, TerminalPsiIdentity};
 use terminal_fuel::FuelScheduleIdentity;
 
@@ -169,12 +169,32 @@ impl FixedEntryFuelCertificate {
     }
 }
 
+/// Directed cause in an absence-of-bound report for a cyclic component —
+/// the reason the component's visits cannot be charged a fixed ceiling.
+/// Spec §logical-work requires the report to carry this cause alongside the
+/// exact component identity; unbounded-rank and wait/foreign-edge causes
+/// arrive with the dependent-bound machinery that can express them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnboundedCycleCause {
+    /// The component carries no ranking row: no producer bound binds its
+    /// visit count, so no fixed ceiling can cover its cyclic topology.
+    Unranked,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedFuelError {
     SemanticIdentity(CodecError),
     UnknownEntry(MachineId),
     UnknownBlock(BlockId),
     ControlCycle(BlockId),
+    /// A bounded-work certificate cannot close for a machine whose control
+    /// contains a cyclic component. The report names the verifier-derived
+    /// component identity — not whichever block a traversal happened to
+    /// revisit — plus the directed cause the spec requires.
+    UnboundedCycleComponent {
+        component: CycleComponentId,
+        cause: UnboundedCycleCause,
+    },
     CallCycle(MachineId),
     /// A `StructuralCase` terminator carries no case edges, so no arm exists
     /// to compose a bound from — a degenerate terminator, not a selected

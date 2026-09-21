@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 effects = { path = "../../../representations/effects" }
+boundary-applications = { path = "../../../representations/boundary-applications" }
 executable-installation = { path = "../executable-installation" }
 external-roots = { path = "../external-roots" }
 image-emission = { path = "../../images/image-emission", features = ["installed-artifact"] }

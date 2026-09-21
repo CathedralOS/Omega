@@ -25,7 +25,13 @@ pub(crate) fn validate_typed_program<'program>(
     } else {
         validation::OpaquePropertyValidation::Required(opaque_property_receipts)
     };
-    let validated = validation::validate_specialized_program(program, opaque_properties)?;
+    // Quotient requests are judged after the checked termination facts exist
+    // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
+    // `build_check_facts`); validation keeps formation checking here.
+    let validated = validation::validate_specialized_program_deferring_quotient_requests(
+        program,
+        opaque_properties,
+    )?;
 
     let proof_plan = proof::obligations::build_proof_plan(program);
     proof::checker::check_proof_plan(&proof_plan)?;

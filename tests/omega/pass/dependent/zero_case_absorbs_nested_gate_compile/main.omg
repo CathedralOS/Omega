@@ -2,7 +2,7 @@
 // therefore absorbs Player's gate, and an array of slots can zero-initialize.
 use omega_language_std::console;
 use omega::language::core::service;
-data Player { health: i32 [1..=100]; }
+data Player where health >= 1, health <= 100 { health: i32; }
 data PlayerSlot {
     case Empty;
     case Filled(player: Player);

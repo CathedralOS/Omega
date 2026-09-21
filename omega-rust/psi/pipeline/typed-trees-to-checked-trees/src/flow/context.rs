@@ -142,6 +142,12 @@ pub(super) struct FlowBuildContext<'plans> {
         arena::Handle<typed_trees::domain::ProofFact>,
         Rc<Vec<typed_trees::expression::ExpressionHandle>>,
     >,
+    /// Sorted unique integer literals authored anywhere in the program -- the
+    /// widening thresholds `state_values::fields` consults when a joined bound
+    /// keeps extending. Program-pure like the memo tables above, so the
+    /// whole-arena scan and its literal parsing run at most once per build
+    /// rather than once per widening rejoin.
+    integer_literal_thresholds: Option<Rc<Vec<numerics::bignum::BigInt>>>,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
     pub(super) borrow_lifetimes: FlowBorrowLifetimeFacts,
@@ -204,6 +210,7 @@ impl<'plans> FlowBuildContext<'plans> {
             correspondence_root_types: HashMap::new(),
             expression_occurrences: HashMap::new(),
             proof_fact_occurrences: HashMap::new(),
+            integer_literal_thresholds: None,
             state_mutation_summary_cache,
             contexts: FlowContextFacts::with_roots(
                 arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),
@@ -403,6 +410,22 @@ impl<'plans> FlowBuildContext<'plans> {
                 Rc::new(
                     crate::facts::contract_occurrences::fact_referenced_occurrences(program, fact),
                 )
+            })
+            .clone()
+    }
+
+    /// The program's sorted integer-literal widening thresholds. The authored
+    /// set cannot change mid-build, so the collection and its per-literal
+    /// `BigInt` parsing memoize on first widening demand.
+    pub(super) fn integer_literal_thresholds_at(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+    ) -> Rc<Vec<numerics::bignum::BigInt>> {
+        self.integer_literal_thresholds
+            .get_or_insert_with(|| {
+                Rc::new(super::state_values::fields::integer_literal_thresholds(
+                    program,
+                ))
             })
             .clone()
     }

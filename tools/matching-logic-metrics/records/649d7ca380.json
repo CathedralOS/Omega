@@ -1,0 +1,1853 @@
+{
+  "schema": "omega-matching-logic-comparison/1",
+  "generated_utc": "2026-09-20T14:51:15Z",
+  "revision": "649d7ca3802bfd2a8c5568a1d1bc89fecdc12154",
+  "dirty": true,
+  "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "host": "linux-x86_64",
+  "route": {
+    "current": {
+      "checker": {
+        "files": 48,
+        "lines": 26461,
+        "bytes": 1024228,
+        "test_files": 23,
+        "test_lines": 11716,
+        "test_bytes": 453111
+      },
+      "translation": {
+        "files": 8,
+        "lines": 5251,
+        "bytes": 201839,
+        "test_files": 3,
+        "test_lines": 1429,
+        "test_bytes": 49028
+      },
+      "trusted_derivation": {
+        "files": 17,
+        "lines": 5566,
+        "bytes": 211825,
+        "test_files": 2,
+        "test_lines": 578,
+        "test_bytes": 19957
+      },
+      "theory": {
+        "rule_inventory": {
+          "proofRule": 23,
+          "primitiveJudgment": 4,
+          "evidenceRoute": 3,
+          "acceptedProofRule": 23,
+          "obligationClass": 2,
+          "acceptedFactRoute": 3,
+          "proofRuleFoundation": 4
+        },
+        "integer_rules": {
+          "files": 9,
+          "lines": 5348,
+          "bytes": 198039,
+          "test_files": 4,
+          "test_lines": 2243,
+          "test_bytes": 81355
+        },
+        "mathematical_core": {
+          "files": 17,
+          "lines": 14812,
+          "bytes": 589428,
+          "test_files": 15,
+          "test_lines": 8706,
+          "test_bytes": 343744
+        },
+        "predicate_denotation": {
+          "files": 3,
+          "lines": 801,
+          "bytes": 30326,
+          "test_files": 1,
+          "test_lines": 294,
+          "test_bytes": 10082
+        },
+        "imported_rule_forms": {
+          "SemanticAxiom": "ProofRule::SemanticAxiom cites one proposition from the obligation's verifier-reconstructed axiom roster by index",
+          "Assumption": "ProofRule::Assumption cites one supplied premise by index",
+          "trusted_bridge": "obligations no certificate shape covers are decided by the trusted derivation in proof/src/checker (see certificate.rs)"
+        }
+      }
+    },
+    "matching_logic_encoding": {
+      "status": "pending",
+      "note": "the compared encoding needs the bounded slice under tools/matching-logic-slice (MATCHING-LOGIC-BOUNDED-SLICE); every current-route axis is measured so the comparison has its baseline"
+    }
+  },
+  "cases": [
+    {
+      "path": "tests/omega/pass/proofs/proof_inductive_climbing_sum",
+      "polarity": "accept",
+      "source_bytes": 2780,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 25.452,
+          "compile_ms": 25.116,
+          "wall_ms": 31.665787999372697
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 22.72,
+          "compile_ms": 22.45,
+          "wall_ms": 28.576177000104508
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 22.317,
+          "compile_ms": 22.034,
+          "wall_ms": 28.013258000100905
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 22.72,
+        "compile": 22.45,
+        "wall": 28.576
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "inductive_climbing_sum",
+      "subject": "induction over the climbing sum"
+    },
+    {
+      "path": "tests/omega/fail/proofs/inductive_climbing_sum_unbounded_accumulator",
+      "polarity": "reject",
+      "source_bytes": 1729,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 11.261,
+          "compile_ms": null,
+          "wall_ms": 16.629597000246576
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 10.834,
+          "compile_ms": null,
+          "wall_ms": 16.12004100024933
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 11.598,
+          "compile_ms": null,
+          "wall_ms": 16.63627899961284
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 11.261,
+        "compile": null,
+        "wall": 16.63
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "inductive_climbing_sum",
+      "subject": "induction over the climbing sum"
+    },
+    {
+      "path": "tests/omega/fail/proofs/inductive_climbing_sum_step_false_twin",
+      "polarity": "reject",
+      "source_bytes": 1086,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.058,
+          "compile_ms": null,
+          "wall_ms": 13.789138999527495
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 8.743,
+          "compile_ms": null,
+          "wall_ms": 13.342915000066569
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 8.828,
+          "compile_ms": null,
+          "wall_ms": 13.526437000109581
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 8.828,
+        "compile": null,
+        "wall": 13.526
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "inductive_climbing_sum",
+      "subject": "induction over the climbing sum"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_inductive_gauss_sum",
+      "polarity": "accept",
+      "source_bytes": 1116,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 17.099,
+          "compile_ms": 16.796,
+          "wall_ms": 22.54357899983006
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 16.059,
+          "compile_ms": 15.767,
+          "wall_ms": 20.911517000058666
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.44,
+          "compile_ms": 15.165,
+          "wall_ms": 19.94916999956331
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 16.059,
+        "compile": 15.767,
+        "wall": 20.912
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "inductive_gauss_sum",
+      "subject": "induction over the Gauss sum"
+    },
+    {
+      "path": "tests/omega/fail/proofs/inductive_gauss_sum_false_twin",
+      "polarity": "reject",
+      "source_bytes": 971,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 8.729,
+          "compile_ms": null,
+          "wall_ms": 12.769322000167449
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.6,
+          "compile_ms": null,
+          "wall_ms": 14.503879000585584
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.595,
+          "compile_ms": null,
+          "wall_ms": 14.416752999750315
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.595,
+        "compile": null,
+        "wall": 14.417
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "inductive_gauss_sum",
+      "subject": "induction over the Gauss sum"
+    },
+    {
+      "path": "tests/omega/fail/proofs/inductive_gauss_sum_step_false_twin",
+      "polarity": "reject",
+      "source_bytes": 968,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 8.979,
+          "compile_ms": null,
+          "wall_ms": 13.920217999839224
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.286,
+          "compile_ms": null,
+          "wall_ms": 13.78123499944195
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.093,
+          "compile_ms": null,
+          "wall_ms": 13.867147000382829
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.093,
+        "compile": null,
+        "wall": 13.867
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "inductive_gauss_sum",
+      "subject": "induction over the Gauss sum"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_addition_commutativity",
+      "polarity": "accept",
+      "source_bytes": 490,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.807,
+          "compile_ms": 9.537,
+          "wall_ms": 14.704575999530789
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.918,
+          "compile_ms": 9.606,
+          "wall_ms": 14.373327000612335
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.238,
+          "compile_ms": 9.0,
+          "wall_ms": 13.89159800055495
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.807,
+        "compile": 9.537,
+        "wall": 14.373
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "addition_commutativity",
+      "subject": "commutativity of Nat addition"
+    },
+    {
+      "path": "tests/omega/fail/proofs/addition_commutativity_false_twin",
+      "polarity": "reject",
+      "source_bytes": 447,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 7.038,
+          "compile_ms": null,
+          "wall_ms": 11.228121999920404
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.456,
+          "compile_ms": null,
+          "wall_ms": 10.869048000131443
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.627,
+          "compile_ms": null,
+          "wall_ms": 10.994586999913736
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.627,
+        "compile": null,
+        "wall": 10.995
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "addition_commutativity",
+      "subject": "commutativity of Nat addition"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_congruence_add_constant",
+      "polarity": "accept",
+      "source_bytes": 526,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.54,
+          "compile_ms": 9.263,
+          "wall_ms": 13.960618000055547
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.518,
+          "compile_ms": 9.276,
+          "wall_ms": 13.92268299969146
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 12.075,
+          "compile_ms": 11.805,
+          "wall_ms": 17.922392999935255
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.54,
+        "compile": 9.276,
+        "wall": 13.961
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "congruence_add_constant",
+      "subject": "congruence under adding a constant"
+    },
+    {
+      "path": "tests/omega/fail/proofs/congruence_false_twin",
+      "polarity": "reject",
+      "source_bytes": 430,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.129,
+          "compile_ms": null,
+          "wall_ms": 10.812525999426725
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.468,
+          "compile_ms": null,
+          "wall_ms": 10.915324999587028
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.858,
+          "compile_ms": null,
+          "wall_ms": 11.372349000339455
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.468,
+        "compile": null,
+        "wall": 10.915
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "congruence_add_constant",
+      "subject": "congruence under adding a constant"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_linear_range_sum",
+      "polarity": "accept",
+      "source_bytes": 383,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 11.259,
+          "compile_ms": 10.998,
+          "wall_ms": 15.88113300022087
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.602,
+          "compile_ms": 9.333,
+          "wall_ms": 14.314450000711076
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.971,
+          "compile_ms": 9.709,
+          "wall_ms": 14.328637000289746
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.971,
+        "compile": 9.709,
+        "wall": 14.329
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "linear_range_sum",
+      "subject": "linear range sum bound"
+    },
+    {
+      "path": "tests/omega/fail/proofs/linear_range_sum_false_twin",
+      "polarity": "reject",
+      "source_bytes": 410,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.64,
+          "compile_ms": null,
+          "wall_ms": 11.07293600034609
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.611,
+          "compile_ms": null,
+          "wall_ms": 10.86203800059593
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.165,
+          "compile_ms": null,
+          "wall_ms": 10.179793000133941
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.611,
+        "compile": null,
+        "wall": 10.862
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "linear_range_sum",
+      "subject": "linear range sum bound"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_order_antisymmetry",
+      "polarity": "accept",
+      "source_bytes": 318,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.899,
+          "compile_ms": 8.642,
+          "wall_ms": 13.157190000129049
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.731,
+          "compile_ms": 8.444,
+          "wall_ms": 12.776206999660644
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.093,
+          "compile_ms": 8.834,
+          "wall_ms": 13.760756000010588
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 8.899,
+        "compile": 8.642,
+        "wall": 13.157
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "order_antisymmetry",
+      "subject": "antisymmetry of integer order"
+    },
+    {
+      "path": "tests/omega/fail/proofs/order_antisymmetry_false_twin",
+      "polarity": "reject",
+      "source_bytes": 383,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.744,
+          "compile_ms": null,
+          "wall_ms": 9.962877999896591
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.663,
+          "compile_ms": null,
+          "wall_ms": 9.834479999881296
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.546,
+          "compile_ms": null,
+          "wall_ms": 9.66345500000898
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 5.663,
+        "compile": null,
+        "wall": 9.834
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "order_antisymmetry",
+      "subject": "antisymmetry of integer order"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_order_transitivity",
+      "polarity": "accept",
+      "source_bytes": 351,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.046,
+          "compile_ms": 8.804,
+          "wall_ms": 13.402528999904462
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.651,
+          "compile_ms": 8.412,
+          "wall_ms": 12.704637999377155
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.063,
+          "compile_ms": 8.825,
+          "wall_ms": 13.72459100002743
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.046,
+        "compile": 8.804,
+        "wall": 13.403
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "order_transitivity",
+      "subject": "transitivity of integer order"
+    },
+    {
+      "path": "tests/omega/fail/proofs/order_transitivity_false_twin",
+      "polarity": "reject",
+      "source_bytes": 507,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.266,
+          "compile_ms": null,
+          "wall_ms": 13.290498999595002
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.141,
+          "compile_ms": null,
+          "wall_ms": 10.57916900026612
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.986,
+          "compile_ms": null,
+          "wall_ms": 10.323485000299115
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.141,
+        "compile": null,
+        "wall": 10.579
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "order_transitivity",
+      "subject": "transitivity of integer order"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_remainder_range",
+      "polarity": "accept",
+      "source_bytes": 301,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.365,
+          "compile_ms": 8.112,
+          "wall_ms": 12.619582999832346
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.839,
+          "compile_ms": 8.602,
+          "wall_ms": 13.176723000469792
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.526,
+          "compile_ms": 8.263,
+          "wall_ms": 12.914795000142476
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 8.526,
+        "compile": 8.263,
+        "wall": 12.915
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "remainder_range",
+      "subject": "remainder range bound"
+    },
+    {
+      "path": "tests/omega/fail/proofs/remainder_range_false_twin",
+      "polarity": "reject",
+      "source_bytes": 325,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.799,
+          "compile_ms": null,
+          "wall_ms": 10.072468000544177
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.912,
+          "compile_ms": null,
+          "wall_ms": 9.935183999914443
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.726,
+          "compile_ms": null,
+          "wall_ms": 10.07671100069274
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 5.799,
+        "compile": null,
+        "wall": 10.072
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "remainder_range",
+      "subject": "remainder range bound"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_nonlinear_square_range",
+      "polarity": "accept",
+      "source_bytes": 363,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.685,
+          "compile_ms": 9.403,
+          "wall_ms": 13.950974000181304
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.476,
+          "compile_ms": 9.222,
+          "wall_ms": 13.994195999657677
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.877,
+          "compile_ms": 8.629,
+          "wall_ms": 12.892318000012892
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.476,
+        "compile": 9.222,
+        "wall": 13.951
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "nonlinear_square_range",
+      "subject": "nonlinear square range bound"
+    },
+    {
+      "path": "tests/omega/fail/proofs/nonlinear_square_range_false_twin",
+      "polarity": "reject",
+      "source_bytes": 394,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.989,
+          "compile_ms": null,
+          "wall_ms": 10.304659999746946
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.262,
+          "compile_ms": null,
+          "wall_ms": 10.571027999503713
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.397,
+          "compile_ms": null,
+          "wall_ms": 10.892616000091948
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.262,
+        "compile": null,
+        "wall": 10.571
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "nonlinear_square_range",
+      "subject": "nonlinear square range bound"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_integer_quotient_remainder",
+      "polarity": "accept",
+      "source_bytes": 1422,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 29.704,
+          "compile_ms": 29.41,
+          "wall_ms": 34.54547500041372
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 29.739,
+          "compile_ms": 29.466,
+          "wall_ms": 34.54135100037092
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 31.805,
+          "compile_ms": 31.51,
+          "wall_ms": 36.97775399996317
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 29.739,
+        "compile": 29.466,
+        "wall": 34.545
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "integer_quotient",
+      "subject": "integer quotient/remainder bounds"
+    },
+    {
+      "path": "tests/omega/fail/proofs/proof_integer_quotient_false_twin",
+      "polarity": "reject",
+      "source_bytes": 105,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.704,
+          "compile_ms": null,
+          "wall_ms": 10.703414999625238
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.938,
+          "compile_ms": null,
+          "wall_ms": 10.8617369996864
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.398,
+          "compile_ms": null,
+          "wall_ms": 10.093336999489111
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 5.704,
+        "compile": null,
+        "wall": 10.703
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "integer_quotient",
+      "subject": "integer quotient/remainder bounds"
+    },
+    {
+      "path": "tests/omega/fail/proofs/proof_integer_quotient_bound_false_twin",
+      "polarity": "reject",
+      "source_bytes": 140,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.576,
+          "compile_ms": null,
+          "wall_ms": 11.609131000113848
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.521,
+          "compile_ms": null,
+          "wall_ms": 11.288204000265978
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.503,
+          "compile_ms": null,
+          "wall_ms": 11.018178999620432
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.521,
+        "compile": null,
+        "wall": 11.288
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "integer_quotient",
+      "subject": "integer quotient/remainder bounds"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_bignum_constant_fold",
+      "polarity": "accept",
+      "source_bytes": 849,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.877,
+          "compile_ms": 8.6,
+          "wall_ms": 13.796530999570678
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.595,
+          "compile_ms": 8.32,
+          "wall_ms": 13.040173000263167
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.496,
+          "compile_ms": 8.195,
+          "wall_ms": 13.501839000127802
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 8.595,
+        "compile": 8.32,
+        "wall": 13.502
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "bignum_constant_fold",
+      "subject": "big-integer constant folding"
+    },
+    {
+      "path": "tests/omega/fail/proofs/proof_bignum_constant_false",
+      "polarity": "reject",
+      "source_bytes": 463,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 7.173,
+          "compile_ms": null,
+          "wall_ms": 11.513268999806314
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.894,
+          "compile_ms": null,
+          "wall_ms": 11.58475800002634
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.728,
+          "compile_ms": null,
+          "wall_ms": 11.033120000320196
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.894,
+        "compile": null,
+        "wall": 11.513
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "bignum_constant_fold",
+      "subject": "big-integer constant folding"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_integer_embedding",
+      "polarity": "accept",
+      "source_bytes": 360,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.99,
+          "compile_ms": 9.737,
+          "wall_ms": 14.677092999590968
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 10.248,
+          "compile_ms": 9.956,
+          "wall_ms": 14.620031000049494
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 9.707,
+          "compile_ms": 9.452,
+          "wall_ms": 14.16253100069298
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.99,
+        "compile": 9.737,
+        "wall": 14.62
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "integer_embedding",
+      "subject": "integer embedding into the proposition language"
+    },
+    {
+      "path": "tests/omega/fail/proofs/proof_integer_embedding_boolean",
+      "polarity": "reject",
+      "source_bytes": 112,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.799,
+          "compile_ms": null,
+          "wall_ms": 10.506107999390224
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.239,
+          "compile_ms": null,
+          "wall_ms": 9.607474999938859
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 5.801,
+          "compile_ms": null,
+          "wall_ms": 10.169596999730857
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 5.799,
+        "compile": null,
+        "wall": 10.17
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "integer_embedding",
+      "subject": "integer embedding into the proposition language"
+    },
+    {
+      "path": "tests/omega/fail/proofs/proof_integer_embedding_runtime",
+      "polarity": "reject",
+      "source_bytes": 110,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.093,
+          "compile_ms": null,
+          "wall_ms": 10.309209000297415
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.027,
+          "compile_ms": null,
+          "wall_ms": 10.37398900007247
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 13.79,
+          "compile_ms": null,
+          "wall_ms": 18.275430999892706
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.093,
+        "compile": null,
+        "wall": 10.374
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "integer_embedding",
+      "subject": "integer embedding into the proposition language"
+    },
+    {
+      "path": "tests/omega/pass/proofs/nat_metric_triangle_compile",
+      "polarity": "accept",
+      "source_bytes": 1157,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 2090.676,
+          "compile_ms": 2090.35,
+          "wall_ms": 2095.8407240004817
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 1955.035,
+          "compile_ms": 1954.657,
+          "wall_ms": 1962.1042210001178
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 1951.834,
+          "compile_ms": 1951.417,
+          "wall_ms": 1959.2228219999015
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 1955.035,
+        "compile": 1954.657,
+        "wall": 1962.104
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "nat_metric_triangle",
+      "subject": "Nat metric triangle inequality"
+    },
+    {
+      "path": "tests/omega/fail/proofs/nat_metric_false_gap_zero",
+      "polarity": "reject",
+      "source_bytes": 429,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 864.49,
+          "compile_ms": null,
+          "wall_ms": 871.5262420000727
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 930.346,
+          "compile_ms": null,
+          "wall_ms": 937.5415100003011
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 860.924,
+          "compile_ms": null,
+          "wall_ms": 867.9905460003283
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 864.49,
+        "compile": null,
+        "wall": 871.526
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "nat_metric_triangle",
+      "subject": "Nat metric triangle inequality"
+    },
+    {
+      "path": "tests/omega/pass/proofs/nat_exact_subtraction_compile",
+      "polarity": "accept",
+      "source_bytes": 377,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 599.997,
+          "compile_ms": 599.583,
+          "wall_ms": 606.9844809999267
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 597.734,
+          "compile_ms": 597.355,
+          "wall_ms": 604.857782000181
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 609.904,
+          "compile_ms": 609.501,
+          "wall_ms": 616.8097660001877
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 599.997,
+        "compile": 599.583,
+        "wall": 606.984
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "nat_exact_subtraction",
+      "subject": "exact subtraction requiring the order premise"
+    },
+    {
+      "path": "tests/omega/fail/proofs/nat_exact_subtraction_requires_order",
+      "polarity": "reject",
+      "source_bytes": 277,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 594.18,
+          "compile_ms": null,
+          "wall_ms": 601.0694159995182
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 551.372,
+          "compile_ms": null,
+          "wall_ms": 558.9679400000023
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 561.03,
+          "compile_ms": null,
+          "wall_ms": 567.8992580005797
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 561.03,
+        "compile": null,
+        "wall": 567.899
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "nat_exact_subtraction",
+      "subject": "exact subtraction requiring the order premise"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proof_constant_arithmetic_identity",
+      "polarity": "accept",
+      "source_bytes": 404,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 11.63,
+          "compile_ms": 11.305,
+          "wall_ms": 18.266154999764694
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.532,
+          "compile_ms": 8.237,
+          "wall_ms": 14.569363000191515
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 8.777,
+          "compile_ms": 8.468,
+          "wall_ms": 14.54367899987119
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 8.777,
+        "compile": 8.468,
+        "wall": 14.569
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "constant_arithmetic_identity",
+      "subject": "constant arithmetic identity"
+    },
+    {
+      "path": "tests/omega/fail/proofs/constant_equation_refuted",
+      "polarity": "reject",
+      "source_bytes": 388,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.765,
+          "compile_ms": null,
+          "wall_ms": 12.175304999800574
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 7.213,
+          "compile_ms": null,
+          "wall_ms": 12.4400289996629
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 7.346,
+          "compile_ms": null,
+          "wall_ms": 12.06148200071766
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 7.213,
+        "compile": null,
+        "wall": 12.175
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "constant_arithmetic_identity",
+      "subject": "constant arithmetic identity"
+    },
+    {
+      "path": "tests/omega/pass/proofs/quotient_equivalence_compile",
+      "polarity": "accept",
+      "source_bytes": 1258,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.17,
+          "compile_ms": 14.892,
+          "wall_ms": 19.786032999945746
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.744,
+          "compile_ms": 15.459,
+          "wall_ms": 20.826162999583175
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.209,
+          "compile_ms": 14.925,
+          "wall_ms": 20.324740999967617
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 15.209,
+        "compile": 14.925,
+        "wall": 20.325
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "quotient_equivalence",
+      "subject": "quotient type equivalence relation"
+    },
+    {
+      "path": "tests/omega/fail/proofs/quotient_missing_symmetry",
+      "polarity": "reject",
+      "source_bytes": 968,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.558,
+          "compile_ms": null,
+          "wall_ms": 14.843261999885726
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.194,
+          "compile_ms": null,
+          "wall_ms": 13.720111999646178
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.736,
+          "compile_ms": null,
+          "wall_ms": 14.327803000014683
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.558,
+        "compile": null,
+        "wall": 14.328
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "quotient_equivalence",
+      "subject": "quotient type equivalence relation"
+    },
+    {
+      "path": "tests/omega/pass/proofs/proposition_relation_hierarchy_compile",
+      "polarity": "accept",
+      "source_bytes": 3304,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 21.998,
+          "compile_ms": 21.746,
+          "wall_ms": 26.639676999366202
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 33.135,
+          "compile_ms": 32.842,
+          "wall_ms": 38.31900899967877
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 26.131,
+          "compile_ms": 25.787,
+          "wall_ms": 32.23069599971495
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 26.131,
+        "compile": 25.787,
+        "wall": 32.231
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "proposition_relation_hierarchy",
+      "subject": "proposition relation hierarchy"
+    },
+    {
+      "path": "tests/omega/fail/proofs/proposition_relation_inherited_law_rejected",
+      "polarity": "reject",
+      "source_bytes": 615,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 8.987,
+          "compile_ms": null,
+          "wall_ms": 15.181482000116375
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.214,
+          "compile_ms": null,
+          "wall_ms": 14.663043999462388
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 9.435,
+          "compile_ms": null,
+          "wall_ms": 14.887162999912107
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 9.214,
+        "compile": null,
+        "wall": 14.887
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "proposition_relation_hierarchy",
+      "subject": "proposition relation hierarchy"
+    },
+    {
+      "path": "tests/omega/pass/proofs/kernel_integer_discreteness",
+      "polarity": "accept",
+      "source_bytes": 449,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 22579.087,
+          "compile_ms": 22575.334,
+          "wall_ms": 22586.27595500002
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 22553.536,
+          "compile_ms": 22549.989,
+          "wall_ms": 22561.782788000528
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 22477.087,
+          "compile_ms": 22473.778,
+          "wall_ms": 22484.89093400076
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 22553.536,
+        "compile": 22549.989,
+        "wall": 22561.783
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "kernel_integer_discreteness",
+      "subject": "integer discreteness kernel judgment"
+    },
+    {
+      "path": "tests/omega/fail/proofs/kernel_integer_discreteness_false_twin",
+      "polarity": "reject",
+      "source_bytes": 220,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 10910.413,
+          "compile_ms": null,
+          "wall_ms": 10917.783902000338
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 11123.271,
+          "compile_ms": null,
+          "wall_ms": 11130.85467700057
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 11015.202,
+          "compile_ms": null,
+          "wall_ms": 11023.046770999827
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 11015.202,
+        "compile": null,
+        "wall": 11023.047
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "kernel_integer_discreteness",
+      "subject": "integer discreteness kernel judgment"
+    },
+    {
+      "path": "tests/omega/pass/proofs/kernel_integer_subtract_bound",
+      "polarity": "accept",
+      "source_bytes": 197,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 12.093,
+          "compile_ms": 11.731,
+          "wall_ms": 18.39775999997073
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 10.513,
+          "compile_ms": 10.252,
+          "wall_ms": 16.21952200002852
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 10.483,
+          "compile_ms": 10.174,
+          "wall_ms": 16.18261600015103
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 10.513,
+        "compile": 10.252,
+        "wall": 16.22
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "kernel_integer_subtract_bound",
+      "subject": "subtraction bound kernel judgment"
+    },
+    {
+      "path": "tests/omega/fail/proofs/kernel_integer_subtract_bound_false_twin",
+      "polarity": "reject",
+      "source_bytes": 197,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.759,
+          "compile_ms": null,
+          "wall_ms": 11.823599999843282
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 7.033,
+          "compile_ms": null,
+          "wall_ms": 12.266469000678626
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 6.893,
+          "compile_ms": null,
+          "wall_ms": 12.115743000322254
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 6.893,
+        "compile": null,
+        "wall": 12.116
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "kernel_integer_subtract_bound",
+      "subject": "subtraction bound kernel judgment"
+    },
+    {
+      "path": "tests/omega/pass/proofs/kernel_integer_subtract_order",
+      "polarity": "accept",
+      "source_bytes": 437,
+      "runs": [
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.787,
+          "compile_ms": 15.505,
+          "wall_ms": 21.002026999667578
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.019,
+          "compile_ms": 14.767,
+          "wall_ms": 19.894557000043278
+        },
+        {
+          "exit_code": 0,
+          "total_elapsed_ms": 15.49,
+          "compile_ms": 15.228,
+          "wall_ms": 20.57979900018836
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 15.49,
+        "compile": 15.228,
+        "wall": 20.58
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "accept",
+      "expected": "accept",
+      "match": true,
+      "pair": "kernel_integer_subtract_order",
+      "subject": "subtraction order kernel judgment"
+    },
+    {
+      "path": "tests/omega/fail/proofs/kernel_integer_subtract_order_false_twin",
+      "polarity": "reject",
+      "source_bytes": 437,
+      "runs": [
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 16.348,
+          "compile_ms": null,
+          "wall_ms": 21.450062000440084
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 19.422,
+          "compile_ms": null,
+          "wall_ms": 24.648747000355797
+        },
+        {
+          "exit_code": 1,
+          "total_elapsed_ms": 16.407,
+          "compile_ms": null,
+          "wall_ms": 21.82676100073877
+        }
+      ],
+      "check_time_ms": {
+        "total_elapsed": 16.407,
+        "compile": null,
+        "wall": 21.827
+      },
+      "proof_measurements": [],
+      "certificate": {
+        "status": "unavailable",
+        "reason": "per-obligation certificate nodes/bytes are not emitted on this revision; the OMEGA_PROOF_MEASUREMENTS surface is PROOF-SEARCH-MEASUREMENT's delivery and is captured automatically once present"
+      },
+      "outcome": "reject",
+      "expected": "reject",
+      "match": true,
+      "pair": "kernel_integer_subtract_order",
+      "subject": "subtraction order kernel judgment"
+    }
+  ],
+  "evidence": {
+    "logical_fragment": "bounded entailment + certificate admission",
+    "rule_semantics_version": "649d7ca3802bfd2a8c5568a1d1bc89fecdc12154",
+    "observation_profile": "host wall-clock and source inventory under `omega --check --offline --timings`; no product publication",
+    "target_capsule": "check-only; certificates are decided but no artifact/.proof companion is requested",
+    "bridge_graph": "proof-admission kernel verifies emitted certificates; uncovered shapes keep the trusted derivation",
+    "admissions": "per-obligation semantic-axiom and assumption rosters cited by ProofRule::SemanticAxiom/Assumption index"
+  },
+  "omega": "/home/ubuntu/repos/Omega/target/debug/omega",
+  "case_status": "measured",
+  "case_mismatches": 0
+}

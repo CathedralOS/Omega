@@ -1,14 +1,12 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
+    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -26,41 +24,7 @@ use super::{
     validate_run_interchange,
 };
 use crate::ValidatedSelectedAnalysis;
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const MAT_A: SelectedInstructionId = SelectedInstructionId(2);
 const SUM: SelectedInstructionId = SelectedInstructionId(3);
@@ -1381,7 +1345,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         // row = 58.
         (roster_actor, 58u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
             interchange_selected_runs(&source, 0, MAT_A, SUM, MAT_C, DIFF, &environment, exact)
                 .unwrap();
@@ -1397,7 +1361,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             interchange_selected_runs(&source, 0, MAT_A, SUM, MAT_C, DIFF, &environment, starved)
                 .unwrap_err(),
@@ -1487,4 +1451,238 @@ fn interchange_is_deterministic_and_re_admitted() {
             .unwrap_err(),
         RunInterchangeError::UnsupportedPair
     );
+}
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_run_interchange` directly, so
+/// every rejection comes from the validator's own window audit.
+mod independence_tests {
+    use super::{
+        DIFF, FIRST, MAT_A, MAT_C, NativeTarget, OperationId, POINTER, PlaceId,
+        RunInterchangeError, SUM, SelectedInstructionKind, SelectedInstructionPlan,
+        SelectedMemoryAccessRole, THIRD, ValidatedRunInterchange, access,
+        baseline_target_register_environment, budget, fixture, instruction, mutated, settlement,
+        validate_run_interchange,
+    };
+
+    /// Rearrange the window the four indices bound in the source's first
+    /// block to later-run ++ interior ++ earlier-run — the edit a producer
+    /// emitting that interchange would publish — without asking admission
+    /// whether the window is legal.
+    fn forged(
+        source: &ValidatedRunInterchange,
+        earlier_first_index: usize,
+        earlier_last_index: usize,
+        later_first_index: usize,
+        later_last_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let window: Vec<_> = instructions
+            .drain(earlier_first_index..=later_last_index)
+            .collect();
+        let earlier_len = earlier_last_index - earlier_first_index + 1;
+        let later_len = later_last_index - later_first_index + 1;
+        let interior_len = window.len() - earlier_len - later_len;
+        let rearranged: Vec<_> = window[earlier_len + interior_len..]
+            .iter()
+            .chain(&window[earlier_len..earlier_len + interior_len])
+            .chain(&window[..earlier_len])
+            .cloned()
+            .collect();
+        instructions.splice(earlier_first_index..earlier_first_index, rearranged);
+        proposed
+    }
+
+    /// A forged interchange of a window the validator's own audit admits
+    /// validates: the two internally coupled runs trade places around the
+    /// inert interior, every hazard direction and the roster accounting
+    /// hold, and the content comparison accepts the rearrangement.
+    #[test]
+    fn forged_interchange_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_run_interchange(
+            &source,
+            0,
+            MAT_A,
+            SUM,
+            MAT_C,
+            DIFF,
+            &environment,
+            budget(),
+            forged(&source, 1, 2, 4, 5),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the runs traded — the later run's difference reading the
+    /// earlier run's materialization. The validator's own legality audit
+    /// refuses with `UnsupportedPair`, not a replay mismatch, because it
+    /// reconstructs the window's hazards instead of trusting the
+    /// producer's admission record.
+    #[test]
+    fn forged_interchange_across_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        // DIFF's first read moves to FIRST — the earlier run's
+        // materialization defines it, so the runs cannot trade.
+        let source = mutated(target, |function, _| {
+            function.blocks[0].instructions[5].operands[0].virtual_register = FIRST;
+        });
+        assert_eq!(
+            validate_run_interchange(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 1, 2, 4, 5),
+            )
+            .unwrap_err(),
+            RunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a second memory actor anyway would publish
+    /// the runs traded while both carry roster rows — the recorded
+    /// accesses' order would change, so the validator's own accounting
+    /// refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_past_a_second_memory_actor_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[1] = instruction(
+                MAT_A,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, FIRST],
+            );
+            function.blocks[0].instructions[4] = instruction(
+                MAT_C,
+                SelectedInstructionKind::Load8 { byte_offset: 8 },
+                &load,
+                &[POINTER, THIRD],
+            );
+            function.memory_accesses.push(access(
+                MAT_A,
+                PlaceId::new(1).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+            function.memory_accesses.push(access(
+                MAT_C,
+                PlaceId::new(2).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            validate_run_interchange(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 1, 2, 4, 5),
+            )
+            .unwrap_err(),
+            RunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a settled window anyway would publish the
+    /// runs traded across a boundary settlement inside the span — the
+    /// settlement would observe a different executed prefix, so the
+    /// validator's own audit refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_past_an_interior_settlement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function.boundary_settlements.push(settlement(3, 41));
+        });
+        assert_eq!(
+            validate_run_interchange(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 1, 2, 4, 5),
+            )
+            .unwrap_err(),
+            RunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal that leaves the named runs unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the later run
+    /// on the earlier run's span, so the window content comparison rejects
+    /// it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_run_interchange(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            RunInterchangeError::ReplayMismatch
+        );
+    }
+
+    /// A forged interchange plus an unrelated extra edit still fails
+    /// restore: the window's rearrangement is right, but the drifted
+    /// instruction behind the window keeps the restore-by-content
+    /// comparison from reproducing the source.
+    #[test]
+    fn forged_window_with_drifted_content_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, 1, 2, 4, 5);
+        proposed.functions[0].blocks[0].instructions[6]
+            .provenance
+            .operations = vec![OperationId::new(77).unwrap()];
+        assert_eq!(
+            validate_run_interchange(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            RunInterchangeError::ReplayMismatch
+        );
+    }
 }

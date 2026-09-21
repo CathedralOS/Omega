@@ -478,3 +478,35 @@ fn frozen_scalar_copy_cannot_prove_the_mutated_source() {
         );
     }
 }
+
+#[test]
+fn scalar_origins_follow_immutable_local_custody() {
+    for (bindings, argument, accepted) in [
+        ("let saved: u64 = goal;", "saved", true),
+        (
+            "let saved: u64 = goal; let renamed: u64 = saved;",
+            "renamed",
+            true,
+        ),
+        ("let mut saved: u64 = goal;", "saved", false),
+        ("let saved: u64 = goal + 0;", "saved", false),
+    ] {
+        check(
+            &format!(
+                r#"
+            machine write(target: u64) -> u64
+            ensures result == target
+            {{
+                transition {{ _ -> middle(target) }}
+                state middle(goal: u64) {{
+                    {bindings}
+                    transition {{ _ -> finish({argument}) }}
+                }}
+                state finish(wanted: u64) -> u64 {{ wanted }}
+            }}
+        "#
+            ),
+            accepted,
+        );
+    }
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-21T02:36:49Z",
+  "subject": {
+    "name": "wrapping_square_sum",
+    "root": "samples/cli/arithmetic/wrapping_square_sum/main.omg",
+    "source_revision": "2a36697eee524085f31235060ed04f3e85ff1568"
+  },
+  "key": {
+    "target": "uefi_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "applicability": {
+    "status": "non_applicable",
+    "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M4",
+    "logical_cpus": 10,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "unavailable",
+      "unit": "ms",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    },
+    "peak_memory_bytes": {
+      "status": "unavailable",
+      "unit": "bytes",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    },
+    "code_size_bytes": {
+      "status": "unavailable",
+      "unit": "bytes",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    },
+    "runtime_ms": {
+      "status": "unavailable",
+      "unit": "ms",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    }
+  },
+  "notes": []
+}

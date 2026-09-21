@@ -76,7 +76,7 @@ Its source receipt binds typed parameter symbol and authored position, normalize
 carrier, exact requirement, and selected-plan digest. The current implementation
 also requires the separate service qualification; `ENTRY-CONTENT-ROOTS` owns
 retiring that requirement under the
-[intrinsic binding contract](../../../../wiki/spec/build/component_publication.md#service-bindings-and-era-entry),
+[intrinsic binding contract](../../../../wiki/spec/build/component_publication.md#bindings-and-era-entry),
 without losing establishment evidence. The
 raw producer checks typed custody; final compiler admission additionally rejoins
 selection provenance and an ordered call/checked-operation bijection.
@@ -337,11 +337,16 @@ getter results through further computation; `scalar_case_results::record_reads`
 also covers direct reads, padded layouts, distinct roots, and block arrivals.
 Direct nested-field reads retain their separate source-admission boundary.
 
-Closed integer field restrictions retain their exact carrier and inclusive
+The current legacy range-field producer retains exact carriers and inclusive
 bounds through the checked catalog and Terminal declaration. The selected case
-introduces those bounds on its copied scalar payload, allowing
-`ByteRead::Byte(value: i32 [0..=255])` to prove an exact `as u8` conversion through
-ordinary scalar forwarding. A successor parameter annotation is not an
+introduces those bounds on its copied scalar payload, allowing the existing
+`ByteRead::Byte` fixture's bounded `i32` payload to prove an exact `as u8`
+conversion through ordinary scalar forwarding. The accepted source contract
+expresses this as `case Byte(value: i32) where value >= 0 && value <= 255;`.
+This is the required migration, not a claim that the producer already accepts
+that replacement. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
+[board](../../../../TASKS.md) tracks removal of the old scalar suffix and fixture
+migration. A successor parameter annotation is not an
 independent hypothesis. Native providers must establish every promised value;
 byte-input realization rejects restrictions excluding either 0 or 255.
 

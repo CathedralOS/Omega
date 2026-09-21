@@ -504,12 +504,14 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 caller_constant,
@@ -519,6 +521,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 call_result,
@@ -526,6 +529,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                             )),
                             kind: OperationKind::Call {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 callee: machine_id(2),
                                 arguments: vec![caller_constant],
                                 requirement_obligations: Vec::new(),
@@ -562,6 +566,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -581,6 +586,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
 fn empty_contract(raw: u64) -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(raw).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),
