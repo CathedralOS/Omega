@@ -12310,6 +12310,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   beneath a `Match` (`declared_range_inference_local_effects_retain_
   pending_terminal_boundaries`) — stays with its storage owner
   STATE-LOCAL-VALUE-FRONTIER per MATCH-SELECTIVE-LOWERING's flag note.
+  Re-verified holding at `832c55e69b` (linux x86-64): same filtered run —
+  `cargo nextest run -p checked-trees-to-lowered-psi -E
+  'test(~borrowed_scalar_call)' --no-fail-fast` — 19/19 pass.
 - **PSI-DOMAIN-FACT-SELECTION-COVERAGE.** — mined candidate; verify scope then implement.
 - **PSI-NATIVE-FIELD-STORES.** Mined candidate; scope verified at
   b28abc01fe — re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
