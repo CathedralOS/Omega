@@ -130,7 +130,8 @@ mod tests {
 
     fn self_predicate_fact(trees: &mut TypedTrees, predicate: &str) -> ProofFact {
         let mut members = HandleSpan::empty();
-        trees.expression_table
+        trees
+            .expression_table
             .push_name_path_member(&mut members, Identifier::generated("self"));
         let subject = trees
             .expression_table
@@ -139,7 +140,8 @@ mod tests {
                 ..TableNamePath::default()
             }));
         let mut arguments = HandleSpan::empty();
-        trees.expression_table
+        trees
+            .expression_table
             .push_expression_handle(&mut arguments, subject);
         ProofFact::Expression(trees.expression_table.insert(ExpressionNode::Call(
             TableCallExpression {
@@ -179,11 +181,7 @@ mod tests {
             ..DomainDefinition::default()
         };
         trees.proof_facts.append_to_span(&mut domain.facts, fact);
-        declare_domain(
-            trees,
-            SymbolHandle::from_arena_index(symbol_index),
-            domain,
-        )
+        declare_domain(trees, SymbolHandle::from_arena_index(symbol_index), domain)
     }
 
     #[test]
@@ -283,9 +281,7 @@ mod tests {
         });
         let slice = trees
             .type_reference_table
-            .insert(TypeReferenceNode::Slice {
-                element_type: byte,
-            });
+            .insert(TypeReferenceNode::Slice { element_type: byte });
         let mut constraints = HandleSpan::empty();
         trees.type_reference_table.push_constraint(
             &mut constraints,

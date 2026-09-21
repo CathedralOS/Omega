@@ -384,12 +384,15 @@ pub fn declared_domain_instance_implies(
         if (source_domain == target_domain
             || (source.semantic_id.is_valid() && source.semantic_id == target.semantic_id))
             && instance.len() == target_arguments.len()
-            && target_arguments.iter().zip(&instance).all(|(required, given)| {
-                *given
-                    == program
-                        .type_identity(TypeIdentityRequest::ordinary(*required))
-                        .as_str()
-            })
+            && target_arguments
+                .iter()
+                .zip(&instance)
+                .all(|(required, given)| {
+                    *given
+                        == program
+                            .type_identity(TypeIdentityRequest::ordinary(*required))
+                            .as_str()
+                })
         {
             return true;
         }
@@ -654,10 +657,12 @@ mod domain_instance_proof_tests {
         symbol: SymbolHandle,
         name: &str,
     ) -> TypeReferenceHandle {
-        program.type_reference_table.insert(TypeReferenceNode::Named {
-            symbol,
-            name: Identifier::generated(name),
-        })
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::generated(name),
+            })
     }
 
     /// A domain family with one const index parameter, as `Family<const N: u64>`.
