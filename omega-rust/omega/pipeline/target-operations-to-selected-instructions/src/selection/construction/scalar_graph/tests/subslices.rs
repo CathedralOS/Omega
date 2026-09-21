@@ -12,6 +12,7 @@ use semantic_vocabulary::{ObligationId, PlaceId};
 
 fn view_result(place: PlaceId) -> terminal_psi::StructuralOperationResult {
     terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type: StructuralTypeId::new(1).unwrap(),
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

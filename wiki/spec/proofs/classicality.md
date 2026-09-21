@@ -10,7 +10,10 @@ The classification is executable, not only prose:
 `AcceptedProofRule::foundation`
 (`omega-rust/psi/semantics/proof-admission/src/classicality.rs`) assigns each
 rule a `ProofRuleFoundation` by exhaustive match, so a new certificate rule
-does not compile until it is classified. The module's tests keep the
+does not compile until it is classified. `ProofLemma::foundation` and
+`ForAllInRangeFact::ELIMINATION_FOUNDATION`
+(`omega-rust/psi/semantics/proof/src/lemmas.rs`) hold the obligation-side
+lemma vocabulary to the same rule. The module's tests keep the
 boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
 `TrustedAdmission`.
 
@@ -98,8 +101,50 @@ it would need a new `Proposition` connective and a new `ProofRule`
 variant, which the exhaustive `foundation` classification forces into the
 audit before it compiles.
 
-Remaining surface this audit does not yet classify: the obligation-side
-lemma library and deciders in `psi/semantics/proof` (obligation checkers,
-not certificate rules), and the verifier's semantic-axiom reconstruction
-inventory (which axioms may be reconstructed is a separate trusted-list
-question).
+## Obligation-side lemma library and deciders (`psi/semantics/proof`)
+
+These are obligation checkers and premise planners, not certificate rules:
+a checker decides an obligation against declared facts, and whatever it
+cannot discharge becomes a diagnostic rather than an accepted admission.
+
+| Surface | Foundation | Note |
+| ------- | ---------- | ---- |
+| `ProofLemma::{IndexInBounds, NonEmptyHasFirst, WindowLength, WindowSubrange, TailLengthDecreases}` | Constructive-decidable | Closed length/bounds/window relations over `usize`-shaped carriers; each lemma fires only when every premise in `premises()` is already established (`lemmas.rs`). `ProofLemma::foundation` enforces the row by exhaustive match — a new lemma does not compile until it is classified. |
+| `ForAllInRangeFact` / `QuantifiedBound` / `ElementIndex` | Constructive-decidable | Element discharge (`proves_element`, `contains_index`, `is_vacuous`) compares literal bounds only; symbolic bounds answer conservatively — never a decision over an undecidable relation. `ForAllInRangeFact::ELIMINATION_FOUNDATION` pins the elimination step to this row. |
+| `checker/{arrival_stability, assignment_stability, bounded_checks, dependent_bounds, float_ranges, guards, integer_ranges, named_constraints, return_arrival}` | Constructive-decidable | Total deciders over the checked finite shapes: range arithmetic, arrival joins, guard narrowing and named-constraint lookup are each decidable relations over declared data. |
+| `checker/certificate/` | Constructive-decidable over an untrusted input | Bounded-integer legs arrive as untrusted certificates that the proof-admission kernel re-decides; the *decision* is decidable, and the cited rule rows keep their own classification from the table above. |
+| `checker/measurement.rs` | N/A (instrumentation) | Proof-search cost accounting; discharges nothing. |
+| `obligations/{collection, constraints, identity, plan, program_queries, range_tests, ranges}` | N/A (plan formation) | Walks the typed program into obligations and derives/readbacks constraints; produces what must be proved, not inference. |
+| `boundary.rs` | Trusted admission (premise declaration) | Models what a host/provider primitive must establish and preserve — the obligation side of `EvidenceRoute::Admitted`; the obligations themselves are declarations, never proved. |
+| `proof_surface.rs` | N/A (report) | Collects declared proposition/domain/contract sites for reporting. |
+
+No lemma or decider performs case analysis over an undecidable relation,
+introduces a negated premise, or assumes a fact the roster does not carry.
+
+## Verifier semantic-axiom reconstruction inventory
+
+Which reconstructed facts may be cited through `ProofRule::SemanticAxiom`
+is the trusted-list question; the inventory is the trusted-surface ledger
+(`terminal-verifier/src/trusted_surface/reconstruction.rs` + `checker.rs`),
+already exhaustive per `ReconstructedTerminalObligationOwner`,
+`Terminator` and `ReconstructedFactKind` variant. Each row's `soundness`
+records `ExplicitlyTrusted` — this audit classifies *why* each is
+trusted, and which rows are not trusted at all.
+
+| Inventory member(s) | Foundation | Note |
+| ------------------- | ---------- | ---- |
+| `owner:{scalar-block-invariant, operation, call-requires, nominal-cleanup-requires, contract-ensures}` | Trusted admission | Reconstruction authority over *which* obligation exists; each produces a derivable obligation proposition to discharge, not an inference. |
+| `terminator:{jump, conditional, structural-case, return, return-unit, return-unit-partial-affine, return-unit-nominal-affine, return-structural, crash}` | Trusted admission | Edge/exit axiom transport and per-clause obligation reconstruction; the exit sets carry incoming axioms exactly. |
+| `fact:semantic-axiom-roster` | Trusted admission | The ordered deduplicated proposition set `SemanticAxiom` indices cite; dominance-order traversal decides membership, not equality. |
+| `fact:goal-free-scalar-result`, `fact:scalar-carrier-bounds`, `fact:integer-structural-field-read-range`, `fact:field-store-leaf-equation`, `fact:structural-case-arm` | Trusted admission | Emit the result-equality, carrier-bound and establishment propositions that join the roster — the axiom rows a certificate cites. |
+| `fact:call-{parameter-instantiation, requires-instantiation, ensures-import}`, `fact:content-partition-composition`, `fact:successor-parameter-binding` | Trusted admission | Call-frame premise transport: parameter-binding equations and rewritten ensures/requires join the axiom set by reconstruction authority. |
+| `fact:boolean-polarity-implications`, `fact:successor-path-transport`, `fact:branch-condition-transport`, `fact:header-invariant-members` | Constructive (certificate-gated) | Each emitted fact stands on its own canonical certificate accepted by the proof checker before it may join a premise roster — a re-decided derivation, not a trusted premise. |
+| Licensed premise introductions inside `successor-path-transport` and `branch-condition` | Trusted admission | The explicitly enumerated residues — the unrejected fixed-shape restatement, literal-adjacency disequality strengthening, equal-terms unsatisfiable arm falsehood, and the backward-only boundary truth — are admitted premises, listed on the row. |
+| `fact:borrowed-storage-restoration-debt`, `fact:crash-site-retention`, `fact:proof-bearing-scalar-goal`, `fact:record-establishment`, `fact:scalar-case-establishment`, `fact:byte-extent-length`, `fact:structural-effect-observation`, `fact:return-result-binding` | Trusted admission | Reconstructed debt/retention/goal propositions and establishment facts; the canonical-goal row fixes which proposition a producer may choose. |
+
+The boundary holds on this surface too: the certificate-gated rows are
+the only non-trusted emissions, and they rest on the already-classified
+certificate rules (`semantic-axiom`, `assumption`, `predicate-denotation`,
+`equality-transitivity`, `implication-introduction`) — classical content
+could only enter through a new trusted row, which the exhaustive ledger
+bindings force into review.

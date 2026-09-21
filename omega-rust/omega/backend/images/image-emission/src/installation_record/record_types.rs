@@ -127,6 +127,8 @@ pub struct InstallationRecord {
     pub(crate) semantic_code_attribution: Vec<ObjectCodeAttribution>,
     pub(crate) port_effects: Vec<ObjectPortEffect>,
     pub(crate) boundary_settlements: Vec<ObjectBoundarySettlement>,
+    pub(crate) boundary_opaque_applications:
+        boundary_applications::BoundaryOpaqueRepresentationApplications,
     pub(crate) image: ImageFingerprint,
     pub(crate) image_sections: InstalledImageSections,
     pub(crate) compiler_text_validation: CompilerTextValidationEvidence,
@@ -274,6 +276,13 @@ impl InstallationRecord {
         &mut self.compiler_text_validation
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn boundary_opaque_applications_mut_for_test(
+        &mut self,
+    ) -> &mut boundary_applications::BoundaryOpaqueRepresentationApplications {
+        &mut self.boundary_opaque_applications
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
@@ -300,6 +309,15 @@ impl InstallationRecord {
 
     pub fn boundary_settlements(&self) -> &[ObjectBoundarySettlement] {
         &self.boundary_settlements
+    }
+
+    /// Canonical selected-application custody this record claims for the
+    /// artifact's by-value opaque boundary edges. Replay agreement with the
+    /// bound artifact's coverage is checked at `bind_installed_artifact`.
+    pub const fn boundary_opaque_applications(
+        &self,
+    ) -> &boundary_applications::BoundaryOpaqueRepresentationApplications {
+        &self.boundary_opaque_applications
     }
 
     pub fn functions(&self) -> &[InstalledFunction] {

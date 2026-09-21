@@ -513,3 +513,66 @@ fn carried_reference_leaf_indexes_cannot_expose_carrier_replacement_access() {
         }
     }
 }
+
+// A helper result routed through another helper's carrier leaf, a bound
+// local, or a match-refined binding names the same declared leaf: the callee
+// relation keeps the carrier parameter's root and the caller's actual
+// instantiates the leaf through its own carrier.
+#[test]
+fn nested_and_bound_carrier_leaf_routes_retain_caller_origins() {
+    let consume = "machine consume(value: &mut u64) { value = 1; }";
+    for (name, helpers, body, expected) in [
+        (
+            "transitive_call_result",
+            "machine pf(a: View) -> &mut u64 { a.body }\nmachine qf(a: View) -> &mut u64 { pf(a) }",
+            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = qf(view); alias = 1; consume(&mut self.audit);",
+            vec!["self.audit", "self.value"],
+        ),
+        (
+            "bound_transitive_result",
+            "machine pf(a: View) -> &mut u64 { a.body }\nmachine qf(a: View) -> &mut u64 { let r: &mut u64 = pf(a); r }",
+            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = qf(view); alias = 1; consume(&mut self.audit);",
+            vec!["self.audit", "self.value"],
+        ),
+        (
+            "case_bound_leaf",
+            "machine pf(a: View, tag: u64) -> &mut u64 { let pick: &mut u64 = match tag { 0 -> a.body, _ -> a.body }; pick }",
+            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = pf(view, self.value); alias = 1; consume(&mut self.audit);",
+            vec!["self.audit", "self.value"],
+        ),
+        (
+            "divergent_case_leaves_through_nested_call",
+            "machine pf(a: View, b: View, tag: u64) -> &mut u64 { match tag { 0 -> a.body, _ -> b.body } }\nmachine qf(a: View, b: View, tag: u64) -> &mut u64 { pf(a, b, tag) }",
+            "let view: View = View { body: &mut self.value }; let other: View = View { body: &mut self.other }; let alias: &mut u64 = qf(view, other, self.value); alias = 1; consume(&mut self.audit);",
+            vec!["self.audit", "self.other", "self.value"],
+        ),
+    ] {
+        let program = carrier_result_program(body, &format!("{consume}\n{helpers}"));
+        let [state, call] = caller_frames(&program);
+        assert_eq!(
+            state,
+            Some(expected.iter().map(|p| p.to_string()).collect()),
+            "{name} state frame"
+        );
+        assert_eq!(
+            call,
+            Some(vec!["self.audit".to_owned()]),
+            "{name} public answer"
+        );
+    }
+}
+
+// A carrier-rooted route requires the carrier's binding frozen across the
+// prefix: binding the leaf first and then reassigning the carrier leaves the
+// exported relation describing storage the helper no longer holds, so the
+// whole frame stays opaque.
+#[test]
+fn carrier_leaf_bound_before_a_rebase_stays_opaque() {
+    let helpers = "machine consume(value: &mut u64) { value = 1; }\nmachine pf(mut a: View, b: View) -> &mut u64 { let pick: &mut u64 = a.body; a = b; pick }";
+    let program = carrier_result_program(
+        "let view: View = View { body: &mut self.value }; let other: View = View { body: &mut self.other }; let alias: &mut u64 = pf(view, other); alias = 1; consume(&mut self.audit);",
+        helpers,
+    );
+    let [state, _call] = caller_frames(&program);
+    assert!(state.is_none(), "state frame must stay opaque: {state:?}");
+}

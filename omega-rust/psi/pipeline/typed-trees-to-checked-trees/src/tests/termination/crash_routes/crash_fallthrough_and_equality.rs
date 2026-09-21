@@ -864,7 +864,8 @@ fn nested_payload_bearing_sum_equality_retains_record_case_payload_paths() {
             CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => {
                 membership_paths.push(subject.path.clone());
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 for operand in [left.as_ref(), right.as_ref()] {
                     if let CheckedScalarExpression::StructuralParameterField { path, .. } = operand
                     {
@@ -967,7 +968,8 @@ fn payload_sum_equality_expands_acyclic_nested_records_with_exact_paths() {
             CheckedBooleanExpression::StructuralParameterField { path, .. } => {
                 paths.push(path.clone());
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 for operand in [left.as_ref(), right.as_ref()] {
                     if let CheckedScalarExpression::StructuralParameterField { path, .. } = operand
                     {
@@ -1085,7 +1087,8 @@ fn payload_sum_equality_expands_acyclic_nested_sums_with_exact_paths() {
             CheckedBooleanExpression::StructuralCaseMembership { subject, .. } => {
                 membership_paths.push(subject.path.clone());
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 for operand in [left.as_ref(), right.as_ref()] {
                     if let CheckedScalarExpression::StructuralParameterField { path, .. } = operand
                     {

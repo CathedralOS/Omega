@@ -5,12 +5,19 @@ use super::{
     aarch64_shortest_movn_materialization_recipe,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_form, encode_aarch64_selected_i64_less_than_branch_form,
-    encode_aarch64_selected_nonzero_branch_form, encode_aarch64_selected_u64_less_than_branch_form,
+    encode_aarch64_selected_i64_less_than_widened_branch_form,
+    encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_nonzero_widened_branch_form,
+    encode_aarch64_selected_u64_less_than_branch_form,
+    encode_aarch64_selected_u64_less_than_widened_branch_form,
     encode_aarch64_shortest_movn_materialization,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_selected_form_encoding, validate_aarch64_selected_i64_less_than_branch_form,
+    validate_aarch64_selected_i64_less_than_widened_branch_form,
     validate_aarch64_selected_nonzero_branch_form,
+    validate_aarch64_selected_nonzero_widened_branch_form,
     validate_aarch64_selected_u64_less_than_branch_form,
+    validate_aarch64_selected_u64_less_than_widened_branch_form,
     validate_aarch64_shortest_movn_materialization,
 };
 use crate::aarch64_physical_register_model;
@@ -2153,4 +2160,137 @@ fn fused_cbnz_is_exact_rejects_nearby_opcodes_and_does_not_read_nzcv() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn widened_branch_forms_encode_inverted_skip_plus_unconditional_imm26() {
+    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    type Encode = fn(
+        &register_model::ValidatedPhysicalRegisterModel,
+        MachineAlternativeKey,
+        i64,
+    ) -> Result<
+        super::ValidatedAarch64SelectedFormEncoding,
+        Aarch64SelectedFormEncodingError,
+    >;
+    let cases: [(MachineAlternativeKey, Encode, u32); 3] = [
+        (
+            alternative(MachineAlternativeFamily::ConditionalBranchNonZero),
+            encode_aarch64_selected_nonzero_widened_branch_form,
+            0x0,
+        ),
+        (
+            alternative(MachineAlternativeFamily::ConditionalBranchU64LessThan),
+            encode_aarch64_selected_u64_less_than_widened_branch_form,
+            0x2,
+        ),
+        (
+            alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan),
+            encode_aarch64_selected_i64_less_than_widened_branch_form,
+            0xa,
+        ),
+    ];
+    // Displacements beyond `B.cond` imm19 (±1 MiB) but inside `B` imm26
+    // (±128 MiB) encode; the unconditional word's own displacement is the
+    // row displacement minus one word.
+    for (alternative, encode, inverted_condition) in cases {
+        for row_displacement in [-1_048_580, -4, 4, 1_048_576, 134_217_724, 134_217_728] {
+            let encoded = encode(&physical, alternative, row_displacement).unwrap();
+            assert_eq!(encoded.bytes().len(), 8);
+            let skip = u32::from_le_bytes(encoded.bytes()[0..4].try_into().unwrap());
+            assert_eq!(skip, 0x5400_0000 | (2 << 5) | inverted_condition);
+            let target = u32::from_le_bytes(encoded.bytes()[4..8].try_into().unwrap());
+            assert_eq!(target & 0xfc00_0000, 0x1400_0000);
+            let decoded = i64::from(((target & 0x03ff_ffff) << 6) as i32 >> 6) * 4;
+            assert_eq!(decoded, row_displacement - 4);
+            assert_eq!(
+                encoded.footprint().encoded.control,
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+        }
+        for displacement in [-134_217_732, 134_217_732, 2] {
+            assert!(encode(&physical, alternative, displacement).is_err());
+        }
+    }
+}
+
+#[test]
+fn widened_branch_forms_decode_and_reject_corruption() {
+    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    type Encode = fn(
+        &register_model::ValidatedPhysicalRegisterModel,
+        MachineAlternativeKey,
+        i64,
+    ) -> Result<
+        super::ValidatedAarch64SelectedFormEncoding,
+        Aarch64SelectedFormEncodingError,
+    >;
+    type Validate = fn(
+        &register_model::ValidatedPhysicalRegisterModel,
+        MachineAlternativeKey,
+        i64,
+        &[u8],
+    ) -> Result<
+        super::ValidatedAarch64SelectedFormEncoding,
+        Aarch64SelectedFormEncodingError,
+    >;
+    let cases: [(MachineAlternativeKey, Encode, Validate, u32); 3] = [
+        (
+            alternative(MachineAlternativeFamily::ConditionalBranchNonZero),
+            encode_aarch64_selected_nonzero_widened_branch_form,
+            validate_aarch64_selected_nonzero_widened_branch_form,
+            0x0,
+        ),
+        (
+            alternative(MachineAlternativeFamily::ConditionalBranchU64LessThan),
+            encode_aarch64_selected_u64_less_than_widened_branch_form,
+            validate_aarch64_selected_u64_less_than_widened_branch_form,
+            0x2,
+        ),
+        (
+            alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan),
+            encode_aarch64_selected_i64_less_than_widened_branch_form,
+            validate_aarch64_selected_i64_less_than_widened_branch_form,
+            0xa,
+        ),
+    ];
+    for (alternative, encode, validate, inverted_condition) in cases {
+        let row_displacement = 2_000_000;
+        let encoded = encode(&physical, alternative, row_displacement).unwrap();
+        let round_trip =
+            validate(&physical, alternative, row_displacement, encoded.bytes()).unwrap();
+        assert_eq!(round_trip.bytes(), encoded.bytes());
+        // The canonical four-byte form is not a widened row.
+        assert_eq!(
+            validate(&physical, alternative, 0, &encoded.bytes()[0..4]),
+            Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
+        );
+        // A skip word carrying the non-inverted condition is not this form.
+        let wrong_skip = 0x5400_0000_u32 | (2 << 5) | (inverted_condition ^ 0xf);
+        let mut corrupt = encoded.bytes().to_vec();
+        corrupt[0..4].copy_from_slice(&wrong_skip.to_le_bytes());
+        assert_eq!(
+            validate(&physical, alternative, row_displacement, &corrupt),
+            Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
+        );
+        // A second word that is not an unconditional `B` rejects.
+        let mut corrupt = encoded.bytes().to_vec();
+        corrupt[4..8].copy_from_slice(&0x5400_000b_u32.to_le_bytes());
+        assert_eq!(
+            validate(&physical, alternative, row_displacement, &corrupt),
+            Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
+        );
+        // Valid words encoding a different displacement reject.
+        let other = encode(&physical, alternative, row_displacement - 8).unwrap();
+        assert_eq!(
+            validate(&physical, alternative, row_displacement, other.bytes()),
+            Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+        );
+        // A foreign alternative key rejects.
+        let foreign = self::alternative(MachineAlternativeFamily::Jump);
+        assert_eq!(
+            encode(&physical, foreign, row_displacement).map(|encoding| encoding.bytes().len()),
+            Err(Aarch64SelectedFormEncodingError::AlternativeMismatch)
+        );
+    }
 }

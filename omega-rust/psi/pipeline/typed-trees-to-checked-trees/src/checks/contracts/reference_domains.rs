@@ -28,11 +28,7 @@ pub(super) fn proves(
             .span_or_empty(place.segments)
             .to_vec(),
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state.machine_symbol) else {
         return false;
     };
     let mut owned_frames = None;

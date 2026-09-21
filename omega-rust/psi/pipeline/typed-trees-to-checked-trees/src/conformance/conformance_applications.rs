@@ -236,10 +236,20 @@ pub fn close_conformance_application(
             })
             .unwrap_or_else(|| carrier.as_str().to_owned())
     });
+    // The conformance's bound trait symbol is exact; a name match would grab
+    // a same-named trait from a different checked instance (toolchain mounts
+    // are per-package instances, so a foreign conformance can carry a
+    // different `OpaqueRepresentation` handle than the root's first-by-name).
     let Some(trait_definition) = program
         .traits()
         .iter()
-        .find(|definition| definition.name == conformance.trait_name)
+        .find(|definition| definition.symbol == conformance.trait_symbol)
+        .or_else(|| {
+            program
+                .traits()
+                .iter()
+                .find(|definition| definition.name == conformance.trait_name)
+        })
     else {
         return Err(Diagnostic::error(format!(
             "conformance `{declaration_name}` names unresolved trait `{}`",

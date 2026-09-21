@@ -219,7 +219,29 @@ pub enum BuiltinFunction {
     AsmWriteCr0,
     AsmWriteCr3,
     AsmWriteCr4,
-    /// Internal unary predicate used only by selected named-float plans. The
+    /// Instruction-stream serialization and scheduling-hint directives
+    /// (`serialize`/`isb`, `pause`/`yield`/`nop`, AArch64
+    /// `wfe`/`wfi`/`sev`/`sevl`). Zero-operand asm intrinsics with no
+    /// service-reach effect and no modeled machine-state write; legal
+    /// pipeline behavior is pinned by the catalog contract.
+    AsmSerialize,
+    AsmInstructionSyncBarrier,
+    AsmSpinPause,
+    AsmYieldHint,
+    AsmNop,
+    AsmWaitForEvent,
+    AsmWaitForInterrupt,
+    AsmSendEvent,
+    AsmSendEventLocal,
+    /// x86 cache-maintenance operations (`wbinvd`/`invd`/`wbnoinvd`):
+    /// serializing privileged operations that act on the cache hierarchy
+    /// rather than a modeled place. Each reaches the canonical
+    /// `MachineControl` service and requires machine-owner authority.
+    /// Unnameable from source (see AsmHlt).
+    AsmWriteBackInvalidate,
+    AsmInvalidate,
+    AsmWriteBackNoInvalidate,
+    /// Internal unary predicate used only by selected named-float plans. The The
     /// `#` keeps it unnameable from source during the provider migration.
     FloatIsNan,
     /// Internal ternary operations selected only by exact named-float plans.
@@ -289,7 +311,7 @@ pub enum BuiltinFunction {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 72;
+    pub const COUNT: usize = 84;
 
     pub const ALL: [Self; Self::COUNT] = [
         Self::Max,
@@ -364,6 +386,18 @@ impl BuiltinFunction {
         Self::FloatFusedMultiplyAddTowardNegativeF32,
         Self::FloatFusedMultiplyAddTowardNegativeF64,
         Self::IntegerEmbed,
+        Self::AsmSerialize,
+        Self::AsmInstructionSyncBarrier,
+        Self::AsmSpinPause,
+        Self::AsmYieldHint,
+        Self::AsmWriteBackInvalidate,
+        Self::AsmInvalidate,
+        Self::AsmWriteBackNoInvalidate,
+        Self::AsmNop,
+        Self::AsmWaitForEvent,
+        Self::AsmWaitForInterrupt,
+        Self::AsmSendEvent,
+        Self::AsmSendEventLocal,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -394,6 +428,18 @@ impl BuiltinFunction {
             Self::AsmWriteCr0 => "asm#write_cr0",
             Self::AsmWriteCr3 => "asm#write_cr3",
             Self::AsmWriteCr4 => "asm#write_cr4",
+            Self::AsmSerialize => "asm#serialize",
+            Self::AsmInstructionSyncBarrier => "asm#isb",
+            Self::AsmSpinPause => "asm#pause",
+            Self::AsmYieldHint => "asm#yield",
+            Self::AsmNop => "asm#nop",
+            Self::AsmWaitForEvent => "asm#wfe",
+            Self::AsmWaitForInterrupt => "asm#wfi",
+            Self::AsmSendEvent => "asm#sev",
+            Self::AsmSendEventLocal => "asm#sevl",
+            Self::AsmWriteBackInvalidate => "asm#wbinvd",
+            Self::AsmInvalidate => "asm#invd",
+            Self::AsmWriteBackNoInvalidate => "asm#wbnoinvd",
             Self::FloatIsNan => "float#is_nan",
             Self::FloatMultiplyThenAddF32 => "float#multiply_then_add_f32",
             Self::FloatMultiplyThenAddF64 => "float#multiply_then_add_f64",
@@ -529,6 +575,18 @@ impl BuiltinFunction {
             Self::FloatFusedMultiplyAddTowardNegativeF32 => 69,
             Self::FloatFusedMultiplyAddTowardNegativeF64 => 70,
             Self::IntegerEmbed => 71,
+            Self::AsmSerialize => 72,
+            Self::AsmInstructionSyncBarrier => 73,
+            Self::AsmSpinPause => 74,
+            Self::AsmYieldHint => 75,
+            Self::AsmWriteBackInvalidate => 76,
+            Self::AsmInvalidate => 77,
+            Self::AsmWriteBackNoInvalidate => 78,
+            Self::AsmNop => 79,
+            Self::AsmWaitForEvent => 80,
+            Self::AsmWaitForInterrupt => 81,
+            Self::AsmSendEvent => 82,
+            Self::AsmSendEventLocal => 83,
         }
     }
 
@@ -550,7 +608,10 @@ impl BuiltinFunction {
             | Self::AsmReadCr4
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
-            | Self::AsmWriteCr4 => Some("MachineControl"),
+            | Self::AsmWriteCr4
+            | Self::AsmWriteBackInvalidate
+            | Self::AsmInvalidate
+            | Self::AsmWriteBackNoInvalidate => Some("MachineControl"),
             Self::AsmPortOut | Self::AsmPortIn => Some("PortIo"),
             Self::Max
             | Self::Min
@@ -608,6 +669,15 @@ impl BuiltinFunction {
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
+            | Self::AsmSerialize
+            | Self::AsmInstructionSyncBarrier
+            | Self::AsmSpinPause
+            | Self::AsmYieldHint
+            | Self::AsmNop
+            | Self::AsmWaitForEvent
+            | Self::AsmWaitForInterrupt
+            | Self::AsmSendEvent
+            | Self::AsmSendEventLocal
             | Self::AsmSnapshotFlags => None,
         }
     }
@@ -689,6 +759,18 @@ impl BuiltinFunction {
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
             | Self::AsmWriteCr4
+            | Self::AsmSerialize
+            | Self::AsmInstructionSyncBarrier
+            | Self::AsmSpinPause
+            | Self::AsmYieldHint
+            | Self::AsmNop
+            | Self::AsmWaitForEvent
+            | Self::AsmWaitForInterrupt
+            | Self::AsmSendEvent
+            | Self::AsmSendEventLocal
+            | Self::AsmWriteBackInvalidate
+            | Self::AsmInvalidate
+            | Self::AsmWriteBackNoInvalidate
             | Self::ContentOld
             | Self::ContentSeparate
             | Self::IntegerEmbed => false,
@@ -717,10 +799,22 @@ impl BuiltinFunction {
                 | Self::AsmWriteCr0
                 | Self::AsmWriteCr3
                 | Self::AsmWriteCr4
+                | Self::AsmSerialize
+                | Self::AsmInstructionSyncBarrier
+                | Self::AsmSpinPause
+                | Self::AsmYieldHint
+                | Self::AsmNop
+                | Self::AsmWaitForEvent
+                | Self::AsmWaitForInterrupt
+                | Self::AsmSendEvent
+                | Self::AsmSendEventLocal
+                | Self::AsmWriteBackInvalidate
+                | Self::AsmInvalidate
+                | Self::AsmWriteBackNoInvalidate
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 19] {
+    pub fn asm_intrinsics() -> [Self; 31] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -741,6 +835,18 @@ impl BuiltinFunction {
             Self::AsmWriteCr0,
             Self::AsmWriteCr3,
             Self::AsmWriteCr4,
+            Self::AsmSerialize,
+            Self::AsmInstructionSyncBarrier,
+            Self::AsmSpinPause,
+            Self::AsmYieldHint,
+            Self::AsmWriteBackInvalidate,
+            Self::AsmInvalidate,
+            Self::AsmWriteBackNoInvalidate,
+            Self::AsmNop,
+            Self::AsmWaitForEvent,
+            Self::AsmWaitForInterrupt,
+            Self::AsmSendEvent,
+            Self::AsmSendEventLocal,
         ]
     }
 }
@@ -1044,6 +1150,54 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::IntegerEmbed.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmSerialize.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmInstructionSyncBarrier.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmSpinPause.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmYieldHint.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteBackInvalidate.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmInvalidate.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteBackNoInvalidate.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmNop.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWaitForEvent.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWaitForInterrupt.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmSendEvent.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmSendEventLocal.name()),
         ),
     ]
 }

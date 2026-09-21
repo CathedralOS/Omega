@@ -81,7 +81,7 @@ use place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
     frame_place_path, split_place_root,
 };
-use reference_origins::receiver_frame_origin;
+use reference_origins::receiver_frame_origins;
 use state_paths::normalize_state_relative_path;
 use stored_origins::StoredLocalOrigins;
 use transparent_effects::expression_is_effectful_for_transparent_result;
@@ -121,6 +121,7 @@ fn known_call_written_paths_with_summaries(
         call.target_symbol,
         call.target.as_str(),
         &receiver_members,
+        &[],
         None,
         program.statement_table.expression_handles(call.arguments),
         current_machine,
@@ -138,7 +139,8 @@ fn known_call_written_paths_for_parts(
     target_symbol: SymbolHandle,
     target: &str,
     receiver_members: &[String],
-    receiver_origin: Option<&FramePlaceOrigin>,
+    receiver_origins: &[FramePlaceOrigin],
+    receiver_data_name: Option<&str>,
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -151,7 +153,8 @@ fn known_call_written_paths_for_parts(
         target_symbol,
         target,
         receiver_members,
-        receiver_origin,
+        receiver_origins,
+        receiver_data_name,
         arguments,
         current_machine,
         machine_symbols,
@@ -168,7 +171,8 @@ fn known_call_written_paths_for_parts_with_origins(
     target_symbol: SymbolHandle,
     target: &str,
     receiver_members: &[String],
-    receiver_origin: Option<&FramePlaceOrigin>,
+    receiver_origins: &[FramePlaceOrigin],
+    receiver_data_name: Option<&str>,
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -187,15 +191,25 @@ fn known_call_written_paths_for_parts_with_origins(
         return None;
     }
     let exact_callee = machine_state_by_symbol(program, target_symbol);
-    if receiver_origin
-        .is_some_and(|origin| origin.precision == FramePathPrecision::CollectionCoarse)
+    if receiver_origins
+        .iter()
+        .any(|origin| origin.precision == FramePathPrecision::CollectionCoarse)
         && exact_callee.is_none()
     {
         // A collection path is storage evidence, not a nominal receiver name.
         // It cannot select a same-named cached field or machine.
         return None;
     }
+    // A divergent receiver set has no member-chain spelling to select a
+    // callee by. Its declared referent data names the one attached machine a
+    // resolved receiver type could dispatch to — anything else stays refused.
+    let typed_receiver_callee = receiver_data_name
+        .and_then(|data_name| symbols.attached_machine_state(program, data_name, target));
+    if receiver_origins.len() > 1 && exact_callee.is_none() && typed_receiver_callee.is_none() {
+        return None;
+    }
     let (callee_machine, callee_state) = exact_callee
+        .or(typed_receiver_callee)
         .or_else(|| {
             (receiver_members.is_empty()
                 || matches!(receiver_members, [receiver] if receiver == "self"))
@@ -246,7 +260,7 @@ fn known_call_written_paths_for_parts_with_origins(
         callee_machine,
         callee_state,
         receiver_members,
-        receiver_origin,
+        receiver_origins,
         symbols,
         inference,
         argument_origins,
@@ -262,27 +276,35 @@ fn summarize_resolved_call(
     callee_machine: &Machine,
     callee_state: &State,
     receiver_members: &[String],
-    receiver_origin: Option<&FramePlaceOrigin>,
+    receiver_origins: &[FramePlaceOrigin],
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
-    let receiver_base = receiver_origin.cloned().or_else(|| {
-        (!receiver_members.is_empty())
-            .then(|| receiver_members.join("."))
-            .or_else(|| {
-                callee_machine
-                    .attached_data
-                    .as_ref()
-                    .map(|_| "self".to_owned())
-            })
-            .map(|path| FramePlaceOrigin {
-                path,
-                precision: FramePathPrecision::Exact,
-                source: Default::default(),
-            })
-    });
+    // Every proven receiver candidate is a base the callee's `self`-relative
+    // writes may land on; the caller-visible set is the union across bases.
+    // A receiver with no candidate evidence falls back to its member-chain
+    // spelling, then to `self` for an attached callee, then to no base at all.
+    let receiver_bases: Vec<Option<FramePlaceOrigin>> = if receiver_origins.is_empty() {
+        vec![
+            (!receiver_members.is_empty())
+                .then(|| receiver_members.join("."))
+                .or_else(|| {
+                    callee_machine
+                        .attached_data
+                        .as_ref()
+                        .map(|_| "self".to_owned())
+                })
+                .map(|path| FramePlaceOrigin {
+                    path,
+                    precision: FramePathPrecision::Exact,
+                    source: Default::default(),
+                }),
+        ]
+    } else {
+        receiver_origins.iter().cloned().map(Some).collect()
+    };
     let parameters = program.state_parameters(callee_state);
     let mut written = Vec::new();
 
@@ -300,20 +322,22 @@ fn summarize_resolved_call(
     // callee body. A producer may call this same consumer in a finite tree;
     // only enclosing body guards belong to that actual's origin proof.
     for relative in relative_paths? {
-        for instantiated in instantiate_written_path_with_origins(
-            program,
-            caller_machine,
-            &relative,
-            receiver_base.as_ref(),
-            parameters,
-            arguments,
-            &[],
-            symbols,
-            inference,
-            argument_origins,
-        )? {
-            if !written.contains(&instantiated) {
-                written.push(instantiated);
+        for base in &receiver_bases {
+            for instantiated in instantiate_written_path_with_origins(
+                program,
+                caller_machine,
+                &relative,
+                base.as_ref(),
+                parameters,
+                arguments,
+                &[],
+                symbols,
+                inference,
+                argument_origins,
+            )? {
+                if !written.contains(&instantiated) {
+                    written.push(instantiated);
+                }
             }
         }
     }

@@ -16,8 +16,27 @@ use super::{ChannelEnd, EndpointId, InstalledTopology, PipeAdapter, RouteRecord}
 use std::fmt;
 
 /// A granted request: the mediator delivers the frame to `deliver_to`,
-/// which the route table — never the frame — determines.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// which the route table — never the frame — determines. Only
+/// [`InstalledTopology::authorize_send`] mints one: the non-exhaustive seal
+/// makes the grant an unforgeable capability, so `deliver_send` cannot be reached
+/// on a channel the token, direction, and in-flight gates never passed, and
+/// the move-only grant cannot be replayed to deliver a second frame.
+///
+/// ```compile_fail
+/// use topology_plan::topology_installation::SendGrant;
+/// fn forge(binding: u32, deliver_to: u32) -> SendGrant {
+///     SendGrant { binding, deliver_to }
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use topology_plan::topology_installation::SendGrant;
+/// fn replay(grant: SendGrant) -> SendGrant {
+///     grant.clone()
+/// }
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SendGrant {
     pub binding: u32,
     /// The instance holding the request-read end of `binding`.
@@ -25,7 +44,17 @@ pub struct SendGrant {
 }
 
 /// A granted response: delivered to the importer holding response-read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Only [`InstalledTopology::authorize_respond`] mints one, under the same
+/// capability rule as [`SendGrant`].
+///
+/// ```compile_fail
+/// use topology_plan::topology_installation::ResponseGrant;
+/// fn forge(binding: u32, deliver_to: u32) -> ResponseGrant {
+///     ResponseGrant { binding, deliver_to }
+/// }
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ResponseGrant {
     pub binding: u32,
     /// The instance holding the response-read end of `binding`.

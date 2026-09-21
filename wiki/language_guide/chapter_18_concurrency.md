@@ -35,8 +35,8 @@ dynamic refusal through an ordinary sum:
 
 ```omega
 transition runtime.try_start<Worker::run>(move job) {
-    Started(task) -> keep(move task)
-    Rejected(job, reason) -> recover(move job, reason)
+    StartOutcome::Started { task } -> keep(move task)
+    StartOutcome::Rejected { arguments, reason } -> recover(move arguments, reason)
 }
 ```
 
@@ -266,7 +266,7 @@ data Take {
 machine Worker::run(&mut self, ring: &mut Ring) {
     let taken: Take = suspend ring.take();
     transition taken {
-        Take::Got(frame) -> work(frame)
+        Take::Got { frame } -> work(frame)
         Take::Cancelled  -> cleanup()
     }
     ...
@@ -295,7 +295,7 @@ data Event {
 machine Server::run(&mut self) {
     let event: Event = suspend self.inbox.take();
     transition event {
-        Event::Packet(frame) -> handle(frame)
+        Event::Packet { frame } -> handle(frame)
         Event::Tick          -> heartbeat()
         Event::Shutdown      -> drain()
         _                    -> run()
@@ -314,9 +314,9 @@ Using the opening example's possibly suspending and blocking finish operation:
 
 ```omega
 transition suspend block task.finish() {
-    Returned(result) -> use(result)
-    Cancelled -> handle_cancellation()
-    Failed(receipt) -> handle_provider_failure(receipt)
+    TaskOutcome::Returned { value } -> use(value)
+    TaskOutcome::Cancelled -> handle_cancellation()
+    TaskOutcome::Failed { receipt } -> handle_provider_failure(receipt)
 }
 ```
 

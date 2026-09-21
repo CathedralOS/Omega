@@ -35,6 +35,7 @@ fn direct_array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegme
         initializer,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(93),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -148,8 +149,10 @@ fn direct_primitive_array_paths_update_constructed_scalar_payload_without_shadow
             2,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(94),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: place_id(91),
                     structural_type: structural_type_id(93),
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -285,10 +288,12 @@ fn array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
     structural_arguments[0].path = element_path.clone();
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(101),
         result: OperationResult::Scalar(scalar),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(101),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -324,6 +329,7 @@ fn array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegment>) {
     reader.blocks[0].id = reader.entry;
     reader.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(102),
         result: OperationResult::Scalar(scalar),
         kind: OperationKind::PrimitiveScalarRead {
@@ -630,6 +636,7 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
         },
     ]);
     let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(110),
         structural_type: structural_type_id(93),
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -639,6 +646,7 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
     };
     writer.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(110),
         result: OperationResult::Structural(result.clone()),
         kind: OperationKind::EstablishScalarArray {
@@ -661,8 +669,10 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
     });
     caller.blocks[0].operations[0] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(91),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(112),
             ..result
         }),

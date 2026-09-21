@@ -64,17 +64,15 @@ pub(crate) fn canonical_place_type_reference(
     // normalized to the durable machine symbol. In either form, project their
     // fields through the exact attached data declaration rather than treating
     // the machine's nominal self type as an ordinary data reference.
-    if let Some(machine) = program.machines().iter().find(|machine| {
-        program.machine_states(machine).iter().any(|state| {
-            state.symbol == state_symbol
-                && (machine.symbol == root_symbol
-                    || program
-                        .state_parameters(state)
-                        .iter()
-                        .any(|parameter| parameter.is_self && parameter.symbol == root_symbol))
-        })
-    }) && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
-        place.segments.split_first()
+    if let Some((machine, state)) =
+        crate::semantic_calls::find_state_with_machine(program, state_symbol)
+        && (machine.symbol == root_symbol
+            || program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self && parameter.symbol == root_symbol))
+        && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
+            place.segments.split_first()
     {
         if machine.attached_data_application.is_valid() {
             return project_type_reference_from_segments(
@@ -87,18 +85,16 @@ pub(crate) fn canonical_place_type_reference(
         return project_type_reference_from_segments(program, current, remaining);
     }
 
-    if let Some(machine) = program.machines().iter().find(|machine| {
-        machine.attached_data_application.is_valid()
-            && program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == state_symbol)
-    }) && let Some(field) = validation::exact_attached_field(
-        program,
-        machine,
-        root_symbol,
-        program.symbols.name(root_symbol),
-    ) {
+    if let Some((machine, _)) =
+        crate::semantic_calls::find_state_with_machine(program, state_symbol)
+        && machine.attached_data_application.is_valid()
+        && let Some(field) = validation::exact_attached_field(
+            program,
+            machine,
+            root_symbol,
+            program.symbols.name(root_symbol),
+        )
+    {
         let root_field = facts::PlaceSegment::Field {
             symbol: field.symbol,
         };
@@ -190,21 +186,16 @@ fn machine_member_type_reference(
     state_symbol: SymbolHandle,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == state_symbol)
-            .then_some(machine)
-            .and_then(|machine| {
-                program
-                    .machine_owned_data(machine)
-                    .iter()
-                    .find(|owned| owned.symbol == symbol)
-                    .map(|owned| owned.type_reference)
-                    .or_else(|| attached_data_field_type_reference(program, machine, symbol))
-            })
-    })
+    crate::semantic_calls::find_state_with_machine(program, state_symbol).and_then(
+        |(machine, _)| {
+            program
+                .machine_owned_data(machine)
+                .iter()
+                .find(|owned| owned.symbol == symbol)
+                .map(|owned| owned.type_reference)
+                .or_else(|| attached_data_field_type_reference(program, machine, symbol))
+        },
+    )
 }
 
 fn attached_data_field_type_reference(

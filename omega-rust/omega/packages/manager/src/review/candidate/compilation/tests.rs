@@ -156,6 +156,7 @@ fn check_retains_requested_package_entry_after_disposal_without_production() {
         &build,
         &entry,
         None,
+        false,
     )
     .expect("check accepts a package and does not read its unselected main");
     assert_eq!(checked.selected_target_profile(), Some(target));
@@ -222,6 +223,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &[],
         None,
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -241,6 +243,7 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
         &exact,
         &fixture.0.join("consumed"),
         &[],
+        None,
         None,
         None,
         TargetEntryDiscovery::Disabled,
@@ -309,6 +312,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &[],
         None,
         None,
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -332,6 +336,7 @@ fn retained_source_review_rejects_source_drift_before_consuming_checkpoint() {
         &exact,
         &fixture.0.join("final"),
         &[],
+        None,
         None,
         None,
         TargetEntryDiscovery::Disabled,
@@ -522,7 +527,7 @@ impl ConsoleApplicationFixture {
             r#"machine build(builder: &mut Build) {
     builder.application("console-consumer");
     builder.depend_as("ordinary_console", Source::Path { location: "../console" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -533,7 +538,7 @@ impl ConsoleApplicationFixture {
             r#"use ordinary_console::main;
 use omega::language::core::service;
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
@@ -657,6 +662,7 @@ fn assert_root_console_permissions(
         &[],
         None,
         Some(&snapshot),
+        None,
         TargetEntryDiscovery::Dependencies,
         &mut preparation,
     )
@@ -771,7 +777,9 @@ fn assert_root_console_permissions(
 /// independently. The component entry's own call puts that adapter in the
 /// module's realization roster, which is what the published description
 /// exports — nothing here asserts a roster.
-const INDEPENDENT_COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+const INDEPENDENT_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+
+pub boundary trait Pick {
     machine mark(value: i32);
 }
 
@@ -783,7 +791,7 @@ via Binding::VtableField(mark);
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Pick; }
+pub data ComponentEntry { pick: Service<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -824,7 +832,7 @@ impl IndependentComponentFixture {
             r#"machine build(builder: &mut Build) {
     builder.application("independent-consumer");
     builder.depend_as("pick_component", Source::Path { location: "../pick-component" });
-    builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
+    builder.select_provider<pick_component::Pick, pick_component::PickProvider>(CompositionMode::Independent);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -890,6 +898,10 @@ const SET_LEN_FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
     machine set_len(descriptor: i32, length: i32) -> i32
     reaches FilesystemHost;
 }
+
+pub data FilesystemProvider { }
+machine FilesystemProvider::set_len(descriptor: i32, length: i32) -> i32
+    satisfies FilesystemHost::set_len { length }
 "#;
 
 /// An application root over the filesystem package; the root consumer's
@@ -917,6 +929,7 @@ impl FilesystemApplicationFixture {
             r#"machine build(builder: &mut Build) {
     builder.application("filesystem-consumer");
     builder.depend_as("ordinary_filesystem", Source::Path { location: "../filesystem" });
+    builder.select_provider<ordinary_filesystem::FilesystemHost, ordinary_filesystem::FilesystemProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -925,8 +938,9 @@ impl FilesystemApplicationFixture {
         fs::write(
             root.join("application/main.omg"),
             r#"use ordinary_filesystem::main;
+use omega::language::core::service;
 
-pub data Main { files: FilesystemHost; rc: i32; }
+pub data Main { files: Service<FilesystemHost>; rc: i32; }
 pub machine Main::main(&mut self)
 reaches FilesystemHost
 invokes FilesystemHost;
@@ -983,6 +997,7 @@ fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf()
         &exact,
         &fixture.0.join("discovery"),
         &[],
+        None,
         None,
         None,
         TargetEntryDiscovery::Dependencies,

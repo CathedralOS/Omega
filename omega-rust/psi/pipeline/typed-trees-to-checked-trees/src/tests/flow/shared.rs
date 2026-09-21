@@ -271,6 +271,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         conformance_bounds: Vec::new(),
         requires: Default::default(),
         machines: Default::default(),
+        refines: None,
+        refinement_clauses: Vec::new(),
     };
     program.push_trait_machine_signature(
         &mut boundary_trait,

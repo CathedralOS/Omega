@@ -135,7 +135,8 @@ pub(super) fn contains_reference(module: &TerminalModule, root: StructuralTypeId
                     fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
         }
     }
@@ -673,6 +674,7 @@ pub(super) fn validate_call(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,

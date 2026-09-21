@@ -1,10 +1,10 @@
 // The Rust-style colon bound is rejected: property bounds are brackets
 // attached to the name they follow (`T [copy]`), everywhere (frozen
-// decision 13).
+// decision 13). The bound rides a `domain` head: `data` and `machine`
+// headers admit `Name: Type` as a runtime value binder, so only the
+// type-and-const parameter lists still reserve `:` for this rejection.
 
-data Box<T: copy> [copy] {
-    value: T;
-}
+domain<T: copy> T::Held;
 
 data Main {
     value: i32;

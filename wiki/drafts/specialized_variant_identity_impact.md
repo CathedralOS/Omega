@@ -77,10 +77,35 @@ the distinction honestly.
 
 ## Remaining questions
 
-- Which specialization coordinates a variant kind must bind so distinct
-  variants never collide and replay stays deterministic.
-- Whether private symbol naming (`object-file/src/names`) extends to variant
-  identities or variants use pinned names like callback thunks.
 - Whether replacement compatibility keys on source lineage
   (`associated_source_continuation`) plus realization identity, or needs a
-  variant-aware contract.
+  variant-aware contract. The identity machinery already exposes the
+  distinction honestly (distinct `realization_identity` per specialized
+  component); admissibility of a specialized realization in place of an
+  unspecialized one sharing its interface is a component-contract question.
+
+## Answers from the identity machinery
+
+- **Specialization coordinates.** The existing candidate identities already
+  fix the coordinate set a variant kind must bind:
+  `state_specialization/model.rs::candidate_identity` (and its
+  `representation_specialization`/`ranked_rewrites` counterparts) digest the
+  input unit identity, the output unit identity, the machine and dispatch
+  coordinates, and the complete specialization edge roster. A
+  `MachineFunctionIdentity` variant kind therefore binds the producing
+  candidate identity — which transitively binds every specialization
+  coordinate — plus an intra-candidate ordinal when one candidate emits
+  several functions, beside the `StateKey` continuation for source lineage.
+  Distinct candidates produce distinct identities, and the validator's
+  independent replay (`state_specialization/validate.rs`) recomputes the same
+  coordinates, so replays converge.
+- **Symbol naming.** `private_function_symbol_name`
+  (`object/object-file/src/names/mod.rs`) has spelling space only for the
+  `StateKey` coordinates and returns `None` for `CallbackThunk`; thunk
+  symbols instead arrive as externally assigned private names that
+  `private_functions.rs` validates as non-empty and pairwise distinct.
+  A variant kind has no room in the `StateKey`-derived spelling, so it
+  follows the private-function route — a distinct pinned private symbol per
+  variant — unless the spelling grows a specialization-coordinate field.
+  Sharing `Source` identity with the origin is already impossible to
+  conflate: `object_function_symbol` fails closed on duplicate identity rows.

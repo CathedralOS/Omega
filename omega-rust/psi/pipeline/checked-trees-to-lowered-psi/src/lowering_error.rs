@@ -32,6 +32,20 @@ pub enum LoweringError {
         omission: Option<String>,
     },
     Unsupported(&'static str),
+    /// A borrowed-storage restoration window the checked facts do not pin to
+    /// one exact place, or whose restoration is missing on a path. `place` is
+    /// the authored-facing spelling of the moved or stored place.
+    UnpinnedBorrowedStorageWindow {
+        place: String,
+        reason: &'static str,
+    },
+    /// The checked program carries a `Quotient::define`/`Quotient::lift`
+    /// request outside the batch the proof-only correspondence extractor
+    /// admits; no partial table is retained. Each string is one extraction
+    /// diagnostic naming the failed join.
+    UnadmittedQuotientRequest {
+        diagnostics: Vec<String>,
+    },
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,
     IntegerLandingMismatch,

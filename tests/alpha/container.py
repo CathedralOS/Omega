@@ -2,8 +2,8 @@
 """Native-container structure validation for the audited Alpha seeds.
 
 The Alpha seeds are native executables carrying a 16 MiB stamping hole:
-`alpha_x64_windows.exe` is a PE32+ x86-64 image and `alpha_arm64_macos` is an
-arm64 Mach-O. `tools/bootstrap/alpha/seed_env.sh` stamps a raw tape by writing
+`alpha_x64_windows.exe` is a PE32+ x86-64 image, `alpha_arm64_macos` is an
+arm64 Mach-O, and `alpha_x64_linux` is a static x86-64 ELF64. `tools/bootstrap/alpha/seed_env.sh` stamps a raw tape by writing
 [4-byte LE length][tape] at a recorded file offset. This check binds those
 recorded offsets to the container's actual native structure and validates the
 contract the runtime loader depends on:
@@ -12,7 +12,9 @@ contract the runtime loader depends on:
 - the entry point lands inside executable code;
 - the loader imports the host calls the runtime uses (kernel32 I/O +
   VirtualAlloc on Windows; libSystem linkage plus a code signature blob on
-  arm64 macOS, where execution of an unsigned image is refused);
+  arm64 macOS, where execution of an unsigned image is refused; the Linux
+  seed is fully static — any PT_INTERP/PT_DYNAMIC would import an un-audited
+  dynamic loader);
 - a tape section exists whose raw extent is exactly the profile's hole —
   `HOLE_OFF`/`ALPHA_SEED_HOLE_SIZE` — so stamping cannot land outside it;
 - a pristine container's hole is all zero; a stamped container's hole is
@@ -62,6 +64,16 @@ SECTION_TYPE_ZEROFILL = 0x01
 S_ATTR_SOME_INSTRUCTIONS = 0x00000400
 S_ATTR_PURE_INSTRUCTIONS = 0x80000000
 CS_SUPERBLOB_MAGIC = 0xFADE0CC0
+
+ELF_MAGIC = b"\x7fELF"
+ELFCLASS64 = 2
+ELFDATA2LSB = 1
+ET_EXEC = 2
+EM_X86_64 = 0x3E
+PT_LOAD = 1
+PT_INTERP = 3
+PT_DYNAMIC = 2
+PF_X = 1
 
 
 class ContainerError(Exception):
@@ -315,6 +327,80 @@ def parse_macho(reader):
     return sections
 
 
+def parse_elf(reader):
+    reader.expect(reader.slice(0, 4, "ELF header") == ELF_MAGIC,
+                  "ELF container lacks the 0x7fELF magic")
+    reader.expect(reader.slice(4, 1, "ELF header")[0] == ELFCLASS64,
+                  "ELF container is not a 64-bit object")
+    reader.expect(reader.slice(5, 1, "ELF header")[0] == ELFDATA2LSB,
+                  "ELF container is not little-endian")
+    reader.expect(reader.u16(0x10, "ELF header") == ET_EXEC,
+                  "ELF container is not a fixed-position executable")
+    machine = reader.u16(0x12, "ELF header")
+    reader.expect(machine == EM_X86_64,
+                  f"ELF machine is {machine:#06x}, not x86-64")
+    entry = reader.u64(0x18, "ELF header")
+    phoff = reader.u64(0x20, "ELF header")
+    shoff = reader.u64(0x28, "ELF header")
+    phentsize = reader.u16(0x36, "ELF header")
+    phnum = reader.u16(0x38, "ELF header")
+    shentsize = reader.u16(0x3A, "ELF header")
+    shnum = reader.u16(0x3C, "ELF header")
+    shstrndx = reader.u16(0x3E, "ELF header")
+    reader.expect(phnum > 0 and phoff + phentsize * phnum <= reader.size,
+                  "ELF program headers exceed the file")
+    reader.expect(phentsize >= 56, "ELF program header entries undersized")
+    reader.expect(shnum > 0 and shoff + shentsize * shnum <= reader.size,
+                  "ELF section headers exceed the file")
+    reader.expect(shentsize >= 64, "ELF section header entries undersized")
+    reader.expect(shstrndx < shnum, "ELF section-name table index invalid")
+    loads = []
+    for index in range(phnum):
+        base = phoff + phentsize * index
+        ptype = reader.u32(base, "program header")
+        pflags = reader.u32(base + 4, "program header")
+        poffset = reader.u64(base + 8, "program header")
+        pvaddr = reader.u64(base + 16, "program header")
+        pfilesz = reader.u64(base + 32, "program header")
+        pmemsz = reader.u64(base + 40, "program header")
+        if ptype in (PT_INTERP, PT_DYNAMIC):
+            raise ContainerError(
+                "ELF container carries a dynamic loader or dynamic section; "
+                "the audited seed is static and must not")
+        if ptype == PT_LOAD:
+            reader.expect(pfilesz <= pmemsz,
+                          "ELF PT_LOAD filesz exceeds memsz")
+            reader.expect(poffset + pfilesz <= reader.size,
+                          "ELF PT_LOAD extends past the file")
+            reader.expect((poffset - pvaddr) % 0x1000 == 0,
+                          "ELF PT_LOAD offset/vaddr are not congruent pages")
+            loads.append((pflags, poffset, pvaddr, pfilesz))
+    reader.expect(any(flags & PF_X and vaddr <= entry < vaddr + filesz
+                      for flags, offset, vaddr, filesz in loads),
+                  "ELF entry point lies outside executable loaded code")
+    strtab_base = shoff + shentsize * shstrndx
+    strtab_off = reader.u64(strtab_base + 0x18, "section-name table")
+    strtab_size = reader.u64(strtab_base + 0x20, "section-name table")
+    reader.expect(strtab_off + strtab_size <= reader.size,
+                  "ELF section-name table exceeds the file")
+    sections = []
+    for index in range(shnum):
+        base = shoff + shentsize * index
+        name_off = reader.u32(base, "section header")
+        reader.expect(strtab_off + name_off < reader.size,
+                      "ELF section name offset outside the name table")
+        name = reader.cstring(strtab_off + name_off, "section name") \
+            .decode("ascii", "replace")
+        address = reader.u64(base + 0x10, name)
+        offset = reader.u64(base + 0x18, name)
+        size = reader.u64(base + 0x20, name)
+        flags = reader.u64(base + 0x08, name)
+        reader.expect(offset + size <= reader.size,
+                      f"ELF section {name} exceeds the file")
+        sections.append(Section(name, address, size, offset, size, flags))
+    return sections
+
+
 def check_hole(reader, sections, hole_off, hole_size, args):
     tape = next((section for section in sections
                  if section.name in (".tape", "__tape")), None)
@@ -357,7 +443,7 @@ def check_hole(reader, sections, hole_off, hole_size, args):
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("container")
-    parser.add_argument("--format", choices=("pe", "macho"), required=True)
+    parser.add_argument("--format", choices=("pe", "macho", "elf"), required=True)
     parser.add_argument("--hole-off", type=int, required=True)
     parser.add_argument("--hole-size", type=int, required=True)
     parser.add_argument("--max-tape", type=int, required=True)
@@ -373,6 +459,8 @@ def main(argv):
     try:
         if args.format == "pe":
             sections = parse_pe(reader)
+        elif args.format == "elf":
+            sections = parse_elf(reader)
         else:
             sections = parse_macho(reader)
         summary = check_hole(reader, sections, args.hole_off,

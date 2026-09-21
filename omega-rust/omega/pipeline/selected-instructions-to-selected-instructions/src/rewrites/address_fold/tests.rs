@@ -8,16 +8,16 @@ use crate::AddressFoldReceipt;
 use crate::ValidatedAddressFold;
 use crate::ValidatedSelectedAnalysis;
 use crate::fold_selected_address;
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use crate::validate_address_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedSuccessor, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
@@ -26,41 +26,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
 
 const ADDRESS: SelectedInstructionId = SelectedInstructionId(2);
 const CONSUMER: SelectedInstructionId = SelectedInstructionId(3);
@@ -1100,7 +1065,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         16,
     );
     // (1 block) + (2 instructions) + (2 scans of 2) = 7 measured steps.
-    let exact = OptimizationWorkBudget::new(1, 1, 7, 1, 1).unwrap();
+    let exact = measured_step_budget(7);
     let result = fold_selected_address(&source, 0, CONSUMER, &environment, exact).unwrap();
     validate_address_fold(
         &source,
@@ -1111,7 +1076,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         result.transformed().clone(),
     )
     .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, 6, 1, 1).unwrap();
+    let starved = measured_step_budget(6);
     assert_eq!(
         fold_selected_address(&source, 0, CONSUMER, &environment, starved).unwrap_err(),
         AddressFoldError::WorkBudgetExceeded
@@ -1154,9 +1119,9 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             ),
         );
     });
-    let exact = OptimizationWorkBudget::new(1, 1, 10, 1, 1).unwrap();
+    let exact = measured_step_budget(10);
     let result = fold_selected_address(&wider, 0, CONSUMER, &environment, exact).unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, 9, 1, 1).unwrap();
+    let starved = measured_step_budget(9);
     assert_eq!(
         fold_selected_address(&wider, 0, CONSUMER, &environment, starved).unwrap_err(),
         AddressFoldError::WorkBudgetExceeded
@@ -1541,4 +1506,352 @@ fn fold(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedAddressFold, AddressFoldError> {
     fold_selected_address(source, 0, CONSUMER, environment, budget())
+}
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_address_fold` directly, so every
+/// rejection comes from the validator's own diff + legality audit.
+mod independence_tests {
+    use super::{
+        ADDRESS, AddressFoldError, CONSUMER, IntegerSign, IntegerType, NativeTarget, OUTPUT,
+        POINTER, ROOT, SPARE, ScalarType, SelectedInstruction, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, ValidatedAddressFold, ValueId,
+        VirtualRegisterOrigin, baseline_target_register_environment, budget, instruction, keys,
+        kind_with_offset, load_fixture, mutated, register, validate_address_fold,
+    };
+
+    /// Forge a folded consumer in place inside a source fixture's plan.
+    fn forged(
+        source: &ValidatedAddressFold,
+        edit: impl FnOnce(&mut SelectedInstruction),
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        edit(&mut proposed.functions[0].blocks[0].instructions[1]);
+        proposed
+    }
+
+    /// The legal fold shape for the standard fixture: consumer offset 16 +
+    /// producer offset 8 = 24, operand zero rebound to ROOT.
+    fn fold_shape(instruction: &mut SelectedInstruction) {
+        instruction.kind = kind_with_offset(instruction.kind, 24);
+        instruction.operands[0].virtual_register = ROOT;
+    }
+
+    #[test]
+    fn forged_fold_of_a_well_formed_pair_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = load_fixture(
+            target,
+            8,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            keys(&environment).load64.unwrap(),
+            16,
+        );
+        validate_address_fold(
+            &source,
+            0,
+            CONSUMER,
+            &environment,
+            budget(),
+            forged(&source, fold_shape),
+        )
+        .unwrap();
+    }
+
+    /// A producer-side interval violation must fail the validator's own
+    /// audit: a `CopyI64` redefining the base between producer and consumer
+    /// is inadmissible, and the forged fold cannot sneak the stale base in.
+    #[test]
+    fn forged_fold_across_a_base_redefinition_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let copy = environment
+            .constraint(keys(&environment).copy_i64)
+            .unwrap()
+            .clone();
+        let source = mutated(target, |function, _| {
+            function.virtual_registers.push(register(
+                SPARE,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+                function.virtual_registers[0].class,
+                VirtualRegisterOrigin::EntryParameter {
+                    source_value: ValueId::new(5).unwrap(),
+                    parameter_index: 2,
+                },
+            ));
+            // Redefine ROOT between the AddressOffset producer and the
+            // consumer: the folded operand zero would read the wrong value.
+            function.blocks[0].instructions.insert(
+                1,
+                instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::CopyI64,
+                    &copy,
+                    &[SPARE, ROOT],
+                ),
+            );
+        });
+        let mut proposed = source.transformed().clone();
+        fold_shape(&mut proposed.functions[0].blocks[0].instructions[2]);
+        assert_eq!(
+            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
+                .unwrap_err(),
+            AddressFoldError::UnsupportedUse
+        );
+    }
+
+    /// The validator computes the combined displacement itself: a forged
+    /// proposal carrying the consumer's unchanged offset rejects, as does
+    /// one carrying an unrelated value.
+    #[test]
+    fn forged_wrong_displacement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = load_fixture(
+            target,
+            8,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            keys(&environment).load64.unwrap(),
+            16,
+        );
+        for wrong in [16, 8, 0, 25] {
+            let proposed = forged(&source, |instruction| {
+                instruction.kind = kind_with_offset(instruction.kind, wrong);
+                instruction.operands[0].virtual_register = ROOT;
+            });
+            assert_eq!(
+                validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
+                    .unwrap_err(),
+                AddressFoldError::ReplayMismatch,
+                "offset {wrong}"
+            );
+        }
+    }
+
+    /// A displacement that is the correct sum but exceeds the architecture's
+    /// admitted bound must fail the validator's own bound check, not a
+    /// producer precondition.
+    #[test]
+    fn forged_out_of_bound_displacement_rejects() {
+        let target = NativeTarget::linux_arm64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        // Producer offset 32760 + consumer 16 = 32776 > 4095 * 8 bound.
+        let source = load_fixture(
+            target,
+            32760,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            keys(&environment).load64.unwrap(),
+            16,
+        );
+        let proposed = forged(&source, |instruction| {
+            instruction.kind = SelectedInstructionKind::Load64 { byte_offset: 32776 };
+            instruction.operands[0].virtual_register = ROOT;
+        });
+        assert_eq!(
+            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
+                .unwrap_err(),
+            AddressFoldError::UnsupportedOffset
+        );
+    }
+
+    /// Rebinding operand zero to a register other than the producer's base
+    /// is not the fold the audit derives.
+    #[test]
+    fn forged_wrong_base_register_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let copy = environment
+            .constraint(keys(&environment).copy_i64)
+            .unwrap()
+            .clone();
+        let source = mutated(target, |function, _| {
+            function.virtual_registers.push(register(
+                SPARE,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+                function.virtual_registers[0].class,
+                VirtualRegisterOrigin::EntryParameter {
+                    source_value: ValueId::new(5).unwrap(),
+                    parameter_index: 2,
+                },
+            ));
+            function.blocks[0].instructions.push(instruction(
+                SelectedInstructionId(7),
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[POINTER, SPARE],
+            ));
+        });
+        let mut proposed = source.transformed().clone();
+        let consumer = &mut proposed.functions[0].blocks[0].instructions[1];
+        consumer.kind = kind_with_offset(consumer.kind, 24);
+        consumer.operands[0].virtual_register = SPARE;
+        assert_eq!(
+            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
+                .unwrap_err(),
+            AddressFoldError::ReplayMismatch
+        );
+    }
+
+    /// A forged proposal that also edits the producer — or any other
+    /// position — is not a one-instruction fold and rejects on the diff.
+    #[test]
+    fn forged_second_edit_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = load_fixture(
+            target,
+            8,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            keys(&environment).load64.unwrap(),
+            16,
+        );
+        let mut proposed = forged(&source, fold_shape);
+        proposed.functions[0].blocks[0].instructions[0].kind =
+            SelectedInstructionKind::AddressOffset { byte_offset: 4 };
+        assert_eq!(
+            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
+                .unwrap_err(),
+            AddressFoldError::ReplayMismatch
+        );
+    }
+
+    /// The claimed access must name the actually-changed instruction: folding
+    /// CONSUMER while claiming the producer's identity rejects.
+    #[test]
+    fn claimed_access_must_name_the_changed_instruction() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = load_fixture(
+            target,
+            8,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            keys(&environment).load64.unwrap(),
+            16,
+        );
+        assert_eq!(
+            validate_address_fold(
+                &source,
+                0,
+                ADDRESS,
+                &environment,
+                budget(),
+                forged(&source, fold_shape),
+            )
+            .unwrap_err(),
+            AddressFoldError::ReplayMismatch
+        );
+    }
+
+    /// A change to a non-foldable kind cannot launder through the validator:
+    /// the diff lands on a consumer shape the audit refuses first.
+    #[test]
+    fn forged_change_to_an_unfoldable_kind_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let copy = environment
+            .constraint(keys(&environment).copy_i64)
+            .unwrap()
+            .clone();
+        // Consumer is a `CopyI64` (operand shape `[use, def]` but no
+        // referent displacement), and the forged proposal still "folded" it.
+        let source = mutated(target, |function, _| {
+            function.blocks[0].instructions[1] = instruction(
+                CONSUMER,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[POINTER, OUTPUT],
+            );
+        });
+        let mut proposed = source.transformed().clone();
+        proposed.functions[0].blocks[0].instructions[1].operands[0].virtual_register = ROOT;
+        assert_eq!(
+            validate_address_fold(&source, 0, CONSUMER, &environment, budget(), proposed)
+                .unwrap_err(),
+            AddressFoldError::UnsupportedInstruction
+        );
+    }
+
+    /// A pointer whose last definition is not a clean `AddressOffset` cannot
+    /// be folded: the forged proposal carries the fold anyway.
+    #[test]
+    fn forged_fold_of_a_non_offset_producer_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let copy = environment
+            .constraint(keys(&environment).copy_i64)
+            .unwrap()
+            .clone();
+        let source = mutated(target, |function, _| {
+            function.blocks[0].instructions[0] = instruction(
+                ADDRESS,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[ROOT, POINTER],
+            );
+        });
+        assert_eq!(
+            validate_address_fold(
+                &source,
+                0,
+                CONSUMER,
+                &environment,
+                budget(),
+                forged(&source, fold_shape),
+            )
+            .unwrap_err(),
+            AddressFoldError::UnsupportedProducer
+        );
+    }
+
+    /// An operand-shape violation on the changed instruction — a fixed view
+    /// riding the folded operand — refuses before the fold is even read.
+    #[test]
+    fn forged_change_with_fixed_view_operand_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let _ = environment;
+            function.blocks[0].instructions[1].operands[0].fixed_view =
+                Some(register_model::RegisterViewId(0));
+        });
+        assert_eq!(
+            validate_address_fold(
+                &source,
+                0,
+                CONSUMER,
+                &environment,
+                budget(),
+                forged(&source, fold_shape),
+            )
+            .unwrap_err(),
+            AddressFoldError::UnsupportedInstruction
+        );
+    }
+
+    /// An unchanged proposal has no fold to validate: the diff is empty.
+    #[test]
+    fn unchanged_proposal_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = load_fixture(
+            target,
+            8,
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            keys(&environment).load64.unwrap(),
+            16,
+        );
+        assert_eq!(
+            validate_address_fold(
+                &source,
+                0,
+                CONSUMER,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            AddressFoldError::ReplayMismatch
+        );
+    }
 }

@@ -20,6 +20,7 @@ mod mutation_facts;
 fn boolean_read(operation: u64, source: u64, field: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -37,6 +38,7 @@ fn boolean_read(operation: u64, source: u64, field: u64) -> Operation {
 fn boolean_constant(operation: u64, value: bool) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -50,6 +52,7 @@ fn boolean_constant(operation: u64, value: bool) -> Operation {
 fn store(operation: u64, destination: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -65,10 +68,12 @@ fn store(operation: u64, destination: u64, value: u64) -> Operation {
 fn call() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(13),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: id(2),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -89,6 +94,7 @@ fn successor(edge: u64, target: u64) -> SuccessorEdge {
         target: id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -123,6 +129,7 @@ fn receiver_module(cyclic: bool) -> TerminalModule {
     for (operation, field) in [(15, 3), (16, 4)] {
         caller.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -144,6 +151,7 @@ fn receiver_module(cyclic: bool) -> TerminalModule {
         };
         caller.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(3),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -235,6 +243,7 @@ fn loop_cut_does_not_import_a_prefix_field_observation() {
     caller.entry = id(4);
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -244,6 +253,7 @@ fn loop_cut_does_not_import_a_prefix_field_observation() {
             target: id(1),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),

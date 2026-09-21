@@ -10,10 +10,7 @@ use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
-use crate::{
-    aarch64_aapcs64_register_call_keys, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog,
-};
+use crate::{aarch64_aapcs64_register_call_keys, aarch64_register_constraint_catalog_for};
 
 pub const AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
 pub const AARCH64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
@@ -147,7 +144,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
     // closed here rather than falling through an else arm into one family.
     let abi = aarch64_selected_abi(target)
         .map_err(|_| Aarch64ScalarCallTemplateError::UnsupportedTarget)?;
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
@@ -202,7 +199,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
                     .collect::<Vec<_>>(),
             }
         };
-        let catalog = aarch64_register_constraint_catalog(physical);
+        let catalog = aarch64_register_constraint_catalog_for(physical);
         let row = catalog
             .constraints
             .iter()
@@ -305,7 +302,7 @@ fn expected_effects(
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> MachineEncodedEffects {
-    let catalog = aarch64_register_constraint_catalog(physical);
+    let catalog = aarch64_register_constraint_catalog_for(physical);
     let row = catalog
         .constraints
         .iter()
@@ -343,10 +340,11 @@ mod tests {
         Aarch64ScalarCallFixup, Aarch64ScalarCallTemplateError, Aarch64SelectedAbi,
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
         NativeTarget, RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel,
-        aarch64_aapcs64_register_call_keys, aarch64_physical_register_model, aarch64_selected_abi,
-        canonical_fixup, encode_aarch64_selected_scalar_call_template, expected_effects,
-        expected_operand_views, validate_aarch64_selected_scalar_call_template,
+        aarch64_aapcs64_register_call_keys, aarch64_selected_abi, canonical_fixup,
+        encode_aarch64_selected_scalar_call_template, expected_effects, expected_operand_views,
+        validate_aarch64_selected_scalar_call_template,
     };
+    use crate::aarch64_physical_register_model;
     use register_model::validate_physical_register_model;
 
     fn inputs() -> (
