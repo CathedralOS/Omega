@@ -15011,6 +15011,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   test(~constant_rank_endpoints_preserve_landing)'` — 3/3 pass; the
   trio still stands resolved and the draft row still awaits its refresh
   item.
+  Re-witnessed at `8f58b6676b0` (linux x86-64): the same filtered trio run
+  passes 3/3 — no drift since the `b868b9ee8f` re-witness; adjudication
+  unchanged (TERMINATION-RANKING-CHECKS lane owns the family).
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** — scope verified 2026-09-20:
   re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
   gap that a trait requirement expressing an arbitrary nondecidable validity
