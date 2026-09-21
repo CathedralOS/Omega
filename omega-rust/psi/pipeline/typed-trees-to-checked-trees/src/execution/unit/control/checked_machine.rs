@@ -1589,6 +1589,7 @@ fn structural_value_observes_primitive_carrier(
     visited.push(handle);
     match &plans.nodes.get(handle).kind {
         checked_trees::CheckedStructuralValueKind::Reference { source }
+        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
         | checked_trees::CheckedStructuralValueKind::Place(source) => source
             .source_parameter_index()
             .is_some_and(|index| positions.contains(&index)),

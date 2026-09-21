@@ -201,6 +201,54 @@ pub(super) fn argument(
                 result.statement_index,
             )
         };
+    // A whole borrowed `&[T]` view result forwards the descriptor the caller
+    // already holds: the argument is the view's own name, not a new `&place`
+    // borrow, and the viewed storage keeps its owner and extent. The lend is
+    // admitted only while the view's checked loan is still live at this call,
+    // so a forwarded view cannot outlast the storage it borrows. Every other
+    // shared argument keeps the `&place` lane below, which checks its own
+    // borrow expression and referent.
+    if !projected
+        && access == CheckedStructuralAccess::SharedBorrow
+        && crate::execution::terminal_unit::types::borrowed_slice_view_element(
+            program,
+            parameter.type_reference,
+            &[],
+        )
+        .is_some()
+        && result.type_identity == target_identity
+        && let facts::PlaceRoot::Symbol(view_symbol) = place.root
+    {
+        let borrow_state = facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, borrow_state)| borrow_state)
+            .find(|borrow_state| {
+                borrow_state.machine_symbol == machine && borrow_state.state_symbol == state
+            })?;
+        let mut loans = facts
+            .borrow
+            .loans
+            .span_or_empty(borrow_state.loans)
+            .iter()
+            .filter(|loan| loan.owner_symbol == view_symbol);
+        let loan = loans.next()?;
+        if loans.next().is_some()
+            || loan.kind != checked_trees::BorrowAccessKind::Read
+            || call.statement_index > loan.last_use_statement_index
+        {
+            return None;
+        }
+        return Some(CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            path: Vec::new(),
+            type_identity: target_identity.to_owned(),
+            access,
+        });
+    }
     // A whole linear result carries the producer's live claim, not affine
     // cleanup debt. Its exact qualification and transfer events must agree
     // with the consumer; projected and borrowed claim joins remain separate.

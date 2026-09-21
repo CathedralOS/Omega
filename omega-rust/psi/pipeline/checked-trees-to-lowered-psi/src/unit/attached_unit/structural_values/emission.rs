@@ -571,6 +571,11 @@ impl Emission<'_, '_, '_> {
             .get(value)
             .clone();
         match node.kind {
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedStructuralValueKind::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` branch borrows its exact referent place: resolve

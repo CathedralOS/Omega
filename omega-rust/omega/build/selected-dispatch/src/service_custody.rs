@@ -350,7 +350,8 @@ fn structural_shape_contains_fused_service(shape: &CheckedUnitStructuralTypeShap
         CheckedUnitStructuralTypeShape::Reference { .. }
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
-        | CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
+        | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => false,
     }
 }
 
