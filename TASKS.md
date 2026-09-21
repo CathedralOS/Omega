@@ -4741,6 +4741,29 @@ moved to the termination-catalog fence (see that row's refresh note).
   RC-REPOSITORY fmt leg green, RC-PORTABLE-PSI 1/1 and RC-DIAGNOSTICS 1/1
   PASS, remaining gates not run; `tools/release/records/` still carries no
   committed JSON, closure open. Both drafts deleted. No code change.
+- **NEW-RVG-STALE-CALL-GUARD-SOURCE-CHECK.** Resolved — minted name for the
+  stale-call-guard source-check leg of RUNTIME-VALUE-GENERICS, already
+  landed at `725798149efe` ("checks: retire stale guard premises at the
+  source contract check"): `incoming_guard_proves_requires` in the scoped
+  `checks/contracts/calls.rs` now requires the caller state to preserve
+  every field the requirement names plus every unqualified operand name
+  the instantiated label spells (`caller_state_preserves_label_names`),
+  so a stale guard + `limit = 0` rejects at `check_source` before the
+  artifact gate (`runtime_bound_stale_call_guard_rejects_publication`;
+  13/13 `runtime_bound_*` PASS at `b53c7ea260`, folded under
+  NEW-FOLD-LEDGER-DRAFTS-BATCH-8). Re-verified at `891eb5c584` on linux
+  x86-64: both functions intact at `calls.rs:513`/`:~590`. No slice
+  remains under this name.
+- **NEW-PCSL-VERIFICATION-SPEC-LEDGER-STATUS.** Resolved — the dispatched
+  name's scoped deliverable already landed: `cc56e73fd87` ("docs:
+  verification spec states ledger status reconciliation") added the exact
+  status mechanics to `wiki/spec/terminal-psi/verification.md` —
+  `Unfinished` rows name their gap, only `Unfinished` rows may depend on
+  `Unfinished` rows, and the `Proved` set is an explicit record reconciled
+  on every run (unrecorded additions and regressions both fail).
+  Re-verified at `8921697ff1` on linux x86-64: the paragraph is intact on
+  main (verification.md `### Trusted-surface inventory`). No slice remains
+  under this name.
 - **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
   scope verified, slice landed 2026-09-21 (z181): the inventory of
   the `operator` introducer's retirement surface is committed at
@@ -8373,7 +8396,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   external-roots` clean, `hosted_unit_entry` suite 7/7 green. No
   independent slice exists here. Sibling aliases: STARTUP-ENTRY-MECHANICS,
   STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS,
-  BACKEND-STARTUP-ENTRY-MECHANICS.
+  BACKEND-STARTUP-ENTRY-MECHANICS. Re-verified at `7d03d489e3` on linux
+  x86-64: `root_entry/` still carries the five named modules
+  (root_validation, root_admission, provider_execution,
+  progress_profile_installation, opaque_callback_replacement) and
+  `image-emission/src/hosted_unit_entry.rs` is intact; the settled
+  verdict stands (dispatcher re-dispatched the resolved alias).
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
   cb01abfa42 — audit that every vocabulary operation reaching the backend is
