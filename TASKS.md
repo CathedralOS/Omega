@@ -8528,7 +8528,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   bearing cache/TLB ops (`invlpg`, `clflush`) still refuse until a modeled
   memory-operand contract exists; atomics, mode transitions and AArch64
   system ops stay unrecognized per the same axis paragraph.
-- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate — landed the first
+  contracted memory-transfer family: the operand-provenance model is the typed
+  Omega place itself. The catalog gains `AsmInstructionShape::MemoryTransfer`
+  (`AsmMemoryTransferKind::{Load, Store}`) and contracts the canonical
+  unordered AArch64 pair `ldr`/`str`: the memory operand is spelled as an
+  ordinary place expression (`ldr <dest>, <place>` lowers to `<dest> = <place>`,
+  `str <value>, <place>` to `<place> = <value>`), so provenance, permission and
+  exact-type checking are the place's own, exactly as the catalog doc models
+  "authorized memory data moves through a typed view index". Bracketed
+  `[address]` operands still refuse before the shape applies; width-suffixed
+  (`ldrb`/`strh`/...), offset/unscaled, ordered (acquire/release) and
+  multi-register spellings stay refused — each is a different contract
+  (element-width access, address arithmetic, ordering, or a place pair).
+  Witness: new `asm_memory_transfer_compile` pass canary compiles for
+  linux_arm64; the `asm_structured_ldr_str` fail canary keeps pinning the
+  bracketed refusal; `memory_transfer_contracts_pin_place_operands_and_
+  operand_order` + `parses_memory_transfers_as_place_assignments` cover both
+  layers. Remaining families: ordered AArch64 acquire/release (`ldar`/`stlr`,
+  LSE `swp*`/`cas*`/`ld*`) need ordering contracts in the shape, x86
+  memory-destination stores and the exclusive/string/descriptor-table families
+  need their own operand rosters, and the cache-with-memory-operand members
+  (`invlpg`, `clflush`) admit through this shape once a place is spelled.
 - **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified,
   covered. Mines the atomic-operations half of
   `wiki/spec/language/concurrency.md` ("Concurrency and atomic
