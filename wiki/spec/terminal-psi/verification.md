@@ -181,7 +181,7 @@ implementation remains within the unfinished ledger-framework dependency;
 this implementation revision does not claim a proved universal composition
 theorem or change the accepting trust policy.
 
-**Implementation status (re-verified `e63f703bc53f`, linux x86-64):** the
+**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the
 cyclic controls above have checked equivalents on the source path.
 `typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets
 multi-predecessor joins by intersection — a fact holds at a join's entry only
