@@ -4,8 +4,9 @@
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::byte_subslice;
 use crate::execution::terminal_unit::calls::argument_paths::{
-    byte_sequence_literal_argument, checked_call_erased_scalar_arguments,
-    checked_call_scalar_arguments, ordinary_projected_call_is_supported, projected_argument_path,
+    byte_sequence_literal_argument, checked_call_erased_proof_arguments,
+    checked_call_erased_scalar_arguments, checked_call_scalar_arguments,
+    ordinary_projected_call_is_supported, projected_argument_path,
     target_contract_mentions_projected_parameter,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
@@ -499,7 +500,11 @@ pub(in crate::execution) fn build_call_operation(
         } {
             return None;
         }
-        if !signature_contracts_are_exact_parameter_qualifications(program, signature) {
+        if !signature_contracts_are_exact_parameter_qualifications(
+            program,
+            definition.symbol,
+            signature,
+        ) {
             return None;
         }
         // Suspension parks the activation, which this synchronous call
@@ -560,7 +565,11 @@ pub(in crate::execution) fn build_call_operation(
             .any(|candidate_state| candidate_state.symbol == target_state.symbol)
     })?;
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
-    let boundary = target_machine.supply_mode.is_boundary_declaration();
+    // A bodied `boundary machine` is a checked adapter: callers reach its
+    // authored body as an ordinary callee; only the bodyless declaration is
+    // a boundary edge.
+    let boundary =
+        target_machine.supply_mode.is_boundary_declaration() && !target_machine.body_is_present;
     // Boundary results currently carry identity/claims, not an array payload.
     // Ordinary calls get their payload from the independently checked body.
     if boundary && validation::is_closed_primitive_array_type(program, target_state.return_type) {
@@ -599,7 +608,11 @@ pub(in crate::execution) fn build_call_operation(
     } {
         return None;
     }
-    if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
+    if !boundary
+        && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
+            || (target_machine.supply_mode == MachineSupplyMode::Boundary
+                && target_machine.body_is_present))
+    {
         return None;
     }
     let structural_arguments = structural_call_arguments(
@@ -668,6 +681,25 @@ pub(in crate::execution) fn build_call_operation(
             state.symbol,
             coordinate,
             &erased_scalar_parameters,
+        )?
+    };
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(
+            program,
+            target_state,
+        )?;
+    let erased_proof_arguments = if boundary {
+        if !erased_proof_parameters.is_empty() {
+            return None;
+        }
+        Vec::new()
+    } else {
+        checked_call_erased_proof_arguments(
+            program,
+            facts,
+            state.symbol,
+            coordinate,
+            &erased_proof_parameters,
         )?
     };
     if !boundary {
@@ -745,6 +777,7 @@ pub(in crate::execution) fn build_call_operation(
             service_reach: call.service_reach,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             discard_result_on_return: false,
         };
@@ -928,6 +961,7 @@ pub(in crate::execution) fn build_call_operation(
                 service_reach: call.service_reach,
                 scalar_arguments,
                 erased_scalar_arguments,
+                erased_proof_arguments,
                 structural_arguments,
                 discard_result_on_return: result.multiplicity == Multiplicity::Affine
                     && !reference_loan.is_valid(),
@@ -981,6 +1015,7 @@ pub(in crate::execution) fn build_call_operation(
             service_reach: call.service_reach,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             discard_result_on_return: true,
         })
@@ -1004,6 +1039,7 @@ pub(in crate::execution) fn build_call_operation(
             service_reach: call.service_reach,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers: transfers,
         })

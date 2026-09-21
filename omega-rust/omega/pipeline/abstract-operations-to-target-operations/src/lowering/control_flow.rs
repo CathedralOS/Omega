@@ -65,6 +65,10 @@ pub(super) fn lower(
     // Invocation borrows keep their original places throughout the graph.
     // Shared signature preparation owns referent layout and ABI placement;
     // only transferred block descriptors need the narrower edge classifier.
+    // Whole-root domain qualifications are signature preconditions the caller or
+    // root installation discharges at invocation; admission binds the roster and
+    // checks it again wherever a call edge or structural return transfers it.
+    // Projected (path-beneath-root) qualifications still decline admission.
     if !matches!(
         function.result,
         AbstractFunctionResult::Unit
@@ -72,8 +76,7 @@ pub(super) fn lower(
             | AbstractFunctionResult::Structural(_)
     ) || (!unobserved_owned
         && !function.structural_parameters.iter().all(|parameter| {
-            parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
+            parameter.projected_qualifications.is_empty()
                 && ((parameter.access != StructuralAccess::Owned
                     && matches!(
                         parameter.multiplicity,
@@ -265,17 +268,17 @@ pub(super) fn lower(
             }
             | AbstractOperation::ReturnUnit {
                 cleanup_actions, ..
-            } if cleanup_actions
-                .iter()
-                .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_))) =>
+            } if cleanup_actions.iter().all(|action| {
+                matches!(
+                    action,
+                    TerminalAffineCleanupAction::DiscardRoot(_)
+                        | TerminalAffineCleanupAction::DiscardResidual(_)
+                )
+            }) =>
             {
                 Vec::new()
             }
-            AbstractOperation::Jump {
-                target,
-                residual_affine_discards,
-                ..
-            } if residual_affine_discards.is_empty() => {
+            AbstractOperation::Jump { target, .. } => {
                 vec![*target]
             }
             AbstractOperation::Conditional {

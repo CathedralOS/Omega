@@ -10,6 +10,8 @@ mod local_establishments;
 mod structural_calls;
 mod unit_calls;
 
+pub(crate) use local_establishments::validate_establish_trivial_affine_local;
+
 use crate::validation::structural_operations::claim_transfers::validate_service_reach;
 use crate::validation::structural_operations::contract_places::validate_unit_call_contract_places;
 use crate::validation::structural_operations::primitive_calls::validate_primitive_structural_call;
@@ -124,6 +126,7 @@ pub(crate) fn validate_unit_operation_static(
             callee,
             arguments: _,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,

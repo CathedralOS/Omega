@@ -1,1 +1,1 @@
-requires one exact proved associative/commutative algebra instance
+requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine

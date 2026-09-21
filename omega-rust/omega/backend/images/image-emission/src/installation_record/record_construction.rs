@@ -78,6 +78,7 @@ where
         selected_provider_plans,
         provider_executions,
         component_progress,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
 }
 
@@ -87,12 +88,18 @@ where
 /// Selected plans need not all execute in this image, but every execution must
 /// belong to the selected closure and the execution closure must still match
 /// the image's retained boundary settlements exactly.
+///
+/// `boundary_opaque_applications` is the artifact's retained by-value opaque
+/// custody — the boundary application coverage's `opaque_applications`, or the
+/// canonical empty set when the artifact carries no coverage. Bind rejects a
+/// record whose claimed custody disagrees with the installed artifact's.
 pub fn build_installation_record_with_selected_provider_plans_and_evidence<'execution, Execution>(
     image: &ExecutableImage,
     profile_decision: ProfileDecisionId,
     selected_provider_plans: impl IntoIterator<Item = u64>,
     provider_executions: impl IntoIterator<Item = &'execution Execution>,
     component_progress: Option<&dyn installation_evidence::ComponentProgressAcceptanceEvidence>,
+    boundary_opaque_applications: boundary_applications::BoundaryOpaqueRepresentationApplications,
 ) -> Result<InstallationRecord, InstallationError>
 where
     Execution: installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
@@ -268,6 +275,7 @@ where
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
+        boundary_opaque_applications,
         image: fingerprint_image(&image.output().bytes),
         image_sections: installed_image_sections(image),
         compiler_text_validation,

@@ -85,6 +85,15 @@ target. The audit explains what may run during compilation, not merely what the
 eventual binary may do. Broad risk labels or a package's own assurances cannot
 replace these checked requests.
 
+Include the enabled [test groups](../build/testing.md), their fixture setup and
+selected providers in this build-time review. Requests retain their test/group
+origin rather than being folded into runtime acceptance. Unaccepted restricted
+test execution stops before the action, even if the build entry itself was
+benign. Test registration, dependency locks, and provider requests cannot widen
+the root's delegated capabilities or replace its virtual filesystem with a real
+one. Changed enablement/provider selections require the applicable fresh review;
+an earlier disabled group is not an execution grant.
+
 Before executing a restricted build action, compare its complete normalized
 request against the consuming project's accepted lock policy. New or widened
 requests require explicit acceptance through the ordinary install/update review

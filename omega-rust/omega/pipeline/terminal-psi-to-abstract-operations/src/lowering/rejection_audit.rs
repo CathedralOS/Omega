@@ -47,6 +47,7 @@ fn machine(id: u64, result: TerminalMachineResult, blocks: Vec<Block>) -> Termin
         entry: BlockId::new(1).unwrap(),
         blocks,
         contract: MachineContract {
+            erased_proof_formals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             crash_routes: Vec::new(),
@@ -59,6 +60,7 @@ fn machine(id: u64, result: TerminalMachineResult, blocks: Vec<Block>) -> Termin
 
 fn block(id: u64, operations: Vec<Operation>, terminator: Terminator) -> Block {
     Block {
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(id).unwrap(),
         parameters: Vec::new(),
         erased_scalar_formals: Vec::new(),
@@ -82,6 +84,7 @@ fn unit_block(id: u64, operations: Vec<Operation>) -> Block {
 fn op(id: u64, result: OperationResult, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result,
         kind,
@@ -90,6 +93,7 @@ fn op(id: u64, result: OperationResult, kind: OperationKind) -> Operation {
 
 fn structural_result(id: u64) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: PlaceId::new(id).unwrap(),
         structural_type: StructuralTypeId::new(1).unwrap(),
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -189,6 +193,7 @@ fn projected_structural_successor_argument_rejects() {
         1,
         Vec::new(),
         Terminator::Jump {
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(1).unwrap(),
             target: BlockId::new(2).unwrap(),
             arguments: Vec::new(),
@@ -222,6 +227,7 @@ fn jump_to_missing_block_rejects_as_block_missing() {
         1,
         Vec::new(),
         Terminator::Jump {
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(1).unwrap(),
             target: BlockId::new(9).unwrap(),
             arguments: Vec::new(),
@@ -251,6 +257,7 @@ fn jump_arity_mismatch_rejects() {
         1,
         Vec::new(),
         Terminator::Jump {
+            erased_proof_arguments: Vec::new(),
             edge: EdgeId::new(1).unwrap(),
             target: BlockId::new(2).unwrap(),
             arguments: Vec::new(),
@@ -564,7 +571,7 @@ fn write_only_store_without_declared_destination_rejects() {
 }
 
 #[test]
-fn runtime_indexed_store_rejects_as_unsupported() {
+fn runtime_indexed_store_without_declared_destination_rejects() {
     let operation = op(
         1,
         OperationResult::Unit,
@@ -583,7 +590,7 @@ fn runtime_indexed_store_rejects_as_unsupported() {
     )]);
     assert_eq!(
         reject(&module),
-        LoweringError::UnsupportedIndexedPrimitiveStore(OperationId::new(1).unwrap())
+        LoweringError::InvalidWriteOnlyPrimitiveStore(OperationId::new(1).unwrap())
     );
 }
 

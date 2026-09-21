@@ -24,6 +24,10 @@ use typed_trees::TypedTrees;
 /// Build/target selection owns this identity. The interpreter neither discovers
 /// an entry from source spelling nor retries alternate names. `stdin` provides
 /// the bytes a `read_line` host call would consume.
+/// A `roots.bind` selection already resolved its machine to a symbol under the
+/// binding occurrence's lexical package; [`interpret_entry_symbol`] consumes
+/// that identity directly so a same-named declaration elsewhere in the program
+/// cannot be picked up instead.
 /// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
 /// carrier. Cross-target and package-build callers supply the selected checked
@@ -50,6 +54,37 @@ pub fn interpret_entry(
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
+    interpret_scoped(
+        checked,
+        BuildMachineEntry::Name(entry_machine_name),
+        stdin,
+        options,
+    )
+}
+
+/// [`interpret_entry`] with the selected entry's exact machine symbol.
+/// Symbol identity cannot drift to a same-named machine declared in another
+/// module or package of the same program.
+pub fn interpret_entry_symbol(
+    checked: &CheckedTrees,
+    entry_machine_symbol: SymbolHandle,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
+    interpret_scoped(
+        checked,
+        BuildMachineEntry::Symbol(entry_machine_symbol),
+        stdin,
+        options,
+    )
+}
+
+fn interpret_scoped(
+    checked: &CheckedTrees,
+    entry: BuildMachineEntry<'_>,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
     // deep programs even with the call-depth budget. A scoped thread lets us keep the
@@ -58,7 +93,7 @@ pub fn interpret_entry(
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
-                interpret_on_current_thread(checked, entry_machine_name, stdin, options)
+                interpret_on_current_thread(checked, entry, stdin, options)
             })
             .expect("spawn interpreter worker thread")
             .join()
@@ -567,7 +602,7 @@ fn evaluate_granted_arguments(
 
 fn interpret_on_current_thread(
     checked: &CheckedTrees,
-    entry_machine_name: &str,
+    entry: BuildMachineEntry<'_>,
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
@@ -657,7 +692,12 @@ fn interpret_on_current_thread(
             evaluator.real_fs = Some(filesystem);
         }
     }
-    let result = evaluator.run_entry(entry_machine_name);
+    let result = match entry {
+        BuildMachineEntry::Name(entry_machine_name) => evaluator.run_entry(entry_machine_name),
+        BuildMachineEntry::Symbol(entry_machine_symbol) => {
+            evaluator.run_entry_symbol(entry_machine_symbol)
+        }
+    };
     evaluator.finish_cell_usage();
     let usage = evaluator.usage;
     match result {
@@ -678,7 +718,7 @@ fn interpret_on_current_thread(
 
 #[cfg(test)]
 mod atomic_fence_tests {
-    use super::interpret_on_current_thread;
+    use super::{BuildMachineEntry, interpret_on_current_thread};
     use crate::InterpretOptions;
     use checked_trees::CheckedTrees;
     use checked_trees::expression::{ExpressionNode, TableAtomicExpression};
@@ -708,8 +748,12 @@ mod atomic_fence_tests {
                 ),
         }));
 
-        let outcome =
-            interpret_on_current_thread(&checked, "Main.main", &[], InterpretOptions::default());
+        let outcome = interpret_on_current_thread(
+            &checked,
+            BuildMachineEntry::Name("Main.main"),
+            &[],
+            InterpretOptions::default(),
+        );
 
         assert_eq!(
             outcome.error.as_deref(),

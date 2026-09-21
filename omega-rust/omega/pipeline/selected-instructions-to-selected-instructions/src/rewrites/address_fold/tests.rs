@@ -8,16 +8,16 @@ use crate::AddressFoldReceipt;
 use crate::ValidatedAddressFold;
 use crate::ValidatedSelectedAnalysis;
 use crate::fold_selected_address;
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use crate::validate_address_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedSuccessor, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
@@ -26,41 +26,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
 
 const ADDRESS: SelectedInstructionId = SelectedInstructionId(2);
 const CONSUMER: SelectedInstructionId = SelectedInstructionId(3);
@@ -1100,7 +1065,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         16,
     );
     // (1 block) + (2 instructions) + (2 scans of 2) = 7 measured steps.
-    let exact = OptimizationWorkBudget::new(1, 1, 7, 1, 1).unwrap();
+    let exact = measured_step_budget(7);
     let result = fold_selected_address(&source, 0, CONSUMER, &environment, exact).unwrap();
     validate_address_fold(
         &source,
@@ -1111,7 +1076,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         result.transformed().clone(),
     )
     .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, 6, 1, 1).unwrap();
+    let starved = measured_step_budget(6);
     assert_eq!(
         fold_selected_address(&source, 0, CONSUMER, &environment, starved).unwrap_err(),
         AddressFoldError::WorkBudgetExceeded
@@ -1154,9 +1119,9 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             ),
         );
     });
-    let exact = OptimizationWorkBudget::new(1, 1, 10, 1, 1).unwrap();
+    let exact = measured_step_budget(10);
     let result = fold_selected_address(&wider, 0, CONSUMER, &environment, exact).unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, 9, 1, 1).unwrap();
+    let starved = measured_step_budget(9);
     assert_eq!(
         fold_selected_address(&wider, 0, CONSUMER, &environment, starved).unwrap_err(),
         AddressFoldError::WorkBudgetExceeded
@@ -1547,7 +1512,13 @@ fn fold(
 /// proposal below is handed to `validate_address_fold` directly, so every
 /// rejection comes from the validator's own diff + legality audit.
 mod independence_tests {
-    use super::*;
+    use super::{
+        ADDRESS, AddressFoldError, CONSUMER, IntegerSign, IntegerType, NativeTarget, OUTPUT,
+        POINTER, ROOT, SPARE, ScalarType, SelectedInstruction, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, ValidatedAddressFold, ValueId,
+        VirtualRegisterOrigin, baseline_target_register_environment, budget, instruction, keys,
+        kind_with_offset, load_fixture, mutated, register, validate_address_fold,
+    };
 
     /// Forge a folded consumer in place inside a source fixture's plan.
     fn forged(

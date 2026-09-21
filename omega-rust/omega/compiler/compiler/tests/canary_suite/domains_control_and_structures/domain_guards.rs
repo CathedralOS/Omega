@@ -1124,6 +1124,38 @@ fn runtime_case_member_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_integer_literal_dispatch_exit_canary_runs() {
+    // An ordered literal transition chain (`1 -> ..`, `2 -> ..`, `_ -> ..`)
+    // must evaluate its guards in authored order and select the matching arm:
+    // `choice = 2` routes to `two()` and exits 22.
+    let canary = pass_canary(fixture_roster::RUNTIME_INTEGER_LITERAL_DISPATCH_EXIT);
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-runtime-integer-literal-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
+        .expect("runtime integer literal dispatch canary should compile");
+
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime integer literal dispatch canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("runtime integer literal dispatch canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(22),
+        "expected integer literal dispatch to select arm `2 -> two()` (exit 22), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn case_payload_native_construction_canary_runs() {
     // Case payload construction (`Command::Move { steps: 70 }`) lowers natively:
     // the i32 case tag writes at offset 0, the payload field at its packed

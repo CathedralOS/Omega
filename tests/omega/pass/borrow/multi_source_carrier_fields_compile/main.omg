@@ -1,0 +1,29 @@
+// PASS canary (lifetimes stage 2): an aggregate result whose fields share one
+// explicit lifetime borrows every input carrying that lifetime.
+
+data Dual<'a> {
+    first: &'a mut i32;
+    second: &'a mut i32;
+}
+
+machine dual<'a>(first: &'a mut i32, second: &'a mut i32) -> Dual<'a> {
+    let result: Dual<'a> = Dual {
+        first: first,
+        second: second,
+    };
+    transition {
+        _ -> result
+    }
+}
+
+machine exercise<'a>(first: &'a mut i32, second: &'a mut i32) {
+    let result: Dual<'a> = dual(first, second);
+    result.first = 1;
+    result.second = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

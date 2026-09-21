@@ -4,8 +4,6 @@ use register_model::{
 use selected_instructions::MachineEncodedEffects;
 use semantic_vocabulary::IntegerValue;
 
-use crate::x86_64_physical_register_model;
-
 /// Exact machine-state footprint of a 32-bit GPR write used to realize a
 /// zero-extended 64-bit value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -234,7 +232,7 @@ pub fn validate_x86_64_mov_r32_imm32_i64_materialization(
 fn require_canonical_model(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), X86_64MovR32Imm32I64MaterializationError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64MovR32Imm32I64MaterializationError::NonCanonicalPhysicalModel);
     }
     Ok(())
@@ -276,8 +274,9 @@ mod tests {
         GPR_NAMES, IntegerValue, X86_64MovR32Imm32I64MaterializationError,
         decode_x86_64_mov_r32_imm32_i64_materialization,
         encode_x86_64_mov_r32_imm32_i64_materialization,
-        validate_x86_64_mov_r32_imm32_i64_materialization, x86_64_physical_register_model,
+        validate_x86_64_mov_r32_imm32_i64_materialization,
     };
+    use crate::x86_64_physical_register_model;
     use register_model::{
         RegisterViewId, RegisterWriteSemantics, validate_physical_register_model,
     };

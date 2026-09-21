@@ -1,0 +1,7 @@
+// Product package: the canonical checked-boundary topology package
+// (TASKS.md TOPOLOGY-PLAN-VERIFICATION). An ordinary build-only package —
+// no compiler-owned topology stage (wiki/spec/packages/topology.md).
+
+machine build(builder: &mut Build) {
+    builder.package("topology");
+}

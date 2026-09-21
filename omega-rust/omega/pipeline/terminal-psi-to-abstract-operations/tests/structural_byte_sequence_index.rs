@@ -60,6 +60,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let scalar = |operation, value, scalar_type, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -70,6 +71,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     };
     let successor = |edge, target| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: id(edge),
         target: id(target),
         arguments: Vec::new(),
@@ -80,6 +82,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(101),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -128,11 +131,13 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(102),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(105),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldByteStore {
@@ -152,6 +157,7 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(103),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

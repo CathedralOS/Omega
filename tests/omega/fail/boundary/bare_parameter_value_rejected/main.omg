@@ -1,0 +1,12 @@
+// A machine state parameter spelling a bare boundary trait is a value
+// position; only `Service<R>` carries a service.
+boundary trait Console {
+    machine write_line(text: &[u8]);
+}
+
+data Main { }
+
+machine Main::main(&mut self) {
+    state helper(&mut self, console: Console) {
+    }
+}

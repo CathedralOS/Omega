@@ -203,7 +203,7 @@ fn compare_interpretation(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::ProcessExitObservation;
 
     #[test]
     fn observation_code_exposes_only_reported_exit_codes() {

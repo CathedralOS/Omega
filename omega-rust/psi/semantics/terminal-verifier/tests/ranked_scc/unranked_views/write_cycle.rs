@@ -28,6 +28,7 @@ fn literal(raw: u128) -> ScalarTerm {
 fn scalar_operation(raw: u64, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(raw, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -79,6 +80,7 @@ fn fixture() -> TerminalModule {
         length_operation(10, 10, 2),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(11, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -106,6 +108,7 @@ fn fixture() -> TerminalModule {
         length_operation(12, 12, 3),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(13, OperationId::new),
             result: OperationResult::Unit,
             kind: OperationKind::ByteSequenceWrite {

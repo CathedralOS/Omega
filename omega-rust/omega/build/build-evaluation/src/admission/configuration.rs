@@ -102,6 +102,13 @@ pub struct BuildConfig {
     /// ordinary artifacts and never weaken ordinary checking or select a
     /// different pipeline.
     pub pcc: PccRequests,
+    /// Authored granular privileged-service grants
+    /// (wiki/spec/build/permissions.md#privileged-services): each flag admits
+    /// exactly one mediated privileged class in the produced image's
+    /// assembly authority discharge. Machine-owner authority has no granular
+    /// grant and stays `freestanding`-only; `freestanding` already covers
+    /// both mediated classes.
+    pub privileged_services: PrivilegedServicesGrants,
     /// Behavior exclusions (wiki/spec/build/behavior_exclusions.md): the
     /// authored `builder.exclude_crash(...)` product-admission requirements
     /// harvested statically from the root build machine's checked call scope,
@@ -139,6 +146,18 @@ impl PccRequests {
     }
 }
 
+/// The independent mediated privileged-service grants retained from the
+/// evaluated `Build.privileged_services` flags. Each admits only its own
+/// asm authority class; neither implies the other nor machine-owner
+/// authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PrivilegedServicesGrants {
+    /// Admit port I/O instructions (`in`/`out` authority class).
+    pub port_io: bool,
+    /// Admit interrupt-table publication instructions (`lidt` class).
+    pub interrupt_table: bool,
+}
+
 /// Portable presentation requested by the authored Console or Gui case.
 /// This does not select an execution environment or enable bundle publication
 /// independently of the selected target and requested output product.
@@ -163,6 +182,7 @@ impl Default for BuildConfig {
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
             pcc: PccRequests::default(),
+            privileged_services: PrivilegedServicesGrants::default(),
             behavior_exclusions: Vec::new(),
             accepted_component_assumptions: Vec::new(),
         }
@@ -329,6 +349,36 @@ pub(crate) fn extract_build_config(
         Err(_) => PccRequests::default(),
     };
 
+    // An authored Build that predates the privileged-service surface carries
+    // no `privileged_services` field; omission grants no mediated class.
+    let privileged_services = match field("privileged_services") {
+        Ok(BuildTimeValue::Struct { fields, .. }) => {
+            let flag = |name: &str| -> Result<bool, String> {
+                match fields
+                    .iter()
+                    .find(|(field, _)| field == name)
+                    .map(|(_, value)| value)
+                {
+                    Some(BuildTimeValue::Bool(value)) => Ok(*value),
+                    Some(other) => Err(format!(
+                        "Build.privileged_services.{name} is not a bool: {other:?}"
+                    )),
+                    None => Ok(false),
+                }
+            };
+            PrivilegedServicesGrants {
+                port_io: flag("port_io")?,
+                interrupt_table: flag("interrupt_table")?,
+            }
+        }
+        Ok(other) => {
+            return Err(format!(
+                "Build.privileged_services is not a PrivilegedServices struct: {other:?}"
+            ));
+        }
+        Err(_) => PrivilegedServicesGrants::default(),
+    };
+
     let (optimizations, optimization_report) = optimization_admission.extract(build)?;
 
     Ok((
@@ -345,6 +395,7 @@ pub(crate) fn extract_build_config(
             wire_compatibility_demands: Vec::new(),
             root_bindings: Vec::new(),
             pcc,
+            privileged_services,
             behavior_exclusions: Vec::new(),
             accepted_component_assumptions: Vec::new(),
         },
@@ -501,5 +552,95 @@ mod tests {
         let non_bytes = extract(Some(super::BuildTimeValue::Int(3)))
             .expect_err("non-bytes identifier must reject");
         assert!(non_bytes.contains("Build.identifier is not bytes"));
+    }
+
+    #[test]
+    fn privileged_services_extraction_reads_each_grant_independently() {
+        let mut typed = typed_trees::TypedTrees::default();
+        typed.push_data_definition(typed_trees::data::DataDefinition {
+            name: "Build".into(),
+            ..Default::default()
+        });
+        let extract = |privileged_services: Option<super::BuildTimeValue>| {
+            let mut fields = vec![
+                (
+                    "subsystem".into(),
+                    super::BuildTimeValue::Case {
+                        variant: "Console".into(),
+                        payload: vec![],
+                    },
+                ),
+                ("freestanding".into(), super::BuildTimeValue::Bool(false)),
+            ];
+            if let Some(privileged_services) = privileged_services {
+                fields.push(("privileged_services".into(), privileged_services));
+            }
+            super::extract_build_config(
+                &super::BuildTimeValue::Struct {
+                    type_name: "Build".into(),
+                    fields,
+                },
+                super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
+                None,
+                false,
+            )
+        };
+        let grants = |fields: Vec<(&str, bool)>| super::BuildTimeValue::Struct {
+            type_name: "PrivilegedServices".into(),
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name.into(), super::BuildTimeValue::Bool(value)))
+                .collect(),
+        };
+        // A Build predating the field grants nothing.
+        assert_eq!(
+            extract(None).unwrap().0.privileged_services,
+            super::PrivilegedServicesGrants::default()
+        );
+        // Each flag admits only its own class; an unset flag defaults false.
+        assert_eq!(
+            extract(Some(grants(vec![("port_io", true)])))
+                .unwrap()
+                .0
+                .privileged_services,
+            super::PrivilegedServicesGrants {
+                port_io: true,
+                interrupt_table: false,
+            }
+        );
+        assert_eq!(
+            extract(Some(grants(vec![("interrupt_table", true)])))
+                .unwrap()
+                .0
+                .privileged_services,
+            super::PrivilegedServicesGrants {
+                port_io: false,
+                interrupt_table: true,
+            }
+        );
+        assert_eq!(
+            extract(Some(grants(vec![
+                ("port_io", true),
+                ("interrupt_table", true)
+            ])))
+            .unwrap()
+            .0
+            .privileged_services,
+            super::PrivilegedServicesGrants {
+                port_io: true,
+                interrupt_table: true,
+            }
+        );
+        let non_bool = extract(Some(super::BuildTimeValue::Struct {
+            type_name: "PrivilegedServices".into(),
+            fields: vec![("port_io".into(), super::BuildTimeValue::Int(1))],
+        }))
+        .expect_err("non-bool privileged_services flag must reject");
+        assert!(non_bool.contains("Build.privileged_services.port_io is not a bool"));
+        let non_struct = extract(Some(super::BuildTimeValue::Bool(true)))
+            .expect_err("non-struct privileged_services must reject");
+        assert!(
+            non_struct.contains("Build.privileged_services is not a PrivilegedServices struct")
+        );
     }
 }

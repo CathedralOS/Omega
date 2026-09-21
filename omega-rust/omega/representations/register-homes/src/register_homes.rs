@@ -11,6 +11,8 @@
 pub mod codec;
 pub mod constraints;
 pub mod identity;
+pub mod logical_spill_operations;
+pub mod post_allocation_manifest;
 pub mod preservation;
 pub mod recovery;
 pub mod storage;
@@ -21,6 +23,8 @@ pub use constraints::*;
 pub use identity::{
     AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
 };
+pub use logical_spill_operations::*;
+pub use post_allocation_manifest::*;
 pub use preservation::*;
 pub use recovery::*;
 pub use storage::*;
