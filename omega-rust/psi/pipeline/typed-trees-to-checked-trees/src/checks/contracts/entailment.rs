@@ -194,11 +194,7 @@ fn entry_premises_are_preserved(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return false;
     };
     if resolver.is_some_and(|resolver| {
@@ -241,11 +237,7 @@ pub(super) fn structural_call_requirement(
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let classification = typed_trees::proof_only::classify(program);
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     if !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver) {
