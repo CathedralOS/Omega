@@ -11794,6 +11794,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   item's work and must not proceed through a parallel claim on the same
   files. Sibling re-mines of the same surface: SELECTIVE-EVALUATION-EXPANSION,
   SELECTIVE-EVALUATION-PARSER, SELECTIVE-EVALUATION-SOURCE-EXPANSION.
+- **SELECTIVE-EVALUATION-PARSER.** Resolved 2026-09-21 — named sibling
+  re-mine of the selective-evaluation parser surface settled on
+  **SELECTIVE-ARITHMETIC-EXPANSION**'s row above, which lists this stub
+  verbatim among its sibling re-mines. Every expansion leg is owned by
+  **MATCH-SELECTIVE-LOWERING** under a live claim on
+  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
+  (~07:39Z at this check); no independent slice exists under this name.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-OWNER-RESOLUTION.** Mined candidate — scope verified,
   covered. Same settled surface as the resolved siblings on either side of
