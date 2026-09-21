@@ -1110,10 +1110,7 @@ fn correspondence_root_type_reference(
     formation_statement_index: usize,
     root: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let state = program
         .machine_states(machine)
         .iter()
@@ -1179,10 +1176,7 @@ fn correspondence_data_type(
         typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == machine_symbol && name.as_str() == "Self" =>
         {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
             machine.attached_data_symbol.is_valid().then_some(())?;
             program
                 .data_definitions()

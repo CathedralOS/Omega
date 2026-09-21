@@ -106,11 +106,7 @@ pub(crate) fn call_contract_evidence(
         return Some(QualificationEvidence::default());
     };
 
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == target_symbol)
-    {
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, target_symbol) {
         let checked_body = machine.body_is_present
             && matches!(
                 machine.supply_mode,
@@ -236,11 +232,7 @@ fn call_carry_permission_evidence(
     _target_state_symbol: SymbolHandle,
     contract: &ContractProofFact,
 ) -> Option<QualificationEvidence> {
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == target_symbol)
-    {
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, target_symbol) {
         let checked_body = machine.body_is_present
             && matches!(
                 machine.supply_mode,

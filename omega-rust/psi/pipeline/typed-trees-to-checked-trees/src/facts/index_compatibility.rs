@@ -107,10 +107,7 @@ pub(super) fn build_index_compatibility_facts(
     let mut unresolved = Vec::new();
 
     for (_, state_flow) in flow.control.states.iter() {
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
         else {
             continue;
         };
