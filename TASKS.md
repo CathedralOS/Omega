@@ -7730,7 +7730,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING (the
   "alignment string parsing" gap), GEOMETRY-CLONE-SERIALIZATION,
   GEOMETRY-DEBUG-ASSERTIONS, GEOMETRY-NAMED-TRAIT-OPERATORS.
-- **GEOMETRY-ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
+- **GEOMETRY-ALIGNMENT-STRING-PARSING.** Mined candidate — scope
+  verified, covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING:
+  the "alignment string parsing" parity gap inside the Squalr app's
+  geometry lane (samples/apps/squalr/TASKS.md's GEOMETRY-PARITY residual
+  list; the parity audit attributes it to that row). Verified sibling
+  measured the gap at `949c153acd73`: `memory_alignment.omg` builds an
+  alignment only from an integer — zero `parse`/`from_str`/
+  `from_string` over any alignment type — so the residue is one parse
+  machine plus its rejection cases, not a structural port. Its only
+  implementing surface is the `samples/apps/squalr` submodule, held
+  under live sibling claims (SQUALR-WINDOWS-GEOMETRY-VALIDATION ~05:49Z,
+  GEOMETRY-ALIGNMENT-REGIONS ~01:18Z over `TASKS.md,samples/apps/
+  squalr`; SQUALR-GEOMETRY-PARITY-RESIDUE ~03:32Z); the residual
+  `set_alignment` call-site gate is a compiler entry-mechanics item
+  tracked under GEOMETRY-PARITY, not this row. Sibling re-mine stubs on
+  the same surface: ALIGNMENT-STRING-PARSING (covered), SQUALR-SEED-
+  ALIGNMENT-PARSING (covered), GEOMETRY-ALIGNMENT-PARSING,
+  SQUALR-ALIGNMENT-STRING-PARSING.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
