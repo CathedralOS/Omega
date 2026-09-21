@@ -10886,14 +10886,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   shared driver upstream at 7328a8bda9), and
   `compilation-report/src/pcc/native_evidence/custody_tests.rs` (107 legs,
   one inventory over the section wire; `EvidenceVerdict` spells malformed
-  versus replay-rejected). Remaining handwritten sets, by size:
+  versus replay-rejected), and
+  `terminal-codec/tests/artifact/optimization_execution_custody.rs` (the
+  single-matrix file migrated to `mutation-matrix`'s shared driver: the
+  `OptimizationExecutionCustodyFieldForTest` inventory declares the eight
+  authored content-field legs — three roster legs, three input-side identity
+  legs, two output-side identity legs — over a foreign donor record, with the
+  manifest replay as the named checker and the produced-output
+  `validate_output` binding plus canonical round-trip carried as the joined
+  per-leg assertion; wire-only axes — framing, vocabulary markers, codec
+  lies, truncations, the identity-stage construction law — stay authored
+  below the matrix). The Psi-firewall note below is stale twice over: the
+  harness was already relocated to the `mutation-matrix` foundation crate
+  upstream, and `terminal-codec` already carries it as a dev-dependency —
+  `trust_graph_custody.rs` was migrated the same way. Remaining handwritten
+  sets, by size:
   `component-publication/src/tests.rs` (9 matrices, 3,140 lines),
   `executable-installation/src/executable_installation/tests.rs` (48, 2,614),
   `packages/topology/tests/custody_substitution.rs` (4, 2,179), and the
-  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files; the
-  last group is a Psi crate, so it cannot take `optimization-core` (an Omega
-  representation) as a dev-dependency without crossing the firewall and
-  needs the harness relocated to a shared foundation crate first.
+  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files (14 left
+  after `optimization_execution_custody.rs`).
 
   Coordination, checked 2026-09-20: none of the three remaining sets is
   independently claimable. `component-publication` sits inside
@@ -10902,7 +10914,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **TOPOLOGY-PLAN-VERIFICATION**, each under a live claim on the whole
   directory. The migration is therefore a request to those holders rather
   than a slice anyone can take; claiming this item alone yields no editable
-  path.
+  path. Re-checked 2026-09-21 (~13:4xZ): the directory fences have drained —
+  `topology/tests/custody_substitution.rs`, `component-publication`'s
+  `tests.rs`, `executable-installation`'s `tests.rs`, and the terminal-codec
+  `*_custody.rs` files are all unclaimed, so the remaining sets are now
+  independently sliceable by the next holder of this item.
 - **CUSTODY-MUTATION-COVERAGE.** — mined candidate; scope verified at
   `ded56393da` (linux x86-64, claim 6f8aad97 until 05:23Z): the stub
   re-mines the optimizer-board item of the same name
@@ -16038,6 +16054,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `named_integer_conversion_samples_reach_checked_trees` still FAILs 111.1s
   verbatim on `print_number` (`self.out requires [u8; N]::Utf8` at
   statement 19).
+  Re-verified at `c924529921d` (zergling-132, linux x86-64): the two
+  named single legs confirm the ledger unchanged a fourth time —
+  `sample_entry_exceptions_are_explicit_and_non_runnable` still PASS
+  (0.03s), `named_integer_conversion_samples_reach_checked_trees` still
+  FAILs 110.3s verbatim on `print_number` (`self.out requires
+  [u8; N]::Utf8` at statement 19).
 - **RC-REPRESENTATIVE-PROGRAMS-GATE.** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE.** — mined candidate; scope verified, gate is RED on the available host. Same matrix row as resolved sibling RC-REPRESENTATIVE-PROGRAMS-GREEN (`samples_compile` on every required host). Measured at `94e764a6da` on linux x86-64 (cargo, no mbx): `cargo nextest run -p compiler --test samples_compile --no-fail-fast` — observed through 21/33 finished at ~92min with 12 authored-entry/documented-exit aggregates still running and accumulating the same families. Recorded failures: `basics`/`caesar_cipher`/`format_number`/`print_squares`/`stdin`/`collection`/`algorithm`/`interpreter`/`gui` authored-entry aggregates + `fletcher_checksum_checks_its_slice_iteration` + `named_integer_conversion_samples_reach_checked_trees` — three families exactly as the sibling row records (windows_x86_64 `WindowsProcessEntry::enter` schema rejection on every sample; ProgramEntry rejoin "0 Terminal attachment identities — unit plan omitted at local construction at `statement sequence: call: call operation`" / `structural field store: record literal field` / "unavailable callee" on the linux_x86_64, linux_arm64, macos_arm64 legs; print_number `[u8; N]::Utf8` default-domain proof) plus a fourth surfaced by the gui aggregate: macos_arm64 legs fail "selected ProgramEntry Service field `Main::<field>` requires a selected Fused provider for boundary `Clock|Input|Gui|FilesystemHost`". Passing legs observed: dutch_flag, euclid_gcd, cli_mvp, generic_counter, recursive_slice, native_acceptance pair, sample_entry_exceptions, standard_sample_discovery. macOS/Windows/QEMU legs unavailable on this host per protocol. Record: `wiki/drafts/rc_representative_programs_gate.md`.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN.** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
