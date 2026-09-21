@@ -610,3 +610,38 @@ fn multiple_edges_between_the_same_pair_keep_all_evidence() {
     assert_eq!(graph.successors(0), &[1]);
     assert_eq!(graph.bindings().len(), 3);
 }
+
+#[test]
+fn declaration_order_normalizes_to_the_identical_plan() {
+    // Producer inputs may declare instances and bindings in any order: the
+    // graph resolves endpoint indices against the canonical name order, so
+    // the emitted plan never depends on declaration order.
+    let request = payment_request();
+    let components = payment_components();
+    let (declared_plan, declared_outcomes) = compose(
+        &request,
+        payment_instances(),
+        payment_bindings(),
+        &components,
+    )
+    .expect("payment composition succeeds");
+
+    let mut reordered_instances = payment_instances();
+    reordered_instances.reverse();
+    let mut reordered_bindings = payment_bindings();
+    reordered_bindings.reverse();
+    let (normalized_plan, normalized_outcomes) = compose(
+        &request,
+        reordered_instances,
+        reordered_bindings,
+        &components,
+    )
+    .expect("reordered declarations compose");
+
+    assert_eq!(normalized_outcomes, declared_outcomes);
+    assert_eq!(
+        encode_plan(&normalized_plan).unwrap(),
+        encode_plan(&declared_plan).unwrap(),
+        "declaration order must normalize to the identical plan"
+    );
+}

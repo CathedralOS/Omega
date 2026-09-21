@@ -10328,6 +10328,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p build-evaluation --lib`: 92/92 PASS on linux
   x86-64; `cargo fmt` clean. Worked unclaimed — no claimable marker existed
   for this name and the file carries no live fence.
+- **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
+  landed. The name resolves to the declaration-order normalization
+  contract in `topology-plan`: `NormalizedGraph::new` sorts the supplied
+  roster by name and resolves `EndpointKey` indices against that canonical
+  order ("Input order does not matter — output is canonical"), and the
+  emitted `DeploymentPlan` is canonical throughout — but no test pinned
+  that producer declaration order never changes the plan. Added
+  `declaration_order_normalizes_to_the_identical_plan` to
+  `packages/topology/tests/composition.rs`: reversed instance and binding
+  declaration orders compose to byte-identical plans and identical policy
+  outcomes. `cargo nextest run -p topology-plan --test composition`:
+  17/17 PASS on linux x86-64; `cargo fmt` clean. Worked unclaimed — no
+  claimable marker existed for this name and the file carries no live
+  fence.
 - **FINITE-GENERIC-METHOD-FAMILIES.** Mined candidate — alias for the
   [finite generic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
   section, the exact spec surface owned by FINITE-GENERIC-DISPATCH (the
