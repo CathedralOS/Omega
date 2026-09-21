@@ -8932,7 +8932,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER — the successor-argument
   (block-parameter) ordering leg is the same edge-validation order
   documented in `validation/frontier/block_parameters.rs`.
-- **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-EDGE-ORDERING.** Mined candidate — resolved: sibling
+  re-mine of the owned-successor edge-ordering surface already covered on
+  this board. The verifier-side cleanup gate order is pinned by resolved
+  siblings BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER (`40ff9ad791` doc,
+  `d96a0fda39` repin) and OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER above —
+  owned successor sources consume first, then residual and trivial
+  discard rosters, then target-parameter establishment, documented in
+  `validation/frontier/block_parameters.rs` and run by `terminators.rs`.
+  The lowered-psi cleanup-roster emission leg is resolved under
+  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING (reverse destination/declaration
+  order in `scalar_graph_lowering/structural_values.rs`). Re-witnessed at
+  `25e0c98e32` (linux x86-64):
+  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
+  test(~owned_successors)' --no-fail-fast` 15/15 pass. Sibling
+  OWNED-SUCCESSOR-DISCARD-ORDER resolved as the same landed alias at
+  `34f36c13ef`. No independent slice.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; scope
   verified, covered — re-mines the review-projection input-resolution clause
   in `wiki/spec/packages/review.md` ("read each fact from the earliest
