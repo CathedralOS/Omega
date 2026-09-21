@@ -9270,6 +9270,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CHAIN-CERTIFICATE-ADMISSION-BINDING (exp 05:30Z). No independent
   slice exists — residual is the upstream Alpha extent-supply leg plus
   host-gated seed execution (macOS arm64 / Windows x64).
+||||||| parent of 5b59d0095d878 (board: benchmark std-comparison-occurrence gate already open)
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION.** — mined candidate; scope verified
   at `f600f8400b7`, covered and fenced — re-mines the "more measurable
   subjects" frontier behind the benchmark matrix, and every producible leg
@@ -10160,6 +10161,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (swarm-z143, exp 13:57Z) and family 1's surface
   `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
   (devin-848972c1, exp 13:59Z). No independent slice remains.
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
+||||||| parent of 5b59d0095d878 (board: benchmark std-comparison-occurrence gate already open)
+||||||| parent of 2ccef088fb73 (board: re-witness CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET attributions)
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
