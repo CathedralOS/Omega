@@ -378,7 +378,9 @@ pub(crate) fn saturating_cast_value(
         IntegerValue::Signed(_) => return None,
     };
     Some(match target {
-        PrimitiveType::U8 => IntegerValue::Unsigned(u128::from(u8::try_from(bits).unwrap_or(u8::MAX))),
+        PrimitiveType::U8 => {
+            IntegerValue::Unsigned(u128::from(u8::try_from(bits).unwrap_or(u8::MAX)))
+        }
         PrimitiveType::U16 => {
             IntegerValue::Unsigned(u128::from(u16::try_from(bits).unwrap_or(u16::MAX)))
         }
