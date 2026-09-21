@@ -9552,6 +9552,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ASM-CATALOG-FAMILY-EXPANSION). Next action for the fence-holder: commit this
   record under `tools/benchmark/records/` and add the `benchmarks.md`
   coverage entry.
+  **macOS arm64 host row recorded 2026-09-21.** The committed
+  `wrapping_square_sum__macos_arm64__default.json` was keyed `macos_arm64` but
+  MEASURED on a linux x86_64 Xeon with `--no-run`, so its runtime leg was
+  skipped and its numbers were a cross-compile. This host is macOS arm64, so the
+  real row now exists:
+  `wrapping_square_sum__macos_arm64__sel-44c60ac57c66.json` --
+  host `darwin` / `arm64` / Apple M4, compile median **19725.2 ms**, compile peak
+  RSS 123535360 B, code size 16640 B, and the runtime leg **measured** at
+  2.8475 ms over five samples, all exiting 0. `benchmark.py validate` passes and
+  the coverage table in `wiki/drafts/benchmarks.md` is regenerated from the
+  records (25 -> 26 rows).
+
+  It is a NEW cell, not a refresh of the old one, and that is correct rather than
+  a miss: the subject's `build.omg` enables six Psi-phase rules
+  (`aeb4d7ee21`), so a measurement of this subject as authored lands in
+  `sel-44c60ac57c66`, never in `default`. The new row is the direct cross-host
+  counterpart of the existing `wrapping_square_sum__linux_x86_64__sel-44c60ac57c66`
+  row, which is the comparison this matrix wants. The stale `__default` row is
+  left in place rather than deleted -- removing another host's record is not this
+  row's business -- but it should be read as a linux compile-only cell, not a
+  macOS one.
+
 - **BENCHMARK-MEASURABLE-SUBJECT-CORPUS.** — mined candidate; resolved —
   covered alias. The name re-mines the benchmarks.md "no measurable
   subject" frontier already owned by resolved sibling
