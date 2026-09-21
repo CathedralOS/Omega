@@ -11337,6 +11337,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `fixed_view_copy/codec/`, `optimized_semantic_wrapper_object/codec.rs`)
   and DURABLE-CODEC-RELOCATION stays open; the wrapper codec remains
   fenced (PIPELINE-WRAPPER-OBJECT-ORPHAN, 22:46Z). Still consumed.
+  Re-verified again at `1be39cb28f`: two of the three legs have since
+  landed — `32e4ff98f4` moved `post_allocation_manifest` record+codec into
+  `representations/register-homes`, and `2e3c662c32` moved the
+  fixed-view-copy codec + selected-plan identity into
+  `representations/register-homes/recovery/fixed_view_copy/codec/`. The
+  only remaining site is `native-realization`'s
+  `optimized_semantic_wrapper_object/codec.rs`, which the owning item's
+  landing plan defers until PIPELINE-OWNER-CONSOLIDATION decides whether
+  native-realization retains that owner. Still consumed — work continues
+  on DURABLE-CODEC-RELOCATION.
 - **TRANSLATION-VALIDATION.** — verified `fcef01c59a`: duplicate pointer to the
   live `**TRANSLATION-VALIDATION.**` item in TASKS_OPTIMIZER.md, which now
   carries the verified frontier. Scope findings: `CallDynamic*` and the
