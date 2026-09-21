@@ -3102,8 +3102,10 @@ moved to the termination-catalog fence (see that row's refresh note).
   `SelectedApplicationMismatch`
   (`PackagePolicyRepresentation::rejoin_foreign_demands`,
   `package-manager/tests/opaque_boundary_agreement.rs`). That is compile-time
-  and review-time policy. No native artifact carries the selected application,
-  and no opaque by-value crossing is transported or executed.
+  and review-time policy. The artifact custody bullet below has since bound
+  the selected-application commitment into installation records
+  (`3f3115d27f94`); still open is transport: no opaque by-value crossing is
+  transported or executed.
 
   Remaining work:
 
@@ -3111,9 +3113,35 @@ moved to the termination-catalog fence (see that row's refresh note).
     carrier's bytes through argument, result and nested-field placements. An
     affine or linear value keeps one semantic occurrence while bytes are copied
     for placement; only a checked semantic copy creates another occurrence.
+    Frontier re-verified at `98c9599eda1e`: the plan side already assigns
+    exact movements — `BoundaryOpaqueRepresentationMovement` (role
+    Parameter{formal_ordinal,native_ordinal}/Result, path
+    FixedArrayElement/RecordField, validated `ValuePlacement`) in
+    `provider-planning/calling_policy_plans/opaque_representations.rs`,
+    rejoined by `materialized_signature().opaque_representation_movement()`
+    and pinned by `compiler/tests/calling_policy_plans/opaque_boundaries.rs`
+    (result-placement and nested-field rejoins green). The movement has no
+    downstream consumer: nothing outside provider-planning/tests/review-
+    evidence references `BoundaryOpaqueRepresentationMovement`, and no
+    target-operations/selected-instructions/native-realization module reads
+    an opaque application — the first consumer is the provider-call frame
+    marshal that must turn a movement's validated placement into byte
+    copies at the frame edge.
   - Artifact custody: bind the strong selected-application commitment into
     native artifacts, installation records and replay, so producer and
     consumer artifacts compare it at each actual by-value edge.
+    Landed at `3f3115d27f94` — the installation record retains
+    `boundary_opaque_applications` (one row per edge: requirement identity,
+    signature shape coordinate, report fingerprint, the 256-bit
+    selected-application commitment;
+    `installation_record/codec/opaque_application_codec.rs`,
+    `record_construction.rs:278`, `record_types.rs:130`), and bind-time
+    replay in `installed_artifact.rs:516-522` rejects a record whose
+    retained custody disagrees with the bound artifact's
+    `NativeArtifact::boundary_application_coverage().opaque_applications`.
+    Re-verified at `98c9599eda1e` (linux x86-64). Residual inside this
+    bullet: the comparison fires at install/bind only — no per-crossing
+    execution exists to observe yet (that is the transport bullet above).
   - Replacement: carry the application through replacement compatibility,
     stable-handle eras and independently replaceable provider contracts.
     **COMPONENT-SUBSTRATE** owns the component closure these attach to.
