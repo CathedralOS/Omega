@@ -4566,6 +4566,20 @@ Owners include
   sibling stubs GENERIC-VIRTUAL-CALLS and FINITE-GENERIC-METHOD-FAMILIES
   already record the same verdict.
 
+  Re-witnessed at `069276b986` (linux x86-64): fences renewed and extended.
+  GENERIC-DYNAMIC-FAMILY-DISPATCH still holds `dynamic_scalar_calls/` +
+  `monomorphization/dynamic_families.rs` (Zergling-136, exp 05:31Z);
+  RUNTIME-VALUE-GENERICS' claim has drained from the registry but its
+  row stays open and gating. The native leg's implementing surface is now
+  fenced twice over: `target-operations-to-selected-instructions/src/
+  legalization` under X86-FMA-PROVIDER-TRANSPORT (exp 09:07Z) and
+  `src/selection/construction` under CALLBACK-PRIVATE-MATERIALIZATION
+  (exp 09:13Z). The rejection pin holds verbatim: `CallDynamicScalar` has no
+  legalizer admission — `legalization/source/scalar_graph/instruction.rs`
+  enumerates no such case, so it still falls to
+  `LegalizationError::UnsupportedScalarOperation` at
+  `legalization/model.rs:120`. Still no unfenced slice under this item.
+
   Acceptance: a source program dispatches widths 16/32/64 from a runtime value
   through one selected conformance with no handwritten suffix-method family,
   and executes natively. Source alternative order and duplicates normalize
