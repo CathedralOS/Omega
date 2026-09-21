@@ -10557,80 +10557,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the ATOMIC-MEMORY-MODEL serial surface (matrix pins + coherence replay,
   still green). No residual slice exists under this name; re-dispatch when
   TR3-TR8's selected runtime exists.
-- **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING.** Resolved 2026-09-21 — minted
-  sibling stub of the CHAIN-MANIFEST OCREQ request-entry surface already
-  bound on main (see CHAIN-MANIFEST-OCREQ-ENTRY-BINDING /
-  CHAIN-OCREQ-ENTRY-BINDING): `tools/bootstrap/omega/compiler_env.sh` pins
-  `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`
-  plus the sealed-request fixture pair and `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`
-  (19,253 bytes); provisions 25-26 sit in `bootstrap/5_omega/outcome.epsilon`
-  + `wiki/spec/build/compiler_request.md`. Re-witnessed at `59e0b5ec22`
-  on linux x86-64: `sh tests/bootstrap/omega-request/run.sh --identity`
-  PASS — all bound identities verified (622,933-byte receipt request,
-  565,909-byte customer, 45-byte expected observation); executing half
-  stays seed-host-gated per the frontier. No unbound residual under this
-  name.
-  Re-witnessed at `3dac85e5ccc` on linux x86-64 (z181): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
-  identities (622,933-byte receipt request, 565,909-byte customer, 45-byte
-  expected observation); execution legs stay seed-host-gated per the
-  frontier.
-  Re-witnessed at `2dbccb9bd68` on linux x86-64 (z64): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
-  identities again; no drift since the z181 stamp.
-  Re-witnessed at `12ea4941ebd` on linux x86-64 (z197): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
-  identities (622,933-byte receipt request, 565,909-byte customer,
-  45-byte expected observation); execution legs stay seed-host-gated.
-  covered — resolved; OCREQ request-entry pins bound on main
-- **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
-  re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
-  main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):
-  `tools/bootstrap/omega/compiler_env.sh` pins `OMEGA_REQUEST_ENTRY_SIZE=4115`
-  / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…` plus the sealed-request fixture
-  pair, and `OMEGA_EXECUTABLE_OCREQ_ENTRY_*` (19,253 bytes), recorded in
-  `tests/bootstrap/omega-request/README.md`, refused by
-  `tests/bootstrap/omega-identity.sh`; provisions 25-26 sit in
-  `bootstrap/5_omega/outcome.epsilon` + `wiki/spec/build/compiler_request.md`.
-  Executable-chain legs stay host-gated per the frontier. No unbound
-  residual. Sibling stubs: CHAIN-MANIFEST-OCREQ-BINDING,
-  CHAIN-OCREQ-ENTRY-BINDING, D-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING,
-  OCREQ-REQUEST-BINDING.
-- **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; scope verified,
-  resolved as a re-mine of the CHAIN-MANIFEST OCREQ-entry surface already
-  bound on main (the sibling row immediately below resolves
-  CHAIN-OCREQ-ENTRY-BINDING on this same surface and names this stub).
-  Re-verified at `fff3918dc4`: `tools/bootstrap/omega/compiler_env.sh`
-  pins `OMEGA_REQUEST_ENTRY_SIZE=4115` /
-  `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`, the sealed-request fixture
-  (`ab2e980a…`), and `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19249` /
-  `SHA256=5d5d0b8e…` (re-minted upstream from the earlier 19,253-byte
-  stamp; identity binding intact); `gate.py:130` publishes the
-  `coverage_request_semantics` frame through the sealed boundary and
-  `tests/bootstrap/omega-identity.sh` refuses a mutated entry
-  (`require_omega_request_entry_identity`). Executable-chain legs stay
-  seed-host-gated per the frontier. No unbound residual under this name.
-  covered — resolved re-mine of the bound OCREQ-entry surface
-- **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a re-mine of
-  the CHAIN-MANIFEST OCREQ-entry surface already bound on main (siblings
-  CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING and
-  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING name this stub): re-verified at
-  `201d58c591`, `tools/bootstrap/omega/compiler_env.sh` pins
-  `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`,
-  the sealed-request fixture pair (132 bytes / `ab2e980a…`), and
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19253` /
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256=9573d734…`, recorded in
-  `tests/bootstrap/omega-request/README.md`; the gate asserts the
-  `coverage_request_semantics` frame through the sealed boundary
-  (gate.py:130) and `tests/bootstrap/omega-identity.sh` refuses a mutated
-  entry (`require_omega_request_entry_identity`). Provisions
-  `coverage_request_semantics`/`request_staging_bytes` sit in
-  `wiki/spec/build/compiler_request.md:453-454` and drive the entry's
-  Incomplete/resource refusals (main.epsilon header). Executable-chain
-  legs stay host-gated per the frontier. No unbound residual. Sibling
-  stubs: CHAIN-MANIFEST-OCREQ-BINDING, D-OCREQ-ENTRY-BINDING,
-  OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
-  covered — re-mine of the bound OCREQ request-entry surface; run.sh --identity re-witnessed PASS, executing half seed-host-gated
+- **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING.** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
+- **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
+- **CHAIN-MANIFEST-OCREQ-BINDING** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
+- **CHAIN-OCREQ-ENTRY-BINDING.** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record. (folded twin 1 of 2)
 - **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — sibling
   stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (the
   resolved verdict at `1fc01bb690` is already cited verbatim on
@@ -10650,34 +10580,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rejects with the recorded fragments and
   `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles — 2/2
   green; still no independent slice.
-  OCREQ-REQUEST-BINDING. Re-witnessed at `4e716c7844` on linux x86-64
-  (CHAIN-OCREQ-ENTRY-BINDING dispatch): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
-  identities verified (622,933-byte receipt request, 565,909-byte
-  customer, 45-byte expected observation).
-  OCREQ-REQUEST-BINDING. Re-witnessed at `832c55e69b` on linux x86-64
-  (OCREQ-ENTRY-BINDING dispatch): `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
-  identities (622,933-byte receipt request, 565,909-byte customer, 45-byte
-  expected observation); executing half stays seed-host-gated.
-  covered — sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved verdict (1fc01bb690)
-- **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved, re-mines the
-  bound OCREQ request-entry surface (sibling resolutions above).
-  Re-verified at `94e764a6da` (linux x86-64):
-  `sh tests/bootstrap/omega-request/run.sh --identity` PASSes — all bound
-  identities verified, both byte streams assembled (622,933-byte receipt
-  request, 565,909-byte customer — drifted from 163670cf6d's 563,268
-  because the stream follows the moving source closure; the pinned entry
-  identities are unchanged). Executing half stays seed-host-gated;
-  linux x86-64 is an admitted audited host so that leg is duration, not
-  code. Record: `wiki/drafts/chain_ocreq_entry_binding.md`.
-  Re-witnessed at `fff3918dc42` on linux x86-64 (this-name dispatch):
-  `sh tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
-  identities verified, same byte streams (622,933-byte receipt request,
-  565,909-byte customer, 45-byte expected observation). No residual
-  slice; this row and its ~:10399 twin are both resolved stamps on the
-  same surface — board sweeps own row retirement.
-  covered — re-mine of the bound OCREQ request-entry surface; run.sh --identity re-witnessed PASS, executing half seed-host-gated
+- **CHAIN-OCREQ-ENTRY-BINDING.** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record. (folded twin 2 of 2)
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
   completed — the attribution ledger
   `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
@@ -11259,27 +11162,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   edit lands without the harness side. Sibling re-mines of the same OMEGA-D
   clause for coordinator retirement: D-OCREQ-ENTRY-BINDING and
   D-REQUEST-ADMISSION-ROUTE.
-- **D-OCREQ-ENTRY-BINDING.** Mined candidate — resolved: the
-  CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS row names this stub verbatim
-  as a sibling re-mine of the OMEGA-D `frame_ocreq`/`compile(source, entry)`
-  adapter-retirement clause, and the bound entry state it asks for is
-  already on main — re-verified at `867443a8fd`:
-  `tools/bootstrap/omega/compiler_env.sh` pins `OMEGA_REQUEST_ENTRY_SIZE=4115`
-  / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…` and the executable-side
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19253` /
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256=9573d734…`, recorded in
-  `tests/bootstrap/omega-request/README.md` as D's canonical OCREQ request
-  boundary (same bound surface the resolved sibling
-  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING cites). The one unlanded residual —
-  retiring the trampoline adapter — is a coordinated edit inside
-  `tests/bootstrap/omega-executable/` (nine control members call
-  `compile(source, entry)`; `controls_g.epsilon` pins the trampoline bytes),
-  live-fenced to OMEGA-D (`bootstrap/5_omega` +
-  `tests/bootstrap/omega-executable` + `wiki/spec/build/compiler_request.md`,
-  expires 22:27Z) with `tests/bootstrap/omega-request` under
-  OMEGA-D-REQUEST-TABLES (01:55Z). No unfenced slice remains; sibling
-  re-mines of the same bound surface: CHAIN-MANIFEST-OCREQ-BINDING,
-  CHAIN-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
+- **D-OCREQ-ENTRY-BINDING.** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
 - **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
 - **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER** — mined candidate; retired item re-mine — the canonical
@@ -13641,68 +13524,53 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`x86_rel8_selected` rejects `Architecture::Aarch64` as `UnsupportedTarget`
   in catalog.rs, and `hosted_sequences.rs` emits the out-of-range
   diagnostic). Dispatch it here — already resolved.
-- **OCREQ-REQUEST-BINDING.** — mined candidate; resolved — re-mine
-  stub of the bound OCREQ request-entry surface (sibling
-  resolutions: CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING,
-  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING, OCREQ-REQUEST-ENTRY-BINDING
-  below). Binding stands on main: `compiler_env.sh` pins
-  `OMEGA_REQUEST_ENTRY_*` plus the sealed-request fixture pair and
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`; fresh witness recorded below.
-  No unbound residual under this name.
-  Re-witnessed at `7d03d489e3d` on linux x86-64: `sh
-  tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
+- **OCREQ-REQUEST-BINDING.** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
+- **OCREQ-REQUEST-ENTRY-BINDING.** Mined candidate; resolved — canonical
+  row for the bound OCREQ request-entry surface; all sibling stub names
+  were folded into this row (NEW-FOLD-OCREQ-ENTRY-BINDING-STUBS):
+  CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING, CHAIN-MANIFEST-OCREQ-ENTRY-BINDING,
+  CHAIN-MANIFEST-OCREQ-BINDING, CHAIN-OCREQ-ENTRY-BINDING (two twin rows),
+  D-OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING, OCREQ-ENTRY-BINDING, and
+  the bare OCREQ-REQUEST-BINDING / OCREQ-REQUEST-ENTRY-BINDING stubs.
+
+  Bound surface on main: `tools/bootstrap/omega/compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115` /
+  `OMEGA_REQUEST_ENTRY_SHA256=0d612813…` (the canonical OCREQ request
+  entry), the sealed-request fixture pair
+  (`OMEGA_REQUEST_FIXTURE_*=132`/`ab2e980a…`), and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*` for the executable-chain leg (19253
+  bytes / `9573d734…` — re-minted upstream from the earlier 19249-byte
+  `5d5d0b8e…` stamp; the stream follows the moving source closure while
+  the entry identities stay pinned). The omega-request gate
+  (`tests/bootstrap/omega-request/`) drives the sealed request through
+  the Gamma→Delta→Epsilon→D chain; `gate.py:130` publishes the
+  `coverage_request_semantics` frame through the sealed boundary, and
+  `tests/bootstrap/omega-identity.sh` refuses a mutated entry
+  (`require_omega_request_entry_identity`). Provisions
+  `coverage_request_semantics`/`request_staging_bytes` sit in
+  `wiki/spec/build/compiler_request.md:453-454` +
+  `bootstrap/5_omega/outcome.epsilon` and drive the entry's
+  Incomplete/resource refusals.
+
+  Re-witnessed at `bb192d7ea9ebd` on linux x86-64 (this pass):
+  `sh tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
   identities verified (622,933-byte receipt request, 565,909-byte
-  customer, 45-byte expected observation); execution legs stay
-  seed-host-gated per the frontier.
-- **OCREQ-REQUEST-ENTRY-BINDING.** Mined candidate; scope verified at
-  163670cf6d — re-mines the bound OCREQ request-entry surface (sibling
-  resolutions: CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING,
-  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING). Binding exists on main:
-  `tools/bootstrap/omega/compiler_env.sh` carries
-  `OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…`, the sealed-request
-  fixture `OMEGA_REQUEST_FIXTURE_*=132`/`ab2e980a…`, and
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`=19253/`9573d734…`; the omega-request
-  gate (`tests/bootstrap/omega-request/`) drives the sealed request through
-  the Gamma→Delta→Epsilon→D chain. Witnessed this host (linux x86-64):
-  `sh tests/bootstrap/omega-request/run.sh --identity` PASSes at
-  163670cf6d — all bound identities verified and both byte streams
-  assembled (622,933-byte receipt request, 563,268-byte customer, 45-byte
-  expected observation). The executing half is seed-host-gated by the
-  gate's own `require_seed_execution_host` call — Linux x86-64 is now an
-  admitted audited host (d3776b9890), so that leg is a duration-bounded
-  full-chain interpretation, not a code change. Sibling stubs on the same
-  surface: OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING,
-  CHAIN-MANIFEST-OCREQ-BINDING, CHAIN-OCREQ-ENTRY-BINDING,
-  D-OCREQ-ENTRY-BINDING.
-  Re-verified at `e7c0099cb2`: the request-entry binding is unchanged
-  (`OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…`,
-  `OMEGA_REQUEST_FIXTURE_*=132`/`ab2e980a…`,
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`=19253/`9573d734…`) while the packed
-  closure and outcome entry rebased under `28bb320201` (OCOUT V1 tables
-  wired into D's outcome projections; manifest SHA rotated). Witness
-  re-run on this host: `sh tests/bootstrap/omega-request/run.sh
-  --identity` PASSes — 622,933-byte receipt request, 565,909-byte
-  customer (was 563,268 at the prior verification, matching the outcome
-  rebase), 45-byte expected observation; execution legs still
-  seed-host-gated. The executing surface is now more densely fenced:
-  OMEGA-D-REQUEST-ADMISSION (Zergling-128) holds `tools/bootstrap/omega`,
-  `tests/bootstrap/omega-request`, `omega-parser`, `omega-identity.sh`,
-  `omega-executable`, and `source-closure.py`, and
-  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING holds the binding draft.
-  Re-verified at `832c55e69b7` (board claim for this row timed out on
-  the starved claims-ref; no item holder): the request-entry binding is
-  unchanged and the witness re-run on this host PASSes —
-  `sh tests/bootstrap/omega-request/run.sh --identity` verifies all
-  bound identities and assembles the same byte streams (622,933-byte
-  receipt request, 565,909-byte customer, 45-byte expected
-  observation); execution legs still seed-host-gated. Fence drift since
-  the last stamp: the OMEGA-D-REQUEST-ADMISSION dir-fence on
-  `tools/bootstrap/omega` + `tests/bootstrap/omega-request` has
-  drained; live claims on this surface are sibling-alias items —
-  OCREQ-ENTRY-BINDING (Devin/z161 ~09:26Z), CHAIN-MANIFEST-OCREQ-BINDING
-  (~09:34Z), OMEGA-D-REQUEST-AND-ENTRY-ROUTE (Zergling-130 ~10:05Z) —
-  plus OMEGA-D-REQUEST-V1-TABLES (Zergling-126 ~11:19Z) on
-  `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`.
+  customer, 45-byte expected observation); identical identities to the
+  `59e0b5ec22`, `3dac85e5ccc`, `2dbccb9bd68`, `12ea4941ebd`,
+  `4e716c7844`, `832c55e69b` and `fff3918dc4` stamps. The executing
+  half stays seed-host-gated by the gate's own
+  `require_seed_execution_host` call — Linux x86-64 is an admitted
+  audited host (`d3776b9890`), so that leg is duration-bounded
+  full-chain interpretation, not a code change.
+
+  Residual (owned elsewhere, not by this row): retiring the
+  `frame_ocreq`/`compile(source, entry)` trampoline adapter is a
+  coordinated OMEGA-D edit inside `tests/bootstrap/omega-executable/`
+  (nine control members call `compile(source, entry)`;
+  `controls_g.epsilon` pins the trampoline bytes) — tracked by the
+  OMEGA-D entry-adapter rows. The draft ledger record
+  `wiki/drafts/chain_ocreq_entry_binding.md` was deleted by this fold;
+  its content duplicated this row verbatim.
 - **OMEGA-C.** Verified `8a37f82686`: the canonical item is
   `TASKS_BOOTSTRAP.md` P4's OMEGA-C — "the sole self-host edge": compile
   the exact Omega-written closure rooted at `source/omega/{build.omg,
@@ -14083,22 +13951,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
 - **NON-X86-LAYOUT-RELAXATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
-- **OCREQ-ENTRY-BINDING** — mined candidate; resolved as a re-mine of the
-  bound OCREQ request-entry surface (siblings CHAIN-OCREQ-ENTRY-BINDING,
-  D-OCREQ-ENTRY-BINDING resolved the same row). Re-verified at this
-  revision on linux x86-64: `sh tests/bootstrap/omega-request/run.sh
-  --identity` PASSes — `compiler_env.sh` pins
-  `OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…` and
-  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19249`/`SHA256=5d5d0b8e…` (the
-  executable-entry pin re-minted upstream since the sibling row's
-  19253-byte stamp — stream follows the moving source closure; identity
-  binding intact), `gate.py:130` publishes `coverage_request_semantics`,
-  and `omega-identity.sh` refuses a mutated entry. Execution half stays
-  seed-host-gated. Sibling stubs on this surface:
-  CHAIN-MANIFEST-OCREQ-BINDING, OCREQ-REQUEST-BINDING,
-  OCREQ-REQUEST-ENTRY-BINDING.
-- **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
-- **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **OCREQ-ENTRY-BINDING** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
+- **OCREQ-REQUEST-BINDING** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record.
+- **OCREQ-REQUEST-ENTRY-BINDING** Resolved — folded into OCREQ-REQUEST-ENTRY-BINDING: this name re-mines the same bound OCREQ request-entry surface; see that row's canonical record. Duplicate bare stub of the row above; kept as a name pointer only.
 - **OMEGA-C** — mined candidate; verify scope then implement.
 - **OMEGA-C-SELF-HOST-EDGE** — mined candidate; verify scope then implement.
 - **OMEGA-COMPILER-TAPE-BINDING** — mined candidate; verify scope then implement.
