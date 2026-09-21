@@ -12160,6 +12160,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Closure = respell/land those legs on another row run; sibling stubs
   RC-DIAGNOSTICS, RC-DIAGNOSTICS-GATE, RC-DIAGNOSTICS-STABILITY re-mine
   the same row.
+  Re-witnessed at `771d0469a1c` (linux x86-64): the leg is now GREEN —
+  `cargo nextest run -p compiler --test canary_suite
+  proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+  PASSes in 112.6s across the full fail corpus, zero drift. The recorded
+  11-fixture set is closed: `boundary_operator_mutation_invalidates_domain`
+  respelled by the sibling row (`d74f2145b9`), the remaining stale
+  fragments and silent acceptances repaired by intermediate main
+  commits, and the RC-DIAGNOSTICS-GATE fixture fence has expired. The
+  closure condition is met on this host; residual is only the
+  measurement's own staleness in the draft.
 - **RC-DIAGNOSTICS-STABILITY.** — mined candidate; scope verified, coverage recorded. Sibling row RC-DIAGNOSTICS-CLOSURE (this section) already carries the measurement and names this stub as a re-mine of its row: the fail-canary leg `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment` ran red at `e76d715c8e` (wiki/drafts/rc_diagnostics_linux_x86_64.md) — 10 drifted canaries in 127.3s, 8 stale `expected.txt` fragments + 2 silent acceptances, 9 fixtures fenced to the RC-DIAGNOSTICS-GATE worker. Landed the one unfenced fixture on this row's run: `domains/boundary_operator_mutation_invalidates_domain` was rejecting earlier than its pinned site after `f1f9f898e2`'s exact call permissions — a bare `self.text` projection lends only immutable access, so the custody fence fired before `consume`'s contract check. Respelled to forward the stored `&mut` field through a `&mut` binding (`let t: &mut [u8] = self.text`, associated `Main::consume(t)`), which re-reaches the same invalidation rejection — `cannot prove requires contract for call consume from Main::main: t in [u8]::NoNul (invalidated by prior mutation of t)` — and `expected.txt` updated to that fragment. Re-witnessed green on linux x86-64 at `d74f2145b9` (`OMEGA_FAIL_CANARY_FILTER=boundary_operator_mutation_invalidates_domain` → fail_canaries_reject_with_expected_diagnostic_fragment PASS). Remaining 9 drifted fixtures stay fenced to the RC-DIAGNOSTICS-GATE worker.
 - **RC-HOST-RUNNER-LANES.** — mined candidate; scope verified at
   `797e99ead7`, currently fully covered: re-mines the per-host runner lanes
