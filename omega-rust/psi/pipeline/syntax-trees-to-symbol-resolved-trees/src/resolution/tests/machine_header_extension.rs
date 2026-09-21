@@ -75,7 +75,7 @@ fn retained_extension_preserves_machine_children_and_appends_selected_inherited_
         sources,
         top_level_bindings: Vec::new(),
     })
-    .map(|seeded| seeded.into_unrebased_trees())
+    .map(|seeded| seeded.trees().clone())
     .expect("extend retained machine headers");
     assert_eq!(
         program

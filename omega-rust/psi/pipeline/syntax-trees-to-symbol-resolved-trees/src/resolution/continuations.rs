@@ -202,14 +202,6 @@ impl SeededSymbolResolvedTrees {
         &self.trees
     }
 
-    pub fn rebase_authored_selections(
-        self,
-        destination_base: &AuthoredDeclarationSelections,
-    ) -> Result<SymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)> {
-        self.rebase_authored_selections_for_typed_continuation(destination_base)
-            .map(RebasedSeededSymbolResolvedTrees::into_trees)
-    }
-
     pub fn rebase_authored_selections_for_typed_continuation(
         self,
         destination_base: &AuthoredDeclarationSelections,
@@ -229,21 +221,11 @@ impl SeededSymbolResolvedTrees {
             Err((trees, error)) => Err((Self { trees, ..self }, error)),
         }
     }
-
-    /// The extension's trees without the rebase custody a typed continuation
-    /// needs; readable, not a typing input.
-    pub fn into_unrebased_trees(self) -> SymbolResolvedTrees {
-        self.trees
-    }
 }
 
 impl RebasedSeededSymbolResolvedTrees {
     pub fn trees(&self) -> &SymbolResolvedTrees {
         &self.trees
-    }
-
-    pub fn into_trees(self) -> SymbolResolvedTrees {
-        self.trees
     }
 
     pub fn into_typing_continuation_parts(self) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
