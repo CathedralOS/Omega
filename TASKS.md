@@ -13386,38 +13386,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRY-CONTENT-ROOTS, FINITE-GENERIC-DISPATCH) currently holds a live
   claim, but those legs remain named bullets on their own board items,
   not free slices under this name.
-- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06`,
-  re-verified at `c1e0b08537` (the row's composition-host path corrected:
-  `compose_task_stack_demand` lives in
-  `omega-rust/omega/representations/task-plans/src/stack_composition/mod.rs`;
-  provider-planning's stack_graphs only documents/consumes it) —
-  this names the contract half of the runtime-sized activation storage
-  chapter (`wiki/spec/resources/activation_storage.md`): bounded-claim
-  admission (`committed <= bound` as a checked admission failure, never a
-  trap or clamp), demand composition of claim bounds (add across
-  simultaneously-live claims, max across mutually-exclusive branches), the
-  linear activation-scoped custody (reverse-establishment release,
-  nonmoving backing, live-claim roster at suspension crossings), and the
-  per-site publication rows with site/plan-bijection replay. No
-  implementation substrate exists to hang the contract on: there is no
-  `claim` token or extent-claim syntax/checked node under `omega-rust/psi`
-  or `omega-rust/omega` (existing `claim` hits are linear-obligation custody
-  and concurrency tickets, unrelated), and `compose_task_stack_demand`
-  composes selected-local demand only — it is the composition host a claim
-  bound would extend, not an existing claim path. The construct leg
-  (sibling stub RUNTIME-SIZED-ACTIVATION-STORAGE) must land first;
-  RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT is the same chapter and resolves
-  as this item's alias. Re-mine once a claim surface is authorized.
-  **DESIGN-BLOCKED (verified 2026-09-21).**
-  `wiki/spec/resources/activation_storage.md:14` gives the SEMANTICS -- an
-  admitted claim surface requests the region by supplying a committed extent and
-  its bound, and yields a linear extent claim over the result -- but no language
-  chapter states the authored SPELLING, and `dependent_values.md`'s only mention
-  is a forward reference back to the same chapter. A checker node cannot be
-  written against a construct with no surface syntax. Sibling row at :17656.
+- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
+  [bounded activation claim](wiki/spec/resources/activation_storage.md) to
+  authored source and Terminal Psi. Use ordinary callable/core-declaration
+  mechanisms; an absent `claim` keyword is not an owner-design blocker.
+  `psi/foundation/extents/src/activation_claims/` supplies bookkeeping,
+  not an executable compiler route.
 
-- **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT** — mined candidate; scope verified, residual owned — re-mines the activation-storage leg of the state-local value frontier (STATE-LOCAL-VALUE-FRONTIER lane, owner of indexed primitive storage/replacements). On `main`: runtime-extent `Buffer<count>` binders retain a runtime extent but the spec explicitly does NOT authorize runtime-sized inline stack storage (`dependent_values.md`), and scalar-array establishment has no abstract storage realization — `LoweringError::UnsupportedScalarArray` rejects `EstablishScalarArray` in `terminal-psi-to-abstract-operations/src/lowering` (audit-pinned by `scalar_array_without_structural_result_rejects`). No independent slice to carve: the contract's remaining work is the owned frontier's indexed-storage realization, not a separate admission. Sibling stubs: RUNTIME-SIZED-ACTIVATION-CONTRACT, RUNTIME-SIZED-ACTIVATION-STORAGE.
-  covered — residual is STATE-LOCAL-VALUE-FRONTIER's indexed-storage realization
+  Expose compiler-provisioned activation backing with exact activation
+  provenance/lifetime, then retain committed extent, bound, release order and
+  suspension claim-site rows through checking, lowering, codec and independent
+  verification. Keep backing nonmoving with stable materialized addresses for
+  the claim lifetime. Owners: ordinary call admission, extent/claim evidence,
+  Terminal representation and stack-demand composition. Allocation packages
+  can manage already-held backing but cannot mint its grant from an address
+  and length. Runtime generic extents and fixed-array establishment are not
+  this supply mechanism.
+
+  Acceptance: a source-authored bounded claim supports access, reverse-order
+  release and suspension retention under its declared bound; over-bound
+  establishment returns checked failure. Escaping claims, missing/duplicate
+  sites, wrong provenance, stale loans and invalid release/suspension custody
+  reject independently. **FRAME-LAYOUT** in `TASKS_OPTIMIZER.md` owns final
+  frame, probe, unwind and native replay. Do not add implicit variable-sized
+  locals, provider-backed issuance, a new syntax category or an OS allocator.
+
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
   covered — alias of CROSS-COMPILER-DIFFERENTIAL-LANE, blocked on OMEGA-PRODUCT-COMPILER-SOURCE
@@ -13439,9 +13432,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered — enforcement landed; retirement decision upstream-gated on TASKS_BOOTSTRAP.md self-hosting clause
 - **RUST-RELEASE-RECORD** — mined candidate; verify scope then implement.
   covered — substrate landed (`210ffe3c93`); closure owned by RC-RELEASE-RECORD-AND-CLOSURE
-- **RUNTIME-SIZED-ACTIVATION-STORAGE.** — mined candidate; verify scope then implement.
-- **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT.** — mined candidate; scope verified, residual owned — re-mines the activation-storage leg of the state-local value frontier (STATE-LOCAL-VALUE-FRONTIER lane, owner of indexed primitive storage/replacements). Re-verified at `e8c29138ff` (row's `dependent_values.md` path corrected: `wiki/spec/language/`, not resources). On `main`: runtime-extent `Buffer<count>` binders retain a runtime extent but the spec explicitly does NOT authorize runtime-sized inline stack storage (`dependent_values.md`), and scalar-array establishment has no abstract storage realization — `LoweringError::UnsupportedScalarArray` rejects `EstablishScalarArray` in `terminal-psi-to-abstract-operations/src/lowering` (audit-pinned by `scalar_array_without_structural_result_rejects`). No independent slice to carve: the contract's remaining work is the owned frontier's indexed-storage realization, not a separate admission. Sibling stubs: RUNTIME-SIZED-ACTIVATION-CONTRACT, RUNTIME-SIZED-ACTIVATION-STORAGE. Re-verified at `5bb9a74842` (linux x86-64): `UnsupportedScalarArray` still declared at `lowering/error.rs:26` and emitted at `structural_establishment.rs:24`, audit pin `scalar_array_without_structural_result_rejects` at `rejection_audit.rs:363`; `dependent_values.md:39-52` still withholds runtime-sized inline stack storage and defers to `resources/activation_storage.md`; STATE-LOCAL-VALUE-FRONTIER remains live-fenced (draft `wiki/drafts/state_local_value_frontier.md` claimed to ~23:45Z). A bare duplicate stub of this name also sits at :17090.
-  covered — residual is STATE-LOCAL-VALUE-FRONTIER's indexed-storage realization
 - **RUST-COMPILER-RELEASE-RECORD.** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION.** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
   covered — omission gate landed (`a3e094aea4`, `tools/rust_producer_omission.py`)
@@ -13708,8 +13698,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 - **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build. Re-verified green at `771d0469a1c47` (linux x86-64, same command 2/2); a third bare mined stub further down this board names the same surface — drained by this row. Deduped under NEW-DEDUPE-SCOPED-LOOKUP-MAP-AUDIT-ROWS: the bare repeat stub and the field-note stub below are deleted (the field note itself asked for deletion), and an orphaned stale Squalr-gitlink fragment glued inside this row is removed — its current resolution lives on the SCAN-SCALAR rows.
   covered — landed and self-enforcing (`tests/architecture/scoped_lookup_maps.rs`)
-- **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT** — mined candidate; verify scope then implement.
-  covered — residual is STATE-LOCAL-VALUE-FRONTIER's indexed-storage realization
 - **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; scope
   verified, covered — resolved sibling alias of
   CROSS-COMPILER-DIFFERENTIAL-LANE (~:9453), which names this row verbatim
