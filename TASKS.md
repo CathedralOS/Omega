@@ -9790,6 +9790,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-witnessed at `62a52db5ff`: all three records still on disk,
   `run_metrics.py validate` → 3/3 conform,
   `test_matching_logic_metrics.py` → 16/16.
+  Re-witnessed again at `138ed79a677`: validate → 3/3 conform,
+  unittest → 16/16.
 - **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
   at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
   adjudicated surface (chapter 14's recorded gap: a trait requirement
