@@ -2,8 +2,13 @@
 //! pending marks, and the selected-execution fold over generic argument
 //! positions (fields, `let` annotations, return types).
 
-use super::*;
+use super::{
+    const_application_plan, defer_pending_const_applications, evaluate_selected_const_applications,
+    pending_const_applications_need_operator_selection,
+};
 use crate::SelectedBuildTimeOperators;
+use typed_trees::TypedTrees;
+use typed_trees::types::TypeReferenceNode;
 
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
