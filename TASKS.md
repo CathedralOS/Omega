@@ -8148,7 +8148,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Executable-chain legs stay host-gated per the frontier. No unbound
   residual. Sibling stubs: CHAIN-MANIFEST-OCREQ-BINDING,
   CHAIN-OCREQ-ENTRY-BINDING, D-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING,
-  OCREQ-REQUEST-BINDING.
+  OCREQ-REQUEST-BINDING. Re-witnessed at `4e716c7844` on linux x86-64
+  (CHAIN-OCREQ-ENTRY-BINDING dispatch): `sh
+  tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
+  identities verified (622,933-byte receipt request, 565,909-byte
+  customer, 45-byte expected observation).
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
   completed — the attribution ledger
   `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
@@ -9683,6 +9687,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `1_beta/beta_compiler_bytecode.tape`,
   `2_gamma/gamma_evaluator_bytecode.tape`, and `5_omega/alpha_tape.epsilon`
   — so there is still nothing to bind and the producing rung stays gated.
+  Re-verified at `c0a3f3ac34` on linux x86-64: tape inventory unchanged
+  (same three artifacts, no omega0/omega tape); producing rung still
+  gated — OMEGA-D family over `bootstrap/5_omega`,
+  OMEGA-WRITTEN-PRODUCT-COMPILER over `source/omega`+`source/psi`
+  (~07:20Z), OMEGA-D-REQUEST-ADMISSION/records-env-request over
+  `tools/bootstrap/omega`+`tests/bootstrap/omega-request` (~11:12Z).
 - **OMEGA-D-COMPILER-REQUEST-TABLES.** Scope verified, fenced at
   `a0b906db93` — the stub re-mines the OMEGA-D OCREQ V1 request-table
   clause, whose named surface is already landed: per
@@ -9839,12 +9849,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-D-REQUEST-AND-SCALAR-COMPILATION's frontier record — comparisons,
   paths, `!`/`-` (LogicalNot produces Boolean; Negate is not total on the
   unsigned carrier under Exact), locals, assignments, remaining transition
-  forms. Implementation surface is fenced: `bootstrap/5_omega` sits under
-  OMEGA-D's blanket claim (Zergling-112, exp ~22:27Z),
-  `scalar_compilation.epsilon` itself is claimed by
-  D-SCALAR-OPERATION-CLOSURE (Zergling-166, exp ~01:46Z), and the gate dir
-  `tests/bootstrap/omega-executable` by D-DIAGNOSTIC-ENTRY-ADAPTER-
-  REPLACEMENT (Jarod, exp ~05:25Z). No separable slice: the sibling
+  forms. Implementation surface is fenced (re-mapped `d7a48d7af0`):
+  `scalar_compilation.epsilon` itself is unfenced — its earlier fences
+  expired — but any operator fold lands only with a re-pinned member
+  digest in `bootstrap/5_omega/omega_compiler.epsilon.sources` (fenced by
+  OMEGA-D-REQUEST-ADMISSION/semantics-4-5, Zergling-128, ~06:30Z) and the
+  acceptance gate dir `tests/bootstrap/omega-executable` (same owner's
+  records-free leg, ~06:46Z). No separable slice: the sibling
   OMEGA-D-SCALAR-{ALPHA-EMISSION,EMISSION-EXTENSION,OPERATION-FRONTIER,
   SEQUENCING} rows name the same file.
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
@@ -12276,7 +12287,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   POC-SPILL-FAMILY-SEQUENCING, exp 22:30Z). Folds into that item; no
   independent slice. Sibling stubs: UNSEQUENCED-SPILL-DISPOSITION
   (resolved same-way), UNSEQUENCED-SPILL-STAGE-DISPOSITION,
-  UNSEQUENCED-SPILL-FAMILY-DISPOSITION.
+  UNSEQUENCED-SPILL-FAMILY-DISPOSITION, and
+  UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE (same fold — the
+  sequence-or-delete wording is the canonical item's own disposition
+  verb; re-verified at `11d86399e6` with `unsequenced_spill_stages/`
+  still fenced wholesale under POC-SPILL-FAMILY-SEQUENCING, ~06:53Z,
+  and the canonical item itself claimed ~04:21Z).
 - **UNSEQUENCED-SPILL-STAGES-DISPOSITION.** Finish the disposition owned by
   **SPILL-REALIZATION** and **PIPELINE-OWNER-CONSOLIDATION** in
   [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md). The remaining
