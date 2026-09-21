@@ -30,40 +30,57 @@ impl ProofTerm {
     /// Structural validity: construction identities are populated, fields
     /// validate, and the term carries no runtime reference.
     pub fn validate(&self) -> Result<(), PropositionError> {
-        match self {
-            Self::Construction {
-                type_identity,
-                case_identity,
-                fields,
-            } => {
-                if type_identity.is_empty() {
-                    return Err(PropositionError::EmptyProofTermTypeIdentity);
-                }
-                if case_identity.as_deref().is_some_and(str::is_empty) {
-                    return Err(PropositionError::EmptyProofTermCaseIdentity);
-                }
-                for field in fields {
-                    field.validate()?;
-                }
-                Ok(())
-            }
-            Self::Formal { .. } => Ok(()),
+        // An explicit worklist keeps deep constructions off the call stack:
+        // `Field` steps keep each field-identity check in front of its own
+        // term, matching the error order the recursive validator produced.
+        enum Step<'a> {
+            Term(&'a ProofTerm),
+            Field(&'a ProofTermField),
         }
+        let mut pending = vec![Step::Term(self)];
+        while let Some(step) = pending.pop() {
+            match step {
+                Step::Term(ProofTerm::Construction {
+                    type_identity,
+                    case_identity,
+                    fields,
+                }) => {
+                    if type_identity.is_empty() {
+                        return Err(PropositionError::EmptyProofTermTypeIdentity);
+                    }
+                    if case_identity.as_deref().is_some_and(str::is_empty) {
+                        return Err(PropositionError::EmptyProofTermCaseIdentity);
+                    }
+                    for field in fields.iter().rev() {
+                        pending.push(Step::Field(field));
+                    }
+                }
+                Step::Term(ProofTerm::Formal { .. }) => {}
+                Step::Field(field) => {
+                    if field.field_identity.is_empty() {
+                        return Err(PropositionError::EmptyProofTermFieldIdentity);
+                    }
+                    pending.push(Step::Term(&field.term));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Visit every erased-proof-formal position this term names.
     pub fn visit_formal_positions(&self, mut visit: impl FnMut(u32)) {
-        self.visit_formal_positions_ref(&mut visit);
-    }
-
-    fn visit_formal_positions_ref(&self, visit: &mut dyn FnMut(u32)) {
-        match self {
-            Self::Construction { fields, .. } => {
-                for field in fields {
-                    field.term.visit_formal_positions_ref(visit);
+        // Field terms push in reverse so positions still surface in authored
+        // field order without recursing on the construction depth.
+        let mut pending = vec![self];
+        while let Some(term) = pending.pop() {
+            match term {
+                Self::Construction { fields, .. } => {
+                    for field in fields.iter().rev() {
+                        pending.push(&field.term);
+                    }
                 }
+                Self::Formal { position } => visit(*position),
             }
-            Self::Formal { position } => visit(*position),
         }
     }
 }

@@ -1,8 +1,8 @@
 //! Tests for integer types, scalar terms and propositions.
 
 use super::{
-    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
-    PropositionError, ScalarTerm, ScalarType,
+    IntegerCarrier, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ProofTerm,
+    ProofTermField, Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType,
 };
 use crate::ValueId;
 
@@ -769,6 +769,80 @@ fn wrapping_multiply_reduces_at_the_declared_width_for_all_edge_shapes() {
         i128_type.wrapping_mul(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1)),
         Some(IntegerValue::Signed(i128::MIN))
     );
+}
+
+#[test]
+fn deeply_nested_terms_validate_off_the_call_stack() {
+    // The validators used to recurse on their trees, so a term nested deeper
+    // than the thread stack overflowed before validation could answer. The
+    // worklists keep the same first-error order without spending stack.
+    // `forget` skips the still-recursive drop glue on the boxed trees.
+    const DEPTH: usize = 100_000;
+
+    let mut math = IntegerMathTerm::literal(IntegerValue::Unsigned(0));
+    for _ in 0..DEPTH {
+        math = IntegerMathTerm::Add(
+            Box::new(math),
+            Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+        );
+    }
+    assert_eq!(math.validate(), Ok(()));
+    std::mem::forget(math);
+
+    let mut scalar = ScalarTerm::boolean(true);
+    for _ in 0..DEPTH {
+        scalar = ScalarTerm::BooleanNot {
+            operand: Box::new(scalar),
+        };
+    }
+    assert_eq!(scalar.validate(), Ok(()));
+    std::mem::forget(scalar);
+
+    // Errors still surface from the bottom of the nest first: the innermost
+    // `BooleanNot` sees an integer operand and rejects before its parents run.
+    let mut bad_scalar = ScalarTerm::integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+        IntegerValue::Unsigned(1),
+    )
+    .expect("u8 literal");
+    for _ in 0..DEPTH {
+        bad_scalar = ScalarTerm::BooleanNot {
+            operand: Box::new(bad_scalar),
+        };
+    }
+    assert_eq!(
+        bad_scalar.validate(),
+        Err(PropositionError::BooleanNotTypeMismatch(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"))
+        ))
+    );
+    std::mem::forget(bad_scalar);
+
+    let mut proposition = Proposition::Truth;
+    for _ in 0..DEPTH {
+        proposition = Proposition::Implication {
+            premise: Box::new(Proposition::Truth),
+            conclusion: Box::new(proposition),
+        };
+    }
+    assert_eq!(proposition.validate(), Ok(()));
+    let context = PropositionContext::from_value_types([]).expect("empty context");
+    assert_eq!(context.validate(&proposition), Ok(()));
+    std::mem::forget(proposition);
+
+    let mut proof_term = ProofTerm::Formal { position: 0 };
+    for _ in 0..DEPTH {
+        proof_term = ProofTerm::Construction {
+            type_identity: "Nat".to_owned(),
+            case_identity: None,
+            fields: vec![ProofTermField {
+                field_identity: "pred".to_owned(),
+                term: proof_term,
+            }],
+        };
+    }
+    assert_eq!(proof_term.validate(), Ok(()));
+    std::mem::forget(proof_term);
 }
 
 #[test]

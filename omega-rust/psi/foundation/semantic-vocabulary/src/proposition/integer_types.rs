@@ -891,24 +891,32 @@ impl IntegerMathTerm {
     }
 
     pub fn validate(&self) -> Result<(), PropositionError> {
-        match self {
-            Self::MathValue { source_type, .. } => {
-                if source_type.is_address() {
-                    return Err(PropositionError::AddressIntegerMathValue(*source_type));
+        // An explicit worklist keeps deep terms off the call stack: children
+        // push in reverse so the left operand still validates first, matching
+        // the error order the recursive validator produced.
+        let mut pending = vec![self];
+        while let Some(term) = pending.pop() {
+            match term {
+                Self::MathValue { source_type, .. } => {
+                    if source_type.is_address() {
+                        return Err(PropositionError::AddressIntegerMathValue(*source_type));
+                    }
                 }
-            }
-            Self::IntegerLiteral(literal) => {
-                if literal.negative && literal.magnitude == 0 {
-                    return Err(PropositionError::NegativeZeroIntegerMathLiteral);
+                Self::IntegerLiteral(literal) => {
+                    if literal.negative && literal.magnitude == 0 {
+                        return Err(PropositionError::NegativeZeroIntegerMathLiteral);
+                    }
                 }
-            }
-            Self::Add(left, right) | Self::Subtract(left, right) | Self::Multiply(left, right) => {
-                left.validate()?;
-                right.validate()?;
-            }
-            Self::ShiftLeft { value, count } => {
-                value.validate()?;
-                count.validate()?;
+                Self::Add(left, right)
+                | Self::Subtract(left, right)
+                | Self::Multiply(left, right) => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                Self::ShiftLeft { value, count } => {
+                    pending.push(count);
+                    pending.push(value);
+                }
             }
         }
         Ok(())
