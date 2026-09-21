@@ -327,8 +327,9 @@ pub const FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES: &[&str] = &[
 
 /// Fail canaries whose refusal lives in the production stages behind checked
 /// semantics (`checked-trees-to-lowered-psi` and its consumers). They need
-/// the rooted native-artifact route -- a `Check` stop never reaches the
-/// lowering wall -- but bind a non-native `ProgramEntry`, so they carry an
+/// the Terminal-artifact route -- a `Check` stop never reaches the lowering
+/// wall, and Terminal production exercises the fence without entering native
+/// realization -- but bind a non-native `ProgramEntry`, so they carry an
 /// explicit target like `CROSS_TARGET_FAIL_CANARIES`.
 pub const CROSS_TARGET_PRODUCTION_FAIL_CANARIES: &[(&str, &str)] = &[
     // Checked `let`/`boundary let` declarations reach the lowering consumer;
