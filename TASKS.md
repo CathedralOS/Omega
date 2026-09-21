@@ -14834,6 +14834,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unchanged: acceptance is a Windows-host `tools/verify.py native` run and
   no Windows host exists in this lane. Record:
   `wiki/drafts/squalr_geometry_windows_validation.md`.
+  Re-verified at `8f58b6676b0` (z181): the submodule gitlink moved
+  again — now `ef6682f75f` (was `5b0307c352`) — so the Windows leg
+  re-runs against the moved pin when a host exists; the named record
+  `wiki/drafts/squalr_geometry_windows_validation.md` is not on main.
+  `samples/apps/squalr` is wholesale-fenced this wave under
+  SQUALR-DEBUG-ASSERTIONS (~16:25Z registry). Operative blocker
+  unchanged: acceptance needs a Windows-host `tools/verify.py native`
+  run and no Windows host exists in this lane.
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
   Retire or wire the public stage entrances the executed stage-entrance orphan
   sweep named. **Re-verified at `a9286683d0` against the whole repository, and
