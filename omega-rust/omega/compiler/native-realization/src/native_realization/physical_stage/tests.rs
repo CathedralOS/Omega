@@ -262,3 +262,38 @@ fn malformed_unit_inputs_reject_at_legalization() {
         .push(original.functions[0].operations[0].clone());
     assert!(!admitted(&extra_operation));
 }
+
+/// Runs each target's leg on its own scoped thread. These fixtures recompute
+/// the same program under disjoint target parameters and share no state
+/// between legs, so a stage dominated by register-allocation recovery costs
+/// the slowest target once instead of once per target in sequence.
+fn run_target_legs(targets: &[target::NativeTarget], leg: impl Fn(target::NativeTarget) + Sync) {
+    std::thread::scope(|scope| {
+        let leg = &leg;
+        for &target in targets {
+            scope.spawn(move || leg(target));
+        }
+    });
+}
+
+/// Continues an allocation the test already retained through the canonical
+/// pipeline's post-allocation tail — post-allocation machine plan into
+/// fixed-frame realization — rather than re-lowering the identical program
+/// through a second selection and recovery pass.
+fn continue_staged_physical_tail(
+    target: target::NativeTarget,
+    allocation: selected_instructions_to_register_homes::RetainedAllocation,
+) -> crate::StagedOptimizedVerifiedPhysicalPipeline {
+    let machine =
+        register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan(
+            &allocation.current(),
+        )
+        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+    let budget = allocation.current().budget_per_pass();
+    crate::StagedOptimizedVerifiedPhysicalPipeline::from(
+        machine_emission::stage_fixed_frame_function_relative_realization(
+            allocation, machine, budget,
+        )
+        .unwrap_or_else(|error| panic!("{target:?}: {error:?}")),
+    )
+}
