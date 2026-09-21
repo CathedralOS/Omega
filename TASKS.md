@@ -378,6 +378,42 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   check all five week rows and the live header, since `contains: 30` also
   matches the banner without proving the grid rendered.
 
+- **CANARY-PACKAGE-MODE-SIGNAL.** (new-scope) Give the canary harness a
+  package-mode signal that is not "the build file mentions
+  `source/library/std`", and resolve the declared dependency path instead of
+  matching substrings. `fixture_declares_ordinary_std`
+  (`omega-rust/omega/compiler/compiler/tests/canary_suite.rs:3391-3395`) is
+  two `contains` calls — `"builder.depend(Source::Path"` and
+  `"source/library/std"` — and the std package itself is hard-wired to
+  `repo_root().join("source/library/std")`, so the authored location is never
+  resolved or compared.
+
+  Two real defects came from that single function, both found at
+  `2a9f9c02ad`:
+  - `tests/omega/pass/proofs/kernel_theorem_equality_certificates` declared
+    its dependency with **six** `../` segments where five reach the
+    repository root, so the authored path pointed outside the repository
+    entirely. It passed for as long as it existed, because the substring was
+    present.
+  - `tests/omega/pass/proofs/quotient_define_managed_compile` declares an std
+    edge it never imports, and that edge is load-bearing: removing it makes
+    `pass_canaries_compile` fail with "declaration `EquivalenceClass` has
+    non-hermetic source origin `User`", because the substring is what puts
+    the fixture in package mode at all. It is currently retained as a named
+    exception in `repository_build_declarations.rs` with the reason recorded
+    beside the assertion — a documented workaround, not a fix.
+
+  The second is the one that needs this row: "declare only the edges you
+  consume" and "mentioning std is what selects package mode" cannot both
+  hold, so a fixture that needs package mode without consuming std has no
+  honest spelling today.
+
+  Acceptance: the harness selects package mode from something other than the
+  std substring; a fixture may declare no std edge and still compile in
+  package mode, letting the `quotient_define_managed_compile` exception be
+  deleted rather than documented; and a `build.omg` whose declared dependency
+  path does not resolve to an existing directory is refused rather than
+  silently accepted.
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and their
   `compiler/tests/canary_suite/` owners to the promised checked/native stages.
   **SAMPLE-CORPUS** owns maintained application examples, not this task's
