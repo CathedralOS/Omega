@@ -8925,23 +8925,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   complete matching structural leaves — reusing one lifetime across multiple
   inputs rejects, as the README's lifetime-source-correspondence section
   records; that rejection is the deliberate boundary, not a gap. The residual
-  is: multi-source leg — every parameter carrying the selected lifetime
-  contributes leaves as possible sources, each supporting the returned access;
-  outlives leg — no authored syntax exists (lifetimes.md spells binders only,
-  conformances.md states whole-conformance applications do not gain
+  named the multi-source leg — every parameter carrying the selected lifetime
+  contributes leaves as possible sources, each supporting the returned access.
+  That leg has since landed at `9106b1ca037` ("explicit result lifetime unions
+  same-lifetime inputs as view sources"): `view_link.rs` now links an explicit
+  result lifetime to every input carrying the name, the returned view's sources
+  form the union of those inputs' matching leaves, and each candidate must
+  supply the result's access (README section updated in the same commit; the
+  unannotated-multiple-carried-sources case still rejects as the deliberate
+  boundary). Open residuals: general caller-side generic returned-view
+  attribution (README §Lifetime source correspondence, "remain incomplete"),
+  and the outlives leg — no authored syntax exists (lifetimes.md spells binders
+  only, conformances.md states whole-conformance applications do not gain
   outlives/variance/subtyping), so it waits on a spec decision, not a checker
-  gap. Every implementing surface is live-fenced this wave: `view_link.rs`,
-  `view_link/`, `loans.rs`, `loans/`, `checks/borrows/elision*`,
-  `tests/multi_source_view_lifetimes.rs` and the crate README are claimed
-  under GENERIC-RETURNED-VIEW-LIFETIMES (exp 22:27Z). No independent unclaimed
-  slice exists here.
-  Fence re-verified at `4927883cf3`: GENERIC-RETURNED-VIEW-LIFETIMES' lease
-  has drained and `src/borrow/{view_link.rs,view_link/,loans.rs,loans/}` are
-  now claim-free — but the witness surfaces stay fenced (`src/tests/borrow`
-  to BORROW-PROOF-CONVERGENCE exp 06:46Z; the crate's `tests/` dir to
-  PROOF-CONTRACT-MIGRATION exp 10:38Z), so the multi-source leg (a deliberate-
-  boundary semantics change needing new pass/fail corpus) still cannot land
-  with coverage this wave; the outlives leg remains spec-blocked.
+  gap. Re-verified at `e7c0099cb2b7`: `view_link.rs` and `loans.rs` are
+  claim-free, but the witness surfaces stay fenced — `src/checks/borrows` +
+  `src/tests/borrow` to BORROW-PROOF-CONVERGENCE (exp 06:46Z) and the crate's
+  `tests/` dir to PROOF-CONTRACT-MIGRATION (exp 10:38Z). No independent
+  unclaimed slice exists here.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT.** Mined candidate — scope verified,
   already landed and enforced; same verdict as sibling row
   SCOPED-LOOKUP-MAP-AUDIT, whose surface this stub re-mines: the
