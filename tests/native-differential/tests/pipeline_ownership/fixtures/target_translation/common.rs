@@ -80,6 +80,7 @@ pub(super) fn scalar_terminal_artifact(
             entry,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -88,6 +89,7 @@ pub(super) fn scalar_terminal_artifact(
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(30_007).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

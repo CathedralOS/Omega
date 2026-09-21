@@ -15,7 +15,7 @@ pub(super) fn encode(plan: &LogicalSpillOperationPlan) -> Vec<u8> {
     bytes
 }
 
-pub(in crate::assignment::logical_spill_operations) fn encode_content(
+pub(in crate::register_homes::logical_spill_operations) fn encode_content(
     plan: &LogicalSpillOperationPlan,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();

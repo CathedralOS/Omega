@@ -726,6 +726,8 @@ impl Drop for Sources {
     }
 }
 
+#[path = "module_machine_indices/case_domain_facts.rs"]
+mod case_domain_facts;
 #[path = "module_machine_indices/case_membership.rs"]
 mod case_membership;
 

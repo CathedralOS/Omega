@@ -18,6 +18,7 @@ pub(crate) mod mathematical_certificate_wire;
 pub(crate) mod module_foundation_validation;
 pub(crate) mod module_wire;
 pub(crate) mod proof_declaration_wire;
+pub(crate) mod proof_term_wire;
 pub(crate) mod proposition_wire;
 pub(crate) mod provider_candidate_wire;
 pub(crate) mod quotient_correspondence_wire;

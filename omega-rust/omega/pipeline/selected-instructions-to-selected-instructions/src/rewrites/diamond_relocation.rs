@@ -35,9 +35,14 @@
 //! index, and in every other block keep the member on the side they always
 //! had, so they are never crossed.
 //!
-//! The hazard audit is the cross-edge family's applied across the diamond:
-//! a register or condition-state unit the member writes and a crossed
-//! instruction reads or writes, or the member reads and a crossed
+//! The hazard audit is the shared run-relocation audit applied across the
+//! diamond: `block_edges::crossed_window` derives the positions and edges
+//! every acyclic path between the head and the join crosses — the member's
+//! block tail, the branch terminator with its two edges, each arm's whole
+//! body with its `Jump` edge, and the join head before the landing index —
+//! and `window_hazards::admit_run_relocation` proves the window
+//! independent. A register or condition-state unit the member writes and a
+//! crossed instruction reads or writes, or the member reads and a crossed
 //! instruction writes, refuses in either direction. Every crossed edge's
 //! register transports join the audit directly rather than through an
 //! instruction: a `Registers` transport writes its parameter at the
@@ -48,8 +53,9 @@
 //! the branch terminator and the arms' `Jump` terminators are the crossed
 //! edges, not window members — and a boundary settlement refuses where the
 //! member changes sides with its block's executed prefix: past the
-//! member's index in its own block, or past the landing index in the
-//! join block.
+//! member's index in its own block, past the landing index in the join
+//! block, or anywhere inside a crossed arm — the member runs before every
+//! arm point before the move and after it once it lands in the join.
 //!
 //! Memory ordering keeps the validated `memory_accesses` roster's
 //! completeness discipline: a memory-capable member or crossed instruction

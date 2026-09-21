@@ -567,8 +567,40 @@ fn member_projection_off_aggregate_call_result_lends_the_leaf_referents() {
     let state = typed.machine_states(machine).first().expect("entry");
     let frame = resolver.inferred_state_write_frame(machine, state);
     assert_eq!(
-        frame.complete_paths().as_deref(),
+        frame.complete_paths(),
         Some(["self.audit".to_owned(), "self.other".to_owned()].as_slice()),
         "a &mut leaf projected off a transparent aggregate call result must lend the leaf's proven referents"
+    );
+}
+
+#[test]
+fn aggregate_leaf_result_tail_lends_the_leaf_referents() {
+    let source = r#"
+    data Holder { slot: &mut u64; }
+    data Main { value: u64; other: u64; }
+    machine make_holder(v: &mut u64) -> Holder { Holder { slot: v } }
+    machine forward(v: &mut u64) -> &mut u64 { make_holder(v).slot }
+    machine consume(v: &mut u64) { v = 9; }
+    machine Main::run(&mut self) {
+        consume(forward(&mut self.value));
+        consume(&mut self.other);
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("caller");
+    let state = typed.machine_states(machine).first().expect("entry");
+    let frame = resolver.inferred_state_write_frame(machine, state);
+    assert_eq!(
+        frame.complete_paths().as_deref(),
+        Some(["self.other".to_owned(), "self.value".to_owned()].as_slice()),
+        "a &mut return tail projected off a nested aggregate call result must lend the leaf's proven referents"
     );
 }

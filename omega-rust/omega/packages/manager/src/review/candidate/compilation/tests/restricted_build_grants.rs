@@ -348,8 +348,9 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     );
     assert_eq!(cross_grants.len(), projected.len());
 
-    // A checkpoint stripped of the occurrence's rows rejects the pass before
-    // its review is retained, carrying the pending request meanings.
+    // A checkpoint stripped of the occurrence's rows rejects the request the
+    // admitted activation projects — at admit time, before that request's own
+    // build effect executes — carrying the pending meaning.
     let stripped = lock_text_without_restricted_rows(&accepted.canonical_text().unwrap());
     let missing =
         PackageLock::recover_text(&stripped, PackageLockRecoveryLimits::default()).unwrap();
@@ -371,17 +372,28 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     )
     .map(|_| ())
     .expect_err("a missing grant rejects the consuming compile");
-    let CompileResolvedPackageReviewsError::UngrantedRestrictedBuildRequests { package, ungranted } =
-        &error
+    let CompileResolvedPackageReviewsError::Compilation {
+        package,
+        diagnostics,
+    } = &error
     else {
-        panic!("expected the per-occurrence grant rejection, got {error:?}")
+        panic!("expected the admit-time grant rejection, got {error:?}")
     };
     assert_eq!(*package, *review.key());
-    assert_eq!(ungranted.len(), projected.len());
+    let diagnostics = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
-        ungranted
+        diagnostics.contains("occurrence requests:"),
+        "admit rejection names the pending request: {diagnostics}"
+    );
+    assert!(
+        projected
             .iter()
-            .all(|gap| gap.purpose() == DependencyPurpose::Product)
+            .any(|meaning| diagnostics.contains(meaning.as_str())),
+        "admit rejection carries the pending meaning: {diagnostics}"
     );
 
     // A request that widened since acceptance rejects the same way.
@@ -409,10 +421,23 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     )
     .map(|_| ())
     .expect_err("a widened request is ungranted under the checkpoint");
-    assert!(matches!(
-        error,
-        CompileResolvedPackageReviewsError::UngrantedRestrictedBuildRequests { .. }
-    ));
+    let CompileResolvedPackageReviewsError::Compilation {
+        package,
+        diagnostics,
+    } = &error
+    else {
+        panic!("expected the admit-time grant rejection, got {error:?}")
+    };
+    assert_eq!(*package, *review.key());
+    let diagnostics = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        diagnostics.contains("occurrence requests:"),
+        "admit rejection names the pending request: {diagnostics}"
+    );
 }
 
 /// Accept every decision-required row in the candidate review's policy

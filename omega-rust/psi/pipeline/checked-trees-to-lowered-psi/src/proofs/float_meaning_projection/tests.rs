@@ -298,6 +298,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let graph_state =
         |state: &checked_trees::state::State| checked_trees::CheckedScalarStateGraph {
             erased_scalar_parameters: Vec::new(),
+            erased_proof_parameters: Vec::new(),
             state: state.symbol,
             structural_parameters: Vec::new(),
             scalar_parameters: checked
@@ -342,6 +343,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let block = |id: u64, parameters| terminal_psi::Block {
         id: BlockId::new(id).unwrap(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         parameters,
         structural_parameters: Vec::new(),
         operations: Vec::new(),
@@ -402,6 +404,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
         ],
         contract: terminal_psi::MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -552,6 +555,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         blocks: vec![terminal_psi::Block {
             id: BlockId::new(1).unwrap(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![terminal_psi::Operation {
@@ -566,6 +570,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
                     callee: MachineId::new(2).unwrap(),
                     arguments: vec![semantic_vocabulary::ValueId::new(1).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                 },
@@ -577,6 +582,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         }],
         contract: terminal_psi::MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),

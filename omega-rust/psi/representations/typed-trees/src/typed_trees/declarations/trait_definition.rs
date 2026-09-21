@@ -55,6 +55,33 @@ pub struct TraitRefinementClause {
     /// Authored `reaches` names retained until the bound fit check consumes
     /// them; clause reach rows are not interned with signature reach rows.
     pub service_reaches: Vec<Identifier>,
+    /// How the clause's `reaches` axis binds, resolved at lowering.
+    pub service_reach: TraitRefinementReach,
+}
+
+/// How one refinement clause's `reaches` axis binds.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TraitRefinementReach {
+    /// The clause omits `reaches`; covered requirements inherit the base row.
+    #[default]
+    Inherited,
+    /// Authored `reaches a + b;` (or authored-empty `reaches;`): a concrete
+    /// row interned at the clause location.
+    Concrete(language_semantics::ServiceReachRowId),
+    /// Authored `reaches _;`: one independent abstract row per covered base
+    /// requirement, each bounded by that requirement's inherited row and
+    /// correlated with no other requirement's row.
+    IndependentBounded(Vec<ClauseAbstractReachRow>),
+}
+
+/// One covered base requirement's independent abstract reach row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClauseAbstractReachRow {
+    /// The covered base requirement's name.
+    pub requirement: Identifier,
+    /// The abstract row minted at this clause location, bounded by the
+    /// requirement's inherited row.
+    pub row: language_semantics::ServiceReachRowId,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

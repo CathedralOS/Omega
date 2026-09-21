@@ -2167,7 +2167,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         compiler_terminal.contains(".project_psi()")
             && compiler_terminal
                 .contains("optimization_selections: psi_optimizations.selections().clone()")
-            && compiler_terminal.contains(".produce_program_entry_with_callback_custody(")
+            && compiler_terminal.contains(".produce_program_entry_with_callback_custody_timed(")
             && compiler_terminal.contains(".project_post_terminal()"),
         "the retained Terminal-product route must project executed Psi selections into publication and pending physical selections into its companion, carrying the checked ProgramEntry receipt"
     );
@@ -2426,7 +2426,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("let physical = lower_realization_physical_stage")
         .expect("machine realization enters physical routing once");
     let physical_stage_consumption = machine_code
-        .find("let (object, physical_evidence_scope) = emit_optimized_fragments(")
+        .find("let (object, physical_evidence_scope, semantic_wrapper_object) = emit_optimized_fragments(")
         .expect("machine realization consumes the completed physical stage");
     let physical_target_consumption = physical_stage
         .find("let (_, optimized_target) = target_stage")
@@ -2838,7 +2838,8 @@ fn retained_native_product_enters_only_terminal_realization() {
         "the StateGraph compatibility compiler must stay deleted"
     );
     assert!(
-        terminal.contains(".produce_program_entry(") && !native.contains(".produce_program_entry("),
+        terminal.contains(".produce_program_entry_timed(")
+            && !native.contains(".produce_program_entry("),
         "the program-entry Terminal artifact is produced by the Terminal stage, not by native realization"
     );
     for required in [

@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedBlockOrigin, SelectedFunction, SelectedInstructionId};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId};
 
 use super::MemberRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -26,8 +26,7 @@ use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocati
 /// abandons as over budget rather than reporting a truncated window.
 const PATH_EDGE_LIMIT: usize = 64;
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The run's own block, as an index into `function.blocks`.
     pub run_block: usize,
     /// First body index the run occupies.
@@ -68,7 +67,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, MemberRunRelocationError> {
+) -> Result<Admission, MemberRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(MemberRunRelocationError::SourceMismatch);
@@ -251,7 +250,6 @@ pub(super) fn admit<'source>(
         return Err(MemberRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         run_block,
         run_start,
         run_end,
