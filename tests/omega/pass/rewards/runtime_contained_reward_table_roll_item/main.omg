@@ -79,11 +79,15 @@ data Main {
     rewards: RewardTables;
 }
 
-machine Main::main(
-    &mut self,
-    depth: u32 in Wrapping,
-    random: &mut RandomState,
-    reward: &mut Reward
-) {
-    self.rewards.roll_room_treasure(depth, random, reward);
+machine Main::main(&mut self) {
+    let depth: u32 in Wrapping = 5;
+    let mut random: RandomState = RandomState { seed: 1, calls: 0 };
+    let mut reward: Reward = Reward {
+        kind: RewardKind::GoldAndItem,
+        gold: 0,
+        item: ItemKind::RustedDagger
+    };
+
+    self.rewards
+        .roll_room_treasure(depth, &mut random, &mut reward);
 }
