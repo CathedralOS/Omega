@@ -11325,6 +11325,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the same surface: ALIGNMENT-STRING-PARSING (covered), SQUALR-SEED-
   ALIGNMENT-PARSING (covered), GEOMETRY-ALIGNMENT-PARSING,
   SQUALR-ALIGNMENT-STRING-PARSING.
+||||||| parent of d5166caaa1c5 (board: GEOMETRY-ALIGNMENT-STRING-PARSING scope-verified — parity gate on app board)
+- **GEOMETRY-ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
+- **GEOMETRY-ALIGNMENT-STRING-PARSING.** Scope verified at `2a07fef5a85`
+  — re-mines the "alignment string parsing" parity gap on
+  GEOMETRY-PARITY's sentence (:7790): a `&mut self` machine taking a
+  data parameter loses the entry attachment identity (selected
+  ProgramEntry establishment rejoins 0 Terminal attachment identities).
+  That residual is a compiler entry-mechanics item tracked on the app
+  board under GEOMETRY-PARITY ("the set_alignment call-site gate"), not
+  a board item here. Its only implementing surface is the
+  `samples/apps/squalr` submodule, fenced under sibling claims
+  (SQUALR-TARGETS-AND-THROUGHPUT, SQUALR-CLONE-SERIALIZATION,
+  SQUALR-REGION-ALIGNMENT-EXPANSION per :6535). No independent slice
+  exists. Sibling stubs on the same sentence: GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-CLONE-SERIALIZATION, GEOMETRY-DEBUG-ASSERTIONS,
+  GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-ALIGNMENT-STRING-PARSING.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
