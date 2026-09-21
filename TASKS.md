@@ -10716,46 +10716,49 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names are retained on `TraitRefinementClause.service_reaches`, pending a
   clause-location variant of the reach-row table), `_` reach wildcards, and
   the evidence-binder fit check that consumes the refinement bound.
-- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
-  implemented and landed (e2974a6a800 is an ancestor of origin/main;
-  the landed re-record c0b2b6e19f registered integer_operations.rs and
-  re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
-  x86-64: `cargo nextest run -p terminal-verifier -E
-  'test(~trusted_surface)'` — 15/15 pass including
-  recorded_digests_match_the_working_tree. The ledger drifted again at
-  `ff2f489bbf`: `0c5db44fde` (correlated-subtraction adjunction denotation)
-  changed `bounded_denotation.rs`, `addition.rs`, `subtraction.rs` without
-  re-recording; justification revalidated (explicitly named assumptions,
-  kernel re-decides the elaborated term, instance fallback retained) and the
-  three digests re-recorded on the pending branch (15/15 green after).
-  Sibling names the same op:
-  TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
-  The self-audit was red at `0f5ae41e7d` (contradicting the resolved
-  siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
-  added `bounded_denotation/integer_operations.rs` (uninterpreted
-  fixed-integer operations as applicative denotations) and bumped
-  `bounded_denotation.rs` without re-recording. Re-recorded in this
-  commit: `integer_operations.rs` registered as a ledger implementation
-  site (`b2bcfe6f…`) and cited by `formation:mathematical-core`,
-  `bounded_denotation.rs` digest re-recorded (`3d15c6eb…`). Green: 9/9
-  trusted_surface on linux x86-64 including
-  `recorded_digests_match_the_working_tree`.
-- **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
-- **TRUSTED-SURFACE-DIGEST-RERECORD.** Resolved — scope verified at `0f5ae41e7d`,
-  implemented on this row's branch: the ledger had renewed drift, so the
-  re-record operation ran for real. `e2974a6a800` split
-  `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
-  (uninterpreted per-operation function constants applied to denoted
-  operands — the `formation:mathematical-core` justification holds: no
-  arithmetic law was added, the operations stay opaque). Re-recorded the
-  parent digest (`3d15c6eb…`), registered the new site (`b2bcfe6f…`), and
-  added the file to the formation's site list. Witness:
-  `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
-  15/15 green on linux x86-64, `recorded_digests_match_the_working_tree`
-  passing. Sibling stubs TRUSTED-SURFACE-DIGEST-RE-RECORDING and
-  TRUSTED-SURFACE-DIGEST-REFRESH name the same maintenance op.
-- **TRUSTED-SURFACE-LEDGER-REFRESH** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main, same settled surface as TRUSTED-SURFACE-LEDGER-RERECORD (annotated sibling, this section): BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s `trusted_surface` suite re-verifies green (`cargo nextest run -p terminal-verifier --test suite trusted_surface`: 9/9, linux x86-64, including `recorded_digests_match_the_working_tree`; re-run at 54984323b2, re-run again at 5b839c31ab). The ledger self-audits — any future drift fails that test — so no standing refresh task remains on this row.
-- **TRUSTED-SURFACE-LEDGER-RERECORD** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main: BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s trusted_surface suite passes 15/15 on linux x86-64 including `recorded_digests_match_the_working_tree` (re-run at f1e9a3733d). The ledger self-audits: any future drift fails that test, so no standing re-record task remains. Re-verified at `17fec446ef23` on Linux x86-64: `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'` → 15/15 green, `recorded_digests_match_the_working_tree` passing.
+- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Standing duty, not a one-off: keep
+  the trusted-surface digest ledger
+  (`omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs`)
+  matching the bound files, and revalidate before re-recording. The ledger
+  pins each bound implementation file's SHA-256 precisely so a change to
+  trusted verifier or proof-admission code cannot pass unnoticed, and
+  `recorded_digests_match_the_working_tree` fails while any digest disagrees.
+
+  This drifts repeatedly — recorded red at `0f5ae41e7d`, again at
+  `ff2f489bbf`, and again at `50559da3ab` with seven stale files across
+  `proof-admission/src/mathematical_core/bounded_denotation{,/addition,/subtraction}.rs`,
+  `terminal-verifier/src/validation/{affine_cleanup,frontier,scalar_qualifications}.rs`
+  and `.../structural_operations/structural_arguments/argument_checks.rs`.
+  Each drift is one commit changing a bound file without re-recording, so
+  expect this row to come back rather than treating a green run as its end.
+
+  The obligation is the revalidation, not the re-record.
+  `tools/trusted_surface_digests.py --write` is mechanical and must only run
+  after every citing entry's justification — the `TrustedSurfaceEntry`
+  premises, conclusion, dependencies and soundness naming that path — has
+  been checked against the actual diff since the last recorded digest
+  (`git log -p -S'<recorded digest>' -- .../sites.rs`, then
+  `git diff <sha>..HEAD -- <bound file>`). A diff that only strengthens a
+  check re-records freely; a diff that relaxes one re-records only if the
+  lifted burden demonstrably moves to a dependency the entry already names.
+  If a justification breaks, do not re-record that file — report it. A
+  partially repaired ledger with an honest report beats a green ledger that
+  lies.
+
+  Two observations from the `b260ea749e` pass are open and worth a targeted
+  follow-up, neither blocking: dropping the hook-target `entry_claims` /
+  `content_entry_claims` pins lets a cleanup hook's borrowed `self` carry
+  entry claims the cleanup edge does not visibly discharge, which belongs to
+  `formation:machine-validation`; and the new boundary-result-qualification
+  route rests on an "established by" authorization that lives under
+  `formation:structural-qualification-rosters` for structural domains, which
+  that pass did not re-derive.
+
+  Acceptance: `python3 tools/trusted_surface_digests.py` exits 0 and
+  `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'` is
+  green (15/15 at `b260ea749e`), with every re-recorded digest's citing
+  justification revalidated in the landing commit's body.
+
 - **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS** — verified 14e6f8f72e: the span-arm surface
