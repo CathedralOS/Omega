@@ -9634,6 +9634,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   sibling suites are likewise claimed (RC-NATIVE-MATRIX-MACOS-ARM64 legs,
   RC-NATIVE-MATRIX-HOSTS, BASELINE-NATIVE-DIFF-*). Coordinate before working
   it.
+
+  Re-verified at `e7c0099cb2b7` (zergling-182, linux x86-64): the noted
+  abstract_publication fence has lapsed and its surface is green —
+  `cargo nextest run -p omega-native-differential-test --test
+  abstract_publication --no-fail-fast` = 56/56 PASS, including the
+  `decision_custody` family RC-NATIVE-MATRIX-CLOSURE recorded as
+  uncompilable at `f1675418b1` (the `PSI_PASS_CATALOG` 7th-entry and
+  `optimized_target()` custody drift are repaired upstream). The harness
+  now compiles (`cargo check --all-targets` clean). Still fenced by
+  siblings: `pipeline_ownership*` under BASELINE-NATIVE-DIFF-PIPELINE-
+  OWNERSHIP, per-host evidence rows under the RC-NATIVE-MATRIX-* lanes.
 - **NATIVE-MATRIX-MATCHING-HOSTS.** Resolved — covered by owned sibling rows. The stub re-mines the [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix) "matching host" requirement: each hosted target's products executed and independently validated on its own host (`mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast` plus RC-SOURCE-SEMANTICS per host). The gate leg is landed under RC-NATIVE-MATRIX-GATE; the crate leg is NATIVE-DIFFERENTIAL-MATRIX; every required host row is separately owned and live — RC-NATIVE-MATRIX-LINUX-X86-64, RC-NATIVE-MATRIX-LINUX-ARM64, RC-NATIVE-MATRIX-MACOS-ARM64, RC-NATIVE-MATRIX-WINDOWS-X64 — with host coordination under RC-NATIVE-MATRIX-HOSTS, RC-NATIVE-MATRIX-HOST-RUNS, RC-NATIVE-MATRIX-HOST-LEGS and RC-NATIVE-MATRIX-HOST-EXECUTION. Missing/unavailable runners stay explicit open rows per the doc's platform table; nothing in this surface is unowned. No slice exists under this name.
 - **NON-X86-LAYOUT-RELAXATION.** — mined candidate; scope verified at `8734480a01`, no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
   Alias: **AARCH64-BRANCH-RELAXATION** names this same surface — no separate
