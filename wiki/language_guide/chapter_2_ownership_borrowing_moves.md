@@ -279,7 +279,7 @@ An explicit lifetime names the input a returned view borrows:
 machine header<'buffer>(
     buffer: &'buffer [u8], scratch: &mut [u8]
 ) -> &'buffer [u8] {
-    return buffer;
+    buffer
 }
 ```
 
@@ -298,7 +298,7 @@ data ChatMessage<'buffer> {
 machine select<'left, 'right>(
     first: &'left [u8], second: &'right [u8]
 ) -> ChatMessage<'left> {
-    return ChatMessage { sender_id: 0, body: first };
+    ChatMessage { sender_id: 0, body: first }
 }
 ```
 
@@ -318,7 +318,7 @@ data Pair<'left, 'right> {
 machine pair<'left, 'right>(
     left: &'left mut i32, right: &'right mut i32
 ) -> Pair<'left, 'right> {
-    return Pair { left: left, right: right };
+    Pair { left: left, right: right }
 }
 ```
 
