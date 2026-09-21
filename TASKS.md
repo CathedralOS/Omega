@@ -3773,7 +3773,17 @@ Owners include
     Migrate the shipped requirement and join its invocation to the carrier's
     exact provider execution, policy and token lineage; an x2APIC provider must
     not receive `PortIo`. Receiver-bearing requirement selection is
-    `TOP-LEVEL-BOUNDARY-REQUIREMENTS`' work.
+    `TOP-LEVEL-BOUNDARY-REQUIREMENTS`' work. Re-scoped at `0f75a052f0`:
+    that prerequisite has partially landed — owned-`self` receivers and
+    one-hop projections now settle through `forward_receiver` dispatch rows
+    (see its row), so the open gate narrows to a checked body discharging the
+    linear `InterruptAcknowledgement` receiver plus co-landing the
+    declaration with its satisfier. The component-contract fence leg
+    additionally waits on the admitted-component carrier
+    COMPONENT-SUBSTRATE is building (its row notes this item waits on that
+    carrier); live fences this wave: COMPONENT-SUBSTRATE item lease ~08:44Z,
+    TOPOLOGY-PRIVATE-PIPE-INSTALLATION item lease ~09:52Z. No uncontested
+    slice exists on this row.
 
   Acceptance: from the shipped core requirement, PIC completion resolves to
   `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
