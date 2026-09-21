@@ -190,6 +190,7 @@ pub(super) fn emit(
         static_reach_binding: None,
         id: producer,
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: destination,
             structural_type: source.structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

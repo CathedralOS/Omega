@@ -208,6 +208,7 @@ fn build_unit(
             AbstractOperation::CallStructural {
                 psi_operation: id(8_005, OperationId::new),
                 result: terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: caller_place,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Affine,
@@ -263,6 +264,7 @@ fn build_unit(
                 psi_operation: id(9_002, OperationId::new),
                 result: abstract_operations::AbstractBoundaryResult::Structural(
                     terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: caller_place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Affine,

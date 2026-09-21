@@ -472,6 +472,7 @@ fn primitive_snapshot_requires_cyclic_arrivals_without_losing_iteration_local_st
         static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(1),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -530,6 +531,7 @@ fn primitive_snapshot_fresh_locals_are_disjoint_and_initialization_stays_require
             static_reach_binding: None,
             id: operation_id(producer),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(place),
                 structural_type: structural_type_id(1),
                 multiplicity: StructuralMultiplicity::Unrestricted,

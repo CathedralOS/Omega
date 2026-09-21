@@ -762,6 +762,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
 
 fn structural_result(place: u64, structural_type: u64) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: id(place),
         structural_type: id(structural_type),
         multiplicity: StructuralMultiplicity::Unrestricted,

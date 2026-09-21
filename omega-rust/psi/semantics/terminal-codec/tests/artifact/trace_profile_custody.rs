@@ -538,6 +538,7 @@ fn custody_module() -> TerminalModule {
             },
         ],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: DomainSemanticId::new(1).expect("nonzero domain semantic identity"),
             identity: "Omega::Region".into(),
@@ -715,6 +716,7 @@ fn custody_module() -> TerminalModule {
                             static_reach_binding: None,
                             id: operation_id(2),
                             result: OperationResult::Structural(StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
                                 place: result_place,
                                 structural_type: first_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,

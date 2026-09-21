@@ -974,6 +974,7 @@ mod tests {
         let mut structural = module;
         structural.machines[0].blocks[0].operations[0].result =
             OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: semantic_id(1, PlaceId::new),
                 structural_type: semantic_id(1, StructuralTypeId::new),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1149,6 +1150,7 @@ mod tests {
         let mut structural_result = module.clone();
         structural_result.machines[0].blocks[0].operations[0].result =
             OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: semantic_id(1, PlaceId::new),
                 structural_type: semantic_id(1, StructuralTypeId::new),
                 multiplicity: StructuralMultiplicity::Unrestricted,

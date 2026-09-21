@@ -143,6 +143,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
         },
     };
     let domain = StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
         identity: "QualifiedLeaf::Ready".into(),
@@ -329,6 +330,7 @@ fn hard_root_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     };
     let pending = StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
         identity: "Pending".into(),

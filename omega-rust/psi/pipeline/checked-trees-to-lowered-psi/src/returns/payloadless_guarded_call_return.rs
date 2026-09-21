@@ -121,6 +121,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: place_id(1),
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,

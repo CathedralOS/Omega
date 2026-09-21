@@ -400,6 +400,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
             static_reach_binding: None,
             id: producer,
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,

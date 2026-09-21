@@ -1233,6 +1233,7 @@ fn foreign_affine_structural_result() -> machine_code::InternalStructuralCallRes
     };
     machine_code::InternalStructuralCallResult {
         operation_result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(31).unwrap(),
             structural_type: StructuralTypeId::new(31).unwrap(),
             multiplicity: StructuralMultiplicity::Affine,

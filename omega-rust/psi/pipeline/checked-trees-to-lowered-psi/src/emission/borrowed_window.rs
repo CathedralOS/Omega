@@ -131,6 +131,7 @@ impl BorrowedWindowLedger {
             static_reach_binding: None,
             id,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: moved_place,
                 structural_type: place.hole_type,
                 multiplicity: terminal_multiplicity(result.multiplicity),

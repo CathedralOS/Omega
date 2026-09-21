@@ -291,6 +291,7 @@ pub(super) fn emit_carrier(
         static_reach_binding: None,
         id,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,

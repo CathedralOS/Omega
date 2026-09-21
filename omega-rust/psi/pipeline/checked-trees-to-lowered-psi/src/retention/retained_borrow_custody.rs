@@ -388,6 +388,7 @@ mod tests {
                     identity: "Buffer::Owned".into(),
                     carrier: buffer,
                     content_projection: Some(custody.source_projection.projection.clone()),
+                    establishment_routes: Vec::new(),
                 },
                 StructuralDomainDeclaration {
                     id: retained,
@@ -395,6 +396,7 @@ mod tests {
                     identity: "PendingRead::Retained".into(),
                     carrier: pending,
                     content_projection: Some(custody.result_projection.projection.clone()),
+                    establishment_routes: Vec::new(),
                 },
             ],
             services: Vec::new(),
@@ -556,6 +558,7 @@ mod tests {
                                 multiplicity: StructuralMultiplicity::Linear,
                                 qualifications: vec![retained],
                                 projected_qualifications: Vec::new(),
+                                qualification_establishments: Vec::new(),
                                 claims: vec![StructuralResultClaimBinding {
                                     claim: loan,
                                     path: Vec::new(),
@@ -584,6 +587,7 @@ mod tests {
                                 multiplicity: StructuralMultiplicity::Linear,
                                 qualifications: vec![owned],
                                 projected_qualifications: Vec::new(),
+                                qualification_establishments: Vec::new(),
                                 claims: vec![StructuralResultClaimBinding {
                                     claim: loan,
                                     path: Vec::new(),

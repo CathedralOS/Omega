@@ -150,6 +150,7 @@ fn direct_primitive_array_paths_update_constructed_scalar_payload_without_shadow
                 static_reach_binding: None,
                 id: operation_id(94),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: place_id(91),
                     structural_type: structural_type_id(93),
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -631,6 +632,7 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
         },
     ]);
     let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(110),
         structural_type: structural_type_id(93),
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -664,6 +666,7 @@ fn mutable_array_element_loan_survives_a_structural_result_call() {
         static_reach_binding: None,
         id: operation_id(91),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(112),
             ..result
         }),

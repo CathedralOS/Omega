@@ -96,6 +96,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: qualification,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain identity"),

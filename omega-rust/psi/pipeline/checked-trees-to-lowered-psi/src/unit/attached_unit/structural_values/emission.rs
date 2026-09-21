@@ -255,6 +255,7 @@ pub(crate) fn emit(
         state,
         result,
         terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity,
@@ -456,6 +457,7 @@ fn prepare_owners(
                     LoweringError::Unsupported("selection parameter position exceeds u32")
                 })?,
                 value: terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: declaration.place,
                     structural_type: declaration.structural_type,
                     multiplicity: declaration.multiplicity,

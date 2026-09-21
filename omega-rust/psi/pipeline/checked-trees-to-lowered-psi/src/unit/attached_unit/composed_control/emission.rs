@@ -820,6 +820,7 @@ pub(super) fn emit_boundary_call_operation(
                 },
             });
             OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type: result.structural_type,
                 multiplicity: result.multiplicity,

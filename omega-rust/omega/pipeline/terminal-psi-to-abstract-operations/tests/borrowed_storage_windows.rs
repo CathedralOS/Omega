@@ -97,6 +97,7 @@ fn extract(operation: OperationId, result: u64) -> Operation {
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id::<PlaceId>(result),
             structural_type: cell(),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -388,6 +389,7 @@ fn a_replacement_subtree_repairs_and_lowers() {
             static_reach_binding: None,
             id: id::<OperationId>(3),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id::<PlaceId>(3),
                 structural_type: cell(),
                 multiplicity: StructuralMultiplicity::Unrestricted,

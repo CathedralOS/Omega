@@ -59,6 +59,7 @@ pub(super) fn suffix_call_module() -> TerminalModule {
             static_reach_binding: None,
             id: OperationId::new(130).unwrap(),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: suffix,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

@@ -1354,10 +1354,18 @@ impl<'program> ShapeCollector<'program> {
     ) -> Option<()> {
         let carrier_type_identity = self.add_type(carrier, binders, &[])?;
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
+        let establishment_routes = self
+            .program
+            .domain_definitions()
+            .iter()
+            .find(|definition| definition.semantic_id == domain)
+            .map(|definition| definition.establishment_routes.clone())
+            .unwrap_or_default();
         let plan = CheckedUnitStructuralDomainPlan {
             domain,
             identity,
             carrier_type_identity,
+            establishment_routes,
         };
         if let Some(existing) = self
             .domains

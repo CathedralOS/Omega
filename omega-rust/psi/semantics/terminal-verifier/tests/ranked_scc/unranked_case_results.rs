@@ -82,6 +82,7 @@ fn fixture() -> TerminalModule {
                 static_reach_binding: None,
                 id: id(1, OperationId::new),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Affine,

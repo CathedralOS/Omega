@@ -350,6 +350,7 @@ mod tests {
                 static_reach_binding: None,
                 id: OperationId::new(4).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: array_place,
                     structural_type: array_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,

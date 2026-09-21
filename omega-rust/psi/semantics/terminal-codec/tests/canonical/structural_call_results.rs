@@ -140,6 +140,7 @@ fn structural_call_rows_require_canonical_claim_and_qualification_order() {
     unordered_qualifications
         .structural_domains
         .push(StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: structural_domain_id(2),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
             identity: "example::Occurrence::Retained".to_owned(),
@@ -199,6 +200,7 @@ fn structural_call_result_paths_round_trip_and_missing_call_custody_fails_closed
     let leaf = structural_type_id(2);
     let domain = structural_domain_id(2);
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
         identity: "RegionPayload::Ready".into(),

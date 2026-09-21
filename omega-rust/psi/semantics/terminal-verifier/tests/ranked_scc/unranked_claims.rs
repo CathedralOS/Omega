@@ -92,6 +92,7 @@ fn claim_pinned_retain_cycle() -> TerminalModule {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: semantic_vocabulary::StructuralDomainId::new(1).expect("structural domain"),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain"),
