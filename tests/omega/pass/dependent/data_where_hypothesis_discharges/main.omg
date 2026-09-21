@@ -1,6 +1,6 @@
 // R2 rung 3 slice 7 -- READER HYPOTHESES: inside the callee nothing is
 // flow-known about `target.count`, yet `count * 16` proves Exact because
-// the STANDING fact `count <= len` with `len: u32 [0..=4096]` bounds every
+// the STANDING fact `count <= len` with `len: u32 (requires 0 <= it <= 4096)` bounds every
 // legal observation of count at 4096 (4096 * 16 fits u32). The default
 // domain does proof work at the consumption site with NO spelled requires
 // -- sound because the write net is total and gated reads are gated.
@@ -9,8 +9,9 @@ use omega::language::core::service;
 data MemoryMap
 where
     count <= len,
+    len <= 4096,
 {
-    len: u32 [0..=4096];
+    len: u32;
     count: u32;
 }
 data Main { console: Service<Console>; map: MemoryMap; }
