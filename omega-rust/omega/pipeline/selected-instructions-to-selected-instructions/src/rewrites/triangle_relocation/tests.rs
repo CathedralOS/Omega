@@ -1907,8 +1907,9 @@ fn memory_roster_binds_the_window() {
 /// inside the join's executed prefix, and one positioned past the landing
 /// index observes it inside the head's — both refuse, while positions at
 /// or before either boundary keep the executed set they always had. A
-/// settlement inside the arm never observed the member: the member never
-/// enters the arm's body, so every arm prefix is unchanged.
+/// settlement inside the arm refuses too: the member never enters the
+/// arm's body, but it executes before the arm's point after the move
+/// where it executed after it before.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
@@ -1928,15 +1929,21 @@ fn boundary_settlements_bound_the_window() {
             "join-block settlement at {position}"
         );
     }
-    // The member never enters the arm's body: no arm prefix ever contained
-    // or loses it, so a settlement anywhere in the arm admits.
+    // Every arm position is crossed: the member lands ahead of the arm's
+    // whole body, so a settlement anywhere in the arm observes the member
+    // inside its executed prefix after the move where it never ran there
+    // before.
     for position in [0u32, 1, 2] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        relocate(&settled, &environment, MOVING, TRAIL).unwrap();
+        assert_eq!(
+            relocate(&settled, &environment, MOVING, TRAIL).unwrap_err(),
+            TriangleRelocationError::UnsupportedPair,
+            "arm settlement at {position}"
+        );
     }
     // In the head block the bound is the landing index: at or before it
     // the executed prefix is unchanged; past it the member joins the
@@ -2155,12 +2162,13 @@ fn target_mismatch_rejects() {
 }
 
 /// The bounded audit is measured: the triangle window prices every scan,
-/// crossed-surface pair, and roster row against the work budget, and a
+/// the path walk's edge bound, every crossed position and crossed edge
+/// surface pair, and each roster row against the work budget, and a
 /// budget one step short refuses rather than skimping. The `TRAIL`
-/// landing crosses the join head, the arm's body and `Jump` terminator
-/// and edge, the branch with its two edges, and the head tail — fifteen
-/// crossed-surface pairs — and naming `LATE` lands the member one
-/// position earlier, adding the head middle's pair.
+/// landing crosses the join head, the arm's body, the head tail, the
+/// arm's `Jump` edge, and the branch's two edges — eight position pairs
+/// and eleven edge-surface steps — and naming `LATE` lands the member
+/// one position earlier, adding the head middle's pair.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
@@ -2169,11 +2177,14 @@ fn measured_validation_step_boundary() {
     // Each block contributes its body plus its terminator once to the
     // whole-function scan and once to this function's blocks: 11 + 11.
     // The successor scan counts each terminator's edges: 2 + 1 + 0.
-    // The crossed surfaces pair the member (1) against HEAD (1), the arm
-    // body (1 each), the arm `Jump` terminator (1 use + 1 definition on
-    // x86-64), the branch terminator (2 uses + 1 definition), and
-    // TRAIL (1): 2+2+2+3+4+2 = 15 steps.
-    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */ + 3 /* edges */ + 15;
+    // The path walk is bounded by two pushes per branch edge: 4. The
+    // crossed positions pair the member (1) against HEAD (1), the arm
+    // body (1 each), and TRAIL (1): 2+2+2+2 = 8 steps. The crossed edges
+    // pair the member against each edge's terminator instruction plus
+    // its own surface — the branch (2 uses + 1 definition) twice and the
+    // arm `Jump` (1 use + 1 definition): 4+3+4 = 11 steps.
+    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */ + 3 /* edges */
+        + 4 /* path walk edge bound */ + 8 /* crossed positions */ + 11 /* crossed edges */;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_out_of_triangle(&source, 0, MOVING, TRAIL, &environment, exact)
         .unwrap();
