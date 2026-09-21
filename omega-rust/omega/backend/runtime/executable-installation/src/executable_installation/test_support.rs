@@ -13,9 +13,9 @@ use super::{
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use extents::{
     ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappedExtent, MappingEraId,
-    MappingGrant, MappingGrantId, MappingId, MappingSourceMode, TranslationActivationFactId,
-    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
-    map_owned,
+    MappingGrant, MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationObligations,
+    TranslationActivationFactId, TranslationActivationReceipt, TranslationInstallObligations,
+    TranslationReleaseObligations, map_owned,
 };
 use layout_plans::{
     ArtifactInstallationScopeId, PlacementAddressRange, PlacementPhase, PlacementSite,
@@ -214,6 +214,7 @@ pub(super) fn activated_writer_mapping(base: u64, length: u64) -> MappedExtent<'
         extent_id(162, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::from_normalized_facts([activation]),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         source,
