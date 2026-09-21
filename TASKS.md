@@ -14260,6 +14260,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
   SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
   STAGED-ANCESTRY-ELIMINATION.
+- **SELECTED-REWRITE-ANCESTRY-REMOVAL.** — mined candidate; resolved
+  alias of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface
+  (carrier row above). Re-verified at `8f58b6676b0` on linux x86-64:
+  `cargo nextest run -p selected-instructions-to-selected-instructions
+  --test ancestry_contract` → 2/2 pass —
+  `staged_types_read_current_data_not_producer_ancestry` and
+  `named_stage_hops_stay_at_custody_sites` — still zero
+  `.optimized_target()` data reads under
+  `rewrites/selected_lowering/` and the stage entrance; staged types
+  expose `selected`/`register_environment`/`selections`/
+  `budget_per_pass`/`liveness`/`ranges`/`legality` directly and the
+  surviving `liveness_stage`/`selected_stage` hops are the pinned
+  custody-validator inputs, not data reads. No implementation slice
+  remains under this name.
 - **RO-S2S-ANCESTRY-WALKS.** Resolved 2026-09-21 — minted sibling stub of
   the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface (carrier row
   above). Re-verified at `72fc66d6c3` on linux x86-64: zero
