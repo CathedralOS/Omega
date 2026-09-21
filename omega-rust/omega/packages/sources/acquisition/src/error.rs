@@ -78,7 +78,7 @@ pub enum SourceResolveError {
         message: String,
     },
     GitSubmodulesUnsupported {
-        path: PathBuf,
+        edges: Vec<GitSubmoduleEdge>,
     },
     GitObjectInvalid {
         oid: String,
@@ -120,6 +120,16 @@ pub enum SourceResolveError {
         canonical_live_root: PathBuf,
         canonical_cache_dir: PathBuf,
     },
+}
+
+/// A submodule declaration found in a rejected Git source projection. `path`
+/// is the repository-relative mount or manifest path; `commit` carries the
+/// pinned submodule commit a gitlink records — the revision an explicit
+/// package edge must name — and is `None` for `.gitmodules` manifests.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitSubmoduleEdge {
+    pub path: PathBuf,
+    pub commit: Option<String>,
 }
 
 impl fmt::Display for SourceResolveError {
@@ -230,11 +240,26 @@ impl fmt::Display for SourceResolveError {
                 output,
                 "git {operation} process cleanup failed: {message}"
             ),
-            Self::GitSubmodulesUnsupported { path } => write!(
-                output,
-                "git source `{}` declares submodules; submodules must become explicit package edges before they are supported",
-                path.display()
-            ),
+            Self::GitSubmodulesUnsupported { edges } => {
+                output.write_str(
+                    "git source declares submodule edges that must become explicit package edges before they are supported:",
+                )?;
+                for edge in edges {
+                    match &edge.commit {
+                        Some(commit) => write!(
+                            output,
+                            " `{}` pinned to `{commit}`",
+                            edge.path.display()
+                        )?,
+                        None => write!(
+                            output,
+                            " `{}` (submodule manifest)",
+                            edge.path.display()
+                        )?,
+                    }
+                }
+                Ok(())
+            }
             Self::GitObjectInvalid { oid, message } => {
                 write!(output, "Git object `{oid}` failed authentication: {message}")
             }

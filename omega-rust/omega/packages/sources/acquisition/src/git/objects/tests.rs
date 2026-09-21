@@ -769,6 +769,36 @@ fn inert_gitlink_graph_keeps_exact_identity_and_refuses_source_consumption() {
 }
 
 #[test]
+fn whole_tree_rejection_enumerates_every_declared_submodule_edge() {
+    let first = "1111111111111111111111111111111111111111";
+    let second = "2222222222222222222222222222222222222222";
+    let blob = git_object_identity(b"blob", b"", GitObjectIdAlgorithm::Sha1).unwrap();
+    let listing = format!(
+        "160000 commit {first} -\tdeps/one\0100644 blob {blob} 0\t.gitmodules\0160000 commit {second} -\tvendor/two\0"
+    );
+    let error = parse_git_tree_entries(
+        listing.as_bytes(),
+        Path::new("repository"),
+        LocalSourceLimits::default(),
+    )
+    .expect_err("whole-tree submodule declarations reject");
+    let SourceResolveError::GitSubmodulesUnsupported { edges } = error else {
+        panic!("expected submodule-edge rejection");
+    };
+    assert_eq!(
+        edges
+            .iter()
+            .map(|edge| (edge.path.as_path(), edge.commit.as_deref()))
+            .collect::<Vec<_>>(),
+        vec![
+            (Path::new("deps/one"), Some(first)),
+            (Path::new(".gitmodules"), None),
+            (Path::new("vendor/two"), Some(second)),
+        ]
+    );
+}
+
+#[test]
 fn selected_manifest_directory_prefix_is_not_hidden_by_projection() {
     let child = git_object_identity(b"tree", b"", GitObjectIdAlgorithm::Sha1).unwrap();
     let mut payload = b"40000 .GiTmOdUlEs\0".to_vec();

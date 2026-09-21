@@ -49,14 +49,18 @@ impl GitBlobBytes {
 
 impl GitTreeEntry {
     pub(crate) fn validate_source_entry(&self) -> Result<(), crate::error::SourceResolveError> {
-        if matches!(self.kind, GitTreeEntryKind::Gitlink)
+        let commit = matches!(self.kind, GitTreeEntryKind::Gitlink).then(|| self.oid.clone());
+        if commit.is_some()
             || self
                 .relative_bytes
                 .split(|byte| *byte == b'/')
                 .any(|component| component.eq_ignore_ascii_case(b".gitmodules"))
         {
             return Err(crate::error::SourceResolveError::GitSubmodulesUnsupported {
-                path: self.relative_path.clone(),
+                edges: vec![crate::error::GitSubmoduleEdge {
+                    path: self.relative_path.clone(),
+                    commit,
+                }],
             });
         }
         Ok(())
