@@ -12859,6 +12859,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_arm64 cross-emit only; macos_arm64 unrecorded (no runner); and
   windows_x86_64 open with the runner procedure recorded. Re-run per row
   when the Service<R> fixture migrations and host runners land.
+  Re-witnessed at `90df29812c` (zergling-132, linux x86-64): the
+  `pipeline_ownership` target compiles again and its legs execute green
+  (`cargo nextest run -p omega-native-differential-test --test
+  pipeline_ownership -E 'test(~callee_saved)'` -> 9/9 PASS) — the
+  recorded "does not compile on this revision" state is repaired
+  upstream. Host enumeration unchanged: linux_x86_64's fresh leg counts
+  belong to RC-NATIVE-MATRIX-LINUX-X86-64 (live sibling claim exp
+  ~11:30Z), linux_arm64 to RC-NATIVE-MATRIX-LINUX-ARM64 (live claim exp
+  ~15:33Z, cross-emit only plus the recorded qemu-user leg), macos_arm64
+  still has no runner, windows_x86_64 stays open with the recorded
+  procedure.
 - **RC-NATIVE-MATRIX-LINUX-ARM64.** Recorded at
   `wiki/drafts/rc_native_matrix_linux_arm64.md` (suite counts re-witnessed
   at `96b4afed92`, x86-64 host: 13 pass / 73 fail across 86 legs; emulated
