@@ -6181,6 +6181,22 @@ Owners include
   later stage that drops the missing-edge diagnostic. A separate selection
   diagnostic is an architectural follow-up, not a change to this shape.
 
+  Fence census at `b5e4c7c5f8a` (2026-09-21 ~05:5xZ, linux x86-64): every
+  named residual leg is fenced or gated, so no unmanned slice exists.
+  The composed-Unit substrate sits under CONSERVATION-CONTRACT
+  (`typed-trees-to-checked-trees/src/execution/unit/composed_control`,
+  exp 09:57Z); the four bundled proofs consumers sit under
+  PROOF-CONTRACT-MIGRATION (proof/tests/core, exp 10:38Z) and
+  PROOF-KERNEL-CORE (exp 09:49Z); the acceptance surfaces sit under
+  BUILD-PACKAGES-GATE companions (`packages/manager/tests` +
+  `tests/fixtures/packages` exp 07:44Z, `package_compilation_inputs`
+  exp 09:10Z). `objc` (18) and `arithmetic/saturating_divide_native`
+  remain macOS-only; `run/` migration waits on the open package-route
+  legs recorded above. `package-compilation/src/semantic_bindings.rs`
+  is nominally unfenced — the dev-88738 claim expired 04:23Z — but its
+  only named pending consumer is UEFI-PHYSICAL-SEMANTIC-ENTRY's
+  `MacosX64ProgramEntry` arm, a hardware/target-gated leg.
+
 - **COMPONENT-SUBSTRATE.** Implement independently selected component closure
   under the [component publication contract](wiki/spec/build/component_publication.md),
   keeping deployment/update policy in runtime packages or Cathedral.
