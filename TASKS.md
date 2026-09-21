@@ -15539,6 +15539,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (execution legs are not this item's scope — planner-assigned deliverable
   was the draft alone). Stamp recorded in the draft header.
 
+- **NEW-RBRA-EPSILON-PARSER-RETIREMENT.** Minted name (planner scope:
+  `bootstrap/5_omega/parser.epsilon`, `bootstrap/5_omega/representations.epsilon`,
+  `tests/bootstrap/omega-parser`) for the Epsilon-written Omega parser leg of
+  REMOVE-BRACKETED-RANGE-ANNOTATIONS ("migrate ... the Epsilon-written Omega
+  parser and its fixtures"). Scope verified at `891eb5c584` on linux x86-64:
+  the retirement edit is bounded — 67 type-range references: parser.epsilon
+  carries the `type_allows_range` flag, token kinds 19–22
+  (`type_range_minimum/operator/maximum/close_token`), the
+  `ExpectedTypeRange{Bound,Operator,End}` diagnostics, and the post-type
+  bracket-annotation states; representations.epsilon owns the four
+  `type_range_*` coordinate fields plus `type_allows_range` (:955–960). The
+  fixture is migratable inside scope: `expected.hex` is the fixed success tag
+  `000000000041` (stdout 'A') and every count/span assert lives in
+  `main.epsilon` (`b: u32 [0..=9]` in the complete input, `u32 [0x0..=9]` /
+  `u32 [0..=0x9]` incomplete inputs at 17..20 / 21..24, `type_constraint_count`
+  2→1, field-root renumbering). Blocked residual, not a landable slice:
+  `source_closure.py` enforces per-member digests, so editing parser.epsilon
+  (manifest member 5, 356,216 bytes, sha 01b56c…) fails closure assembly until
+  `omega_compiler.epsilon.sources` is regenerated and the packed D re-pinned
+  (`OMEGA_COMPILER_PACKED_SIZE/SHA256` in `tools/bootstrap/omega/
+  compiler_env.sh` plus every gate binding D's identity) — all outside the
+  assigned paths — and the fixture's executed observation requires a seed
+  host (absent here). No unfenced in-scope slice exists; start condition is
+  the chain-wide D re-pin owned by the OMEGA-D cluster, or a widened scope.
+
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
   Retire or wire the public stage entrances the executed stage-entrance orphan
   sweep named. **Re-verified at `a9286683d0` against the whole repository, and
