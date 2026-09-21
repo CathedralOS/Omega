@@ -8372,6 +8372,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/owned_record_return_source.rs`). The ledger doc needs a
   one-line refresh for the ranked pair whenever its fence next opens
   (LOWERED-UNIT-FAILURE-ATTRIBUTION lane); verdict otherwise holds.
+
+  Re-verified at `23338b3d093c` (linux x86-64): the pending doc refresh
+  has landed on main — `known_baseline_failures.md` now carries the
+  `e7c0099cb2b7` member-level reading (81b9e64faeb, via this lane's
+  sibling item): the ranked-pair closure is recorded, the
+  missing-transitive-plan family re-attributed to 18 members
+  (provider_attachment_source ×6, unit_plan_omissions ×3,
+  guarded_scalar_returns ×1 drained; conformance_applications ×3,
+  composed_operand_catalogs ×5, composed_unit_internal_calls ×1 joined),
+  scalar-return custody down to the single structural-custody member,
+  and a new 4-member `scalar_array_source::cyclic` index-out-of-bounds
+  family (`call_lowering.rs:419`) surfaced for the scalar-graph/LICM
+  lane. Fence map refreshed: C2L-RESIDUAL-FAILURE-ATTRIBUTION and this
+  row's earlier claims have expired; live fences at this reading are
+  UEFI-OS-HANDOFF (~10:19Z), C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES
+  (~10:35Z on `tests/owned_record_return_source.rs`),
+  PROOF-CERTIFICATION-BRIDGE (~10:52Z),
+  GENERAL-CYCLIC-EXECUTION-OPTIMIZER (~13:51Z), and sibling
+  CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET under live claim
+  (~14:02Z). Verdict stands — no independent slice.
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET.** — scope verified and
   bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
   three members the 6ef64f6dd6 reading opened as two new families, now
