@@ -251,6 +251,45 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(available["unclaimed"], ["BETA-ITEM", "GAMMA-ITEM"])
         self.assertEqual(available["claimed"], ["ALPHA-ITEM"])
 
+    def test_notes_attach_to_live_claim_and_survive_release(self):
+        claimed = self.claim(self.a, owner="A")
+        noted = self.run_claims(self.a, "note", "--ticket", claimed["ticket"],
+                                "--text", "already resolved upstream; verified at abc123")
+        self.assertEqual(noted["state"], "noted")
+        self.assertEqual(noted["item"], "ALPHA-ITEM")
+        notes = self.run_claims(self.b, "notes")
+        self.assertEqual(notes["count"], 1)
+        self.assertEqual(notes["notes"][0]["item"], "ALPHA-ITEM")
+        self.assertEqual(notes["notes"][0]["owner"], "A")
+        self.assertIsNone(notes["notes"][0]["swept_utc"])
+        self.assertEqual(self.run_claims(self.b, "status")["notes_pending"], 1)
+        self.run_claims(self.a, "release", "--ticket", claimed["ticket"])
+        self.assertEqual(self.run_claims(self.b, "notes")["count"], 1)
+        self.assertEqual(self.run_claims(self.b, "sweep")["swept"], 1)
+        self.assertEqual(self.run_claims(self.a, "notes")["count"], 0)
+        self.assertEqual(self.run_claims(self.a, "status")["notes_pending"], 0)
+        swept = self.remote_record()["notes"]
+        self.assertEqual(len(swept), 1)
+        self.assertIsNotNone(swept[0]["swept_utc"])
+
+    def test_note_requires_live_claim_and_bounded_text(self):
+        self.run_claims(self.a, "note", "--ticket", "0" * 32, "--text", "x",
+                        expected=1)
+        claimed = self.claim(self.a, owner="A")
+        self.run_claims(self.a, "note", "--ticket", claimed["ticket"],
+                        "--text", "   ", expected=1)
+        self.run_claims(self.a, "note", "--ticket", claimed["ticket"],
+                        "--text", "x" * 2001, expected=1)
+
+    def test_notes_survive_record_rewrite_and_concurrent_claims(self):
+        claimed = self.claim(self.a, owner="A")
+        self.run_claims(self.a, "note", "--ticket", claimed["ticket"],
+                        "--text", "finding one")
+        self.claim(self.b, "BETA-ITEM", "B")
+        notes = self.run_claims(self.b, "notes")
+        self.assertEqual(notes["count"], 1)
+        self.assertEqual(notes["notes"][0]["text"], "finding one")
+
     def test_unknown_record_format_is_not_replaced(self):
         tree = self.git(self.a, "mktree")
         identity = self.git(self.a, "commit-tree", tree, "-F", "-",

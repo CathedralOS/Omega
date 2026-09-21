@@ -358,6 +358,30 @@ fn selected_const_value_keeps_its_declared_integer_width() {
 }
 
 #[test]
+fn compound_required_endpoints_are_declared_but_do_not_solve_binders() {
+    rejects(
+        "machine bound<const N: u64>(value: u64[0..=N * 2]) -> u64 { N }
+         machine main() -> u64 {
+             let wide: u64[0..=256] = 256;
+             bound(wide)
+         }",
+        "cannot derive",
+    );
+}
+
+#[test]
+fn symbolic_endpoint_expressions_bind_the_whole_endpoint_after_substitution() {
+    accepts(
+        "machine bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+         machine forward<const Limit: u64>(value: u64[0..=Limit + 1]) -> u64 { bound(value) }
+         machine main() -> u64 {
+             let wide: u64[0..=7] = 7;
+             forward<6>(wide)
+         }",
+    );
+}
+
+#[test]
 fn const_values_close_literal_return_range_endpoints() {
     accepts(
         "machine value<const N: u64>(witness: &[u8; N]) -> u64 [0..=N] { N }

@@ -218,6 +218,12 @@ fn forwarded_result_selection(
     );
     let mut selected = selection.clone();
     for (_, ordinal, binding) in const_proposals {
+        if !binding.is_valid() {
+            // An unresolved endpoint occurrence cannot complete the forwarded
+            // tuple: it only gains a closed value after the caller's own
+            // specialization substitutes its const binders.
+            return None;
+        }
         if let Some(existing) = selected.const_bindings[ordinal]
             && !crate::monomorphization::selection::same_type_identity(program, existing, binding)
         {

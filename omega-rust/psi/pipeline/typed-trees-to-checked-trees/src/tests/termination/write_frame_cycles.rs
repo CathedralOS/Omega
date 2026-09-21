@@ -1454,8 +1454,26 @@ fn write_frame_distinguishes_isolated_and_unrepresentable_local_aliases() {
         "the discarded primitive result must preserve both the call's side write and the returned-place write"
     );
 
+    // A proven local leaf's declared referent survives a reborrow: the
+    // frame names the parameter root, not the carrier slot.
+    let proven_leaf = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "reference_bearing_named_local_origin")
+        .expect("reference-bearing local origin machine");
+    let proven_leaf_entry = typed
+        .machine_states(proven_leaf)
+        .first()
+        .expect("reference-bearing local origin entry");
+    assert_eq!(
+        resolver
+            .inferred_state_write_frame(proven_leaf, proven_leaf_entry)
+            .complete_paths(),
+        Some(["$P0".to_owned()].as_slice()),
+        "a reborrowed proven local leaf names its declared referent, not the slot"
+    );
+
     for name in [
-        "reference_bearing_named_local_origin",
         "Main::effectful_index_recast_origin",
         "Main::recursive_alias_helper_result",
         "Main::reference_scratch_helper_result",

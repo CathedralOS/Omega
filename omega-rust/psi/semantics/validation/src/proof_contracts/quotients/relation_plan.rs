@@ -428,8 +428,12 @@ impl fmt::Display for RelationPlanError {
     }
 }
 
+/// Termination eligibility is answered by `termination`, not read from the
+/// program: ordinary validation passes the program itself (its typed
+/// summaries), the checked-route admission passes the checked facts.
 pub(super) fn derive_direct_terminal_plan(
     program: &TypedTrees,
+    termination: &dyn super::CheckedTerminationOracle,
     machine: &Machine,
     state: &State,
     call: &TableCallExpression,
@@ -438,7 +442,7 @@ pub(super) fn derive_direct_terminal_plan(
     let (input_relations, result_relation, representative) =
         derive_relation_and_representative(program, machine, state, call, request)?;
     let representative_termination =
-        unconditional_representative_termination(program, &representative);
+        unconditional_representative_termination(termination, &representative);
     validate_theorem_role_collection(request)?;
     let theorem_operational = crate::infer_operational_may(program);
     let theorem_reaches = crate::infer_service_reaches(program, &theorem_operational);
@@ -448,8 +452,10 @@ pub(super) fn derive_direct_terminal_plan(
         .map(|evidence| {
             let selected_application =
                 theorem::derive_selected_theorem_telescope(program, &evidence.application)?;
-            let termination =
-                theorem::unconditional_selected_theorem_termination(program, &selected_application);
+            let termination = theorem::unconditional_selected_theorem_termination(
+                termination,
+                &selected_application,
+            );
             let purity = theorem::pure_selected_theorem_effect(
                 &selected_application,
                 &theorem_operational,

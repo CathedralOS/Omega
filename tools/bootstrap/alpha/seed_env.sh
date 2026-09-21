@@ -1,14 +1,16 @@
 #!/usr/bin/env sh
 # Sourced by the bootstrap build scripts. Selects the per-platform alpha seed
-# and the stamping mechanics, so one script set serves every host. The non-mac
-# branch selects the hand-audited Windows flow (seed alpha_x64_windows.exe,
-# hole at file offset 5120/5124, no signing).
+# and the stamping mechanics, so one script set serves every host. The Linux
+# x86-64 branch selects the audited static ELF seed (alpha_x64_linux, hole at
+# file offset 12288, no signing); the remaining non-mac branch selects the
+# hand-audited Windows flow (seed alpha_x64_windows.exe, hole at file offset
+# 5120/5124, no signing).
 #
 # macOS arm64 differs in three ways, all OS-imposed: a Mach-O seed
 # (alpha_arm64_macos), the hole at a different file offset, and a mandatory
 # re-sign after stamping (dd invalidates the code signature; Apple Silicon
-# refuses to exec an invalid one). AlphaBootstrapV5 gives both containers one
-# exact 16 MiB hole including the four-byte length.
+# refuses to exec an invalid one). AlphaBootstrapV5 gives all three containers
+# one exact 16 MiB hole including the four-byte length.
 ALPHA_SEED_HOLE_SIZE=16777216
 ALPHA_MAX_RAW_TAPE_SIZE=16777212
 
@@ -22,15 +24,18 @@ ALPHA_SEED_ARM64_MACOS_SIZE=16942368
 ALPHA_SEED_ARM64_MACOS_SHA256=3a9cc3112f9f7645fca00716c347865d1b160f56d458fb6340c66f237d1ae616
 ALPHA_SEED_X64_WINDOWS_SIZE=16782336
 ALPHA_SEED_X64_WINDOWS_SHA256=4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701
+ALPHA_SEED_X64_LINUX_SIZE=16789856
+ALPHA_SEED_X64_LINUX_SHA256=39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced2768f868b775b1
 
 # Each container's stamping hole file offset, recorded beside the bound
-# identities so non-host gates can address either container. The hole is the
-# raw extent of the container's tape section (`.tape` in the PE32+, `__tape`
-# in the Mach-O); tests/alpha/container.sh pins that equality, so a rebuilt or
-# re-signed container that moved the section is refused here rather than
-# stamped into the wrong bytes.
+# identities so non-host gates can address every container. The hole is the
+# raw extent of the container's tape section (`.tape` in the PE32+ and the
+# ELF64, `__tape` in the Mach-O); tests/alpha/container.sh pins that equality,
+# so a rebuilt or re-signed container that moved the section is refused here
+# rather than stamped into the wrong bytes.
 ALPHA_SEED_ARM64_MACOS_HOLE_OFF=32768
 ALPHA_SEED_X64_WINDOWS_HOLE_OFF=5120
+ALPHA_SEED_X64_LINUX_HOLE_OFF=12288
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)
@@ -41,6 +46,14 @@ case "$(uname -s)-$(uname -m)" in
     HOLE_SIZE=$ALPHA_SEED_HOLE_SIZE
     SEED_SIGN=1
     ;;
+  Linux-x86_64)
+    ALPHA_SEED=alpha_x64_linux
+    ALPHA_SEED_SIZE=$ALPHA_SEED_X64_LINUX_SIZE
+    ALPHA_SEED_SHA256=$ALPHA_SEED_X64_LINUX_SHA256
+    HOLE_OFF=$ALPHA_SEED_X64_LINUX_HOLE_OFF
+    HOLE_SIZE=$ALPHA_SEED_HOLE_SIZE
+    SEED_SIGN=0
+    ;;
   *)
     ALPHA_SEED=alpha_x64_windows.exe
     ALPHA_SEED_SIZE=$ALPHA_SEED_X64_WINDOWS_SIZE
@@ -50,6 +63,29 @@ case "$(uname -s)-$(uname -m)" in
     SEED_SIGN=0
     ;;
 esac
+
+# Seed-execution hosts: the OS/arch pairs that can exec an audited Alpha
+# container — the arm64 Mach-O seed on macOS arm64, the static x86-64 ELF
+# seed on Linux, and the PE32+ x64 seed under the Windows build shells. Every
+# seed-executing gate reads this flag rather than repeating the uname match,
+# so admitting a new audited container/host pair is one edit here, not a
+# sweep across every gate.
+ALPHA_SEED_EXECUTABLE=0
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64|Linux-x86_64|MINGW*-x86_64|MSYS*-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
+esac
+
+# require_seed_execution_host LABEL : refuse a seed-executing gate on a host
+# without an audited executable seed, under the gate's own name. Gates call
+# this where a run would otherwise fail per case; on a supported host it
+# returns quietly.
+require_seed_execution_host() {
+  if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
+    return 0
+  fi
+  echo "$1: requires macOS arm64, Linux x86-64, or Windows x64" >&2
+  exit 2
+}
 
 # bootstrap_sha256 FILE : print the lowercase hex SHA-256 of FILE using the
 # host's standard digest tool (sha256sum on Linux and Git Bash, shasum on

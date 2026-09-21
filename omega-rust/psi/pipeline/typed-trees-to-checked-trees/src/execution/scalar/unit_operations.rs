@@ -106,6 +106,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                         result,
                                         value: root.root,
                                         calls: Vec::new(),
+                                        operand_source: None,
                                         discard_result_on_return: false,
                                     },
                                 );

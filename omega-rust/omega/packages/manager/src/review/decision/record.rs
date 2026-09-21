@@ -4,6 +4,7 @@ use super::resolution::{
     resolve_review_only_root_policy_decisions,
 };
 use crate::review::ReviewOnlyCapabilityConflictSet;
+use crate::review::timings;
 use std::fmt;
 
 const ROOT_POLICY_RECORD_HEADER: &str = "OMEGA_PACKAGE_ROOT_POLICY_RESOLUTION_V1";
@@ -220,6 +221,7 @@ pub fn recover_review_only_root_policy_resolution(
     bytes: &[u8],
     limits: ReviewOnlyRootPolicyRecordLimits,
 ) -> Result<ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyRecordError> {
+    let _stage = timings::stage("resolution_recovery");
     if bytes.len() > limits.maximum_bytes {
         return Err(ReviewOnlyRootPolicyRecordError::ByteLimitExceeded {
             length: bytes.len(),

@@ -10,6 +10,7 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use semantic_vocabulary::ProofTerm;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower(
@@ -22,11 +23,13 @@ pub(crate) fn lower(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
+        Vec<ProofTerm>,
     ),
     when_false: (
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
+        Vec<ProofTerm>,
     ),
     fallback: &CheckedScalarBranchDestination,
     computations: &mut computations::Expansion<'_>,
@@ -75,11 +78,13 @@ pub(crate) fn evaluate(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
+        Vec<ProofTerm>,
     ),
     when_false: (
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
+        Vec<ProofTerm>,
     ),
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
@@ -107,9 +112,11 @@ pub(crate) fn evaluate(
         when_true_target: when_true.0,
         when_true_arguments: when_true.1,
         when_true_erased_arguments: when_true.2,
+        when_true_erased_proof_arguments: when_true.3,
         when_false_target: when_false.0,
         when_false_arguments: when_false.1,
         when_false_erased_arguments: when_false.2,
+        when_false_erased_proof_arguments: when_false.3,
     };
     if !computed {
         return Ok(branch);
@@ -123,6 +130,7 @@ pub(crate) fn evaluate(
         structural_effects: Vec::new(),
         parameter_types,
         erased_formal_types: Vec::new(),
+        erased_proof_formals: Vec::new(),
         bindings: Vec::new(),
         terminator: branch,
     });
@@ -142,6 +150,7 @@ pub(crate) fn evaluate(
         target,
         arguments: computations::parameters(source_types),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
     })
 }
 

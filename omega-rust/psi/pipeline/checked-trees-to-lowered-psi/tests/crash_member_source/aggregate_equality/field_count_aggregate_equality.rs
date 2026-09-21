@@ -79,7 +79,8 @@ fn two_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
             }
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 collect_scalar_paths(left, boolean, integer);
                 collect_scalar_paths(right, boolean, integer);
             }

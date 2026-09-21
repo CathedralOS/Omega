@@ -50,7 +50,10 @@ if ($LASTEXITCODE -ne 16) { throw 'Expected exit 16' }
 guessing its filename. Expect empty stdout and `native exit: 16` on stderr.
 Do not add `--target` to this execution command: an explicit target makes
 `run` compile-only. These commands describe each host's route, not a claim that
-all hosted targets have passed; remaining coverage is in
+all hosted targets have passed. On Linux x86-64 the compiler-library
+regression below, filtered to this sample, compiles, publishes, and runs
+natively to exit 16 with empty stdout; its test-owned acceptance leaves the
+ordinary CLI review route unverified there. Remaining coverage is in
 [SAMPLE-CORPUS](../../../../TASKS.md).
 
 ## Compiler-library regression

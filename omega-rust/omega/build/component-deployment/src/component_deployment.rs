@@ -406,6 +406,11 @@ impl ProgressClosedComponentDeployment {
             .iter()
             .map(effects::provider_plan::ProviderPlan::report_fingerprint)
             .collect::<Vec<_>>();
+        let boundary_opaque_applications = candidate
+            .native_artifact
+            .boundary_application_coverage()
+            .map(|coverage| coverage.opaque_applications().clone())
+            .unwrap_or_default();
         let record = match build_installation_record_with_selected_provider_plans_and_evidence(
             candidate.native_artifact.image(),
             profile_decision,
@@ -414,6 +419,7 @@ impl ProgressClosedComponentDeployment {
             progress.as_ref().map(|value| {
                 value as &dyn installation_evidence::ComponentProgressAcceptanceEvidence
             }),
+            boundary_opaque_applications.clone(),
         ) {
             Ok(record) => record,
             Err(error) => {
@@ -486,7 +492,13 @@ impl ProgressClosedComponentDeployment {
             physical_evidence_scope,
             physical_evidence,
         } = native_artifact.into_parts();
-        let artifact = match bind_installed_artifact(object, image, record, installed) {
+        let artifact = match bind_installed_artifact(
+            object,
+            image,
+            record,
+            &boundary_opaque_applications,
+            installed,
+        ) {
             Ok(artifact) => artifact,
             Err(error) => {
                 let diagnostic = error.diagnostic().to_owned();

@@ -86,6 +86,8 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::WrappingSubtractI64 => 90,
         MachineAlternativeFamily::WrappingMultiplyI64 => 91,
         MachineAlternativeFamily::WrappingDivideI64 => 92,
+        MachineAlternativeFamily::ExactDivideI64 => 112,
+        MachineAlternativeFamily::ExactRemainderI64 => 113,
         MachineAlternativeFamily::BitwiseOrI64 => 93,
         MachineAlternativeFamily::BitwiseNotI64 => 94,
         MachineAlternativeFamily::SaveFloatingControl => 103,

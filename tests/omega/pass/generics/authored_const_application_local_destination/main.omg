@@ -3,7 +3,9 @@
 // helper's return type. Pre-resolution const evaluation folds each authored
 // call through the provider body into the closed argument `4`, so every
 // `Buffer<size(4)>` lands on `Buffer<4>` and the literals check against
-// `[_; 4]` in the ordinary pipeline.
+// `[_; 4]` in the ordinary pipeline. `use_index` additionally reaches the
+// pending-typed field through `self`: the probe must not check authored bodies
+// against the provisional placeholder while the call still waits to fold.
 
 machine size(n: u64) -> u64 {
     transition { _ -> n }
@@ -23,4 +25,8 @@ machine make() -> Buffer<size(4)> {
 
 machine Main::main(&mut self) {
     let folded: Buffer<size(4)> = Buffer { values: [1, 2, 3, 4] };
+}
+
+machine Main::use_index(&mut self) {
+    self.value.values[3] = 9;
 }

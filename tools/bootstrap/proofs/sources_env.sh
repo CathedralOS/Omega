@@ -5,6 +5,7 @@
 
 [ -n "${OMEGA_PATH_DERIVATION_CHECKER_SOURCES:-}" ] && \
   [ -n "${OMEGA_PATH_BETA_ENCODING_SOURCES:-}" ] && \
+  [ -n "${OMEGA_PATH_BETA_ENCODING_PACKAGE:-}" ] && \
   [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
   echo "Proof sources: source tools/bootstrap/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
@@ -23,13 +24,15 @@
 # checker, the theory, or any derived certificate. Changing a member or a
 # manifest invalidates the dependent evidence and must update every record.
 DERIVATION_CHECKER_MANIFEST_SIZE=9046
-DERIVATION_CHECKER_MANIFEST_SHA256=661f3483b149bfed17cc9b994aac5dc377061c95f7f0d1bc32e3b620dae70165
-DERIVATION_CHECKER_PACKED_SIZE=62349
-DERIVATION_CHECKER_PACKED_SHA256=6423e10ca5dab533d8d0f58dc1e66eb08917273889a00d5da985433483528802
+DERIVATION_CHECKER_MANIFEST_SHA256=85f37efbf08aee227f904f90b03c55c46e826add6fd531258011289633a3dcbc
+DERIVATION_CHECKER_PACKED_SIZE=62355
+DERIVATION_CHECKER_PACKED_SHA256=2535cd1ab3dd164d8bf5cae152bf141ec2225c8509f4e4695462d809fda27156
 BETA_ENCODING_MANIFEST_SIZE=5536
 BETA_ENCODING_MANIFEST_SHA256=f93d98315b2197d81babcc8b3345a1df0e4eb219bf7e5c3288132ec2d3fe2e5d
 BETA_ENCODING_PACKED_SIZE=130363
 BETA_ENCODING_PACKED_SHA256=632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25be08840b41ddf
+BETA_ENCODING_DEFINITION_PACKAGE_SIZE=116900
+BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c
 
 # Bound gate-local prefix entries packed on top of the bound member bytes.
 # Each derivation gate packs its own diagnostic entry on the packed checker
@@ -43,6 +46,8 @@ BETA_ENCODING_PACKED_SHA256=632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25b
 # is an identity check on the entry source; it is not a proof of the gate's
 # judgment. Changing an entry changes the packed customer and must update
 # every record together.
+DERIVATION_ADMISSION_ENTRY_SIZE=1270
+DERIVATION_ADMISSION_ENTRY_SHA256=d657d412c92123bdc6dc7c95c38eed50a158c5c986507c5eb3f5ae4420a96e88
 DERIVATION_CHECKING_ENTRY_SIZE=1155
 DERIVATION_CHECKING_ENTRY_SHA256=8601e23955e3054eba95a2b5e7e2dd2a92d4ae47c8cb9bf49d9ce77c295a16a2
 DERIVATION_FORMATION_ENTRY_SIZE=1584
@@ -92,6 +97,23 @@ DERIVATION_COMPARISON_ENTRY_SESSION_SHA256=8f1ea6dd838b0c770cdfc56d745a1bfa7f493
 DERIVATION_COMPARISON_ENTRY_WITNESS_SIZE=349
 DERIVATION_COMPARISON_ENTRY_WITNESS_SHA256=2ba9d62188b05e802231ab0da5be0add5751e866bb2b4a2342d1a7019ccc0375
 
+# Bound produced certificate subject. The certificate request is a produced
+# artifact, not a manifested member: the Beta-encoding edge's stepper
+# reproduces these bytes from the bound theory and checker closures, and the
+# certificate-check gate consumes exactly this request. The record lives in
+# bootstrap/proofs/beta_encoding/README.md with the theory's other bound
+# subjects; the same size/digest pair is independently pinned by the
+# producing gate's own record (tests/gamma/beta-encoding-theory's full
+# subject RECORDED table) and the proofs identity gate checks that the
+# records agree. A digest here is an identity check on the produced bytes,
+# not a proof of the derivation the certificate claims. The check edge's
+# disclosed admission record — the checker's 17-byte Checked observation —
+# binds its proof-row count in the producing gate's record; its measured
+# work field lands with the first native run and binds then, per the
+# manifest's bind-on-arrival rule.
+BETA_ENCODING_CERTIFICATE_REQUEST_SIZE=135485028
+BETA_ENCODING_CERTIFICATE_REQUEST_SHA256=7c0e3bf230a2675a170ea77dc6962ef6aa7c03ce15248b27475c7c6a3e592908
+
 # require_bound_manifest_closure LABEL MANIFEST SIZE SHA256 PACKED_SIZE
 # PACKED_SHA256 RECORD : shared manifest-then-repack check behind both proof
 # subjects. Repacking needs python3; without it the closure identity cannot
@@ -116,7 +138,8 @@ require_bound_manifest_closure() {
   return "$PROOF_IDENTITY_RC"
 }
 
-# require_derivation_checker_identity / require_beta_encoding_theory_identity :
+# require_derivation_checker_identity / require_beta_encoding_theory_identity /
+# require_beta_encoding_definition_package_identity :
 # the canonical manifest is the bound file and repacking it reproduces exactly
 # the bound member closure. Every materialization runs its check; tests may
 # call them directly. bootstrap_sha256 and require_bound_identity live in
@@ -134,6 +157,32 @@ require_beta_encoding_theory_identity() {
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$BETA_ENCODING_MANIFEST_SIZE" "$BETA_ENCODING_MANIFEST_SHA256" \
     "$BETA_ENCODING_PACKED_SIZE" "$BETA_ENCODING_PACKED_SHA256" \
+    "bootstrap/proofs/beta_encoding/README.md"
+}
+
+# The emitted definition package is the bound file itself, not a manifest:
+# the artifact owner fixes these bytes independently of the certificate
+# producer (bootstrap/proofs/beta_encoding/ACCEPTANCE.md), and the checker
+# request envelope's theory section is exactly this file. theory.gamma emits
+# it under the selected evaluator; the host-side mirror reproduces identical
+# bytes. Every consumer that trusts the package verifies this identity first.
+require_beta_encoding_definition_package_identity() {
+  require_bound_identity "definition_package.bin" \
+    "$OMEGA_PATH_BETA_ENCODING_PACKAGE" \
+    "$BETA_ENCODING_DEFINITION_PACKAGE_SIZE" \
+    "$BETA_ENCODING_DEFINITION_PACKAGE_SHA256" \
+    "bootstrap/proofs/beta_encoding/README.md"
+}
+
+# require_beta_encoding_certificate_request_identity FILE : a produced
+# certificate request file is exactly the bound produced subject above. A
+# gate that materializes the request to disk runs it before consuming the
+# bytes; tests may call it directly. In-memory consumers pin the same
+# identity against their own record instead.
+require_beta_encoding_certificate_request_identity() {
+  require_bound_identity "certificate request" "$1" \
+    "$BETA_ENCODING_CERTIFICATE_REQUEST_SIZE" \
+    "$BETA_ENCODING_CERTIFICATE_REQUEST_SHA256" \
     "bootstrap/proofs/beta_encoding/README.md"
 }
 
@@ -160,6 +209,13 @@ materialize_beta_encoding_theory() {
 # and never part of the manifested members, so consumers that pack it run
 # this before packing; tests may call it directly. It does not run during
 # materialization.
+require_derivation_admission_entry_identity() {
+  require_bound_identity "main.gamma" \
+    "$OMEGA_PATH_DERIVATION_ADMISSION_ENTRY" \
+    "$DERIVATION_ADMISSION_ENTRY_SIZE" "$DERIVATION_ADMISSION_ENTRY_SHA256" \
+    "tests/gamma/derivation-admission/README.md"
+}
+
 require_derivation_checking_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY" \

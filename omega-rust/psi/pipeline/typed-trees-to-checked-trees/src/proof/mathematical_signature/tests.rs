@@ -1039,15 +1039,105 @@ fn unlanded_float_literal_body_refuses() {
     );
 }
 
+/// `x != y` denotes `Squash (Not (Id Int y x))` — the negated
+/// proposition stays at `Type 0` through the interned `Not` assumption,
+/// so it composes with `&&`/`||` exactly like `x == y`.
 #[test]
-fn negated_equality_refuses() {
-    let diagnostics = refuse("let different(x: u64, y: u64): core::Strict<0> = x != y;");
+fn machine_inequality_denotes_not_of_id() {
+    let signature = signature("let ne(a: u64, b: u64): core::Strict<0> = a != b;");
+    crate::lower_typed_trees(typed_program(
+        "let ne(a: u64, b: u64): core::Strict<0> = a != b;",
+    ))
+    .expect("machine inequality body checks");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("no negation")),
-        "unexpected diagnostics: {diagnostics:?}"
+    let declarations = signature.signature().declarations();
+    // `Int` carrier, `Not` assumption, `ne`.
+    assert_eq!(declarations.len(), 3);
+    let mut body = declarations[2].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Apply {
+        function: negation,
+        argument: equality,
+    } = signature.term(ty)
+    else {
+        panic!("expected Not application, got {:?}", signature.term(ty));
+    };
+    assert_eq!(
+        signature.term(negation),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    let Term::Id { ty, left, right } = signature.term(equality) else {
+        panic!("expected Id under Not, got {:?}", signature.term(equality));
+    };
+    assert_eq!(
+        signature.term(ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(left), Term::Variable(0));
+    assert_eq!(signature.term(right), Term::Variable(1));
+}
+
+/// `x != y && p` nests under `Σ` — inequality composes with the
+/// conjunction vocabulary at `Type 0`.
+#[test]
+fn machine_inequality_composes_with_conjunction() {
+    let signature =
+        signature("let both(a: u64, b: u64, c: u64): core::Strict<0> = a != b && b < c;");
+    crate::lower_typed_trees(typed_program(
+        "let both(a: u64, b: u64, c: u64): core::Strict<0> = a != b && b < c;",
+    ))
+    .expect("inequality inside conjunction checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `IntLt`, `Not`, `both`.
+    assert_eq!(declarations.len(), 4);
+    let mut body = declarations[3].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Sigma { domain, codomain } = signature.term(ty) else {
+        panic!("expected Sigma, got {:?}", signature.term(ty));
+    };
+    let _ = (domain, codomain);
+}
+
+/// A `()` binder domain interns the dedicated `Unit` carrier rather
+/// than refusing or claiming a fixed-integer position.
+#[test]
+fn unit_carrier_in_binder_domain() {
+    let signature = signature("let one(x: ()): u64 = 1;");
+    crate::lower_typed_trees(typed_program("let one(x: ()): u64 = 1;"))
+        .expect("unit-carried binder checks");
+
+    let declarations = signature.signature().declarations();
+    // `Unit` carrier, `Int` carrier, literal `1`, `one`.
+    assert_eq!(declarations.len(), 4);
+    let Term::Pi { domain, .. } = signature.term(declarations[3].ty) else {
+        panic!(
+            "expected Pi telescope, got {:?}",
+            signature.term(declarations[3].ty)
+        );
+    };
+    assert_eq!(
+        signature.term(domain),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
     );
 }
 

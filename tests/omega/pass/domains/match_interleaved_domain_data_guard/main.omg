@@ -1,6 +1,7 @@
-// Chapter 8 "Domain Patterns": domain patterns may be interleaved with
-// ordinary data patterns and guards in a match. The data-destructure +
-// guard arm (`Player { health, .. } if health > 5`) does not parse here.
+// Chapter 8 "Domain Patterns": domain patterns interleave with ordinary
+// data patterns and guards in a control dispatch. The record-destructure +
+// guard arm (`Player { health, .. } if health > 5`) is `transition`
+// grammar; value-position `match` admits value and wildcard arms only.
 
 data Player {
     health: i32;
@@ -20,7 +21,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    match self.player {
+    transition self.player {
         Player::Alive -> done()
         Player { health, .. } if health > 5 -> done()
         _ -> done()

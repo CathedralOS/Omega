@@ -13,6 +13,21 @@
 //! distinct installation fingerprint, and independent replay against the
 //! unchanged image rejects it with `ImageBindingMismatch`.
 
+use super::installation_field_substitution_fields::{
+    foreign_forwarded_parameter_call_record, installation_record_custody,
+};
+use super::installation_function_nested_custody_fields::{
+    AffineCleanupFieldForTest, AffineCleanupScalarRecordFieldForTest,
+    AffineScalarRecordsFieldForTest, ForeignCallStackRowFieldForTest, MixedAbiFieldForTest,
+    NestedCallStacksFieldForTest, NestedCallStacksSelectedFieldForTest, ParameterAbiFieldForTest,
+    ParameterAndHomeRowsFieldForTest, ScalarCallStacksFieldForTest,
+    ScalarControlCleanupsFieldForTest, ScalarStoreRowsFieldForTest,
+    ScalarStructuralRowsFieldForTest, ScalarTransportFieldForTest,
+    ScalarTransportScalarRecordFieldForTest, StoreRowsFieldForTest,
+    StoreRowsScalarRecordFieldForTest, StructuralCallScalarReturnFieldForTest,
+    StructuralStoreRowsFieldForTest, UnitContinuationsFieldForTest, UnitScalarRowsFieldForTest,
+    WriteOnlyStoreRowsFieldForTest,
+};
 use super::{
     WriteExitProvider, continuation_unit_call_plan, edge_id, edge_owned_cleanup_plan, identity,
     machine_id, operation_id, promote_x86_cleanup_to_scalar, scalar_three_leaf_cleanup_plan,
@@ -34,6 +49,9 @@ use machine_code::{
     StackAdjustmentPair, StructuralCallScalarReturnEvidence, UnitAffineCleanupRecord,
     UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
     UnitParameterHomeRecord, UnitParameterRecord, UnitStackEvidence,
+};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 use semantic_vocabulary::{
     BlockId, IntegerSign, IntegerType, IntegerValue, PlaceId, ProfileDecisionId, ScalarType,
@@ -1340,139 +1358,51 @@ fn extra_local() -> (
     )
 }
 
-/// Replay-side assertion for a substitution that still encodes: the codec must
-/// preserve the mutated record exactly, the recomputed installation identity
-/// must differ from the authentic fingerprint, and independent replay against
-/// the unchanged emitted image must reject the row.
-fn assert_substitution_rejected_by_replay(
-    field: &str,
-    record: &InstallationRecord,
-    image: &image_emission::ExecutableImage,
-    authentic_fingerprint: &image_emission::InstallationFingerprint,
-    index: usize,
-    mutate: impl Fn(&mut InstalledFunction),
-) {
-    let mut changed = record.clone();
-    mutate(&mut changed.functions_mut_for_test()[index]);
-    assert_ne!(changed, *record, "{field}: substitution changes the row");
-    let bytes = encode_installation_record(&changed)
-        .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
-    let replayed = decode_installation_record(&bytes)
-        .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
-    assert_eq!(
-        replayed, changed,
-        "{field}: codec preserves the substituted row"
-    );
-    assert_ne!(
-        installation_fingerprint(&replayed)
-            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
-        *authentic_fingerprint,
-        "{field}: recomputed identity differs from the authentic record"
-    );
-    assert_eq!(
-        validate_installation_record(&replayed, image),
-        Err(InstallationError::ImageBindingMismatch),
-        "{field}: independent replay rejects the substituted row"
-    );
+/// The independent checker every nested-custody family shares: a
+/// substituted record must encode canonically, round-trip through the codec,
+/// recompute an installation identity distinct from the authentic record, and
+/// then replay against the unchanged emitted image. An encoding canonicality
+/// error surfaces before the identity and replay steps, so both leg kinds
+/// reduce to the checker's exact error.
+fn nested_custody_check<'a>(
+    image: &'a image_emission::ExecutableImage,
+    authentic_fingerprint: &'a image_emission::InstallationFingerprint,
+) -> impl Fn(&InstallationRecord) -> Result<InstallationRecord, InstallationError> + 'a {
+    move |record| {
+        let bytes = encode_installation_record(record)?;
+        let replayed = decode_installation_record(&bytes)?;
+        assert_eq!(&replayed, record, "codec preserves the substituted record");
+        assert_ne!(
+            installation_fingerprint(&replayed)?,
+            *authentic_fingerprint,
+            "recomputed identity differs from the authentic record"
+        );
+        validate_installation_record(&replayed, image)?;
+        Ok(replayed)
+    }
 }
 
-/// Encode-side assertion for a substitution that is not independently
-/// representable: a canonical record-shape join rejects it before any identity
-/// or replay could accept it.
-fn assert_substitution_rejected_at_encoding(
-    field: &str,
-    record: &InstallationRecord,
-    index: usize,
-    mutate: impl Fn(&mut InstalledFunction),
-    expected: InstallationError,
-) {
-    let mut changed = record.clone();
-    mutate(&mut changed.functions_mut_for_test()[index]);
-    assert_ne!(changed, *record, "{field}: substitution changes the row");
-    assert_eq!(
-        encode_installation_record(&changed),
-        Err(expected),
-        "{field}: canonical encoding rejects the substitution"
-    );
-}
-
-/// Encode-side analogue for a record-roster substitution that is not
-/// independently representable: a canonical record-shape join rejects it
-/// before any identity or replay could accept it.
-fn assert_record_substitution_rejected_at_encoding(
-    field: &str,
-    record: &InstallationRecord,
-    mutate: impl Fn(&mut InstallationRecord),
-    expected: InstallationError,
-) {
-    let mut changed = record.clone();
-    mutate(&mut changed);
-    assert_ne!(changed, *record, "{field}: substitution changes the record");
-    assert_eq!(
-        encode_installation_record(&changed),
-        Err(expected),
-        "{field}: canonical encoding rejects the substitution"
-    );
-}
-
-/// Replay-side assertion for the affine scalar-record fixture: the consuming
+/// The checker for the affine scalar-record fixture, whose consuming
 /// argument's source placement carries an 8-byte shape with no locations —
-/// exactly what `affine_scalar_record_source` requires — and that placement
-/// is not wire-decodable today, so the containing record cannot round-trip
-/// through `decode_installation_record`. The substitution still encodes
-/// canonically, recomputes a distinct installation identity, and independent
-/// replay against the unchanged image rejects it.
-fn assert_undecodable_row_substitution_rejected_by_replay(
-    field: &str,
-    record: &InstallationRecord,
-    image: &image_emission::ExecutableImage,
-    authentic_fingerprint: &image_emission::InstallationFingerprint,
-    index: usize,
-    mutate: impl Fn(&mut InstalledFunction),
-) {
-    let mut changed = record.clone();
-    mutate(&mut changed.functions_mut_for_test()[index]);
-    assert_ne!(changed, *record, "{field}: substitution changes the row");
-    encode_installation_record(&changed)
-        .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
-    assert_ne!(
-        installation_fingerprint(&changed)
-            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
-        *authentic_fingerprint,
-        "{field}: recomputed identity differs from the authentic record"
-    );
-    assert_eq!(
-        validate_installation_record(&changed, image),
-        Err(InstallationError::ImageBindingMismatch),
-        "{field}: independent replay rejects the substituted row"
-    );
-}
-
-/// Record-roster analogue of
-/// [`assert_undecodable_row_substitution_rejected_by_replay`].
-fn assert_undecodable_record_substitution_rejected_by_replay(
-    field: &str,
-    record: &InstallationRecord,
-    image: &image_emission::ExecutableImage,
-    authentic_fingerprint: &image_emission::InstallationFingerprint,
-    mutate: impl Fn(&mut InstallationRecord),
-) {
-    let mut changed = record.clone();
-    mutate(&mut changed);
-    assert_ne!(changed, *record, "{field}: substitution changes the record");
-    encode_installation_record(&changed)
-        .unwrap_or_else(|error| panic!("{field}: substituted record encodes: {error:?}"));
-    assert_ne!(
-        installation_fingerprint(&changed)
-            .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
-        *authentic_fingerprint,
-        "{field}: recomputed identity differs from the authentic record"
-    );
-    assert_eq!(
-        validate_installation_record(&changed, image),
-        Err(InstallationError::ImageBindingMismatch),
-        "{field}: independent replay rejects the substituted record"
-    );
+/// exactly what `affine_scalar_record_source` requires — and is not
+/// wire-decodable today, so the containing record cannot round-trip through
+/// `decode_installation_record`. The substitution still encodes canonically,
+/// recomputes a distinct installation identity, and independent replay
+/// against the unchanged image judges the encoded record itself.
+fn nested_custody_undecodable_check<'a>(
+    image: &'a image_emission::ExecutableImage,
+    authentic_fingerprint: &'a image_emission::InstallationFingerprint,
+) -> impl Fn(&InstallationRecord) -> Result<InstallationRecord, InstallationError> + 'a {
+    move |record| {
+        encode_installation_record(record)?;
+        assert_ne!(
+            installation_fingerprint(record)?,
+            *authentic_fingerprint,
+            "recomputed identity differs from the authentic record"
+        );
+        validate_installation_record(record, image)?;
+        Ok(record.clone())
+    }
 }
 
 /// Every representable leaf of an installed Unit call-stack row, its canonical
@@ -1500,34 +1430,30 @@ fn installation_function_nested_call_stacks_reject_every_one_field_substitution(
     );
 
     let tail_text_offset = authentic.text_offset + authentic.byte_count - 4;
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "unit_call_stacks[0].owner",
-            Box::new(|row| {
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: NestedCallStacksFieldForTest,
+                      _donor: &InstallationRecord| {
+        use NestedCallStacksFieldForTest as Field;
+        match field {
+            Field::UnitCallStacksOwner => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].owner = CallSiteOwner::Operation(operation_id(9));
-            }),
-        ),
-        (
-            "unit_call_stacks[0].target",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksTarget => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].target = machine_id(2);
-            }),
-        ),
-        (
-            "unit_call_stacks[0].text_offset",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksTextOffset => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].text_offset += 1;
-            }),
-        ),
-        (
-            "unit_call_stacks::drop",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks.pop();
-            }),
-        ),
-        (
-            "unit_call_stacks::insert-distinct",
-            Box::new(move |row| {
+            }
+            Field::UnitCallStacksInsertDistinct => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks
                     .push(image_emission::ObjectUnitCallStack {
                         owner: CallSiteOwner::Operation(operation_id(9)),
@@ -1537,66 +1463,32 @@ fn installation_function_nested_call_stacks_reject_every_one_field_substitution(
                         transient_bytes: 16,
                         caller_live_bytes: 48,
                     });
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "unit_call_stacks[0].target::unknown-machine",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksTargetUnknownMachine => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].target = machine_id(99);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_call_stacks[0].active_frame_bytes",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksActiveFrameBytes => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].active_frame_bytes += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_call_stacks[0].transient_bytes",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksTransientBytes => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].transient_bytes += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_call_stacks[0].caller_live_bytes",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksCallerLiveBytes => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks[0].caller_live_bytes += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_call_stacks::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::UnitCallStacksInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let call = row.unit_call_stacks[0];
                 row.unit_call_stacks.push(call);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // A scalar call-stack row cannot be attached to a Unit-stack row:
-        // scalar calls require retained scalar stack evidence.
-        (
-            "scalar_call_stacks::insert-on-unit-row",
-            Box::new(|row| {
+            }
+            // A scalar call-stack row cannot be attached to a Unit-stack row:
+            // scalar calls require retained scalar stack evidence.
+            Field::ScalarCallStacksInsertOnUnitRow => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks
                     .push(image_emission::ObjectScalarCallStack {
                         owner: CallSiteOwner::Operation(operation_id(9)),
@@ -1604,22 +1496,58 @@ fn installation_function_nested_call_stacks_reject_every_one_field_substitution(
                         text_offset: 4,
                         caller_live_bytes: 8,
                     });
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // Foreign calls require the provider-plan report identity to appear in
-        // the retained selected-provider closure; the fixture selects none.
-        (
-            "foreign_call_stacks::insert-unselected",
-            Box::new(|row| {
+            }
+            // Foreign calls require the provider-plan report identity to appear in
+            // the retained selected-provider closure; the fixture selects none.
+            Field::ForeignCallStacksInsertUnselected => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.foreign_call_stacks.push(foreign_call(4));
-            }),
-            InstallationError::ProviderSettlementClosureMismatch,
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: NestedCallStacksFieldForTest| {
+        use NestedCallStacksFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::UnitCallStacksOwner
+            | Field::UnitCallStacksTarget
+            | Field::UnitCallStacksTextOffset
+            | Field::UnitCallStacksDrop
+            | Field::UnitCallStacksInsertDistinct => InstallationError::ImageBindingMismatch,
+            Field::UnitCallStacksTargetUnknownMachine => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitCallStacksActiveFrameBytes => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitCallStacksTransientBytes => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitCallStacksCallerLiveBytes => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitCallStacksInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarCallStacksInsertOnUnitRow => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ForeignCallStacksInsertUnselected => {
+                InstallationError::ProviderSettlementClosureMismatch
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation nested call stacks / record",
+        fields: NestedCallStacksFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 
     // With the report identity admitted by `selected_provider_plans`, the same
     // fabricated foreign row clears the closure join, encodes, and independent
@@ -1630,22 +1558,43 @@ fn installation_function_nested_call_stacks_reject_every_one_field_substitution(
         [91],
         std::iter::empty::<&dyn installation_evidence::ProviderExecutionEvidence>(),
         None,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
     .expect("selected provider installation");
     validate_installation_record(&selected, &image).expect("selected image binding");
     let selected_fingerprint = installation_fingerprint(&selected).expect("fingerprint");
     let function_text_offset = selected.functions()[2].text_offset;
-    assert_substitution_rejected_by_replay(
-        "foreign_call_stacks::insert-admitted",
-        &selected,
-        &image,
-        &selected_fingerprint,
-        2,
-        move |row| {
-            row.foreign_call_stacks
-                .push(foreign_call(function_text_offset + 4));
-        },
-    );
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: NestedCallStacksSelectedFieldForTest,
+                      _donor: &InstallationRecord| {
+        use NestedCallStacksSelectedFieldForTest as Field;
+        match field {
+            Field::ForeignCallStacksInsertAdmitted => {
+                let row = &mut record.functions_mut_for_test()[2];
+                row.foreign_call_stacks
+                    .push(foreign_call(function_text_offset + 4));
+            }
+        }
+    };
+    let outcome = |field: NestedCallStacksSelectedFieldForTest| {
+        use NestedCallStacksSelectedFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ForeignCallStacksInsertAdmitted => InstallationError::ImageBindingMismatch,
+        })
+    };
+    let check = nested_custody_check(&image, &selected_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation nested call stacks / selected",
+        fields: NestedCallStacksSelectedFieldForTest::INVENTORY,
+        honest: &|| selected.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Every retained field of a genuinely emitted foreign-call stack row is
@@ -1674,6 +1623,7 @@ fn installation_foreign_call_stack_row_rejects_every_one_field_substitution() {
         [91, 97],
         [&provider],
         None,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
     .expect("foreign call installation");
     validate_installation_record(&record, &image).expect("exact image binding");
@@ -1685,87 +1635,87 @@ fn installation_foreign_call_stack_row_rejects_every_one_field_substitution() {
     assert_eq!(call.owner, CallSiteOwner::Operation(operation_id(61)));
     assert_eq!(call.provider_plan_report_identity, 91);
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "foreign_call_stacks[0].owner",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: ForeignCallStackRowFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ForeignCallStackRowFieldForTest as Field;
+        match field {
+            Field::Owner => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].owner = CallSiteOwner::Operation(operation_id(9));
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].text_offset",
-            Box::new(|row| {
+            }
+            Field::TextOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].text_offset += 1;
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].caller_live_bytes",
-            Box::new(|row| {
+            }
+            Field::CallerLiveBytes => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].caller_live_bytes += 1;
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].provider_plan_report_identity",
-            Box::new(|row| {
+            }
+            Field::ProviderPlanReportIdentity => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].provider_plan_report_identity = 97;
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].contribution_report_identity",
-            Box::new(|row| {
+            }
+            Field::ContributionReportIdentity => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].contribution_report_identity =
                     task_plans::AdmittedStackContributionReportId::from_normalized_identity(
                         0xc011_e541,
                     )
                     .expect("contribution report");
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].contribution_commitment",
-            Box::new(|row| {
+            }
+            Field::ContributionCommitment => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].contribution_commitment =
                     task_plans::SameStackContributionCommitment::from_digest([0xaa; 32]);
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].contribution_bytes",
-            Box::new(|row| {
+            }
+            Field::ContributionBytes => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].contribution_bytes = 128;
-            }),
-        ),
-        (
-            "foreign_call_stacks[0].contribution_alignment",
-            Box::new(|row| {
+            }
+            Field::ContributionAlignment => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks[0].contribution_alignment = 8;
-            }),
-        ),
-        (
-            "foreign_call_stacks::drop",
-            Box::new(|row| {
+            }
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.foreign_call_stacks.pop();
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            0,
-            mutate,
-        );
-    }
-
-    assert_substitution_rejected_at_encoding(
-        "foreign_call_stacks[0].provider_plan_report_identity::unselected",
-        &record,
-        0,
-        |row| {
-            row.foreign_call_stacks[0].provider_plan_report_identity = 55;
-        },
-        InstallationError::ProviderSettlementClosureMismatch,
-    );
+            }
+            Field::ProviderPlanReportIdentityUnselected => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.foreign_call_stacks[0].provider_plan_report_identity = 55;
+            }
+        }
+    };
+    let outcome = |field: ForeignCallStackRowFieldForTest| {
+        use ForeignCallStackRowFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::Owner
+            | Field::TextOffset
+            | Field::CallerLiveBytes
+            | Field::ProviderPlanReportIdentity
+            | Field::ContributionReportIdentity
+            | Field::ContributionCommitment
+            | Field::ContributionBytes
+            | Field::ContributionAlignment
+            | Field::Drop => InstallationError::ImageBindingMismatch,
+            Field::ProviderPlanReportIdentityUnselected => {
+                InstallationError::ProviderSettlementClosureMismatch
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation foreign call stack row / record",
+        fields: ForeignCallStackRowFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Every representable leaf of an installed scalar call-stack row is
@@ -1793,40 +1743,34 @@ fn installation_function_scalar_call_stacks_reject_every_one_field_substitution(
     );
 
     let tail_text_offset = authentic.text_offset + authentic.byte_count - 4;
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "scalar_call_stacks[0].owner",
-            Box::new(|row| {
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: ScalarCallStacksFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ScalarCallStacksFieldForTest as Field;
+        match field {
+            Field::ScalarCallStacksOwner => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks[0].owner = CallSiteOwner::Operation(operation_id(9));
-            }),
-        ),
-        (
-            "scalar_call_stacks[0].target",
-            Box::new(|row| {
+            }
+            Field::ScalarCallStacksTarget => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks[0].target = machine_id(2);
-            }),
-        ),
-        (
-            "scalar_call_stacks[0].text_offset",
-            Box::new(|row| {
+            }
+            Field::ScalarCallStacksTextOffset => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks[0].text_offset += 1;
-            }),
-        ),
-        (
-            "scalar_call_stacks[0].caller_live_bytes",
-            Box::new(|row| {
+            }
+            Field::ScalarCallStacksCallerLiveBytes => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks[0].caller_live_bytes += 1;
-            }),
-        ),
-        (
-            "scalar_call_stacks::drop",
-            Box::new(|row| {
+            }
+            Field::ScalarCallStacksDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks.pop();
-            }),
-        ),
-        (
-            "scalar_call_stacks::insert-distinct",
-            Box::new(move |row| {
+            }
+            Field::ScalarCallStacksInsertDistinct => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks
                     .push(image_emission::ObjectScalarCallStack {
                         owner: CallSiteOwner::Operation(operation_id(9)),
@@ -1834,44 +1778,19 @@ fn installation_function_scalar_call_stacks_reject_every_one_field_substitution(
                         text_offset: tail_text_offset,
                         caller_live_bytes: 8,
                     });
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "scalar_call_stacks[0].target::unknown-machine",
-            Box::new(|row| {
+            }
+            Field::ScalarCallStacksTargetUnknownMachine => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_call_stacks[0].target = machine_id(99);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_call_stacks::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ScalarCallStacksInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let call = row.scalar_call_stacks[0];
                 row.scalar_call_stacks.push(call);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // A Unit call-stack row cannot be attached to a scalar-stack row.
-        (
-            "unit_call_stacks::insert-on-scalar-row",
-            Box::new(|row| {
+            }
+            // A Unit call-stack row cannot be attached to a scalar-stack row.
+            Field::UnitCallStacksInsertOnScalarRow => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_call_stacks
                     .push(image_emission::ObjectUnitCallStack {
                         owner: CallSiteOwner::Operation(operation_id(9)),
@@ -1881,21 +1800,49 @@ fn installation_function_scalar_call_stacks_reject_every_one_field_substitution(
                         transient_bytes: 0,
                         caller_live_bytes: 8,
                     });
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // Foreign contribution custody is only canonical beneath a Unit stack.
-        (
-            "foreign_call_stacks::insert-on-scalar-row",
-            Box::new(|row| {
+            }
+            // Foreign contribution custody is only canonical beneath a Unit stack.
+            Field::ForeignCallStacksInsertOnScalarRow => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.foreign_call_stacks.push(foreign_call(4));
-            }),
-            InstallationError::ProviderSettlementClosureMismatch,
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: ScalarCallStacksFieldForTest| {
+        use ScalarCallStacksFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarCallStacksOwner
+            | Field::ScalarCallStacksTarget
+            | Field::ScalarCallStacksTextOffset
+            | Field::ScalarCallStacksCallerLiveBytes
+            | Field::ScalarCallStacksDrop
+            | Field::ScalarCallStacksInsertDistinct => InstallationError::ImageBindingMismatch,
+            Field::ScalarCallStacksTargetUnknownMachine => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarCallStacksInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitCallStacksInsertOnScalarRow => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ForeignCallStacksInsertOnScalarRow => {
+                InstallationError::ProviderSettlementClosureMismatch
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation scalar call stacks / record",
+        fields: ScalarCallStacksFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The semantic parameter roster and its ABI home roster are joined to each
@@ -1915,151 +1862,142 @@ fn installation_function_parameter_and_home_rows_reject_every_one_field_substitu
     assert_eq!(authentic.unit_parameters.len(), 1);
     assert_eq!(authentic.unit_parameter_homes.len(), 1);
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "unit_parameter_homes[0].location",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: ParameterAndHomeRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ParameterAndHomeRowsFieldForTest as Field;
+        match field {
+            Field::ParameterHomesLocation => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].location =
                     machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
-            }),
-        ),
-        (
-            "unit_parameter_homes[0].indirect",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesIndirect => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].indirect = true;
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "unit_parameters[0].place",
-            Box::new(|row| {
+            }
+            Field::ParametersPlace => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameters[0].place = place_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameters[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParametersStructuralType => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameters[0].structural_type = structural_type(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameters[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParametersMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameters[0].access",
-            Box::new(|row| {
+            }
+            Field::ParametersAccess => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameters[0].access = StructuralAccess::SharedBorrow;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameters[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParametersShape => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameters[0].shape = ValueShape::integer(8, 8);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameters::drop",
-            Box::new(|row| {
+            }
+            Field::ParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameters.pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let parameter = row.unit_parameters[0];
                 row.unit_parameters.push(parameter);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // The stored-dynamic argument rejoins its source home by exact place
-        // identity, so the home's place and roster membership are bound by the
-        // record-level custody row before the scalar-cleanup join runs.
-        (
-            "unit_parameter_homes[0].place",
-            Box::new(|row| {
+            }
+            // The stored-dynamic argument rejoins its source home by exact place
+            // identity, so the home's place and roster membership are bound by the
+            // record-level custody row before the scalar-cleanup join runs.
+            Field::ParameterHomesPlace => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].place = place_id(9);
-            }),
-            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes::drop",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes.pop();
-            }),
-            InstallationError::InvalidStoredDynamicCall(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesStructuralType => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].structural_type = structural_type(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Unrestricted;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes[0].access",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesAccess => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].access = StructuralAccess::SharedBorrow;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesShape => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].shape = ValueShape::integer(8, 8);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes[0].source",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesSource => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_parameter_homes[0].source = register_placement();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_parameter_homes::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let home = row.unit_parameter_homes[0].clone();
                 row.unit_parameter_homes.push(home);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: ParameterAndHomeRowsFieldForTest| {
+        use ParameterAndHomeRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ParameterHomesLocation | Field::ParameterHomesIndirect => {
+                InstallationError::ImageBindingMismatch
+            }
+            Field::ParametersPlace => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersStructuralType => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParametersMultiplicity => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParametersAccess => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersShape => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersDrop => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesPlace => {
+                InstallationError::InvalidStoredDynamicCall(machine_id(3))
+            }
+            Field::ParameterHomesDrop => InstallationError::InvalidStoredDynamicCall(machine_id(3)),
+            Field::ParameterHomesStructuralType => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesMultiplicity => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesAccess => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesShape => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesSource => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation parameter and home rows / record",
+        fields: ParameterAndHomeRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The scalar-side structural parameter and home rosters follow the same join
@@ -2080,149 +2018,138 @@ fn installation_function_scalar_structural_rows_reject_every_one_field_substitut
     assert_eq!(authentic.scalar_structural_parameters.len(), 1);
     assert_eq!(authentic.scalar_structural_parameter_homes.len(), 1);
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "scalar_structural_parameter_homes[0].source",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: ScalarStructuralRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ScalarStructuralRowsFieldForTest as Field;
+        match field {
+            Field::ParameterHomesSource => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].source = register_placement();
-            }),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].location",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesLocation => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].location =
                     machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
-            }),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].indirect",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesIndirect => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].indirect = true;
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "scalar_structural_parameters[0].place",
-            Box::new(|row| {
+            }
+            Field::ParametersPlace => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameters[0].place = place_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameters[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParametersStructuralType => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameters[0].structural_type = structural_type(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameters[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParametersMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameters[0].multiplicity =
                     StructuralMultiplicity::Unrestricted;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameters[0].access",
-            Box::new(|row| {
+            }
+            Field::ParametersAccess => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameters[0].access = StructuralAccess::SharedBorrow;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameters[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParametersShape => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameters[0].shape = ValueShape::integer(8, 8);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameters::drop",
-            Box::new(|row| {
+            }
+            Field::ParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameters.pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let parameter = row.scalar_structural_parameters[0];
                 row.scalar_structural_parameters.push(parameter);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].place",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesPlace => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].place = place_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesStructuralType => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].structural_type = structural_type(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].multiplicity =
                     StructuralMultiplicity::Unrestricted;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].access",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesAccess => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].access = StructuralAccess::SharedBorrow;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesShape => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes[0].shape = ValueShape::integer(8, 8);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes::drop",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_structural_parameter_homes.pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_structural_parameter_homes::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let home = row.scalar_structural_parameter_homes[0].clone();
                 row.scalar_structural_parameter_homes.push(home);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: ScalarStructuralRowsFieldForTest| {
+        use ScalarStructuralRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ParameterHomesSource
+            | Field::ParameterHomesLocation
+            | Field::ParameterHomesIndirect => InstallationError::ImageBindingMismatch,
+            Field::ParametersPlace => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersStructuralType => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParametersMultiplicity => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParametersAccess => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersShape => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersDrop => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParametersInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesPlace => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesStructuralType => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesMultiplicity => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesAccess => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesShape => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterHomesDrop => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ParameterHomesInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation scalar structural rows / record",
+        fields: ScalarStructuralRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Durable scalar homes, zero-code integer constants, and affine-record
@@ -2243,92 +2170,85 @@ fn installation_function_unit_scalar_rows_reject_every_one_field_substitution() 
     assert!(authentic.unit_integer_constants.is_empty());
     assert!(authentic.unit_affine_scalar_records.is_empty());
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "unit_scalar_homes[0].defining_operation",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: UnitScalarRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use UnitScalarRowsFieldForTest as Field;
+        match field {
+            Field::ScalarHomesDefiningOperation => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_scalar_homes[0].defining_operation = operation_id(9);
-            }),
-        ),
-        (
-            "unit_scalar_homes[0].source_value",
-            Box::new(|row| {
+            }
+            Field::ScalarHomesSourceValue => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_scalar_homes[0].source_value = value_id(9);
-            }),
-        ),
-        (
-            "unit_scalar_homes[0].byte_offset",
-            Box::new(|row| {
+            }
+            Field::ScalarHomesByteOffset => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_scalar_homes[0].byte_offset = 24;
-            }),
-        ),
-        (
-            "unit_scalar_homes::drop",
-            Box::new(|row| {
+            }
+            Field::ScalarHomesDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_scalar_homes.pop();
-            }),
-        ),
-        // The constant roster is empty in this image; inserting a canonical
-        // zero-code row still encodes and independent replay rejects it.
-        (
-            "unit_integer_constants::insert",
-            Box::new(|row| {
+            }
+            // The constant roster is empty in this image; inserting a canonical
+            // zero-code row still encodes and independent replay rejects it.
+            Field::IntegerConstantsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_integer_constants.push(integer_constant());
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "unit_scalar_homes[0].scalar_type",
-            Box::new(|row| {
+            }
+            Field::ScalarHomesScalarType => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_scalar_homes[0].scalar_type = ScalarType::Boolean;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_scalar_homes[0].shape",
-            Box::new(|row| {
+            }
+            Field::ScalarHomesShape => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_scalar_homes[0].shape = ValueShape::integer(8, 8);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_scalar_homes::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ScalarHomesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let home = row.unit_scalar_homes[0];
                 row.unit_scalar_homes.push(home);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // The fabricated establishment row fails the exact affine-record join:
-        // its producer, result, and field identities cannot be bound to any
-        // retained custody in this image.
-        (
-            "unit_affine_scalar_records::insert",
-            Box::new(|row| {
+            }
+            // The fabricated establishment row fails the exact affine-record join:
+            // its producer, result, and field identities cannot be bound to any
+            // retained custody in this image.
+            Field::AffineScalarRecordsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_scalar_records.push(affine_scalar_record());
-            }),
-            InstallationError::InvalidUnitAffineScalarRecord,
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: UnitScalarRowsFieldForTest| {
+        use UnitScalarRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarHomesDefiningOperation
+            | Field::ScalarHomesSourceValue
+            | Field::ScalarHomesByteOffset
+            | Field::ScalarHomesDrop
+            | Field::IntegerConstantsInsert => InstallationError::ImageBindingMismatch,
+            Field::ScalarHomesScalarType => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarHomesShape => InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
+            Field::ScalarHomesInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::AffineScalarRecordsInsert => InstallationError::InvalidUnitAffineScalarRecord,
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation unit scalar rows / record",
+        fields: UnitScalarRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Store custody rows are joined to the parameter declarations, homes, and
@@ -2350,43 +2270,52 @@ fn installation_function_store_rows_reject_every_one_field_substitution() {
     assert!(authentic.unit_write_only_primitive_stores.is_empty());
     assert!(authentic.scalar_structural_scalar_field_stores.is_empty());
 
-    assert_substitution_rejected_by_replay(
-        "scalar_structural_scalar_field_stores::insert",
-        &record,
-        &image,
-        &authentic_fingerprint,
-        2,
-        |row| {
-            row.scalar_structural_scalar_field_stores
-                .push(scalar_field_store());
-        },
-    );
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "unit_structural_scalar_field_stores::insert",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: StoreRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use StoreRowsFieldForTest as Field;
+        match field {
+            Field::UnitStructuralScalarField => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_structural_scalar_field_stores
                     .push(structural_field_store());
-            }),
-            InstallationError::InvalidUnitStructuralScalarFieldStore(machine_id(3)),
-        ),
-        (
-            "unit_write_only_primitive_stores::insert",
-            Box::new(|row| {
+            }
+            Field::UnitWriteOnlyPrimitive => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_write_only_primitive_stores
                     .push(write_only_store());
-            }),
-            InstallationError::InvalidUnitWriteOnlyPrimitiveStore(machine_id(3)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+            Field::ScalarStructuralScalarField => {
+                let row = &mut record.functions_mut_for_test()[2];
+                row.scalar_structural_scalar_field_stores
+                    .push(scalar_field_store());
+            }
+        }
+    };
+    let outcome = |field: StoreRowsFieldForTest| {
+        use StoreRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarStructuralScalarField => InstallationError::ImageBindingMismatch,
+            Field::UnitStructuralScalarField => {
+                InstallationError::InvalidUnitStructuralScalarFieldStore(machine_id(3))
+            }
+            Field::UnitWriteOnlyPrimitive => {
+                InstallationError::InvalidUnitWriteOnlyPrimitiveStore(machine_id(3))
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation store rows / record",
+        fields: StoreRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 
     // The scalar-side store roster also encodes on the scalar-stack row and is
     // rejected by independent replay there.
@@ -2399,17 +2328,39 @@ fn installation_function_store_rows_reject_every_one_field_substitution() {
             .expect("scalar cleanup installation");
     validate_installation_record(&scalar_record, &scalar_image).expect("exact image binding");
     let scalar_fingerprint = installation_fingerprint(&scalar_record).expect("fingerprint");
-    assert_substitution_rejected_by_replay(
-        "scalar_structural_scalar_field_stores::insert-on-scalar-row",
-        &scalar_record,
-        &scalar_image,
-        &scalar_fingerprint,
-        2,
-        |row| {
-            row.scalar_structural_scalar_field_stores
-                .push(scalar_field_store());
-        },
-    );
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: StoreRowsScalarRecordFieldForTest,
+                      _donor: &InstallationRecord| {
+        use StoreRowsScalarRecordFieldForTest as Field;
+        match field {
+            Field::ScalarStructuralScalarFieldStoresInsertOnScalarRow => {
+                let row = &mut record.functions_mut_for_test()[2];
+                row.scalar_structural_scalar_field_stores
+                    .push(scalar_field_store());
+            }
+        }
+    };
+    let outcome = |field: StoreRowsScalarRecordFieldForTest| {
+        use StoreRowsScalarRecordFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarStructuralScalarFieldStoresInsertOnScalarRow => {
+                InstallationError::ImageBindingMismatch
+            }
+        })
+    };
+    let check = nested_custody_check(&scalar_image, &scalar_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation store rows / scalar_record",
+        fields: StoreRowsScalarRecordFieldForTest::INVENTORY,
+        honest: &|| scalar_record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The retained structural-store roster authenticates every field against the
@@ -2517,54 +2468,50 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
     assert_eq!(authentic.unit_parameters.len(), 1);
     assert_eq!(authentic.unit_parameter_homes.len(), 1);
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        // The projected field identity is authenticated by the emitted image
-        // alone: no record-shape join reads it.
-        (
-            "unit_structural_scalar_field_stores[0].field",
-            Box::new(|row| {
+    let store_error = || InstallationError::InvalidUnitStructuralScalarFieldStore(machine_id(9));
+    let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(9));
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: StructuralStoreRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use StructuralStoreRowsFieldForTest as Field;
+        match field {
+            // The projected field identity is authenticated by the emitted image
+            // alone: no record-shape join reads it.
+            Field::StructuralScalarFieldStoresField => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].field = field_id(9);
-            }),
-        ),
-        // Every field-only or singly-indexed carrier path is inside the
-        // bounded store grammar, so its spelling is authenticated by the
-        // emitted image alone.
-        (
-            "unit_structural_scalar_field_stores[0].path::renamed",
-            Box::new(|row| {
+            }
+            // Every field-only or singly-indexed carrier path is inside the
+            // bounded store grammar, so its spelling is authenticated by the
+            // emitted image alone.
+            Field::StructuralScalarFieldStoresPathRenamed => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].path =
                     vec![StructuralPathSegment::Field("renamed".to_string())];
-            }),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].path::empty",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresPathEmpty => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].path = Vec::new();
-            }),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].path::indexed",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresPathIndexed => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].path = vec![
                     StructuralPathSegment::Field("cell".to_string()),
                     StructuralPathSegment::FixedIndex(1),
                 ];
-            }),
-        ),
-        // The destination declaration's qualification rosters are not part of
-        // the parameter/home join; the image comparison owns them.
-        (
-            "unit_structural_scalar_field_stores[0].destination.qualifications",
-            Box::new(|row| {
+            }
+            // The destination declaration's qualification rosters are not part of
+            // the parameter/home join; the image comparison owns them.
+            Field::StructuralScalarFieldStoresDestinationQualifications => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .qualifications
                     .push(domain_id(3));
-            }),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination.projected_qualifications",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationProjectedQualifications => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .projected_qualifications
@@ -2572,152 +2519,90 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                         path: vec![StructuralPathSegment::Field("gate".to_string())],
                         domain: domain_id(3),
                     });
-            }),
-        ),
-        (
-            "unit_structural_scalar_field_stores::drop",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores.pop();
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            index,
-            mutate,
-        );
-    }
-
-    let store_error = || InstallationError::InvalidUnitStructuralScalarFieldStore(machine_id(9));
-    let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(9));
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        // The producer identity must name the operation the exact-attribution
-        // join is bound to.
-        (
-            "unit_structural_scalar_field_stores[0].psi_operation",
-            Box::new(|row| {
+            }
+            // The producer identity must name the operation the exact-attribution
+            // join is bound to.
+            Field::StructuralScalarFieldStoresPsiOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].psi_operation = operation_id(9);
-            }),
-            store_error(),
-        ),
-        // Every destination-declaration axis is joined pairwise to the
-        // parameter and home rosters.
-        (
-            "unit_structural_scalar_field_stores[0].destination.place",
-            Box::new(|row| {
+            }
+            // Every destination-declaration axis is joined pairwise to the
+            // parameter and home rosters.
+            Field::StructuralScalarFieldStoresDestinationPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].destination.place = place_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination.position",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationPosition => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .position = 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination.is_self",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationIsSelf => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .is_self = true;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination.structural_type",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .structural_type = structural_type(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination.multiplicity",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .multiplicity = StructuralMultiplicity::Affine;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination.access",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0]
                     .destination
                     .access = StructuralAccess::MutableBorrow;
-            }),
-            store_error(),
-        ),
-        // An unbounded carrier path is not representable in the store grammar.
-        (
-            "unit_structural_scalar_field_stores[0].path::referent",
-            Box::new(|row| {
+            }
+            // An unbounded carrier path is not representable in the store grammar.
+            Field::StructuralScalarFieldStoresPathReferent => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].path =
                     vec![StructuralPathSegment::Referent];
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].path::empty-field",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresPathEmptyField => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].path =
                     vec![StructuralPathSegment::Field(String::new())];
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].path::double-index",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresPathDoubleIndex => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].path = vec![
                     StructuralPathSegment::FixedIndex(0),
                     StructuralPathSegment::FixedIndex(1),
                 ];
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].destination_placement",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresDestinationPlacement => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].destination_placement =
                     register_placement();
-            }),
-            store_error(),
-        ),
-        // In-bounds or not, a changed field offset recomputes different bytes
-        // or violates the parameter shape.
-        (
-            "unit_structural_scalar_field_stores[0].field_byte_offset::within-bounds",
-            Box::new(|row| {
+            }
+            // In-bounds or not, a changed field offset recomputes different bytes
+            // or violates the parameter shape.
+            Field::StructuralScalarFieldStoresFieldByteOffsetWithinBounds => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].field_byte_offset = 4;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].field_byte_offset::out-of-bounds",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresFieldByteOffsetOutOfBounds => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].field_byte_offset = 8;
-            }),
-            store_error(),
-        ),
-        // Each immediate-source field is joined to the retained integer
-        // constant row.
-        (
-            "unit_structural_scalar_field_stores[0].source.defining_operation",
-            Box::new(|row| {
+            }
+            // Each immediate-source field is joined to the retained integer
+            // constant row.
+            Field::StructuralScalarFieldStoresSourceDefiningOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     defining_operation,
                     ..
@@ -2726,12 +2611,9 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                     unreachable!()
                 };
                 *defining_operation = operation_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].source.source_value",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresSourceSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     source_value,
                     ..
@@ -2740,12 +2622,9 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                     unreachable!()
                 };
                 *source_value = value_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].source.scalar_type",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresSourceScalarType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     scalar_type,
                     ..
@@ -2754,12 +2633,9 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                     unreachable!()
                 };
                 *scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].source.value",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     value,
                     ..
@@ -2768,14 +2644,11 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                     unreachable!()
                 };
                 *value = IntegerValue::Signed(8);
-            }),
-            store_error(),
-        ),
-        // Each remaining source variant is representable but cannot be joined
-        // to this function's retained custody.
-        (
-            "unit_structural_scalar_field_stores[0].source::boolean",
-            Box::new(|row| {
+            }
+            // Each remaining source variant is representable but cannot be joined
+            // to this function's retained custody.
+            Field::StructuralScalarFieldStoresSourceBoolean => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].source =
                     machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
                         defining_operation: operation_id(1),
@@ -2783,12 +2656,9 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                         value: true,
                         definition_ordinal: 0,
                     };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].source::parameter",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresSourceParameter => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].source =
                     machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
                         parameter_index: 0,
@@ -2798,12 +2668,9 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                             calling_conventions::MachineRegister::X86Rax,
                         ),
                     };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].source::home",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresSourceHome => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].source =
                     machine_code::InternalUnitScalarArgumentSourceRecord::Home(
                         machine_code::UnitScalarHomeRecord {
@@ -2814,256 +2681,230 @@ fn installation_function_structural_store_rows_reject_every_one_field_substituti
                             byte_offset: 0,
                         },
                     );
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].parameter_home_byte_offset",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresParameterHomeByteOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].parameter_home_byte_offset = 0;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].parameter_home_indirect",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresParameterHomeIndirect => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].parameter_home_indirect = true;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].operation_ordinal",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresOperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].operation_ordinal += 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].code_offset",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresCodeOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].code_offset += 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].byte_count",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresByteCount => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].byte_count += 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].bytes::content",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresBytesContent => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].bytes[2] = 0x11;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores[0].bytes::truncate",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresBytesTruncate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores[0].bytes.pop();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores::swap",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresSwap => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores.swap(0, 1);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let duplicate = row.unit_structural_scalar_field_stores[0].clone();
                 row.unit_structural_scalar_field_stores.push(duplicate);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_structural_scalar_field_stores::insert-fabricated",
-            Box::new(|row| {
+            }
+            Field::StructuralScalarFieldStoresInsertFabricated => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_structural_scalar_field_stores
                     .push(structural_field_store());
-            }),
-            store_error(),
-        ),
-        // The parameter and home rosters are joined pairwise; the shared
-        // declaration axes surface the cleanup-facts error while the
-        // home-only location, source placement, and indirection surface the
-        // store join.
-        (
-            "unit_parameters[0].place",
-            Box::new(|row| {
+            }
+            // The parameter and home rosters are joined pairwise; the shared
+            // declaration axes surface the cleanup-facts error while the
+            // home-only location, source placement, and indirection surface the
+            // store join.
+            Field::ParametersPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParametersStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].structural_type = structural_type(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParametersMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].access",
-            Box::new(|row| {
+            }
+            Field::ParametersAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].access = StructuralAccess::MutableBorrow;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParametersShape => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].shape = ValueShape::integer(4, 4);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters::drop",
-            Box::new(|row| {
+            }
+            Field::ParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters.pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].place",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].structural_type = structural_type(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Affine;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].access",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].access = StructuralAccess::MutableBorrow;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesShape => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].shape = ValueShape::integer(4, 4);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].source",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesSource => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].source = register_placement();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_parameter_homes[0].location",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesLocation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].location =
                     machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_parameter_homes[0].indirect",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesIndirect => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].indirect = true;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_parameter_homes::drop",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes.pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let home = row.unit_parameter_homes[0].clone();
                 row.unit_parameter_homes.push(home);
-            }),
-            cleanup_error(),
-        ),
-        // The immediate source's retained constant row must still join every
-        // field.
-        (
-            "unit_integer_constants[0].defining_operation",
-            Box::new(|row| {
+            }
+            // The immediate source's retained constant row must still join every
+            // field.
+            Field::IntegerConstantsDefiningOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].defining_operation = operation_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].source_value",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].source_value = value_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].scalar_type",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsScalarType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].scalar_type =
                     IntegerType::new(IntegerSign::Signed, 64).expect("i64");
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].value",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].value = IntegerValue::Signed(8);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].operation_ordinal",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsOperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].operation_ordinal = 5;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_integer_constants::drop",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants.remove(0);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let duplicate = row.unit_integer_constants[0];
                 row.unit_integer_constants.push(duplicate);
-            }),
-            cleanup_error(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, index, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: StructuralStoreRowsFieldForTest| {
+        use StructuralStoreRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::StructuralScalarFieldStoresField
+            | Field::StructuralScalarFieldStoresPathRenamed
+            | Field::StructuralScalarFieldStoresPathEmpty
+            | Field::StructuralScalarFieldStoresPathIndexed
+            | Field::StructuralScalarFieldStoresDestinationQualifications
+            | Field::StructuralScalarFieldStoresDestinationProjectedQualifications
+            | Field::StructuralScalarFieldStoresDrop => InstallationError::ImageBindingMismatch,
+            Field::StructuralScalarFieldStoresPsiOperation => store_error(),
+            Field::StructuralScalarFieldStoresDestinationPlace => store_error(),
+            Field::StructuralScalarFieldStoresDestinationPosition => store_error(),
+            Field::StructuralScalarFieldStoresDestinationIsSelf => store_error(),
+            Field::StructuralScalarFieldStoresDestinationStructuralType => store_error(),
+            Field::StructuralScalarFieldStoresDestinationMultiplicity => store_error(),
+            Field::StructuralScalarFieldStoresDestinationAccess => store_error(),
+            Field::StructuralScalarFieldStoresPathReferent => store_error(),
+            Field::StructuralScalarFieldStoresPathEmptyField => store_error(),
+            Field::StructuralScalarFieldStoresPathDoubleIndex => store_error(),
+            Field::StructuralScalarFieldStoresDestinationPlacement => store_error(),
+            Field::StructuralScalarFieldStoresFieldByteOffsetWithinBounds => store_error(),
+            Field::StructuralScalarFieldStoresFieldByteOffsetOutOfBounds => store_error(),
+            Field::StructuralScalarFieldStoresSourceDefiningOperation => store_error(),
+            Field::StructuralScalarFieldStoresSourceSourceValue => store_error(),
+            Field::StructuralScalarFieldStoresSourceScalarType => store_error(),
+            Field::StructuralScalarFieldStoresSourceValue => store_error(),
+            Field::StructuralScalarFieldStoresSourceBoolean => store_error(),
+            Field::StructuralScalarFieldStoresSourceParameter => store_error(),
+            Field::StructuralScalarFieldStoresSourceHome => store_error(),
+            Field::StructuralScalarFieldStoresParameterHomeByteOffset => store_error(),
+            Field::StructuralScalarFieldStoresParameterHomeIndirect => store_error(),
+            Field::StructuralScalarFieldStoresOperationOrdinal => store_error(),
+            Field::StructuralScalarFieldStoresCodeOffset => store_error(),
+            Field::StructuralScalarFieldStoresByteCount => store_error(),
+            Field::StructuralScalarFieldStoresBytesContent => store_error(),
+            Field::StructuralScalarFieldStoresBytesTruncate => store_error(),
+            Field::StructuralScalarFieldStoresSwap => store_error(),
+            Field::StructuralScalarFieldStoresInsertDuplicate => store_error(),
+            Field::StructuralScalarFieldStoresInsertFabricated => store_error(),
+            Field::ParametersPlace => cleanup_error(),
+            Field::ParametersStructuralType => cleanup_error(),
+            Field::ParametersMultiplicity => cleanup_error(),
+            Field::ParametersAccess => cleanup_error(),
+            Field::ParametersShape => cleanup_error(),
+            Field::ParametersDrop => cleanup_error(),
+            Field::ParameterHomesPlace => cleanup_error(),
+            Field::ParameterHomesStructuralType => cleanup_error(),
+            Field::ParameterHomesMultiplicity => cleanup_error(),
+            Field::ParameterHomesAccess => cleanup_error(),
+            Field::ParameterHomesShape => cleanup_error(),
+            Field::ParameterHomesSource => store_error(),
+            Field::ParameterHomesLocation => store_error(),
+            Field::ParameterHomesIndirect => store_error(),
+            Field::ParameterHomesDrop => cleanup_error(),
+            Field::ParameterHomesInsertDuplicate => cleanup_error(),
+            Field::IntegerConstantsDefiningOperation => store_error(),
+            Field::IntegerConstantsSourceValue => store_error(),
+            Field::IntegerConstantsScalarType => store_error(),
+            Field::IntegerConstantsValue => store_error(),
+            Field::IntegerConstantsOperationOrdinal => cleanup_error(),
+            Field::IntegerConstantsDrop => store_error(),
+            Field::IntegerConstantsInsertDuplicate => cleanup_error(),
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation structural store rows / record",
+        fields: StructuralStoreRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The retained write-only primitive-store roster authenticates every field
@@ -3163,26 +3004,28 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
     assert_eq!(authentic.unit_parameters.len(), 1);
     assert_eq!(authentic.unit_parameter_homes.len(), 1);
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        // Dropping a retained store leaves a canonical roster: the image
-        // alone authenticates that the row existed.
-        (
-            "unit_write_only_primitive_stores::drop",
-            Box::new(|row| {
+    let store_error = || InstallationError::InvalidUnitWriteOnlyPrimitiveStore(machine_id(9));
+    let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(9));
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: WriteOnlyStoreRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use WriteOnlyStoreRowsFieldForTest as Field;
+        match field {
+            // Dropping a retained store leaves a canonical roster: the image
+            // alone authenticates that the row existed.
+            Field::WriteOnlyPrimitiveStoresDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores.pop();
-            }),
-        ),
-        (
-            "unit_write_only_primitive_stores::drop-all",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDropAll => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores.clear();
-            }),
-        ),
-        // A distinct catalog entry keeps the joined declaration's count at
-        // exactly one; only the emitted image owns the catalog's contents.
-        (
-            "unit_affine_cleanup.structural_types::insert-distinct",
-            Box::new(|row| {
+            }
+            // A distinct catalog entry keeps the joined declaration's count at
+            // exactly one; only the emitted image owns the catalog's contents.
+            Field::AffineCleanupStructuralTypesInsertDistinct => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let mut catalog: Vec<_> = row
                     .unit_affine_cleanup
                     .as_ref()
@@ -3200,98 +3043,53 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                     .as_mut()
                     .expect("cleanup")
                     .structural_types = catalog.into();
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            index,
-            mutate,
-        );
-    }
-
-    let store_error = || InstallationError::InvalidUnitWriteOnlyPrimitiveStore(machine_id(9));
-    let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(9));
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        // The producer identity must name the operation the exact-attribution
-        // join is bound to.
-        (
-            "unit_write_only_primitive_stores[0].psi_operation",
-            Box::new(|row| {
+            }
+            // The producer identity must name the operation the exact-attribution
+            // join is bound to.
+            Field::WriteOnlyPrimitiveStoresPsiOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].psi_operation = operation_id(9);
-            }),
-            store_error(),
-        ),
-        // Every destination-declaration axis is joined pairwise to the
-        // parameter and home rosters.
-        (
-            "unit_write_only_primitive_stores[0].destination.place",
-            Box::new(|row| {
+            }
+            // Every destination-declaration axis is joined pairwise to the
+            // parameter and home rosters.
+            Field::WriteOnlyPrimitiveStoresDestinationPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].destination.place = place_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.position",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationPosition => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].destination.position = 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.is_self",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationIsSelf => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].destination.is_self = true;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.structural_type",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination
                     .structural_type = structural_type(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.multiplicity",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination
                     .multiplicity = StructuralMultiplicity::Affine;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.access",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].destination.access =
                     StructuralAccess::MutableBorrow;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.qualifications",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationQualifications => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination
                     .qualifications
                     .push(domain_id(3));
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination.projected_qualifications",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationProjectedQualifications => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination
                     .projected_qualifications
@@ -3299,63 +3097,45 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                         path: vec![StructuralPathSegment::Field("gate".to_string())],
                         domain: domain_id(3),
                     });
-            }),
-            store_error(),
-        ),
-        // The declared destination type must equal the joined catalog entry:
-        // its id names the destination's structural type, its identity must
-        // be non-empty, and its shape must be exactly the primitive the
-        // source writes.
-        (
-            "unit_write_only_primitive_stores[0].destination_type.id",
-            Box::new(|row| {
+            }
+            // The declared destination type must equal the joined catalog entry:
+            // its id names the destination's structural type, its identity must
+            // be non-empty, and its shape must be exactly the primitive the
+            // source writes.
+            Field::WriteOnlyPrimitiveStoresDestinationTypeId => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].destination_type.id = structural_type(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination_type.identity",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationTypeIdentity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination_type
                     .identity = "other.type".to_string();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination_type.identity::empty",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationTypeIdentityEmpty => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination_type
                     .identity = String::new();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].destination_type.shape",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresDestinationTypeShape => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0]
                     .destination_type
                     .shape =
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
-            }),
-            store_error(),
-        ),
-        // The staged home placement is joined field-for-field to the home's
-        // retained source placement.
-        (
-            "unit_write_only_primitive_stores[0].destination_placement",
-            Box::new(|row| {
+            }
+            // The staged home placement is joined field-for-field to the home's
+            // retained source placement.
+            Field::WriteOnlyPrimitiveStoresDestinationPlacement => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].destination_placement =
                     register_placement();
-            }),
-            store_error(),
-        ),
-        // Every axis of the retained integer-immediate source must join the
-        // earlier constant row exactly.
-        (
-            "unit_write_only_primitive_stores[0].source.defining_operation",
-            Box::new(|row| {
+            }
+            // Every axis of the retained integer-immediate source must join the
+            // earlier constant row exactly.
+            Field::WriteOnlyPrimitiveStoresSourceDefiningOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 if let machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                     defining_operation,
                     ..
@@ -3363,12 +3143,9 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                 {
                     *defining_operation = operation_id(9);
                 }
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].source.source_value",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSourceSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 if let machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                     source_value,
                     ..
@@ -3376,12 +3153,9 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                 {
                     *source_value = value_id(9);
                 }
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].source.scalar_type",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSourceScalarType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 if let machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                     scalar_type,
                     ..
@@ -3389,12 +3163,9 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                 {
                     *scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
                 }
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].source.value",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 if let machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                     value,
                     ..
@@ -3402,16 +3173,13 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                 {
                     *value = IntegerValue::Signed(8);
                 }
-            }),
-            store_error(),
-        ),
-        // Every other source carrier is rejected: the parameter variant needs
-        // an installed scalar parameter ABI, the zero-code immediates need an
-        // exact zero-byte definition attribution, and the home variant needs
-        // a retained scalar call result.
-        (
-            "unit_write_only_primitive_stores[0].source::parameter",
-            Box::new(|row| {
+            }
+            // Every other source carrier is rejected: the parameter variant needs
+            // an installed scalar parameter ABI, the zero-code immediates need an
+            // exact zero-byte definition attribution, and the home variant needs
+            // a retained scalar call result.
+            Field::WriteOnlyPrimitiveStoresSourceParameter => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].source =
                     machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
                         parameter_index: 0,
@@ -3421,12 +3189,9 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                             calling_conventions::MachineRegister::X86Rax,
                         ),
                     };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].source::boolean",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSourceBoolean => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].source =
                     machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::BooleanImmediate {
                         defining_operation: operation_id(9),
@@ -3434,12 +3199,9 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                         value: true,
                         definition_ordinal: 0,
                     };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].source::ieee-float",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSourceIeeeFloat => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].source =
                     machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IeeeFloatImmediate {
                         defining_operation: operation_id(9),
@@ -3447,12 +3209,9 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                         value: semantic_vocabulary::IeeeFloatValue::Binary32(0x3f80_0000),
                         definition_ordinal: 0,
                     };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].source::home",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSourceHome => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].source =
                     machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Home(
                         machine_code::UnitScalarHomeRecord {
@@ -3463,268 +3222,163 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                             byte_offset: 0,
                         },
                     );
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].parameter_home_byte_offset",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresParameterHomeByteOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].parameter_home_byte_offset = 0;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].parameter_home_indirect",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresParameterHomeIndirect => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].parameter_home_indirect = false;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].operation_ordinal",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresOperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].operation_ordinal += 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].code_offset",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresCodeOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].code_offset += 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].byte_count",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresByteCount => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].byte_count += 1;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].bytes::content",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresBytesContent => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].bytes[2] = 0x11;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores[0].bytes::truncate",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresBytesTruncate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores[0].bytes.pop();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores::swap",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresSwap => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores.swap(0, 1);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let duplicate = row.unit_write_only_primitive_stores[0].clone();
                 row.unit_write_only_primitive_stores.push(duplicate);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_write_only_primitive_stores::insert-fabricated",
-            Box::new(|row| {
+            }
+            Field::WriteOnlyPrimitiveStoresInsertFabricated => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_write_only_primitive_stores
                     .push(write_only_store());
-            }),
-            store_error(),
-        ),
-        // The parameter and home rosters are joined pairwise; the shared
-        // declaration axes surface the cleanup-facts error while the
-        // home-only location, source placement, and indirection surface the
-        // store join.
-        (
-            "unit_parameters[0].place",
-            Box::new(|row| {
+            }
+            // The parameter and home rosters are joined pairwise; the shared
+            // declaration axes surface the cleanup-facts error while the
+            // home-only location, source placement, and indirection surface the
+            // store join.
+            Field::ParametersPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParametersStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].structural_type = structural_type(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParametersMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].access",
-            Box::new(|row| {
+            }
+            Field::ParametersAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].access = StructuralAccess::MutableBorrow;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParametersShape => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters[0].shape = ValueShape::integer(4, 4);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters::drop",
-            Box::new(|row| {
+            }
+            Field::ParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameters.pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].place",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].structural_type = structural_type(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Affine;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].access",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].access = StructuralAccess::MutableBorrow;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].shape",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesShape => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].shape = ValueShape::integer(4, 4);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].source",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesSource => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].source = register_placement();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_parameter_homes[0].location",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesLocation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].location =
                     machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
-            }),
-            store_error(),
-        ),
-        (
-            "unit_parameter_homes[0].indirect",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesIndirect => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes[0].indirect = false;
-            }),
-            store_error(),
-        ),
-        (
-            "unit_parameter_homes::drop",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_parameter_homes.pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParameterHomesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let home = row.unit_parameter_homes[0].clone();
                 row.unit_parameter_homes.push(home);
-            }),
-            cleanup_error(),
-        ),
-        // The immediate source's retained constant row must still join every
-        // field.
-        (
-            "unit_integer_constants[0].defining_operation",
-            Box::new(|row| {
+            }
+            // The immediate source's retained constant row must still join every
+            // field.
+            Field::IntegerConstantsDefiningOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].defining_operation = operation_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].source_value",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].source_value = value_id(9);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].scalar_type",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsScalarType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].scalar_type =
                     IntegerType::new(IntegerSign::Signed, 64).expect("i64");
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].value",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].value = IntegerValue::Signed(8);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants[0].operation_ordinal",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsOperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants[0].operation_ordinal = 5;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_integer_constants::drop",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_integer_constants.remove(0);
-            }),
-            store_error(),
-        ),
-        (
-            "unit_integer_constants::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::IntegerConstantsInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let duplicate = row.unit_integer_constants[0];
                 row.unit_integer_constants.push(duplicate);
-            }),
-            cleanup_error(),
-        ),
-        // The cleanup's structural-type catalog must retain the joined
-        // destination declaration exactly once: removing it or duplicating
-        // it breaks the count the store join authenticates.
-        (
-            "unit_affine_cleanup.structural_types::drop",
-            Box::new(|row| {
+            }
+            // The cleanup's structural-type catalog must retain the joined
+            // destination declaration exactly once: removing it or duplicating
+            // it breaks the count the store join authenticates.
+            Field::AffineCleanupStructuralTypesDrop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.unit_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .structural_types = Vec::new().into();
-            }),
-            store_error(),
-        ),
-        (
-            "unit_affine_cleanup.structural_types::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::AffineCleanupStructuralTypesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let mut catalog: Vec<_> = row
                     .unit_affine_cleanup
                     .as_ref()
@@ -3738,13 +3392,88 @@ fn installation_function_write_only_store_rows_reject_every_one_field_substituti
                     .as_mut()
                     .expect("cleanup")
                     .structural_types = catalog.into();
-            }),
-            store_error(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, index, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: WriteOnlyStoreRowsFieldForTest| {
+        use WriteOnlyStoreRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::WriteOnlyPrimitiveStoresDrop
+            | Field::WriteOnlyPrimitiveStoresDropAll
+            | Field::AffineCleanupStructuralTypesInsertDistinct => {
+                InstallationError::ImageBindingMismatch
+            }
+            Field::WriteOnlyPrimitiveStoresPsiOperation => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationPlace => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationPosition => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationIsSelf => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationStructuralType => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationMultiplicity => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationAccess => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationQualifications => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationProjectedQualifications => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationTypeId => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationTypeIdentity => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationTypeIdentityEmpty => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationTypeShape => store_error(),
+            Field::WriteOnlyPrimitiveStoresDestinationPlacement => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceDefiningOperation => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceSourceValue => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceScalarType => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceValue => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceParameter => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceBoolean => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceIeeeFloat => store_error(),
+            Field::WriteOnlyPrimitiveStoresSourceHome => store_error(),
+            Field::WriteOnlyPrimitiveStoresParameterHomeByteOffset => store_error(),
+            Field::WriteOnlyPrimitiveStoresParameterHomeIndirect => store_error(),
+            Field::WriteOnlyPrimitiveStoresOperationOrdinal => store_error(),
+            Field::WriteOnlyPrimitiveStoresCodeOffset => store_error(),
+            Field::WriteOnlyPrimitiveStoresByteCount => store_error(),
+            Field::WriteOnlyPrimitiveStoresBytesContent => store_error(),
+            Field::WriteOnlyPrimitiveStoresBytesTruncate => store_error(),
+            Field::WriteOnlyPrimitiveStoresSwap => store_error(),
+            Field::WriteOnlyPrimitiveStoresInsertDuplicate => store_error(),
+            Field::WriteOnlyPrimitiveStoresInsertFabricated => store_error(),
+            Field::ParametersPlace => cleanup_error(),
+            Field::ParametersStructuralType => cleanup_error(),
+            Field::ParametersMultiplicity => cleanup_error(),
+            Field::ParametersAccess => cleanup_error(),
+            Field::ParametersShape => cleanup_error(),
+            Field::ParametersDrop => cleanup_error(),
+            Field::ParameterHomesPlace => cleanup_error(),
+            Field::ParameterHomesStructuralType => cleanup_error(),
+            Field::ParameterHomesMultiplicity => cleanup_error(),
+            Field::ParameterHomesAccess => cleanup_error(),
+            Field::ParameterHomesShape => cleanup_error(),
+            Field::ParameterHomesSource => store_error(),
+            Field::ParameterHomesLocation => store_error(),
+            Field::ParameterHomesIndirect => store_error(),
+            Field::ParameterHomesDrop => cleanup_error(),
+            Field::ParameterHomesInsertDuplicate => cleanup_error(),
+            Field::IntegerConstantsDefiningOperation => store_error(),
+            Field::IntegerConstantsSourceValue => store_error(),
+            Field::IntegerConstantsScalarType => store_error(),
+            Field::IntegerConstantsValue => store_error(),
+            Field::IntegerConstantsOperationOrdinal => cleanup_error(),
+            Field::IntegerConstantsDrop => store_error(),
+            Field::IntegerConstantsInsertDuplicate => cleanup_error(),
+            Field::AffineCleanupStructuralTypesDrop => store_error(),
+            Field::AffineCleanupStructuralTypesInsertDuplicate => store_error(),
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation write only store rows / record",
+        fields: WriteOnlyStoreRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The retained scalar-side structural field-store roster carries no
@@ -3838,73 +3567,60 @@ fn installation_function_scalar_store_rows_reject_every_one_field_substitution()
     let authentic = record.functions()[index].clone();
     assert_eq!(authentic.scalar_structural_scalar_field_stores.len(), 2);
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "scalar_structural_scalar_field_stores[0].psi_operation",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: ScalarStoreRowsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ScalarStoreRowsFieldForTest as Field;
+        match field {
+            Field::PsiOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].psi_operation = operation_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.place",
-            Box::new(|row| {
+            }
+            Field::DestinationPlace => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .place = place_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.position",
-            Box::new(|row| {
+            }
+            Field::DestinationPosition => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .position = 1;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.is_self",
-            Box::new(|row| {
+            }
+            Field::DestinationIsSelf => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .is_self = false;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.structural_type",
-            Box::new(|row| {
+            }
+            Field::DestinationStructuralType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .structural_type = structural_type(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.multiplicity",
-            Box::new(|row| {
+            }
+            Field::DestinationMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .multiplicity = StructuralMultiplicity::Unrestricted;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.access",
-            Box::new(|row| {
+            }
+            Field::DestinationAccess => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .access = StructuralAccess::WriteOnlyBorrow;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.qualifications",
-            Box::new(|row| {
+            }
+            Field::DestinationQualifications => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .qualifications
                     .push(domain_id(3));
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.projected_qualifications",
-            Box::new(|row| {
+            }
+            Field::DestinationProjectedQualifications => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .projected_qualifications
@@ -3912,11 +3628,9 @@ fn installation_function_scalar_store_rows_reject_every_one_field_substitution()
                         path: vec![StructuralPathSegment::Field("gate".to_string())],
                         domain: domain_id(3),
                     });
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination.projected_qualifications::referent",
-            Box::new(|row| {
+            }
+            Field::DestinationProjectedQualificationsReferent => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0]
                     .destination
                     .projected_qualifications
@@ -3924,236 +3638,213 @@ fn installation_function_scalar_store_rows_reject_every_one_field_substitution()
                         path: vec![StructuralPathSegment::Referent],
                         domain: domain_id(3),
                     });
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].path::referent",
-            Box::new(|row| {
+            }
+            Field::PathReferent => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].path =
                     vec![StructuralPathSegment::Referent];
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].path::renamed",
-            Box::new(|row| {
+            }
+            Field::PathRenamed => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].path =
                     vec![StructuralPathSegment::Field("renamed".to_string())];
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].path::empty",
-            Box::new(|row| {
+            }
+            Field::PathEmpty => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].path = Vec::new();
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].path::indexed",
-            Box::new(|row| {
+            }
+            Field::PathIndexed => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].path = vec![
                     StructuralPathSegment::Field("cell".to_string()),
                     StructuralPathSegment::FixedIndex(1),
                 ];
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].field",
-            Box::new(|row| {
+            }
+            Field::Field => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].field = field_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].destination_placement",
-            Box::new(|row| {
+            }
+            Field::DestinationPlacement => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].destination_placement =
                     empty_placement();
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].field_byte_offset",
-            Box::new(|row| {
+            }
+            Field::FieldByteOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].field_byte_offset = 4;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].defining_operation",
-            Box::new(|row| {
+            }
+            Field::DefiningOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].defining_operation = operation_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].source_value",
-            Box::new(|row| {
+            }
+            Field::SourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].source_value = value_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].immediate::boolean",
-            Box::new(|row| {
+            }
+            Field::ImmediateBoolean => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].immediate =
                     target_operations::TargetScalarImmediate::Boolean(true);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].immediate.scalar_type",
-            Box::new(|row| {
+            }
+            Field::ImmediateScalarType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].immediate =
                     target_operations::TargetScalarImmediate::Integer {
                         scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
                         value: IntegerValue::Signed(3),
                     };
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].immediate.value",
-            Box::new(|row| {
+            }
+            Field::ImmediateValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].immediate =
                     target_operations::TargetScalarImmediate::Integer {
                         scalar_type: i32_integer(),
                         value: IntegerValue::Signed(9),
                     };
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].return_operation",
-            Box::new(|row| {
+            }
+            Field::ReturnOperation => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].return_operation = operation_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].return_source_value",
-            Box::new(|row| {
+            }
+            Field::ReturnSourceValue => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].return_source_value = value_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].return_field",
-            Box::new(|row| {
+            }
+            Field::ReturnField => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].return_field = field_id(9);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].return_field_byte_offset",
-            Box::new(|row| {
+            }
+            Field::ReturnFieldByteOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].return_field_byte_offset = 4;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].return_scalar_type",
-            Box::new(|row| {
+            }
+            Field::ReturnScalarType => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].return_scalar_type =
                     ScalarType::Boolean;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].operation_ordinal",
-            Box::new(|row| {
+            }
+            Field::OperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].operation_ordinal += 1;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].code_offset",
-            Box::new(|row| {
+            }
+            Field::CodeOffset => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].code_offset += 1;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].byte_count",
-            Box::new(|row| {
+            }
+            Field::ByteCount => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].byte_count += 1;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].bytes::content",
-            Box::new(|row| {
+            }
+            Field::BytesContent => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].bytes[0] = 0x11;
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores[0].bytes::truncate",
-            Box::new(|row| {
+            }
+            Field::BytesTruncate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].bytes.pop();
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores::swap",
-            Box::new(|row| {
+            }
+            Field::Swap => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores.swap(0, 1);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores::drop",
-            Box::new(|row| {
+            }
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores.pop();
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::InsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[index];
                 let duplicate = row.scalar_structural_scalar_field_stores[0].clone();
                 row.scalar_structural_scalar_field_stores.push(duplicate);
-            }),
-        ),
-        (
-            "scalar_structural_scalar_field_stores::insert-fabricated",
-            Box::new(|row| {
+            }
+            Field::InsertFabricated => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores
                     .push(scalar_field_store());
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            index,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        // The path grammar's remaining canonicality boundary: a field segment
-        // must carry a non-empty identity.
-        (
-            "scalar_structural_scalar_field_stores[0].path::empty-field",
-            Box::new(|row| {
+            }
+            // The path grammar's remaining canonicality boundary: a field segment
+            // must carry a non-empty identity.
+            Field::PathEmptyField => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].path =
                     vec![StructuralPathSegment::Field(String::new())];
-            }),
-            InstallationError::InvalidSettlementArgumentField,
-        ),
-        // The immediate's integer carrier must be fixed-width on the wire.
-        (
-            "scalar_structural_scalar_field_stores[0].immediate.scalar_type::address",
-            Box::new(|row| {
+            }
+            // The immediate's integer carrier must be fixed-width on the wire.
+            Field::ImmediateScalarTypeAddress => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores[0].immediate =
                     target_operations::TargetScalarImmediate::Integer {
                         scalar_type: IntegerType::address(64).expect("address i64"),
                         value: IntegerValue::Unsigned(3),
                     };
-            }),
-            InstallationError::UnsupportedInstalledFixedIntegerType,
-        ),
-        // The retained roster is bounded at three rows.
-        (
-            "scalar_structural_scalar_field_stores::insert-beyond-bound",
-            Box::new(|row| {
+            }
+            // The retained roster is bounded at three rows.
+            Field::InsertBeyondBound => {
+                let row = &mut record.functions_mut_for_test()[index];
                 row.scalar_structural_scalar_field_stores
                     .push(scalar_field_store());
                 row.scalar_structural_scalar_field_stores
                     .push(scalar_field_store());
-            }),
-            InstallationError::TooManyScalarStructuralScalarFieldStores,
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, index, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: ScalarStoreRowsFieldForTest| {
+        use ScalarStoreRowsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::PsiOperation
+            | Field::DestinationPlace
+            | Field::DestinationPosition
+            | Field::DestinationIsSelf
+            | Field::DestinationStructuralType
+            | Field::DestinationMultiplicity
+            | Field::DestinationAccess
+            | Field::DestinationQualifications
+            | Field::DestinationProjectedQualifications
+            | Field::DestinationProjectedQualificationsReferent
+            | Field::PathReferent
+            | Field::PathRenamed
+            | Field::PathEmpty
+            | Field::PathIndexed
+            | Field::Field
+            | Field::DestinationPlacement
+            | Field::FieldByteOffset
+            | Field::DefiningOperation
+            | Field::SourceValue
+            | Field::ImmediateBoolean
+            | Field::ImmediateScalarType
+            | Field::ImmediateValue
+            | Field::ReturnOperation
+            | Field::ReturnSourceValue
+            | Field::ReturnField
+            | Field::ReturnFieldByteOffset
+            | Field::ReturnScalarType
+            | Field::OperationOrdinal
+            | Field::CodeOffset
+            | Field::ByteCount
+            | Field::BytesContent
+            | Field::BytesTruncate
+            | Field::Swap
+            | Field::Drop
+            | Field::InsertDuplicate
+            | Field::InsertFabricated => InstallationError::ImageBindingMismatch,
+            Field::PathEmptyField => InstallationError::InvalidSettlementArgumentField,
+            Field::ImmediateScalarTypeAddress => {
+                InstallationError::UnsupportedInstalledFixedIntegerType
+            }
+            Field::InsertBeyondBound => InstallationError::TooManyScalarStructuralScalarFieldStores,
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation scalar store rows / record",
+        fields: ScalarStoreRowsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The affine scalar-record roster authenticates every field against an
@@ -4195,319 +3886,9 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
         Err(InstallationError::UnsupportedInternalUnitCallPlacement)
     );
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "unit_affine_scalar_records[0].psi_operation",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].psi_operation = operation_id(9);
-            }),
-        ),
-        (
-            "unit_affine_scalar_records[0].result.place",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].result.place = place_id(9);
-            }),
-        ),
-        (
-            "unit_affine_scalar_records[0].result.structural_type",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].result.structural_type = structural_type(9);
-            }),
-        ),
-        (
-            "unit_affine_scalar_records[0].field",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].field = field_id(9);
-            }),
-        ),
-        (
-            "unit_affine_scalar_records[0].value",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].value = IntegerValue::Signed(18);
-            }),
-        ),
-        (
-            "unit_affine_scalar_records[0].operation_ordinal",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].operation_ordinal += 1;
-            }),
-        ),
-        (
-            "unit_affine_scalar_records::drop",
-            Box::new(|row| {
-                row.unit_affine_scalar_records.pop();
-            }),
-        ),
-        (
-            "unit_affine_scalar_records::insert",
-            Box::new(|row| {
-                row.unit_affine_scalar_records
-                    .push(UnitAffineScalarRecordEstablishmentRecord {
-                        psi_operation: operation_id(9),
-                        result: terminal_psi::StructuralOperationResult {
-                            place: place_id(9),
-                            structural_type: structural_type(9),
-                            multiplicity: StructuralMultiplicity::Affine,
-                            qualifications: Vec::new(),
-                            projected_qualifications: Vec::new(),
-                            claims: Vec::new(),
-                        },
-                        field: field_id(9),
-                        value: IntegerValue::Signed(7),
-                        shape: ValueShape::integer(8, 8),
-                        operation_ordinal: 5,
-                    });
-            }),
-        ),
-        (
-            "unit_affine_scalar_records::insert-duplicate",
-            Box::new(|row| {
-                let duplicate = row.unit_affine_scalar_records[0].clone();
-                row.unit_affine_scalar_records.push(duplicate);
-            }),
-        ),
-        (
-            "unit_affine_scalar_records::swap",
-            Box::new(|row| {
-                row.unit_affine_scalar_records.swap(0, 1);
-            }),
-        ),
-        // The parameter home's indirection flag is authenticated by the
-        // emitted image alone: no record-shape join reads it.
-        (
-            "unit_parameter_homes[0].indirect",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].indirect = true;
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_undecodable_row_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            0,
-            mutate,
-        );
-    }
-
     let scalar_record_error = || InstallationError::InvalidUnitAffineScalarRecord;
     let call_error = || InstallationError::InvalidInternalUnitCall(machine_id(1));
     let cleanup_error = || InstallationError::InvalidUnitAffineCleanup(machine_id(1));
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "unit_affine_scalar_records[0].result.multiplicity",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].result.multiplicity =
-                    StructuralMultiplicity::Linear;
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records[0].result.qualifications",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0]
-                    .result
-                    .qualifications
-                    .push(domain_id(3));
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records[0].result.projected_qualifications",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0]
-                    .result
-                    .projected_qualifications
-                    .push(StructuralPathQualification {
-                        path: vec![StructuralPathSegment::Field("gate".to_string())],
-                        domain: domain_id(3),
-                    });
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records[0].result.claims",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].result.claims.push(
-                    terminal_psi::StructuralResultClaimBinding {
-                        claim: semantic_vocabulary::ClaimId::new(31).expect("claim"),
-                        path: Vec::new(),
-                    },
-                );
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records[0].value::unsigned",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].value = IntegerValue::Unsigned(3);
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records[0].value::overflow",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].value =
-                    IntegerValue::Signed(i128::from(i64::MAX) + 1);
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records[0].shape",
-            Box::new(|row| {
-                row.unit_affine_scalar_records[0].shape = ValueShape::integer(4, 4);
-            }),
-            scalar_record_error(),
-        ),
-        (
-            "unit_affine_scalar_records::insert-noncanonical",
-            Box::new(|row| {
-                row.unit_affine_scalar_records.push(affine_scalar_record());
-            }),
-            scalar_record_error(),
-        ),
-        // The record's result place is joined through the parameter and home
-        // rosters: declaration axes are pinned pairwise, and every roster
-        // membership change upsets the cleanup's transferred-root suffix.
-        (
-            "unit_parameters[0].place",
-            Box::new(|row| {
-                row.unit_parameters[0].place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].structural_type",
-            Box::new(|row| {
-                row.unit_parameters[0].structural_type = structural_type(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].multiplicity",
-            Box::new(|row| {
-                row.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].access",
-            Box::new(|row| {
-                row.unit_parameters[0].access = StructuralAccess::SharedBorrow;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters[0].shape",
-            Box::new(|row| {
-                row.unit_parameters[0].shape = ValueShape::integer(4, 4);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters::drop",
-            Box::new(|row| {
-                row.unit_parameters.pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters::insert-duplicate",
-            Box::new(|row| {
-                let parameter = row.unit_parameters[0];
-                row.unit_parameters.push(parameter);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameters::swap",
-            Box::new(|row| {
-                row.unit_parameters.swap(0, 1);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].place",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].structural_type",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].structural_type = structural_type(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].multiplicity",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Linear;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].access",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].access = StructuralAccess::SharedBorrow;
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].shape",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].shape = ValueShape::integer(4, 4);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes[0].source",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].source = register_placement();
-            }),
-            call_error(),
-        ),
-        (
-            "unit_parameter_homes[0].location",
-            Box::new(|row| {
-                row.unit_parameter_homes[0].location =
-                    machine_code::StructuralSourceLocation::Stack { byte_offset: 16 };
-            }),
-            call_error(),
-        ),
-        (
-            "unit_parameter_homes::drop",
-            Box::new(|row| {
-                row.unit_parameter_homes.pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes::insert-duplicate",
-            Box::new(|row| {
-                let home = row.unit_parameter_homes[0].clone();
-                row.unit_parameter_homes.push(home);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "unit_parameter_homes::swap",
-            Box::new(|row| {
-                row.unit_parameter_homes.swap(0, 1);
-            }),
-            cleanup_error(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
-    }
 
     // The record-level call roster carries the consuming custody: each
     // argument leaf is joined to the record's place, home, immediate bytes
@@ -4555,49 +3936,228 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
         caller_result_placement: empty_placement(),
         callee_result_placement: empty_placement(),
     };
-    let still_encodes_calls: Vec<(&'static str, Box<dyn Fn(&mut InstallationRecord)>)> = vec![
-        // The argument's access and byte-transport axes are authenticated by
-        // the emitted image alone: no record-shape join reads them, so each
-        // substitution still encodes and replay rejects it.
-        (
-            "internal_unit_calls[0].arguments[0].access",
-            Box::new(|record| {
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: AffineScalarRecordsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use AffineScalarRecordsFieldForTest as Field;
+        match field {
+            Field::UnitAffineScalarRecordsPsiOperation => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].psi_operation = operation_id(9);
+            }
+            Field::UnitAffineScalarRecordsResultPlace => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].result.place = place_id(9);
+            }
+            Field::UnitAffineScalarRecordsResultStructuralType => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].result.structural_type = structural_type(9);
+            }
+            Field::UnitAffineScalarRecordsField => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].field = field_id(9);
+            }
+            Field::UnitAffineScalarRecordsValue => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].value = IntegerValue::Signed(18);
+            }
+            Field::UnitAffineScalarRecordsOperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].operation_ordinal += 1;
+            }
+            Field::UnitAffineScalarRecordsDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records.pop();
+            }
+            Field::UnitAffineScalarRecordsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records
+                    .push(UnitAffineScalarRecordEstablishmentRecord {
+                        psi_operation: operation_id(9),
+                        result: terminal_psi::StructuralOperationResult {
+                            place: place_id(9),
+                            structural_type: structural_type(9),
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        },
+                        field: field_id(9),
+                        value: IntegerValue::Signed(7),
+                        shape: ValueShape::integer(8, 8),
+                        operation_ordinal: 5,
+                    });
+            }
+            Field::UnitAffineScalarRecordsInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
+                let duplicate = row.unit_affine_scalar_records[0].clone();
+                row.unit_affine_scalar_records.push(duplicate);
+            }
+            Field::UnitAffineScalarRecordsSwap => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records.swap(0, 1);
+            }
+            // The parameter home's indirection flag is authenticated by the
+            // emitted image alone: no record-shape join reads it.
+            Field::UnitParameterHomesIndirect => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].indirect = true;
+            }
+            Field::UnitAffineScalarRecordsResultMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].result.multiplicity =
+                    StructuralMultiplicity::Linear;
+            }
+            Field::UnitAffineScalarRecordsResultQualifications => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0]
+                    .result
+                    .qualifications
+                    .push(domain_id(3));
+            }
+            Field::UnitAffineScalarRecordsResultProjectedQualifications => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0]
+                    .result
+                    .projected_qualifications
+                    .push(StructuralPathQualification {
+                        path: vec![StructuralPathSegment::Field("gate".to_string())],
+                        domain: domain_id(3),
+                    });
+            }
+            Field::UnitAffineScalarRecordsResultClaims => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].result.claims.push(
+                    terminal_psi::StructuralResultClaimBinding {
+                        claim: semantic_vocabulary::ClaimId::new(31).expect("claim"),
+                        path: Vec::new(),
+                    },
+                );
+            }
+            Field::UnitAffineScalarRecordsValueUnsigned => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].value = IntegerValue::Unsigned(3);
+            }
+            Field::UnitAffineScalarRecordsValueOverflow => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].value =
+                    IntegerValue::Signed(i128::from(i64::MAX) + 1);
+            }
+            Field::UnitAffineScalarRecordsShape => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records[0].shape = ValueShape::integer(4, 4);
+            }
+            Field::UnitAffineScalarRecordsInsertNoncanonical => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_affine_scalar_records.push(affine_scalar_record());
+            }
+            // The record's result place is joined through the parameter and home
+            // rosters: declaration axes are pinned pairwise, and every roster
+            // membership change upsets the cleanup's transferred-root suffix.
+            Field::UnitParametersPlace => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters[0].place = place_id(9);
+            }
+            Field::UnitParametersStructuralType => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters[0].structural_type = structural_type(9);
+            }
+            Field::UnitParametersMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+            }
+            Field::UnitParametersAccess => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters[0].access = StructuralAccess::SharedBorrow;
+            }
+            Field::UnitParametersShape => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters[0].shape = ValueShape::integer(4, 4);
+            }
+            Field::UnitParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters.pop();
+            }
+            Field::UnitParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
+                let parameter = row.unit_parameters[0];
+                row.unit_parameters.push(parameter);
+            }
+            Field::UnitParametersSwap => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameters.swap(0, 1);
+            }
+            Field::UnitParameterHomesPlace => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].place = place_id(9);
+            }
+            Field::UnitParameterHomesStructuralType => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].structural_type = structural_type(9);
+            }
+            Field::UnitParameterHomesMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].multiplicity = StructuralMultiplicity::Linear;
+            }
+            Field::UnitParameterHomesAccess => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].access = StructuralAccess::SharedBorrow;
+            }
+            Field::UnitParameterHomesShape => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].shape = ValueShape::integer(4, 4);
+            }
+            Field::UnitParameterHomesSource => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].source = register_placement();
+            }
+            Field::UnitParameterHomesLocation => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes[0].location =
+                    machine_code::StructuralSourceLocation::Stack { byte_offset: 16 };
+            }
+            Field::UnitParameterHomesDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes.pop();
+            }
+            Field::UnitParameterHomesInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
+                let home = row.unit_parameter_homes[0].clone();
+                row.unit_parameter_homes.push(home);
+            }
+            Field::UnitParameterHomesSwap => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_parameter_homes.swap(0, 1);
+            }
+            // The argument's access and byte-transport axes are authenticated by
+            // the emitted image alone: no record-shape join reads them, so each
+            // substitution still encodes and replay rejects it.
+            Field::InternalUnitCallsArgumentsAccess => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .access = StructuralAccess::SharedBorrow;
-            }),
-        ),
-        (
-            "internal_unit_calls[0].arguments[0].call_stack_bytes",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsArgumentsCallStackBytes => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .call_stack_bytes = 0;
-            }),
-        ),
-        (
-            "internal_unit_calls[0].arguments[0].code_offset",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsArgumentsCodeOffset => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .code_offset += 1;
-            }),
-        ),
-        (
-            "internal_unit_calls[0].arguments[0].bytes",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsArgumentsBytes => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .bytes[2] ^= 0xff;
-            }),
-        ),
-        (
-            "internal_unit_calls[0].custody.claim_transfers",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyClaimTransfers => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .claim_transfers
@@ -4605,107 +4165,52 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
                         claim: semantic_vocabulary::ClaimId::new(31).expect("claim"),
                         argument_index: 0,
                     });
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes_calls {
-        assert_undecodable_record_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            mutate,
-        );
-    }
-
-    let rejected_calls: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstallationRecord)>,
-        InstallationError,
-    )> = vec![
-        (
-            "internal_unit_calls[0].custody.source",
-            Box::new(move |record| {
+            }
+            Field::InternalUnitCallsCustodySource => {
                 record.internal_unit_calls_mut_for_test()[0].custody.source =
                     provider_source.clone();
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.owner",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyOwner => {
                 record.internal_unit_calls_mut_for_test()[0].custody.owner =
                     CallSiteOwner::Operation(operation_id(9));
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.target",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyTarget => {
                 record.internal_unit_calls_mut_for_test()[0].custody.target = machine_id(3);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.result",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyResult => {
                 record.internal_unit_calls_mut_for_test()[0].custody.result = Some(i32_scalar());
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.semantic_result",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodySemanticResult => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .semantic_result = Some(abstract_operations::AbstractResult {
                     value: value_id(31),
                     scalar_type: ScalarType::Boolean,
                 });
-            }),
-            call_error(),
-        ),
-        // A returned structural result joins into the function's transferred
-        // affine roots, so the cleanup roster rejects it before the call.
-        (
-            "internal_unit_calls[0].custody.structural_result",
-            Box::new(move |record| {
+            }
+            // A returned structural result joins into the function's transferred
+            // affine roots, so the cleanup roster rejects it before the call.
+            Field::InternalUnitCallsCustodyStructuralResult => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .structural_result = Some(structural_result.clone());
-            }),
-            cleanup_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.operation_ordinal",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyOperationOrdinal => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .operation_ordinal = 0;
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.code_offset",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyCodeOffset => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .code_offset += 1;
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.byte_count",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyByteCount => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .byte_count += 1;
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.scalar_arguments",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyScalarArguments => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .scalar_arguments
@@ -4722,158 +4227,98 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
                         code_offset: 0,
                         byte_count: 5,
                     });
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].place",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsPlace => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .place = place_id(9);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].path",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsPath => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .path = vec![StructuralPathSegment::Field("other".to_string())];
-            }),
-            cleanup_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].root_structural_type",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsRootStructuralType => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .root_structural_type = structural_type(9);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].structural_type",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsStructuralType => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .structural_type = structural_type(9);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].shape",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsShape => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .shape = ValueShape::integer(4, 4);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].source::placement",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsSourcePlacement => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .source = machine_code::InternalUnitStructuralArgumentSourceRecord::Placement(
                     register_placement(),
                 );
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].source::established",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsSourceEstablished => {
                 record.internal_unit_calls_mut_for_test()[0]
-                    .custody
-                    .arguments[0]
-                    .source =
-                    machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
-                        psi_operation: operation_id(1),
-                    };
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].source_location",
-            Box::new(|record| {
+                        .custody
+                        .arguments[0]
+                        .source =
+                        machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
+                            psi_operation: operation_id(1),
+                        };
+            }
+            Field::InternalUnitCallsCustodyArgumentsSourceLocation => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .source_location =
                     machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].source_byte_offset",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsSourceByteOffset => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .source_byte_offset = 1;
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].destination",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsDestination => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .destination = register_placement();
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].byte_count",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsByteCount => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .byte_count += 1;
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].fixed_array_length",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsFixedArrayLength => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .fixed_array_length = Some(2);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments[0].element_stride",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsElementStride => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
                     .element_stride = Some(8);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments::drop",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsDrop => {
                 record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments
                     .pop();
-            }),
-            cleanup_error(),
-        ),
-        (
-            "internal_unit_calls[0].custody.arguments::insert-duplicate",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsCustodyArgumentsInsertDuplicate => {
                 let duplicate = record.internal_unit_calls_mut_for_test()[0]
                     .custody
                     .arguments[0]
@@ -4882,51 +4327,27 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
                     .custody
                     .arguments
                     .push(duplicate);
-            }),
-            call_error(),
-        ),
-        // Retargeting the call to the callee's machine strips the consuming
-        // call from the caller's roster, so the caller's cleanup rejects it
-        // before the call's own fields are examined.
-        (
-            "internal_unit_calls[0].machine",
-            Box::new(|record| {
+            }
+            // Retargeting the call to the callee's machine strips the consuming
+            // call from the caller's roster, so the caller's cleanup rejects it
+            // before the call's own fields are examined.
+            Field::InternalUnitCallsMachine => {
                 record.internal_unit_calls_mut_for_test()[0].machine = machine_id(2);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "internal_unit_calls[0].text_offset",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsTextOffset => {
                 record.internal_unit_calls_mut_for_test()[0].text_offset += 1;
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls::drop",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsDrop => {
                 record.internal_unit_calls_mut_for_test().remove(0);
-            }),
-            cleanup_error(),
-        ),
-        (
-            "internal_unit_calls::swap",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsSwap => {
                 record.internal_unit_calls_mut_for_test().swap(0, 1);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls::insert-duplicate",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsInsertDuplicate => {
                 let duplicate = record.internal_unit_calls_mut_for_test()[0].clone();
                 record.internal_unit_calls_mut_for_test().push(duplicate);
-            }),
-            call_error(),
-        ),
-        (
-            "internal_unit_calls::insert-distinct",
-            Box::new(|record| {
+            }
+            Field::InternalUnitCallsInsertDistinct => {
                 let mut call = record.internal_unit_calls_mut_for_test()[0].clone();
                 call.custody.owner = CallSiteOwner::Operation(operation_id(9));
                 call.custody.operation_ordinal = 9;
@@ -4934,13 +4355,101 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
                 call.custody.byte_count = 6;
                 call.text_offset = 40;
                 record.internal_unit_calls_mut_for_test().push(call);
-            }),
-            call_error(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected_calls {
-        assert_record_substitution_rejected_at_encoding(field, &record, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: AffineScalarRecordsFieldForTest| {
+        use AffineScalarRecordsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::UnitAffineScalarRecordsPsiOperation
+            | Field::UnitAffineScalarRecordsResultPlace
+            | Field::UnitAffineScalarRecordsResultStructuralType
+            | Field::UnitAffineScalarRecordsField
+            | Field::UnitAffineScalarRecordsValue
+            | Field::UnitAffineScalarRecordsOperationOrdinal
+            | Field::UnitAffineScalarRecordsDrop
+            | Field::UnitAffineScalarRecordsInsert
+            | Field::UnitAffineScalarRecordsInsertDuplicate
+            | Field::UnitAffineScalarRecordsSwap
+            | Field::UnitParameterHomesIndirect
+            | Field::InternalUnitCallsArgumentsAccess
+            | Field::InternalUnitCallsArgumentsCallStackBytes
+            | Field::InternalUnitCallsArgumentsCodeOffset
+            | Field::InternalUnitCallsArgumentsBytes
+            | Field::InternalUnitCallsCustodyClaimTransfers => {
+                InstallationError::ImageBindingMismatch
+            }
+            Field::UnitAffineScalarRecordsResultMultiplicity => scalar_record_error(),
+            Field::UnitAffineScalarRecordsResultQualifications => scalar_record_error(),
+            Field::UnitAffineScalarRecordsResultProjectedQualifications => scalar_record_error(),
+            Field::UnitAffineScalarRecordsResultClaims => scalar_record_error(),
+            Field::UnitAffineScalarRecordsValueUnsigned => scalar_record_error(),
+            Field::UnitAffineScalarRecordsValueOverflow => scalar_record_error(),
+            Field::UnitAffineScalarRecordsShape => scalar_record_error(),
+            Field::UnitAffineScalarRecordsInsertNoncanonical => scalar_record_error(),
+            Field::UnitParametersPlace => cleanup_error(),
+            Field::UnitParametersStructuralType => cleanup_error(),
+            Field::UnitParametersMultiplicity => cleanup_error(),
+            Field::UnitParametersAccess => cleanup_error(),
+            Field::UnitParametersShape => cleanup_error(),
+            Field::UnitParametersDrop => cleanup_error(),
+            Field::UnitParametersInsertDuplicate => cleanup_error(),
+            Field::UnitParametersSwap => cleanup_error(),
+            Field::UnitParameterHomesPlace => cleanup_error(),
+            Field::UnitParameterHomesStructuralType => cleanup_error(),
+            Field::UnitParameterHomesMultiplicity => cleanup_error(),
+            Field::UnitParameterHomesAccess => cleanup_error(),
+            Field::UnitParameterHomesShape => cleanup_error(),
+            Field::UnitParameterHomesSource => call_error(),
+            Field::UnitParameterHomesLocation => call_error(),
+            Field::UnitParameterHomesDrop => cleanup_error(),
+            Field::UnitParameterHomesInsertDuplicate => cleanup_error(),
+            Field::UnitParameterHomesSwap => cleanup_error(),
+            Field::InternalUnitCallsCustodySource => call_error(),
+            Field::InternalUnitCallsCustodyOwner => call_error(),
+            Field::InternalUnitCallsCustodyTarget => call_error(),
+            Field::InternalUnitCallsCustodyResult => call_error(),
+            Field::InternalUnitCallsCustodySemanticResult => call_error(),
+            Field::InternalUnitCallsCustodyStructuralResult => cleanup_error(),
+            Field::InternalUnitCallsCustodyOperationOrdinal => call_error(),
+            Field::InternalUnitCallsCustodyCodeOffset => call_error(),
+            Field::InternalUnitCallsCustodyByteCount => call_error(),
+            Field::InternalUnitCallsCustodyScalarArguments => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsPlace => cleanup_error(),
+            Field::InternalUnitCallsCustodyArgumentsPath => cleanup_error(),
+            Field::InternalUnitCallsCustodyArgumentsRootStructuralType => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsStructuralType => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsShape => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsSourcePlacement => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsSourceEstablished => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsSourceLocation => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsSourceByteOffset => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsDestination => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsByteCount => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsFixedArrayLength => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsElementStride => call_error(),
+            Field::InternalUnitCallsCustodyArgumentsDrop => cleanup_error(),
+            Field::InternalUnitCallsCustodyArgumentsInsertDuplicate => call_error(),
+            Field::InternalUnitCallsMachine => cleanup_error(),
+            Field::InternalUnitCallsTextOffset => call_error(),
+            Field::InternalUnitCallsDrop => cleanup_error(),
+            Field::InternalUnitCallsSwap => call_error(),
+            Field::InternalUnitCallsInsertDuplicate => call_error(),
+            Field::InternalUnitCallsInsertDistinct => call_error(),
+        })
+    };
+    let check = nested_custody_undecodable_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation affine scalar records / record",
+        fields: AffineScalarRecordsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Unit-body cleanup evidence is pinned leaf-for-leaf by the record-shape
@@ -4960,57 +4469,33 @@ fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
     let authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
     assert!(record.functions()[2].unit_affine_cleanup.is_some());
 
-    assert_substitution_rejected_by_replay(
-        "unit_affine_cleanup.structural_types",
-        &record,
-        &image,
-        &authentic_fingerprint,
-        2,
-        |row| {
-            row.unit_affine_cleanup
-                .as_mut()
-                .expect("cleanup")
-                .structural_types = extra_type_catalog();
-        },
-    );
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "unit_affine_cleanup.psi_edge",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: AffineCleanupFieldForTest,
+                      _donor: &InstallationRecord| {
+        use AffineCleanupFieldForTest as Field;
+        match field {
+            Field::UnitAffineCleanupPsiEdge => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup.as_mut().expect("cleanup").psi_edge = edge_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.locals::insert",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupLocalsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .locals
                     .push(extra_local());
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.actions::drop",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupActionsDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .actions
                     .pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.actions::insert",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupActionsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
@@ -5018,84 +4503,60 @@ fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
                     .push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
                         place_id(9),
                     ));
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.actions[0].cleanup_machine",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupActionsCleanupMachine => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let action = &mut row.unit_affine_cleanup.as_mut().expect("cleanup").actions[0];
                 let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal) = action
                 else {
                     panic!("fixture cleanup action");
                 };
                 nominal.cleanup_machine = machine_id(2);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.actions[0].place",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupActionsPlace => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let action = &mut row.unit_affine_cleanup.as_mut().expect("cleanup").actions[0];
                 let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal) = action
                 else {
                     panic!("fixture cleanup action");
                 };
                 nominal.place = place_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.actions[0]::variant",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupActionsVariant => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup.as_mut().expect("cleanup").actions[0] =
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place_id(9));
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.code_offset",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupCodeOffset => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .code_offset += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "unit_affine_cleanup.byte_count",
-            Box::new(|row| {
+            }
+            Field::UnitAffineCleanupByteCount => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .byte_count -= 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // Dropping the cleanup leaves `unit_body` asserted without its
-        // retained evidence; the projection join rejects it.
-        (
-            "unit_affine_cleanup::drop",
-            Box::new(|row| {
+            }
+            // Dropping the cleanup leaves `unit_body` asserted without its
+            // retained evidence; the projection join rejects it.
+            Field::UnitAffineCleanupDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup = None;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // A scalar affine cleanup cannot be forged onto a Unit-stack row.
-        (
-            "scalar_affine_cleanup::insert-on-unit-row",
-            Box::new(|row| {
+            }
+            // A scalar affine cleanup cannot be forged onto a Unit-stack row.
+            Field::ScalarAffineCleanupInsertOnUnitRow => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup = row.unit_affine_cleanup.clone();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // Continuations need an exact block/attribution custody that this
-        // fixture does not retain; the fabricated boundary row is rejected by
-        // the unit-cleanup joins on either row.
-        (
-            "unit_continuations::insert",
-            Box::new(|row| {
+            }
+            // Continuations need an exact block/attribution custody that this
+            // fixture does not retain; the fabricated boundary row is rejected by
+            // the unit-cleanup joins on either row.
+            Field::UnitContinuationsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_continuations.push(UnitContinuationRecord {
                     operation_ordinal: 3,
                     successor_operation_ordinal: 4,
@@ -5104,29 +4565,84 @@ fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
                     bindings: Vec::new(),
                     cleanup: row.unit_affine_cleanup.clone().expect("cleanup"),
                 });
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
-    assert_substitution_rejected_at_encoding(
-        "unit_continuations::insert-on-unit-caller",
-        &record,
-        0,
-        |row| {
-            row.unit_continuations.push(UnitContinuationRecord {
-                operation_ordinal: 1,
-                successor_operation_ordinal: 2,
-                source_block: block_id(1),
-                target_block: block_id(2),
-                bindings: Vec::new(),
-                cleanup: row.unit_affine_cleanup.clone().expect("cleanup"),
-            });
-        },
-        InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-    );
+            }
+            Field::UnitAffineCleanupStructuralTypes => {
+                let row = &mut record.functions_mut_for_test()[2];
+                row.unit_affine_cleanup
+                    .as_mut()
+                    .expect("cleanup")
+                    .structural_types = extra_type_catalog();
+            }
+            Field::UnitContinuationsInsertOnUnitCaller => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.unit_continuations.push(UnitContinuationRecord {
+                    operation_ordinal: 1,
+                    successor_operation_ordinal: 2,
+                    source_block: block_id(1),
+                    target_block: block_id(2),
+                    bindings: Vec::new(),
+                    cleanup: row.unit_affine_cleanup.clone().expect("cleanup"),
+                });
+            }
+        }
+    };
+    let outcome = |field: AffineCleanupFieldForTest| {
+        use AffineCleanupFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::UnitAffineCleanupStructuralTypes => InstallationError::ImageBindingMismatch,
+            Field::UnitAffineCleanupPsiEdge => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupLocalsInsert => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupActionsDrop => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupActionsInsert => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupActionsCleanupMachine => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupActionsPlace => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupActionsVariant => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupCodeOffset => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupByteCount => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupDrop => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarAffineCleanupInsertOnUnitRow => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitContinuationsInsert => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitContinuationsInsertOnUnitCaller => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation affine cleanup / record",
+        fields: AffineCleanupFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 
     // The scalar-side cleanup projection joins the same axes on the promoted
     // scalar row; its verifier-owned type catalog still encodes and replay
@@ -5142,96 +4658,105 @@ fn installation_function_affine_cleanup_rejects_every_one_field_substitution() {
     let scalar_fingerprint = installation_fingerprint(&scalar_record).expect("fingerprint");
     assert!(scalar_record.functions()[2].scalar_affine_cleanup.is_some());
 
-    assert_substitution_rejected_by_replay(
-        "scalar_affine_cleanup.structural_types",
-        &scalar_record,
-        &scalar_image,
-        &scalar_fingerprint,
-        2,
-        |row| {
-            row.scalar_affine_cleanup
-                .as_mut()
-                .expect("cleanup")
-                .structural_types = extra_type_catalog();
-        },
-    );
-
-    let scalar_rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "scalar_affine_cleanup.psi_edge",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: AffineCleanupScalarRecordFieldForTest,
+                      _donor: &InstallationRecord| {
+        use AffineCleanupScalarRecordFieldForTest as Field;
+        match field {
+            Field::ScalarAffineCleanupPsiEdge => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .psi_edge = edge_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_affine_cleanup.locals::insert",
-            Box::new(|row| {
+            }
+            Field::ScalarAffineCleanupLocalsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .locals
                     .push(extra_local());
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_affine_cleanup.actions::drop",
-            Box::new(|row| {
+            }
+            Field::ScalarAffineCleanupActionsDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .actions
                     .pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_affine_cleanup.code_offset",
-            Box::new(|row| {
+            }
+            Field::ScalarAffineCleanupCodeOffset => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .code_offset += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_affine_cleanup.byte_count",
-            Box::new(|row| {
+            }
+            Field::ScalarAffineCleanupByteCount => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup
                     .as_mut()
                     .expect("cleanup")
                     .byte_count -= 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        (
-            "scalar_affine_cleanup::drop",
-            Box::new(|row| {
+            }
+            Field::ScalarAffineCleanupDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_affine_cleanup = None;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // A Unit cleanup cannot be forged beneath scalar stack evidence.
-        (
-            "unit_affine_cleanup::insert-on-scalar-row",
-            Box::new(|row| {
+            }
+            // A Unit cleanup cannot be forged beneath scalar stack evidence.
+            Field::UnitAffineCleanupInsertOnScalarRow => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.unit_affine_cleanup = row.scalar_affine_cleanup.clone();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-    ];
-    for (field, mutate, expected) in scalar_rejected {
-        assert_substitution_rejected_at_encoding(field, &scalar_record, 2, mutate, expected);
-    }
+            }
+            Field::ScalarAffineCleanupStructuralTypes => {
+                let row = &mut record.functions_mut_for_test()[2];
+                row.scalar_affine_cleanup
+                    .as_mut()
+                    .expect("cleanup")
+                    .structural_types = extra_type_catalog();
+            }
+        }
+    };
+    let outcome = |field: AffineCleanupScalarRecordFieldForTest| {
+        use AffineCleanupScalarRecordFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarAffineCleanupStructuralTypes => InstallationError::ImageBindingMismatch,
+            Field::ScalarAffineCleanupPsiEdge => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarAffineCleanupLocalsInsert => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarAffineCleanupActionsDrop => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarAffineCleanupCodeOffset => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarAffineCleanupByteCount => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ScalarAffineCleanupDrop => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::UnitAffineCleanupInsertOnScalarRow => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+        })
+    };
+    let check = nested_custody_check(&scalar_image, &scalar_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation affine cleanup / scalar_record",
+        fields: AffineCleanupScalarRecordFieldForTest::INVENTORY,
+        honest: &|| scalar_record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The projected scalar-control cleanup roster retains only the cleanup axis
@@ -5251,90 +4776,86 @@ fn installation_function_scalar_control_cleanups_reject_every_one_field_substitu
         3
     );
 
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "scalar_control_affine_cleanups[0].psi_edge",
-            Box::new(|row| {
+    let record_authentic_fingerprint = installation_fingerprint(&record).expect("fingerprint");
+    let substitute = |record: &mut InstallationRecord,
+                      field: ScalarControlCleanupsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ScalarControlCleanupsFieldForTest as Field;
+        match field {
+            Field::PsiEdge => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0].psi_edge = edge_id(9);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups[0].structural_types",
-            Box::new(|row| {
+            }
+            Field::StructuralTypes => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0].structural_types = extra_type_catalog();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups[0].locals::insert",
-            Box::new(|row| {
+            }
+            Field::LocalsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0]
                     .locals
                     .push(extra_local());
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups[0].actions::drop",
-            Box::new(|row| {
+            }
+            Field::ActionsDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0].actions.pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups[0].actions::insert",
-            Box::new(|row| {
+            }
+            Field::ActionsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0].actions.push(
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place_id(9)),
                 );
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups[0].code_offset",
-            Box::new(|row| {
+            }
+            Field::CodeOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0].code_offset += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups[0].byte_count",
-            Box::new(|row| {
+            }
+            Field::ByteCount => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups[0].byte_count -= 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups::reorder",
-            Box::new(|row| {
+            }
+            Field::Reorder => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups.swap(0, 1);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups::drop",
-            Box::new(|row| {
+            }
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.scalar_control_affine_cleanups.pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "scalar_control_affine_cleanups::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::InsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
                 let cleanup = row.scalar_control_affine_cleanups[0].clone();
                 row.scalar_control_affine_cleanups.push(cleanup);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: ScalarControlCleanupsFieldForTest| {
+        use ScalarControlCleanupsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::PsiEdge => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::StructuralTypes => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::LocalsInsert => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::ActionsDrop => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::ActionsInsert => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::CodeOffset => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::ByteCount => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::Reorder => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::Drop => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::InsertDuplicate => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        })
+    };
+    let check = nested_custody_check(&image, &record_authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation scalar control cleanups / record",
+        fields: ScalarControlCleanupsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// The scalar-transport axes — the installed scalar ABI, the mixed
@@ -5357,68 +4878,42 @@ fn installation_function_scalar_transport_rejects_every_one_field_substitution()
     assert!(authentic.parameter_abi.is_none());
     assert!(authentic.structural_call_scalar_return.is_none());
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "scalar_abi::insert-canonical",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: ScalarTransportFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ScalarTransportFieldForTest as Field;
+        match field {
+            Field::ScalarAbiInsertCanonical => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.scalar_abi = Some(canonical_scalar_abi());
-            }),
-        ),
-        (
-            "scalar_abi::insert-canonical-alt-value",
-            Box::new(|row| {
+            }
+            Field::ScalarAbiInsertCanonicalAltValue => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let mut abi = canonical_scalar_abi();
                 abi.result.value = value_id(99);
                 row.scalar_abi = Some(abi);
-            }),
-        ),
-        (
-            "parameter_abi::insert-canonical",
-            Box::new(|row| {
+            }
+            Field::ParameterAbiInsertCanonical => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.parameter_abi = Some(canonical_parameter_abi());
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        // A canonical scalar ABI requires placements the native call plan
-        // recomputes exactly; a substituted placement fails the join.
-        (
-            "scalar_abi::insert-noncanonical",
-            Box::new(|row| {
+            }
+            // A canonical scalar ABI requires placements the native call plan
+            // recomputes exactly; a substituted placement fails the join.
+            Field::ScalarAbiInsertNoncanonical => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let mut abi = canonical_scalar_abi();
                 abi.parameters[0].placement = empty_placement();
                 row.scalar_abi = Some(abi);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // The mixed ABI requires scalar stack evidence and an exact structural
-        // roster join; neither exists on the Unit-stack row.
-        (
-            "mixed_structural_scalar_abi::insert-on-unit-row",
-            Box::new(|row| {
+            }
+            // The mixed ABI requires scalar stack evidence and an exact structural
+            // roster join; neither exists on the Unit-stack row.
+            Field::MixedStructuralScalarAbiInsertOnUnitRow => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi = Some(fabricated_mixed_abi());
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // Entry spills are retained only alongside continuation custody.
-        (
-            "parameter_abi::insert-with-spills",
-            Box::new(|row| {
+            }
+            // Entry spills are retained only alongside continuation custody.
+            Field::ParameterAbiInsertWithSpills => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let mut abi = canonical_parameter_abi();
                 abi.entry_register_spills = vec![machine_code::UnitEntryRegisterSpillRecord {
                     source_value: value_id(45),
@@ -5429,41 +4924,62 @@ fn installation_function_scalar_transport_rejects_every_one_field_substitution()
                     byte_count: 5,
                 }];
                 row.parameter_abi = Some(abi);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-        // The structural-call/scalar-return evidence is exact only for the
-        // bounded carrier: one Operation-owned scalar-result call joined to
-        // matching attribution and cleanup rows.
-        (
-            "structural_call_scalar_return::insert",
-            Box::new(|row| {
+            }
+            // The structural-call/scalar-return evidence is exact only for the
+            // bounded carrier: one Operation-owned scalar-result call joined to
+            // matching attribution and cleanup rows.
+            Field::StructuralCallScalarReturnInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.structural_call_scalar_return = Some(structural_scalar_return());
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(3)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
-    assert_substitution_rejected_at_encoding(
-        "structural_call_scalar_return::insert-on-unit-caller",
-        &record,
-        0,
-        |row| {
-            row.structural_call_scalar_return = Some(structural_scalar_return());
-        },
-        InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-    );
-    assert_substitution_rejected_at_encoding(
-        "parameter_abi::insert-on-callee",
-        &record,
-        0,
-        |row| {
-            row.parameter_abi = Some(canonical_parameter_abi());
-        },
-        InstallationError::InvalidInternalUnitCall(machine_id(3)),
-    );
+            }
+            Field::StructuralCallScalarReturnInsertOnUnitCaller => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.structural_call_scalar_return = Some(structural_scalar_return());
+            }
+            Field::ParameterAbiInsertOnCallee => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.parameter_abi = Some(canonical_parameter_abi());
+            }
+        }
+    };
+    let outcome = |field: ScalarTransportFieldForTest| {
+        use ScalarTransportFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarAbiInsertCanonical
+            | Field::ScalarAbiInsertCanonicalAltValue
+            | Field::ParameterAbiInsertCanonical => InstallationError::ImageBindingMismatch,
+            Field::ScalarAbiInsertNoncanonical => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::MixedStructuralScalarAbiInsertOnUnitRow => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::ParameterAbiInsertWithSpills => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::StructuralCallScalarReturnInsert => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(3))
+            }
+            Field::StructuralCallScalarReturnInsertOnUnitCaller => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::ParameterAbiInsertOnCallee => {
+                InstallationError::InvalidInternalUnitCall(machine_id(3))
+            }
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation scalar transport / record",
+        fields: ScalarTransportFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 
     // On the scalar-stack row the canonical scalar ABI and the exactly
     // matching mixed ABI still encode; independent replay rejects both
@@ -5478,27 +4994,43 @@ fn installation_function_scalar_transport_rejects_every_one_field_substitution()
     validate_installation_record(&scalar_record, &scalar_image).expect("exact image binding");
     let scalar_fingerprint = installation_fingerprint(&scalar_record).expect("fingerprint");
 
-    assert_substitution_rejected_by_replay(
-        "scalar_abi::insert-canonical-on-scalar-row",
-        &scalar_record,
-        &scalar_image,
-        &scalar_fingerprint,
-        2,
-        |row| {
-            row.scalar_abi = Some(canonical_scalar_abi());
-        },
-    );
-    assert_substitution_rejected_by_replay(
-        "mixed_structural_scalar_abi::insert-matching",
-        &scalar_record,
-        &scalar_image,
-        &scalar_fingerprint,
-        2,
-        |row| {
-            let abi = matching_mixed_abi(row);
-            row.mixed_structural_scalar_abi = Some(abi);
-        },
-    );
+    let substitute = |record: &mut InstallationRecord,
+                      field: ScalarTransportScalarRecordFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ScalarTransportScalarRecordFieldForTest as Field;
+        match field {
+            Field::ScalarAbiInsertCanonicalOnScalarRow => {
+                let row = &mut record.functions_mut_for_test()[2];
+                row.scalar_abi = Some(canonical_scalar_abi());
+            }
+            Field::MixedStructuralScalarAbiInsertMatching => {
+                let row = &mut record.functions_mut_for_test()[2];
+                let abi = matching_mixed_abi(row);
+                row.mixed_structural_scalar_abi = Some(abi);
+            }
+        }
+    };
+    let outcome = |field: ScalarTransportScalarRecordFieldForTest| {
+        use ScalarTransportScalarRecordFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::ScalarAbiInsertCanonicalOnScalarRow
+            | Field::MixedStructuralScalarAbiInsertMatching => {
+                InstallationError::ImageBindingMismatch
+            }
+        })
+    };
+    let check = nested_custody_check(&scalar_image, &scalar_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation scalar transport / scalar_record",
+        fields: ScalarTransportScalarRecordFieldForTest::INVENTORY,
+        honest: &|| scalar_record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Every representable leaf of an installed Unit continuation row is
@@ -5529,35 +5061,30 @@ fn installation_function_unit_continuations_reject_every_one_field_substitution(
     assert_eq!(authentic.unit_continuations[0].cleanup.byte_count, 0);
     assert!(authentic.unit_affine_cleanup.is_some());
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "unit_continuations[0].source_block",
-            Box::new(|row| {
+    let substitute = |record: &mut InstallationRecord,
+                      field: UnitContinuationsFieldForTest,
+                      _donor: &InstallationRecord| {
+        use UnitContinuationsFieldForTest as Field;
+        match field {
+            Field::SourceBlock => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].source_block = block_id(9);
-            }),
-        ),
-        (
-            "unit_continuations[0].target_block",
-            Box::new(|row| {
+            }
+            Field::TargetBlock => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].target_block = block_id(9);
-            }),
-        ),
-        (
-            "unit_continuations[0].bindings[0].parameter",
-            Box::new(|row| {
+            }
+            Field::BindingsParameter => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].bindings[0].parameter = value_id(52);
-            }),
-        ),
-        // The other live integer parameter is a representable argument.
-        (
-            "unit_continuations[0].bindings[0].argument",
-            Box::new(|row| {
+            }
+            // The other live integer parameter is a representable argument.
+            Field::BindingsArgument => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].bindings[0].argument = value_id(46);
-            }),
-        ),
-        (
-            "unit_continuations[0].bindings::insert",
-            Box::new(|row| {
+            }
+            Field::BindingsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0]
                     .bindings
                     .push(abstract_operations::ValueBinding {
@@ -5565,106 +5092,58 @@ fn installation_function_unit_continuations_reject_every_one_field_substitution(
                         argument: value_id(46),
                         scalar_type: i32_scalar(),
                     });
-            }),
-        ),
-        (
-            "unit_continuations[0].bindings::drop",
-            Box::new(|row| {
+            }
+            Field::BindingsDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].bindings.pop();
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            0,
-            mutate,
-        );
-    }
-
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        // The call owns ordinal 0; the continuation must chain at ordinal 1.
-        (
-            "unit_continuations[0].operation_ordinal",
-            Box::new(|row| {
+            }
+            // The call owns ordinal 0; the continuation must chain at ordinal 1.
+            Field::OperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].operation_ordinal = 0;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].successor_operation_ordinal",
-            Box::new(|row| {
+            }
+            Field::SuccessorOperationOrdinal => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].successor_operation_ordinal = 4;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // A continuation may not loop back to a block already on the chain.
-        (
-            "unit_continuations[0].target_block::revisit",
-            Box::new(|row| {
+            }
+            // A continuation may not loop back to a block already on the chain.
+            Field::TargetBlockRevisit => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].target_block = row.unit_continuations[0].source_block;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // The nested cleanup edge must carry its own zero-byte attribution.
-        (
-            "unit_continuations[0].cleanup.psi_edge",
-            Box::new(|row| {
+            }
+            // The nested cleanup edge must carry its own zero-byte attribution.
+            Field::CleanupPsiEdge => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.psi_edge = edge_id(8);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // Nor may it reuse the final return edge.
-        (
-            "unit_continuations[0].cleanup.psi_edge::returned-edge",
-            Box::new(|row| {
+            }
+            // Nor may it reuse the final return edge.
+            Field::CleanupPsiEdgeReturnedEdge => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.psi_edge =
                     row.unit_affine_cleanup.as_ref().expect("cleanup").psi_edge;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].cleanup.code_offset",
-            Box::new(|row| {
+            }
+            Field::CleanupCodeOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.code_offset += 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].cleanup.byte_count",
-            Box::new(|row| {
+            }
+            Field::CleanupByteCount => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.byte_count = 1;
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].cleanup.locals::insert",
-            Box::new(|row| {
+            }
+            Field::CleanupLocalsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.locals.push(extra_local());
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // The continuation cleanup retains exactly the returned cleanup's
-        // structural type roster.
-        (
-            "unit_continuations[0].cleanup.structural_types",
-            Box::new(|row| {
+            }
+            // The continuation cleanup retains exactly the returned cleanup's
+            // structural type roster.
+            Field::CleanupStructuralTypes => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.structural_types = extra_type_catalog();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // Residual discards name a partially consumed root; this caller moves
-        // nothing across the boundary.
-        (
-            "unit_continuations[0].cleanup.actions::insert-residual",
-            Box::new(|row| {
+            }
+            // Residual discards name a partially consumed root; this caller moves
+            // nothing across the boundary.
+            Field::CleanupActionsInsertResidual => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.actions.push(
                     terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
                         terminal_psi::StructuralAffineDiscard {
@@ -5674,70 +5153,103 @@ fn installation_function_unit_continuations_reject_every_one_field_substitution(
                         },
                     ),
                 );
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].cleanup.actions::insert-root",
-            Box::new(|row| {
+            }
+            Field::CleanupActionsInsertRoot => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].cleanup.actions.push(
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place_id(9)),
                 );
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // A binding may not rename a value already live across the boundary.
-        (
-            "unit_continuations[0].bindings[0].parameter::live-value",
-            Box::new(|row| {
+            }
+            // A binding may not rename a value already live across the boundary.
+            Field::BindingsParameterLiveValue => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].bindings[0].parameter = value_id(46);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].bindings[0].argument::unknown-value",
-            Box::new(|row| {
+            }
+            Field::BindingsArgumentUnknownValue => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].bindings[0].argument = value_id(99);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].bindings[0].scalar_type",
-            Box::new(|row| {
+            }
+            Field::BindingsScalarType => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations[0].bindings[0].scalar_type =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations[0].bindings::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::BindingsInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
                 let binding = row.unit_continuations[0].bindings[0];
                 row.unit_continuations[0].bindings.push(binding);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        // Dropping the row strands the zero-byte edge attribution the record
-        // still carries; duplicating it breaks the strict ordinal chain.
-        (
-            "unit_continuations::drop",
-            Box::new(|row| {
+            }
+            // Dropping the row strands the zero-byte edge attribution the record
+            // still carries; duplicating it breaks the strict ordinal chain.
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.unit_continuations.pop();
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-        (
-            "unit_continuations::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::InsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
                 let continuation = row.unit_continuations[0].clone();
                 row.unit_continuations.push(continuation);
-            }),
-            InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: UnitContinuationsFieldForTest| {
+        use UnitContinuationsFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::SourceBlock
+            | Field::TargetBlock
+            | Field::BindingsParameter
+            | Field::BindingsArgument
+            | Field::BindingsInsert
+            | Field::BindingsDrop => InstallationError::ImageBindingMismatch,
+            Field::OperationOrdinal => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::SuccessorOperationOrdinal => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::TargetBlockRevisit => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::CleanupPsiEdge => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::CleanupPsiEdgeReturnedEdge => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::CleanupCodeOffset => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::CleanupByteCount => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::CleanupLocalsInsert => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::CleanupStructuralTypes => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::CleanupActionsInsertResidual => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::CleanupActionsInsertRoot => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::BindingsParameterLiveValue => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::BindingsArgumentUnknownValue => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::BindingsScalarType => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::BindingsInsertDuplicate => {
+                InstallationError::InvalidUnitAffineCleanup(machine_id(1))
+            }
+            Field::Drop => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+            Field::InsertDuplicate => InstallationError::InvalidUnitAffineCleanup(machine_id(1)),
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation unit continuations / record",
+        fields: UnitContinuationsFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Authenticated one-field mutation coverage for the continuation caller's
@@ -5772,136 +5284,89 @@ fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
     let u32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
 
-    // The second parameter is not bound by any continuation: a same-shape
-    // scalar type still satisfies the recomputed caller plan and every join,
-    // so the substitution encodes, decodes exactly, recomputes a distinct
-    // identity, and is rejected by independent replay against the unchanged
-    // image.
-    assert_substitution_rejected_by_replay(
-        "parameter_abi.parameters[1].scalar_type::u32",
-        &record,
-        &image,
-        &authentic_fingerprint,
-        0,
-        |row| {
-            row.parameter_abi
-                .as_mut()
-                .expect("parameter ABI")
-                .parameters[1]
-                .scalar_type = u32_scalar;
-        },
-    );
-
     // Every other leaf is a canonical projection: the caller plan is
     // recomputed from the parameter scalar types, each placement and the
     // distinct value identities rejoin the plan and the spill roster, each
     // spill rejoins its parameter, register, frame offset and code interval,
     // and the continuation bindings rejoin the bound parameter's type.
     let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(1));
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "parameter_abi::drop",
-            Box::new(|row| {
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: ParameterAbiFieldForTest,
+                      _donor: &InstallationRecord| {
+        use ParameterAbiFieldForTest as Field;
+        match field {
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi = None;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.policy",
-            Box::new(|row| {
+            }
+            Field::CallPlanPolicy => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .policy = CallingPolicy::MicrosoftX64;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.parameters::drop",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .parameters
                     .clear();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.parameters::insert",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .parameters
                     .push(register_placement());
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.parameters[0]",
-            Box::new(|row| {
+            }
+            Field::CallPlanParameters => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .parameters[0] = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.parameters[1]",
-            Box::new(|row| {
+            }
+            Field::CallPlanParameters1 => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .parameters[1] = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.parameters::swap",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersSwap => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .parameters
                     .swap(0, 1);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
                 let abi = row.parameter_abi.as_mut().expect("parameter ABI");
                 let placement = abi.call_plan.parameters[0].clone();
                 abi.call_plan.parameters.push(placement);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.result",
-            Box::new(|row| {
+            }
+            Field::CallPlanResult => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .result = Some(register_placement());
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.callback_materializations::insert",
-            Box::new(|row| {
+            }
+            Field::CallPlanCallbackMaterializationsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
@@ -5913,12 +5378,9 @@ fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
                             calling_conventions::NativeParameterId::new(1).expect("parameter"),
                         ),
                     });
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.ordinary_clobbers",
-            Box::new(|row| {
+            }
+            Field::CallPlanOrdinaryClobbers => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
@@ -5926,166 +5388,121 @@ fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
                     .ordinary_clobbers = calling_conventions::RegisterSet::new([
                     calling_conventions::MachineRegister::X86Rbx,
                 ]);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.stack_alignment",
-            Box::new(|row| {
+            }
+            Field::CallPlanStackAlignment => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .stack_alignment = 8;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.shadow_bytes",
-            Box::new(|row| {
+            }
+            Field::CallPlanShadowBytes => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .shadow_bytes = 32;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.call_plan.entry_control",
-            Box::new(|row| {
+            }
+            Field::CallPlanEntryControl => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .call_plan
                     .entry_control = calling_conventions::EntryControl::InterruptReturn;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[0].value",
-            Box::new(|row| {
+            }
+            Field::ParametersValue => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[0]
                     .value = value_id(47);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[0].value::other_parameter",
-            Box::new(|row| {
+            }
+            Field::ParametersValueOtherParameter => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[0]
                     .value = value_id(46);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[0].scalar_type::u32",
-            Box::new(|row| {
+            }
+            Field::ParametersScalarTypeU32 => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[0]
                     .scalar_type = u32_scalar;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[0].scalar_type::i64",
-            Box::new(|row| {
+            }
+            Field::ParametersScalarTypeI64 => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[0]
                     .scalar_type = i64_scalar;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[0].scalar_type::boolean",
-            Box::new(|row| {
+            }
+            Field::ParametersScalarTypeBoolean => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[0]
                     .scalar_type = ScalarType::Boolean;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[0].placement",
-            Box::new(|row| {
+            }
+            Field::ParametersPlacement => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[0]
                     .placement = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[1].value",
-            Box::new(|row| {
+            }
+            Field::Parameters1Value => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[1]
                     .value = value_id(47);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[1].value::other_parameter",
-            Box::new(|row| {
+            }
+            Field::Parameters1ValueOtherParameter => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[1]
                     .value = value_id(45);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[1].scalar_type::i64",
-            Box::new(|row| {
+            }
+            Field::Parameters1ScalarTypeI64 => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[1]
                     .scalar_type = i64_scalar;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[1].scalar_type::boolean",
-            Box::new(|row| {
+            }
+            Field::Parameters1ScalarTypeBoolean => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[1]
                     .scalar_type = ScalarType::Boolean;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters[1].placement",
-            Box::new(|row| {
+            }
+            Field::Parameters1Placement => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters[1]
                     .placement = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters::insert",
-            Box::new(|row| {
+            }
+            Field::ParametersInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
@@ -6095,175 +5512,127 @@ fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
                         scalar_type: i32_scalar(),
                         placement: register_placement(),
                     });
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters::drop",
-            Box::new(|row| {
+            }
+            Field::ParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters
                     .pop();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters::swap",
-            Box::new(|row| {
+            }
+            Field::ParametersSwap => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .parameters
                     .swap(0, 1);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
                 let abi = row.parameter_abi.as_mut().expect("parameter ABI");
                 let parameter = abi.parameters[0].clone();
                 abi.parameters.push(parameter);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[0].source_value",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsSourceValue => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[0]
                     .source_value = value_id(47);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[0].parameter_index",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsParameterIndex => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[0]
                     .parameter_index = 1;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[0].register",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsRegister => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[0]
                     .register = calling_conventions::MachineRegister::X86Rdx;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[0].byte_offset",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsByteOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[0]
                     .byte_offset = 8;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[0].code_offset",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsCodeOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[0]
                     .code_offset += 1;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[0].byte_count",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsByteCount => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[0]
                     .byte_count = 4;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[1].source_value",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpills1SourceValue => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[1]
                     .source_value = value_id(45);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[1].parameter_index",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpills1ParameterIndex => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[1]
                     .parameter_index = 0;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[1].register",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpills1Register => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[1]
                     .register = calling_conventions::MachineRegister::X86Rdx;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[1].byte_offset",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpills1ByteOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[1]
                     .byte_offset = 0;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[1].code_offset",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpills1CodeOffset => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[1]
                     .code_offset += 1;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills[1].byte_count",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpills1ByteCount => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills[1]
                     .byte_count = 6;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills::insert",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsInsert => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
@@ -6276,44 +5645,107 @@ fn installation_function_parameter_abi_rejects_every_one_field_substitution() {
                         code_offset: 14,
                         byte_count: 5,
                     });
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills::drop",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsDrop => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills
                     .pop();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills::swap",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsSwap => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.parameter_abi
                     .as_mut()
                     .expect("parameter ABI")
                     .entry_register_spills
                     .swap(0, 1);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "parameter_abi.entry_register_spills::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::EntryRegisterSpillsInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[0];
                 let abi = row.parameter_abi.as_mut().expect("parameter ABI");
                 let spill = abi.entry_register_spills[0];
                 abi.entry_register_spills.push(spill);
-            }),
-            invalid.clone(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
-    }
+            }
+            // The second parameter is not bound by any continuation: a same-shape
+            // scalar type still satisfies the recomputed caller plan and every join,
+            // so the substitution encodes, decodes exactly, recomputes a distinct
+            // identity, and is rejected by independent replay against the unchanged
+            // image.
+            Field::Parameters1ScalarTypeU32 => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.parameter_abi
+                    .as_mut()
+                    .expect("parameter ABI")
+                    .parameters[1]
+                    .scalar_type = u32_scalar;
+            }
+        }
+    };
+    let outcome = |field: ParameterAbiFieldForTest| {
+        use ParameterAbiFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::Parameters1ScalarTypeU32 => InstallationError::ImageBindingMismatch,
+            Field::Drop => invalid.clone(),
+            Field::CallPlanPolicy => invalid.clone(),
+            Field::CallPlanParametersDrop => invalid.clone(),
+            Field::CallPlanParametersInsert => invalid.clone(),
+            Field::CallPlanParameters => invalid.clone(),
+            Field::CallPlanParameters1 => invalid.clone(),
+            Field::CallPlanParametersSwap => invalid.clone(),
+            Field::CallPlanParametersInsertDuplicate => invalid.clone(),
+            Field::CallPlanResult => invalid.clone(),
+            Field::CallPlanCallbackMaterializationsInsert => invalid.clone(),
+            Field::CallPlanOrdinaryClobbers => invalid.clone(),
+            Field::CallPlanStackAlignment => invalid.clone(),
+            Field::CallPlanShadowBytes => invalid.clone(),
+            Field::CallPlanEntryControl => invalid.clone(),
+            Field::ParametersValue => invalid.clone(),
+            Field::ParametersValueOtherParameter => invalid.clone(),
+            Field::ParametersScalarTypeU32 => invalid.clone(),
+            Field::ParametersScalarTypeI64 => invalid.clone(),
+            Field::ParametersScalarTypeBoolean => invalid.clone(),
+            Field::ParametersPlacement => invalid.clone(),
+            Field::Parameters1Value => invalid.clone(),
+            Field::Parameters1ValueOtherParameter => invalid.clone(),
+            Field::Parameters1ScalarTypeI64 => invalid.clone(),
+            Field::Parameters1ScalarTypeBoolean => invalid.clone(),
+            Field::Parameters1Placement => invalid.clone(),
+            Field::ParametersInsert => invalid.clone(),
+            Field::ParametersDrop => invalid.clone(),
+            Field::ParametersSwap => invalid.clone(),
+            Field::ParametersInsertDuplicate => invalid.clone(),
+            Field::EntryRegisterSpillsSourceValue => invalid.clone(),
+            Field::EntryRegisterSpillsParameterIndex => invalid.clone(),
+            Field::EntryRegisterSpillsRegister => invalid.clone(),
+            Field::EntryRegisterSpillsByteOffset => invalid.clone(),
+            Field::EntryRegisterSpillsCodeOffset => invalid.clone(),
+            Field::EntryRegisterSpillsByteCount => invalid.clone(),
+            Field::EntryRegisterSpills1SourceValue => invalid.clone(),
+            Field::EntryRegisterSpills1ParameterIndex => invalid.clone(),
+            Field::EntryRegisterSpills1Register => invalid.clone(),
+            Field::EntryRegisterSpills1ByteOffset => invalid.clone(),
+            Field::EntryRegisterSpills1CodeOffset => invalid.clone(),
+            Field::EntryRegisterSpills1ByteCount => invalid.clone(),
+            Field::EntryRegisterSpillsInsert => invalid.clone(),
+            Field::EntryRegisterSpillsDrop => invalid.clone(),
+            Field::EntryRegisterSpillsSwap => invalid.clone(),
+            Field::EntryRegisterSpillsInsertDuplicate => invalid.clone(),
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation parameter abi / record",
+        fields: ParameterAbiFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Authenticated one-field mutation coverage for a scalar-cleanup row's
@@ -6349,36 +5781,35 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
     let u32_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).expect("i64"));
 
-    let still_encodes: Vec<(&'static str, Box<dyn Fn(&mut InstalledFunction)>)> = vec![
-        (
-            "mixed_structural_scalar_abi::drop",
-            Box::new(|row| {
+    let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(3));
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: MixedAbiFieldForTest,
+                      _donor: &InstallationRecord| {
+        use MixedAbiFieldForTest as Field;
+        match field {
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi = None;
-            }),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters[0].value",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersValue => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters[0]
                     .value = value_id(59);
-            }),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters[0].scalar_type::u32",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersScalarTypeU32 => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters[0]
                     .scalar_type = u32_scalar;
-            }),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].projected_qualifications::insert",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersProjectedQualificationsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
@@ -6388,138 +5819,90 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
                         path: vec![StructuralPathSegment::Field("projected".to_string())],
                         domain: semantic_vocabulary::StructuralDomainId::new(1).expect("domain"),
                     });
-            }),
-        ),
-        (
-            "mixed_structural_scalar_abi.result.value",
-            Box::new(|row| {
+            }
+            Field::ResultValue => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .result
                     .value = value_id(59);
-            }),
-        ),
-        (
-            "mixed_structural_scalar_abi.result.scalar_type::u32",
-            Box::new(|row| {
+            }
+            Field::ResultScalarTypeU32 => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .result
                     .scalar_type = u32_scalar;
-            }),
-        ),
-    ];
-    for (field, mutate) in still_encodes {
-        assert_substitution_rejected_by_replay(
-            field,
-            &record,
-            &image,
-            &authentic_fingerprint,
-            2,
-            mutate,
-        );
-    }
-
-    let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(3));
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "mixed_structural_scalar_abi.call_plan.policy",
-            Box::new(|row| {
+            }
+            Field::CallPlanPolicy => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .policy = CallingPolicy::MicrosoftX64;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.parameters::drop",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .parameters
                     .clear();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.parameters::insert",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .parameters
                     .push(register_placement());
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.parameters[0]",
-            Box::new(|row| {
+            }
+            Field::CallPlanParameters => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .parameters[0] = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.parameters[1]",
-            Box::new(|row| {
+            }
+            Field::CallPlanParameters1 => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .parameters[1] = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.parameters::swap",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersSwap => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .parameters
                     .swap(0, 1);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::CallPlanParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let abi = row.mixed_structural_scalar_abi.as_mut().expect("mixed ABI");
                 let placement = abi.call_plan.parameters[0].clone();
                 abi.call_plan.parameters.push(placement);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.result",
-            Box::new(|row| {
+            }
+            Field::CallPlanResult => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .result = None;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.callback_materializations::insert",
-            Box::new(|row| {
+            }
+            Field::CallPlanCallbackMaterializationsInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
@@ -6531,12 +5914,9 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
                             calling_conventions::NativeParameterId::new(1).expect("parameter"),
                         ),
                     });
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.ordinary_clobbers",
-            Box::new(|row| {
+            }
+            Field::CallPlanOrdinaryClobbers => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
@@ -6544,89 +5924,65 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
                     .ordinary_clobbers = calling_conventions::RegisterSet::new([
                     calling_conventions::MachineRegister::X86Rbx,
                 ]);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.stack_alignment",
-            Box::new(|row| {
+            }
+            Field::CallPlanStackAlignment => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .stack_alignment = 8;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.shadow_bytes",
-            Box::new(|row| {
+            }
+            Field::CallPlanShadowBytes => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .shadow_bytes = 32;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.call_plan.entry_control",
-            Box::new(|row| {
+            }
+            Field::CallPlanEntryControl => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .call_plan
                     .entry_control = calling_conventions::EntryControl::InterruptReturn;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters[0].value::result_collision",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersValueResultCollision => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters[0]
                     .value = value_id(49);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters[0].scalar_type::i64",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersScalarTypeI64 => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters[0]
                     .scalar_type = i64_scalar;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters[0].scalar_type::boolean",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersScalarTypeBoolean => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters[0]
                     .scalar_type = ScalarType::Boolean;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters[0].placement",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersPlacement => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters[0]
                     .placement = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters::insert",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
@@ -6636,98 +5992,71 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
                         scalar_type: i32_scalar(),
                         placement: register_placement(),
                     });
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters::drop",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .scalar_parameters
                     .clear();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.scalar_parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::ScalarParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let abi = row.mixed_structural_scalar_abi.as_mut().expect("mixed ABI");
                 let parameter = abi.scalar_parameters[0].clone();
                 abi.scalar_parameters.push(parameter);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].place",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersPlace => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters[0]
                     .place = place_id(9);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].structural_type",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersStructuralType => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters[0]
                     .structural_type = structural_type(9);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].multiplicity",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersMultiplicity => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters[0]
                     .multiplicity = StructuralMultiplicity::Unrestricted;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].access",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersAccess => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters[0]
                     .access = StructuralAccess::SharedBorrow;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].shape",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersShape => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters[0]
                     .shape = ValueShape::integer(8, 8);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters[0].placement",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersPlacement => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters[0]
                     .placement = register_placement();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters::insert",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersInsert => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
@@ -6741,54 +6070,39 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
                         shape: ValueShape::integer(0, 1),
                         placement: empty_placement(),
                     });
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters::drop",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersDrop => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .structural_parameters
                     .clear();
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.structural_parameters::insert-duplicate",
-            Box::new(|row| {
+            }
+            Field::StructuralParametersInsertDuplicate => {
+                let row = &mut record.functions_mut_for_test()[2];
                 let abi = row.mixed_structural_scalar_abi.as_mut().expect("mixed ABI");
                 let parameter = abi.structural_parameters[0].clone();
                 abi.structural_parameters.push(parameter);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.result.scalar_type::i64",
-            Box::new(|row| {
+            }
+            Field::ResultScalarTypeI64 => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .result
                     .scalar_type = i64_scalar;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.result.scalar_type::boolean",
-            Box::new(|row| {
+            }
+            Field::ResultScalarTypeBoolean => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .result
                     .scalar_type = ScalarType::Boolean;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.result.placement",
-            Box::new(|row| {
+            }
+            Field::ResultPlacement => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
@@ -6801,24 +6115,73 @@ fn installation_function_mixed_abi_rejects_every_one_field_substitution() {
                         byte_size: 4,
                     }],
                 };
-            }),
-            invalid.clone(),
-        ),
-        (
-            "mixed_structural_scalar_abi.result.value::parameter_collision",
-            Box::new(|row| {
+            }
+            Field::ResultValueParameterCollision => {
+                let row = &mut record.functions_mut_for_test()[2];
                 row.mixed_structural_scalar_abi
                     .as_mut()
                     .expect("mixed ABI")
                     .result
                     .value = value_id(51);
-            }),
-            invalid.clone(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 2, mutate, expected);
-    }
+            }
+        }
+    };
+    let outcome = |field: MixedAbiFieldForTest| {
+        use MixedAbiFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::Drop
+            | Field::ScalarParametersValue
+            | Field::ScalarParametersScalarTypeU32
+            | Field::StructuralParametersProjectedQualificationsInsert
+            | Field::ResultValue
+            | Field::ResultScalarTypeU32 => InstallationError::ImageBindingMismatch,
+            Field::CallPlanPolicy => invalid.clone(),
+            Field::CallPlanParametersDrop => invalid.clone(),
+            Field::CallPlanParametersInsert => invalid.clone(),
+            Field::CallPlanParameters => invalid.clone(),
+            Field::CallPlanParameters1 => invalid.clone(),
+            Field::CallPlanParametersSwap => invalid.clone(),
+            Field::CallPlanParametersInsertDuplicate => invalid.clone(),
+            Field::CallPlanResult => invalid.clone(),
+            Field::CallPlanCallbackMaterializationsInsert => invalid.clone(),
+            Field::CallPlanOrdinaryClobbers => invalid.clone(),
+            Field::CallPlanStackAlignment => invalid.clone(),
+            Field::CallPlanShadowBytes => invalid.clone(),
+            Field::CallPlanEntryControl => invalid.clone(),
+            Field::ScalarParametersValueResultCollision => invalid.clone(),
+            Field::ScalarParametersScalarTypeI64 => invalid.clone(),
+            Field::ScalarParametersScalarTypeBoolean => invalid.clone(),
+            Field::ScalarParametersPlacement => invalid.clone(),
+            Field::ScalarParametersInsert => invalid.clone(),
+            Field::ScalarParametersDrop => invalid.clone(),
+            Field::ScalarParametersInsertDuplicate => invalid.clone(),
+            Field::StructuralParametersPlace => invalid.clone(),
+            Field::StructuralParametersStructuralType => invalid.clone(),
+            Field::StructuralParametersMultiplicity => invalid.clone(),
+            Field::StructuralParametersAccess => invalid.clone(),
+            Field::StructuralParametersShape => invalid.clone(),
+            Field::StructuralParametersPlacement => invalid.clone(),
+            Field::StructuralParametersInsert => invalid.clone(),
+            Field::StructuralParametersDrop => invalid.clone(),
+            Field::StructuralParametersInsertDuplicate => invalid.clone(),
+            Field::ResultScalarTypeI64 => invalid.clone(),
+            Field::ResultScalarTypeBoolean => invalid.clone(),
+            Field::ResultPlacement => invalid.clone(),
+            Field::ResultValueParameterCollision => invalid.clone(),
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation mixed abi / record",
+        fields: MixedAbiFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }
 
 /// Authenticated one-field mutation coverage for the caller's retained
@@ -6847,96 +6210,92 @@ fn installation_function_structural_call_scalar_return_rejects_every_one_field_s
     assert_eq!(returned.source_value, value_id(80));
     assert_eq!(returned.callee, machine_id(2));
 
-    assert_substitution_rejected_by_replay(
-        "structural_call_scalar_return::drop",
-        &record,
-        &image,
-        &authentic_fingerprint,
-        0,
-        |row| {
-            row.structural_call_scalar_return = None;
-        },
-    );
-
     let invalid = InstallationError::InvalidUnitAffineCleanup(machine_id(1));
-    let rejected: Vec<(
-        &'static str,
-        Box<dyn Fn(&mut InstalledFunction)>,
-        InstallationError,
-    )> = vec![
-        (
-            "structural_call_scalar_return.psi_edge",
-            Box::new(|row| {
+
+    let substitute = |record: &mut InstallationRecord,
+                      field: StructuralCallScalarReturnFieldForTest,
+                      _donor: &InstallationRecord| {
+        use StructuralCallScalarReturnFieldForTest as Field;
+        match field {
+            Field::PsiEdge => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .psi_edge = edge_id(8);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "structural_call_scalar_return.psi_operation",
-            Box::new(|row| {
+            }
+            Field::PsiOperation => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .psi_operation = operation_id(9);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "structural_call_scalar_return.source_value",
-            Box::new(|row| {
+            }
+            Field::SourceValue => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .source_value = value_id(9);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "structural_call_scalar_return.scalar_type::u32",
-            Box::new(|row| {
+            }
+            Field::ScalarTypeU32 => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .scalar_type =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
-            }),
-            invalid.clone(),
-        ),
-        (
-            "structural_call_scalar_return.scalar_type::boolean",
-            Box::new(|row| {
+            }
+            Field::ScalarTypeBoolean => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .scalar_type = ScalarType::Boolean;
-            }),
-            invalid.clone(),
-        ),
-        (
-            "structural_call_scalar_return.callee::unknown",
-            Box::new(|row| {
+            }
+            Field::CalleeUnknown => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .callee = machine_id(9);
-            }),
-            invalid.clone(),
-        ),
-        (
-            "structural_call_scalar_return.callee::caller",
-            Box::new(|row| {
+            }
+            Field::CalleeCaller => {
+                let row = &mut record.functions_mut_for_test()[0];
                 row.structural_call_scalar_return
                     .as_mut()
                     .expect("scalar return")
                     .callee = machine_id(1);
-            }),
-            invalid.clone(),
-        ),
-    ];
-    for (field, mutate, expected) in rejected {
-        assert_substitution_rejected_at_encoding(field, &record, 0, mutate, expected);
-    }
+            }
+            Field::Drop => {
+                let row = &mut record.functions_mut_for_test()[0];
+                row.structural_call_scalar_return = None;
+            }
+        }
+    };
+    let outcome = |field: StructuralCallScalarReturnFieldForTest| {
+        use StructuralCallScalarReturnFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::Drop => InstallationError::ImageBindingMismatch,
+            Field::PsiEdge => invalid.clone(),
+            Field::PsiOperation => invalid.clone(),
+            Field::SourceValue => invalid.clone(),
+            Field::ScalarTypeU32 => invalid.clone(),
+            Field::ScalarTypeBoolean => invalid.clone(),
+            Field::CalleeUnknown => invalid.clone(),
+            Field::CalleeCaller => invalid.clone(),
+        })
+    };
+    let check = nested_custody_check(&image, &authentic_fingerprint);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation structural call scalar return / record",
+        fields: StructuralCallScalarReturnFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_forwarded_parameter_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 }

@@ -192,13 +192,28 @@ pub(crate) fn provider_attachment_receiver_matches(
         }
         typed_trees::service::exact_bound_service_requirement(program, field.type_reference)
             == Some(provider_symbol)
-            || matches!(
-                program
-                    .type_reference_table
-                    .type_reference(field.type_reference),
-                TypeReferenceNode::Named { symbol, .. }
-                    | TypeReferenceNode::DynamicTrait { symbol, .. }
-                    if *symbol == provider_symbol
-            )
+            || {
+                // The provider field is spelled `&'a mut <boundary trait>`:
+                // unwrap the mutable borrow (and qualifications) to the
+                // trait symbol. A shared `&` borrow is not a provider handle.
+                let mut unwrapped = field.type_reference;
+                loop {
+                    match program.type_reference_table.type_reference(unwrapped) {
+                        TypeReferenceNode::Constrained {
+                            base_type: inner, ..
+                        } => unwrapped = *inner,
+                        TypeReferenceNode::Reference {
+                            referee: inner,
+                            access: language_core::ReferenceAccess::Mutable,
+                            ..
+                        } => unwrapped = *inner,
+                        TypeReferenceNode::Named { symbol, .. }
+                        | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+                            break *symbol == provider_symbol;
+                        }
+                        _ => break false,
+                    }
+                }
+            }
     })
 }

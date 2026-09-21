@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("asm-port-in-unsettled");
+    builder.freestanding = true;
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

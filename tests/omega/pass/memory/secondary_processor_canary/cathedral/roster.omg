@@ -8,8 +8,10 @@
 // critical-stack class each one's arrivals account onto, the private
 // stack demand each entry may use, and the private state extent each
 // account holds; plus the provider-declared startup geometry — the
-// installed trampoline's content, its alignment, and the bound of the
-// low-memory region the startup vector must land inside.
+// installed trampoline's required alignment and the bound of the
+// low-memory region the startup vector must land inside. The
+// trampoline's byte content is compiler-emitted code, not authored
+// data.
 //
 // `declare` is evaluated at build time, so the roster is ordinary
 // authored source, not compiler-held fixture: the compiler test
@@ -30,12 +32,12 @@ pub data SecondaryProcessorSlot {
 
 // The package's complete startup declaration: the secondary-processor
 // roster beside the profile constants the provider's installed
-// trampoline binds — the trampoline content itself (the authored bytes
-// the supervisor installs at the startup vector), its required
-// alignment, and the exclusive bound of the low-memory startup region.
+// trampoline binds — its required startup-vector alignment and the
+// exclusive bound of the low-memory startup region. The trampoline
+// bytes themselves are emitted by the compiler from the contract's
+// sealed inputs, so the declaration carries no code.
 pub data SecondaryProcessorStartup {
     processors: [SecondaryProcessorSlot; 2];
-    trampoline_bytes: [u8; 16];
     startup_alignment: u64;
     low_memory_limit: u64;
 }
@@ -53,33 +55,10 @@ pub machine SecondaryProcessorStartup::declare() -> SecondaryProcessorStartup {
         stack_class: 14, stack_bytes: 2048, stack_alignment: 256,
         state_bytes: 4096,
     };
-    let mut trampoline: [u8; 16];
-    // The authored startup trampoline's content: the bytes the
-    // supervisor installs at the startup vector — the first fetch the
-    // arriving processor takes. The ledger's acceptance is custody,
-    // not instruction decoding; the test asserts these exact authored
-    // bytes are visible at the installed entry offset.
-    trampoline[0] = 250;
-    trampoline[1] = 244;
-    trampoline[2] = 0;
-    trampoline[3] = 0;
-    trampoline[4] = 251;
-    trampoline[5] = 244;
-    trampoline[6] = 0;
-    trampoline[7] = 0;
-    trampoline[8] = 235;
-    trampoline[9] = 254;
-    trampoline[10] = 0;
-    trampoline[11] = 0;
-    trampoline[12] = 195;
-    trampoline[13] = 0;
-    trampoline[14] = 0;
-    trampoline[15] = 0;
     // The startup region: page-aligned trampoline under the megabyte
     // bound the supervisor's low-memory window reserves.
     SecondaryProcessorStartup {
         processors: slots,
-        trampoline_bytes: trampoline,
         startup_alignment: 4096,
         low_memory_limit: 1048576,
     }

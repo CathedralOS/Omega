@@ -29,8 +29,8 @@ pub use proof_admission::AdmissionProfile;
 
 use crate::component_description::{
     ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
-    InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract, ExportSurface,
+    ImportSlot, InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
     ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
     component_description_identity, decode_component_description, derive_component_inventory, hex,
     requirement_contract_identity, requirement_export_identity,
@@ -284,6 +284,9 @@ pub struct VerifiedComponent {
     description_identity: [u8; 32],
     closure: [u8; 32],
     module: TerminalModule,
+    /// The verified export roster's join contracts, re-derived from the
+    /// module at admission — never read from the description bytes.
+    export_contracts: Vec<ExportContract>,
 }
 
 impl VerifiedComponent {
@@ -325,6 +328,16 @@ impl VerifiedComponent {
 
     pub fn exports(&self) -> &[ExportSurface] {
         &self.description.exports
+    }
+
+    /// The join contract of every export surface, in the same canonical
+    /// order as [`Self::exports`]. A requirement export's contract is the
+    /// offered requirement's `requirement_contract_identity` — the same
+    /// digest a demanded `ImportSlot::contract_identity` carries — so a
+    /// consumer joins demand to supply by equality without parsing the
+    /// surface's opaque identity string.
+    pub fn export_contracts(&self) -> &[ExportContract] {
+        &self.export_contracts
     }
 
     /// Every possible entry into the component.
@@ -694,6 +707,7 @@ pub fn verify_component(
         description_identity,
         closure,
         module,
+        export_contracts: inventory.export_contracts,
     })
 }
 
@@ -744,9 +758,9 @@ fn check_exports(
     inventory: &crate::component_description::DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
     let derived: BTreeSet<&str> = inventory
-        .exports
+        .export_contracts
         .iter()
-        .map(|export| export.identity.as_str())
+        .map(|contract| contract.identity.as_str())
         .collect();
     for export in &description.exports {
         if !derived.contains(export.identity.as_str()) {
