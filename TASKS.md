@@ -744,6 +744,50 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   the separate-tool route required by the spec; do not infer publication,
   confinement, or usability from observation-only tests.
 
+## Requirement-based tests
+
+Implement [the settled testing contract](wiki/spec/build/testing.md) through
+ordinary requirements, Build selections, and verified Terminal Psi execution.
+No test attribute, special method name, test-only calling mode, or parallel
+compiler pipeline. The [guide](wiki/language_guide/chapter_23_testing.md) gives
+the source shape; these items track implementation, not further design.
+
+- **BUILD-TEST-GROUPS.** (new-scope) Deliver the service-free end-to-end path:
+  `builder.tests.group<ExactRequirement>()`, normalized group enablement,
+  package-local concrete satisfaction discovery, separate runner roots, and
+  Terminal Psi execution gating successful build publication. Own registration
+  in `omega-rust/omega/build/`, compose existing Psi production/verification and
+  interpretation through `omega-rust/omega/compiler/`, and report invocation
+  outcomes through the normal compile result. Preserve exact product-reference
+  identity, private visibility, and source/target provenance; do not discover by
+  strings or infer generic applications. Add the optional ordinary std testing
+  requirement without compiler recognition or an implicit dependency.
+  Acceptance: an ordinary project build discovers two tests without per-test
+  registration; a failing check prevents publication; disabling its group reports
+  not-run; a second requirement in the same trait stays a distinct group.
+  Cover duplicate/inherited-identity registration, non-runnable signatures,
+  unresolved generics, dependency non-discovery, and exhaustion versus failure.
+  Run a no-std project. Application Psi/native output excludes test-only roots,
+  while an ordinary native harness can explicitly call a visible test machine.
+  Receiver/service execution remains fail-closed until BUILD-TEST-AUTHORITY;
+  isolated discovery or interpreter helper tests do not close this item.
+
+- **BUILD-TEST-AUTHORITY.** (split-of:BUILD-TEST-GROUPS) Extend that same project
+  path with group-scoped providers, ordinary provisioned test receivers, fresh
+  mock state, and restricted-test review before execution. Owners are existing
+  Build/provider and entry-establishment code, package review/lock acceptance,
+  the Terminal interpreter's service boundary, and compiler publication. Reuse
+  their authority and custody rules; do not put build policy in constant-evaluator
+  admission or add a second approval file. Acceptance: two tests receive fresh
+  virtual filesystems and genuine established Service fields; missing bindings
+  reject. A child requesting host filesystem/network/process access cannot widen
+  the root grant or escape virtual backing. Install/update surfaces new test
+  requests, locked builds cannot approve them, and acceptance without an executor
+  grant still rejects. Test selected-provider and target mismatches, unsupported
+  execution with no native fallback, disabled-to-enabled rechecking, and crash
+  containment without invented unwind/rollback. Production provider selection
+  and emitted application roots remain unchanged by mock configuration.
+
 ## Build-level behavior exclusions
 
 Implement [the accepted exclusion contract](wiki/spec/build/behavior_exclusions.md)

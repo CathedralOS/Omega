@@ -197,11 +197,12 @@ explicit boundary. Ordinary imports, calls, and generic applications in build
 helpers always resolve in the build context. They never fall back to product
 names when lookup fails.
 
-Retain the existing toolchain operations with designated product operands:
+Toolchain operations have designated product operands:
 
 ```omega
 builder.roots.bind(windows_x86_64::ProgramEntry, Application::start);
 builder.select_provider<windows_x86_64::Console, TestConsole>();
+_ = builder.tests.group<Tests::memory>();
 ```
 
 Only those declaration-reference operands are resolved in the product context,
@@ -211,6 +212,13 @@ as admitted Build operations. No product receiver, function body, initializer,
 or provider is executed. A user-defined same-named method or generic helper gets
 no special resolution. This extends the existing "selection is not invocation"
 rule, not general syntax quotation or an exception to ordinary call checking.
+
+[Test-group registration](testing.md#registration-and-discovery) selects one exact
+product requirement; its group-scoped `service` operands select ordinary
+product service/provider declarations under the same rules. Build execution
+does not invoke the selected tests. The later runner discovers checked local
+satisfiers, admits their separate execution authority, and invokes them.
+This adds no general private-symbol enumeration API to build helpers.
 
 For reusable build helpers, expose owned typed descriptions through the existing
 Build facet: `ProductEntryRef`, `ProductProviderRef`, and `ProductTypeSchema` are
