@@ -10691,6 +10691,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **D-SCALAR-OPERATION-CLOSURE.** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER.** — mined candidate; verify scope then implement.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE.** — mined candidate; scope verified
+||||||| parent of ac52c711731c (board: DELTA-EVALUATOR-EXHAUSTION-TRIAGE resolved — exhaustion_triage.py landed)
+- **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
+- **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
+- **DELTA-COMPILER** — mined candidate; verify scope then implement.
+- **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
+- **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; scope verified
+- **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
+- **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
+- **DELTA-COMPILER** — mined candidate; verify scope then implement.
+- **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
+- **DELTA-EVALUATOR-EXHAUSTION-TRIAGE.** Resolved — re-mines the
+  evaluator-exhaustion triage clause of the DELTA-COMPILER discipline
+  (TASKS_BOOTSTRAP.md:262: trace a witnessed evaluator exhaustion's
+  allocation owner and observation contract first), already landed as
+  `tools/bootstrap/delta/exhaustion_triage.py` at `9c5a839dff` — the
+  DELTA-EXHAUSTION-ATTRIBUTION row (:6344). Bare evaluator statuses
+  (132/248..254, empty-stdout 3 census preflight, empty-stdout 1 invalid
+  Gamma source) classify evaluator-owned; canonical 40-byte DCOUT frames
+  classify compiler-owned; a host watchdog kill attributes to the host.
+  Verified on this host: `--self-check` reports 17/17 classifications
+  agree. No independent slice — the tool is an investigation entry
+  point, and `tests/delta` + `bootstrap/3_delta` sit under the
+  DELTA-COMPILER claim (exp 09:51Z).
+- **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; scope verified
   2026-09-20 (z180): re-mines the DELTA-COMPILER checkpoint leg "both measured
   stress families refuse in existing rows before post-frontend allocation is
   stressed" (TASKS_BOOTSTRAP.md) — the arithmetic probe ends in resource 7
