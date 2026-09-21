@@ -6831,7 +6831,20 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 Omega-side / native:
 
 - **X86-FMA-PROVIDER-TRANSPORT.** x86 FMA provider transport (mined by 7 independent legs — highest-consensus gap).
-  Upstream custody leg restored (branch `zergling/z132-fma-provider-transport`):
+  Re-verified at `3f5e37a0b6` for the FMA-PROVIDER-TRANSPORT dispatch
+  (another re-mine of this row): the upstream custody leg is now merged on
+  main — `5101c726a1` landed the requirement-use lane (`From<&CheckedNamed
+  RequirementUseFact> for SelectedFmaUse` feeds both fact lanes into the
+  one demand view at
+  `provider-planning/src/x86_fma_plan_association/mod.rs:371`). The
+  remaining legs (a)-(c) below are unchanged and currently fenced:
+  Jarod's X86-FMA-PROVIDER-TRANSPORT claim (swarm-w9, exp 09:07Z) holds
+  `target-operations-to-selected-instructions/src/legalization` +
+  `target/control_flow/sources.rs`, i.e. leg (a)'s exact implementing
+  surface; legs (b)/(c) downstream carry + fence removals stay blocked
+  behind it. No separable slice on this host.
+  Upstream custody leg restored (landed `5101c726a1`; previously noted
+  on branch `zergling/z132-fma-provider-transport`):
   `bind_checked_x86_scalar_fma_plan_associations` scanned only
   `named_uses()`, so requirement-spelled `F32::/F64::fused_multiply_add`
   calls — `CheckedNamedRequirementUseFact`s — produced zero associations and
