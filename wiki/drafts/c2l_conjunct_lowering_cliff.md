@@ -93,3 +93,12 @@ The unreduced fixture terminates with a verdict under an ordinary test
 timeout, with no obligation abandoned — the repair is algorithmic and the
 traced producer calls still return their proofs — and a `--no-fail-fast`
 `checked-trees-to-lowered-psi` run reports no SIGTERM member.
+
+## Re-verification
+
+Re-checked at `3a82039327` (linux x86-64): no commit has touched either
+anchor file since the design doc's `f9efadbb493e` re-verification.
+`transport_certified` still clones the whole `Equal(Value, _)` roster into
+both per-arm certificates (`conditions.rs` ~:71-84), so hotspot 2 — the only
+centre that changes the asymptotics — remains the open residual exactly as
+recorded.
