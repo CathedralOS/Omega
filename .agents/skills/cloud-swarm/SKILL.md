@@ -220,6 +220,29 @@ SWE-2 Max and never plan.
   crates, `push -f origin HEAD:<lane>`; report `resolved` or `unresolvable`
   (pure duplicate of main → the coordinator prunes the ref). Resolved lanes
   merge on the next cycle instead of being lost to `merge --abort`.
+- **Resolve at the source, not in the queue.** Two resolvers clear ~1 lane per
+  cycle; a 200-worker pool can conflict 80 lanes in an hour, so the queue only
+  grows. The worker prompt therefore requires `git fetch && git rebase
+  origin/main` immediately before `push -f`, with the worker resolving its own
+  conflicts (it has the intent context) and re-running its scoped check. The
+  Overlord queue is the fallback for lanes that still conflict when merged.
+- **Reviewer `duplicate_lanes` are advisory, never authoritative.** Reviewers
+  get the resolve queue and may list lanes whose content "already landed via a
+  sibling". Every one checked so far still differed from main in non-board
+  files (e.g. 11 of 26 files), so the coordinator MUST run its own guard before
+  deleting: `git diff --name-only origin/main...origin/<lane>`, drop board paths
+  (`TASKS.md`, `build/swarm/`, `tools/claims`), then `git diff --quiet
+  origin/main origin/<lane> -- <rest>`; prune only when that is clean or the
+  lane is board-only. A guard refusal keeps the lane queued.
+- **Verdict JSON must survive truncation.** Overlords often post the JSON
+  unfenced after a long prose tail, so the parser must accept a fenced block OR
+  a raw `{"result":"review"...}` object via `raw_decode`, with a regex fallback
+  for `leaves` / `retire` / `duplicate_lanes`. Ask for <3KB JSON with
+  `duplicate_lanes` first and ≤3 followups.
+- **Print `merge/ready` every cycle** (`merged / branch_ready`, plus
+  `dup_pruned` and queue depth). Observed 12–40%; the gap is almost entirely the
+  conflict queue. It is operational telemetry, not a quality measure — a lane
+  that merged green is not a lane that was reviewed.
 - **Overlord legs are refire-gated like workers**: only send the next leg
   after the session produced output past the last fire timestamp. Dedupe
   verdicts by `(session, result, item/lane, commit, timestamp)` — tails
