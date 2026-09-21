@@ -46,9 +46,7 @@ pub(crate) fn verify(checked: &CheckedTrees) -> Result<(), LoweringError> {
         // handoff keeps its claim across a call boundary. Loans settle as
         // Establish/Consume pairs and discharged affine moves carry no
         // obligation at all, so this holds for every kind at every source.
-        if event.obligation_live
-            && event.claim_identity == PermissionClaimIdentity::Unknown
-        {
+        if event.obligation_live && event.claim_identity == PermissionClaimIdentity::Unknown {
             return Err(LoweringError::Unsupported(
                 "checked permission event carries a live obligation without an identified claim",
             ));
@@ -88,13 +86,11 @@ mod tests {
         )
         .unwrap();
         let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .unwrap();
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
     }
 
-    const SOURCE: &str =
-        "data Record { first: u64; second: u64; }
+    const SOURCE: &str = "data Record { first: u64; second: u64; }
          machine retain(record: Record) -> Record { record }";
 
     // A well-formed owned move at a declared machine/state: each test swaps a
@@ -307,8 +303,7 @@ mod tests {
             },
         ] {
             let mut checked = checked(SOURCE);
-            let event =
-                forged_event(&checked, PermissionEventKind::Transfer, source);
+            let event = forged_event(&checked, PermissionEventKind::Transfer, source);
             checked.facts.flow.ownership.permissions.insert(event);
             verify(&checked).expect("an owned affine/linear transfer verifies");
         }
