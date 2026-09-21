@@ -11761,7 +11761,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, re-verified at `f44a1177ed` (all four mechanisms unchanged), no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; residual slice
-  implemented on branch `zergling/z161-program-entry-selection-exactness`.
+  LANDED on main as `c17107578f` ("omega: dispatch interpreted program entry
+  by bound symbol", originally `zergling/z161-program-entry-selection-exactness`);
+  re-verified at `0a0662ad27`: `interpret_entry_symbol` is exported at
+  checked-interpreter `lib.rs:142` and consumed at
+  `omega/src/execution/compilation.rs:82`, witness
+  `module_namespaces::selected_program_entry_dispatches_by_exact_symbol_not_spelling`
+  present at `module_namespaces.rs:660`.
   Scope verified: per-slot/per-schema selection already resolves the bound
   machine to its exact symbol under the binding occurrence's lexical package
   (`selected_program_entry_machine` + `source_signature().machine_symbol()`);
