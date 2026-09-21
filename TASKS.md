@@ -8296,6 +8296,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DEPENDENCY-FREE-MEASURABLE-SUBJECT (subject landed `3dd805679c`),
   BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT, BENCHMARK-MEASURABLE-SUBJECT-CORPUS,
   BENCHMARK-STANDALONE-SUBJECT.
+  Correction (z177, `e7c0099cb2`, linux x86-64): the `--no-run` conclusion
+  is stale — `wrapping_square_sum` (depend-free, `3dd805679c`) produced a
+  measured runtime row at
+  `tools/benchmark/records/wrapping_square_sum__linux_x86_64__default.json`
+  (5 exit-0 samples, median 4.37554 ms, published 8192 B artifact), so a
+  depend-free subject's process does complete through a route the two
+  joined gates above did not cover. The provider-authority analysis may
+  still describe depend-free subjects that need `ProcessExit` explicitly;
+  this subject's entry evidently does not.
 - **DEPENDENT-RELATIONAL-PROOFS-VIEWS.** — mined candidate; scope verified at
   `ded56393da`: re-mines the same chapter_12 sentence as resolved sibling
   **DEPENDENT-RELATIONAL-PROOF-SUPPORT** (this section) — "implementation
