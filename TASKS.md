@@ -10179,6 +10179,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   dependency gate is what holds: the leg cannot start until
   RUNTIME-VALUE-GENERICS lands the value-binder machinery the roster
   membership proof runs on — still an open row with no live claim.
+- **GENERIC-VIRTUAL-DISPATCH.** Resolved — scope verified: sibling
+  re-mine of the same GENERIC-VIRTUAL-CALLS bullet (recorded in its
+  sibling-stub roster above) — a `Value` argument proven a roster
+  member selects its closed row through generated dispatch, an
+  unproven argument rejects. Re-audited at `82741ec439` (linux x86-64):
+  the gate picture is unchanged in kind — RUNTIME-VALUE-GENERICS is
+  still an open row (native call/storage routes and the stale-guard
+  contract check remain listed), and no live claim fences
+  `dynamic_scalar_calls/` or `monomorphization/dynamic_families.rs`.
+  In the interim the value-binder machinery has visibly advanced
+  (`compiler/tests/runtime_value_generics.rs` replays bound subjects
+  sharing one dynamic body) and the selection side still resolves
+  closed rows via `dynamic_family_tuple` + normalized row identities
+  (`scalar_call_plans.rs`), but the specific leg this stub names —
+  runtime `Value` argument proven a roster member — is not landed and
+  is owned by FINITE-GENERIC-DISPATCH's remaining-work bullet. No
+  independent slice.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
   "region alignment/expansion" parity gap). Resolved — the gap is already
