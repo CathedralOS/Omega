@@ -170,6 +170,26 @@ implementation remains within the unfinished ledger-framework dependency;
 this implementation revision does not claim a proved universal composition
 theorem or change the accepting trust policy.
 
+**Implementation status (re-verified `e63f703bc53f`, linux x86-64):** the
+cyclic controls above have checked equivalents on the source path.
+`typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets
+multi-predecessor joins by intersection — a fact holds at a join's entry only
+when every incoming edge carries it — and declines loop-header bounds to the
+invariant pass. `checks/ranges/loop_invariants.rs` (`collect`/`seed` entry
+points) and `checks/contracts/exits/cyclic_headers.rs` implement the cyclic
+reconvergence rule: a re-entered state's header conjunct is proposed, proved
+at every arrival (entry arrival, induction-step backedge under simultaneous
+argument substitution, and each base edge on ambient entry facts), and a
+failed arrival discards every proposal — so a uniformly forwarded parameter
+keeps its exact typed origin and an unestablished cyclic origin supplies no
+equality. `terminal-verifier`'s `validation/control_flow/unranked_cycles.rs`
+still admits cyclic machines only through its shape allowlist, and the
+"integer ranges use this same predicate rule" clause is pinned by the
+`cyclic_field_divisor_*` controls under
+`checked-trees-to-lowered-psi/src/tests/`. What remains open is recorded on
+GENERAL-CYCLIC-EXECUTION: composed cyclic Unit plans and the per-callee
+call/return composition the admission roster cannot yet express.
+
 Call coverage reconstructs one exact obligation for every callee `requires`
 clause. Instantiation independently checks arity, binder kinds/types,
 capture-free positional substitution, pre/post versions, moves and reborrows,
