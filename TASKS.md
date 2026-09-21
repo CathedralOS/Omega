@@ -3648,6 +3648,26 @@ Owners include
   Cathedral's repository owns the real package. Do not add page-table or TLB
   types to the compiler.
 
+  Re-verified at `35e1b19198` with a scoped witness on this host:
+  `OMEGA_PASS_CANARY_FILTER=memory/address_translation_canary
+  OMEGA_FAIL_CANARY_FILTER=translation_ cargo nextest run -p compiler --test
+  canary_suite` — 2/2 green (the checked-only pass canary compiles, and all
+  eight `fail/core/translation_*` controls still reject). Fence audit for the
+  remaining legs: the ranked-loop leg stays owned by
+  TERMINATION-RANKING-CHECKS (zergling-159 holds both
+  `runtime_ranking` trees — do not respell); the provider-selection /
+  receipt-join leg's compiler surface is split — `extents/src/mapping/` is
+  unfenced but `terminal-psi-to-abstract-operations/provider_installation/
+  replay.rs` sits under CONSERVATION-CONTRACT (zergling-127) and
+  `extents/src/{lib.rs,ordering_events}` under DEVICE-EXTENT-ACCESS (z88);
+  demand-grown tables inherit BUMP-ALLOCATOR-CANARY's claim (f8ad694c);
+  read-back waits on PLAN-LAID-VIEWS (zergling-z27 holds the placed-view
+  referent + hosted-receiver trees); execution waits on
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (z88) + UEFI-OS-HANDOFF (z19). The borrowed-
+  source routes still depend on the unlanded carried-loan machinery named in
+  `installer.omg`'s header. No unfenced bounded slice on this host; QEMU
+  acceptance remains the far witness.
+
 - **EXCEPTION-ROOTS-AND-TIMER.** Run Cathedral's fatal exception entries on
   dedicated critical stacks, its descriptor-table installation, and a minimal
   timer root whose hard handler only acknowledges, records and wakes ordinary
