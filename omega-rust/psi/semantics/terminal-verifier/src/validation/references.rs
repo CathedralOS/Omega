@@ -135,7 +135,8 @@ pub(super) fn contains_reference(module: &TerminalModule, root: StructuralTypeId
                     fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
         }
     }

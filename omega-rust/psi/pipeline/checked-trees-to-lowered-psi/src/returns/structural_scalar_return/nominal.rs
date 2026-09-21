@@ -482,6 +482,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                 StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::PrimitiveScalar(_)
                 | StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::ElementView { .. }
                 | StructuralTypeShape::FixedArray { .. }
                 | StructuralTypeShape::Sum { .. }
                 | StructuralTypeShape::Mixed { .. } => None,

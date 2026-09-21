@@ -618,6 +618,7 @@ bound strictly ordered.
 | 5 | Mixed | counted structural fields + counted structural cases |
 | 6 | PrimitiveScalar | scalar type |
 | 7 | Reference | referent structural type id + structural access |
+| 8 | ElementView | element structural type id |
 
 <!-- byte-sequence-carrier-tags -->
 

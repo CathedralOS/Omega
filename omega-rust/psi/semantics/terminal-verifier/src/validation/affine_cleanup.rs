@@ -583,6 +583,7 @@ pub(super) fn valid_nominal_cleanup_requirements(
             StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. } => None,
