@@ -28,6 +28,11 @@ pub(in crate::unit::attached_unit::composed_control) fn successors(
             when_false,
             ..
         } => vec![when_true, when_false],
+        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
+            .iter()
+            .map(|arm| &arm.successor)
+            .chain(std::iter::once(fallback))
+            .collect(),
         CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
             cases.iter().map(|case| &case.successor).collect()
         }

@@ -9,6 +9,7 @@ mod byte_write_loop;
 mod composed_operand_catalogs;
 mod composed_provider_candidates;
 mod composed_unit_claims;
+mod composed_unit_guarded_jumps;
 mod composed_unit_internal_calls;
 mod composed_unit_nested_control;
 mod composed_unit_prefixed_control;
