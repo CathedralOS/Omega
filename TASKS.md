@@ -9388,6 +9388,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `1_beta/beta_compiler_bytecode.tape`,
   `2_gamma/gamma_evaluator_bytecode.tape`, and `5_omega/alpha_tape.epsilon`
   — so there is still nothing to bind and the producing rung stays gated.
+  Re-verified at `c0a3f3ac34` on linux x86-64: tape inventory unchanged
+  (same three artifacts, no omega0/omega tape); producing rung still
+  gated — OMEGA-D family over `bootstrap/5_omega`,
+  OMEGA-WRITTEN-PRODUCT-COMPILER over `source/omega`+`source/psi`
+  (~07:20Z), OMEGA-D-REQUEST-ADMISSION/records-env-request over
+  `tools/bootstrap/omega`+`tests/bootstrap/omega-request` (~11:12Z).
 - **OMEGA-D-COMPILER-REQUEST-TABLES.** Scope verified, fenced at
   `a0b906db93` — the stub re-mines the OMEGA-D OCREQ V1 request-table
   clause, whose named surface is already landed: per
