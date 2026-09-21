@@ -178,10 +178,14 @@ fn joined_record_cannot_move_and_lend_its_child_to_the_same_call() {
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("Terminal control moves the selected record and borrows the distinct marker");
     let semantic_bytes = terminal_codec::encode_module(&module).unwrap();
+    // Admission requires the proof section sealed to this module's own
+    // reconstructed identity; the artifact's section names the unmutated
+    // subject, so reseal the discharged bundle against the control module.
+    let proof_bytes = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic_bytes,
-            proof_bytes: artifact.proof_bytes(),
+            proof_bytes: &proof_bytes,
             obligation_ledger_bytes: None,
         },
         &AdmissionProfile::default(),
