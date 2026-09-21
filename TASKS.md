@@ -9111,10 +9111,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unclaimed implementing slice existed under this stub.
 - **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT.** Mined candidate;
   verified scope at `0e8bb1bdad`; re-verified `27deadf412`: re-mines the OMEGA-D clause
+- **CUSTODY-MUTATION-COVERAGE** — mined candidate; verify scope then implement.
+- **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT.** Resolved — the OMEGA-D clause
   (`TASKS_BOOTSTRAP.md`, "Its diagnostic scalar entry adapter is not
   package/Build admission or the final ProgramEntry contract. Replace that
   adapter through the real request and target route, preserving actual
-  emitted-byte execution as the outer acceptance check."). The adapter is the
+  emitted-byte execution as the outer acceptance check.") is satisfied on
+  the real request route. The route already runs as the omega-executable
+  gate's default entry (`tests/bootstrap/omega-executable/main_ocreq.epsilon`
+  — OCREQ V1 request framing, `OmegaRequestStructure` passes, bound-subject
+  re-walk, ProgramEntry-bound `main` selection per
+  `wiki/spec/build/compiler_request.md`); the `compile(source, entry)` /
+  `adapter()` trampoline in `bootstrap/5_omega/scalar_compilation.epsilon`
+  survives only for the gate's `--diagnostic` lane and the eight controls
+  (its retirement is OMEGA-D-ENTRY-ADAPTER-RETIREMENT's leg). This leg's
+  fix: the entry file carried two UTF-8 em-dashes in comments — the only
+  bytes outside the Epsilon lexical window (tab/LF/CR + ASCII 32–126) —
+  so the evaluator refused the packed customer with InvalidSourceByte
+  before D ran and the route never executed end-to-end. Stripped to ASCII;
+  entry re-pinned to 19,249 B `5d5d0b8ed0146b055ffdbb6d680bb902a0e350c80b13577bf148879c6c753943`
+  (packed customer 581,043 B `a0db24def35174efb5bd19815f569bc97b34365eb35c4958a62422f36d2ad6d8`)
+  across `compiler_env.sh`, `omega-identity.sh`, and the gate README.
+  Outer acceptance witnessed on linux x86-64: default-lane
+  `tests/bootstrap/omega-executable/run.sh` compiles the seeded
+  `program.omg` through the OCREQ route and the emitted `program.tape`
+  executes exit 42 (`PASS`); `omega-identity.sh` and
+  `check-chain-hygiene.sh` pass with the refreshed pins.
+  Prior verified scope: re-mines the OMEGA-D clause. The adapter is the
   `OmegaScalarCompiler::compile(source, entry)` surface in
   `bootstrap/5_omega/scalar_compilation.epsilon`: a caller-supplied entry-name
   string matched in `finish_machine`/`select`, plus the `adapter()` trampoline
