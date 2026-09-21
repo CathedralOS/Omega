@@ -1,0 +1,51 @@
+// The same const application under a different explicit build selection:
+// the build root names `Math::remainder -> AltProvider`, so the pending
+// application folds through the literal `9` rather than `Provider`'s
+// `left | right` = 7. The byte-8 write only type-checks when the alternate
+// provider's checked body actually ran -- the selected fixture's `|`
+// satisfier must stay inert.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega::language::core::service;
+
+data Math {}
+
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+
+data Provider {}
+
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (left | right) }
+}
+
+data AltProvider {}
+
+machine AltProvider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (9) }
+}
+
+machine limit() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    transition { _ -> (left % right) }
+}
+
+data Buffer<const N: u64> {
+    values: [u8; N];
+}
+
+data Main {
+    exit: Service<ProcessExit>;
+    value: Buffer<limit()>;
+}
+
+machine Main::main(&mut self) reaches
+    ProcessExit
+{
+    self.value.values[8] = 70;
+    self.exit.exit_process(70);
+}

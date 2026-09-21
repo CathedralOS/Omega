@@ -174,6 +174,59 @@ fn checked_boundary_operator_const_application_exit_canary_runs() {
 }
 
 #[test]
+fn checked_named_boundary_operator_const_application_exit_canary_runs() {
+    let canary =
+        pass_canary(fixture_roster::CHECKED_NAMED_BOUNDARY_OPERATOR_CONST_APPLICATION_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect("named boundary-operator const-application canary should compile to checked trees");
+    assert!(!checked.facts.operators.boundary_applications.is_empty());
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "the selected provider body folded the const argument to 7 through a named call, \
+         so byte 6 writes: {:?}",
+        outcome.error,
+    );
+}
+
+#[test]
+fn checked_boundary_operator_const_application_selected_exit_canary_runs() {
+    let canary =
+        pass_canary(fixture_roster::CHECKED_BOUNDARY_OPERATOR_CONST_APPLICATION_SELECTED_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect(
+            "selected boundary-operator const-application canary should compile to checked trees",
+        );
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "the build-selected `|` provider body folded the const argument to 7 while the \
+         unselected `+` satisfier stayed inert, so byte 6 writes: {:?}",
+        outcome.error,
+    );
+}
+
+#[test]
+fn checked_boundary_operator_const_application_alternate_exit_canary_runs() {
+    let canary =
+        pass_canary(fixture_roster::CHECKED_BOUNDARY_OPERATOR_CONST_APPLICATION_ALTERNATE_EXIT);
+    let main_path = canary.join("main.omg");
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect(
+            "alternate boundary-operator const-application canary should compile to checked trees",
+        );
+    let outcome = interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "the build-selected `+` provider body folded the const argument to 9 under a \
+         distinct build plan, so byte 8 writes: {:?}",
+        outcome.error,
+    );
+}
+
+#[test]
 fn provider_boundary_range_endpoint_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::PROVIDER_BOUNDARY_RANGE_ENDPOINT_EXIT);
     let main_path = canary.join("main.omg");
