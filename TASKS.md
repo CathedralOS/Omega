@@ -2908,6 +2908,23 @@ moved to the termination-catalog fence (see that row's refresh note).
   (`fact:scalar-carrier-bounds` depends only on `primitive:integer-carrier-bound`),
   sequenced after the baseline-green leg releases the ledger.
 
+  Re-verified at `138ed79a677` (linux x86-64): the named minimal slice has
+  landed — `fact:scalar-carrier-bounds` is now `Proved` with recorded
+  evidence (`reconstruction.rs`: the `declared_carrier_bounds` fixed-shape
+  certificate, interval invariant cited as assumption zero, conjunct-index
+  elimination, proof-admission re-deciding before roster join) and is
+  registered in `PROVED_ENTRIES` (trusted_surface.rs:254) alongside the four
+  prior rows. `trusted_surface` 15/15 PASS, digests current. The ledger file
+  is unfenced tonight; proof-admission core still sits under
+  PROOF-KERNEL-CORE (09:49Z) and two verifier validation files under
+  REGISTERED-CALLBACK-LIFETIME (14:37Z) / DYNAMIC-UNIT-CALL-GRAPH-AND-
+  REACH-EDGES (15:49Z). The remaining legs are unchanged in shape — verifier
+  proof-search extraction, the ~33 remaining `ExplicitlyTrusted`
+  reconstruction rows (thinnest next: `fact:integer-structural-field-read-
+  range`, depending only on the now-Proved carrier-bounds row), and the
+  total canonical-byte generator still gated on the inductive profile's
+  unfinished proofs.
+
 - **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
   erased-stripped layout under
   [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
