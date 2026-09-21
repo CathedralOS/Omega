@@ -13354,6 +13354,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `COMPARE_LEFT_ZERO` grammar. Next acceptance: the vocabulary member +
   catalog executor for the remaining 34 orphans still needs the
   `optimization-core` naming handoff (WORKSPACE-ROLLOUT per the parent
+- **SELECTED-REWRITE-CATALOG-DISPOSITION.** — mined candidate;
+  scope verified at `771d0469a1` (z181), resolved as the
+  cluster-disposition name: re-mines the sequence-or-delete
+  disposition of `rewrites/module_catalog.rs`'s rows — currently
+  44 catalog rows, every one still `Orphaned`, after the landed
+  delete legs (`literal_compare`, `literal_arithmetic`,
+  `literal_minuend`).
+  Ownership of the remaining dispositions is partitioned on the
+  optimizer board: EXACT-MACHINE-SIMPLIFICATIONS owns its orphaned
+  rows, ALIAS-AWARE-MEMORY and DECLARATIVE-PEEPHOLES their own
+  families; the execution leg is SELECTED-REWRITE-CATALOG-
+  EXECUTION's row above. Implementing surfaces are live-fenced:
+  `module_catalog.rs` + siblings under REWRITE-CATALOG-ADMISSION
+  (~14:31Z) and a pathless PIPELINE-REWRITE-CATALOG-WIRING claim
+  (~14:48Z). No independent slice exists under this name; sibling
+  re-mines: SELECTED-REWRITE-CATALOG-{EXECUTION,OR-DELETE,ROUTE,
+  WIRING}, SELECTED-REWRITES-CATALOG-OR-DELETE, POC-SELECTED-
+  REWRITE-CATALOG, PIPELINE-REWRITE-CATALOG-WIRING.
+
   row).
 - **SELECTED-REWRITE-CATALOG-ROUTE.** Mined candidate; scope verified at
   6d00135b89 — re-mines the route leg of the same cluster: the stage
