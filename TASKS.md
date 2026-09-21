@@ -10187,6 +10187,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   epsilon drivers are all bound. Remaining open manifest legs stay named in
   their own rows (`omega0`/`omega` tapes under OMEGA-C; certificates and
   admission records per edge). No independent slice exists.
+  Re-verified at `12ea4941eb` (linux x86-64): `e1fba5f523` remains an
+  ancestor of main; `EPSILON_EXECUTION_DRIVER_{SIZE,SHA256}` pins stand
+  at `evaluator_env.sh:37-38` with `require_epsilon_execution_driver_identity`
+  at :133; the bullet stays struck at `TASKS_BOOTSTRAP.md:279`. The
+  duplicate resolved stub later on the board is consumed here.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING** — mined candidate; scope verified, residual already bound. Re-mines the same TASKS_BOOTSTRAP.md manifest bullet as resolved sibling GATE-LOCAL-PREFIX-BINDING (this section) — "gate-local prefixes packed on top of bound member bytes", whose last written residual closed at `e1fba5f523` ("bootstrap: bind Epsilon slice driver and reconstructed receipt identity"): `EPSILON_EXECUTION_DRIVER_*` pins + `require_epsilon_execution_driver_identity` in `tools/bootstrap/epsilon/evaluator_env.sh` gate every cross-rung consumer; Delta's development entry, Gamma's derivation gate entries, D's customer entries, and per-gate epsilon drivers are all bound. The bullet is struck in TASKS_BOOTSTRAP.md; remaining open manifest legs stay named in their own rows (`omega0`/`omega` tapes under OMEGA-C; certificates and admission records per edge). Sibling re-mine stubs of the same bullet: CHAIN-GATE-LOCAL-PREFIX-BINDING, CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING, CHAIN-MANIFEST-GATE-LOCAL-PREFIXES, CHAIN-MANIFEST-GATE-PREFIX-BINDING, GATE-LOCAL-DRIVER-PREFIX-BINDING.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-GATE-PREFIX-BINDING** — mined candidate; verify scope then implement.
@@ -11514,14 +11519,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   commit `e1fba5f523` is an ancestor of main, and no residual exists under
   this stub's name. Re-verified again at `138ed79a677`: bullet still struck
   (TASKS_BOOTSTRAP.md:279), `e1fba5f523` still an ancestor of `main`.
-- **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING.** — mined candidate;
-  scope verified, resolved — re-mine stub of the same struck bullet
-  as GATE-LOCAL-PREFIX-BINDING above (TASKS_BOOTSTRAP.md:279).
-  Re-verified at `6f918986063`: the bullet stays struck — all
-  gate-local drivers bound including the shared Epsilon slice driver
-  at `e1fba5f523` (`EPSILON_EXECUTION_DRIVER_*` pins +
-  `require_epsilon_execution_driver_identity`), closing commit is an
-  ancestor of main. No residual exists under this stub's name.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES.** — mined candidate; scope
   verified, resolved — re-mine stub of the same struck bullet as
   GATE-LOCAL-PREFIX-BINDING above (TASKS_BOOTSTRAP.md:279).
