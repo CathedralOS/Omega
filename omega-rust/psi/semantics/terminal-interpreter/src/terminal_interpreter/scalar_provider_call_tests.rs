@@ -92,6 +92,7 @@ fn empty_machine(
         entry: block_id(id),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(id),
             parameters: Vec::new(),
@@ -103,6 +104,7 @@ fn empty_machine(
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(id).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -137,6 +139,7 @@ fn scalar_provider_module(
         .enumerate()
         .map(|(ordinal, value)| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(ordinal as u64 + 1),
             result: OperationResult::Scalar(scalar_declaration(
                 ordinal as u64 + 1,
@@ -146,6 +149,7 @@ fn scalar_provider_module(
         })
         .chain(std::iter::once(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(10),
             result: OperationResult::Scalar(scalar_declaration(10, boundary_result)),
             kind: OperationKind::BoundaryCall {
@@ -176,6 +180,7 @@ fn scalar_provider_module(
     provider.attachment = Some(structural_type_id(1));
     provider.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(20),
         result: OperationResult::Scalar(scalar_declaration(20, provider_result)),
         kind: provider_operation,

@@ -1,8 +1,12 @@
 // False twin of proofs/proof_bag_view_reflexivity (ladder rung L6, proof
 // views). The requires fact asserts the Bag views are equal; the ensures
-// asserts they are not. This must reject. Ordinary core multiset extraction
-// is still missing, so this currently pins an unproved exit obligation,
-// not arithmetic interpretation of an undeclared Bag call.
+// asserts they are not. This must reject. `core::seq` ships `Bag` as the
+// honest packaging form -- `BagView` carries the slice itself, so view
+// equality is the slice view's equality, not an order-insensitive multiset
+// fact -- so this pins an unproved exit obligation: the entailment cannot
+// derive inequality from equality.
+
+use omega::language::core::seq;
 
 machine false_bag_distinct(before: &[u64], items: &[u64])
 requires

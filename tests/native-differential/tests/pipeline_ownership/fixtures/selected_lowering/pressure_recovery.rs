@@ -102,6 +102,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
     };
     let operation = |id, result, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,
@@ -154,6 +155,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -162,6 +164,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
                         condition,
                         when_true: SuccessorEdge {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_241).unwrap(),
                             target: when_true,
@@ -170,6 +173,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
                         },
                         when_false: SuccessorEdge {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_242).unwrap(),
                             target: when_false,
@@ -180,6 +184,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
@@ -280,6 +285,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),
@@ -299,6 +305,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(5_251).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

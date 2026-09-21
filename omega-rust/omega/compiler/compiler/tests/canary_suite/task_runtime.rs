@@ -222,6 +222,26 @@ fn blocking_executor_package_checks_with_the_closed_service_carrier() {
 }
 
 #[test]
+fn blocking_executor_linear_slots_swap_whole_through_the_concrete_pin() {
+    // BLOCKEXEC slot-empty channel leg: the package's `BoundedQueue<T, N>`
+    // ring over per-slot linear payloads is pinned concretely — a
+    // sum-typed slot (`Empty`/`Held`) gives the claim-free channel the
+    // row records as missing, and the whole-slot take/restore idiom
+    // checks: `take` moves the `Held` slot out whole and writes `Empty`
+    // back so the claim reaches the caller exactly once, `put` writes a
+    // fresh `Held` over a vacated slot. Head-indexed ring arithmetic
+    // stays on the contract-fold lane (see the fixture header).
+    let pass = pass_canary(fixture_roster::BLOCKEXEC_LINEAR_SLOT_SWAP_COMPILE);
+    compile_reviewed_repository_fixture(CheckedCompileRequest::new(&pass.join("main.omg"), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "blocking-executor linear slot pin should reach checked trees:\n{}",
+                render(&diagnostics)
+            )
+        });
+}
+
+#[test]
 fn parked_continuation_is_not_source_addressable_through_task_claims() {
     for &(operation, name) in fixture_roster::PARKED_CONTINUATION_FAIL_CANARIES {
         let diagnostics =
@@ -319,7 +339,7 @@ fn fixture_dependency_rows(project_root: &Path) -> Vec<FixtureDependencyRow> {
 /// service bindings still apply; every other package receives a fresh
 /// marker identity. Rows project transitively so a dependency's own
 /// path dependencies join the same inputs.
-fn depend_edge_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
+pub(super) fn depend_edge_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
     let project_root = root_path
         .parent()
         .expect("fixture source has a project root");
@@ -466,8 +486,9 @@ fn blocking_executor_isolated_provider_conformance_binds_the_inherited_row() {
     // `WorkerProvider::execute` row — the fixture binds it by reference to
     // the satisfies-clause realization, and the incomplete-conformance twin
     // (FAIL_CANARIES) pins the missing-row rejection.
-    let pass =
-        pass_canary(fixture_roster::BLOCKEXEC_BLOCKING_EXECUTOR_ISOLATED_PROVIDER_CONFORMANCE_COMPILE);
+    let pass = pass_canary(
+        fixture_roster::BLOCKEXEC_BLOCKING_EXECUTOR_ISOLATED_PROVIDER_CONFORMANCE_COMPILE,
+    );
     let root = pass.join("main.omg");
     let package_inputs =
         depend_edge_package_inputs(&root).expect("the depend edge wires package inputs");

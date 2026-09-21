@@ -124,6 +124,11 @@ Reclamation requires exclusive ownership back with no live in-language views;
 there is no per-access generation probe. An erased era comparison cannot make
 asynchronous revocation safe. Forced revocation requires an explicit fallible
 provider quiescence/lifecycle protocol, not an implicit property of mappings.
+On the program-local side, `ProgramLocalExtentRegistry::remap` is the checked
+re-seat leg of that protocol: it consumes the exact stale-revision root
+extent, refuses while any retained foreign argument pins the old range, and
+installs replacement backing only over identical geometry with no wider
+rights under a new mapping era.
 
 Owned virtual-to-physical decomposition requires the joint correspondence
 algebra specified by [related content](content_custody.md#independent-and-related-content).

@@ -82,8 +82,7 @@ fn interrupt_table_member_admission_rejects_duplicate_vectors() {
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
-    for ((vector, fixture), handle) in
-        member_vectors().into_iter().zip(&members).zip(&mut handles)
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
     {
         table
             .admit_interrupt_table_member(
@@ -103,7 +102,10 @@ fn interrupt_table_member_admission_rejects_duplicate_vectors() {
             &ledger,
             TIMER_TICK,
             spare,
-            member_admission(timer_member(TIMER_TICK, 14, 4), declared_member_facts(15, true)),
+            member_admission(
+                timer_member(TIMER_TICK, 14, 4),
+                declared_member_facts(15, true),
+            ),
         )
         .expect_err("an occupied vector cannot be re-admitted");
     assert!(error.diagnostic().0.contains("already admitted"));
@@ -122,8 +124,7 @@ fn interrupt_table_member_admission_requires_the_declared_critical_stack_class()
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
-    for ((vector, fixture), handle) in
-        member_vectors().into_iter().zip(&members).zip(&mut handles)
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
     {
         let plan = *table.profile().member(vector).expect("declared member");
         if vector == PAGE_FAULT {
@@ -222,8 +223,7 @@ fn interrupt_table_member_obligations_require_the_declared_acknowledgement_shape
     let handles = install_members(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
     let mut handles = handles.into_iter();
-    for ((vector, fixture), handle) in
-        member_vectors().into_iter().zip(&members).zip(&mut handles)
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
     {
         let plan = *table.profile().member(vector).expect("declared member");
         if vector == TIMER_TICK {
@@ -346,8 +346,7 @@ fn interrupt_table_publication_requires_the_complete_declared_set() {
     let profile = table_profile(0x600);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
     let mut handles = handles.into_iter();
-    for ((vector, fixture), handle) in
-        member_vectors().into_iter().zip(&members).zip(&mut handles)
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
     {
         if vector != TIMER_TICK {
             table
@@ -1054,8 +1053,7 @@ fn published_table_dispatch_rejoins_the_receipt_against_the_armed_member() {
     let profile = table_profile(0x600);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
     let mut handles = handles.into_iter();
-    for ((vector, fixture), handle) in
-        member_vectors().into_iter().zip(&members).zip(&mut handles)
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(&mut handles)
     {
         table
             .admit_interrupt_table_member(

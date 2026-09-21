@@ -100,10 +100,9 @@ pub(in crate::execution) fn build_local_scalar_field_store(
         return None;
     }
     let primitive_type = program.primitive_type_reference(field.type_reference)?;
-    if !matches!(
+    let exact_integer = matches!(
         primitive_type,
-        PrimitiveType::Bool
-            | PrimitiveType::I8
+        PrimitiveType::I8
             | PrimitiveType::I16
             | PrimitiveType::I32
             | PrimitiveType::I64
@@ -111,9 +110,10 @@ pub(in crate::execution) fn build_local_scalar_field_store(
             | PrimitiveType::U16
             | PrimitiveType::U32
             | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(field.type_reference)
-        != numerics::arithmetic::ArithmeticDomain::Exact
-    {
+    ) && program.arithmetic_domain_for_type_reference(field.type_reference)
+        == numerics::arithmetic::ArithmeticDomain::Exact;
+    let float = matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64);
+    if !matches!(primitive_type, PrimitiveType::Bool) && !exact_integer && !float {
         return None;
     }
     let role = CheckedScalarExpressionRole::AssignmentValue;
@@ -128,6 +128,10 @@ pub(in crate::execution) fn build_local_scalar_field_store(
                 .scalar_expressions
                 .expression_at(state.symbol, statement_index, role)
                 .is_some()
+            // IEEE replacement forwards existing bits; a selected floating
+            // computation retains its own operation and call correspondence
+            // before a float field store admits it — the parameter lane's rule.
+            || float
         {
             return None;
         }
@@ -140,6 +144,20 @@ pub(in crate::execution) fn build_local_scalar_field_store(
         )?;
         if binding.expression != assignment.value
             || crate::values::scalar_expression_type(value) != Some(primitive_type)
+        {
+            return None;
+        }
+        // A float field takes only an already-defined exactly-typed source:
+        // an authored IEEE literal or a dense-namespace scalar (parameter or
+        // local), matching the parameter lane's literal-or-parameter-source
+        // restriction.
+        if float
+            && !matches!(
+                value,
+                CheckedScalarExpression::IeeeFloatLiteral { .. }
+                    | CheckedScalarExpression::Parameter { .. }
+                    | CheckedScalarExpression::Local { .. }
+            )
         {
             return None;
         }

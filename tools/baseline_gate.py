@@ -23,11 +23,13 @@ import subprocess
 import sys
 import time
 
-# gate name -> argv with the runner placeholder resolved per host. `fmt` is a
-# documented cargo-only command; the rest take the resolved Rust runner.
+# gate name -> argv with the runner placeholder resolved per host. `fmt` runs
+# through tools/fmt.py: `cargo fmt --all` batches the workspace into one
+# rustfmt command line, and at this workspace's size that exceeds the Windows
+# command-line limit (os error 206). The rest take the resolved Rust runner.
 def baseline_commands(runner):
     return [
-        ("fmt", ["cargo", "fmt", "--all", "--", "--check"]),
+        ("fmt", [sys.executable, "tools/fmt.py", "--check"]),
         ("clippy", [runner, "clippy", "--workspace", "--all-targets", "--",
                     "-D", "warnings"]),
         ("architecture", [runner, "nextest", "run", "-p", "omega-architecture-test",

@@ -37,7 +37,7 @@ impl ExactCompilerRowScenario {
         let context = ExternalSourceContext::derive(b"capability-conflict-test-lock");
         write_package(
             &live,
-            r#"pub machine add_u64(left: u64, right: u64) -> u64 {
+            r#"pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
     left + right
 }
 "#,
@@ -59,7 +59,7 @@ impl ExactCompilerRowScenario {
 
         write_package(
             &live,
-            r#"pub machine add_u64(left: u64, right: u64) -> u64 {
+            r#"pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
     left + right
 }
 
@@ -83,7 +83,7 @@ pub proposition ready();
 
         write_package(
             &live,
-            r#"pub machine add_u64(left: u64, right: u64) -> u64 {
+            r#"pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
     left + right
 }
 

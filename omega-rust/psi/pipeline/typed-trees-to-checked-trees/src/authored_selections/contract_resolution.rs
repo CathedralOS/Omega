@@ -219,12 +219,11 @@ fn checked_resultless_law_equality(
                 machine_symbol,
                 state_symbol,
             } => resultless_machine_state(program, machine_symbol, state_symbol),
-            ContractProofFactOwner::Machine { machine_symbol } => program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)
-                .and_then(|machine| program.machine_states(machine).first())
-                .is_some_and(|state| type_reference_is_unit(program, state.return_type)),
+            ContractProofFactOwner::Machine { machine_symbol } => {
+                crate::lookup::machine_by_symbol(program, machine_symbol)
+                    .and_then(|machine| program.machine_states(machine).first())
+                    .is_some_and(|state| type_reference_is_unit(program, state.return_type))
+            }
             _ => false,
         };
         if !resultless {
@@ -243,10 +242,7 @@ fn contract_contains_expression(
     match program.proof_facts.get(fact) {
         typed_trees::domain::ProofFact::Expression(root) => {
             crate::authored_selections::member_targets::expression_contains(
-                program,
-                *root,
-                expression,
-                &mut Vec::new(),
+                program, *root, expression,
             )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
@@ -254,7 +250,6 @@ fn contract_contains_expression(
                 program,
                 membership.value,
                 expression,
-                &mut Vec::new(),
             )
         }
         typed_trees::domain::ProofFact::Proposition(application) => program
@@ -263,10 +258,7 @@ fn contract_contains_expression(
             .iter()
             .any(|root| {
                 crate::authored_selections::member_targets::expression_contains(
-                    program,
-                    *root,
-                    expression,
-                    &mut Vec::new(),
+                    program, *root, expression,
                 )
             }),
     }
@@ -301,10 +293,7 @@ fn resultless_machine_state(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> bool {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+    crate::lookup::machine_by_symbol(program, machine_symbol)
         .and_then(|machine| {
             program
                 .machine_states(machine)

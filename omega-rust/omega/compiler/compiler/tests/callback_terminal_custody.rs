@@ -383,6 +383,14 @@ fn assert_custody_diagnostic(
 /// root and imports it locally declares the same vocabulary a second time.
 /// The registrar materializations above bind one `CallbackBinderIdentity`, so
 /// this shape must keep rejecting rather than silently selecting a copy.
+///
+/// Recorded stop (linux x86-64, re-witnessed 2026-09-21): the fixture does not
+/// reach its designed assertion — `compile_to_checked` already rejects with
+/// "target boundary schema `WindowsX86_64Application` retains 0 evaluated
+/// calling plans for semantic requirement `ProgramStorageEntry::enter` instead
+/// of exactly one", a boundary-schema regression that predates this suite's
+/// transport legs. When that leg lands, the test resumes checking the
+/// duplicate-vocabulary rejection below.
 #[test]
 fn a_package_local_calling_copy_rejects_beside_the_standard_library_entry() {
     let fixture = Fixture::new();
@@ -1201,6 +1209,12 @@ impl ProviderExecutionEvidence for CallbackRegistrarExecution {
     }
 }
 
+/// Recorded stop (linux x86-64, re-witnessed 2026-09-21): the witness still
+/// reaches the native-artifact fragment import custody join and stops there —
+/// the compile ends on "native artifact fragment object publication failed:
+/// fragment import lacks selected call custody", CALLBACK-PRIVATE-
+/// MATERIALIZATION's receiving-stage leg. Selection, allocation and emission
+/// of the private thunk all complete before that stop.
 #[test]
 fn direct_callback_relocation_resolves_to_its_private_function() {
     let fixture = Fixture::direct_with_import();

@@ -108,6 +108,12 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_arithmetic.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/mod.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/admission.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/rewrite.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/validation.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/tests.rs",
         "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
         if repository.join(obsolete).exists() {
@@ -193,7 +199,6 @@ pub(crate) fn check(audit: &mut Audit) {
         "spill_recovery_actions",
         "spill_recovery_choice",
         "spill_recovery_worklist",
-        "stack_slot_coloring",
         "synthetic_reload_values",
     ] {
         let obsolete = format!(
@@ -235,6 +240,13 @@ pub(crate) fn check(audit: &mut Audit) {
                 "logical spill planning retains a retired flat entrance or mixed leaf: {obsolete}"
             ));
         }
+    }
+
+    let retired_coloring_home = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring";
+    if repository.join(retired_coloring_home).exists() {
+        violations.insert(format!(
+            "stack-slot coloring retains an unsequenced home beside its sequenced assignment module: {retired_coloring_home}"
+        ));
     }
 
     for obsolete in [

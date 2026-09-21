@@ -9,7 +9,7 @@ an executable implementation of arbitrary source `Independent` selections.
 
 [lib.rs](src/lib.rs) retains the real installed runnable and root/progress
 custody through era retirement. The
-[era ledger](../../../representations/effects/src/component_era_entry_ledger.rs)
+[era ledger](../../../representations/effects/src/component_eras/component_era_entry_ledger.rs)
 binds exact entry contract/plan, profile-sealed executable manifest, and strong
 installed-artifact occurrence identity. Entry remains on its chosen era across
 routing changes; quiescence/retirement check active entries, retained holds,
@@ -34,12 +34,12 @@ successful reclamation.
 [Provider planning](../../../build/provider-planning/src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
-exist. The current Fused implementation recognizes `Service<R> in Bound`
-with one public closed nongeneric, lifetime-free requirement. Exact typed
-carrier/base/domain/requirement and full plan digest rejoin erasure authorization;
-lookalikes, extra qualifications, or provenance substitution cannot erase it.
+exist. The current Fused implementation recognizes the routed `Service<R>`
+carrier with one public closed nongeneric, lifetime-free requirement. Exact typed
+carrier/base/requirement and full plan digest rejoin erasure authorization;
+lookalikes, authored qualifications, or provenance substitution cannot erase it.
 
-The [service contract](../../../../../wiki/spec/build/component_publication.md#service-bindings-and-era-entry)
+The [service contract](../../../../../wiki/spec/build/component_publication.md#bindings-and-era-entry)
 now makes establishment intrinsic to compiler-known `Service<R>`, without an
 authored qualification. `ENTRY-CONTENT-ROOTS` owns retiring the separate domain
 and migrating recognition/evidence; exact occurrence and selected-plan checking

@@ -1,7 +1,8 @@
-use super::error::OptimizedProgramStorageSemanticWrapperEncodingError;
+use calling_conventions::MachineRegister;
 use isa_x86_64::{
     X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCopy,
     X86_64SemanticUnitWrapperEncodingPolicy, X86_64SemanticUnitWrapperEncodingRequest,
+    X86_64SemanticUnitWrapperReceiverSlot,
 };
 use program_entry_plan::{
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
@@ -11,6 +12,8 @@ use program_entry_plan::{
     OptimizedProgramStorageSemanticWrapperStep,
 };
 
+use super::error::OptimizedProgramStorageSemanticWrapperEncodingError;
+
 pub(crate) fn project_request(
     source: &OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<
@@ -18,6 +21,12 @@ pub(crate) fn project_request(
     OptimizedProgramStorageSemanticWrapperEncodingError,
 > {
     use OptimizedProgramStorageSemanticWrapperStep as Step;
+    let receiver = source.receiver();
+    let mismatch =
+        || OptimizedProgramStorageSemanticWrapperEncodingError::SemanticStepShapeMismatch;
+    // The incoming boundary plan never carries a receiver, so both shapes
+    // start with the same prologue and the same four Extent copies; only the
+    // provisioned residence and the shifted outgoing binds diverge.
     let [
         Step::EnterFunction,
         Step::ReserveOutgoingStackFrame {
@@ -27,37 +36,100 @@ pub(crate) fn project_request(
         second_copy,
         third_copy,
         fourth_copy,
-        first_binding,
-        second_binding,
-        Step::CallPrivateTerminalContinuation { disposition, .. },
-        Step::ReleaseOutgoingStackFrame {
-            byte_count: release,
-        },
-        Step::ReturnUnit,
+        tail @ ..,
     ] = source.steps()
     else {
-        return Err(OptimizedProgramStorageSemanticWrapperEncodingError::SemanticStepShapeMismatch);
+        return Err(mismatch());
+    };
+    let (provision, receiver_binding, extent_bindings, call, release) = match tail {
+        [
+            first_binding,
+            second_binding,
+            call,
+            release,
+            Step::ReturnUnit,
+        ] if receiver.is_none() => (None, None, [first_binding, second_binding], call, release),
+        [
+            provision,
+            receiver_binding,
+            first_binding,
+            second_binding,
+            call,
+            release,
+            Step::ReturnUnit,
+        ] if receiver.is_some() => (
+            Some(provision),
+            Some(receiver_binding),
+            [first_binding, second_binding],
+            call,
+            release,
+        ),
+        _ => return Err(mismatch()),
+    };
+    let Step::ReleaseOutgoingStackFrame {
+        byte_count: release,
+    } = release
+    else {
+        return Err(mismatch());
+    };
+    let Step::CallPrivateTerminalContinuation { disposition, .. } = call else {
+        return Err(mismatch());
     };
     let copies = [first_copy, second_copy, third_copy, fourth_copy]
         .map(project_copy)
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?
         .try_into()
-        .map_err(|_| {
-            OptimizedProgramStorageSemanticWrapperEncodingError::SemanticStepShapeMismatch
-        })?;
-    let argument_bindings = [first_binding, second_binding]
+        .map_err(|_| mismatch())?;
+    let argument_bindings = extent_bindings
         .map(project_binding)
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?
         .try_into()
-        .map_err(|_| {
-            OptimizedProgramStorageSemanticWrapperEncodingError::SemanticStepShapeMismatch
-        })?;
+        .map_err(|_| mismatch())?;
+    let receiver_slot = match (receiver, provision, receiver_binding) {
+        (None, None, None) => None,
+        (Some(receiver), Some(provision), Some(receiver_binding)) => {
+            let Step::ProvisionReceiverMutableStorage {
+                outgoing_stack_byte_offset,
+                slot_byte_count,
+            } = provision
+            else {
+                return Err(mismatch());
+            };
+            let Step::BindOutgoingReceiverAddress {
+                register,
+                outgoing_stack_byte_offset: bind_offset,
+                byte_count,
+                alignment,
+            } = receiver_binding
+            else {
+                return Err(mismatch());
+            };
+            if *outgoing_stack_byte_offset != receiver.outgoing_stack_byte_offset()
+                || *slot_byte_count != receiver.slot_byte_count()
+                || *bind_offset != receiver.outgoing_stack_byte_offset()
+                || *byte_count != receiver.byte_count()
+                || *alignment != receiver.alignment()
+                || *register != MachineRegister::X86Rcx
+            {
+                return Err(mismatch());
+            }
+            Some(X86_64SemanticUnitWrapperReceiverSlot {
+                byte_count: receiver.byte_count(),
+                alignment: receiver.alignment(),
+                slot_byte_count: receiver.slot_byte_count(),
+                outgoing_stack_byte_offset: receiver.outgoing_stack_byte_offset(),
+                register: *register,
+            })
+        }
+        _ => return Err(mismatch()),
+    };
     let relocation = source.relocation();
+    let expected_call_index = if receiver.is_some() { 10 } else { 8 };
     if source.encoding_disposition()
         != OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1
-        || relocation.call_step_index() != 8
+        || relocation.call_step_index() != expected_call_index
         || relocation.kind()
             != OptimizedProgramStorageSemanticWrapperRelocationKind::X86Relative32PrivateContinuationV1
         || relocation.continuation()
@@ -67,9 +139,7 @@ pub(crate) fn project_request(
         || *reserve != source.outgoing_frame_byte_count()
         || *release != source.outgoing_release_byte_count()
     {
-        return Err(
-            OptimizedProgramStorageSemanticWrapperEncodingError::SemanticStepShapeMismatch,
-        );
+        return Err(mismatch());
     }
     Ok(X86_64SemanticUnitWrapperEncodingRequest {
         target: source.source().target(),
@@ -80,6 +150,7 @@ pub(crate) fn project_request(
         pre_call_stack_alignment: source.pre_call_stack_alignment(),
         copies,
         argument_bindings,
+        receiver: receiver_slot,
         relocation_field_byte_width: relocation.byte_width(),
         relocation_addend: relocation.addend(),
     })

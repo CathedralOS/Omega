@@ -10,7 +10,9 @@ data Main {
 machine Main::main(&mut self) {
     transition self.input <= self.count { true -> forward(self.input) _ -> done() }
 
-    state forward(&mut self, i: u32 [0..=self.count]) {
+    state forward(&mut self, i: u32)
+        requires i <= self.count
+    {
         self.touch_other();
         self.consume(i);
     }
@@ -22,4 +24,6 @@ machine Main::touch_other(&mut self) {
     self.other = 1;
 }
 
-machine Main::consume(&mut self, value: u32 [0..=self.count]) { }
+machine Main::consume(&mut self, value: u32)
+requires value <= self.count
+{ }

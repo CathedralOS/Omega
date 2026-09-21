@@ -312,6 +312,83 @@ fn endpoint_mutation_invalidates_range_premises_but_disjoint_stores_do_not() {
 }
 
 #[test]
+fn prefix_let_call_bindings_keep_the_call_frame_bar() {
+    // A `let` bound to a checked-body call keeps the statement-call bar: the
+    // fresh local cannot name a premise carrier, so the initializer's
+    // complete write frame must still miss every protected carrier. The bar
+    // covers the whole initializer tree -- a nested call argument and a
+    // builtin-composed initializer each name only checked-body callees with
+    // pure subterms, so the aggregate frame still sees every call's writes.
+    let helpers = "machine Main::recall(&self, value: u64) -> u64 {
+    transition { _ -> value }
+}
+machine Main::bump(&mut self, slot: &mut u64) -> u64 {
+    slot = 0;
+    transition { _ -> 1 }
+}
+";
+    let bound = format!("{helpers}{PAIR}");
+    prove(&bound.replace(
+        "    transition remaining > floor",
+        "    let seen: u64 = self.recall(remaining);\n    transition remaining > floor",
+    ));
+    prove(&bound.replace(
+        "    transition remaining > floor",
+        "    let seen: u64 = self.recall(self.recall(remaining));\n    transition remaining > floor",
+    ));
+    prove(&bound.replace(
+        "    transition remaining > floor",
+        "    let seen: u64 = self.recall(remaining) + 0;\n    transition remaining > floor",
+    ));
+    // A bodyless boundary callee still refuses: its signature state has an
+    // empty body summary that would claim an exclusive argument write never
+    // happened.
+    let boundary = format!("boundary machine observe(value: u64) -> u64;\n{helpers}{PAIR}");
+    reject(&boundary.replace(
+        "    transition remaining > floor",
+        "    let seen: u64 = observe(remaining);\n    transition remaining > floor",
+    ));
+    reject(
+        &bound
+            .replace("remaining: u64", "mut remaining: u64")
+            .replace(
+                "    transition remaining > floor",
+                "    let seen: u64 = self.bump(&mut remaining);\n    transition remaining > floor",
+            ),
+    );
+}
+
+#[test]
+fn prefix_let_call_bindings_admit_single_member_cycles() {
+    // The corpus canary shape: a self-recursive member whose entry state binds
+    // a checked-body call before its rank-decreasing self-edge.
+    prove(
+        r#"
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::level(&self, value: u32) -> u32 {
+    transition { _ -> value }
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    let seen: u32 = self.level(remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}
+"#,
+    );
+}
+
+#[test]
 fn source_selected_arithmetic_cannot_authorize_a_call_range() {
     for declaration in [
         "operator - u64::subtract(left: u64, right: u64) -> u64;",

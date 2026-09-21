@@ -126,7 +126,7 @@ fn proof_basis(
 
 /// The declared structural type of one rostered place, or `None` when the
 /// place kind carries no resolvable type in this function.
-pub(super) fn declared_structural_type(
+pub(crate) fn declared_structural_type(
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
 ) -> Option<StructuralTypeId> {

@@ -13,6 +13,7 @@ use crate::machine_calls::calls::write_frames::place_paths::{
     push_unique_origin, single_place_origin,
 };
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_call_result_origins;
+use facts::PlaceSegment;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -170,11 +171,16 @@ pub(super) fn exclusive_reference_origins(
                 .or_else(|| carried_reference_origin(program, current_machine, argument))?,
         ],
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            vec![carried_reference_origin(
-                program,
-                current_machine,
-                argument,
-            )?]
+            match carried_reference_origin(program, current_machine, argument) {
+                Some(origin) => vec![origin],
+                None => projected_carrier_reference_origins(
+                    program,
+                    current_machine,
+                    argument,
+                    symbols,
+                    inference,
+                )?,
+            }
         }
         ExpressionNode::Match(dispatch) => {
             let mut selected = Vec::new();
@@ -278,6 +284,95 @@ pub(super) fn exclusive_reference_origins(
         )?,
         _ => return None,
     };
+    (!origins.is_empty()).then_some(origins)
+}
+
+/// A member projection off a transparent helper's aggregate result moves the
+/// selected reference leaf with its proven referents: `helper(..).slot` lends
+/// exactly the leaf's resolved caller origins, never the carrier's own path.
+/// The projection must select a plain declared field all the way down — a
+/// case-payload field, an indexed element, or a result that is itself a
+/// reference keeps the argument opaque because those leaf positions either
+/// never reach the declared frontier or belong to the direct-result relation.
+pub(super) fn projected_carrier_reference_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    argument: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut member_names = Vec::new();
+    let mut root = argument;
+    let call = loop {
+        match program.expression_table.expression(root) {
+            ExpressionNode::Member(member) => {
+                if member.case_variant.is_some() {
+                    return None;
+                }
+                member_names.push(member.member.as_str());
+                root = member.receiver;
+            }
+            ExpressionNode::Call(call) => break call,
+            _ => return None,
+        }
+    };
+    member_names.reverse();
+    let (_, callee_state) =
+        super::call_targets::machine_state_by_symbol(program, call.target_symbol)?;
+    if super::type_reference_is_reference(program, callee_state.return_type) {
+        return None;
+    }
+    let mut carrier_symbol =
+        super::boundary_calls::receiver_type_symbol(program, callee_state.return_type);
+    let mut segments = Vec::with_capacity(member_names.len());
+    for member_name in member_names {
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == carrier_symbol)?;
+        let field = program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == member_name =>
+                {
+                    Some(field)
+                }
+                _ => None,
+            })?;
+        segments.push(PlaceSegment::Field {
+            symbol: field.symbol,
+        });
+        carrier_symbol = super::boundary_calls::receiver_type_symbol(program, field.type_reference);
+    }
+    let returned = super::result_origins::call_result_origins(
+        program,
+        current_machine,
+        call,
+        callee_state.return_type,
+        symbols,
+        inference,
+        false,
+        &|actual, _, _, inference| {
+            exclusive_reference_origins(program, current_machine, actual, symbols, inference)
+        },
+        &|actual, reference, inference| {
+            super::stored_origins::symbolic_reference_leaves(
+                program,
+                current_machine,
+                actual,
+                reference,
+                inference,
+            )
+        },
+    )?;
+    let mut origins = Vec::new();
+    for leaf in &returned.references {
+        if leaf.local_segments == segments {
+            push_unique_origin(&mut origins, leaf.origin.clone());
+        }
+    }
     (!origins.is_empty()).then_some(origins)
 }
 

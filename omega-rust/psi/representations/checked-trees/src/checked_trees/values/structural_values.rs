@@ -51,6 +51,14 @@ pub enum CheckedStructuralValueKind {
     /// Existing storage is transferred, never reconstructed as a fresh case.
     /// Conditional transfer and residual ownership come from checked flow.
     Place(crate::CheckedUnitStructuralArgumentPlan),
+    /// A borrowed `&[T]` view of the contiguous elements an owned collection
+    /// place holds. `source` is that lent place under its shared loan, taken
+    /// from checked borrow admission rather than from the authored view
+    /// spelling; the view carries its own stored length and copies no
+    /// elements, so the lent storage keeps its owner and extent.
+    BorrowedSliceView {
+        source: crate::CheckedUnitStructuralArgumentPlan,
+    },
     /// An owned child projected out of `source` (a `Place` or `Call` node)
     /// along an exact field/fixed-index path. The untouched residual siblings
     /// die on the selected edge; `type_identity` is the normalized projected

@@ -159,9 +159,8 @@ pub fn prepare_filesystem_scope(
         // `FilesystemSponsor::create_private`, while staying outside the
         // sponsor's session root keeps snapshot reads on the accounting
         // bypass every other outside-session read uses. The leaf name is
-        // fixed because the parent is already unique; a dropped empty
-        // parent is the release path's residue, swept by the host's temp
-        // reaper like every other orphaned staging dir.
+        // fixed because the parent is already unique; the release path
+        // removes it once every backing it held is discarded.
         let snapshot_parent = loop {
             let candidate = std::env::temp_dir().join(format!(
                 "omega-captured-source-session-{}-{}",

@@ -83,6 +83,7 @@ fn report(
         application_intent: None,
         application_identifier: None,
         package_publication: None,
+        timings: Vec::new(),
     }
 }
 
