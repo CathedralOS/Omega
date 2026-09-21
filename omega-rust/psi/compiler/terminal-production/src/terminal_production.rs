@@ -409,8 +409,19 @@ impl<'a> TerminalProductionRequest<'a> {
     pub fn produce_artifact(
         self,
     ) -> Result<terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
-        let optimized = self.lower_and_optimize()?;
-        let (artifact, _) = publish_terminal_artifact(optimized)?;
+        self.produce_artifact_timed(&mut TerminalProductionTimings::default())
+    }
+
+    /// [`Self::produce_artifact`] recording each production leg into the
+    /// Psi-owned timing carrier the caller merges into its timing report.
+    pub fn produce_artifact_timed(
+        self,
+        timings: &mut TerminalProductionTimings,
+    ) -> Result<terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
+        let optimized = self.lower_and_optimize_timed(timings)?;
+        let (artifact, _) = timings.record_result(TerminalProductionStage::Publication, || {
+            publish_terminal_artifact(optimized)
+        })?;
         Ok(artifact)
     }
 
@@ -418,7 +429,17 @@ impl<'a> TerminalProductionRequest<'a> {
     pub fn produce_checked_artifact(
         self,
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
-        let (artifact, lowered, boundary_operator_scope) = self.produce_checked_parts()?;
+        self.produce_checked_artifact_timed(&mut TerminalProductionTimings::default())
+    }
+
+    /// [`Self::produce_checked_artifact`] recording each production leg into
+    /// the Psi-owned timing carrier the caller merges into its timing report.
+    pub fn produce_checked_artifact_timed(
+        self,
+        timings: &mut TerminalProductionTimings,
+    ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+        let (artifact, lowered, boundary_operator_scope) =
+            self.produce_checked_parts_timed(timings)?;
         Ok(ProducedTerminalArtifact {
             artifact,
             boundary_operator_scope,
@@ -441,15 +462,33 @@ impl<'a> TerminalProductionRequest<'a> {
         ProducedTerminalArtifactWithCallbackCustody<C>,
         CallbackCustodyTerminalArtifactProductionError<C>,
     > {
-        let (artifact, lowered, boundary_operator_scope) = match self.produce_checked_parts() {
-            Ok(parts) => parts,
-            Err(error) => {
-                return Err(CallbackCustodyTerminalArtifactProductionError {
-                    error,
-                    callback_custody,
-                });
-            }
-        };
+        self.produce_with_callback_custody_timed(
+            callback_custody,
+            &mut TerminalProductionTimings::default(),
+        )
+    }
+
+    /// [`Self::produce_with_callback_custody`] recording each production leg
+    /// into the Psi-owned timing carrier the caller merges into its timing
+    /// report.
+    pub fn produce_with_callback_custody_timed<C>(
+        self,
+        callback_custody: C,
+        timings: &mut TerminalProductionTimings,
+    ) -> Result<
+        ProducedTerminalArtifactWithCallbackCustody<C>,
+        CallbackCustodyTerminalArtifactProductionError<C>,
+    > {
+        let (artifact, lowered, boundary_operator_scope) =
+            match self.produce_checked_parts_timed(timings) {
+                Ok(parts) => parts,
+                Err(error) => {
+                    return Err(CallbackCustodyTerminalArtifactProductionError {
+                        error,
+                        callback_custody,
+                    });
+                }
+            };
         Ok(ProducedTerminalArtifactWithCallbackCustody {
             artifact,
             boundary_operator_scope,
@@ -646,12 +685,6 @@ impl<'a> TerminalProductionRequest<'a> {
         ))
     }
 
-    fn lower_and_optimize(
-        self,
-    ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
-        self.lower_and_optimize_timed(&mut TerminalProductionTimings::default())
-    }
-
     fn lower_and_optimize_timed(
         self,
         timings: &mut TerminalProductionTimings,
@@ -676,8 +709,9 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::Optimization)
     }
 
-    fn produce_checked_parts(
+    fn produce_checked_parts_timed(
         self,
+        timings: &mut TerminalProductionTimings,
     ) -> Result<
         (
             terminal_codec::CanonicalTerminalArtifact,
@@ -687,9 +721,15 @@ impl<'a> TerminalProductionRequest<'a> {
         TerminalArtifactProductionError,
     > {
         let checked = self.checked;
-        let optimized = self.lower_and_optimize()?;
-        let (artifact, lowered) = publish_terminal_artifact(optimized)?;
-        let scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
+        let optimized = self.lower_and_optimize_timed(timings)?;
+        let (artifact, lowered) = timings
+            .record_result(TerminalProductionStage::Publication, || {
+                publish_terminal_artifact(optimized)
+            })?;
+        let scope = timings
+            .record_result(TerminalProductionStage::BoundaryOperatorScope, || {
+                checked_boundary_operator_scope(checked, &artifact, &lowered)
+            })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         Ok((artifact, lowered, scope))
     }
@@ -751,7 +791,7 @@ fn checked_boundary_operator_scope(
 mod tests {
     use checked_trees::CheckedTrees;
 
-    use crate::TerminalProductionRequest;
+    use crate::{TerminalProductionRequest, TerminalProductionStage, TerminalProductionTimings};
 
     fn check_source(source: &str) -> CheckedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
@@ -782,5 +822,46 @@ mod tests {
             .unwrap();
         let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
         assert!(module.quotient_correspondences.is_empty());
+    }
+
+    /// The non-entry producers share the instrumented body: an enabled
+    /// carrier records the ledger/lowering/optimization/publication/
+    /// boundary-scope ladder for the checked-artifact route, and the
+    /// callback-custody variant returns the same ladder while retaining the
+    /// caller's sidecar.
+    #[test]
+    fn non_entry_production_records_the_stage_ladder() {
+        let checked = check_source(
+            "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let mut timings = TerminalProductionTimings::enabled();
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_checked_artifact_timed(&mut timings)
+            .unwrap();
+        assert!(!produced.artifact().semantic_bytes().is_empty());
+        let stages: Vec<TerminalProductionStage> =
+            timings.rows().iter().map(|(stage, _)| *stage).collect();
+        assert_eq!(
+            stages,
+            [
+                TerminalProductionStage::LedgerCheck,
+                TerminalProductionStage::Lowering,
+                TerminalProductionStage::Optimization,
+                TerminalProductionStage::Publication,
+                TerminalProductionStage::BoundaryOperatorScope,
+            ]
+        );
+
+        let mut callback_timings = TerminalProductionTimings::enabled();
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_with_callback_custody_timed(42u8, &mut callback_timings)
+            .unwrap();
+        assert_eq!(produced.callback_custody(), &42u8);
+        let callback_stages: Vec<TerminalProductionStage> = callback_timings
+            .rows()
+            .iter()
+            .map(|(stage, _)| *stage)
+            .collect();
+        assert_eq!(callback_stages, stages);
     }
 }
