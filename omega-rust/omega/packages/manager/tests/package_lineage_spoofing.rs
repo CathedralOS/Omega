@@ -101,7 +101,7 @@ machine build(builder: &mut Build) {{
     builder.depend_as("lookalike_provider", Source::Path {{
         location: "{}"
     }});
-    builder.select_provider<Pair, Provider>();
+    builder.select_provider<selected_provider::Pair, selected_provider::Provider>();
 }}
 "#,
             omega_path(&selected),

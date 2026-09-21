@@ -1,16 +1,13 @@
 //! Optimizer module role: executable entrance. Post-allocation manifest construction and independent admission entrance.
 //!
-//! Direct-home and selected-lowering routes join here. Record shape, canonical
-//! identity, persistence, reconstruction, validation, and human rendering
-//! descend into named leaves.
+//! Direct-home and selected-lowering routes join here. The durable record,
+//! canonical identity, persistence, and human rendering live in
+//! `register_homes::post_allocation_manifest`; projection, reconstruction, and
+//! validation stay transform-local.
 
-mod codec;
-mod error;
-mod identity;
 mod model;
 mod projection;
 mod reconstruction;
-mod rendering;
 mod validation;
 
 use optimization_core::{
@@ -19,8 +16,8 @@ use optimization_core::{
 
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
 
-pub use error::*;
 pub use model::*;
+pub use register_homes::post_allocation_manifest::*;
 
 pub fn project_post_allocation_optimization_manifest(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
@@ -95,6 +92,3 @@ pub fn validate_post_allocation_optimization_manifest_after_selected_lowering(
         homes,
     )
 }
-
-#[cfg(test)]
-mod tests;

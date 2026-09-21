@@ -436,7 +436,16 @@ by this envelope, which exceeds the arena from `N = 238`: the
 study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 projects 417,063,339 pairs at full admitted extents — 8.2× under the
 3,422,453,760-pair arena — so an admitted source does not end in a raw Gamma
-heap failure.
+heap failure. Under the retired 40,265,318-pair profile the answer was
+negative: the
+[measured whole-producer study](execution_storage.md#whole-producer-pair-study-measured)
+drove each extent to its profile boundary, composed the two ledger-orthogonal
+drivers — arithmetic nodes (240 pairs each, capped by the syntax ledger) and
+identifier bytes (three pairs each, ledger-free) — and observed a fully
+admitted 4,194,288-byte source end in raw halt 252 at exactly 40,265,318
+cumulative pairs, that arena's limit, with no DCOUT row. That remains the
+recorded owner-escalation finding behind the filed
+`delta-compiler-pair-arena-profile` decision.
 
 ### Arithmetic allocation probe
 
@@ -466,8 +475,11 @@ evaluator now allocates 3,422,453,760 pairs). That subtotal excludes
 catalogs, phase carriers, the fixed main and publication; it is not a complete
 heap upper bound. Larger printed receipts can also encounter the existing
 payload refusal. Do not keep doubling this family as if a heap failure were
-established or required. Remaining allocation work needs a separately justified
-source path or a whole-producer bound, not an invented general DCOUT heap code.
+established or required. Remaining allocation work needed a separately justified
+source path or a whole-producer bound, not an invented general DCOUT heap code;
+the
+[whole-producer pair study](execution_storage.md#whole-producer-pair-study-measured)
+now supplies that measured endpoint.
 
 ### Wide-constructor allocation probe
 
@@ -499,6 +511,23 @@ source. The measurement neither closes the open pair-arena allocation
 question for post-frontend phases nor witnesses a missing DCOUT resource; it
 is one 650.7-second stress observation, not a bootstrap-chain timing or a
 whole-producer bound.
+
+### Post-frontend allocation stress frontier
+
+Every measured stress family refuses inside an existing resource row before
+post-frontend allocation is stressed: the arithmetic probe ends in resource 7
+(the retained-syntax ledger, coordinate 735,359), the wide-constructor probe
+ends in the same ledger at the constructor's 19,147th field-type atom
+(coordinate 76,595), and full-width reconstruction ends in resource 12 (the
+payload extent). No admitted-source family therefore reaches a post-frontend
+allocation boundary; post-frontend pair consumption is covered by the
+[measured worst-shape
+study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+(417,063,339 projected pairs, 8.2× under the 3,422,453,760-pair arena), which
+counts the instrumented evaluator's pair stores across the whole producer —
+post-frontend phases included. A stress refusal at a post-frontend allocation
+boundary would need a separately justified source family that survives the
+syntax ledger and payload extent; none exists on this board.
 
 ### Producer invariants rather than arbitrary corruption coverage
 
@@ -552,7 +581,11 @@ remain resources of that program's execution, not a compiler outcome. The
 producer's own execution storage is bounded by the
 [execution-storage audit](execution_storage.md) and its cumulative pair
 allocation by the measured worst-shape study cited above, so no admitted
-compile ends in a raw Gamma heap failure. Those empty-output evaluator
+compile ends in a raw Gamma heap failure under the selected profile; the
+retired 40,265,318-pair profile did admit one measured halt-252 exhaustion
+(the whole-producer study above), and the filed
+`delta-compiler-pair-arena-profile` decision still owes the contract
+reading. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma

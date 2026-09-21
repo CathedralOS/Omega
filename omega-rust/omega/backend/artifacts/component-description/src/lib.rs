@@ -32,12 +32,13 @@ pub mod test_support;
 pub use component_description::{
     COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentDescriptionFacts,
     ComponentEntry, ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescribeError, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface,
-    ImportSlot, InstallationObligation, InstallationServiceBound, ObligationKind,
+    DescribeError, DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract,
+    ExportSurface, ImportSlot, InstallationObligation, InstallationServiceBound, ObligationKind,
     OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
-    StackDemandFacts, component_description_identity, decode_component_description,
-    describe_component_facts, description_subject, encode_component_description,
-    port_mechanism_assumption, requirement_contract_identity, requirement_export_identity,
+    StackDemandFacts, canonical_entry_contract_identity, component_description_identity,
+    decode_component_description, describe_component_facts, description_subject,
+    encode_component_description, port_mechanism_assumption, requirement_contract_identity,
+    requirement_export_identity,
 };
 pub use component_verification::{
     AdmissionProfile, ComponentVerificationRejection, ComponentVerificationRequest,

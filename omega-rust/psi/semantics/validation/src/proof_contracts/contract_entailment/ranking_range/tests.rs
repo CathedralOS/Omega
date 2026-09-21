@@ -765,6 +765,63 @@ mod remainder_endpoints {
             assert!(edge(&program, RankingRangePremises::EntryInvariant).is_none());
         }
     }
+
+    #[test]
+    fn runtime_remainder_actuals_substitute_at_the_edge() {
+        // The `spare` slot is outside every endpoint atom: the remainder
+        // actual exercises the non-polynomial substitution itself, so the
+        // transported endpoint keeps the exact `cap % step` operands.
+        let source = r#"
+            machine dive(remaining: u64 [0..=5], cap: u64, step: u64 [1..=5], spare: u64)
+            terminates by remaining in 0..(cap % step + 6);
+            -> u64 {
+                transition remaining > 0 && step > 0 && step <= 5 {
+                    true -> dive(remaining - 1, cap - 0, step - 0, cap % step)
+                    false -> remaining
+                }
+            }
+        "#;
+        let program = typed(source);
+        assert!(entry(&program));
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let proof = edge(&program, premises).expect("remainder actual transports");
+            assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        }
+        // A zero modulus in the actual cannot hide inside the substitution.
+        let zeroed = typed(&source.replace("cap % step)", "cap % (step - step))"));
+        assert!(edge(&zeroed, RankingRangePremises::RankInvariant).is_none());
+        assert!(edge(&zeroed, RankingRangePremises::EntryInvariant).is_none());
+    }
+
+    #[test]
+    fn runtime_quotient_actuals_substitute_at_the_edge() {
+        let source = r#"
+            machine dive(remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+            terminates by remaining in 0..(cap % step + 6);
+            -> u64 {
+                transition remaining > 0 {
+                    true -> dive(remaining - 1, cap - 0, step - 0, cap / step)
+                    false -> remaining
+                }
+            }
+        "#;
+        let program = typed(source);
+        assert!(entry(&program));
+        let proof = edge(&program, RankingRangePremises::EntryInvariant)
+            .expect("quotient actual transports");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        // Moving the remainder actual into the endpoint-read `cap` slot
+        // changes the endpoint: `(cap % step) % step` is not `cap % step`.
+        let moved = typed(
+            &source
+                .replace("cap - 0, step - 0, cap / step", "cap % step, step - 0, 0")
+                .replace("cap: u64 [0..=20]", "cap: u64"),
+        );
+        assert!(edge(&moved, RankingRangePremises::EntryInvariant).is_none());
+    }
 }
 
 mod moved_record_copy {

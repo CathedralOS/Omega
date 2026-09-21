@@ -31,6 +31,7 @@ x86-encoding = { path = "../../instruction_set_architectures/x86-encoding" }
 machine-code = { path = "../../../representations/machine-code" }
 function-identity = { path = "../../../representations/function-identity" }
 installation-evidence = { path = "../../../representations/installation-evidence" }
+boundary-applications = { path = "../../../representations/boundary-applications" }
 target-operations = { path = "../../../representations/target-operations" }
 task-plans = { path = "../../../representations/task-plans" }
 isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }
@@ -56,7 +57,7 @@ abstract-operations-to-target-operations = { path = "../../../pipeline/abstract-
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-to-abstract-operations" }
 machine-emission = { path = "../../machine-emission" }
 native-realization = { path = "../../../compiler/native-realization" }
-optimization-core = { path = "../../../representations/optimization-core" }
+optimization-core = { path = "../../../representations/optimization-core", features = ["test-support"] }
 checked-trees = { path = "../../../../psi/representations/checked-trees" }
 extents = { path = "../../../../psi/foundation/extents" }
 checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/checked-trees-to-lowered-psi" }

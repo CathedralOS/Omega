@@ -210,6 +210,10 @@ Workers do not edit execution boards; the coordinator owns board updates from
 their returned evidence. A worker whose slice reaches a sibling-owned path
 reports it as `blocked-path` rather than editing it; a verification-only result
 resolves or re-scopes the item only through the coordinator's board edit.
+Worker evidence reaches the board through `python tools/claims.py note
+--ticket <ticket> --text <finding>` on its claim ticket plus the session
+report — never a `board:` commit; the landing queue refuses board-only and
+empty candidates.
 
 Use the actual agent tool and returned ID before reporting a worker as launched.
 If unavailable, continue locally where possible and report the limitation.

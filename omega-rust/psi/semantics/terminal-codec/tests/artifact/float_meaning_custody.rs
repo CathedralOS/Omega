@@ -342,13 +342,15 @@ fn module_spans(encoded: &[u8]) -> ModuleSpans {
     walker.take(2); // format marker
     walker.take(2); // vocabulary marker
     walker.take(8); // entry machine identity
-    // The scalar-qualification catalog encodes four counted rosters even when
-    // empty: domains, qualification sets, coercions, and float entry ranges.
+    // The scalar-qualification catalog encodes five counted rosters even when
+    // empty: domains, qualification sets, coercions, and the float and integer
+    // entry ranges.
     for label in [
         "scalar domains",
         "scalar qualification sets",
         "scalar qualification coercions",
         "scalar float entry ranges",
+        "scalar integer entry ranges",
     ] {
         walker.expect_empty_count(label);
     }
@@ -513,6 +515,7 @@ fn float_scalar(id: u64) -> ValueDeclaration {
 fn float32_constant(id: u64, result: u64, bits: u32) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(id),
         result: OperationResult::Scalar(float_scalar(result)),
         kind: OperationKind::IeeeFloatConstant {
@@ -580,10 +583,12 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
         float32_constant(2, 11, 0x3f80_0000),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(float_scalar(12)),
             kind: OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -612,6 +617,7 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
         blocks: vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(2),
                 parameters: Vec::new(),
@@ -621,6 +627,7 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
                     target: block_id(3),
                     arguments: vec![value_id(9)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
@@ -628,6 +635,7 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(3),
                 parameters: vec![float_scalar(13)],
@@ -641,6 +649,7 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
         ],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: Vec::new(),
             requires: Vec::new(),

@@ -48,6 +48,7 @@ fn local_plan(reentry: bool) -> AbstractOperationPlan {
         O::EstablishPrimitiveLocal {
             psi_operation: id(7, OperationId::new),
             result: StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

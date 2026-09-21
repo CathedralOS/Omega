@@ -54,6 +54,29 @@ pub(crate) fn data_definition_by_name<'program>(
         .find(|definition| definition.name.as_str() == type_name)
 }
 
+fn data_definition_by_symbol(
+    program: &SymbolResolvedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<&DataDefinition> {
+    program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+}
+
+/// The canonical declared name for a resolved named-type symbol: the authored
+/// surface spelling may be module-qualified (`module::Type`) where a schema
+/// dual-registration requires it, but equality joins on declared names.
+fn canonical_data_name(
+    program: &SymbolResolvedTrees,
+    symbol: symbols::SymbolHandle,
+    authored: &resolved::name::DiagnosticName,
+) -> String {
+    data_definition_by_symbol(program, symbol)
+        .map(|definition| definition.name.as_str().to_owned())
+        .unwrap_or_else(|| authored.as_str().to_owned())
+}
+
 pub(crate) fn data_equality_shape(
     program: &SymbolResolvedTrees,
     data: &DataDefinition,
@@ -370,7 +393,9 @@ pub(crate) fn value_type_base_name(
             program,
             program.child_type_reference(constrained.storage.base_type),
         ),
-        resolved::types::TypeReference::Named { name, .. } => Some(name.as_str().to_owned()),
+        resolved::types::TypeReference::Named { symbol, name } => {
+            Some(canonical_data_name(program, *symbol, name))
+        }
         _ => None,
     }
 }
@@ -395,7 +420,9 @@ pub(crate) fn table_type_base_name(
         resolved::types::TypeReferenceNode::Constrained { base_type, .. } => {
             table_type_base_name(program, *base_type)
         }
-        resolved::types::TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
+        resolved::types::TypeReferenceNode::Named { symbol, name } => {
+            Some(canonical_data_name(program, *symbol, name))
+        }
         _ => None,
     }
 }

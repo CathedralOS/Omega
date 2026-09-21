@@ -18,12 +18,14 @@ pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
             TerminalMachineResult::Unit,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_085).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -34,6 +36,7 @@ pub(super) fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_086).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -78,12 +81,14 @@ pub(super) fn dead_wrapping_add_verified() -> VerifiedPsiOptimizationUnit {
             TerminalMachineResult::Unit,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_096).unwrap(),
                         result: declaration(left),
                         kind: OperationKind::IntegerConstant {
@@ -92,6 +97,7 @@ pub(super) fn dead_wrapping_add_verified() -> VerifiedPsiOptimizationUnit {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_097).unwrap(),
                         result: declaration(right),
                         kind: OperationKind::IntegerConstant {
@@ -100,6 +106,7 @@ pub(super) fn dead_wrapping_add_verified() -> VerifiedPsiOptimizationUnit {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_098).unwrap(),
                         result: declaration(sum),
                         kind: OperationKind::WrappingIntegerAdd { left, right },

@@ -1,0 +1,394 @@
+{
+  "schema": "omega-external-proof-import-case/1",
+  "subject": "external arithmetic proof of add(2,1)=3 over the Peano axioms",
+  "target": {
+    "capsule": "linux_x86_64"
+  },
+  "symbols": {
+    "z": 0,
+    "s": 1,
+    "add": 2
+  },
+  "refinements": {
+    "Nat": [
+      "pred",
+      "is_nat",
+      [
+        [
+          "var",
+          "x"
+        ]
+      ]
+    ]
+  },
+  "axioms": {
+    "add_z": [
+      "forall",
+      "x",
+      [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "var",
+              "x"
+            ],
+            [
+              "sym",
+              "z",
+              []
+            ]
+          ]
+        ],
+        [
+          "var",
+          "x"
+        ]
+      ]
+    ],
+    "add_s": [
+      "forall",
+      "x",
+      [
+        "forall",
+        "y",
+        [
+          "equals",
+          [
+            "sym",
+            "add",
+            [
+              [
+                "var",
+                "x"
+              ],
+              [
+                "sym",
+                "s",
+                [
+                  [
+                    "var",
+                    "y"
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "sym",
+            "s",
+            [
+              [
+                "sym",
+                "add",
+                [
+                  [
+                    "var",
+                    "x"
+                  ],
+                  [
+                    "var",
+                    "y"
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ],
+    "z_nat": [
+      "in",
+      [
+        "sym",
+        "z",
+        []
+      ],
+      "Nat"
+    ],
+    "s_nat": [
+      "forall",
+      "x",
+      [
+        "implies",
+        [
+          "in",
+          [
+            "var",
+            "x"
+          ],
+          "Nat"
+        ],
+        [
+          "in",
+          [
+            "sym",
+            "s",
+            [
+              [
+                "var",
+                "x"
+              ]
+            ]
+          ],
+          "Nat"
+        ]
+      ]
+    ]
+  },
+  "axiom_closure": [
+    "add_z",
+    "add_s"
+  ],
+  "obligation": {
+    "kind": "statement",
+    "pattern": [
+      "equals",
+      [
+        "sym",
+        "add",
+        [
+          [
+            "sym",
+            "s",
+            [
+              [
+                "sym",
+                "s",
+                [
+                  [
+                    "sym",
+                    "z",
+                    []
+                  ]
+                ]
+              ]
+            ]
+          ],
+          [
+            "sym",
+            "s",
+            [
+              [
+                "sym",
+                "z",
+                []
+              ]
+            ]
+          ]
+        ]
+      ],
+      [
+        "sym",
+        "s",
+        [
+          [
+            "sym",
+            "s",
+            [
+              [
+                "sym",
+                "s",
+                [
+                  [
+                    "sym",
+                    "z",
+                    []
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+  },
+  "expect": "reject",
+  "export": {
+    "schema": "external-arithmetic-proof/1",
+    "prover": "ext-arith-0.2",
+    "steps": [
+      {
+        "id": "p1",
+        "rule": "AXIOM",
+        "name": "add_z"
+      },
+      {
+        "id": "d2",
+        "rule": "DEF_CLOSED",
+        "term": [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ]
+      },
+      {
+        "id": "u1",
+        "rule": "UI",
+        "of": "p1",
+        "witness": [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        "defined": "d2"
+      },
+      {
+        "id": "p2",
+        "rule": "AXIOM",
+        "name": "add_s"
+      },
+      {
+        "id": "u2",
+        "rule": "UI",
+        "of": "p2",
+        "witness": [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        "defined": "d2"
+      },
+      {
+        "id": "dz",
+        "rule": "DEF_CLOSED",
+        "term": [
+          "sym",
+          "z",
+          []
+        ]
+      },
+      {
+        "id": "u3",
+        "rule": "UI",
+        "of": "u2",
+        "witness": [
+          "sym",
+          "z",
+          []
+        ],
+        "defined": "dz"
+      },
+      {
+        "id": "r1",
+        "rule": "REFL",
+        "term": [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      },
+      {
+        "id": "c1",
+        "rule": "SUBST",
+        "equality": "u1",
+        "var": "m",
+        "pattern": [
+          "equals",
+          [
+            "sym",
+            "s",
+            [
+              [
+                "var",
+                "m"
+              ]
+            ]
+          ],
+          [
+            "sym",
+            "s",
+            [
+              [
+                "sym",
+                "s",
+                [
+                  [
+                    "sym",
+                    "s",
+                    [
+                      [
+                        "sym",
+                        "z",
+                        []
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ],
+        "direction": "right",
+        "of": "r1"
+      },
+      {
+        "id": "g",
+        "rule": "TRANS",
+        "left": "u3",
+        "right": "c1"
+      },
+      {
+        "id": "x",
+        "rule": "CHEAT"
+      }
+    ],
+    "conclusion": "g"
+  }
+}

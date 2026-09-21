@@ -720,3 +720,147 @@ fn aggregate_argument_projection(
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        argument_for_target_parameter, equation_contains_partition, term_contains_partition,
+    };
+    use language_semantics::SemanticDomainId;
+    use language_semantics::content::{
+        ContentConservationEquation, ContentConservationTerm, ContentPlaceRoot,
+        ContentPlaceVersion, ContentStructuralPlace,
+    };
+    use symbols::SymbolHandle;
+    use typed_trees::expression::ExpressionHandle;
+    use typed_trees::signature::StateParameter;
+
+    fn projection_term() -> ContentConservationTerm {
+        ContentConservationTerm::Projection {
+            domain: SymbolHandle::invalid(),
+            semantic_domain: SemanticDomainId::NULL,
+            projection_machine: SymbolHandle::invalid(),
+            projection_report_fingerprint: 0,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: ContentPlaceRoot::Result,
+                segments: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn term_contains_partition_flags_only_separate_terms() {
+        assert!(!term_contains_partition(&projection_term()));
+        assert!(term_contains_partition(&ContentConservationTerm::separate(
+            [projection_term(),]
+        )));
+        assert!(term_contains_partition(&ContentConservationTerm::separate(
+            [
+                projection_term(),
+                ContentConservationTerm::separate([projection_term()]),
+            ]
+        )));
+    }
+
+    #[test]
+    fn equation_contains_partition_flags_either_side() {
+        let bare = ContentConservationEquation::new(projection_term(), projection_term());
+        assert!(!equation_contains_partition(&bare));
+        let separated = ContentConservationEquation::new(
+            projection_term(),
+            ContentConservationTerm::separate([projection_term()]),
+        );
+        assert!(equation_contains_partition(&separated));
+    }
+
+    fn parameter(symbol_index: u32, is_self: bool) -> StateParameter {
+        StateParameter {
+            symbol: SymbolHandle::from_arena_index(symbol_index),
+            is_self,
+            ..StateParameter::default()
+        }
+    }
+
+    fn argument(index: u32) -> ExpressionHandle {
+        ExpressionHandle::from_arena_index(index)
+    }
+
+    #[test]
+    fn argument_for_target_parameter_binds_implicit_self_to_the_receiver() {
+        let parameters = [parameter(1, true), parameter(2, false), parameter(3, false)];
+        let arguments = [argument(10), argument(11)];
+        assert_eq!(
+            argument_for_target_parameter(
+                &parameters,
+                &arguments,
+                Some(argument(99)),
+                SymbolHandle::from_arena_index(1)
+            ),
+            Some(argument(99)),
+            "an implicit self parameter takes the receiver, not a positional argument"
+        );
+        assert_eq!(
+            argument_for_target_parameter(
+                &parameters,
+                &arguments,
+                Some(argument(99)),
+                SymbolHandle::from_arena_index(3)
+            ),
+            Some(argument(11)),
+            "trailing parameters consume positions without the receiver's slot"
+        );
+    }
+
+    #[test]
+    fn argument_for_target_parameter_binds_explicit_self_positionally() {
+        // arguments.len() == parameters.len() means the authored call spells
+        // self in the argument list, so the receiver expression is not used.
+        let parameters = [parameter(1, true), parameter(2, false)];
+        let arguments = [argument(10), argument(11)];
+        assert_eq!(
+            argument_for_target_parameter(
+                &parameters,
+                &arguments,
+                Some(argument(99)),
+                SymbolHandle::from_arena_index(1)
+            ),
+            Some(argument(10))
+        );
+        assert_eq!(
+            argument_for_target_parameter(
+                &parameters,
+                &arguments,
+                Some(argument(99)),
+                SymbolHandle::from_arena_index(2)
+            ),
+            Some(argument(11))
+        );
+    }
+
+    #[test]
+    fn argument_for_target_parameter_fails_closed() {
+        let parameters = [parameter(1, false)];
+        let arguments = [argument(10)];
+        assert_eq!(
+            argument_for_target_parameter(
+                &parameters,
+                &arguments,
+                None,
+                SymbolHandle::from_arena_index(7)
+            ),
+            None,
+            "a parameter the signature does not carry has no argument"
+        );
+        assert_eq!(
+            argument_for_target_parameter(
+                &parameters,
+                &[],
+                None,
+                SymbolHandle::from_arena_index(1)
+            ),
+            None,
+            "a parameter whose positional argument is missing has no argument"
+        );
+    }
+}

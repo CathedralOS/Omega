@@ -103,7 +103,7 @@ pub(super) fn derive(
         object,
         image,
         PhysicalRelocationDisposition::ResolvedInternalCall,
-        None,
+        &[],
     )
     .map(Some)
 }

@@ -40,8 +40,10 @@ fn store_module(block_home: bool) -> TerminalModule {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(1),
             structural_type: id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -75,6 +77,7 @@ fn store_module(block_home: bool) -> TerminalModule {
             target: id(2),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(1),
                 path: Vec::new(),
@@ -85,6 +88,7 @@ fn store_module(block_home: bool) -> TerminalModule {
         };
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(2),
             parameters: Vec::new(),
             structural_parameters: vec![parameter],
@@ -99,6 +103,7 @@ fn store_module(block_home: bool) -> TerminalModule {
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {

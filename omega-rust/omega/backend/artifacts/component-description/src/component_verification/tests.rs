@@ -11,8 +11,9 @@ use crate::component_description::{
     ComponentEntry, ComponentEntryKind, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
     DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot, InstallationObligation,
     InstallationServiceBound, MAX_IDENTITY_BYTES, ObligationKind, OutgoingAuthorityClass,
-    OutgoingEvidence, component_description_identity, decode_component_description,
-    encode_component_description, requirement_contract_identity, requirement_export_identity,
+    OutgoingEvidence, canonical_entry_contract_identity, component_description_identity,
+    decode_component_description, encode_component_description, requirement_contract_identity,
+    requirement_export_identity,
 };
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
@@ -85,6 +86,7 @@ fn minimal_module() -> TerminalModule {
             entry: BlockId::new(1).expect("block identity"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: BlockId::new(1).expect("block identity"),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -96,6 +98,7 @@ fn minimal_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -127,6 +130,7 @@ fn boundary_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -230,6 +234,7 @@ fn bounded_provider_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -405,6 +410,59 @@ fn exports_checked_realizations_and_joins_the_selected_plan() {
     verified
         .realizes_selected_plan(&selected_plan())
         .expect("the selected plan joins its exact exported realization");
+}
+
+#[test]
+fn verified_component_publishes_export_contracts_for_the_demand_join() {
+    let module = provider_module();
+    let description = describe(&module, &empty_selection());
+    let request = request_for(&module, BTreeSet::new());
+    let verified = verify(&description, &request).expect("provider component verifies");
+
+    let contracts = verified.export_contracts();
+    assert_eq!(
+        contracts.len(),
+        verified.exports().len(),
+        "every export surface carries exactly one join contract"
+    );
+    for (surface, contract) in verified.exports().iter().zip(contracts.iter()) {
+        assert_eq!(
+            surface.identity, contract.identity,
+            "contract rows align with the surface roster by identity"
+        );
+    }
+
+    // The offered contract is the demanded requirement's contract identity:
+    // an import slot on `IndexedRequirement::apply` joins this surface by
+    // digest equality, never by parsing the opaque export identity.
+    let offered = contracts
+        .iter()
+        .find(|contract| {
+            contract.identity
+                == requirement_export_identity(
+                    "IndexedRequirement::apply",
+                    "IndexedProvider",
+                    "IndexedProvider::apply",
+                )
+        })
+        .expect("the realization export carries a contract");
+    assert_eq!(
+        offered.contract_identity,
+        requirement_contract_identity("IndexedRequirement::apply")
+    );
+
+    let canonical = contracts
+        .iter()
+        .find(|contract| contract.identity.starts_with("export:canonical:"))
+        .expect("the canonical entry carries a contract");
+    assert_eq!(
+        canonical.contract_identity,
+        canonical_entry_contract_identity(module.entry)
+    );
+    assert_ne!(
+        canonical.contract_identity, offered.contract_identity,
+        "the canonical entry can never satisfy a requirement demand"
+    );
 }
 
 #[test]
@@ -882,6 +940,7 @@ fn described_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -893,6 +952,7 @@ fn described_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(3).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

@@ -33,11 +33,15 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             );
             0
         }
-        ExecutionOutcome::Host { output, comparison } => {
+        ExecutionOutcome::Host {
+            output,
+            exit,
+            comparison,
+        } => {
             print!("{}", String::from_utf8_lossy(&output.stdout));
             eprint!("{}", String::from_utf8_lossy(&output.stderr));
-            let native_code = output.status.code().unwrap_or(-1);
-            eprintln!("native exit: {native_code}");
+            let native_code = exit.code().unwrap_or(-1);
+            eprintln!("native {}", exit.describe());
             match comparison {
                 InterpreterComparison::NotRequested => native_code,
                 InterpreterComparison::Declined(reason) => {

@@ -113,3 +113,19 @@ The boot base case keeps the same boundary: trusted build validates and signs an
 admitted identity; secure boot authenticates and gates entry; measured boot
 records the entered identity; the boot-admitted installer admits later artifacts.
 Measurement alone never establishes admission.
+
+## Status
+
+The reference compiler implements the whole lifecycle in
+`omega-rust/omega/backend/runtime/executable-installation/`: admit, materialize,
+freeze, validate, install, retire and quarantine, with every failed transition
+returning its inputs. Install and retirement receipts carry the demanded
+provider-canonical fact digests; the replacement join patches declared entries
+with bound admitted fragments before the superseded custody drains; a provider
+operation performs the write-to-execute transition itself (final bytes resident,
+ordering, readback, then write authority suspended), and a sealed entry
+reference hands physical invocation a borrow that blocks retire or patch until
+release. What remains ahead is the authored route: no Omega source yet names an
+admitted artifact, placement or installed code, so no program reaches this
+boundary end to end. That leg is tracked under
+`WIRE-RUNTIME-AND-INSTALLATION` on [TASKS.md](../../../TASKS.md).

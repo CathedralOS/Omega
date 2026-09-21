@@ -70,6 +70,8 @@ sum-layout reports do not define those forms.
 | `At(offset)` | Whole-field placement at a byte offset. |
 | `Bits(container, container_width, destination_lsb, source_lsb, width)` | Place a specified source-bit fragment in a transfer container. |
 | `IntegerAt(offset, stored_width, interpretation)` | Store an integer at a byte offset using a bit-denominated width and `Signed` or `Unsigned` interpretation. |
+| `Varint(tag)` | Variable-length wire placement under a schema tag. |
+| `LengthPrefixed(tag)` | Length-prefixed wire placement under a schema tag. |
 
 For `Bits`, fragments tile the declaration's representation width exactly.
 `bool` contributes one bit; a nonnegative constant integer range contributes

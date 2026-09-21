@@ -38,7 +38,7 @@ machine Main::main(&mut self) {
     }
 
     state compile() {
-        self.compiler.compile(self.source.as_slice[0..self.length], "answer");
+        self.compiler.compile(self.source.as_slice[0..self.length], "main");
         transition self.compiler.status {
             OmegaScalarCompilationStatus::Complete -> publish(0)
             OmegaScalarCompilationStatus::Reject -> self.console.exit_process(1)

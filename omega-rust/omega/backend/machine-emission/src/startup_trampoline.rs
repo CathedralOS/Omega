@@ -374,7 +374,12 @@ pub fn validate_x86_64_startup_trampoline(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        GDT_OFFSET, X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT, X86_64StartupTrampolineResolution,
+        X86_64StartupTrampolineResolutionError, emit_x86_64_startup_trampoline,
+        resolve_x86_64_startup_trampoline, validate_x86_64_startup_trampoline,
+    };
+    use calling_conventions::MachineRegister;
 
     fn resolution() -> X86_64StartupTrampolineResolution {
         X86_64StartupTrampolineResolution {

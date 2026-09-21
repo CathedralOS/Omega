@@ -63,7 +63,7 @@ fn checked_progress_entry_retains_selected_syscall_binding_without_table_project
         demand.provider_plan_report_identity,
         plan.report_fingerprint()
     );
-    assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
+    assert_eq!(demand.profile_identity, "SchedulerHandle::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 }
 

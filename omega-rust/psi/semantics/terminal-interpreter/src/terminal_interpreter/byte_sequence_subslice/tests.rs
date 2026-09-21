@@ -44,8 +44,10 @@ fn execution() -> (TerminalExecution, Operation) {
     let structural_type = StructuralTypeId::new(1).unwrap();
     let operation = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place(2),
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -65,6 +67,7 @@ fn execution() -> (TerminalExecution, Operation) {
         block_id,
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id,
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
@@ -80,6 +83,7 @@ fn execution() -> (TerminalExecution, Operation) {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -95,6 +99,7 @@ fn execution() -> (TerminalExecution, Operation) {
                 target: block_id,
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: place(2),
                     path: Vec::new(),
