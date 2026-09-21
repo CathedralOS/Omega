@@ -1,7 +1,7 @@
 # Derivation request admission controls
 
 Run `sh tests/gamma/derivation-admission/run.sh` on macOS arm64 with Python 3
-and `codesign`, or Windows x64 using Git Bash with Python 3. Other hosts fail
+and `codesign`, Linux x86-64, or Windows x64 using Git Bash with Python 3. Other hosts fail
 explicitly. Windows execution remains
 unvalidated in this checkpoint.
 

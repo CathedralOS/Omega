@@ -1,7 +1,7 @@
 # Supplied-theory derivation checking
 
 Run `sh tests/gamma/derivation-checking/run.sh` from the repository root.
-The gate uses the selected Gamma evaluator on macOS arm64 or Windows x64 Git
+The gate uses the selected Gamma evaluator on macOS arm64, Linux x86-64, or Windows x64 Git
 Bash. An unavailable Python installation explicitly skips; other hosts report
 unsupported. Host availability is not evidence of cross-platform execution.
 
