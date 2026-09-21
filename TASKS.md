@@ -9595,8 +9595,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`execution/unit/structural_scalar_store/mod.rs:572`). So the family
   splits into two distinct missing unit-plan admissions — transition-chain
   terminator tail and record-literal field store — both under the same
-  `execution/unit/` ownership lane; the ledger refresh stays fenced to
-  BASELINE-CHECKED-LOWERED-PSI-CLUSTERS (~12:08Z).
+  `execution/unit/` ownership lane; the ledger refresh has since landed —
+  `known_baseline_failures.md`'s re-measurement at `7b224763615` records
+  this pair under the moved selected-entry rejoin gate.
+  Re-witnessed 2026-09-21 at `891eb5c584` (linux x86-64,
+  `OMEGA_PASS_CANARY_FILTER` pass_canaries_compile): identical outcome —
+  integer `transition chain`, string `record literal field`, still 0
+  rejoined attachment identities; the repair remains in the
+  `execution/unit/` unit-plan lane.
 - **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT.** — mined candidate; scope verified
   2026-09-20 (z180): re-mines `tests/omega/pass/wire/runtime_wire_exact_
   array_without_count_exit`, which already exists and is rostered in
