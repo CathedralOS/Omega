@@ -9540,12 +9540,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-D-REQUEST-AND-SCALAR-COMPILATION's frontier record — comparisons,
   paths, `!`/`-` (LogicalNot produces Boolean; Negate is not total on the
   unsigned carrier under Exact), locals, assignments, remaining transition
-  forms. Implementation surface is fenced: `bootstrap/5_omega` sits under
-  OMEGA-D's blanket claim (Zergling-112, exp ~22:27Z),
-  `scalar_compilation.epsilon` itself is claimed by
-  D-SCALAR-OPERATION-CLOSURE (Zergling-166, exp ~01:46Z), and the gate dir
-  `tests/bootstrap/omega-executable` by D-DIAGNOSTIC-ENTRY-ADAPTER-
-  REPLACEMENT (Jarod, exp ~05:25Z). No separable slice: the sibling
+  forms. Implementation surface is fenced (re-mapped `d7a48d7af0`):
+  `scalar_compilation.epsilon` itself is unfenced — its earlier fences
+  expired — but any operator fold lands only with a re-pinned member
+  digest in `bootstrap/5_omega/omega_compiler.epsilon.sources` (fenced by
+  OMEGA-D-REQUEST-ADMISSION/semantics-4-5, Zergling-128, ~06:30Z) and the
+  acceptance gate dir `tests/bootstrap/omega-executable` (same owner's
+  records-free leg, ~06:46Z). No separable slice: the sibling
   OMEGA-D-SCALAR-{ALPHA-EMISSION,EMISSION-EXTENSION,OPERATION-FRONTIER,
   SEQUENCING} rows name the same file.
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
