@@ -19,6 +19,24 @@ Rows verified by independent stash-baseline reproduction at revision
 > unmeasurable at this HEAD until the ElementView consumer legs land;
 > per-row memberships are carried from their last measurable readings.
 
+## omega-architecture-test
+
+`cargo nextest run -p omega-architecture-test --no-fail-fast` at
+`301582616c` (2026-09-21, linux x86-64, cargo — mbx absent): 596 run, 595
+passed, 1 failed —
+`scoped_lookup_maps::every_name_keyed_lookup_map_file_is_cataloged` reports
+name-keyed maps lacking a recorded reason in
+`omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs`
+(`BTreeMap<String, …>` keyed by qualified schema path, from the wire-codec
+trust pinning) and
+`omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+(`BTreeMap<String, _>` member tables, new file). Both arrived in the
+`a3e52751ef..530bc264e4` zergling batch-merge, so this is a merged-range
+failure, not an excused baseline row: close it by recording each key domain
+and the scoped-tree refusal in `JUSTIFIED_LOOKUP_MAP_FILES`
+(`tests/architecture/scoped_lookup_maps.rs`) or by keying on handles, then
+delete this note.
+
 ## typed-trees-to-checked-trees
 
 `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
