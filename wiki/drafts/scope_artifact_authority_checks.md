@@ -2,11 +2,13 @@
 
 Scope-verification record for the dispatched name `ARTIFACT-AUTHORITY-CHECKS`
 (planner item NEW-SV-ARTIFACT-AUTHORITY-CHECKS-SCOPE). Audited at
-`f2c1762c2c3` on linux x86-64.
+`f2c1762c2c3`; re-audited at `c924529921d` on linux x86-64 (z157).
 
 ## Resolution
 
-The name appears on no board row. The surface it names — artifact/install
+The name carries only a mined stub row (`TASKS.md` ~:8439,
+"mined candidate; verify scope then implement"), minted after the first
+audit. The surface it names — artifact/install
 authority checks — is owned by **WIRE-RUNTIME-AND-INSTALLATION**
 (TASKS.md, the admitted executable installation contract from
 [executable_installation.md](../spec/build/executable_installation.md)):
@@ -45,7 +47,8 @@ Crate `executable-installation`
 
 Verified substrate health at audit time: the owning row's re-verification
 records the crate at 130/130 (`cargo nextest run -p
-executable-installation`, linux x86-64 at `8570ba9ae8`).
+executable-installation`, linux x86-64 at `8570ba9ae8`); re-witnessed
+130/130 green at `c924529921d`.
 
 ## Open legs (all live on the owning row, none unowned)
 
@@ -72,9 +75,13 @@ WIRE-RUNTIME-AND-INSTALLATION leg).
 
 ## Fences observed at audit time
 
-No live claim fences `executable-installation/` or this file. Provider and
-physical-invocation neighbors were claim-held in recent wave dumps
+No live claim fences `executable-installation/` or this file (159 live
+claims at `c924529921d`; TOPOLOGY-PRIVATE-PIPE-INSTALLATION is held only
+by item name, no path overlap). Provider and
+physical-invocation neighbors were claim-held in earlier wave dumps
 (UEFI-PHYSICAL-SEMANTIC-ENTRY on native-realization surfaces); re-check
 `tools/claims.py status` before starting a code leg.
 
 > Field note (e1dc35c92948..97be15c1b592 review): the dispatched name has no board row; either mint one resolved row pointing at WIRE-RUNTIME-AND-INSTALLATION (so the planner stops re-dispatching it) or delete this draft once the landed-substrate table is folded into that row.
+
+> Field note (z157, `c924529921d`): a mined stub row now exists at ~:8439 — stamp it with this verdict (resolved-by-delegation to WIRE-RUNTIME-AND-INSTALLATION's enumerated legs) at the next board-touching leg; the slice verdict is unchanged.
