@@ -207,7 +207,14 @@ pub struct FlowFacts {
     /// These rows affect artifact/API identity but grant no source authority.
     pub semantic_dependencies: super::CheckedSemanticDependencies,
     /// Source-handle-free control topology for the live terminal-Psi scalar
-    /// producer. General terminal control will replace this bootstrap carrier.
+    /// producer: `machines`, per-state bindings, parameter storage, and the
+    /// successor argument/transfer arenas cover scalar-signature machines
+    /// only — that topology is the bootstrap carrier general terminal
+    /// control replaces. The `guarded_exits`/`guarded_tails` lanes are
+    /// already produced for every machine's guarded tails and consumed by
+    /// composed-Unit, argument-evaluation, and custody lowering, so the
+    /// general carrier inherits those shared lanes rather than discarding
+    /// this record whole.
     pub terminal_scalar_graphs: super::CheckedScalarGraphPlans,
     /// Stable machine selection and signature-eligibility rows for terminal
     /// production.
