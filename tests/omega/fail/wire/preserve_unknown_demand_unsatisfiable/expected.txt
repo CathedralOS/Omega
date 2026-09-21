@@ -1,0 +1,1 @@
+local schema `LocalMessage` and peer schema `PeerMessage`: unknown preservation
