@@ -93,10 +93,14 @@
 //! terminator record changes: the member keeps its own id, kind,
 //! operands, provenance, and implicit surface while only its position in
 //! the program moves. Proposal and independent replay share only the
-//! admission predicates. Validation consumes the proposed program,
-//! requires the member to sit at the landing index, and restores the
-//! complete source by content — every other block, instruction,
-//! register, roster row, call, and settlement is retained bit-identical.
+//! window primitives — `crossed_window`, the run audit, and the
+//! dead-path walk — while each derives the family's legality decision
+//! itself. Validation consumes the proposed program, re-derives the
+//! member, join, and landing index from the source without the
+//! producer's admission routine, requires the member to sit at the
+//! landing index, and restores the complete source by content — every
+//! other block, instruction, register, roster row, call, and settlement
+//! is retained bit-identical.
 
 mod admission;
 mod rewrite;
