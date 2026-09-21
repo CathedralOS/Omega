@@ -13109,13 +13109,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unchanged.
 - **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
 - **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX** — mined candidate; folded — umbrella name for the
+  RC-NATIVE-MATRIX family; coverage is recorded per host on the canonical
+  rows (-HOSTS ~:12727, -LINUX-X86-64 ~:12746, -LINUX-ARM64 ~:12735) and
+  adjudicated under resolved sibling NATIVE-MATRIX-MATCHING-HOSTS
+  (~:10853). No independent slice.
+- **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; folded into the canonical
+  resolved RC-NATIVE-MATRIX-CLOSURE row (~:12639). No independent slice.
+- **RC-NATIVE-MATRIX-GATE** — mined candidate; folded into the canonical
+  resolved RC-NATIVE-MATRIX-GATE row (~:12676). No independent slice.
 - **RC-NATIVE-MATRIX-HOST-EXECUTION** — adjudicated: scope verified, covered
   (see the resolved row at ~:12519; recorded run kept at
   `wiki/drafts/rc_native_matrix_host_execution.md`, revision 4dbdaa9bc3).
-- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; folded into the
+  recorded host-leg coverage on canonical RC-NATIVE-MATRIX-HOSTS (~:12727)
+  and the per-host rows. No independent slice.
 - **RC-NATIVE-MATRIX-HOST-RUNS.** Mined candidate — sibling stub naming the
   recorded RC-NATIVE-MATRIX surface (canonical row item:
   RC-NATIVE-MATRIX-LINUX-X86-64). Fresh linux x86-64 host run recorded at
@@ -13141,12 +13149,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Field note (review 035309b02a5e..f72122f71e4b): the 24/14 reading and
   the pipeline_ownership compile-drift paragraph above are superseded by
   that 7b259409073 run — read the draft, not this row, for current
-  counts; the six sibling RC-NATIVE-MATRIX-* stubs still read as
-  unverified and should be folded into RC-NATIVE-MATRIX-LINUX-X86-64.
+  counts; the six sibling RC-NATIVE-MATRIX-* stubs that read as unverified
+  are folded into their canonical rows by this commit
+  (NEW-BOARD-FOLD-RC-NATIVE-MATRIX-STUBS).
   Re-checked at `f72122f71e4` (swarm-w9-ffival): claim probe exit 2 — the linux_x86_64 draft is live-fenced to the canonical owner RC-NATIVE-MATRIX-LINUX-X86-64 (devin-swarm-rnmx, ~11:30Z Sep 21); the recorded run at 7b259409073 (22 pass / 16 fail, pipeline_ownership drift repaired upstream) is the current record.
-- **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOSTS** — mined candidate; folded into the canonical
+  recorded RC-NATIVE-MATRIX-HOSTS row (~:12727). No independent slice.
+- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; folded into the
+  canonical recorded RC-NATIVE-MATRIX-LINUX-ARM64 row (~:12735). No
+  independent slice.
+- **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; folded — spelling alias
+  of canonical RC-NATIVE-MATRIX-LINUX-X86-64 (~:12746). No independent
+  slice.
 - **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
   `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
   linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
