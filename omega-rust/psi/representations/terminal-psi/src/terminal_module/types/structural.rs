@@ -29,9 +29,7 @@ pub enum StructuralTypeShape {
     /// structural elements. The extent is the view's own stored runtime
     /// length, not part of the type identity; the viewed storage remains
     /// owned by its referent root.
-    ElementView {
-        element: StructuralTypeId,
-    },
+    ElementView { element: StructuralTypeId },
     Record {
         /// Declaration order is semantic. Field IDs must nevertheless be
         /// strictly increasing so the same record has one canonical spelling.
