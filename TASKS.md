@@ -13593,6 +13593,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   sixteen fenced rows repaired. No residual slice under this name — the
   remaining RC-REPOSITORY-GATE redness sits on other lanes' fences.
 
+||||||| parent of 991b732d6c68 (board: add PIN-CONNECTED-PIPELINE-ROUTE resolved row)
+- **PIN-CONNECTED-PIPELINE-ROUTE.** Resolved — named sibling of
+  PIPELINE-ROUTE-CONFORMANCE-AUDIT's connectivity leg: `36ffc8af87`
+  added the pin in `tests/architecture/stage_crate_ownership.rs`
+  requiring every designed stage entrance reachable at its crate root
+  to have a caller outside its own crate, so the executable route —
+  not only the crate-name chain — stays connected. Re-witnessed at
+  `a941e36c800`; both halves of the audit are landed and pinned there.
 - **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
 - **PIPELINE-SPILL-FAMILY-ORPHANS.** — mined candidate; scope verified,
   resolved — covered by the landed stage-entrance orphan audit's POC
