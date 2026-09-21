@@ -1939,6 +1939,23 @@ Owners include
   those claims. Physical optimization replay belongs to
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
 
+  Re-verified at `beaa8e1c1b` (linux x86-64): the resource-analysis leg
+  keeps growing green — `cargo nextest run -p terminal-fixed-fuel` is
+  73/73 (was 60/60 → 61/61 on the readings above), including the
+  bounded-walk machine_bounds battery. The wire surface is NOT clean at
+  this base: `terminal-codec` reads 439 pass / 18 fail — the same
+  unattributed drift families the linux baseline already carried
+  (sections::semantic_module::block_wire wire-tag roundtrips ×10,
+  ledger_spike gamma fixture byte-pins ×3, canonical decoder/identity
+  rows ×2, publication boundary/tool/substitution ×3; down from the
+  earlier linux reading's 20). None is new evidence against this row's
+  contract — `tests/architecture/encoding_contract.rs` pins the closed
+  tag spaces against the codec definitions, and the failures are
+  fixture/tag drift on the producer side, not spec holes — but they
+  keep the codec fence red and belong to the unattributed-baseline
+  lanes until claimed. Interpretation, native lowering and installation
+  custody remain the open legs as recorded.
+
 - **GENERAL-CYCLIC-EXECUTION.** Complete the
   [cyclic control contract](wiki/spec/terminal-psi/control_flow.md) and
   [separate safety/progress rules](wiki/spec/language/termination.md) for
