@@ -33,7 +33,15 @@ pub(crate) fn retain_suspension_call_plans(
         let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
             "possibly-suspending checked call has no exact Terminal operation join",
         ))?;
-        if occurrences.next().is_some() || occurrence.source_target != crossing.target {
+        // Emission and checking name the same callee differently: scalar and
+        // structural-result calls record the callee machine symbol while Unit
+        // calls and `call.target_symbol` carry the resolved entry state.
+        // Comparing owning-machine identities keeps the redirect check sound —
+        // one coordinate maps to one authored callee — across both spellings.
+        if occurrences.next().is_some()
+            || owning_callable_symbol(checked, occurrence.source_target)
+                != owning_callable_symbol(checked, crossing.target)
+        {
             return unsupported("suspension crossing call join is duplicate or redirected");
         }
         let (machine_index, block_index, operation_index) = module
@@ -62,13 +70,18 @@ pub(crate) fn retain_suspension_call_plans(
             ))?;
         let operation =
             &module.machines[machine_index].blocks[block_index].operations[operation_index];
-        let call_arguments = match &operation.kind {
-            OperationKind::Call { arguments, .. } => arguments.as_slice(),
-            _ => {
-                return unsupported(
-                    "suspension frontier lowering supports receiver-free scalar calls only",
-                );
-            }
+        // The verifier admits positional scalar CallArgument joins only on the
+        // flavors below (its `scalar_call_arguments` mirror); the crossing
+        // itself retains on every ordinary call kind, and a live CallArgument
+        // outside this roster fails closed on the empty slice. CallUnit is
+        // deliberately absent — its `arguments` are not an admitted
+        // suspension-argument namespace.
+        let call_arguments: &[ValueId] = match &operation.kind {
+            OperationKind::Call { arguments, .. }
+            | OperationKind::CallStructuralScalar { arguments, .. }
+            | OperationKind::CallStructuralWithScalarArguments { arguments, .. }
+            | OperationKind::BoundaryCall { arguments, .. } => arguments.as_slice(),
+            _ => &[],
         };
         let target = terminal_call_target(&operation.kind).ok_or(LoweringError::Unsupported(
             "suspension crossing Terminal operation is not an ordinary call",
@@ -266,6 +279,22 @@ fn source_origin_is_exact(
         }
         checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => true,
     }
+}
+
+fn owning_callable_symbol(
+    checked: &CheckedTrees,
+    symbol: symbols::SymbolHandle,
+) -> symbols::SymbolHandle {
+    checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == symbol)
+        })
+        .map_or(symbol, |machine| machine.symbol)
 }
 
 fn terminal_call_target(

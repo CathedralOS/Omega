@@ -46,6 +46,7 @@ mod structural_byte_sequence_store;
 mod structural_control_cases;
 mod structural_return_cases;
 mod structural_scalar_store;
+mod suspension_call_plans;
 mod unit_cleanup;
 mod value_case_dispatch;
 
