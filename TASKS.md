@@ -12498,6 +12498,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   -HOSTS. (Superseded row: main's 7b259409073 run re-records the
   same draft at 22 pass / 16 fail with the pipeline_ownership compile
   drift repaired.)
+  Field note (review 035309b02a5e..f72122f71e4b): the 24/14 reading and
+  the pipeline_ownership compile-drift paragraph above are superseded by
+  that 7b259409073 run — read the draft, not this row, for current
+  counts; the six sibling RC-NATIVE-MATRIX-* stubs still read as
+  unverified and should be folded into RC-NATIVE-MATRIX-LINUX-X86-64.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
