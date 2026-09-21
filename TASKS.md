@@ -9125,6 +9125,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
   here. Sibling stubs on this surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION,
   PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
+- **PACKAGE-INPUTS-PSI-FAILURES.** — mined candidate; scope verified,
+  resolved — the psi-failure legs of package compilation inputs are
+  implemented and pinned at `compiler/tests/package_compilation_inputs/`
+  (the wave-9 stub was retired under `50559da3ab9` on the
+  PKG-INPUTS-FLOAT-IDENTITY-LANDING lineage; the surface is broader and
+  covered): symlink-escape and missing-edge build-scope rejections,
+  private-type generic/boundary/method arguments, provider-selection
+  composition rejections, forged/corrupt/truncated independent-component
+  descriptions, custody/assumption/provider-digest rejections, and the
+  module-constant failure legs (`ambiguous_module_constant_leaves_reject_
+  in_both_import_orders`, `private_module_constant_import_rejects_even_
+  when_unused`, `private_dependency_computed_constant_leaf_rejects`,
+  `nominal_constant_bodies_reject_wrong_carriers_and_private_selection`,
+  `public_float_declarations_do_not_admit_*`). Re-verified at
+  `0f75a052f0` (linux x86-64): `cargo nextest run -p compiler --test
+  package_compilation_inputs -E 'test(~reject) or test(~do_not_admit)
+  or test(~fail)'` — 51/51 PASS (206s). No independent slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
   `0977a4249e`: the open reading is dependency-route attribution on the
