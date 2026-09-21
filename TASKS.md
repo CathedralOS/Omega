@@ -12971,6 +12971,73 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   independent slice exists under this name until the admission legs land.
 - **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6, re-verified at `29983459ec` — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side still admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/state_graph + composed_control AND the native admission file itself (GENERAL-CYCLIC-EXECUTION-OPTIMIZER, exp ~03:48Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, exp ~04:33Z). No independent unclaimed slice remains here.
 - **RC-BUILD-AND-PACKAGES.** — mined candidate; scope verified at `f1675418b1`,
+||||||| parent of e5a620b04d9c (board: mark PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY resolved)
+- **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY** — mined candidate; verify scope then implement.
+- **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
+- **RANKED-CALLEE-NATIVE-COMPOSITION** — mined candidate; scope verified, re-mine of the surface sibling RANKED-PROJECTED-RECEIVER-COMPOSITION resolved at `6ef64f6dd6` (immediately below). "Native composition of ranked callees" names the same GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: composed argument references, call/return, cleanup, callee-measure checking, and composed resource evidence for ranked callees reaching native lowering — versus today's whole-entry-only native admission (`terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`, "Ranked native admission" admits only whole ranked modules). It is an extend-the-common-graph leg, not a separate item. Every implementing surface is live-fenced this wave: `execution/unit/{control,state_graph,composed_control}` (GENERAL-CYCLIC-EXECUTION, 19:37Z), `receiver_calls` (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native `lowering/control_flow` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice exists; the residual stays on the parent optimizer rows. Sibling re-mine names: RANKED-NATIVE-ADMISSION.
+- **RANKED-NATIVE-ADMISSION.** Mined candidate — resolved, re-mine of
+  the same surface the sibling RANKED-CALLEE-NATIVE-COMPOSITION row
+  (immediately above) already audited: it names this stub in its
+  "Sibling re-mine names" list. Verified at `c10a1f85fe`:
+  `terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`
+  still retains only whole-artifact `AcceptedControlCycle` rosters —
+  ranked native admission admits whole ranked modules, and per-callee
+  call/return composition is the GENERAL-CYCLIC-EXECUTION-OPTIMIZER
+  surface's extend-the-common-graph leg, not a separate item here. The
+  implementing surfaces stay live-fenced under
+  GENERAL-CYCLIC-EXECUTION, STRUCTURAL-BORROW-IDENTITY, and
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS; the residual stays on the parent
+  optimizer rows. No independent unclaimed slice exists under this
+  name.
+- **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6 — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/{control,state_graph}+composed_control (GENERAL-CYCLIC-EXECUTION, exp 19:37Z), receiver_calls (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice remains here.
+- **RC-BUILD-AND-PACKAGES** — mined candidate; scope verified at `f1675418b1`,
+- **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY.** Scope verified, resolved —
+  the stub re-mines the parameter-origin vs fresh-local-origin custody
+  split already landed on `origin/main` at `2091d8659302` ("psi:
+  preparation and producer results have independent owners"):
+  `checked-trees-to-lowered-psi/src/expression_preparation/source_custody/
+  parameters/owned.rs` keeps the two lifetimes separate — affine
+  parameter roots must appear verbatim in the expected no-code disposal
+  roster (`"owned scalar graph disposal eligibility differs from source
+  parameters"` on any drift), while each retained local producer is
+  rejoined through `local_roots` (each `EstablishStructuralValue`
+  result resolved back to its authored `LocalData` declaration) and
+  excluded from the parameter-shaped eligibility comparison. Fresh
+  local claim rows still must carry no identity/provenance/obligations,
+  matching PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN's resolved row (minted
+  `Established{claim_identity: Unknown, provenance: Unknown}`). Verified
+  at `eab5496b9224` (linux x86-64): `cargo nextest run -p
+  checked-trees-to-lowered-psi -E 'test(/owned/)'` — 157/162 pass;
+  every parameter/local custody pin green (`owned_parameters` 10/10,
+  `owned_scalar_graphs::{record_locals,record_stores}`,
+  `owned_results` incl. `duplicate_prior_receipts_cannot_launder_a_
+  fresh_origin_as_unknown` and
+  `projected_parameter_roots_move_the_selected_child_with_exact_
+  identity`). The 5 failures reproduce identically at pre-branch base
+  `735f1774617` — preexisting wave drift in `owned_record_return_source`
+  x4 (`composed Unit scalar call requires structural call custody`,
+  discarded-call structural retention) + `unit_plan_omissions` x1, a
+  different custody seam owned elsewhere. No independent slice exists
+  under this name.
+- **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
+- **RANKED-CALLEE-NATIVE-COMPOSITION** — mined candidate; scope verified, re-mine of the surface sibling RANKED-PROJECTED-RECEIVER-COMPOSITION resolved at `6ef64f6dd6` (immediately below). "Native composition of ranked callees" names the same GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: composed argument references, call/return, cleanup, callee-measure checking, and composed resource evidence for ranked callees reaching native lowering — versus today's whole-entry-only native admission (`terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`, "Ranked native admission" admits only whole ranked modules). It is an extend-the-common-graph leg, not a separate item. Every implementing surface is live-fenced this wave: `execution/unit/{control,state_graph,composed_control}` (GENERAL-CYCLIC-EXECUTION, 19:37Z), `receiver_calls` (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native `lowering/control_flow` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice exists; the residual stays on the parent optimizer rows. Sibling re-mine names: RANKED-NATIVE-ADMISSION.
+- **RANKED-NATIVE-ADMISSION.** Mined candidate — resolved, re-mine of
+  the same surface the sibling RANKED-CALLEE-NATIVE-COMPOSITION row
+  (immediately above) already audited: it names this stub in its
+  "Sibling re-mine names" list. Verified at `c10a1f85fe`:
+  `terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`
+  still retains only whole-artifact `AcceptedControlCycle` rosters —
+  ranked native admission admits whole ranked modules, and per-callee
+  call/return composition is the GENERAL-CYCLIC-EXECUTION-OPTIMIZER
+  surface's extend-the-common-graph leg, not a separate item here. The
+  implementing surfaces stay live-fenced under
+  GENERAL-CYCLIC-EXECUTION, STRUCTURAL-BORROW-IDENTITY, and
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS; the residual stays on the parent
+  optimizer rows. No independent unclaimed slice exists under this
+  name.
+- **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6 — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/{control,state_graph}+composed_control (GENERAL-CYCLIC-EXECUTION, exp 19:37Z), receiver_calls (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice remains here.
+- **RC-BUILD-AND-PACKAGES** — mined candidate; scope verified at `f1675418b1`,
+
   gate row recorded at
   [wiki/drafts/rc_build_and_packages_linux_x86_64.md](wiki/drafts/rc_build_and_packages_linux_x86_64.md).
   The gate is **red** on linux x86-64 at `ea698be648` (re-measured
