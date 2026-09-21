@@ -8290,7 +8290,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is live in the registry; resolution unchanged — host-gated on Windows
   x64 for the PE leg.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
-||||||| parent of 00f36e8cfa2b (board: annotate ALPHA-WINDOWS-CONFORMANCE host-gated re-mine)
+||||||| parent of 29f384f69d90 (board: ALPHA-WINDOWS-CONFORMANCE scope-verified — Windows x64 host leg)
   Its only implementing surface is the `samples/apps/squalr` submodule,
   held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
   SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
@@ -8308,37 +8308,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
-- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; scope verified at
-  `66f9426258`, host-gated re-mine: the name re-covers the Windows x64 leg
-  already owned by **ALPHA-WINDOWS-CONFORMANCE-HOST** (resolved-with-
-  remainder row ~line 6524) — per DEVICE-EXTENT-ACCESS's ledger this item
-  owns the Windows edge legs (`tests/bootstrap/alpha-beta-edge.sh` +
-  `tests/alpha/reference/diamond-py.sh`), whose remaining acceptance is
-  seed execution on a Windows x64 host (Git Bash + Python 3), plus the
-  `tests/alpha/io-registers.hex` run exiting 0 with stdout `ABCDEF` for
-  input `AB`. The committed seed `bootstrap/0_alpha/alpha_x64_windows.exe`
-  (PE32+ x86-64, hole offset 5120) is already bound, selected, and
-  structurally validated host-free: `tools/bootstrap/alpha/seed_env.sh`
-  pins its size/SHA-256/hole and sets `ALPHA_SEED_EXECUTABLE=1` under
-  `MINGW*-x86_64|MSYS*-x86_64`; `tests/alpha/container.sh` re-verified
-  green on linux x86-64 at `66f9426258` (valid pe, pristine + stamped
-  hole contracts, bound identities for all three committed seeds).
-  Nothing executable remains on a Linux host — the only residual is
-  running the seed on Windows x64, which stays with the owning rows; the
-  `tests/alpha` + `tests/bootstrap/alpha-beta-edge.sh` surfaces are also
-  under a live BOOTSTRAP-SEED-EXECUTION-HOSTS claim this wave. No
-  independent slice. Sibling re-mine: ALPHA-WINDOWS-SEED-EXECUTION.
-
-||||||| parent of d8b4ff75812 (board: ALPHA-WINDOWS-CONFORMANCE duplicate stub adjudicated to covered)
-- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
-- **ALPHA-WINDOWS-CONFORMANCE** — duplicate stub; covered — same-name
-  re-mine adjudicated immediately above (~:7958) and owned by the
-  resolved-with-remainder row at ~:7590, re-verified green at `2dbccb9bd68`:
-  nothing under `tests/alpha`, `tests/bootstrap`, or `tools/bootstrap`
-  changed since the `82741ec439` audit except the already-recorded
-  Linux-x86_64 seed-host admission (`1977fbcf643`). Both residuals stay
-  owned — the div/mod guard divergence on the audited-seed lane and the
-  literal Windows x64 run on ALPHA-WINDOWS-CONFORMANCE-HOST.
+- **ALPHA-WINDOWS-CONFORMANCE.** Scope verified at `33c4a438a024` —
+  re-mines the bootstrap row (TASKS_BOOTSTRAP.md:85): Windows x64
+  conformance for the selected Alpha seed — `sh
+  tests/bootstrap/alpha-beta-edge.sh` and `sh
+  tests/alpha/reference/diamond-py.sh` on a Windows x64 host, retaining
+  exact bounds/Trap observations and register preservation through host
+  I/O (`tests/alpha/io-registers.hex` must return zero + `ABCDEF` for
+  input `AB`). Everything else is landed: gates refuse explicitly on
+  hosts without an executable seed (`requires macOS arm64 or Windows
+  x64`, exit 2) instead of reporting per-case failures; on Linux
+  x86-64 `alpha-beta-edge.sh --edge` VERIFIES (conformance 34/34,
+  bounds 78/78, Beta reconstruction byte-exact) and
+  `tests/alpha/bounds.py --reference` passes 72/72. The Windows x64
+  seed-execution run is the only remaining leg — a host leg, not a
+  code slice; nothing executable on this linux x86-64 host.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
