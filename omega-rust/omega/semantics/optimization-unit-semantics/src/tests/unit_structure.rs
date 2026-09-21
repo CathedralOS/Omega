@@ -31,8 +31,8 @@ use crate::tests::refresh_node_derivatives;
 use crate::tests::scalar_boundary_call_unit;
 use crate::tests::scalar_call_unit;
 use crate::tests::unit;
-use crate::valid_edge_affine_transition;
-use crate::valid_hidden_affine_establishment;
+use crate::unit_validation::affine_authority::valid_edge_affine_transition;
+use crate::unit_validation::affine_authority::valid_hidden_affine_establishment;
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::OperationId;
@@ -53,7 +53,7 @@ fn structural_block_root_keys_retain_block_and_position() {
             position: 0,
         },
     ]
-    .map(crate::unit_validation::structural_root_key);
+    .map(crate::unit_validation::structural_catalog::structural_root_key);
     assert_eq!(keys.into_iter().collect::<BTreeSet<_>>().len(), 4);
 }
 
@@ -71,7 +71,7 @@ fn structural_block_parameters_cannot_enter_scalar_only_optimizer_blocks() {
         .map(|declaration| (declaration.id, declaration))
         .collect();
     assert_eq!(
-        crate::unit_validation::validate_function_structural_catalog(
+        crate::unit_validation::structural_catalog::validate_function_structural_catalog(
             function,
             &types,
             &BTreeMap::new()

@@ -4,7 +4,7 @@ use crate::O;
 use crate::OptimizationUnitValidationError;
 use crate::PsiOptimizationFunction;
 use crate::PsiProvenance;
-use crate::expected_provenance;
+use crate::unit_validation::derived_metadata::expected_provenance;
 
 pub(crate) fn validate_byte_sequence_literal_witnesses(
     function: &PsiOptimizationFunction,

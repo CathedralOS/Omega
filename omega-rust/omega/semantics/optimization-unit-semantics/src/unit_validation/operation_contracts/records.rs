@@ -12,9 +12,9 @@ use crate::PlaceId;
 use crate::PsiOptimizationFunction;
 use crate::StructuralPlaceKind;
 use crate::StructuralTypeId;
-use crate::is_nonempty_field_path;
-use crate::resolve_structural_path;
-use crate::structural_source_contract;
+use crate::unit_validation::operation_contracts::is_nonempty_field_path;
+use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::structural_catalog::resolve_structural_path;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,

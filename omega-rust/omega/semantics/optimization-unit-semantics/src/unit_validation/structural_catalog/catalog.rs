@@ -4,10 +4,10 @@ use crate::OptimizationUnitValidationError;
 use crate::PsiOptimizationUnit;
 use crate::StructuralDomainId;
 use crate::StructuralTypeId;
-use crate::validate_structural_cases;
-use crate::validate_structural_content_projection;
-use crate::validate_structural_fields;
-use crate::validate_structural_type_graph;
+use crate::unit_validation::structural_catalog::validate_structural_cases;
+use crate::unit_validation::structural_catalog::validate_structural_content_projection;
+use crate::unit_validation::structural_catalog::validate_structural_fields;
+use crate::unit_validation::structural_catalog::validate_structural_type_graph;
 
 pub(super) fn index_structural_types(
     unit: &PsiOptimizationUnit,

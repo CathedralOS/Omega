@@ -1,15 +1,51 @@
+//! Optimizer module role: stage group. Scalar-identity accounting families.
+//!
+//! Both obligation-free and proof-certified identities remove one scalar node
+//! and substitute its live result. Their semantic admission remains separate;
+//! only exact custody reconstruction is shared here: each family's
+//! reconstruction names its own patch, then runs the shared dead-node
+//! accounting plus the use-site provenance rows below.
+
 use crate::BlockId;
 use crate::DeadScalarNodeRewrite;
 use crate::NodeLocation;
 use crate::OperationId;
+use crate::ProofCertifiedScalarIdentityRewrite;
 use crate::ProvenanceDisposition;
 use crate::PsiOptimizationFunction;
 use crate::PsiRealizationSite;
 use crate::ScalarType;
+use crate::TotalScalarIdentityRewrite;
 use crate::ValueId;
 use crate::reconstruct_dead_scalar_node_accounting;
 
-pub(super) fn reconstruct_scalar_identity_accounting(
+pub(crate) fn reconstruct_proof_certified_scalar_identity_accounting(
+    function: &PsiOptimizationFunction,
+    patch: ProofCertifiedScalarIdentityRewrite,
+) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
+    reconstruct_scalar_identity_accounting(
+        function,
+        patch.location,
+        patch.source_operation,
+        patch.result,
+        ScalarType::Integer(patch.scalar_type),
+    )
+}
+
+pub(crate) fn reconstruct_total_scalar_identity_accounting(
+    function: &PsiOptimizationFunction,
+    patch: TotalScalarIdentityRewrite,
+) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
+    reconstruct_scalar_identity_accounting(
+        function,
+        patch.location,
+        patch.source_operation,
+        patch.result,
+        ScalarType::Integer(patch.scalar_type),
+    )
+}
+
+fn reconstruct_scalar_identity_accounting(
     function: &PsiOptimizationFunction,
     location: NodeLocation,
     source_operation: OperationId,

@@ -11,14 +11,14 @@ use crate::ScalarType;
 use crate::ServiceId;
 use crate::StructuralTypeId;
 use crate::ValueId;
-use crate::boundary_structural_signature_matches;
-use crate::index_service_catalog;
-use crate::index_structural_catalogs;
 use crate::unit_validation::function_structure;
-use crate::valid_service_ceiling;
-use crate::validate_function;
-use crate::validate_provider_service_refinements;
-use crate::validate_root_service_reach;
+use crate::unit_validation::function_structure::validate_function;
+use crate::unit_validation::services::boundary_structural_signature_matches;
+use crate::unit_validation::services::index_service_catalog;
+use crate::unit_validation::services::valid_service_ceiling;
+use crate::unit_validation::services::validate_provider_service_refinements;
+use crate::unit_validation::services::validate_root_service_reach;
+use crate::unit_validation::structural_catalog::index_structural_catalogs;
 
 pub(super) struct UnitIndexes<'a> {
     pub(super) machines: BTreeMap<MachineId, &'a PsiOptimizationFunction>,
@@ -230,7 +230,7 @@ fn validate_structural_field_range_authority(
             } => {
                 // Check the current store, not merely the original Terminal
                 // write: a rewrite can change its RHS or selected declaration.
-                let parent = super::super::structural_catalog::resolve_structural_path(
+                let parent = super::structural_catalog::resolve_structural_path(
                     types,
                     destination.structural_type,
                     path,

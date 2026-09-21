@@ -10,7 +10,7 @@ use crate::PsiOptimizationUnit;
 use crate::ServiceId;
 use crate::StructuralDomainId;
 use crate::StructuralTypeId;
-use crate::structural_qualifications_match;
+use crate::unit_validation::structural_catalog::structural_qualifications_match;
 
 pub(crate) fn index_service_catalog(
     unit: &PsiOptimizationUnit,

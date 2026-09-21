@@ -72,13 +72,15 @@ pub(super) fn validate_current_ownership_cfg(
             | O::BooleanStructuralField { source, .. } = &node.operation
             {
                 let signature =
-                    crate::unit_validation::structural_source_contract(function, *source, false)
-                        .ok_or(
-                            OptimizationUnitValidationError::InvalidStructuralCaseDispatch {
-                                machine: function.machine,
-                                source: *source,
-                            },
-                        )?;
+                    crate::unit_validation::operation_contracts::structural_source_contract(
+                        function, *source, false,
+                    )
+                    .ok_or(
+                        OptimizationUnitValidationError::InvalidStructuralCaseDispatch {
+                            machine: function.machine,
+                            source: *source,
+                        },
+                    )?;
                 if signature.access == StructuralAccess::Owned
                     && signature.multiplicity != StructuralMultiplicity::Unrestricted
                     && (!frontier.owned_places.contains_key(source)
@@ -169,7 +171,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::EstablishRecord { .. } => record_arguments
                     .iter()
                     .map(|argument| {
-                        crate::unit_validation::structural_source_contract(
+                        crate::unit_validation::operation_contracts::structural_source_contract(
                             function,
                             argument.place,
                             false,
@@ -188,7 +190,7 @@ pub(super) fn validate_current_ownership_cfg(
                 // signature; there is no callee parameter row to read.
                 O::StoreStructuralField { value, .. } => {
                     vec![
-                        crate::unit_validation::structural_source_contract(
+                        crate::unit_validation::operation_contracts::structural_source_contract(
                             function,
                             value.place,
                             false,
@@ -297,7 +299,7 @@ pub(super) fn validate_current_ownership_cfg(
                         // A loan does not consume its owner, but entry parameters
                         // and produced values both require current whole/path custody.
                         || (argument.access != StructuralAccess::Owned
-                            && crate::unit_validation::structural_source_contract(
+                            && crate::unit_validation::operation_contracts::structural_source_contract(
                                 function, argument.place, false,
                             ).is_some_and(|source| source.access == StructuralAccess::Owned
                                 && source.multiplicity == StructuralMultiplicity::Affine))

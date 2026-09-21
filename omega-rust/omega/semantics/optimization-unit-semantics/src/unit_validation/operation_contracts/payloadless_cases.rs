@@ -4,9 +4,9 @@ use crate::O;
 use crate::PsiOptimizationFunction;
 use crate::StructuralPlaceKind;
 use crate::StructuralTypeId;
-use crate::proposition_structural_roots;
-use crate::resolve_structural_path;
-use crate::structural_paths_may_overlap;
+use crate::unit_validation::operation_contracts::proposition_structural_roots;
+use crate::unit_validation::operation_contracts::structural_paths_may_overlap;
+use crate::unit_validation::structural_catalog::resolve_structural_path;
 
 pub(crate) fn plain_scalar_sum_call(
     operation: &O,

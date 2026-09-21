@@ -16,7 +16,7 @@ pub(super) fn partial_affine_residuals(
     if moved_paths.is_empty()
         || moved_paths.iter().any(|path| {
             path.is_empty()
-                || crate::unit_validation::resolve_structural_path(
+                || crate::unit_validation::structural_catalog::resolve_structural_path(
                     structural_types,
                     root_type,
                     path,

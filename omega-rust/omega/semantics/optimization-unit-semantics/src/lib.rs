@@ -6,11 +6,15 @@
 //! Terminal admission and supplies any independently admitted cycle roster;
 //! structural success alone grants no execution or publication authority.
 //!
-//! Start at `unit_validation`, which validates one complete optimization
-//! unit. `candidates` accepts or rejects each rewrite candidate, organized by
-//! the producer that proposed it; `current_ownership` reconstructs the
-//! ownership frontiers of the current revision and `current_value_ranges`
-//! validates its value ranges; `error` is the failure vocabulary.
+//! Start at `unit_validation.rs`: `validate_psi_optimization_unit` is the
+//! entry, and the file shows the acceptance order -- identity and fact
+//! indexes, catalogs with every function validated in place, retained affine
+//! authority, final authorities -- with each invariant family owned by a
+//! named module beside it. `candidates` accepts or rejects each rewrite
+//! candidate, organized by the producer that proposed it;
+//! `current_ownership` reconstructs the ownership frontiers of the current
+//! revision and `current_value_ranges` validates its value ranges; `error` is
+//! the failure vocabulary.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -59,7 +63,7 @@ pub use current_value_ranges::{
     validate_current_value_range_fact, validate_current_value_range_fact_at,
 };
 pub use error::OptimizationUnitValidationError;
-pub(crate) use unit_validation::*;
+
 pub use unit_validation::{
     validate_psi_optimization_unit, validate_psi_optimization_unit_with_admitted_cycle_machines,
 };

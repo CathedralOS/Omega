@@ -3,12 +3,12 @@ use crate::O;
 use crate::OperationId;
 use crate::PlaceId;
 use crate::ScalarType;
-use crate::StructuralProjectionPolicy;
 use crate::StructuralTypeId;
 use crate::ValueId;
-use crate::structural_access_can_supply;
-use crate::structural_arguments_match;
-use crate::structural_source_contract;
+use crate::unit_validation::operation_contracts::StructuralProjectionPolicy;
+use crate::unit_validation::operation_contracts::structural_access_can_supply;
+use crate::unit_validation::operation_contracts::structural_arguments_match;
+use crate::unit_validation::operation_contracts::structural_source_contract;
 
 #[test]
 fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {

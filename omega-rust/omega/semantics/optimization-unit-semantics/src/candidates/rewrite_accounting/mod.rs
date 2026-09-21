@@ -9,8 +9,8 @@ use crate::O;
 use crate::OptimizationEdge;
 use crate::RedundantBlockParameterRewrite;
 use crate::ScalarSubstitution;
-use crate::expected_edges;
 use crate::rewrite_block_parameter_operation;
+use crate::unit_validation::derived_metadata::expected_edges;
 
 mod adjacent_merge;
 mod common_subexpression;

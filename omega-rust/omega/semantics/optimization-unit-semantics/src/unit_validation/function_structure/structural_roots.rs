@@ -8,7 +8,7 @@ use crate::PsiOptimizationFunction;
 use crate::ScalarType;
 use crate::StructuralPlaceKind;
 use crate::StructuralTypeId;
-use crate::structural_root_key;
+use crate::unit_validation::structural_catalog::structural_root_key;
 
 mod availability;
 mod primitive_locals;
@@ -138,9 +138,10 @@ pub(crate) fn validate_structural_root_operations(
                     result,
                     ..
                 } => {
-                    let signature = crate::unit_validation::structural_source_contract(
-                        function, *source, false,
-                    );
+                    let signature =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function, *source, false,
+                        );
                     let valid = result.scalar_type == ScalarType::Boolean
                         && signature.is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
@@ -408,16 +409,17 @@ pub(crate) fn validate_structural_root_operations(
                     }
                 }
                 O::ReleaseReference { source, .. } => {
-                    let valid = crate::unit_validation::structural_source_contract(
-                        function, *source, false,
-                    )
-                    .is_some_and(|signature| {
-                        crate::unit_validation::references::referent(
-                            structural_types,
-                            signature.structural_type,
+                    let valid =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function, *source, false,
                         )
-                        .is_some()
-                    });
+                        .is_some_and(|signature| {
+                            crate::unit_validation::references::referent(
+                                structural_types,
+                                signature.structural_type,
+                            )
+                            .is_some()
+                        });
                     if !valid {
                         return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
                             machine: Some(function.machine),
@@ -486,7 +488,7 @@ pub(crate) fn validate_structural_root_operations(
                             *field,
                         )
                         .is_some_and(|field_type| {
-                            crate::unit_validation::structural_source_contract(
+                            crate::unit_validation::operation_contracts::structural_source_contract(
                                 function,
                                 value.place,
                                 false,
@@ -667,7 +669,9 @@ fn readable_field_type(
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    let signature = crate::unit_validation::structural_source_contract(function, place, false)?;
+    let signature = crate::unit_validation::operation_contracts::structural_source_contract(
+        function, place, false,
+    )?;
     if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
         || signature.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !signature.is_unqualified()

@@ -5,7 +5,7 @@ use crate::OptimizationUnitValidationError;
 use crate::PlaceId;
 use crate::PsiOptimizationFunction;
 use crate::StructuralTypeId;
-use crate::structural_source_contract;
+use crate::unit_validation::operation_contracts::structural_source_contract;
 
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
