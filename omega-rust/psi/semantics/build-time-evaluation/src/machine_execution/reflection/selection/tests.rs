@@ -61,6 +61,21 @@ const ATTACHED_PROGRAM: &str = "
     data Board { c: Circle; }
 ";
 
+/// A parameterized contract family: `Encode<Json>` and `Encode<Cbor>` are
+/// different applications of one trait, and each machine's `satisfies`
+/// clause carries only the application it names.
+const APPLICATION_PROGRAM: &str = "
+    trait Encode<P> { machine encode(&self, policy: &P) -> u64; }
+    data Json { marker: u8; }
+    data Cbor { marker: u8; }
+    data Health { v: u32; }
+    machine Health::encode(&self, policy: &Json) -> u64 satisfies Encode<Json>::encode { 0 }
+    machine Health::encode_cbor(&self, policy: &Cbor) -> u64 satisfies Encode<Cbor>::encode { 0 }
+    HealthJson: Health satisfies Encode<Json> { Encode::encode = Health::encode; }
+    HealthCbor: Health satisfies Encode<Cbor> { Encode::encode = Health::encode_cbor; }
+    data Player { health: Health; }
+";
+
 /// A sum subject whose members include cases and their payloads.
 const SUM_PROGRAM: &str = "
     trait Encode { machine encode(&self) -> u64; }
@@ -125,6 +140,46 @@ fn requirement(
     });
     SelectionRequirement::for_trait(typed, definition.symbol, requirement)
         .expect("requirement resolves")
+}
+
+/// The conformance whose carried application becomes the demand: its exact
+/// type-argument handles and lifetime ordinals pin the required
+/// `trait_name<args>` application.
+fn application_requirement(
+    typed: &TypedTrees,
+    trait_name: &str,
+    requirement_name: Option<&str>,
+    conformance_name: &str,
+) -> SelectionRequirement {
+    let definition = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == trait_name)
+        .unwrap_or_else(|| panic!("trait `{trait_name}` exists"));
+    let requirement = requirement_name.map(|name| {
+        typed
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| signature.name.as_str() == name)
+            .unwrap_or_else(|| panic!("requirement `{trait_name}::{name}` exists"))
+            .symbol
+    });
+    let conformance = typed
+        .conformances()
+        .iter()
+        .find(|conformance| typed.symbols.name(conformance.symbol) == conformance_name)
+        .unwrap_or_else(|| panic!("conformance `{conformance_name}` exists"));
+    let arguments = typed
+        .type_reference_table
+        .type_reference_handles(conformance.arguments);
+    SelectionRequirement::for_trait_application(
+        typed,
+        definition.symbol,
+        requirement,
+        arguments,
+        &conformance.trait_lifetime_arguments,
+    )
+    .expect("requirement resolves")
 }
 
 fn machine_choice(typed: &TypedTrees, name: &str) -> SelectionChoice {
@@ -478,6 +533,7 @@ fn unresolvable_requirement_rejects_at_open() {
         SelectionRequirement {
             trait_identity: "No::SuchTrait".to_owned(),
             requirement_identity: None,
+            trait_application: None,
         },
     )
     .expect_err("a requirement naming no trait cannot open a receiver");
@@ -922,4 +978,109 @@ fn replay_rejects_tampered_revision() {
     let error = replay_selection_snapshot(&typed, &snapshot)
         .expect_err("a tampered report fingerprint must reject");
     assert!(error.contains("fingerprint"), "{error}");
+}
+
+#[test]
+fn demanded_application_accepts_the_pinned_application() {
+    let typed = typed(APPLICATION_PROGRAM);
+    let graph = graph(&typed, "Player");
+    let mut receiver = ScopedSelectionReceiver::new(
+        &typed,
+        &graph,
+        SelectionProjection::DeclaredMembers,
+        SelectionCoverage::Complete,
+        application_requirement(&typed, "Encode", None, "HealthJson"),
+    )
+    .expect("receiver opens");
+    receiver
+        .select(
+            &receiver.member("health").expect("health key"),
+            machine_choice(&typed, "Health::encode"),
+        )
+        .expect("the machine at `Encode<Json>` satisfies the `Encode<Json>` demand");
+    let snapshot = receiver.freeze().expect("freezes");
+    replay_selection_snapshot(&typed, &snapshot)
+        .expect("replay re-checks the pinned application and passes");
+}
+
+#[test]
+fn demanded_application_rejects_realizations_at_another_application() {
+    let typed = typed(APPLICATION_PROGRAM);
+    let graph = graph(&typed, "Player");
+    let mut receiver = ScopedSelectionReceiver::new(
+        &typed,
+        &graph,
+        SelectionProjection::DeclaredMembers,
+        SelectionCoverage::Complete,
+        application_requirement(&typed, "Encode", None, "HealthJson"),
+    )
+    .expect("receiver opens");
+    let error = receiver
+        .select(
+            &receiver.member("health").expect("health key"),
+            machine_choice(&typed, "Health::encode_cbor"),
+        )
+        .expect_err("a `satisfies` edge at `Encode<Cbor>` must not satisfy `Encode<Json>`");
+    assert!(error.contains("does not realize"), "{error}");
+    let error = receiver
+        .select(
+            &receiver.member("health").expect("health key"),
+            conformance_choice(&typed, "HealthCbor"),
+        )
+        .expect_err("a conformance at `Encode<Cbor>` must not satisfy `Encode<Json>`");
+    assert!(error.contains("application"), "{error}");
+}
+
+#[test]
+fn undemanded_application_accepts_any_application() {
+    let typed = typed(APPLICATION_PROGRAM);
+    let graph = graph(&typed, "Player");
+    let mut receiver = receiver(&typed, &graph, "Encode");
+    receiver
+        .select(
+            &receiver.member("health").expect("health key"),
+            machine_choice(&typed, "Health::encode_cbor"),
+        )
+        .expect("without a pinned application any `Encode` realization satisfies");
+    receiver.freeze().expect("freezes");
+}
+
+#[test]
+fn replay_rechecks_the_demanded_application() {
+    let typed = typed(APPLICATION_PROGRAM);
+    let graph = graph(&typed, "Player");
+    let mut receiver = ScopedSelectionReceiver::new(
+        &typed,
+        &graph,
+        SelectionProjection::DeclaredMembers,
+        SelectionCoverage::Complete,
+        application_requirement(&typed, "Encode", None, "HealthJson"),
+    )
+    .expect("receiver opens");
+    receiver
+        .select(
+            &receiver.member("health").expect("health key"),
+            conformance_choice(&typed, "HealthJson"),
+        )
+        .expect("the conformance at `Encode<Json>` selects");
+    let mut snapshot = receiver.freeze().expect("freezes");
+    snapshot.records[0].choice = conformance_choice(&typed, "HealthCbor");
+    reseal(&mut snapshot);
+    let error = replay_selection_snapshot(&typed, &snapshot)
+        .expect_err("replay must re-check the demanded application, not trust the freeze");
+    assert!(error.contains("application"), "{error}");
+}
+
+#[test]
+fn demanded_application_checks_arity_at_construction() {
+    let typed = typed(APPLICATION_PROGRAM);
+    let definition = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Encode")
+        .expect("trait `Encode` exists");
+    let error =
+        SelectionRequirement::for_trait_application(&typed, definition.symbol, None, &[], &[])
+            .expect_err("an application missing declared parameters must not construct");
+    assert!(error.contains("type parameter"), "{error}");
 }

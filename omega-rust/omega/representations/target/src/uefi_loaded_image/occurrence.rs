@@ -218,7 +218,10 @@ fn read_u64(bytes: &[u8], field: UefiLoadedImageNativeFieldLayout) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        UEFI_LOADED_IMAGE_PROTOCOL_REVISION, exact_uefi_x64_loaded_image_native_layout,
+        validate_uefi_loaded_image_occurrence,
+    };
 
     fn bytes(image_base: u64, image_size: u64) -> [u8; 96] {
         let mut bytes = [0; 96];

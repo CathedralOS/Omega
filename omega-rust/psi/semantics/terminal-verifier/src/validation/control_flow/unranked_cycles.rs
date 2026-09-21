@@ -1,7 +1,7 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
-//! unrestricted record establishments, affine empty-record establishments, and
-//! entry claims pinned on owned machine parameters for the machine's whole
-//! cyclic lifetime.
+//! unrestricted record establishments, affine empty-record establishments,
+//! trivial affine local establishments, and entry claims pinned on owned
+//! machine parameters for the machine's whole cyclic lifetime.
 
 use super::super::{
     BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
@@ -80,6 +80,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                     | StructuralPlaceKind::OperationResult { .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { .. }
                     | StructuralPlaceKind::ProviderAttachment { .. }
+                    | StructuralPlaceKind::TrivialAffineLocal { .. }
             ) || scalar_case_result && place.kind == StructuralPlaceKind::Result)
         })
     {
@@ -414,6 +415,26 @@ fn cycle_operation_eligible(
         // after this fence.
         OperationKind::EstablishScalarArray { .. } => {
             super::super::scalar_array::shape(module, machine, operation).is_ok()
+        }
+        // A trivial affine local establishment is the direct spelling of
+        // the empty-record arm's declaration: the destination is a
+        // machine-declared whole affine place of empty-record type, so the
+        // operation carries no field custody at all — its whole disposal
+        // obligation is the place's own lifecycle, which the frontier
+        // replay enforces exactly: the place enters `owned_places` at the
+        // establishment, leaves it only through an edge's discard roster,
+        // an owned-argument move, or a return's ordered cleanup, and the
+        // fixed-point join demands identical custody on every arrival — so
+        // a member-block establishment re-arms once per traversal while an
+        // entry-block establishment can stay live for the whole cyclic
+        // lifetime. The ordinary operand, liveness, and frontier checks
+        // still run after eligibility.
+        OperationKind::EstablishTrivialAffineLocal { .. } => {
+            operation.result == OperationResult::Unit
+                && super::super::structural_operations::validate_establish_trivial_affine_local(
+                    module, machine, operation,
+                )
+                .is_ok()
         }
         OperationKind::PrimitiveScalarRead { source, path } => {
             operation.result.scalar().is_some_and(|result| {

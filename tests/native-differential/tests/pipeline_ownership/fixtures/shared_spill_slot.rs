@@ -106,6 +106,7 @@ fn unit_callee(machine: u64, base: u64, arity: u64) -> TerminalMachine {
         entry: BlockId::new(base + 100).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(base + 100).unwrap(),
             parameters: Vec::new(),
@@ -117,6 +118,7 @@ fn unit_callee(machine: u64, base: u64, arity: u64) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(base + 300).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -154,6 +156,7 @@ fn shared_spill_slot_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: MachineId::new(callee).unwrap(),
             arguments,
             structural_arguments: Vec::new(),
@@ -259,6 +262,7 @@ fn shared_spill_slot_module() -> TerminalModule {
         entry: BlockId::new(SHARED_SPILL_SLOT_ENTRY).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(SHARED_SPILL_SLOT_ENTRY).unwrap(),
             parameters: Vec::new(),
@@ -270,6 +274,7 @@ fn shared_spill_slot_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(SHARED_SPILL_SLOT_CONTRACT).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

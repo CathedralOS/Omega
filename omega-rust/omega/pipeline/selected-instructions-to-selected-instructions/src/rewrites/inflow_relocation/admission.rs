@@ -3,34 +3,36 @@
 //! in the lone unconditional `Jump` reaching the member's block — a plain
 //! semantic successor edge — require the member's block to be a join at
 //! least one other predecessor's edge also reaches, and prove the move
-//! sound in both directions — the crossed window independent (no register
-//! or condition-state hazard between the member and any crossed position,
-//! no interference with the crossed edge's register transports, no
-//! barrier, call, hosted effect, or call-roster entry inside the window,
-//! and no boundary settlement whose observed executed prefix changes) and
-//! every member-written location dead on the paths the move removes,
-//! where the member's vacated index publishes them on arrivals that no
-//! longer run it.
+//! sound in both directions — the crossed window independent, handed to
+//! the shared run audit (`crossed_window` derives the positions and edges
+//! every acyclic path between the inflow and the join crosses — exactly
+//! this `Jump` edge under the gates below — and `admit_run_relocation`
+//! proves the window independent once: no register or condition-state
+//! hazard between the member and any crossed position, no interference
+//! with the crossed edge's register transports, no barrier, call, hosted
+//! effect, or call-roster entry inside the window, and no boundary
+//! settlement whose observed executed prefix changes) and every
+//! member-written location dead on the paths the move removes, where the
+//! member's vacated index publishes them on arrivals that no longer run
+//! it.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedTerminator,
+    SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
 use super::InflowRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    all_edges, edge_surface, plain_edge, terminator_instruction, terminator_successors,
-    transport_conflict,
+    CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, terminator_instruction,
+    terminator_successors,
 };
 use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the join the inflow feeds.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -72,19 +74,21 @@ fn removable(instruction: &SelectedInstruction) -> bool {
             | Load32 { .. }
             | Store64 { .. }
             | ExactDivideU64 { .. }
+            | ExactDivideI64 { .. }
+            | ExactRemainderI64 { .. }
             | SaturatingDivide { .. }
             | SaturatingRemainder { .. }
     )
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, InflowRelocationError> {
+) -> Result<Admission, InflowRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(InflowRelocationError::SourceMismatch);
@@ -135,11 +139,7 @@ pub(super) fn admit<'source>(
     // the crossed edge. A conditional terminator keeps a second exit the
     // member would newly execute on — the arm and join families' burden
     // — and a terminator naming no successor reaches no join.
-    let SelectedTerminator::Jump {
-        instruction: terminator,
-        successor,
-    } = &target.terminator
-    else {
+    let SelectedTerminator::Jump { successor, .. } = &target.terminator else {
         return Err(InflowRelocationError::UnsupportedPair);
     };
     if successor.block != block.id {
@@ -184,51 +184,31 @@ pub(super) fn admit<'source>(
     if schedulable(function, member_instruction) != Some(false) || !removable(member_instruction) {
         return Err(InflowRelocationError::UnsupportedInstruction);
     }
-    // The crossed edge's register transports sit between the member's old
-    // and new positions.
-    if transport_conflict(member_instruction, successor) {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
-    // The `Jump` instruction itself is the crossed edge's position: it is
-    // exempt from the barrier-kind rule but not from the call or hazard
-    // audit. Its memory rows, and any rows the roster logs with the
-    // edge's own origin, are accounted positions a row-less member
-    // crosses without reordering a recorded access.
-    if has_call_contract(function, terminator.id) {
-        return Err(InflowRelocationError::UnsupportedInstruction);
-    }
-    if coupled(member_instruction, terminator) {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
-    // The member trades order with the positions at and after the
-    // landing index in the inflow body and the positions before its index
-    // in its own body. Every other position keeps the member on the side
-    // it always had. A roster-carrying crossed position is an accounted
-    // access the row-less member cannot reorder, so only the
-    // schedulability and hazard gates apply.
-    for crossed in target.instructions[landing_index..]
-        .iter()
-        .chain(block.instructions[..member_index].iter())
-    {
-        schedulable(function, crossed).ok_or(InflowRelocationError::UnsupportedInstruction)?;
-        if coupled(member_instruction, crossed) {
-            return Err(InflowRelocationError::UnsupportedPair);
-        }
-    }
-    // A settlement positioned past the member's index observed it inside
-    // the source block's executed prefix; a settlement positioned past
-    // the landing index observes it inside the inflow block's — on this
-    // inflow's arrivals, where it has not run yet. Both refuse; positions
-    // at or before either boundary keep the executed set they always had.
-    // The other inflow blocks are unaffected: the member never enters
-    // their streams.
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > member_index)
-            || (settlement.block == target.id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
+    // The crossed window is the shared derivation rather than this
+    // family's own enumeration: the member is the one-member run, and the
+    // gates above leave exactly one acyclic path — the inflow's `Jump`
+    // edge is the block's lone successor — so the backward path walk is
+    // bounded by the function's edge roster alone. The shared audit
+    // applies the hazard, memory-roster, transport, and settlement
+    // checks once: the `Jump` instruction is the crossed edge's own
+    // position, exempt from the barrier-kind rule but not from the call
+    // or hazard audit, and a settlement positioned past the member's
+    // index in the join or past the landing index in the inflow observed
+    // a changed executed prefix and refuses. The other inflow blocks are
+    // unaffected: the member never enters their streams.
+    let edge_limit = all_edges(function).count();
+    let crossing = crossed_window(
+        function,
+        block_index,
+        member_index,
+        member_index,
+        target_index,
+        landing_index,
+        CrossingDirection::Backward,
+        edge_limit,
+    )
+    .ok_or(InflowRelocationError::WorkBudgetExceeded)?;
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(rejection)?;
     // The dead-path audit: every location the member writes must be dead
     // — unread until rewritten — on every arrival through the join's
     // other inflows. The walk enters the member's block with nothing
@@ -261,8 +241,9 @@ pub(super) fn admit<'source>(
     }
     // The scan walks every block body and terminator instruction once to
     // locate the member, and again with successor edges to locate the
-    // destination and find the join's other inflows; the window audit
-    // walks the member's surface against each crossed position's; the
+    // destination and find the join's other inflows; the path walk touches
+    // each edge once; the window audit walks the member's surface against
+    // each crossed position's and each crossed edge's own surface; the
     // dead-path audit rescans a block's stream and edge surfaces only
     // while its entry set grows — at most once per member location per
     // block.
@@ -309,16 +290,28 @@ pub(super) fn admit<'source>(
                 total.checked_add(terminator_successors(&candidate.terminator).len())
             })
         })
+        .and_then(|total| total.checked_add(edge_limit))
         .and_then(|total| {
-            target.instructions[landing_index..]
+            crossing
+                .positions
                 .iter()
-                .chain(block.instructions[..member_index].iter())
-                .chain(std::iter::once(terminator))
-                .try_fold(total, |total, crossed| {
-                    total
-                        .checked_add(surface(member_instruction))?
-                        .checked_add(surface(crossed))
+                .try_fold(total, |total, (crossed_block, positions)| {
+                    positions.iter().try_fold(total, |total, position| {
+                        total
+                            .checked_add(surface(member_instruction))?
+                            .checked_add(surface(
+                                &function.blocks[*crossed_block].instructions[*position],
+                            ))
+                    })
                 })
+        })
+        .and_then(|total| {
+            crossing.edges.iter().try_fold(total, |total, edge| {
+                total
+                    .checked_add(surface(member_instruction))?
+                    .checked_add(surface(edge.instruction))?
+                    .checked_add(edge_surface(edge.successor))
+            })
         })
         .and_then(|total| {
             total
@@ -326,7 +319,6 @@ pub(super) fn admit<'source>(
                 .checked_add(function.calls.len())?
                 .checked_add(function.boundary_settlements.len())
         })
-        .and_then(|total| total.checked_add(successor.bindings.len()))
         .and_then(|total| {
             total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
         })
@@ -337,10 +329,25 @@ pub(super) fn admit<'source>(
         return Err(InflowRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,
         landing_index,
     })
+}
+
+/// Keeps the family's typed rejection vocabulary over the shared audit's
+/// rejection kinds: an unschedulable member or crossed position is the
+/// instruction-level refusal and every window-level refusal is the pair
+/// kind.
+fn rejection(rejection: RunRelocationRejection) -> InflowRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => InflowRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => InflowRelocationError::UnsupportedPair,
+    }
 }

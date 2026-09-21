@@ -49,6 +49,7 @@ use abstract_operations::AbstractOperation as O;
 
 use crate::VerifiedPsiOptimizationSession;
 
+mod admission;
 mod apply;
 mod model;
 mod propose;

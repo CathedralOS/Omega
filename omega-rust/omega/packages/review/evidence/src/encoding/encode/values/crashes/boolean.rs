@@ -119,6 +119,18 @@ fn encode_boolean_node(
             encoder.field("left", |encoder| encode_boolean_expression(encoder, left))?;
             encoder.field("right", |encoder| encode_boolean_expression(encoder, right))?;
         }
+        PackageReviewBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            encoder.tag("scalar_ieee_float_comparison", 13);
+            encoder.field("kind", |encoder| {
+                match kind {
+                    PackageReviewIeeeFloatComparisonKind::Equal => encoder.tag("equal", 0),
+                    PackageReviewIeeeFloatComparisonKind::NotEqual => encoder.tag("not_equal", 1),
+                }
+                Ok(())
+            })?;
+            encoder.field("left", |encoder| encode_scalar_expression(encoder, left))?;
+            encoder.field("right", |encoder| encode_scalar_expression(encoder, right))?;
+        }
         PackageReviewBooleanExpression::Or { left, right } => {
             encoder.tag("or", 12);
             encoder.field("left", |encoder| encode_boolean_expression(encoder, left))?;

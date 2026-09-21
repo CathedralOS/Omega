@@ -15,7 +15,8 @@
 use diagnostics::Diagnostic;
 use image::FinalImageLayout;
 
-use crate::file_layout::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
+use crate::file_layout::constants::MACHO_EXECUTABLE_BASE;
+use crate::isa::MachoIsa;
 
 fn invalid() -> Diagnostic {
     Diagnostic::error("Mach-O loader mapping differs from the supported final image")
@@ -60,7 +61,12 @@ struct Segment<'bytes> {
 }
 
 impl<'bytes> Segment<'bytes> {
-    fn read(command: &'bytes [u8], protection: u32, bytes: &[u8]) -> Result<Self, Diagnostic> {
+    fn read(
+        command: &'bytes [u8],
+        protection: u32,
+        bytes: &[u8],
+        page_size: u64,
+    ) -> Result<Self, Diagnostic> {
         let count = usize::try_from(word(command, 64)?).map_err(|_| invalid())?;
         let section_bytes = count.checked_mul(80).ok_or_else(invalid)?;
         if command.len() != 72usize.checked_add(section_bytes).ok_or_else(invalid)?
@@ -77,7 +83,7 @@ impl<'bytes> Segment<'bytes> {
             file_offset: wide(command, 40)?,
             file_size: wide(command, 48)?,
         };
-        let page = MACHO_ARM64_PAGE_SIZE as u64;
+        let page = page_size;
         if !segment.address.is_multiple_of(page)
             || !segment.memory_size.is_multiple_of(page)
             || !segment.file_offset.is_multiple_of(page)
@@ -91,10 +97,10 @@ impl<'bytes> Segment<'bytes> {
     }
 }
 
-/// Validate the closed segment roster and exact pre-fixup text/data/BSS mapping.
-///
-/// Borrows final bytes and layout; returns no installation or execution authority.
-/// Dynamic bind/rebase destinations and provider admission remain separate checks.
+/// Validate the AArch64 image's closed segment roster and exact pre-fixup
+/// text/data/BSS mapping. Borrows final bytes and layout; returns no
+/// installation or execution authority. Dynamic bind/rebase destinations and
+/// provider admission remain separate checks.
 pub fn validate_macho_aarch64_loader_mapping(
     bytes: &[u8],
     layout: FinalImageLayout,
@@ -102,9 +108,47 @@ pub fn validate_macho_aarch64_loader_mapping(
     final_data: &[u8],
     bss_bytes: usize,
 ) -> Result<(), Diagnostic> {
+    validate_macho_loader_mapping(
+        bytes,
+        layout,
+        final_text,
+        final_data,
+        bss_bytes,
+        MachoIsa::Aarch64,
+    )
+}
+
+/// Validate the x86-64 image's closed segment roster and exact pre-fixup
+/// text/data/BSS mapping under the same contract as the AArch64 check.
+pub fn validate_macho_x86_64_loader_mapping(
+    bytes: &[u8],
+    layout: FinalImageLayout,
+    final_text: &[u8],
+    final_data: &[u8],
+    bss_bytes: usize,
+) -> Result<(), Diagnostic> {
+    validate_macho_loader_mapping(
+        bytes,
+        layout,
+        final_text,
+        final_data,
+        bss_bytes,
+        MachoIsa::X86_64,
+    )
+}
+
+pub(crate) fn validate_macho_loader_mapping(
+    bytes: &[u8],
+    layout: FinalImageLayout,
+    final_text: &[u8],
+    final_data: &[u8],
+    bss_bytes: usize,
+    isa: MachoIsa,
+) -> Result<(), Diagnostic> {
+    let page_size = isa.page_size();
     if word(bytes, 0)? != 0xfeed_facf
-        || word(bytes, 4)? != 0x0100_000c
-        || word(bytes, 8)? != 0
+        || word(bytes, 4)? != isa.cpu_type()
+        || word(bytes, 8)? != isa.cpu_subtype()
         || word(bytes, 12)? != 2
         || word(bytes, 24)? != 0x20_0085
         || word(bytes, 28)? != 0
@@ -139,7 +183,7 @@ pub fn validate_macho_aarch64_loader_mapping(
                     _ => return Err(invalid()),
                 };
                 if segments[slot]
-                    .replace(Segment::read(command, protection, bytes)?)
+                    .replace(Segment::read(command, protection, bytes, page_size)?)
                     .is_some()
                 {
                     return Err(invalid());
@@ -210,11 +254,7 @@ pub fn validate_macho_aarch64_loader_mapping(
         .checked_sub(text.address)
         .ok_or_else(invalid)?;
     if text_file != aligned(end(32, commands_size as u64)?, 16)?
-        || text.file_size
-            != aligned(
-                end(text_file, final_text.len() as u64)?,
-                MACHO_ARM64_PAGE_SIZE as u64,
-            )?
+        || text.file_size != aligned(end(text_file, final_text.len() as u64)?, page_size)?
     {
         return Err(invalid());
     }
@@ -234,7 +274,7 @@ pub fn validate_macho_aarch64_loader_mapping(
     let entry = entry_file_offset.ok_or_else(invalid)?;
     if entry < text_file
         || entry >= end(text_file, final_text.len() as u64)?
-        || !entry.is_multiple_of(4)
+        || !entry.is_multiple_of(isa.entry_alignment())
     {
         return Err(invalid());
     }
@@ -289,10 +329,7 @@ pub fn validate_macho_aarch64_loader_mapping(
             let storage_end = end(layout.bss_address, bss_bytes as u64)?;
             // The loader maps the final file page before allocating remaining
             // zero-fill pages. BSS in that file-page tail must itself be zero.
-            let mapped_file_end = end(
-                data.address,
-                aligned(data.file_size, MACHO_ARM64_PAGE_SIZE as u64)?,
-            )?;
+            let mapped_file_end = end(data.address, aligned(data.file_size, page_size)?)?;
             let tail_end = storage_end.min(mapped_file_end);
             if tail_end > layout.bss_address {
                 let tail_offset = end(data.file_offset, layout.bss_address - data.address)?;
@@ -310,7 +347,7 @@ pub fn validate_macho_aarch64_loader_mapping(
             initialized_end
         };
         mapped_end = end(data.address, data.memory_size)?;
-        let required_end = aligned(storage_end, MACHO_ARM64_PAGE_SIZE as u64)?;
+        let required_end = aligned(storage_end, page_size)?;
         // An absent BSS section can leave alignment padding in the segment,
         // but does not introduce any semantic storage occurrence there.
         if mapped_end < required_end || (bss_bytes != 0 && mapped_end != required_end) {
@@ -323,9 +360,9 @@ pub fn validate_macho_aarch64_loader_mapping(
     }
     if linkedit.address != mapped_end
         || !linkedit.sections.is_empty()
-        || linkedit.file_offset != aligned(file_end, MACHO_ARM64_PAGE_SIZE as u64)?
+        || linkedit.file_offset != aligned(file_end, page_size)?
         || end(linkedit.file_offset, linkedit.file_size)? != bytes.len() as u64
-        || linkedit.memory_size != aligned(linkedit.file_size, MACHO_ARM64_PAGE_SIZE as u64)?
+        || linkedit.memory_size != aligned(linkedit.file_size, page_size)?
     {
         return Err(invalid());
     }

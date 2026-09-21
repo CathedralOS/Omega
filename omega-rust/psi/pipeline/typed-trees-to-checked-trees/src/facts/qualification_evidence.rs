@@ -65,7 +65,7 @@ pub(crate) fn boundary_qualification_authorization(
     }) {
         return None;
     }
-    if !unwrapped_type_references_match(program, signature.return_type, domain.target_type) {
+    if !return_type_matches_domain_target(program, signature.return_type, domain.target_type) {
         return None;
     }
 
@@ -334,7 +334,47 @@ fn carry_permission_from_path(
     language_semantics::CarryPermission::from_name(&name)
 }
 
-fn unwrapped_type_references_match(
+/// A boundary requirement's return type realizes the domain target. An
+/// explicitly lifetime-parameterized carrier spells its result as
+/// `PendingRead<'a>` while the domain target is the bare nominal; the lifetime
+/// slot is erased from the semantic identity, so both sides compare by head
+/// nominal when no runtime generic arguments remain.
+fn return_type_matches_domain_target(
+    program: &TypedTrees,
+    return_type: TypeReferenceHandle,
+    domain_target: TypeReferenceHandle,
+) -> bool {
+    if unwrapped_type_references_match(program, return_type, domain_target) {
+        return true;
+    }
+    nominal_head_symbol(program, return_type)
+        .zip(nominal_head_symbol(program, domain_target))
+        .is_some_and(|(left, right)| left == right)
+}
+
+fn nominal_head_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let unwrapped = unwrapped_type_reference(program, type_reference)?;
+    match program.type_reference_table.type_reference(unwrapped) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty() =>
+        {
+            Some(*base_symbol)
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn unwrapped_type_references_match(
     program: &TypedTrees,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,

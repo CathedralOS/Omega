@@ -400,18 +400,9 @@ pub CopyTokenRepresentation:
 #[test]
 fn by_value_opaque_use_retains_exact_consumer_demand() {
     let package = TempPackage::new();
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(5)
-        .expect("Omega repository root");
-    package.write(
-        "calling.omg",
-        &fs::read_to_string(repository.join("source/library/std/calling.omg"))
-            .expect("read package-local calling vocabulary"),
-    );
     package.write(
         "main.omg",
-        r#"use calling;
+        r#"use omega_language_std::calling;
 use omega::language::core::representation;
 
 pub boundary data TransferToken;
@@ -467,7 +458,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
     );
 
     let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
+        package_inputs: Some(package_inputs_with_std(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
     .expect("by-value opaque representation fixture should check");

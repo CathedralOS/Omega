@@ -297,11 +297,18 @@ machine Main::main(&mut self) reaches Agg {{
         let diagnostics = compile(request)
             .and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_err();
+        // The claim is that an aggregate boundary member is still refused, not
+        // which stage refuses it. `9a81cd687742` (write-only borrows lend result
+        // fields and replace whole records) decomposes a whole-record
+        // replacement into ordered field stores, and its root guard now fires
+        // in lowering before entry establishment is ever reached. Both stops
+        // are accepted so the pin survives that guard being lifted, and still
+        // fails loudly if the program stops being refused at all.
         assert!(
             diagnostics.iter().any(|diagnostic| {
-                diagnostic
-                    .to_string()
-                    .contains("ProgramEntry establishment rejoins 0 Terminal attachment identities")
+                let text = diagnostic.to_string();
+                text.contains("ProgramEntry establishment rejoins 0 Terminal attachment identities")
+                    || text.contains("record store destination projected beyond its authored root")
             }),
             "aggregate boundary member `{member}` must currently refuse Terminal entry establishment; diagnostics: {diagnostics:?}",
         );

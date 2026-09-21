@@ -63,16 +63,36 @@ pub(super) fn check_domain_field_writes(
                     local.type_reference,
                 )
             {
-                if crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
-                    && !value_proves_qualification(
+                let requires_provenance =
+                    crate::facts::field_domain::domain_requires_provenance(program, domain_symbol);
+                // A `requires` predicate is equally an obligation on the
+                // initializer: `self in T::Case` and `self.f` membership are
+                // decided by the construction or by live evidence at its
+                // place, never minted by the annotation itself.
+                let predicate_domain = program.domain_definitions().iter().any(|domain| {
+                    domain.symbol == domain_symbol && domain.predicate_body.is_present()
+                });
+                if !(requires_provenance || predicate_domain) {
+                    continue;
+                }
+                if !value_proves_qualification(
+                    program,
+                    facts,
+                    state_flow,
+                    statement_index,
+                    local.initial_value,
+                    domain_symbol,
+                    semantic_domain,
+                ) && !(!requires_provenance
+                    && initializer_satisfies_predicate_domain(
                         program,
                         facts,
                         state_flow,
                         statement_index,
                         local.initial_value,
                         domain_symbol,
-                        semantic_domain,
-                    )
+                        &mut Vec::new(),
+                    ))
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "cannot prove initializer of `{}` in {} is in domain `{}`; an annotation cannot establish routed qualification",
@@ -942,6 +962,552 @@ fn value_proves_qualification(
     super::exits::exact_scalar_membership(program, facts, &contexts, &subject, domain, identity)
 }
 
+/// Discharge a `requires` predicate domain against the initializer itself.
+/// `self in T::Case` lowers to `self == T::Case` (unions become `||`); the
+/// fact is decided by the construction's own selected case or by live
+/// `AssignedCase`/guard evidence at the value's place. Member comparisons
+/// (`self.f == 0`, `self.flag`) read the literal's field value or the place's
+/// scalar snapshot; `self.f in D` recurses into the field initializer or the
+/// nested place. Mutation invalidation retires both evidence forms, so stale
+/// establishment never survives a rewrite, and a foreign case or owner fails
+/// the exact variant-symbol comparison.
+fn initializer_satisfies_predicate_domain(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    active: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !domain_symbol.is_valid() || active.contains(&domain_symbol) {
+        return false;
+    }
+    // An explicit `x as T in D` mint declares the qualification directly;
+    // the staged mint fence at validation owns judging its legality.
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(value)
+        && cast.semantic_domain_symbol == domain_symbol
+    {
+        return true;
+    }
+    // A domain-owned operator is the sanctioned producer for its domain: the
+    // selected candidate's domain qualifies the result, matching the trust
+    // basis of a declared `-> T in D` call signature.
+    if facts
+        .operators
+        .resolved_uses()
+        .filter(|operator_use| operator_use.expression == value)
+        .filter_map(|operator_use| facts.operators.selected_candidate(operator_use))
+        .any(|candidate| candidate.domain_symbol == domain_symbol)
+    {
+        return true;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    if !domain.predicate_body.is_present() {
+        return false;
+    }
+    let type_symbol =
+        crate::lookup::machine_symbol_from_type_reference_handle(program, domain.target_type);
+    let type_symbol = type_symbol.is_valid().then_some(type_symbol);
+    let entry_constraints = facts
+        .flow
+        .state_statement(state, statement_index)
+        .map(|statement| statement.entry_constraints)
+        .unwrap_or(state.entry_constraints);
+    let contexts = facts
+        .flow
+        .semantic_constraint_contexts(entry_constraints)
+        .collect::<Vec<_>>();
+    active.push(domain_symbol);
+    let satisfied = program.proof_facts(domain).iter().all(|fact| match fact {
+        typed_trees::domain::ProofFact::Expression(expression) => {
+            predicate_expression_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                &contexts,
+                value,
+                *expression,
+                type_symbol,
+            )
+        }
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            membership.domain_arguments.is_empty()
+                && member_subject_satisfies_domain(
+                    program,
+                    facts,
+                    state,
+                    statement_index,
+                    &contexts,
+                    value,
+                    membership.value,
+                    membership.domain_symbol,
+                    type_symbol,
+                    active,
+                )
+        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
+    });
+    active.pop();
+    satisfied
+}
+
+/// Evaluate one `requires` expression with `self` bound to `value`: `&&`/`||`
+/// compose, `self == T::Case` compares the subject's selected case, and
+/// `self.f` predicates compare a member's scalar. Anything else is not
+/// decidable here and falls back to the membership proof.
+fn predicate_expression_holds_on_value(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    value: ExpressionHandle,
+    expression: ExpressionHandle,
+    type_symbol: Option<SymbolHandle>,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::And =>
+        {
+            predicate_expression_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                binary.left,
+                type_symbol,
+            ) && predicate_expression_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                binary.right,
+                type_symbol,
+            )
+        }
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::Or =>
+        {
+            predicate_expression_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                binary.left,
+                type_symbol,
+            ) || predicate_expression_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                binary.right,
+                type_symbol,
+            )
+        }
+        ExpressionNode::Binary(binary) => {
+            if let Some(selected) = case_membership_decision(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                binary.left,
+                binary.right,
+                type_symbol,
+            ) {
+                return match binary.operator {
+                    typed_trees::expression::BinaryOperator::Equal => selected,
+                    typed_trees::expression::BinaryOperator::NotEqual => !selected,
+                    _ => false,
+                };
+            }
+            member_comparison_holds_on_value(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                binary.operator,
+                binary.left,
+                binary.right,
+                type_symbol,
+            )
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Name(_) => {
+            member_scalar_at_subject(
+                program,
+                facts,
+                state,
+                statement_index,
+                contexts,
+                value,
+                expression,
+                type_symbol,
+            ) == Some(facts::ScalarValue::Boolean(true))
+        }
+        _ => false,
+    }
+}
+
+/// When a comparison's operands split into a `self`-rooted path and a name
+/// resolving to a variant symbol, decide whether the subject's selected case
+/// is that variant. Returns `None` when the operands are not that shape or no
+/// case evidence exists for the subject.
+#[allow(clippy::too_many_arguments)]
+fn case_membership_decision(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    value: ExpressionHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    type_symbol: Option<SymbolHandle>,
+) -> Option<bool> {
+    for (subject, case_expression) in [(left, right), (right, left)] {
+        let ExpressionNode::Name(path) = program.expression_table.expression(case_expression)
+        else {
+            continue;
+        };
+        let case_symbol = path.symbol;
+        if !case_symbol.is_valid()
+            || program.symbols.get(case_symbol).kind != symbols::SymbolKind::Variant
+        {
+            continue;
+        }
+        let segments =
+            crate::flow::relative_place_segments_from_expression(program, subject, type_symbol)?;
+        return selected_case_is(
+            program,
+            facts,
+            state,
+            statement_index,
+            contexts,
+            value,
+            &segments,
+            case_symbol,
+        );
+    }
+    None
+}
+
+/// Whether the subject `value` followed by `segments` currently selects
+/// `case_symbol`. A place answers from live case evidence; a construction
+/// literal answers from its own selected variant and member initializers.
+fn selected_case_is(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    value: ExpressionHandle,
+    segments: &[facts::PlaceSegment],
+    case_symbol: SymbolHandle,
+) -> Option<bool> {
+    if let Some(selected) = literal_member_value(program, value, segments)
+        .and_then(|member| construction_selected_case(program, member))
+    {
+        return Some(selected == case_symbol);
+    }
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    )?;
+    if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+        return None;
+    }
+    let mut subject = place.clone();
+    subject.extend_segments(segments);
+    Some(crate::flow::place_case_has_value(
+        program,
+        &facts.semantic,
+        contexts,
+        state.machine_symbol,
+        state.state_symbol,
+        statement_index,
+        &subject,
+        case_symbol,
+        true,
+    ))
+}
+
+/// The selected variant of a construction expression: a cased struct literal,
+/// a `T::Case(...)` call, or a bare variant name. Record literals and
+/// non-construction expressions have no selected case.
+fn construction_selected_case(
+    program: &typed_trees::TypedTrees,
+    value: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::StructLiteral(literal) => literal.case_symbol,
+        ExpressionNode::Call(call) => {
+            let ExpressionNode::Name(receiver) = program.expression_table.expression(call.receiver)
+            else {
+                return None;
+            };
+            let data_definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == receiver.symbol)?;
+            program
+                .data_members(data_definition)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == call.target.as_str() =>
+                    {
+                        Some(variant.symbol)
+                    }
+                    _ => None,
+                })
+        }
+        ExpressionNode::Name(path)
+            if path.symbol.is_valid()
+                && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant =>
+        {
+            Some(path.symbol)
+        }
+        _ => None,
+    }
+}
+
+/// Follow `self`-relative field segments into a struct literal's member
+/// initializers. An empty segment list is the literal itself; a non-field
+/// segment or a non-literal member value cannot be descended into.
+fn literal_member_value(
+    program: &typed_trees::TypedTrees,
+    value: ExpressionHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<ExpressionHandle> {
+    let mut current = value;
+    for segment in segments {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(current)
+        else {
+            return None;
+        };
+        current = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| field.field_symbol == *symbol)
+            .map(|field| field.value)?;
+    }
+    Some(current)
+}
+
+/// A `self`-rooted member path's current scalar: live assignment evidence at
+/// the place's member segments, or the literal field's own constant.
+#[allow(clippy::too_many_arguments)]
+fn member_scalar_at_subject(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    value: ExpressionHandle,
+    member_path: ExpressionHandle,
+    type_symbol: Option<SymbolHandle>,
+) -> Option<facts::ScalarValue> {
+    let segments =
+        crate::flow::relative_place_segments_from_expression(program, member_path, type_symbol)?;
+    if let Some(scalar) = literal_member_value(program, value, &segments)
+        .and_then(|member| expression_constant_scalar(program, member))
+    {
+        return Some(scalar);
+    }
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    )?;
+    if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+        return None;
+    }
+    let mut subject = place.clone();
+    subject.extend_segments(&segments);
+    crate::values::scalar_value_at_place(
+        program,
+        &facts.semantic,
+        contexts
+            .iter()
+            .map(|context| facts.semantic.contexts.get(*context)),
+        &subject,
+    )
+}
+
+fn expression_constant_scalar(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<facts::ScalarValue> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) => Some(facts::ScalarValue::Boolean(*value)),
+        _ => program
+            .expression_table
+            .constant_integer_value(expression)
+            .map(|value| facts::ScalarValue::Integer(numerics::bignum::BigInt::from_i64(value))),
+    }
+}
+
+/// A comparison where one operand is a `self`-rooted member path and the
+/// other is a constant: `self.a == 0`, `0 < self.b`, `self.flag`. Compares
+/// the member's live scalar or literal value against the constant; when the
+/// constant leads, the operator is mirrored so the member stays the subject.
+#[allow(clippy::too_many_arguments)]
+fn member_comparison_holds_on_value(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    value: ExpressionHandle,
+    operator: typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    type_symbol: Option<SymbolHandle>,
+) -> bool {
+    use typed_trees::expression::BinaryOperator;
+    for (member, constant, operator) in [
+        (left, right, operator),
+        (
+            right,
+            left,
+            match operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other => other,
+            },
+        ),
+    ] {
+        if crate::flow::relative_place_segments_from_expression(program, member, type_symbol)
+            .is_none()
+            || expression_constant_scalar(program, constant).is_none()
+        {
+            continue;
+        }
+        let Some(actual) = member_scalar_at_subject(
+            program,
+            facts,
+            state,
+            statement_index,
+            contexts,
+            value,
+            member,
+            type_symbol,
+        ) else {
+            continue;
+        };
+        let expected = expression_constant_scalar(program, constant).expect("checked above");
+        return match (&actual, &expected) {
+            (facts::ScalarValue::Integer(actual), facts::ScalarValue::Integer(expected)) => {
+                match operator {
+                    BinaryOperator::Equal => actual == expected,
+                    BinaryOperator::NotEqual => actual != expected,
+                    BinaryOperator::Less => actual < expected,
+                    BinaryOperator::LessOrEqual => actual <= expected,
+                    BinaryOperator::Greater => actual > expected,
+                    BinaryOperator::GreaterOrEqual => actual >= expected,
+                    _ => false,
+                }
+            }
+            (facts::ScalarValue::Boolean(actual), facts::ScalarValue::Boolean(expected)) => {
+                match operator {
+                    BinaryOperator::Equal => actual == expected,
+                    BinaryOperator::NotEqual => actual != expected,
+                    _ => false,
+                }
+            }
+            _ => false,
+        };
+    }
+    false
+}
+
+/// `self.f in D` on the initializer: a literal descends into the field's own
+/// initializer and re-discharge; a place proves the nested place's domain the
+/// ordinary way.
+#[allow(clippy::too_many_arguments)]
+fn member_subject_satisfies_domain(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    contexts: &[facts::FactContextHandle],
+    value: ExpressionHandle,
+    member: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    type_symbol: Option<SymbolHandle>,
+    active: &mut Vec<SymbolHandle>,
+) -> bool {
+    let Some(segments) =
+        crate::flow::relative_place_segments_from_expression(program, member, type_symbol)
+    else {
+        return false;
+    };
+    if let Some(member_value) = literal_member_value(program, value, &segments) {
+        return initializer_satisfies_predicate_domain(
+            program,
+            facts,
+            state,
+            statement_index,
+            member_value,
+            domain_symbol,
+            active,
+        ) || value_proves_domain_in_contexts(
+            program,
+            facts,
+            state,
+            statement_index,
+            member_value,
+            domain_symbol,
+            contexts,
+        );
+    }
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.state_symbol,
+        statement_index,
+        value,
+    ) else {
+        return false;
+    };
+    let mut subject = place.clone();
+    subject.extend_segments(&segments);
+    super::prover::prove_domain_at_place(
+        program,
+        &facts.semantic,
+        contexts,
+        &subject,
+        domain_symbol,
+    )
+}
+
 /// Resolve the selected definition, not the authored spelling: a qualified
 /// foreign construction must establish that exact owner's field contracts.
 fn construction_field_type_by_symbol(
@@ -1234,6 +1800,33 @@ fn value_proves_domain_in_contexts(
         return true;
     }
 
+    // An admitted recast view `&x as &T` re-reads the SOURCE place's bytes
+    // through the let's stated type, so an `in D` annotation on that type is an
+    // obligation on the viewed place `x`, not on the reference-typed
+    // initializer (which owns no scalar place of its own). Validation's recast
+    // judgment already proved the source's declared representation facts imply
+    // the cast's stated shape before admitting the view; the residual question
+    // here is the source's own establishment in `domain_symbol`: live
+    // membership evidence at its place, or a declared leaf domain implying
+    // `domain_symbol` that is an invariant of the place — caller- or
+    // binder-established for parameters and initialized locals, and gated on
+    // the zero-initialized value satisfying it for machine storage and
+    // zero-initialized locals (the same soundness gate the field-domain fact
+    // seeding applies, so the annotation still cannot mint qualification).
+    if let Some(source) = recast_view_source_expression(program, value)
+        && (recast_source_proves_domain(
+            program,
+            facts,
+            state_flow,
+            statement_index,
+            source,
+            contexts,
+            domain_symbol,
+        ) || recast_source_declared_domain_implies(program, state_flow, source, domain_symbol))
+    {
+        return true;
+    }
+
     let value_label = program.expression_table.display_name(value);
     let value_place = crate::flow::canonical_place_from_expression_in_state(
         program,
@@ -1363,4 +1956,308 @@ fn value_call_return_domain_implies(
                 domain_symbol,
             )
         })
+}
+
+/// The viewed place expression behind an admitted recast view: `&x as &T` is a
+/// `Cast` whose `form` is a borrow re-view spelling (`RecastShared` or
+/// `RecastMutable`), and the `&mut x as &mut T` pun wraps that cast in the
+/// unary `&mut`. Borrow shells peel in both directions so either spelling
+/// reduces to the source place `x`. Validation only admits a recast in the
+/// blessed `let` initializer position, so a non-recast value -- a conversion
+/// `x as T`, a place read, or any other shape -- yields `None` and keeps the
+/// ordinary discharge paths.
+fn recast_view_source_expression(
+    program: &typed_trees::TypedTrees,
+    value: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let mut current = value;
+    loop {
+        match program.expression_table.expression(current) {
+            ExpressionNode::Borrow(inner) => current = inner.target,
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                let mut source = cast.value;
+                while let ExpressionNode::Borrow(inner) =
+                    program.expression_table.expression(source)
+                {
+                    source = inner.target;
+                }
+                return Some(source);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// Whether the recast source place carries LIVE membership evidence in
+/// `domain_symbol` -- an assigned value whose scalar satisfies the predicate,
+/// or a carried `DomainMembership`/`ContractDomainMembership` fact at the
+/// place (a minted local, a contract-proven parameter, a checked prior write).
+fn recast_source_proves_domain(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    statement_index: usize,
+    source: ExpressionHandle,
+    contexts: &[facts::FactContextHandle],
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(subject) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_flow.state_symbol,
+        statement_index,
+        source,
+    ) else {
+        return false;
+    };
+    super::prover::prove_domain_at_place(
+        program,
+        &facts.semantic,
+        contexts,
+        &subject,
+        domain_symbol,
+    )
+}
+
+/// Whether the recast source's DECLARED leaf type carries a predicate domain
+/// that implies `domain_symbol`. The declared domain is an invariant of the
+/// place this pass enforces on every write, so the residual obligation is the
+/// domain's own establishment at the place's initial value: a state parameter
+/// is caller-established and an initialized local was proven at its `let`,
+/// while machine storage and zero-initialized locals additionally require the
+/// zero value to satisfy the domain -- the same soundness gate the
+/// field-domain fact seeding applies (`semantic/field_domains.rs`). A domain
+/// the zero value violates stays a write-time obligation rather than an
+/// invariant, so its reads must still follow a proven write.
+fn recast_source_declared_domain_implies(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    source: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = crate::semantic_calls::find_state_in_machine(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+    ) else {
+        return false;
+    };
+    // `self`-rooted storage is always zero-initialized, so the declared leaf
+    // domain is a valid invariant only when the zero value provably satisfies
+    // it.
+    if let Some(leaf_type) =
+        crate::facts::field_domain::attached_data_field_type(program, machine, source)
+    {
+        return crate::facts::field_domain::predicate_domain_constraint_symbols(program, leaf_type)
+            .into_iter()
+            .any(|source_domain| {
+                domain_admits_zero_value(program, source_domain)
+                    && crate::facts::field_domain::domain_membership_implies(
+                        program,
+                        source_domain,
+                        domain_symbol,
+                    )
+            });
+    }
+    let Some(leaf_type) =
+        crate::facts::field_domain::direct_state_place_type_reference(program, state, source)
+    else {
+        return false;
+    };
+    let established = state_place_is_established(program, state, source);
+    crate::facts::field_domain::predicate_domain_constraint_symbols(program, leaf_type)
+        .into_iter()
+        .any(|source_domain| {
+            (established || domain_admits_zero_value(program, source_domain))
+                && crate::facts::field_domain::domain_membership_implies(
+                    program,
+                    source_domain,
+                    domain_symbol,
+                )
+        })
+}
+
+/// Whether a non-`self` state place's declared domain was established before
+/// the current statement: a parameter's declared domain is caller-established
+/// (and `&`/`&mut`/`&write` re-establishment is enforced on writes), and an
+/// initialized local's annotation was discharged at its own `let`. A
+/// zero-initialized local declared `in D` has no such evidence -- the same
+/// storage case as a machine field -- and any other root conservatively
+/// reports unestablished.
+fn state_place_is_established(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    source: ExpressionHandle,
+) -> bool {
+    let Some(symbol) = state_place_root_symbol(program, source) else {
+        return false;
+    };
+    if program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == symbol)
+    {
+        return true;
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => {
+                local.initial_value.is_valid()
+            }
+            _ => false,
+        })
+}
+
+/// The root symbol of a state place expression, peeling borrow shells and
+/// member projections. `self` is never a state-place root (the caller resolves
+/// it through `attached_data_field_type` first), so a `self`-headed name is
+/// not special-cased here.
+fn state_place_root_symbol(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => state_place_root_symbol(program, inner.target),
+        ExpressionNode::Member(member) => state_place_root_symbol(program, member.receiver),
+        ExpressionNode::Indexed(indexed) => state_place_root_symbol(program, indexed.collection),
+        ExpressionNode::Name(path) => path
+            .head_symbol
+            .is_valid()
+            .then_some(path.head_symbol)
+            .or_else(|| path.symbol.is_valid().then_some(path.symbol)),
+        _ => None,
+    }
+}
+
+/// Whether `domain_symbol`'s `self`-facts provably hold on the ZERO value of
+/// its declared carrier -- the scalar-carrier half of the ZII soundness gate
+/// `domain_admits_empty_byte_sequence` covers for recognized byte predicates.
+/// An integer leaf's ZII is `0` and a `bool` leaf's is `false`; `self`-relative
+/// membership facts recurse because a member's ZII is again the all-zero value
+/// of its own declared type. A leaf the evaluator cannot decide -- a float,
+/// byte string, record, runtime projection, or a non-`self` membership subject
+/// -- conservatively refuses, so an unproven domain stays a write-time
+/// obligation rather than an invariant.
+fn domain_admits_zero_value(
+    program: &typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    domain_admits_zero_value_inner(program, domain_symbol, &mut Vec::new())
+}
+
+fn domain_admits_zero_value_inner(
+    program: &typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+    active: &mut Vec<SymbolHandle>,
+) -> bool {
+    if crate::facts::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol) {
+        return true;
+    }
+    if active.contains(&domain_symbol) {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    // Generic or indexed domain instances can bind their zero question to the
+    // instance arguments; only closed symbol-only theories are answered here.
+    if !domain.type_parameters.is_empty() || !domain.index_arguments.is_empty() {
+        return false;
+    }
+    let facts = program.proof_facts.span_or_empty(domain.facts);
+    if facts.is_empty() {
+        return false;
+    }
+    active.push(domain_symbol);
+    let admitted = facts.iter().all(|fact| match fact {
+        typed_trees::domain::ProofFact::Expression(expression) => matches!(
+            super::prover::evaluate_scalar(program, *expression, &mut |leaf| {
+                zero_value_scalar_leaf(program, domain, leaf)
+            }),
+            Some(super::prover::ScalarValue::Boolean(true))
+        ),
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            expression_is_self_relative(program, membership.value)
+                && domain_admits_zero_value_inner(program, membership.domain_symbol, active)
+        }
+        typed_trees::domain::ProofFact::Proposition(_) => false,
+    });
+    active.pop();
+    admitted
+}
+
+/// The ZII scalar of a `self`-relative leaf in a domain fact: the leaf's
+/// declared type resolved through its retained position, or through the
+/// domain target's member path when the position is opaque, then the zero of
+/// that primitive -- `0` for an integer leaf, `false` for a `bool` leaf.
+/// Floats, byte carriers, records, and runtime projections have no decidable
+/// scalar here, so the leaf stays unresolved and the enclosing evaluation
+/// fails closed.
+fn zero_value_scalar_leaf(
+    program: &typed_trees::TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+    leaf: ExpressionHandle,
+) -> Option<super::prover::ScalarValue> {
+    let leaf_type =
+        crate::flow::expression_place_type_reference(program, leaf, &[]).or_else(|| {
+            let self_type = crate::lookup::machine_symbol_from_type_reference_handle(
+                program,
+                domain.target_type,
+            );
+            let segments = crate::flow::relative_place_segments_from_expression(
+                program,
+                leaf,
+                self_type.is_valid().then_some(self_type),
+            )?;
+            crate::flow::project_type_reference_from_segments(
+                program,
+                domain.target_type,
+                &segments,
+            )
+        })?;
+    match program.type_reference_table.primitive_type(leaf_type) {
+        Some(typed_trees::types::PrimitiveType::Bool) => {
+            Some(super::prover::ScalarValue::Boolean(false))
+        }
+        Some(primitive) if primitive.accepts_integer_literal() => Some(
+            super::prover::ScalarValue::Integer(numerics::bignum::BigInt::from_i64(0)),
+        ),
+        _ => None,
+    }
+}
+
+/// Whether an expression is a `self`-rooted member path in a domain fact --
+/// `self`, `self.f`, or a deeper projection -- where `self` binds the domain's
+/// target value. A membership fact over any other subject (a constant, an
+/// unrelated place) is not evidence about the domain's own zero value.
+fn expression_is_self_relative(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(inner) => expression_is_self_relative(program, inner.target),
+        ExpressionNode::Member(member) => expression_is_self_relative(program, member.receiver),
+        ExpressionNode::Indexed(indexed) => {
+            expression_is_self_relative(program, indexed.collection)
+        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|member| member.as_str() == "self"),
+        _ => false,
+    }
 }

@@ -1597,3 +1597,303 @@ fn interchange_is_deterministic_and_re_admitted() {
         CommutingMemberRunInterchangeError::UnsupportedPair
     );
 }
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_commuting_member_run_interchange`
+/// directly, so every rejection comes from the validator's own window
+/// audit.
+mod independence_tests {
+    use super::{
+        CommutingMemberRunInterchangeError, DIFF, LOAD_C, MEMBER, NativeTarget, OperationId, SIXTH,
+        SelectedInstructionId, SelectedInstructionPlan, SelectedMemoryAccessRole,
+        ValidatedCommutingMemberRunInterchange, access, baseline_target_register_environment,
+        budget, fixture, interchange, mutated, settlement,
+        validate_commuting_member_run_interchange,
+    };
+    use crate::rewrites::commuting_accesses as accesses;
+
+    /// Rearrange the window the member index and the two run indices bound
+    /// in the source's first block to later-side ++ interior ++
+    /// earlier-side and permute the window's roster rows into the new
+    /// execution order — the edit a producer emitting that interchange
+    /// would publish — without asking admission whether the window is
+    /// legal. The indices are block-body positions; the member may sit on
+    /// either side of the run's span.
+    fn forged(
+        source: &ValidatedCommutingMemberRunInterchange,
+        member_index: usize,
+        run_first_index: usize,
+        run_last_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let instructions = &mut function.blocks[0].instructions;
+        let first = member_index.min(run_first_index);
+        let last = member_index.max(run_last_index);
+        let window: Vec<_> = instructions.drain(first..=last).collect();
+        let run_len = run_last_index - run_first_index + 1;
+        let member_earlier = member_index < run_first_index;
+        let earlier_len = if member_earlier { 1 } else { run_len };
+        let later_len = if member_earlier { run_len } else { 1 };
+        let interior_len = window.len() - earlier_len - later_len;
+        let rearranged: Vec<_> = window[earlier_len + interior_len..]
+            .iter()
+            .chain(&window[earlier_len..earlier_len + interior_len])
+            .chain(&window[..earlier_len])
+            .cloned()
+            .collect();
+        instructions.splice(first..first, rearranged);
+        let window: Vec<SelectedInstructionId> = function.blocks[0].instructions[first..=last]
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect();
+        let positions = accesses::window_row_positions(function, &window);
+        let ordered = accesses::rows_in_order(function, &window);
+        for (position, access) in positions.into_iter().zip(ordered) {
+            function.memory_accesses[position] = access;
+        }
+        proposed
+    }
+
+    /// A forged interchange of a window the validator's own audit admits
+    /// validates in each direction: the member `MEMBER` ahead of the
+    /// `LOAD_C; DIFF` run and, on the admitted interchange, the same
+    /// member behind that run each trade places around the interior —
+    /// the traded roster rows commute, a trading pair is rowed on both
+    /// sides, and the content comparison accepts the rearrangement.
+    #[test]
+    fn forged_interchange_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_commuting_member_run_interchange(
+            &source,
+            0,
+            MEMBER,
+            LOAD_C,
+            DIFF,
+            &environment,
+            budget(),
+            forged(&source, 0, 4, 5),
+        )
+        .unwrap();
+        // On the admitted interchange the member sits behind the run, so
+        // the same names bound the member-later window: forging that edit
+        // publishes the source plan back.
+        let interchanged = interchange(&source, &environment, MEMBER, LOAD_C, DIFF).unwrap();
+        validate_commuting_member_run_interchange(
+            &interchanged,
+            0,
+            MEMBER,
+            LOAD_C,
+            DIFF,
+            &environment,
+            budget(),
+            forged(&interchanged, 5, 0, 1),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the sides traded — the run's difference reading the
+    /// member's loaded value. The validator's own legality audit refuses
+    /// with `UnsupportedPair`, not a replay mismatch, because it
+    /// reconstructs the window's hazards instead of trusting the
+    /// producer's admission record.
+    #[test]
+    fn forged_interchange_across_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        // DIFF's first read moves to SIXTH — the member MEMBER defines it,
+        // so the sides cannot trade.
+        let source = mutated(target, |function, _| {
+            function.blocks[0].instructions[5].operands[0].virtual_register = SIXTH;
+        });
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a non-commuting trade anyway would publish
+    /// the sides traded while a roster row the member carries cannot
+    /// commute with the row it crosses — the member's row rewritten to
+    /// write the bytes the run head reads. The validator's own commutation
+    /// audit refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_past_a_non_commuting_row_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        // MEMBER's row becomes a write over exactly the place-2 bytes
+        // LOAD_C's row reads, so the traded pair no longer commutes.
+        let source = mutated(target, |function, _| {
+            function.memory_accesses[0] =
+                access(MEMBER, 2, SelectedMemoryAccessRole::WritePlace, 8, 8);
+        });
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted the plain member-against-run accounting
+    /// case anyway — a rowed member trading only with row-less positions —
+    /// would publish the sides traded, but this family's validator
+    /// requires at least one trading pair rowed on both sides and refuses
+    /// with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_without_a_rowed_trade_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        // LOAD_C's roster row leaves the member's the only row in the
+        // window, so no trading pair is rowed on both sides.
+        let source = mutated(target, |function, _| {
+            function
+                .memory_accesses
+                .retain(|access| access.instruction != LOAD_C);
+        });
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a settled window anyway would publish the
+    /// sides traded across a boundary settlement inside the span — the
+    /// settlement would observe a different executed prefix, so the
+    /// validator's own audit refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_past_an_interior_settlement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function.boundary_settlements.push(settlement(3, 41));
+        });
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal that leaves the named sides unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the later
+    /// side on the earlier side's span, so the window content comparison
+    /// rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::ReplayMismatch
+        );
+    }
+
+    /// A forged interchange whose roster stayed in the source order — the
+    /// window's rearrangement is right, but the rows were not permuted
+    /// into the new execution order — fails the roster comparison: this
+    /// family's recorded accesses must follow the performed order.
+    #[test]
+    fn forged_window_with_a_stale_roster_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, 0, 4, 5);
+        proposed.functions[0].memory_accesses =
+            source.transformed().functions[0].memory_accesses.clone();
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::ReplayMismatch
+        );
+    }
+
+    /// A forged interchange plus an unrelated extra edit still fails
+    /// restore: the window's rearrangement and the roster's permutation
+    /// are right, but the drifted instruction behind the window keeps the
+    /// restore-by-content comparison from reproducing the source.
+    #[test]
+    fn forged_window_with_drifted_content_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, 0, 4, 5);
+        proposed.functions[0].blocks[0].instructions[6]
+            .provenance
+            .operations = vec![OperationId::new(77).unwrap()];
+        assert_eq!(
+            validate_commuting_member_run_interchange(
+                &source,
+                0,
+                MEMBER,
+                LOAD_C,
+                DIFF,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            CommutingMemberRunInterchangeError::ReplayMismatch
+        );
+    }
+}

@@ -16,6 +16,7 @@ effects = { path = "../../representations/effects" }
 external-roots = { path = "../../backend/runtime/external-roots" }
 image-emission = { path = "../../backend/images/image-emission", features = ["installed-artifact"] }
 installation-evidence = { path = "../../representations/installation-evidence" }
+boundary-applications = { path = "../../representations/boundary-applications" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }
 

@@ -238,7 +238,7 @@ machine Main::main(&mut self) reaches Console {
         r#"machine build(builder: &mut Build) {
     builder.application("accepted-console-application");
     builder.depend_as("accepted_console", Source::Path { location: "../accepted-console-package" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<accepted_console::Console, accepted_console::ConsoleNativeProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -395,7 +395,7 @@ machine Main::main(&mut self) reaches Console {
                     .contains("was not consumed by one exact selected provider plan")
                     || diagnostic
                         .message
-                        .contains("unknown boundary slot `Console`")
+                        .contains("unknown boundary slot `accepted_console::Console`")
             }),
             "unexpected {label} diagnostics: {diagnostics:#?}",
         );
@@ -1611,7 +1611,7 @@ machine Main::main(&mut self) reaches Console {
         exit_root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
     builder.application("physical-exit");
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,

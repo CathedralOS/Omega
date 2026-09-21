@@ -212,6 +212,7 @@ pub(super) fn validate(
         || scalar_arguments.as_slice() != call.scalar_arguments.as_slice()
         || row_structural.as_slice() != call.structural_arguments.as_slice()
         || *result_home != call.result_home
+        || callback != call.callback.as_ref()
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
         || call.binding.locator.target().native_target() != native.target

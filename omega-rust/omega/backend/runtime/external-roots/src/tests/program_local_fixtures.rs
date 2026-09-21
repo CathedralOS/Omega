@@ -172,6 +172,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             entry: semantic_vocabulary::BlockId::new(1).expect("block identity"),
             blocks: vec![terminal_psi::Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: semantic_vocabulary::BlockId::new(1).expect("block identity"),
                 parameters: Vec::new(),
@@ -183,6 +184,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
             }],
             contract: terminal_psi::MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: semantic_vocabulary::ContractId::new(1).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
