@@ -11651,7 +11651,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-CLONE-SERIALIZATION, GEOMETRY-DEBUG-ASSERTIONS,
   GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-ALIGNMENT-STRING-PARSING.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
-- **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
+- **GEOMETRY-DEBUG-ASSERTIONS.** Scope verified at `069276b986dc` —
+  re-mines the "debug-only assertions" parity gap on GEOMETRY-PARITY's
+  sentence; named verbatim as a sibling on
+  GEOMETRY-ALIGNMENT-STRING-PARSING's resolved row (:7928). The gap maps
+  to the SQUALR-DEBUG-ASSERTION-PARITY / SQUALR-DEBUG-ASSERTIONS lane
+  (Rust `debug_assert`/`debug_assert_eq` assertions in the geometry
+  engine) — an edit inside `samples/apps/squalr`, wholesale-fenced
+  under SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738, exp 05:49Z),
+  and the identical sibling stub SQUALR-GEOMETRY-DEBUG-ASSERTIONS is
+  under a live item claim (zergling-176, exp 11:43Z). No independent
+  slice exists here; sibling stubs on the same parity-gaps sentence:
+  GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-CLONE-SERIALIZATION,
+  GEOMETRY-NAMED-TRAIT-OPERATORS.
 - **GEOMETRY-EVIDENCE-REFRESH.** Scope verified — no independent slice.
   The name re-mines the evidence-retention clause of the squalr
   application acceptance (:143): "retain results under the app's ignored
