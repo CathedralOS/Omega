@@ -113,6 +113,6 @@ pub(crate) fn call_site_evidence_arguments<'program>(
 }
 
 pub(crate) use lookup::{
-    call_target_parameters, call_target_type_parameters, find_state, find_state_in_machine,
-    find_state_with_machine,
+    call_target_parameters, call_target_type_parameters, find_machine_head, find_state,
+    find_state_in_machine, find_state_with_machine,
 };

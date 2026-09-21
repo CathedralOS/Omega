@@ -74,6 +74,35 @@ pub(crate) fn find_state_with_machine(
     })
 }
 
+/// A bare machine call names the machine head: `symbol` selects either the
+/// machine itself or its entry state, never a later state. The returned pair
+/// is the machine and that entry state, so machine-head callers share the
+/// entry parameters, contracts, and result type without a second lookup.
+/// `find_state_with_machine` alone is wider — it admits a target naming any
+/// state inside the machine — so the state arm still verifies the resolved
+/// state is stored first.
+pub(crate) fn find_machine_head(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+    {
+        return program
+            .machine_states(machine)
+            .first()
+            .map(|entry| (machine, entry));
+    }
+    let (machine, state) = find_state_with_machine(program, symbol)?;
+    program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol)
+        .then_some((machine, state))
+}
+
 /// The parameter list of a call target: a machine entry or selected state's
 /// parameters, or --
 /// for a call through a trait-typed receiver (boundary trait machines) or a
@@ -153,7 +182,7 @@ mod tests {
     use super::SymbolHandle;
     use crate::semantic_calls::call_target_parameters;
     use crate::semantic_calls::call_target_type_parameters;
-    use crate::semantic_calls::{find_state, find_state_in_machine};
+    use crate::semantic_calls::{find_machine_head, find_state, find_state_in_machine};
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, state::State};
 
@@ -248,6 +277,46 @@ mod tests {
             find_state(&program, state_symbol).map(|state| state.symbol),
             Some(state_symbol)
         );
+    }
+
+    #[test]
+    fn machine_head_selects_the_machine_or_its_entry_state_only() {
+        let mut program = typed_trees::TypedTrees::default();
+        let machine_symbol = SymbolHandle::from_arena_index(40);
+        let entry_symbol = SymbolHandle::from_arena_index(41);
+        let later_symbol = SymbolHandle::from_arena_index(42);
+        let empty_symbol = SymbolHandle::from_arena_index(43);
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            ..Machine::default()
+        };
+        for state_symbol in [entry_symbol, later_symbol] {
+            program.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: state_symbol,
+                    ..State::default()
+                },
+            );
+        }
+        program.push_machine(machine);
+        program.push_machine(Machine {
+            symbol: empty_symbol,
+            ..Machine::default()
+        });
+
+        // The machine symbol and its entry state's symbol both name the head.
+        for target in [machine_symbol, entry_symbol] {
+            let (machine, entry) = find_machine_head(&program, target).expect("machine head");
+            assert_eq!(machine.symbol, machine_symbol);
+            assert_eq!(entry.symbol, entry_symbol);
+        }
+        // A later state is a state call, not the machine head; a stateless
+        // machine, an unbound handle, and an invalid handle resolve nothing.
+        assert!(find_machine_head(&program, later_symbol).is_none());
+        assert!(find_machine_head(&program, empty_symbol).is_none());
+        assert!(find_machine_head(&program, SymbolHandle::invalid()).is_none());
+        assert!(find_machine_head(&program, SymbolHandle::from_arena_index(99)).is_none());
     }
 
     #[test]
