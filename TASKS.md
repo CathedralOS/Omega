@@ -10786,6 +10786,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   green (15/15 at `b260ea749e`), with every re-recorded digest's citing
   justification revalidated in the landing commit's body.
 
+  Duty pass at `18cebfa1062bf` (assigned row TRUSTED-SURFACE-LEDGER-
+  RERECORD; the retired stub re-mines this standing duty): the ledger is
+  current — `tools/trusted_surface_digests.py` reports "all recorded
+  digests match the working tree" and
+  `trusted_surface::recorded_digests_match_the_working_tree` PASSes on
+  linux x86-64. No drift since the last record, so no entry needed
+  revalidation or re-recording this pass.
+
 - **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS.** — verified 14e6f8f72e: the span-arm surface
   for every intrinsic family that produces coverage occurrences is
