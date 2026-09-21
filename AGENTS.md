@@ -502,7 +502,10 @@ release notes. Completed limitations are deleted, not retained as status.
 An open item's evidence states the current frontier once: recording a newer
 observation deletes the dated paragraph it supersedes. Numbered or
 revision-stamped landing ledgers are changelogs — Git names each landed
-revision; the board keeps only what the next session needs to resume. Cite
+revision; the board keeps only what the next session needs to resume. A stamp
+lands inside its own row, appended after that row's last sentence — never
+spliced mid-sentence into other prose and never left as an orphan paragraph
+detached from its bullet. Cite
 revisions as published on `main` — landing rewrites worktree SHAs, so a
 prerebase reference is unverifiable — and prefer symbol and test names over
 line numbers, which drift.
