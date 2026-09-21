@@ -3878,7 +3878,17 @@ Owners include
   UEFI-PHYSICAL-SEMANTIC-ENTRY (z88) + UEFI-OS-HANDOFF (z19). The borrowed-
   source routes still depend on the unlanded carried-loan machinery named in
   `installer.omg`'s header. No unfenced bounded slice on this host; QEMU
-  acceptance remains the far witness.
+  acceptance remains the far witness. Re-verified at `51cb187902` (linux
+  x86-64, 2026-09-21 ~07:51Z): the fence map rotated — CONSERVATION-CONTRACT
+  no longer lists `provider_installation/replay.rs` and the
+  BUMP-ALLOCATOR-CANARY claim expired, so the receipt-join leg's compiler
+  surface reads unfenced — but the leg still waits on the same unlanded
+  carried-loan machinery and the `cathedral/` stand-in's borrowed-source
+  routes named above; ranked-loop stays under TERMINATION-RANKING-CHECKS
+  (exp 10:50Z), placed-view read-back under PLAN-LAID-VIEWS (exp 09:25Z),
+  execution under the UEFI pair (exp 08:44Z/10:19Z) plus DEVICE-EXTENT-ACCESS
+  holding `extents/src/{lib.rs,ordering_events}` (exp 11:04Z). No bounded
+  slice; QEMU acceptance remains the far witness.
 
 - **EXCEPTION-ROOTS-AND-TIMER.** Run Cathedral's fatal exception entries on
   dedicated critical stacks, its descriptor-table installation, and a minimal
