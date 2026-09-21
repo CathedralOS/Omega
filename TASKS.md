@@ -401,6 +401,14 @@ work storage. Fixed named callbacks can proceed now. Selection-dependent evaluat
 uses Automatic service reach; anonymous machines and format-specific compiler
 operations are not dependencies.
 
+Staged reflection generates ordinary field calls that can run at runtime. Explicit
+metadata is owned descriptive data; retaining it does not implicitly retain
+getters, setters, factories or every known type. Exercise borrowed adapter custody
+without requiring static lifetimes. Nonaddressable packed/fragmented fields reject
+borrowed visitation unless an explicitly selected copied-read operation supplies
+the contract. Schema enumeration performs no device access; Placed visitation
+must use exact authorized operations.
+
 Acceptance: compile and run the inspector/serializer from Omega source, publish
 and reload their Terminal product, and reject corrupted retained evidence.
 Use a 40-field/five-type record with reusable type rules and one member override;
@@ -514,6 +522,10 @@ the implementation migration actually lands.
   schema rejection, not only console output. Then connect public descriptions and
   checked dynamic invocation through the same adapters; requested type metadata
   reuses [Semantic reflection](#semantic-reflection), not a second registry.
+  Dynamic lookup selects retained checked entries, never new generic instantiations
+  or private access. Inspect/update live objects only through exposed operations
+  at valid access points; detached documents require ordinary validated
+  construction/application and grant no authority over live storage.
   No mandatory source compiler, filesystem, global runtime, or thread is needed
   to load an already produced Psi artifact. Keep compilation authority separate.
 
