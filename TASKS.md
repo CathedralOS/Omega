@@ -7983,7 +7983,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists inside the current matrix fence; the promotion decision is
   a milestone statement, not a lane task.
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
-- **EPSILON-BOOTSTRAP-CHAIN** — mined candidate; verify scope then implement.
+- **EPSILON-BOOTSTRAP-CHAIN.** Mined candidate — resolved: scope verified,
+  route already exercised. The name re-mines the epsilon rung of the
+  bootstrap chain — `bootstrap/4_epsilon/` (the delta-compiled
+  `epsilon_compiler.delta` sources plus evaluator/entry/profile docs) and
+  its identity gate `tests/bootstrap/epsilon-identity.sh`, which stamps the
+  bound closure exactly and refuses corrupted manifests, members, drivers,
+  entries and receipts. Re-verified green at `f44a1177ed` (linux x86-64):
+  `sh tests/bootstrap/epsilon-identity.sh` — "bound closure materialized
+  exactly; corrupted manifest, member, driver, entry, and receipts
+  refused". Whole-chain coverage is recorded per-row on the bootstrap
+  board under resolved BOOTSTRAP-HOST-COVERAGE (`bde84d1765`); the
+  downstream epsilon consumers (the `bootstrap/5_omega` closure, scalar
+  extension, request/outcome/executable gates) are named items
+  (EPSILON-SCALAR-COMPILATION-EXTENSION adjacent, OMEGA-D lane in
+  TASKS_BOOTSTRAP.md). No independent slice exists under this stub.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
   the extension point is concrete and bounded —
   `bootstrap/5_omega/scalar_compilation.epsilon` `fold_operator` admits 10 of
