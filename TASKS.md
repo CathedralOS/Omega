@@ -4540,6 +4540,18 @@ Owners include
   Trait conformance selection, target-default or overridden float provider
   execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
   evaluation keep their separate supply routes.
+- **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
+  scope verified, slice landed 2026-09-21 (z181): the inventory of
+  the `operator` introducer's retirement surface is committed at
+  `wiki/drafts/operator_introducer_retirement_inventory.md` — 212
+  `operator`-introduced declarations at `82741ec439` (157 library +
+  18 test boundary rows; 37 plain test rows; zero library plain
+  rows), the parse/representation/resolution/checking/supply-mode
+  surfaces to retire, per-bucket migration routing, and the removal
+  order. The migration legs themselves stay with
+  OPERATOR-MACHINE-SUPPLY (TOP-LEVEL-BOUNDARY-REQUIREMENTS generic
+  requirements gate the 29 generic rows).
+
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
