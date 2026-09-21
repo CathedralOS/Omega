@@ -15,7 +15,8 @@ use checked_trees::{CheckedScalarStateTerminator, CheckedTrees, CheckedUnitEffec
 use lowered_psi::{CallbackTerminalLoweringReceipt, LoweredCallbackPsi, LoweredPsi};
 
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::machine_lowering::{reject_conditional_claim_joins, reject_mathematical_declarations};
+use crate::machine_lowering::reject_conditional_claim_joins;
+use crate::proofs::mathematical_declarations::admit_mathematical_declarations;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::retention::{closed_reach_applications, operation_crash_contracts};
 use crate::scalar_graph::scalar_graph_lowering::lower_selected_scalar_graph_machine;
@@ -35,7 +36,7 @@ pub fn lower_bounded_callback_identity_machine(
     source_machine: symbols::SymbolHandle,
     source_entry: symbols::SymbolHandle,
 ) -> Result<LoweredCallbackPsi, LoweringError> {
-    reject_mathematical_declarations(checked)?;
+    admit_mathematical_declarations(checked)?;
     reject_conditional_claim_joins(checked, &[source_machine])?;
     let matching_selection_count = checked
         .facts
