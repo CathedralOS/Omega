@@ -715,6 +715,22 @@ PROOF-SEARCH-MEASUREMENT.
   218s — still slow-flagged, still not a failure. The unattributed tail
   remains empty: all 24 failures (23 FAIL + the blowup member) are owned.
 
+Residual attribution at b8d336adcf21 (2026-09-21, Linux x86-64), same
+command: 2203 run, 2179 passed (14 slow), 24 failed — 23 FAIL plus
+`mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+SIGTERM'd at 1431s (~570% CPU, the same blowup, still
+PROOF-SEARCH-MEASUREMENT's). The five tests added since 71fb20485e all pass
+and every red member re-fails at an identical panic site with an identical
+diagnostic — the 19 missing transitive machine plans
+(`provider_attachment_source` ×6, `unit_state_graph::provider_attachments`
+×9, `unit_plan_omissions` ×3,
+`guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`),
+the 3 scalar-return custody members, and the fixed-fuel unranked-loop
+verdict. `owned_match_nested_record_replays_every_selected_payload` passed
+slow-flagged at 300s+. Ownership delta only: the bindings.rs verdict member
+now sits inside the live FIXED-FUEL-CONTROL-CYCLE-REPIN claim on
+`tests/unit_state_graph/bindings.rs`. The unattributed tail remains empty.
+
 Residual attribution at 7b224763615 (2026-09-21, linux x86-64), same
 command with the blowup member filtered out and run alone under a 150s
 bound: 2203 run, 2180 passed, 23 failed, 1 skipped — the identical
