@@ -10670,7 +10670,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   because the stream follows the moving source closure; the pinned entry
   identities are unchanged). Executing half stays seed-host-gated;
   linux x86-64 is an admitted audited host so that leg is duration, not
-  code. Record: `wiki/drafts/chain_ocreq_entry_binding.md`.
+  code. The ledger-only draft `wiki/drafts/chain_ocreq_entry_binding.md`
+  is retired under NEW-FOLD-OCREQ-ENTRY-BINDING-STUBS — its own field
+  note directed the fold and deletion; this row carries the record.
   Re-witnessed at `fff3918dc42` on linux x86-64 (this-name dispatch):
   `sh tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
   identities verified, same byte streams (622,933-byte receipt request,
@@ -14097,8 +14099,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   seed-host-gated. Sibling stubs on this surface:
   CHAIN-MANIFEST-OCREQ-BINDING, OCREQ-REQUEST-BINDING,
   OCREQ-REQUEST-ENTRY-BINDING.
-- **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
-- **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **OCREQ-REQUEST-BINDING** — mined candidate; folded — duplicate stub of
+  the resolved same-named row at ~:13479 (`re-mine stub of the bound
+  OCREQ request-entry surface`, last witnessed `7d03d489e3d`). No
+  residual.
+- **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; folded — duplicate
+  stub of the adjudicated same-named row at ~:13492 (scope verified at
+  `163670cf6d`, same bound OCREQ request-entry surface). No residual.
 - **OMEGA-C** — mined candidate; verify scope then implement.
 - **OMEGA-C-SELF-HOST-EDGE** — mined candidate; verify scope then implement.
 - **OMEGA-COMPILER-TAPE-BINDING** — mined candidate; verify scope then implement.
