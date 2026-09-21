@@ -22,5 +22,8 @@ fn dependency_recording_stops_at_the_depth_bound() {
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
     facts.record_expression_dependencies(&program, machine, state, expression);
-    assert_eq!(facts.expression_dependencies.len(), 128);
+    assert_eq!(
+        facts.expression_dependencies.len(),
+        super::super::EXPRESSION_WALK_DEPTH_BOUND
+    );
 }
