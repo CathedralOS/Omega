@@ -6,8 +6,8 @@ use crate::{
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, ProofTerm, ScalarTerm, ServiceId,
-    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId, SuspensionCrossingId,
-    ValueId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
+    SuspensionCrossingId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
