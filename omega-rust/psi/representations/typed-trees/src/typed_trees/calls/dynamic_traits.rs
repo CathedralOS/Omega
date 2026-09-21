@@ -571,9 +571,16 @@ fn push_lifetime_name(lifetimes: &mut Vec<String>, name: &Identifier) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::DynamicNonSignatureIneligibility;
+    use crate::TypedTrees;
+    use crate::domain::ProofFact;
     use crate::domain::ProofMembershipFact;
+    use crate::name::Identifier;
+    use crate::signature::StateSignature;
     use crate::signature::{NativeCallbackParameter, SignatureContract, StateParameter};
+    use crate::trait_definition::TraitDefinition;
+    use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+    use symbols::SymbolHandle;
 
     fn self_reference(program: &mut TypedTrees) -> TypeReferenceHandle {
         let self_type = program

@@ -303,8 +303,14 @@ fn scoped_name_anchor(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        DependentBoundClass, SiblingLenBound, SymbolicMaxBound, dependent_bound_class,
+        dependent_range_maximum, scoped_name_bound, scoped_range_maximum, sibling_len_bound,
+        sibling_range_maximum, symbolic_max_bound,
+    };
     use crate::expression::{BinaryExpression, Expression, MemberExpression, NamePath};
+    use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
+    use crate::name::Identifier;
     use symbols::SymbolHandle;
 
     fn name_expression(text: &str, symbol_index: u32) -> Expression {

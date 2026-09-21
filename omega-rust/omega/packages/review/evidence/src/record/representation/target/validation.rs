@@ -58,7 +58,7 @@ impl Target {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Architecture, ObjectFormat, Profile, Target};
 
     fn host_target(pointer_size: u16, pointer_alignment: u16) -> Target {
         Target {

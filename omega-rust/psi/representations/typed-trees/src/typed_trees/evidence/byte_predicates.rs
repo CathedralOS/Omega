@@ -120,13 +120,17 @@ fn expression_is_self_reference(program: &TypedTrees, expression: ExpressionHand
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ByteSequencePredicate, domain_byte_predicate, type_reference_domain_predicates};
+    use crate::TypedTrees;
     use crate::domain::{DomainAliasDefinition, DomainDefinition, ProofFact};
+    use crate::expression::{ExpressionHandle, ExpressionNode};
     use crate::expression::{TableCallExpression, TableNamePath};
     use crate::name::Identifier;
+    use crate::types::TypeReferenceHandle;
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
     use arena::HandleSpan;
     use language_semantics::DomainEstablishmentRoute;
+    use symbols::SymbolHandle;
 
     fn self_predicate_fact(trees: &mut TypedTrees, predicate: &str) -> ProofFact {
         let mut members = HandleSpan::empty();
