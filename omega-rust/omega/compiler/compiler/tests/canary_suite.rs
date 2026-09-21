@@ -1613,6 +1613,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "operators/named_operator_result_overload_duplicate_dispatch",
     "ownership/copy_linear_conflict",
     "ownership/borrowed_storage_boundary_call",
+    "ownership/borrowed_storage_contained_loan",
+    "ownership/borrowed_storage_recoverable_failure",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
     "ownership/linear_transparent_record_sibling_scope_loss",
