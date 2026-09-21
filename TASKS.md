@@ -9686,6 +9686,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   extension, request/outcome/executable gates) are named items
   (EPSILON-SCALAR-COMPILATION-EXTENSION adjacent, OMEGA-D lane in
   TASKS_BOOTSTRAP.md). No independent slice exists under this stub.
+  a milestone statement, not a lane task. Re-verified at `94e764a6da`:
+  the gate text is unchanged (rust_compiler_completion.md:21), the UEFI
+  legs remain open on their own claims (UEFI-PHYSICAL-SEMANTIC-ENTRY is
+  mid-port — Loaded Image's evaluated schema/plan landed in
+  targets/uefi_x86_64/tables.omg while System Table + Boot Services stay
+  duplicate production catalogs; UEFI-OS-HANDOFF untouched), so there is
+  no EFI row to promote and no lane slice. Record:
+  `wiki/drafts/efi_matrix_promotion.md`.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
   the extension point is concrete and bounded —
   `bootstrap/5_omega/scalar_compilation.epsilon` `fold_operator` admits 10 of
