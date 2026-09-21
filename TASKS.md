@@ -9943,7 +9943,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION, WRAPPER-OBJECT-OWNERSHIP,
   PIPELINE-WRAPPER-OBJECT-ORPHAN.
-- **POC-REWRITE-ORPHANS.** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG.
+- **POC-REWRITE-ORPHANS.** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
+  ORPHAN-REWRITE-MODULES-CATALOG — resolved as a stub at `e7c0099cb2b`:
+  the named catalog is landed (`rewrites/module_catalog.rs`, 54 rows at
+  tip — 6 Routed / 38 Orphaned under EXACT-MACHINE-SIMPLIFICATIONS (35) +
+  ALIAS-AWARE-MEMORY (3) / 8 Shared / 1 TestSupport), reconciled against
+  `mod.rs` by `module_catalog_reconciles_with_mod_declarations` and pinned
+  against silent Orphaned drift by `252353dacb2`; what remains is the
+  catalog-execution leg this row already assigns to the
+  SELECTED-REWRITE-CATALOG-* cluster. The former
+  ORPHAN-REWRITE-MODULES-CATALOG claim on
+  `rewrites/{mod.rs,module_catalog.rs}` has drained; that surface is now
+  fenced under SELECTED-REWRITE-CATALOG-DISPOSITION (~13:52Z) together
+  with `selected_optimization.rs`.
 - **POC-SELECTED-REWRITE-CATALOG.** Mined candidate — scope verified,
   covered. Re-mines the catalog-execution leg already scoped by
   SELECTED-REWRITE-CATALOG-EXECUTION (which folds into
@@ -11172,8 +11184,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Ownership is partitioned on the optimizer board: EXACT-MACHINE-SIMPLIFICATIONS
   (35 orphaned rows), ALIAS-AWARE-MEMORY (3), DECLARATIVE-PEEPHOLES (2, and
   the pair-rule widening leg). Implementing surfaces under live claims:
-  `rewrites/{mod.rs,module_catalog.rs}` under ORPHAN-REWRITE-MODULES-CATALOG
-  (22:38Z), pair-rule/composable descriptors under COMPOSABLE-PAIR-DESCRIPTORS
+  `rewrites/{mod.rs,module_catalog.rs}` under SELECTED-REWRITE-CATALOG-DISPOSITION
+  (~13:52Z; the ORPHAN-REWRITE-MODULES-CATALOG claim drained), pair-rule/composable descriptors under COMPOSABLE-PAIR-DESCRIPTORS
   (23:57Z), `address_fold` under REWRITE-VALIDATOR-INDEPENDENCE (00:19Z+1d).
   Sibling re-mine names on this cluster: SELECTED-REWRITE-CATALOG-DISPOSITION,
   -OR-DELETE, -ROUTE, -WIRING, SELECTED-REWRITES-CATALOG-OR-DELETE (delete
@@ -11210,7 +11222,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `rewrites/module_catalog.rs` needs a catalog entry dispatched there.
   Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
   EXACT-MACHINE-SIMPLIFICATIONS; implementing surfaces fenced (rewrites/
-  {mod.rs,module_catalog.rs} under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z,
+  {mod.rs,module_catalog.rs} under SELECTED-REWRITE-CATALOG-DISPOSITION
+  ~13:52Z — the ORPHAN-REWRITE-MODULES-CATALOG claim drained;
   pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS 23:57Z).
 - **SELECTED-REWRITE-CATALOG-WIRING.** Mined candidate; scope verified at
   6d00135b89 — re-mines the wiring leg of the same cluster: retained
@@ -11218,11 +11231,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   dispatch. Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
   EXACT-MACHINE-SIMPLIFICATIONS; no independent slice (see sibling
   SELECTED-REWRITE-CATALOG-DISPOSITION's owner-chain routing).
-  Re-verified at `12ecbe98f8`: `rewrites/module_catalog.rs` retains 42
-  `Orphaned` rows and `optimize_selected_instructions` still dispatches
+  Re-verified at `12ecbe98f8`: `rewrites/module_catalog.rs` retains 42 `Orphaned` rows and `optimize_selected_instructions` still dispatches
   only the selected-lowering run. Implementing surfaces are all under live
   claims — `rewrites/{mod.rs,module_catalog.rs}` under
-  ORPHAN-REWRITE-MODULES-CATALOG (2026-09-20T20:33Z),
+  SELECTED-REWRITE-CATALOG-DISPOSITION (~13:52Z; the
+  ORPHAN-REWRITE-MODULES-CATALOG claim drained),
   `rewrites/selected_lowering/{catalog.rs,tests.rs,literal_fold/...}`
   under COMPOSABLE-PAIR-DESCRIPTORS (23:57Z), and the retirement-pin
   surface `tests/architecture/optimizer_source_organization` under
@@ -11231,8 +11244,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `rewrites/module_catalog.rs` still retains 42 `Orphaned` rows and
   `optimize_selected_instructions` still only routes through the
   selected-lowering analysis chain. The catalog surface stays fenced:
-  ORPHAN-REWRITE-MODULES-CATALOG renewed to 04:27Z and sibling stub
-  SELECTED-REWRITE-CATALOG-ROUTE is now also claimed (04:11Z).
+  SELECTED-REWRITE-CATALOG-DISPOSITION (~13:52Z) now holds
+  `rewrites/{mod.rs,module_catalog.rs}` + `selected_optimization.rs` —
+  the ORPHAN-REWRITE-MODULES-CATALOG claim drained after the catalog
+  landed — and sibling stub SELECTED-REWRITE-CATALOG-ROUTE is claimed
+  (04:11Z). Re-verified at `e7c0099cb2b`: `module_catalog.rs` retains 38
+  `Orphaned` rows (54 total) and `optimize_selected_instructions` still
+  dispatches only the selected-lowering run.
 - **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`,
   re-verified at `12ecbe98f8` (owner files `match_dispatch.rs` +
   `result_type.rs` present; 8 `expressions/match_*` canaries on disk):
