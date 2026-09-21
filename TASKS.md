@@ -8517,6 +8517,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   frontier; see that row for landed legs and the remaining transport work).
 - **GAMMA-CERT-FULL-CHECK.** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE.** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-NATIVE-CHECK.** Mined candidate — scope verified
+  at `e7c0099cb2b7`, folds into the gamma certificate-check cluster
+  (sibling roster on GAMMA-CERTIFICATE-PRODUCTION /
+  GAMMA-PROVISION-NATIVE-ACCEPTANCE rows): the name is the native-host
+  certificate-check leg — run `tests/gamma/beta-encoding-check` (pinned
+  135,485,028-byte request, `Checked` observation with row count
+  3,182,974, work inside the 2^26 provision) on a native seed-execution
+  host. Doubly blocked: production upstream-blocked (the selected checker
+  cannot admit the request; coupled provisions wait on the Alpha
+  extent-supply leg), and the surfaces are fenced —
+  `bootstrap/proofs/{beta_encoding,checker}` + `tests/gamma/beta-*` +
+  `derivation-*` + `tools/bootstrap/proofs` to
+  BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE (~17:09Z Sep 21), the check
+  gate + checker to GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE (~08:53Z),
+  `tools/bootstrap/proofs` to CHAIN-CERTIFICATE-ADMISSION-BINDING
+  (~05:30Z). No unfenced slice.
 - **GAMMA-PROVISION-NATIVE-ACCEPTANCE.** Mined candidate — scope
   verified, folds into the gamma certificate-check cluster. The name
   resolves to the TASKS_BOOTSTRAP.md acceptance leg: run the
