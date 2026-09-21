@@ -32,15 +32,16 @@ use super::ledger::{
 };
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
-use crate::lock::PackageOccurrenceRoster;
+use crate::lock::{PackageAcceptanceRow, PackageOccurrenceRoster, PackagePolicyAcceptance};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
+use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use compiler::compile_to_checked;
 use diagnostics::Diagnostic;
 use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
 use package_evidence::ledger::{ReconstructedPackageReview, reconstruct_package_review};
-use package_evidence::record::PackagePolicyRepresentationProducerInstance;
+use package_evidence::record::{PackagePolicyRepresentationProducerInstance, PackagePolicyRowKind};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -81,6 +82,13 @@ pub(super) fn compile_dependency_closure(
     >,
     retained_root_entry: Option<&Path>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    // A consuming compile supplies the accepted target's restricted-request
+    // checkpoint so each occurrence's projected requests join its granted
+    // meanings — bound to its exact checked context — before the review is
+    // retained or its generated-source bundle hands off to a consumer.
+    // `None` is audit-only observation: requests still project for review
+    // material and the pass issues no grants.
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
@@ -554,8 +562,7 @@ pub(super) fn compile_dependency_closure(
                     maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
                 }
             })?;
-            review_positions[position][purpose_slot(purpose)] = Some(reviews.len());
-            reviews.push(CompilerIssuedPackageReview {
+            let review = CompilerIssuedPackageReview {
                 key: key.clone(),
                 resolution: custody.resolution().clone(),
                 source_consumption_commitment,
@@ -572,7 +579,42 @@ pub(super) fn compile_dependency_closure(
                 canonical_rows: RetainedReviewRows(canonical_rows),
                 obligations,
                 obligation_results,
-            });
+            };
+            // A consuming compile joins each occurrence's projected restricted
+            // requests against its retained consent here — before the review is
+            // retained and before the generated-source bundle can hand off to a
+            // dependent activation — rather than at the consuming operation's
+            // boundary after the whole closure compiled. An ungranted
+            // occurrence rejects with its pending request meanings attached.
+            if let Some(checkpoint) = restricted_build_checkpoint {
+                let projected =
+                    PackagePolicyAcceptance::from_policy(review.policy()).map_err(|error| {
+                        CompileResolvedPackageReviewsError::Projection {
+                            package: key.clone(),
+                            diagnostics: vec![Diagnostic::error(error.to_string())],
+                        }
+                    })?;
+                let ungranted = checkpoint.ungranted_requests(
+                    review.key().identity(),
+                    review.checked_context(),
+                    closure.dependency_path(review.key()),
+                    projected
+                        .rows()
+                        .iter()
+                        .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+                        .map(PackageAcceptanceRow::canonical_text),
+                );
+                if !ungranted.is_empty() {
+                    return Err(
+                        CompileResolvedPackageReviewsError::UngrantedRestrictedBuildRequests {
+                            package: key,
+                            ungranted,
+                        },
+                    );
+                }
+            }
+            review_positions[position][purpose_slot(purpose)] = Some(reviews.len());
+            reviews.push(review);
             if &key == closure.graph().root() {
                 if retained_root_entry.is_some() {
                     checked_root = Some(Box::new(checked));

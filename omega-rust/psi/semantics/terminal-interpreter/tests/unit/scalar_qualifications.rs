@@ -53,6 +53,7 @@ fn module() -> TerminalModule {
             semantic_domain: DomainSemanticId::new(1).unwrap(),
             identity: "test::Km<u64>".into(),
             carrier: value(1, false).scalar_type,
+            establishment_routes: Vec::new(),
         });
     module
         .scalar_qualifications

@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 #[path = "representation_ownership/allocation_analysis.rs"]
 mod allocation_analysis;
+#[path = "representation_ownership/route_conformance.rs"]
+mod route_conformance;
 #[path = "representation_ownership/selected_analysis.rs"]
 mod selected_analysis;
 
@@ -1113,6 +1115,49 @@ fn register_home_stages_read_current_data_not_producer_ancestry() {
 }
 
 #[test]
+fn selected_stages_read_current_data_not_producer_ancestry() {
+    // The staged selected-optimization types retain their producer stages as
+    // replay and custody evidence only. Ordinary consumers read the current
+    // program and facts through the direct accessors — selected,
+    // register_environment, selections, budget_per_pass, liveness, ranges,
+    // legality, allocator_availability — instead of climbing
+    // `live_range_stage().liveness_stage().selected_stage().optimized_target()`.
+    // `optimized_target_owner` is the single sanctioned ancestry walk: it
+    // returns the retained proof-input `Arc` downstream custody checks compare
+    // by identity. Named input hops (`live_range_stage`, `liveness_stage`,
+    // `selected_stage`, `legality_stage`, `source_legality_stage`,
+    // `source_segment_home_stage`, `transformation_stage`) stay inside the
+    // custody validators that receive the retained stage objects as evidence
+    // and the accessors that expose them.
+    let root = repository()
+        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+    let mut files = Vec::new();
+    rust_files(&root, &mut files);
+    assert!(!files.is_empty());
+    for path in &files {
+        let source = std::fs::read_to_string(path).unwrap();
+        let name = path.display().to_string();
+        assert!(
+            !source.contains(".optimized_target()"),
+            "{name} reads the retained proof input as data"
+        );
+        for ancestry in [
+            "live_range_stage()",
+            "liveness_stage()",
+            "selected_stage()",
+            "source_legality_stage()",
+            "source_segment_home_stage()",
+            "transformation_stage()",
+        ] {
+            assert!(
+                !source.contains(ancestry) || source.contains("custody"),
+                "{name} walks producer ancestry outside custody evidence: {ancestry}"
+            );
+        }
+    }
+}
+
+#[test]
 fn physical_instruction_data_is_independent_of_optimizer_authority() {
     let owner = repository().join("omega-rust/omega/representations/physical-instructions");
     let representation = rust_source(&owner.join("src"));
@@ -1356,7 +1401,12 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
             "exit replay uses record producer {forbidden}"
         );
     }
-    for (file, expected_count) in [("stage.rs", 3), ("layout_optimization.rs", 2)] {
+    // `stage.rs` dropped to two validating entrances at 361d6a1294, which pruned
+    // the dead `stage_whole_function_exit_contract` /
+    // `validate_whole_function_exit_contract` compatibility wrappers and their
+    // `lib.rs` exports. The third call lived in one of those wrappers, so no live
+    // stage path lost its validation — the count is the pin, not the invariant.
+    for (file, expected_count) in [("stage.rs", 2), ("layout_optimization.rs", 2)] {
         let entrance = std::fs::read_to_string(owner.join(file)).unwrap();
         assert_eq!(
             entrance.matches("validation::validate(").count(),
@@ -1984,4 +2034,83 @@ fn fragment_consumers_read_current_data_and_only_replay_walks_history() {
             );
         }
     }
+}
+
+/// The documented program route is a connected `X-to-Y`, `Y-to-Y`, `Y-to-Z`
+/// sequence: each stage's input is the preceding stage's output, X-to-X legs
+/// sit inline at their node, and the route covers every pipeline crate on
+/// disk — an unlinked or renamed stage fails here.
+#[test]
+fn connected_pipeline_route_covers_every_stage_crate() {
+    let root = repository();
+    // Canonical program route (pipeline.md "Connected program route").
+    const PROGRAM_ROUTE: &[&str] = &[
+        "psi/pipeline/source-files-to-tokens",
+        "psi/pipeline/tokens-to-syntax-trees",
+        "psi/pipeline/syntax-trees-to-symbol-resolved-trees",
+        "psi/pipeline/symbol-resolved-trees-to-typed-trees",
+        "psi/pipeline/typed-trees-to-checked-trees",
+        "psi/pipeline/checked-trees-to-lowered-psi",
+        "psi/pipeline/lowered-psi-to-lowered-psi",
+        "psi/pipeline/lowered-psi-to-terminal-psi",
+        "omega/pipeline/terminal-psi-to-abstract-operations",
+        "omega/pipeline/abstract-operations-to-abstract-operations",
+        "omega/pipeline/abstract-operations-to-target-operations",
+        "omega/pipeline/target-operations-to-selected-instructions",
+        "omega/pipeline/selected-instructions-to-selected-instructions",
+        "omega/pipeline/selected-instructions-to-register-homes",
+        "omega/pipeline/register-homes-to-post-allocation-machine",
+        "omega/pipeline/post-allocation-machine-to-selected-form-encoding",
+        "omega/pipeline/selected-form-encoding-to-resolved-layout",
+        "omega/pipeline/resolved-layout-to-resolved-layout",
+    ];
+    // The omega-side frontend boundary route that feeds that chain across
+    // build evaluation (pipeline.md "Omega frontend stages").
+    const FRONTEND_ROUTE: &[&str] = &[
+        "omega/pipeline/source-files-to-assembled-syntax",
+        "omega/pipeline/assembled-syntax-to-checked-compilation",
+        "omega/pipeline/checked-compilation-to-terminal-artifact",
+    ];
+    let mut covered = std::collections::BTreeSet::new();
+    for route in [PROGRAM_ROUTE, FRONTEND_ROUTE] {
+        let mut previous_output = "";
+        for stage in route {
+            let directory = root.join("omega-rust").join(stage);
+            assert!(
+                directory.join("Cargo.toml").is_file(),
+                "route stage {stage} is missing"
+            );
+            let name = stage.rsplit('/').next().unwrap();
+            let (input, output) = name
+                .split_once("-to-")
+                .unwrap_or_else(|| panic!("stage crate {name} does not name an X-to-Y transform"));
+            if !previous_output.is_empty() {
+                assert_eq!(
+                    input, previous_output,
+                    "route break: {name} does not consume the preceding stage's output"
+                );
+            }
+            previous_output = output;
+            covered.insert(String::from(*stage));
+        }
+    }
+    let mut on_disk = std::collections::BTreeSet::new();
+    for half in ["psi", "omega"] {
+        let directory = root.join("omega-rust").join(half).join("pipeline");
+        for entry in std::fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+        {
+            let path = entry.unwrap().path();
+            if path.is_dir() && path.join("Cargo.toml").is_file() {
+                on_disk.insert(format!(
+                    "{half}/pipeline/{}",
+                    path.file_name().unwrap().to_str().unwrap()
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        covered, on_disk,
+        "connected routes differ from the on-disk pipeline stage crates"
+    );
 }

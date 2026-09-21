@@ -66,7 +66,7 @@ pub fn validate_native_program_entry_settlement(
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
     if let Some(eligibility) = checked_entry.receiver_eligibility() {
-        // Only exact source Service<...> in Bound fields require these rows.
+        // Only exact source Service<...> fields require these rows.
         // Runtime erasure alone also covers ordinary proof fields, and cannot
         // classify a service. Retain completeness before self/ABI erasure can
         // bypass the physical receiver binder; existing replay below still
@@ -148,6 +148,9 @@ pub fn validate_native_program_entry_settlement(
         physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
         fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
+        // Placed-view loans are executable-input custody, not program-entry
+        // declaration custody: they attach only when a bound input reopens.
+        placed_view_establishments: Vec::new(),
     })
 }
 

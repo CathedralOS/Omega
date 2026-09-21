@@ -242,7 +242,7 @@ pub(crate) fn owned_call_operand_places(
     // ownership discovery as move checking so nested literals contribute
     // their moved operands rather than an unknown constructor place.
     let mut segments = arena::Arena::default();
-    let mut sink = DirectMoveEventSink::new(&mut segments, operators);
+    let mut sink = DirectMoveEventSink::new(&mut segments, operators, machine, state);
     append_call_ownership_events(program, &mut sink, machine, state, borrow_call);
     sink.finish()
         .into_iter()

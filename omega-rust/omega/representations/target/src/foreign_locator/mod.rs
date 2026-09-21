@@ -386,7 +386,10 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ForeignLocatorCandidate, ForeignLocatorValidationError, TargetProfile,
+        evaluated_syscall_identity_digest, normalize_foreign_locator,
+    };
 
     fn pe_name() -> ForeignLocatorCandidate {
         ForeignLocatorCandidate::PeByName {

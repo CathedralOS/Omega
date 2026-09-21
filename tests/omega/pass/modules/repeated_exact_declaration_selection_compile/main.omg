@@ -1,0 +1,19 @@
+// Repeated selection of one exact declaration adds no competing candidate
+// (wiki/spec/language/modules.md#import-scope-and-exposure): a member import
+// repeated verbatim, a member reached through its module's exposure, and a
+// repeated data-member selection all resolve to the same declaration, so
+// this program must keep compiling. Only distinct visible declarations with
+// the same name reject (tests/omega/fail/modules/).
+use combat;
+use combat::damage;
+use combat::damage;
+use combat::Damage;
+use combat::Damage;
+
+machine score(d: Damage) -> u32 { damage() }
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let r: u32 = score(combat::Damage { amount: 3 });
+}

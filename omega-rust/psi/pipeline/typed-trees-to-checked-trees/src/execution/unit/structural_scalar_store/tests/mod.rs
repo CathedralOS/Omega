@@ -6,9 +6,11 @@ use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan}
 mod arithmetic_policies;
 mod borrowed_arrays;
 mod borrowed_records;
+mod byte_view_writes;
 mod call_results;
 mod closed_generic_records;
 mod computations;
+mod record_literal_fields;
 
 #[test]
 fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {

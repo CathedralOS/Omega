@@ -105,7 +105,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "57f3de0eb46959f2636feae425dc04d1196b5baa209ad9949158c20469d14485"
+        "f10850e44b3b40cce628c2a9c74ec168b95c93e7fbfcd25af352beac13ccff09"
     );
     assert_eq!(
         identity.program_fingerprint,

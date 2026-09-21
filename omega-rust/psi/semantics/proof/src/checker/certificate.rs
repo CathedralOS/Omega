@@ -58,6 +58,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+use crate::checker::derivation_cache::DerivationConsultation;
 use crate::checker::guards::{expressions_equivalent_for_proof, unwrap_true_guard_condition};
 use crate::checker::integer_ranges::{
     integer_literal_handle, integer_range_from_constraints, type_constraints,
@@ -86,7 +87,8 @@ pub enum CertificateVerdict {
 /// proposition, its declared premises, and the certificate that must derive
 /// the conclusion from them. Producers construct it; `verify` asks the
 /// admission kernel whether it stands.
-struct BoundedValueCertificate {
+#[derive(Debug)]
+pub(crate) struct BoundedValueCertificate {
     context: PropositionContext,
     obligation: Obligation,
     assumptions: Vec<Proposition>,
@@ -96,7 +98,7 @@ struct BoundedValueCertificate {
 impl BoundedValueCertificate {
     /// Independently re-decide this certificate through the admission kernel.
     /// Producer success never counts; only the kernel's verdict does.
-    fn verify(&self) -> Result<AcceptedFact, EvidenceError> {
+    pub(crate) fn verify(&self) -> Result<AcceptedFact, EvidenceError> {
         verify_obligation(
             &self.context,
             &self.obligation,
@@ -121,7 +123,18 @@ pub(crate) fn bounded_integer_value_verdict(
     seed: u64,
     anonymous: bool,
     measurements: &mut ProofPlanMeasurements,
+    mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
+    // A retained derivation under this obligation's semantic key is evidence
+    // the kernel re-decides; an accepted candidate discharges the leg
+    // without re-running the producer.
+    if let Some(consultation) = derivations.as_deref_mut()
+        && let Some(fact) = consultation.recheck()
+    {
+        measurements.record_accepted_fact(&fact);
+        measurements.record_certificate_verdict(CertificateVerdict::Certified);
+        return CertificateVerdict::Certified;
+    }
     let Some(certificate) = bounded_integer_value(
         proof_plan,
         value,
@@ -134,6 +147,7 @@ pub(crate) fn bounded_integer_value_verdict(
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
+    measurements.record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
             measurements.record_accepted_fact(&fact);
@@ -142,6 +156,11 @@ pub(crate) fn bounded_integer_value_verdict(
         Err(_) => CertificateVerdict::Rejected,
     };
     measurements.record_certificate_verdict(verdict);
+    if verdict == CertificateVerdict::Certified
+        && let Some(consultation) = derivations
+    {
+        consultation.retain(certificate);
+    }
     verdict
 }
 
@@ -157,11 +176,20 @@ pub(crate) fn state_return_integer_verdict(
     target: &IntegerRange,
     seed: u64,
     measurements: &mut ProofPlanMeasurements,
+    mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
+    if let Some(consultation) = derivations.as_deref_mut()
+        && let Some(fact) = consultation.recheck()
+    {
+        measurements.record_accepted_fact(&fact);
+        measurements.record_certificate_verdict(CertificateVerdict::Certified);
+        return CertificateVerdict::Certified;
+    }
     let Some(certificate) = state_return_certificate(proof_plan, obligation, target, seed) else {
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
+    measurements.record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
             measurements.record_accepted_fact(&fact);
@@ -170,6 +198,11 @@ pub(crate) fn state_return_integer_verdict(
         Err(_) => CertificateVerdict::Rejected,
     };
     measurements.record_certificate_verdict(verdict);
+    if verdict == CertificateVerdict::Certified
+        && let Some(consultation) = derivations
+    {
+        consultation.retain(certificate);
+    }
     verdict
 }
 
@@ -259,6 +292,7 @@ pub fn guarded_transition_integer_verdict(
         target,
         seed,
         &mut measurements,
+        None,
     )
 }
 
@@ -270,12 +304,21 @@ pub(crate) fn guarded_transition_integer_verdict_measured(
     target: &IntegerRange,
     seed: u64,
     measurements: &mut ProofPlanMeasurements,
+    mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
+    if let Some(consultation) = derivations.as_deref_mut()
+        && let Some(fact) = consultation.recheck()
+    {
+        measurements.record_accepted_fact(&fact);
+        measurements.record_certificate_verdict(CertificateVerdict::Certified);
+        return CertificateVerdict::Certified;
+    }
     let Some(certificate) = guarded_transition_certificate(proof_plan, obligation, target, seed)
     else {
         measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
+    measurements.record_emitted_certificate(&certificate.envelope.proof);
     let verdict = match certificate.verify() {
         Ok(fact) => {
             measurements.record_accepted_fact(&fact);
@@ -284,6 +327,11 @@ pub(crate) fn guarded_transition_integer_verdict_measured(
         Err(_) => CertificateVerdict::Rejected,
     };
     measurements.record_certificate_verdict(verdict);
+    if verdict == CertificateVerdict::Certified
+        && let Some(consultation) = derivations
+    {
+        consultation.retain(certificate);
+    }
     verdict
 }
 

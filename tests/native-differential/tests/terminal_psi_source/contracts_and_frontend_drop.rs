@@ -602,8 +602,11 @@ fn source_statement_custody_gate_runs_after_the_parameter_custody_gate() {
     let mut without_authored_statements = checked.into_program();
     without_authored_statements.typed.statement_table = Default::default();
     assert_eq!(
-        lower_machine(&without_authored_statements, "terminal_direct_integer_constant")
-            .expect_err("parameter custody resolves while authored statement custody is absent"),
+        lower_machine(
+            &without_authored_statements,
+            "terminal_direct_integer_constant"
+        )
+        .expect_err("parameter custody resolves while authored statement custody is absent"),
         LoweringError::Unsupported("scalar source custody has no authored statement")
     );
 }

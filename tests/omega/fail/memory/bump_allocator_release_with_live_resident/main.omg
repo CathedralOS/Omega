@@ -1,11 +1,10 @@
-// Tail-ward reclaim refuses a live resident: `release` merges the newest
-// allocation back into the tail through `merge`, which demands `Vacant` on
-// both parts, so `returned` cannot carry an issued extent still holding
-// `Resident<SlotPlacement, Slot>` — an occupied region must be retired
-// before it returns, exactly like `reset`
-// (`tests/omega/fail/memory/bump_allocator_reset_with_live_resident`). The
-// pass-side sibling (`tests/omega/pass/memory/bump_allocator_canary`,
-// `exercise_release`) releases only vacant regions.
+// Tail-ward return refuses a resident-bearing region: `release` merges the
+// newest allocation back into the tail through `merge`, whose `Split` parts
+// must be `Vacant`, so storage still holding `Resident<SlotPlacement, Slot>`
+// cannot even cross the `returned` parameter. The pass-side sibling
+// (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_release`) only
+// releases a still-vacant region; a resident must be retired to `Vacant`
+// before its extent can return tail-ward.
 use omega::language::core::extent;
 use omega::language::core::content;
 
@@ -78,7 +77,8 @@ reaches ExtentPartition
 }
 
 // Return the newest tail-adjacent allocation while older allocations stay
-// live: `returned` must be `Vacant` for the fold into the tail.
+// live. `returned` must still be `Vacant` — the same demand `merge` makes on
+// every folded part.
 machine release(
     partition: &ExtentPartition,
     strategy: Bump,
@@ -95,9 +95,8 @@ reaches ExtentPartition
     Bump { tail: grown, remaining: restored_residual }
 }
 
-// Allocate, establish one resident, then attempt to release the still-occupied
-// region: passing `placed.storage` as `returned` drops `Resident<...>` to
-// satisfy the `Vacant` parameter and rejects at the call.
+// Allocate twice, establish a resident in the newest region, then attempt its
+// tail-ward release without retiring it first.
 machine exercise(
     partition: &ExtentPartition,
     storage: &ResidentStorage,
@@ -121,12 +120,11 @@ reaches ExtentPartition, ResidentStorage
     );
     let placed: Occupied = storage.place(issued_second.allocation, Slot { value: 7 });
     let grown: Bump = release(partition, issued_second.strategy, placed.storage);
-    let first_allocation: Extent in Granted & Vacant = issued_first.allocation;
-    let whole_again: Extent in Granted & Vacant = partition.merge(Split {
-        taken: first_allocation,
+    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+        taken: issued_first.allocation,
         rest: grown.tail,
     });
-    whole_again as Extent
+    recomposed as Extent
 }
 
 data Main {}

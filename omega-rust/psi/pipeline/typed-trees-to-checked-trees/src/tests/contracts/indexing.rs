@@ -252,6 +252,8 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         conformance_bounds: Vec::new(),
         requires: Default::default(),
         machines: Default::default(),
+        refines: None,
+        refinement_clauses: Vec::new(),
     };
     let mut signature = StateSignature {
         symbol: signature_symbol,
@@ -488,6 +490,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         conformance_bounds: Vec::new(),
         requires: Default::default(),
         machines: Default::default(),
+        refines: None,
+        refinement_clauses: Vec::new(),
     };
     let mut signature = StateSignature {
         symbol: signature_symbol,

@@ -1,13 +1,33 @@
+// Modulo as a runtime value: `17 % 5 == 2` in `u64`, written into a carrier
+// field. The deployable shape matches the sibling runtime canaries: the
+// computed value is checked in a guard ladder and the process exits 70 only
+// when exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
 data Health {
-    value: i32;
+    value: u64;
 }
 
 data Main {
+    console: Service<Console>;
+    health: Health;
 }
 
-machine Main::main(
-    &mut self,
-    health: &mut Health
-) {
-    health.value = 17i32 % 5;
+machine Main::main(&mut self) reaches Console {
+    self.health.value = 17u64 % 5;
+
+    transition self.health.value == 2 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }

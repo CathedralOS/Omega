@@ -64,6 +64,12 @@ or ambient static discovery. Templates may write ordinary bindings. A test
 harness name override carries no slot, signature, calling-plan, or storage
 authority.
 
+[Build-time test roots](testing.md#entry-contracts-and-ordinary-calls) reuse the
+free-entry or provisioned-receiver rules below. Their runner roots are separate
+from application target slots; registration does not install them in the
+application or make their checked bodies trusted boundary declarations.
+A native test harness instead binds an ordinary executable entry normally.
+
 ## Entry shape and arrival bridge
 
 An entry shape names distinct physical and semantic arrival requirements,

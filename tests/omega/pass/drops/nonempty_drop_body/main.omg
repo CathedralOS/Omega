@@ -1,0 +1,20 @@
+// A `drop` body is an ordinary Unit machine: field stores on the borrowed
+// `self` receiver and ordinary calls both run at the cleanup edge. This
+// fixture covers an ordinary statement (`self.handle = 0`) and a repeated
+// helper call (no mutual-distinctness rule exists outside the retired
+// executable cleanup slice).
+data Guard { handle: i32; }
+machine Guard::drop(&mut self) {
+    self.handle = 0;
+}
+data Latch { }
+machine Latch::unlock() {
+}
+machine Latch::drop(&mut self) {
+    Latch::unlock();
+    Latch::unlock();
+}
+data Main { }
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}

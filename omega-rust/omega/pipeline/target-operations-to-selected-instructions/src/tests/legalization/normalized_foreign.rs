@@ -597,6 +597,183 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
 }
 
 #[test]
+fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
+    use calling_conventions::{ValueLocation, ValueShape};
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    let types = [
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        ScalarType::Boolean,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+    ];
+    let shapes = [
+        ValueShape::float(4),
+        ValueShape::integer(1, 1),
+        ValueShape::float(8),
+        ValueShape::integer(4, 4),
+    ];
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for repetitions in [1, 5] {
+            for result_index in 0..3 {
+                let (mut source, execution) = flat_record_fixture();
+                let count = types.len() * repetitions;
+                let values = (0..count)
+                    .map(|ordinal| ValueId::new(100 + ordinal as u64).unwrap())
+                    .collect::<Vec<_>>();
+                let declaration = &mut source.boundary_machines[0];
+                declaration.scalar_parameters = types.into_iter().cycle().take(count).collect();
+                declaration.result =
+                    terminal_psi::BoundaryMachineResult::Scalar(types[result_index]);
+                declaration.parameter_order =
+                    vec![terminal_psi::BoundaryParameterKind::Scalar; count];
+                declaration
+                    .parameter_order
+                    .insert(1, terminal_psi::BoundaryParameterKind::Structural);
+                let AbstractOperation::BoundaryCall {
+                    arguments, result, ..
+                } = &mut source.functions[0].operations[0]
+                else {
+                    panic!("boundary call")
+                };
+                *arguments = values.clone();
+                let AbstractBoundaryResult::Scalar(result) = result else {
+                    panic!("scalar result")
+                };
+                result.scalar_type = types[result_index];
+                for (ordinal, value) in values.iter().copied().enumerate() {
+                    let operation = OperationId::new(100 + ordinal as u64).unwrap();
+                    let constant = match ordinal % types.len() {
+                        0 => AbstractOperation::IeeeFloatConstant {
+                            psi_operation: operation,
+                            result: value,
+                            value: IeeeFloatValue::Binary32(1.5f32.to_bits()),
+                        },
+                        1 => AbstractOperation::BooleanConstant {
+                            psi_operation: operation,
+                            result: value,
+                            value: true,
+                        },
+                        2 => AbstractOperation::IeeeFloatConstant {
+                            psi_operation: operation,
+                            result: value,
+                            value: IeeeFloatValue::Binary64(2.25f64.to_bits()),
+                        },
+                        _ => AbstractOperation::IntegerConstant {
+                            psi_operation: operation,
+                            result: value,
+                            scalar_type: types[3],
+                            value: semantic_vocabulary::IntegerValue::Signed(17),
+                        },
+                    };
+                    source.functions[0].operations.insert(ordinal, constant);
+                }
+                let mut parameters = shapes.into_iter().cycle().take(count).collect::<Vec<_>>();
+                parameters.insert(
+                    1,
+                    ValueShape::integer(
+                        native.pointer_size as u16,
+                        native.pointer_alignment as u16,
+                    ),
+                );
+                let binding = binding(
+                    native,
+                    calling_conventions::CallSignature {
+                        parameters,
+                        result: Some(shapes[result_index]),
+                    },
+                );
+                let target = lower(&source, native, &execution, binding);
+                let unit = seed(&source);
+                let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+                validate_legalized_operations(&target, &source, &unit, legal.plan().clone())
+                    .unwrap();
+                let call = normalized_foreign_instruction(legal.plan());
+                assert_eq!(
+                    call.scalar_arguments
+                        .iter()
+                        .map(|argument| argument.source_value())
+                        .collect::<Vec<_>>(),
+                    values
+                );
+                assert_eq!(call.scalar_arguments[0].parameter_index, 0);
+                assert_eq!(call.scalar_arguments[1].parameter_index, 2);
+                if repetitions == 5 {
+                    assert!(call.scalar_arguments.iter().any(|argument| matches!(
+                        argument.placement.locations.as_slice(),
+                        [ValueLocation::Stack { .. }]
+                    )));
+                }
+                for mutation in 0..3 {
+                    let mut changed = legal.plan().clone();
+                    let call = normalized_foreign_call_mut(&mut changed);
+                    match mutation {
+                        0 => call.scalar_arguments[0].parameter_index = 1,
+                        1 => {
+                            call.scalar_arguments[0].placement =
+                                call.scalar_arguments[1].placement.clone()
+                        }
+                        _ => {
+                            call.result_home.as_mut().unwrap().scalar_type =
+                                types[(result_index + 1) % 3]
+                        }
+                    }
+                    assert!(
+                        validate_legalized_operations(&target, &source, &unit, changed).is_err()
+                    );
+                }
+                let environment =
+                    register_environment::baseline_target_register_environment(native).unwrap();
+                let constraints = crate::selection_constraints(&legal, &environment);
+                let selected = crate::select_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{native:?}, repetitions {repetitions}, result {result_index}: {error:?}"
+                    )
+                });
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    selected.plan().clone(),
+                )
+                .unwrap();
+                let mut changed = selected.plan().clone();
+                let function = &mut changed.functions[0];
+                let call = &function.normalized_foreign_calls[0];
+                function.blocks[0]
+                    .instructions
+                    .iter_mut()
+                    .find(|instruction| instruction.id == call.instruction)
+                    .unwrap()
+                    .operands
+                    .swap(0, 2);
+                assert!(
+                    crate::validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        changed
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn replay_rejects_substituted_binding_execution_arguments_and_home() {
     let native = NativeTarget::linux_x64();
     let (source, execution) = scalar_fixture();

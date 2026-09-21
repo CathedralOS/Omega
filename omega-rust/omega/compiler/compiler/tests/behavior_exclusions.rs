@@ -35,9 +35,8 @@ fn identity(seed: u8) -> PackageKeyIdentity {
 }
 
 /// The application `app` composed with its one library dependency under the
-/// alias its source imports (`use assert_kit::main;` / `use logger_kit::main;`).
-fn inputs(app: &str) -> PackageCompilationInputs {
-    let root = fixture_root();
+/// alias its source imports (`assert_kit` / `logger_kit`).
+fn inputs(root: &Path, app: &str) -> PackageCompilationInputs {
     let (library, alias) = match app {
         "quiet-logger-app" | "sink-app" => ("logger-kit", "logger_kit"),
         _ => ("assert-kit", "assert_kit"),
@@ -78,7 +77,7 @@ fn request(
         build_dir: Some(build_dir(label)),
         target_name: Some(TARGET.to_owned()),
     })
-    .with_package_inputs(inputs(app))
+    .with_package_inputs(inputs(&fixture_root(), app))
     .with_requested_product(product)
     .with_optimization_rollback(rollback)
 }
@@ -104,6 +103,121 @@ fn messages(diagnostics: &[diagnostics::Diagnostic]) -> String {
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// A private copy lets tests vary the selected target/provider without
+/// mutating shared fixtures or changing the library's public crash ceiling.
+struct AssertionProject(PathBuf);
+
+impl AssertionProject {
+    fn new(target: &str, direct: bool) -> Self {
+        let directory = build_dir("assertion-project");
+        for package in ["assert-kit", "checking-app", "no-op-app"] {
+            std::fs::create_dir_all(directory.join(package)).unwrap();
+            for file in ["main.omg", "build.omg"] {
+                let original =
+                    std::fs::read_to_string(fixture_root().join(package).join(file)).unwrap();
+                let source = if file == "build.omg" {
+                    let source = original.replace(
+                        "linux_x86_64::ProgramEntry",
+                        &format!("{target}::ProgramEntry"),
+                    );
+                    if direct {
+                        source.replace("::CheckingAssert>", "::DirectCheckingAssert>")
+                    } else {
+                        source
+                    }
+                } else {
+                    original
+                };
+                std::fs::write(directory.join(package).join(file), source).unwrap();
+            }
+        }
+        if direct {
+            let library = directory.join("assert-kit/main.omg");
+            let source = std::fs::read_to_string(&library).unwrap()
+                + &std::fs::read_to_string(fixture_root().join("direct-unit.omg")).unwrap();
+            std::fs::write(library, source).unwrap();
+        }
+        Self(directory)
+    }
+
+    fn compile(
+        &self,
+        app: &str,
+        target: &str,
+        rollback: OptimizationRollback,
+    ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+        compile(
+            CompileRequest::new(CompileOptions {
+                root_path: self.0.join(app).join("main.omg"),
+                build_dir: None,
+                target_name: Some(target.to_owned()),
+            })
+            .with_package_inputs(inputs(&self.0, app))
+            .with_optimization_rollback(rollback)
+            .with_requested_product(RequestedCompileProduct::NativeArtifact),
+        )
+        .and_then(compiler::CompileOutcomes::into_single_report)
+    }
+}
+
+impl Drop for AssertionProject {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn missing_direct_unit_plan_does_not_establish_absence() {
+    let project = AssertionProject::new(TARGET, true);
+    let Err(diagnostics) = project.compile("checking-app", TARGET, OptimizationRollback::default())
+    else {
+        panic!("a missing Unit plan cannot prove absence of Trap");
+    };
+    let text = messages(&diagnostics);
+    // This is a fail-closed frontier, not the completed exclusion verdict.
+    // BUILD-SEMANTIC-EXCLUSIONS retains the required direct-Unit acceptance.
+    assert!(
+        text.contains("InvalidUnitMachinePlan")
+            && text.contains("attached Unit closure is missing a checked transitive machine plan"),
+        "{text}"
+    );
+    assert!(text.contains("DirectCheckingAssert::check"), "{text}");
+}
+
+#[test]
+fn no_op_assertion_package_executes_on_the_host() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        eprintln!("SKIP: assertion package execution requires a supported host");
+        return;
+    };
+    let project = AssertionProject::new(target.target_name(), false);
+    // A false assertion must still return with the no-op provider. Keep the
+    // original application fixture as the independent true-input control.
+    let main = project.0.join("no-op-app/main.omg");
+    let source = std::fs::read_to_string(&main)
+        .unwrap()
+        .replace("1 == 1", "1 == 0");
+    std::fs::write(main, source).unwrap();
+    for rollback in [OptimizationRollback::default(), rolled_back()] {
+        let report = project
+            .compile("no-op-app", target.target_name(), rollback)
+            .unwrap_or_else(|diagnostics| {
+                panic!("host native compilation: {}", messages(&diagnostics))
+            });
+        let published = report
+            .publish_retained_native_artifact(&project.0.join("out"))
+            .expect("publish host assertion package");
+        let output = std::process::Command::new(
+            published
+                .checked_native_executable_path()
+                .expect("checked executable"),
+        )
+        .output()
+        .expect("execute host assertion package");
+        assert!(output.status.success(), "{output:?}");
+    }
 }
 
 #[test]
@@ -180,45 +294,54 @@ fn checking_composition_is_prohibited_under_the_same_public_ceiling() {
 
 #[test]
 fn native_route_shares_the_exclusion_verdict() {
-    let diagnostics = compile_one(
-        "checking-app",
-        RequestedCompileProduct::NativeArtifact,
-        OptimizationRollback::default(),
-        "checking-native",
-    )
-    .expect_err("native admission rejects the checking composition before realization");
-    let text = messages(&diagnostics);
-    assert!(
-        text.contains("behavior exclusion violated: crash cause Trap"),
-        "{text}"
-    );
+    for (label, rollback) in [
+        ("native-optimized", OptimizationRollback::default()),
+        ("native-rolled-back", rolled_back()),
+    ] {
+        let diagnostics = compile_one(
+            "checking-app",
+            RequestedCompileProduct::NativeArtifact,
+            rollback.clone(),
+            label,
+        )
+        .expect_err("native admission rejects the checking composition before realization");
+        let text = messages(&diagnostics);
+        assert!(
+            text.contains("behavior exclusion violated: crash cause Trap"),
+            "{text}"
+        );
 
-    // The no-op composition passes the exclusion, and its boundary
-    // requirement's `crashes Trap` contract now lowers into Omega: terminal
-    // verification already covered the caller's continuation. What still
-    // fences this fixture's native product is a deeper target-lowering limit
-    // on one of its machine shapes (`UnsupportedControlFlow`), not the
-    // boundary contract and never the exclusion verdict.
-    let diagnostics = compile_one(
-        "no-op-app",
-        RequestedCompileProduct::NativeArtifact,
-        OptimizationRollback::default(),
-        "no-op-native",
-    )
-    .expect_err("native target lowering still fences a machine shape in this fixture");
-    let text = messages(&diagnostics);
-    assert!(
-        !text.contains("behavior exclusion"),
-        "the no-op composition must not be rejected by the exclusion: {text}"
-    );
-    assert!(
-        !text.contains("UnsupportedBoundaryCrashContract"),
-        "a verified boundary crash contract now lowers: {text}"
-    );
-    assert!(
-        text.contains("UnsupportedControlFlow"),
-        "the recorded limit is the remaining control-flow fence: {text}"
-    );
+        let report = compile_one(
+            "no-op-app",
+            RequestedCompileProduct::NativeArtifact,
+            rollback,
+            label,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{label}: no-op native compilation: {}",
+                messages(&diagnostics)
+            )
+        });
+        let directory = build_dir(label);
+        let published = report
+            .publish_retained_native_artifact(&directory)
+            .expect("publish the no-op package's checked native executable");
+        let executable = published
+            .checked_native_executable_path()
+            .expect("checked executable");
+        assert!(executable.is_file());
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        assert!(
+            std::process::Command::new(executable)
+                .status()
+                .expect("run no-op package")
+                .success()
+        );
+        #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+        eprintln!("SKIP: Linux x86-64 package executable cannot run on this host");
+        std::fs::remove_dir_all(directory).expect("remove native test publication");
+    }
 }
 
 #[test]

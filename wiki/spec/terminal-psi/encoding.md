@@ -260,6 +260,7 @@ and the proof bundle share this grammar byte for byte.
 | 14 | IntegerMathEqual | integer math term + integer math term |
 | 15 | IntegerMathLessThan | integer math term + integer math term |
 | 16 | IntegerMathLessOrEqual | integer math term + integer math term |
+| 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
 
 ## Operation rows
 
@@ -397,7 +398,7 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 103 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 104 + `u16` vocabulary
 marker 107 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 

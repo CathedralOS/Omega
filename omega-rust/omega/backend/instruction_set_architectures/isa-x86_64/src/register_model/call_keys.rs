@@ -124,32 +124,25 @@ pub fn x86_64_microsoft_aggregate_return_keys() -> Vec<RegisterConstraintKey> {
     }]
 }
 
-/// Per-plan normalized foreign call rows over the System-V integer bank.
-/// Variants encode `(register arity, has scalar result)` as
-/// `3000 + arity * 2 + has_result`; stack-passed arguments are outgoing
-/// custody, not row operands, so the family bounds at the six-register bank.
+/// Normalized foreign scalar calls: integer-only Unit inputs, then mixed Unit
+/// inputs, each with Unit, integer, and IEEE result choices. Stack arguments
+/// remain outgoing custody rather than register-row operands.
 pub fn x86_64_system_v_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
-    (0..=6u32)
-        .flat_map(|arity| {
-            (0..=1u32).map(move |has_result| RegisterConstraintKey {
-                family: RegisterConstraintFamily::Call,
-                variant: 3000 + arity * 2 + has_result,
-            })
+    (3000..3189)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
         })
         .collect()
 }
 
-/// Per-plan normalized foreign call rows over the Microsoft integer bank.
-/// Variants encode `(register arity, has scalar result)` as
-/// `3040 + arity * 2 + has_result`; stack-passed arguments are outgoing
-/// custody, not row operands, so the family bounds at the four-register bank.
+/// The same input/result ordering for the Microsoft positional banks.
+/// Its range is disjoint from the other convention and existing call families.
 pub fn x86_64_microsoft_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
-    (0..=4u32)
-        .flat_map(|arity| {
-            (0..=1u32).map(move |has_result| RegisterConstraintKey {
-                family: RegisterConstraintFamily::Call,
-                variant: 3040 + arity * 2 + has_result,
-            })
+    (3300..3393)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
         })
         .collect()
 }

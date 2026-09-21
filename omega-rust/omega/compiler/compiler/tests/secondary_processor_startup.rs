@@ -76,6 +76,15 @@ const TRAMPOLINE_BASE: u64 = 0x8_0000;
 const TRAMPOLINE_LENGTH: u64 = 0x1000;
 const TRAMPOLINE_RANGE_START: u64 = 0x1_0000;
 
+// The sealed inputs the emitted trampoline binds: provider/supply-side
+// installation facts the ledger route hands to emission (the shared
+// page-table root, the account's provisioned stack top, and the installed
+// semantic entry the trampoline reaches). Normalized fixture values stand
+// in for them until the boundary install route supplies them.
+const TRAMPOLINE_PAGE_TABLE_ROOT: u64 = 0x70_0000;
+const TRAMPOLINE_STACK_TOP: u64 = 0x9_0000;
+const TRAMPOLINE_SEMANTIC_ENTRY: u64 = 0x10_0000;
+
 fn identity<T>(value: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
     constructor(value).expect("normalized external-root identity")
 }
@@ -141,11 +150,11 @@ struct AuthoredSlot {
 }
 
 /// The evaluated authored startup declaration: the per-processor roster
-/// rows and the provider-declared profile geometry — the trampoline's
-/// authored bytes, its startup-vector alignment, and the low-memory bound.
+/// rows and the provider-declared profile geometry — the startup-vector
+/// alignment and the low-memory bound. The trampoline's byte content is
+/// compiler-emitted, not authored.
 struct AuthoredStartup {
     slots: Vec<AuthoredSlot>,
-    trampoline_bytes: Vec<u8>,
     startup_alignment: u64,
     low_memory_limit: u64,
 }
@@ -161,9 +170,6 @@ fn authored_startup(typed: &typed_trees::TypedTrees) -> AuthoredStartup {
     let startup = record_fields(&value, "SecondaryProcessorStartup::declare");
     let BuildTimeValue::Array(slot_rows) = struct_field(startup, "processors") else {
         panic!("the authored startup declaration carries no processor array")
-    };
-    let BuildTimeValue::Array(byte_rows) = struct_field(startup, "trampoline_bytes") else {
-        panic!("the authored startup declaration carries no trampoline bytes")
     };
     let slots = slot_rows
         .iter()
@@ -181,18 +187,8 @@ fn authored_startup(typed: &typed_trees::TypedTrees) -> AuthoredStartup {
             }
         })
         .collect();
-    let trampoline_bytes = byte_rows
-        .iter()
-        .map(|value| {
-            let BuildTimeValue::Int(byte) = value else {
-                panic!("authored trampoline byte is not an integer")
-            };
-            u8::try_from(*byte).expect("authored trampoline byte")
-        })
-        .collect();
     AuthoredStartup {
         slots,
-        trampoline_bytes,
         startup_alignment: u64::try_from(int_field(startup, "startup_alignment"))
             .expect("declared startup alignment"),
         low_memory_limit: u64::try_from(int_field(startup, "low_memory_limit"))
@@ -200,9 +196,30 @@ fn authored_startup(typed: &typed_trees::TypedTrees) -> AuthoredStartup {
     }
 }
 
-/// The installed trampoline artifact: the authored bytes, one admitted
-/// startup entry at code offset 0, placement constrained to the declared
-/// low-memory window in the arrival machine regime. Mirrors the
+/// The startup trampoline's emitted content: the canonical compiler recipe
+/// sealed against the realized placement base and the contract's sealed
+/// inputs, replayed before installation. These seals model the
+/// provider/supply-side values the install route delivers; the authored
+/// declaration carries only the contract geometry (alignment, bound).
+fn emitted_trampoline_bytes() -> Vec<u8> {
+    let template = machine_emission::emit_x86_64_startup_trampoline();
+    machine_emission::resolve_x86_64_startup_trampoline(
+        &template,
+        machine_emission::X86_64StartupTrampolineResolution {
+            placement_base: TRAMPOLINE_BASE,
+            page_table_root: TRAMPOLINE_PAGE_TABLE_ROOT,
+            stack_top: TRAMPOLINE_STACK_TOP,
+            entry: TRAMPOLINE_SEMANTIC_ENTRY,
+        },
+    )
+    .expect("startup trampoline resolution")
+    .bytes()
+    .to_vec()
+}
+
+/// The installed trampoline artifact: the emitted trampoline bytes, one
+/// admitted startup entry at code offset 0, placement constrained to the
+/// declared low-memory window in the arrival machine regime. Mirrors the
 /// external-roots fixture ladder (`installed_code_in_placement`).
 fn startup_trampoline_code(authored: &AuthoredStartup) -> InstalledCode {
     let constraints = PlacementConstraints::new(
@@ -227,7 +244,7 @@ fn startup_trampoline_code(authored: &AuthoredStartup) -> InstalledCode {
             executable_installation::ArtifactId::from_normalized_identity,
         ),
         Architecture::X86_64,
-        authored.trampoline_bytes.clone(),
+        emitted_trampoline_bytes(),
         contracts,
         footprint,
         install_identity(32, PlacementPlanId::from_normalized_identity),
@@ -519,9 +536,10 @@ fn bound_trampoline<'code>(
     );
     assert_eq!(trampoline.extent_base(), TRAMPOLINE_BASE);
     assert_eq!(trampoline.extent_length(), TRAMPOLINE_LENGTH);
-    // The authored trampoline content is visible at the admitted entry: the
-    // installed occurrence binds the exact bytes the package declared.
-    assert!(code.binds_exact_materialized_entry_bytes(startup_entry(), &authored.trampoline_bytes));
+    // The emitted trampoline content is visible at the admitted entry: the
+    // installed occurrence binds the exact bytes the compiler emitted.
+    let emitted = emitted_trampoline_bytes();
+    assert!(code.binds_exact_materialized_entry_bytes(startup_entry(), &emitted));
     assert!(code.binds_placement_geometry(TRAMPOLINE_BASE, TRAMPOLINE_LENGTH));
     trampoline
 }
@@ -951,4 +969,127 @@ fn authored_startup_rejects_stale_evidence_and_resource_conflicts() {
             other => panic!("the second attempt's own receipt confirms arrival, got {other:?}"),
         };
     assert_eq!(second_started.invocation(), second_invocation);
+}
+
+/// The authored startup contract survives both production boundaries the
+/// installed-entry leg must cross: the canary binds host program entries, so
+/// the package produces a retained Terminal artifact whose native proposal
+/// still selects each root's exact `enter` requirement — the strict Pending
+/// entry claim and the plan-scoped `MachineControl` reach — and the native
+/// artifact carries the same two provider plans. The provider bodies are
+/// selected boundary entries, not machines reachable from `main`, so their
+/// bytes stay absent from the emitted image until the entry/stub emission
+/// leg lands; the plans that leg must bind are what production retains.
+#[test]
+fn authored_startup_contract_survives_terminal_and_native_production() {
+    use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
+
+    let options = CompileOptions {
+        root_path: canary_main(),
+        build_dir: None,
+        target_name: Some("linux_x86_64".to_owned()),
+    };
+    let request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    let report = compile(request)
+        .unwrap_or_else(|diagnostics| {
+            panic!("secondary-processor canary Terminal production rejected: {diagnostics:?}")
+        })
+        .into_single_report()
+        .expect("one compile report");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("Terminal production retains its artifact");
+    retained
+        .validate()
+        .expect("the retained terminal artifact replays");
+
+    // The retained product carries the Omega-side proposal the later
+    // native realization re-joins: the provider plans cross the
+    // source-free boundary here, not at checked time.
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained terminal artifact carries its native proposal");
+    let facts = proposal.selected_provider_plans();
+    for trait_name in [
+        "FirstSecondaryProcessorRoot",
+        "SecondSecondaryProcessorRoot",
+    ] {
+        let selected = selected_external_root_provider_plan(facts, trait_name)
+            .unwrap_or_else(|_| panic!("the retained proposal selects `{trait_name}`"));
+        let [entry] = selected.schema.methods.as_slice() else {
+            panic!("`{trait_name}` still inherits one exact entry requirement")
+        };
+        assert_eq!(entry.name, "enter");
+        assert_eq!(entry.requirement_owner, "SecondaryProcessorEntry");
+        let claims = selected
+            .entry_claims(&entry.requirement_identity)
+            .expect("the retained plan lowers its Pending claim");
+        let [pending] = claims.as_slice() else {
+            panic!("the retained plan publishes one Pending entry claim")
+        };
+        assert_eq!(pending.parameter_index, 0);
+        assert_eq!(pending.domain, "StartupEnvelope::Pending");
+        assert_eq!(
+            pending.effective_carry,
+            language_semantics::CarryPolicy::STRICT
+        );
+        let resolution = facts
+            .installation_reach_resolution_for_plan(
+                selected.identity.normalized_identity(),
+                &entry.requirement_identity,
+            )
+            .expect("the retained plan still resolves the entry's bounded reach");
+        assert_eq!(resolution.resolved_row, ["MachineControl".to_owned()]);
+        assert_eq!(resolution.upper_bound, ["MachineControl".to_owned()]);
+    }
+
+    // Native realization keeps both provider plans as retained custody: the
+    // emitted image carries only the program entry today — the boundary
+    // providers' bodies emit through the entry/stub lane this item still
+    // owes — but the artifact's exact plan identities are the rows that lane
+    // joins when it lands.
+    let options = CompileOptions {
+        root_path: canary_main(),
+        build_dir: None,
+        target_name: Some("linux_x86_64".to_owned()),
+    };
+    let request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    let report = compile(request)
+        .unwrap_or_else(|diagnostics| {
+            panic!("secondary-processor canary native production rejected: {diagnostics:?}")
+        })
+        .into_single_report()
+        .expect("one compile report");
+    let artifact = report
+        .into_retained_native_artifact()
+        .expect("native production retains its artifact");
+    artifact
+        .validate()
+        .expect("the retained native artifact replays");
+    let plans = artifact.selected_provider_plans();
+    assert_eq!(
+        plans.len(),
+        2,
+        "the native artifact retains both secondary-processor provider plans"
+    );
+    assert_ne!(
+        plans[0].report_identity(),
+        plans[1].report_identity(),
+        "the two startup roots retain distinct provider plans"
+    );
+    for plan in plans {
+        let [requirement] = plan.requirement_identities() else {
+            panic!("each startup provider plan carries exactly one requirement")
+        };
+        assert!(
+            requirement.contains("SecondaryProcessorEntry::enter"),
+            "the retained requirement is the shared entry contract"
+        );
+        assert!(
+            requirement.contains("StartupEnvelope::Pending"),
+            "the retained requirement keeps the Pending domain constraint"
+        );
+    }
 }

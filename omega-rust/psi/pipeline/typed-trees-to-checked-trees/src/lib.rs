@@ -315,15 +315,18 @@ pub fn infer_machine_termination_summary(
     ))
 }
 
-/// The v0 asm-intrinsic discharge gate (asm requires a freestanding boundary
-/// root) -- re-exported for the ORCHESTRATION layer, which owns the
-/// BuildConfig fact the gate consumes; the other validations run inside
-/// `lower_typed_trees` and never see build.omg. The live call site is the
-/// typed->checked settlement transition in
+/// The privileged-service asm-intrinsic discharge (each instruction's
+/// authority class checks against the build's supplied
+/// `AsmAuthorityAdmission` evidence) -- re-exported for the ORCHESTRATION
+/// layer, which owns the BuildConfig fact the gate consumes; the other
+/// validations run inside `lower_typed_trees` and never see build.omg. The
+/// live call site is the typed->checked settlement transition in
 /// `assembled-syntax-to-checked-compilation` (`checking/phase_transitions.rs`),
-/// which receives the evaluated `Build.freestanding` through
-/// `TypedToCheckedSettlementInput`.
-pub use ::validation::{data_requires_establishment, validate_asm_discharge};
+/// which derives the admission from the evaluated `Build.freestanding`
+/// through `TypedToCheckedSettlementInput`.
+pub use ::validation::{
+    AsmAuthorityAdmission, data_requires_establishment, validate_asm_discharge,
+};
 pub use conformance::conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,

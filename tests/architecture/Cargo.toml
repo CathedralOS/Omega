@@ -56,6 +56,18 @@ path = "anchor_headers.rs"
 name = "encoding_contract"
 path = "encoding_contract.rs"
 
+[[test]]
+name = "stage_crate_ownership"
+path = "stage_crate_ownership.rs"
+
+[[test]]
+name = "crate_root_responsibility"
+path = "crate_root_responsibility.rs"
+
+[[test]]
+name = "scoped_lookup_maps"
+path = "scoped_lookup_maps.rs"
+
 [dev-dependencies]
 provider-planning = { path = "../../omega-rust/omega/build/provider-planning" }
 arena = { path = "../../omega-rust/psi/foundation/arena" }

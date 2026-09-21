@@ -99,6 +99,54 @@ lists them; `get` returning 403 means foreign-parented.
   guarantees expiry). A blocked worker costs ~1-5 min and produces a structured
   verdict — cheap, but the real width limiter is unfenced path supply, not
   session count. TASKS.md regenerates legs as landings append board notes.
+- **Mass-fires settle in waves.** After firing ~200 suspended workers at once,
+  ~half return verdicts within ~10-15 min (blocked churn + fast mine/fuzz
+  legs). The coordinator must run drain→record→refire cycles continuously —
+  never wait for notifications. Refire `waiting_for_user` AND `suspended`
+  every cycle, indiscriminately; alternate retry prompts with mine legs so
+  blocked churn still manufactures board supply.
+- **High `blocked` rate = supply shortage, not worker shortage.** When most
+  settles come back `blocked`, stop blind-retrying and route settled workers
+  to mine legs — each `mine_report` carries candidate item names the
+  coordinator dedupes and commits to TASKS.md (authorized), converting churn
+  into new unfenced supply. When retrying anyway, shard big items into
+  per-file legs so claims hit narrower (freer) fences.
+- **Batch-merge beats the landing queue at width.** The serialized
+  landing.py queue saturates around ~30 deep with 100+ workers (each enqueue
+  re-runs validation on a serial lane). Faster path: workers commit on their
+  branch and push, then report `branch_ready` with shas; the coordinator
+  fetches `refs/heads/zergling/*` and merges batches onto main each cycle.
+  Claims-disjoint pathsets mean merges apply clean (~0 conflicts observed;
+  ~17 branches/cycle vs ~9 queue-landed/cycle). Caveat: merges skip
+  landing.py validation — watch for main breakage, and treat a batch-merge
+  that breaks main as a coordinator priority fix.
+- **Bound branch refs — one lane per zergling.** Per-item branches
+  (`zergling/z<N>-<item>`) explode to 400+ refs at width. Have each worker
+  force-push to a single persistent lane: `git push -f origin
+  HEAD:zergling/z<N>`, verdict `{"result":"branch_ready","branch":
+  "zergling/z<N>"}`. The coordinator merges each lane then deletes the ref —
+  remote ref count stays bounded by in-flight work, never grows per task.
+  Workers on separate VMs cannot land any other way (their commits aren't
+  reachable until pushed); direct `HEAD:main` pushes race non-FF at width.
+- **Prune stale lanes every cycle.** Before merging, check each zergling ref
+  for novelty: `git diff origin/main...<ref> -- . ':(exclude)TASKS.md' | wc
+  -l` — `0` means a sibling already landed the same content; delete the ref
+  without merging. In practice ~2/3 of aged branches are zero-diff stale.
+  Without this, conflicted duplicates accumulate on remote.
+- **Never replay a long rebase chain — abort and re-merge.** If a mid-merge
+  `pull --rebase` wedges on conflicts with dozens of steps left (100+ stale
+  picks), `git rebase --abort`, `git reset --hard origin/main`, and re-merge
+  the branches fresh — the source refs still exist on origin and re-merging
+  against current main is cheaper than resolving each stale pick.
+  TASKS.md-only conflicts resolve by union-merge (keep both sides' unique
+  lines — board notes accumulate); a scripted 3-way marker pass handles them.
+- **Size surplus legs big — small legs churn.** A one-doc mine leg finishes in
+  ~2-5 min, so ~half the pool settles every cycle and the coordinator drowns
+  in message volume. Give each miner a whole directory/tree
+  (`ALL of wiki/drafts/`, `every crate under omega-rust/psi/pipeline/`) and
+  require 20+ candidates per report; mix in fuzz legs (~15 cases each). Deep
+  legs take 15-30+ min, which damps the settle wave AND yields ~650
+  candidates per cycle vs ~165 for shallow sweeps.
 
 ### Coordinator pre-partitioning (the fix for churn)
 
@@ -162,6 +210,13 @@ conflict. When unfenced items run out, do NOT park the pool:
   {name, item, board, session_id, devin_mode, result, item_closed, commits,
   notes, recorded_utc}. Verify `git merge-base --is-ancestor <sha> origin/main`
   for every reported commit before recording `landed`.
+- Drain claim notes with the verdicts: `python3 tools/claims.py notes` lists
+  findings workers attached to their tickets ("already resolved upstream,
+  verified at <sha>"); fold what they justify into the coordinator's next
+  board sweep commit (landed with `--board-update`), then `python3
+  tools/claims.py sweep` marks them consumed. Workers never commit board
+  files — `landing.py` refuses board-only and empty candidates, and a lane
+  whose only diff is `TASKS.md` gets deleted as stale, not merged.
 - A child that reports a main-break it caused or witnessed (build failure on
   `origin/main`) is a coordinator priority item: reproduce, claim, fix, land
   via `tools/landing.py` — do not wait for the offender to return.

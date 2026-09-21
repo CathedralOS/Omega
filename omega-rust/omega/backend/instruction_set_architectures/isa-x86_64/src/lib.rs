@@ -8,6 +8,7 @@ mod fma;
 mod frame_protocol;
 mod hosted_linux_encoding;
 mod ieee_float;
+mod import_thunk;
 mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
@@ -55,6 +56,9 @@ pub use ieee_float::{
     encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement,
     encode_store_mxcsr_constant_rsp_displacement,
 };
+pub use import_thunk::{
+    X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk, x86_64_import_thunk_footprint,
+};
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog,
@@ -80,9 +84,10 @@ pub use register_model::{
     X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
     X86_64_SYSTEM_V_RETURN_UNIT, X86_64RegisterConstraintCatalogValidationError,
-    validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
+    canonical_x86_64_physical_register_model_identity, validate_x86_64_register_constraint_catalog,
+    validated_x86_64_physical_register_model, x86_64_fixed_register_view,
     x86_64_physical_register_model, x86_64_preservation_convention_for_target,
-    x86_64_register_constraint_catalog,
+    x86_64_register_constraint_catalog, x86_64_register_constraint_catalog_for,
 };
 pub use register_model::{
     X86_64_LOAD_PACKED, X86_64_STORE_PACKED, x86_64_microsoft_aggregate_call_keys,

@@ -81,10 +81,16 @@ pub(super) fn shared_collection_elements(
 /// `&self` admits the collection by shared reference. `Self` in the signature
 /// resolves to the machine's own symbol, so the comparison below substitutes
 /// the machine's attached data identity; an owned `self` receiver (no
-/// reference shell) stays owned and compares the same way. Only `self`
-/// parameters reach this adaptation — the caller gates on `is_self` — so a
-/// first ordinary parameter spelled `items: &Buffer` keeps the ordinary
-/// argument rules and is not a receiver.
+/// reference shell) stays owned and compares the same way. The collection
+/// operand may itself arrive behind a borrow: `items[index]` on
+/// `items: &Buffer` supplies the receiver by reborrow exactly as
+/// `items.at(index)` does, so a reference operand peels to its referent when
+/// the receiver asked for a reference. An owned `self` parameter cannot move
+/// out of borrowed storage, so the operand shell stays then. The ordinary
+/// ownership checker still validates whether the operand's access suffices
+/// for the receiver's. Only `self` parameters reach this adaptation — the
+/// caller gates on `is_self` — so a first ordinary parameter spelled
+/// `items: &Buffer` keeps the ordinary argument rules and is not a receiver.
 pub(super) fn receiver_self_match(
     program: &TypedTrees,
     actual: TypeReferenceHandle,
@@ -96,14 +102,14 @@ pub(super) fn receiver_self_match(
     let Some(expected) = unconstrained(program, expected) else {
         return false;
     };
-    let referee = match program.type_reference_table.type_reference(expected) {
+    let (referee, borrowed_receiver) = match program.type_reference_table.type_reference(expected) {
         TypeReferenceNode::Reference { referee, .. } => {
             let Some(referee) = unconstrained(program, *referee) else {
                 return false;
             };
-            referee
+            (referee, true)
         }
-        _ => expected,
+        _ => (expected, false),
     };
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(referee)
@@ -116,6 +122,22 @@ pub(super) fn receiver_self_match(
         .find(|machine| machine.symbol == *symbol)
     else {
         return false;
+    };
+    let Some(actual) = unconstrained(program, actual) else {
+        return false;
+    };
+    let actual = if borrowed_receiver {
+        match program.type_reference_table.type_reference(actual) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                let Some(referee) = unconstrained(program, *referee) else {
+                    return false;
+                };
+                referee
+            }
+            _ => actual,
+        }
+    } else {
+        actual
     };
     if machine.attached_data_application.is_valid() {
         // A generic attachment spells `Self` as the machine's own binder
@@ -131,9 +153,6 @@ pub(super) fn receiver_self_match(
             const_bindings,
         );
     }
-    let Some(actual) = unconstrained(program, actual) else {
-        return false;
-    };
     matches!(
         program.type_reference_table.type_reference(actual),
         TypeReferenceNode::Named { symbol, .. }

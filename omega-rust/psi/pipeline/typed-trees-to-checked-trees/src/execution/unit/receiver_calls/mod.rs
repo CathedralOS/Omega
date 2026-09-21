@@ -628,8 +628,10 @@ fn receiver_argument(
             || !parameter.qualifications.is_empty()
             || !place.segments.iter().all(|segment| {
                 matches!(segment, facts::PlaceSegment::Field { .. })
-                    || (matches!(target.access, WriteOnlyBorrow | MutableBorrow)
-                        && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
+                    || (matches!(
+                        target.access,
+                        SharedBorrow | MutableBorrow | WriteOnlyBorrow
+                    ) && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
             })
         {
             return None;

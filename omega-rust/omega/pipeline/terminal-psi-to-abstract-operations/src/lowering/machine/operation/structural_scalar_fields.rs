@@ -350,3 +350,407 @@ fn exact_structural_type(
     let declaration = matching.next()?;
     matching.next().is_none().then_some(declaration)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        direct_relevant_scalar_field, dominating_scalar_type, exact_parameter,
+        has_empty_structural_custody, resolve_structural_path,
+    };
+    use semantic_vocabulary::{
+        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
+        ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    };
+    use terminal_psi::{
+        BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
+        StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+        Terminator, ValueDeclaration,
+    };
+
+    fn i32_type() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    }
+
+    fn scalar_parameter(id: u64) -> ValueDeclaration {
+        ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(id).unwrap(),
+            scalar_type: i32_type(),
+        }
+    }
+
+    fn structural_parameter(
+        place: u64,
+        position: u32,
+        multiplicity: StructuralMultiplicity,
+        access: StructuralAccess,
+    ) -> StructuralParameterDeclaration {
+        StructuralParameterDeclaration {
+            place: PlaceId::new(place).unwrap(),
+            position,
+            is_self: false,
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }
+    }
+
+    fn machine(
+        parameters: Vec<ValueDeclaration>,
+        structural_parameters: Vec<StructuralParameterDeclaration>,
+        structural_places: Vec<StructuralPlaceDeclaration>,
+    ) -> TerminalMachine {
+        TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters,
+            structural_parameters,
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(2).unwrap(),
+            blocks: Vec::new(),
+            contract: MachineContract {
+                erased_proof_formals: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                id: ContractId::new(9).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn test_block(operations: Vec<Operation>) -> Block {
+        Block {
+            erased_proof_formals: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            id: BlockId::new(2).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations,
+            terminator: Terminator::ReturnUnit {
+                edge: EdgeId::new(8).unwrap(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }
+    }
+
+    /// A no-result marker: the dominance walk only needs the operation's id
+    /// to exist in the block to bound "prior definitions".
+    fn marker(id: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: OperationId::new(id).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::BooleanConstant { value: false },
+        }
+    }
+
+    fn producer(id: u64, value: u64) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: OperationId::new(id).unwrap(),
+            result: OperationResult::Scalar(scalar_parameter(value)),
+            kind: OperationKind::BooleanConstant { value: true },
+        }
+    }
+
+    fn record_type(id: u64, fields: Vec<StructuralFieldDeclaration>) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: format!("test::T{id}"),
+            shape: StructuralTypeShape::Record { fields },
+        }
+    }
+
+    fn field(
+        id: u64,
+        identity: &str,
+        field_type: StructuralFieldType,
+    ) -> StructuralFieldDeclaration {
+        StructuralFieldDeclaration {
+            id: StructuralFieldId::new(id).unwrap(),
+            identity: identity.to_owned(),
+            relevance: BindingRelevance::Relevant,
+            field_type,
+        }
+    }
+
+    #[test]
+    fn dominating_scalar_type_reads_the_single_entry_declaration() {
+        let machine = machine(vec![scalar_parameter(5)], Vec::new(), Vec::new());
+        let block = test_block(Vec::new());
+        assert_eq!(
+            dominating_scalar_type(
+                &machine,
+                &block,
+                OperationId::new(1).unwrap(),
+                ValueId::new(5).unwrap(),
+            ),
+            Some(i32_type())
+        );
+    }
+
+    #[test]
+    fn dominating_scalar_type_rejects_conflicting_entry_declarations() {
+        // Machine and block parameters both claiming one value id is exactly
+        // the ambiguity the store check must not guess through.
+        let machine = machine(vec![scalar_parameter(5)], Vec::new(), Vec::new());
+        let mut block = test_block(Vec::new());
+        block.parameters.push(scalar_parameter(5));
+        assert_eq!(
+            dominating_scalar_type(
+                &machine,
+                &block,
+                OperationId::new(1).unwrap(),
+                ValueId::new(5).unwrap(),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn dominating_scalar_type_uses_only_prior_block_definitions() {
+        let machine = machine(Vec::new(), Vec::new(), Vec::new());
+        // The defining operation precedes the store.
+        let block = test_block(vec![producer(3, 5), marker(4)]);
+        assert_eq!(
+            dominating_scalar_type(
+                &machine,
+                &block,
+                OperationId::new(4).unwrap(),
+                ValueId::new(5).unwrap(),
+            ),
+            Some(i32_type())
+        );
+        // The definition sits after the queried operation: not yet in scope.
+        let block = test_block(vec![marker(2), producer(3, 5)]);
+        assert_eq!(
+            dominating_scalar_type(
+                &machine,
+                &block,
+                OperationId::new(2).unwrap(),
+                ValueId::new(5).unwrap(),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn dominating_scalar_type_rejects_redefined_or_undeclared_values() {
+        let machine = machine(Vec::new(), Vec::new(), Vec::new());
+        let block = test_block(vec![producer(3, 5), producer(4, 5), marker(5)]);
+        assert_eq!(
+            dominating_scalar_type(
+                &machine,
+                &block,
+                OperationId::new(5).unwrap(),
+                ValueId::new(5).unwrap(),
+            ),
+            None
+        );
+        assert_eq!(
+            dominating_scalar_type(
+                &machine,
+                &block,
+                OperationId::new(5).unwrap(),
+                ValueId::new(7).unwrap(),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_structural_path_walks_record_fields_and_fixed_indexes() {
+        let types = vec![
+            record_type(
+                1,
+                vec![field(
+                    10,
+                    "inner",
+                    StructuralFieldType::Structural(StructuralTypeId::new(2).unwrap()),
+                )],
+            ),
+            StructuralTypeDeclaration {
+                id: StructuralTypeId::new(2).unwrap(),
+                identity: "test::Array".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: StructuralTypeId::new(3).unwrap(),
+                    length: 4,
+                },
+            },
+            record_type(3, Vec::new()),
+        ];
+        let root = StructuralTypeId::new(1).unwrap();
+        assert_eq!(
+            resolve_structural_path(
+                &types,
+                root,
+                &[
+                    StructuralPathSegment::Field("inner".into()),
+                    StructuralPathSegment::FixedIndex(3),
+                ],
+            ),
+            Some(StructuralTypeId::new(3).unwrap())
+        );
+        // An out-of-range index and a field on a non-record both fail closed.
+        assert_eq!(
+            resolve_structural_path(
+                &types,
+                root,
+                &[
+                    StructuralPathSegment::Field("inner".into()),
+                    StructuralPathSegment::FixedIndex(4),
+                ],
+            ),
+            None
+        );
+        assert_eq!(
+            resolve_structural_path(
+                &types,
+                root,
+                &[StructuralPathSegment::Field("missing".into())],
+            ),
+            None
+        );
+        assert_eq!(resolve_structural_path(&types, root, &[]), Some(root));
+    }
+
+    #[test]
+    fn exact_parameter_requires_one_matching_place_declaration() {
+        let place = PlaceId::new(20).unwrap();
+        let mut machine = machine(
+            Vec::new(),
+            vec![structural_parameter(
+                20,
+                0,
+                StructuralMultiplicity::Affine,
+                StructuralAccess::MutableBorrow,
+            )],
+            vec![StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            }],
+        );
+        assert!(exact_parameter(&machine, place).is_some());
+
+        // A place row declaring a different position desyncs the pair.
+        machine.structural_places[0].kind = StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        };
+        assert_eq!(exact_parameter(&machine, place), None);
+
+        // Missing place row or a second parameter on the place fail closed.
+        machine.structural_places.clear();
+        assert_eq!(exact_parameter(&machine, place), None);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
+        machine.structural_parameters.push(structural_parameter(
+            20,
+            1,
+            StructuralMultiplicity::Affine,
+            StructuralAccess::MutableBorrow,
+        ));
+        assert_eq!(exact_parameter(&machine, place), None);
+    }
+
+    #[test]
+    fn empty_structural_custody_rejects_claims_and_qualifications() {
+        let place = PlaceId::new(20).unwrap();
+        let mut machine = machine(
+            Vec::new(),
+            vec![structural_parameter(
+                20,
+                0,
+                StructuralMultiplicity::Affine,
+                StructuralAccess::MutableBorrow,
+            )],
+            Vec::new(),
+        );
+        assert!(has_empty_structural_custody(&machine, place));
+        machine.structural_parameters[0].qualifications =
+            vec![semantic_vocabulary::StructuralDomainId::new(30).unwrap()];
+        assert!(!has_empty_structural_custody(&machine, place));
+        machine.structural_parameters[0].qualifications.clear();
+        machine.entry_claims.push(terminal_psi::EntryClaim {
+            claim: semantic_vocabulary::ClaimId::new(31).unwrap(),
+            input: place,
+            path: Vec::new(),
+        });
+        assert!(!has_empty_structural_custody(&machine, place));
+    }
+
+    #[test]
+    fn direct_relevant_scalar_field_maps_declared_types_once() {
+        let types = vec![record_type(
+            1,
+            vec![
+                field(10, "count", StructuralFieldType::Scalar(i32_type())),
+                field(
+                    11,
+                    "bounded",
+                    StructuralFieldType::BoundedInteger(
+                        semantic_vocabulary::BoundedIntegerType::new(
+                            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                            semantic_vocabulary::IntegerValue::Unsigned(0),
+                            semantic_vocabulary::IntegerValue::Unsigned(200),
+                        )
+                        .unwrap(),
+                    ),
+                ),
+                field(
+                    12,
+                    "nested",
+                    StructuralFieldType::Structural(StructuralTypeId::new(9).unwrap()),
+                ),
+            ],
+        )];
+        let root = StructuralTypeId::new(1).unwrap();
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(10).unwrap(), false),
+            Some(i32_type())
+        );
+        // Bounded integers are only readable once their range obligation is
+        // reconstructed; the flag is the admission, not a lookup detail.
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(11).unwrap(), false),
+            None
+        );
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(11).unwrap(), true),
+            Some(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap()
+            ))
+        );
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(12).unwrap(), true),
+            None
+        );
+        assert_eq!(
+            direct_relevant_scalar_field(&types, root, StructuralFieldId::new(13).unwrap(), true),
+            None
+        );
+    }
+}

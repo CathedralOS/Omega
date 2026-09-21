@@ -1,0 +1,18 @@
+// Dependent proof view over the attached data: `embed` reads a `self`-rooted
+// integer field as its exact proof-Int term, so the ensures view compares the
+// result against the post-write field value in unbounded mathematics.
+
+data Counter {
+    count: u32;
+    cap: u32;
+}
+
+machine Counter::bump(&mut self) -> u32
+requires
+    self.count < self.cap
+ensures
+    embed(result) == embed(self.count)
+{
+    self.count = self.count + 1;
+    transition { _ -> (self.count) }
+}

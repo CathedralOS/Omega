@@ -7,12 +7,13 @@ use super::{
     BTreeMap, Block, ContentPartitionComposition, ContractClause, EvidenceRoute, KnownDirectScalar,
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweredPsi,
     LoweringError, MachineContract, MachineId, ObligationEvidence, OperationKind, OperationResult,
-    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange, ScalarTerm,
-    ScalarType, StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker, block_id, contract_id, edge_id,
-    lower_checked_crash_route_buckets, merge_content_place_declaration, obligation_id,
-    scalar_source_block, terminal_scalar_type, unsupported, value_id,
+    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange,
+    ScalarIntegerRange, ScalarTerm, ScalarType, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker, block_id, contract_id, edge_id, lower_checked_crash_route_buckets,
+    merge_content_place_declaration, obligation_id, scalar_source_block, terminal_scalar_type,
+    unsupported, value_id,
 };
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -466,6 +467,42 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 }
                 scalar_qualifications.float_entry_ranges.push(row);
             }
+            // Retained authored integer ranges keep the normalized inclusive
+            // endpoints their requires-tail predicates already publish as
+            // propositions. The roster row preserves that exact carrier and
+            // endpoint evidence so a delivery check replays bounds without
+            // re-reading predicate structure.
+            for range in plan.integer_entry_ranges().unwrap_or_default() {
+                let parameter =
+                    parameters
+                        .get(range.position)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar integer entry range lost its dense entry parameter",
+                        ))?;
+                let declared = terminal_scalar_type(range.primitive_type)?;
+                let ScalarType::Integer(integer_type) = declared else {
+                    return unsupported("scalar integer entry range has a non-integer carrier");
+                };
+                let row = ScalarIntegerRange {
+                    machine: terminal_machine,
+                    parameter: parameter.id,
+                    integer_type,
+                    minimum: crate::emission::scalar_types::integer_value(
+                        &range.minimum,
+                        declared,
+                    )?,
+                    maximum: crate::emission::scalar_types::integer_value(
+                        &range.maximum,
+                        declared,
+                    )?,
+                };
+                if parameter.scalar_type != declared || !row.ordered() {
+                    return unsupported(
+                        "scalar integer entry range disagrees with its declared carrier",
+                    );
+                }
+                scalar_qualifications.integer_entry_ranges.push(row);
+            }
             let mut namespace = parameters.clone();
             namespace.push(result);
             let ensures =
@@ -599,6 +636,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .sort_by_key(|coercion| (coercion.machine, coercion.edge, coercion.argument_ordinal));
     scalar_qualifications
         .float_entry_ranges
+        .sort_by_key(|range| (range.machine, range.parameter));
+    scalar_qualifications
+        .integer_entry_ranges
         .sort_by_key(|range| (range.machine, range.parameter));
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {

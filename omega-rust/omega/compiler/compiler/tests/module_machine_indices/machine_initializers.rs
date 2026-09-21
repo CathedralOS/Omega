@@ -626,6 +626,41 @@ fn constant_helper_preconditions_reach_native_execution_after_source_removal() {
 }
 
 #[test]
+fn widened_helper_preconditions_reach_native_execution_after_source_removal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         machine divide(value: u64) -> u64 requires value != 0 { 10 / value }
+         machine forward(value: u8) -> u64 requires value != 0 {
+             divide(value as u64)
+         }
+         pub const VALUE: u64 = forward(2u8);",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use settings; machine read() -> u64 { settings::VALUE }",
+    );
+    assert_native_constant_after_source_removal(tree, root);
+}
+
+#[test]
+fn widened_runtime_call_preconditions_execute_after_source_removal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "machine divide(value: u64) -> u64 requires value != 0 { 10 / value }
+         machine forward(value: u8) -> u64 requires value != 0 {
+             divide(value as u64)
+         }
+         machine read() -> u64 { forward(2u8) }",
+    );
+    assert_native_constant_after_source_removal(tree, root);
+}
+
+#[test]
 fn constant_helper_preconditions_reject_false_concrete_invocations() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -663,6 +698,17 @@ fn assert_native_constant_after_source_removal(tree: Sources, root: std::path::P
     drop(checked);
     drop(tree);
     assert!(!root.exists(), "native publication cannot reread source");
+
+    assert_eq!(
+        interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .expect("verified artifact executes without source"),
+        TerminalExecutionResult::Scalar(super::array_construction::integer(5, 64)),
+    );
 
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
     let optimized = native_realization::optimize_artifact_sections(

@@ -606,6 +606,167 @@ fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
 }
 
 #[test]
+fn borrowed_self_scalar_loop_keeps_ambient_receiver_and_authored_positions() {
+    let source = r#"
+        data Main { tag: u64; }
+
+        machine Main::rot(&mut self, k: u64, a: u64, b: u64, c: u64)
+        terminates by k;
+        -> u64
+        {
+            transition k > 0 {
+                true -> rot(k - 1, b, c, a)
+                false -> a
+            }
+        }
+
+        machine Main::main(&mut self) {
+            let r: u64 = self.rot(3, 1, 2, 3);
+            transition r == 1 {
+                true -> yes()
+                false -> no()
+            }
+            state yes(&mut self) { self.tag = 1; }
+            state no(&mut self) { self.tag = 2; }
+        }
+    "#;
+
+    let checked = lower_typed_trees(typed_trees(source))
+        .expect("the borrowed-self scalar loop should reach checked lowering");
+    let rot = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::rot")
+        .expect("rot machine")
+        .symbol;
+    let main = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine")
+        .symbol;
+    let plans = &checked.facts.flow.terminal_scalar_graphs;
+    let graph = plans
+        .for_machine(rot)
+        .expect("an ambient borrowed receiver still admits the scalar graph");
+    assert!(
+        graph.ranked_scc.is_some(),
+        "the loop-carried countdown retains its rank"
+    );
+    let [state] = graph.states.as_slice() else {
+        panic!("rot keeps one scalar state")
+    };
+    assert_eq!(
+        state
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.source_position)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3, 4],
+        "scalar formals keep authored positions beside the ambient receiver",
+    );
+    assert!(state.structural_parameters.is_empty());
+    assert!(state.erased_scalar_parameters.is_empty());
+    let checked_trees::CheckedScalarStateTerminator::Conditional { when_true, .. } =
+        &state.terminator
+    else {
+        panic!("the countdown guard selects the rotating edge")
+    };
+    let checked_trees::CheckedScalarBranchDestination::Jump(successor) = when_true else {
+        panic!("the true arm re-enters rot")
+    };
+    assert_eq!(successor.argument_count, 4);
+    let arguments = plans
+        .scalar_arguments
+        .span(successor.scalar_arguments)
+        .expect("successor scalar arguments");
+    assert_eq!(
+        arguments
+            .iter()
+            .map(|argument| argument.argument_ordinal)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3, 4],
+        "actuals pair with their authored formal positions, not dense slots",
+    );
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(main)
+        .expect("the scalar caller keeps its composed Unit plan");
+    let entry =
+        caller
+            .states
+            .iter()
+            .find(|entry| {
+                entry.operations.iter().any(|operation| matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. }
+                    if *target_machine == rot
+            ))
+            })
+            .expect("the entry state issues the rotating call");
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(main),
+        None,
+        "the caller is not omitted once its scalar target is registered"
+    );
+    assert!(
+        plans.for_machine(main).is_none(),
+        "the caller's own `self.rot` receiver read keeps it off the scalar graph route",
+    );
+    assert!(entry.scalar_parameters.is_empty());
+}
+
+#[test]
+fn owned_self_scalar_loop_stays_outside_the_scalar_graph_route() {
+    let source = r#"
+        data Main { tag: u64; }
+
+        machine Main::spin(self, k: u64)
+        terminates by k;
+        -> u64
+        {
+            transition k > 0 {
+                true -> spin(k - 1)
+                false -> k
+            }
+        }
+
+        machine Main::main(&mut self) {
+            let r: u64 = self.tag;
+            transition r == 0 {
+                true -> done()
+                false -> done()
+            }
+            state done(&mut self) {}
+        }
+    "#;
+
+    let checked = lower_typed_trees(typed_trees(source))
+        .expect("the owned-self loop still reaches checked lowering");
+    let spin = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::spin")
+        .expect("spin machine")
+        .symbol;
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(spin)
+            .is_none(),
+        "an owned receiver has no ambient carrier and refuses the graph",
+    );
+}
+
+#[test]
 fn checked_scalar_graph_retains_call_computation_bindings_and_arguments() {
     let source = r#"
         machine identity(value: bool) -> bool { value }

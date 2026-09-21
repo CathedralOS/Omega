@@ -63,7 +63,9 @@ pub(super) fn classify(
         | SelectedInstructionKind::ExactSubtractI64 { .. }
         | SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::ExactRemainderU64 { .. }
-        | SelectedInstructionKind::WrappingDivideI64 { .. } => {
+        | SelectedInstructionKind::WrappingDivideI64 { .. }
+        | SelectedInstructionKind::ExactDivideI64 { .. }
+        | SelectedInstructionKind::ExactRemainderI64 { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         SelectedInstructionKind::MaterializeI64 { .. } => {}

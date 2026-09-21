@@ -74,10 +74,20 @@ pub(super) fn validate(
         AbstractFunctionResult::Scalar(_) => {
             let expected =
                 super::super::header::function_abi(native.target, function, abstracted, optimized)?;
-            let abi = function.scalar_abi.as_ref().ok_or(invalid.clone())?;
-            if graph.call_plan != expected
-                || graph.scalar_parameters != abi.parameters
-                || !graph.parameters.is_empty()
+            // `scalar_abi` is only emitted for functions without descriptor
+            // parameters; with them, the graph header is the sole signature
+            // record and the roster rows carry the descriptor bindings.
+            if let Some(abi) = &function.scalar_abi {
+                if graph.call_plan != expected
+                    || graph.scalar_parameters != abi.parameters
+                    || !graph.dynamic_parameters.is_empty()
+                {
+                    return Err(invalid);
+                }
+            } else if graph.call_plan != expected || graph.dynamic_parameters.is_empty() {
+                return Err(invalid);
+            }
+            if !graph.parameters.is_empty()
                 || !(super::super::primitive_locals::roster(optimized)
                     || super::super::literals::roster(optimized))
                 || graph
@@ -107,16 +117,26 @@ pub(super) fn validate(
                     actual.value != expected.value || actual.scalar_type != expected.scalar_type
                 })
             || (source.id == optimized.entry && !source.parameters.is_empty())
-            || source.nodes.len() != block.operations.len() + 1
+            || source
+                .nodes
+                .iter()
+                .filter(|node| !super::super::indirect_calls::is_descriptor_declaration(node))
+                .count()
+                != block.operations.len() + 1
         {
             return Err(invalid);
         }
+        let source_nodes: Vec<_> = source
+            .nodes
+            .iter()
+            .filter(|node| !super::super::indirect_calls::is_descriptor_declaration(node))
+            .collect();
         let mut available = sources::available(graph, optimized, block.block);
         let mut custody = block_entries
             .get(&block.block)
             .cloned()
             .ok_or(invalid.clone())?;
-        for (operation, node) in block.operations.iter().zip(&source.nodes) {
+        for (operation, node) in block.operations.iter().zip(&source_nodes) {
             // Returns belong only to the terminator, never an ordinary row.
             if matches!(operation, TargetUnitOperation::Return { .. }) {
                 return Err(invalid);
@@ -169,7 +189,12 @@ pub(super) fn validate(
                 psi_edge == expected_edge
                     // No destructor instructions are needed for these plain homes;
                     // retain and replay their exact ordered death-edge disposition.
-                    && edge_cleanup_matches(optimized, cleanup_actions, trivial_affine_discards)
+                    && edge_cleanup_matches(
+                        optimized,
+                        cleanup_actions,
+                        trivial_affine_discards,
+                        &[],
+                    )
                     && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
                     // A reference-bearing result must still sit at its declared
@@ -363,8 +388,8 @@ pub(super) fn validate(
                         optimized,
                         &successor.cleanup_actions,
                         trivial_affine_discards,
+                        residual_affine_discards,
                     )
-                    && residual_affine_discards.is_empty()
             }
             (
                 TargetControlTerminator::Conditional {
@@ -411,6 +436,7 @@ fn successor_matches(
             function,
             &target.cleanup_actions,
             &source.trivial_affine_discards,
+            &[],
         )
 }
 
@@ -418,10 +444,18 @@ fn edge_cleanup_matches(
     function: &PsiOptimizationFunction,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
     places: &[semantic_vocabulary::PlaceId],
+    residuals: &[terminal_psi::StructuralAffineDiscard],
 ) -> bool {
-    actions.len() == places.len()
-        && actions.iter().zip(places).all(|(action, place)| matches!(
-            action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source) if source == place
-        ))
-        && super::super::aggregate_results::cleanup(function, actions)
+    let expected = places
+        .iter()
+        .copied()
+        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+        .chain(
+            residuals
+                .iter()
+                .cloned()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+        )
+        .collect::<Vec<_>>();
+    actions == expected.as_slice() && super::super::aggregate_results::cleanup(function, actions)
 }

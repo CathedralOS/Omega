@@ -68,19 +68,24 @@ fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 }
 
 mod machine_bounds {
+    use super::super::outcome_bounds::{
+        boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes,
+    };
+    use super::super::segment_partition::{PreparedFuelModule, PreparedSegments};
     use super::super::{
-        derive_fixed_segment_fuel, derive_maximum_entry_bound,
+        derive_fixed_safe_point_segments, derive_fixed_segment_fuel, derive_maximum_entry_bound,
         derive_validated_fixed_safe_point_segments, retain_validated_fixed_safe_point_segments,
-        validate_retained_fixed_safe_point_segments,
+        validate_fixed_segment_fuel, validate_retained_fixed_safe_point_segments,
     };
     use super::{
         BlockId, EdgeId, FixedFuelError, FuelScheduleIdentity, OperationKind, Proposition,
-        TerminalMachine, TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
-        identity,
+        TerminalFuelSchedule, TerminalMachine, TerminalModule, TerminalNaturalCycle,
+        TerminalRankedScc, Terminator, identity,
     };
     use semantic_vocabulary::{
         ContractId, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
     };
+    use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
         Block, MachineContract, Operation, OperationResult, ProviderCandidateConformance,
         ProviderRefinement, ProviderSignature, TerminalBlockNaturalRank,
@@ -308,6 +313,19 @@ mod machine_bounds {
         }
     }
 
+    fn boolean_constant(operation_id: u64, result: u64, value: bool) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(result),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::BooleanConstant { value },
+        }
+    }
+
     fn return_scalar(edge: u64, value: u64) -> Terminator {
         Terminator::Return {
             edge: id(edge),
@@ -482,14 +500,44 @@ mod machine_bounds {
         );
     }
 
+    /// An unranked cycle reports the verifier-derived component identity and
+    /// the `Unranked` cause — not whichever block the traversal revisited —
+    /// and the topology-derived name equals the identity a producer ranking
+    /// row for that same component would carry.
     #[test]
-    fn unranked_cycle_still_reports_control_cycle() {
+    fn unranked_cycle_reports_component_identity_and_cause() {
         let mut walk = cyclic_machine(32, Vec::new());
         walk.ranked_scc = None;
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
         let module = module(1, vec![walk]);
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Err(FixedFuelError::ControlCycle(id(2)))
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
+        );
+    }
+
+    /// The topology-derived identity is the canonical name: on a ranked
+    /// machine it equals the producer row's `control_cycle_identity`, so an
+    /// unranked component's report already names what ranking it would join.
+    #[test]
+    fn topology_derived_identity_matches_producer_identity() {
+        let walk = cyclic_machine(32, Vec::new());
+        let Some(TerminalRankedScc::Natural(components)) = &walk.ranked_scc else {
+            panic!("cyclic machine is Natural-ranked");
+        };
+        let members: Vec<BlockId> = components
+            .first()
+            .expect("one component")
+            .ranks
+            .iter()
+            .map(|rank| rank.block)
+            .collect();
+        assert_eq!(
+            terminal_verifier::cyclic_component_identity(&walk, &members),
+            terminal_verifier::control_cycle_identity(&walk, components.first().expect("one")),
         );
     }
 
@@ -846,6 +894,195 @@ mod machine_bounds {
         ));
     }
 
+    /// A multi-block segment whose interior crosses a conditional needs no
+    /// successor selection: the bound is the maximum charge over the arms
+    /// that can commit the endpoint, matching the entry bound's rule.
+    #[test]
+    fn segment_bound_crosses_a_conditional_at_the_maximum_arm() {
+        // 1: [bconst] cond -> 2 | 3; 2: [iconst] jump -> 4; 3: jump -> 4;
+        // 4: return edge 40.
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, vec![integer_constant(12, 13, 0)], jump(20, 4)),
+                block(3, Vec::new(), jump(21, 4)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("diamond machine verifies");
+
+        let certificate = derive_fixed_segment_fuel(&verified, id(1), id(1), id(40))
+            .expect("a conditional interior composes the maximum arm");
+        // bconst 1 + cond edge 1 + max(arm 2: iconst+jump 2, arm 3: jump 1)
+        // + return edge 1 = 5.
+        assert_eq!(certificate.ceiling_units, 5);
+        validate_fixed_segment_fuel(&verified, &certificate)
+            .expect("independent replay reaches the same bound");
+    }
+
+    /// An arm that leaves the machine without committing the endpoint does
+    /// not bound this segment: that execution is covered by its own terminal
+    /// edge's certificate, so this bound follows the reaching arm alone.
+    #[test]
+    fn segment_bound_excludes_arms_that_never_commit_the_endpoint() {
+        // 1: [bconst] cond -> 2 | 3; 2: jump -> 4; 3: return edge 30;
+        // 4: return edge 40.
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, Vec::new(), jump(20, 4)),
+                block(3, Vec::new(), return_unit(30)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("early-return arm machine verifies");
+
+        let certificate = derive_fixed_segment_fuel(&verified, id(1), id(1), id(40))
+            .expect("the reaching arm still bounds the segment");
+        // bconst 1 + cond edge 1 + arm 2 (jump 1 + return edge 1) = 4;
+        // arm 3 returns through edge 30 and never commits edge 40.
+        assert_eq!(certificate.ceiling_units, 4);
+    }
+
+    /// When no walk commits the endpoint, derivation reports the first
+    /// terminal edge reached in traversal order — the same displacement the
+    /// linear walk reported before arms existed.
+    #[test]
+    fn segment_with_no_reaching_walk_reports_the_first_terminal() {
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, Vec::new(), return_unit(20)),
+                block(3, Vec::new(), return_unit(30)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("two-return machine verifies");
+
+        assert_eq!(
+            derive_fixed_segment_fuel(&verified, id(1), id(1), id(99)),
+            Err(FixedFuelError::SegmentEndNotReached {
+                requested: id(99),
+                reached_terminal: id(20),
+            })
+        );
+    }
+
+    /// An arm looping back into the walk is a real cycle, not a bounded
+    /// segment; derivation still fails closed rather than overcounting
+    /// iterations. Uses the internal surface because an unranked cycle never
+    /// reaches verification.
+    #[test]
+    fn segment_interior_cycle_reports_control_cycle() {
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, Vec::new(), jump(20, 1)),
+                block(3, Vec::new(), jump(21, 4)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let component = terminal_verifier::cyclic_component_identity(&walker, &[id(1), id(2)]);
+        let module = module(1, vec![walker]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared.segment_certificate(id(1), id(40), &mut BTreeMap::new()),
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
+        );
+    }
+
+    /// The safe-point catalog is unchanged by interior traversal: it still
+    /// emits one row per reachable block terminator edge, in canonical order.
+    #[test]
+    fn branched_catalog_still_partitions_at_every_reachable_edge() {
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, vec![integer_constant(12, 13, 0)], jump(20, 4)),
+                block(3, Vec::new(), jump(21, 4)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("diamond machine verifies");
+
+        let rows = derive_fixed_safe_point_segments(&verified, id(1))
+            .expect("complete catalog derives over a diamond");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.start_block, row.end_edge, row.ceiling_units))
+                .collect::<Vec<_>>(),
+            vec![
+                (id(1), id(10), 2),
+                (id(1), id(11), 2),
+                (id(2), id(20), 2),
+                (id(3), id(21), 1),
+                (id(4), id(40), 1),
+            ]
+        );
+    }
+
     /// A `StructuralCase` member's multi-way branch amplifies inside the
     /// component and its exits route through the condensed DAG.
     #[test]
@@ -906,5 +1143,915 @@ mod machine_bounds {
         // members: 2 (cond 1), 3 (1 op + case 1), 8 (jump 1) = 1+2+1 = 4
         // component = 4 * 256 = 1024; bound = 1 + 1024 + 1 = 1026.
         assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(1026));
+    }
+
+    /// A codec-valid `Natural` countdown: entry 1 passes machine parameter
+    /// `initial` into header 2's rank parameter `rank`; 2 conditionally enters
+    /// work 3 (preserving) or exits to return block 4; 3 passes the measured
+    /// `next` value back to 2 (strict descent). Rank values are real
+    /// declarations so the semantic identity validation admits the module.
+    fn ranked_countdown_machine(rank_bits: u16) -> TerminalMachine {
+        let rank_type =
+            IntegerType::new(IntegerSign::Unsigned, rank_bits).expect("fixed unsigned rank");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64, value: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(u128::from(value)),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300, 0)],
+                    jump_with(4, 2, vec![id(300)]),
+                ),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic
+    }
+
+    /// A safe-point row whose endpoint rides the start block's own terminator
+    /// is one traversal of that block: a covered backedge or loop exit is an
+    /// ordinary per-traversal row, not authority to charge the
+    /// rank-multiplied component bound that whole-entry composition uses.
+    /// Uses the internal surface because the verifier requires discharged
+    /// rank obligations that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_safe_point_catalog_charges_single_edge_traversals() {
+        // Per-traversal charges: 1 = jump, 2 = bconst + conditional,
+        // 3 = iconst + jump, 4 = return. The u32 rank amplifies whole-entry
+        // composition only — the catalog rows stay at each block's own visit.
+        let module = module(1, vec![ranked_countdown_machine(32)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        let rows = prepared.derive_catalog().expect("catalog derives");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.start_block, row.end_edge, row.ceiling_units))
+                .collect::<Vec<_>>(),
+            vec![
+                (id(1), id(1), 1),
+                (id(2), id(2), 2),
+                (id(2), id(3), 2),
+                (id(3), id(4), 2),
+                (id(4), id(5), 1),
+            ]
+        );
+    }
+
+    /// A u64 rank bound overflows the whole-entry certificate but cannot
+    /// overflow a per-traversal row: the catalog still derives and every
+    /// ceiling stays at the single-block traversal charge.
+    #[test]
+    fn natural_cycle_u64_catalog_stays_per_traversal_when_entry_overflows() {
+        let module = module(1, vec![ranked_countdown_machine(64)]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::BoundOverflow)
+        );
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        let rows = prepared
+            .derive_catalog()
+            .expect("per-edge segments stay within the u64 schedule");
+        assert_eq!(
+            rows.iter().map(|row| row.ceiling_units).collect::<Vec<_>>(),
+            vec![1, 2, 2, 2, 1]
+        );
+    }
+
+    /// A mid-component segment whose endpoint commits on a member terminator
+    /// still bounds every walk that commits it — but when the component's
+    /// non-end-edge internal graph reaching that member is acyclic, every
+    /// such walk is a single interior pass and the bound is its member-visit
+    /// sum, not the rank-multiplied whole-component charge. In the countdown
+    /// component {2,3}: segment (2, edge 4) is exactly 2 then 3; segment
+    /// (3, edge 2) is exactly 3 then 2.
+    #[test]
+    fn natural_cycle_mid_component_segment_bounds_the_interior_pass() {
+        let module = module(1, vec![ranked_countdown_machine(8)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(4), &mut BTreeMap::new())
+                .expect("header-to-backedge segment derives")
+                .ceiling_units,
+            4,
+            "visit(2) + visit(3), not 256 * member_units"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(2), &mut BTreeMap::new())
+                .expect("work-to-header-edge segment derives")
+                .ceiling_units,
+            4,
+            "visit(3) + visit(2), not 256 * member_units"
+        );
+    }
+
+    /// The same interior-pass bound applies when the walk reaches the
+    /// component from an ordinary predecessor: entry 1 jumps into header 2,
+    /// so segment (1, edge 4) charges visit(1) + visit(2) + visit(3).
+    #[test]
+    fn natural_cycle_entry_to_component_segment_bounds_the_interior_pass() {
+        let module = module(1, vec![ranked_countdown_machine(8)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(4), &mut BTreeMap::new())
+                .expect("entry-to-backedge segment derives")
+                .ceiling_units,
+            5,
+            "visit(1) + visit(2) + visit(3), not 1 + 256 * member_units"
+        );
+    }
+
+    /// The interior bound stays conservative when the endpoint's committing
+    /// member can still be reached through a cycle that avoids the endpoint:
+    /// a walk committing exit edge 3 may iterate 2 -> 3 -> 2 up to the rank
+    /// carrier before leaving, so the segment keeps the rank-multiplied
+    /// component charge rather than a single interior pass.
+    #[test]
+    fn natural_cycle_cyclic_interior_keeps_component_scale_bound() {
+        let module = module(1, vec![ranked_countdown_machine(8)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(3), &mut BTreeMap::new())
+                .expect("work-to-exit segment derives")
+                .ceiling_units,
+            4 * 256,
+            "the surviving 2 -> 3 -> 2 cycle admits rank-bounded revisits"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(3), &mut BTreeMap::new())
+                .expect("entry-to-exit segment derives")
+                .ceiling_units,
+            1 + 4 * 256,
+            "entry edge plus the rank-bounded interior"
+        );
+    }
+
+    /// A codec-valid `Natural` component with a once-only tail: entry 1
+    /// passes machine parameter `initial` into header 2's rank parameter
+    /// `rank`; 2 conditionally enters work 3 (preserving) or exits to
+    /// return block 4; 3 either passes `next` back to 2 (strict) or
+    /// forwards to tail 8 (preserving); 8 passes `last` back to 2
+    /// (strict). Removing endpoint edge 6 leaves 2 -> 3 -> 2 cyclic while
+    /// 8 cannot be re-entered, so interior walks visit 8 at most once.
+    fn cyclic_tail_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let successor =
+            |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                edge: id::<EdgeId>(edge),
+                target: id::<BlockId>(target),
+                arguments,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300)],
+                    Terminator::Conditional {
+                        condition: id(9_000),
+                        when_true: successor(4, 2, vec![id(300)]),
+                        when_false: successor(5, 8, Vec::new()),
+                    },
+                ),
+                block(4, Vec::new(), return_unit(7)),
+                block(
+                    8,
+                    vec![rank_constant(80, 800)],
+                    jump_with(6, 2, vec![id(800)]),
+                ),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3, 8]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(5),
+                        source: id(3),
+                        target: id(8),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(6),
+                        source: id(8),
+                        target: id(2),
+                        successor_rank: id(800),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic
+    }
+
+    /// When the endpoint exclusion leaves once-only members beside the
+    /// surviving cycle, only the re-enterable members keep the rank
+    /// multiplier: component {2,3,8} bounds a segment committing tail
+    /// edge 6 by rank * (visit 2 + visit 3) + visit 8 rather than rank *
+    /// all three member visits. Uses the internal surface because the
+    /// verifier requires discharged rank obligations that a hand-built
+    /// module cannot carry.
+    #[test]
+    fn natural_cycle_once_only_members_leave_the_rank_scale() {
+        let module = module(1, vec![cyclic_tail_machine()]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(6), &mut BTreeMap::new())
+                .expect("mid-component segment derives")
+                .ceiling_units,
+            4 * 256 + 2,
+            "the surviving 2 -> 3 -> 2 cycle at rank scale plus once-only member 8"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(6), &mut BTreeMap::new())
+                .expect("entry-to-commit segment derives")
+                .ceiling_units,
+            1 + 4 * 256 + 2,
+            "entry edge plus the tightened interior"
+        );
+    }
+
+    /// A `Natural` countdown whose work member calls a callee that can only
+    /// crash: entry 1 passes machine parameter `initial` into header 2's
+    /// rank parameter `rank`; 2 conditionally enters work 3 (preserving) or
+    /// exits to return block 4; 3 computes `next`, calls crash-only machine
+    /// 5, and would pass `next` back to 2 (strict). Every traversal of 3
+    /// invokes the call, so a walk that reaches 3 crashes before it can
+    /// commit an exit — member 3 cannot participate in an exit-committing
+    /// segment at all.
+    fn cyclic_crash_member_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        // The call republishes callee 5's Trap route verbatim: a call's
+        // crash continuations must match the callee contract the semantic
+        // identity replays, or the module is malformed before fuel runs.
+        let mut crash_call = call_unit(31, 5);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &mut crash_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300), crash_call],
+                    jump_with(4, 2, vec![id(300)]),
+                ),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        // The caller republishes the Trap route the call propagates:
+        // uncovered continuations are malformed before fuel accounting.
+        semantic.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        semantic
+    }
+
+    /// A `Natural` component whose only exit rides a member no traversal can
+    /// complete: header 2 always re-enters work member 3, and 3's call to
+    /// crash-only machine 5 ends every walk before the exit edge to return
+    /// block 4 can commit. Every admitted walk crashes, so the machine has
+    /// no commit-reachable return even though the crash-inclusive ceiling
+    /// still certifies the whole entry.
+    fn never_returning_cyclic_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let mut crash_call = call_unit(31, 5);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &mut crash_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // Work member 3 carries both the strict backedge and the exit on
+        // its own conditional — its crash-only call means no traversal
+        // completes it, so neither edge can ever commit. The backedge
+        // passes `next` to header 2's rank parameter exactly like the
+        // returning cycle's does.
+        let exit_conditional = {
+            let successor =
+                |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                    edge: id::<EdgeId>(edge),
+                    target: id::<BlockId>(target),
+                    arguments,
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                };
+            Terminator::Conditional {
+                condition: id(9_001),
+                when_true: successor(4, 2, vec![id(300)]),
+                when_false: successor(7, 4, vec![]),
+            }
+        };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 6, 3),
+                },
+                block(
+                    3,
+                    vec![
+                        rank_constant(30, 300),
+                        boolean_constant(32, 9_001, true),
+                        crash_call,
+                    ],
+                    exit_conditional,
+                ),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(6),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        semantic
+    }
+
+    /// Machine-level outcome bounds through the same module preparation the
+    /// certificate derivations use, so tests can pin `returned` and
+    /// `crashed` separately rather than only the merged entry ceiling.
+    fn machine_outcomes(
+        module: &TerminalModule,
+        machine: u64,
+    ) -> super::super::outcome_bounds::OutcomeBounds {
+        let machines = module
+            .machines
+            .iter()
+            .map(|machine| (machine.id, machine))
+            .collect::<BTreeMap<_, _>>();
+        maximum_machine_outcomes(
+            id(machine),
+            &machines,
+            &dynamic_call_targets(module),
+            &boundary_call_candidates(module),
+            TerminalFuelSchedule::CURRENT,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .expect("machine outcomes derive")
+    }
+
+    /// When no member terminator carries the endpoint, a committing walk
+    /// leaves the component through an exit edge — so the interior bound
+    /// covers only the members a committing walk can still traverse, at the
+    /// segment's normal-return accounting. Work member 3 invokes a callee
+    /// that can only crash, so it contributes nothing; the bound keeps
+    /// header 2 at the rank scale rather than charging both members' visit
+    /// units the way the old whole-component charge did: segment
+    /// (2, edge 5) is rank * visit(2) + the exit block, not
+    /// rank * (visit 2 + visit 3). Uses the internal surface because the
+    /// verifier requires discharged rank obligations that a hand-built
+    /// module cannot carry.
+    #[test]
+    fn natural_cycle_exit_segment_drops_members_that_cannot_return() {
+        // callee 5 always crashes (returned: None, crashed: Some(1)); the
+        // contract publishes the Trap route coverage semantic identity
+        // validation requires.
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![cyclic_crash_member_machine(), callee]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(5), &mut BTreeMap::new())
+                .expect("mid-component exit segment derives")
+                .ceiling_units,
+            2 * 256 + 1,
+            "re-enterable header 2 at the u8 rank scale plus the exit block; \
+             member 3 never returns from its call"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(5), &mut BTreeMap::new())
+                .expect("entry-to-exit segment derives")
+                .ceiling_units,
+            1 + 2 * 256 + 1,
+            "entry edge plus the tightened interior"
+        );
+    }
+
+    /// A member whose traversal cannot complete commits none of its
+    /// terminator edges: member 3's call can only crash, so its strict
+    /// backedge 4 is unreachable as an endpoint and a segment naming it
+    /// reports the call that ends every traversal — the same dead end the
+    /// acyclic walk reports — rather than a fabricated interior bound.
+    /// Uses the internal surface because the verifier requires discharged
+    /// rank obligations that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_uncompletable_member_cannot_commit_its_edge() {
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![cyclic_crash_member_machine(), callee]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared.segment_certificate(id(2), id(4), &mut BTreeMap::new()),
+            Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+                block: id(3),
+                callee: id(5),
+            }),
+            "member 3's backedge cannot commit through a crash-only call"
+        );
+        assert_eq!(
+            prepared.segment_certificate(id(1), id(4), &mut BTreeMap::new()),
+            Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+                block: id(3),
+                callee: id(5),
+            }),
+            "the same rejection holds when the walk enters through the entry"
+        );
+    }
+
+    /// The whole-entry ceiling keeps every admitted walk — crash-terminal
+    /// ones included — while the machine's normal-return outcome charges
+    /// only walks that can still commit: member 3's crash-only call drops
+    /// out of `returned` exactly the way it drops out of a committing
+    /// segment, and a caller composing `.returned` inherits the tighter
+    /// figure rather than the crash-inclusive maximum. Uses the internal
+    /// surface because the verifier requires discharged rank obligations
+    /// that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_returned_bound_drops_members_that_can_only_crash() {
+        // callee 5 always crashes (returned: None, crashed: Some(1)); the
+        // contract publishes the Trap route coverage semantic identity
+        // validation requires.
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // caller 7 is a single call to machine 1 followed by a return edge.
+        let caller = machine(
+            7,
+            7,
+            vec![block(7, vec![call_unit(70, 1)], return_unit(7))],
+            None,
+        );
+        let module = module(1, vec![cyclic_crash_member_machine(), callee, caller]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.returned,
+            Some(1 + 2 * 256 + 1),
+            "entry edge, re-enterable member 2 at the u8 rank scale, exit \
+             block — member 3's visit can never return so it charges nothing"
+        );
+        assert_eq!(
+            bounds.crashed,
+            Some(1 + 6 * 256 + 1),
+            "the whole-entry ceiling still counts crash-terminal walks \
+             through member 3"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 6 * 256 + 1),
+            "the certificate bound is unchanged: it covers both outcomes"
+        );
+
+        let caller_bounds = machine_outcomes(&module, 7);
+        assert_eq!(
+            caller_bounds.returned,
+            Some(1 + (1 + 2 * 256 + 1) + 1),
+            "a returning caller composes only the callee's returned bound"
+        );
+        assert_eq!(
+            caller_bounds.crashed,
+            Some(1 + (1 + 6 * 256 + 1)),
+            "the crash walk commits the call then the callee's crash"
+        );
+    }
+
+    /// When a component's only exit rides a member whose visit can never
+    /// complete, no admitted walk returns: the machine's `returned` outcome
+    /// is `None`, the crash-inclusive ceiling still certifies every
+    /// (crash-terminal) execution, and a caller sees the callee honestly —
+    /// its own terminator is unreachable, so it derives no safe-point row
+    /// and reports no returned walk of its own.
+    #[test]
+    fn natural_cycle_without_returning_exit_reports_no_normal_walk() {
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // caller 6 calls the never-returning machine then returns; the call
+        // passes the callee's rank parameter, republishes the Trap route it
+        // propagates, and the caller contract covers it — the same coverage
+        // rule the cyclic machine's call obeys.
+        let mut caller_call = call_unit(60, 1);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            arguments,
+            ..
+        } = &mut caller_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *arguments = vec![id(9_100)];
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let mut caller = machine(
+            6,
+            6,
+            vec![block(
+                6,
+                vec![integer_constant(61, 9_100, 1), caller_call],
+                return_unit(8),
+            )],
+            None,
+        );
+        caller.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![never_returning_cyclic_machine(), callee, caller]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.returned, None,
+            "every traversal reaches member 3's crash-only call"
+        );
+        assert_eq!(
+            bounds.crashed,
+            Some(1 + 7 * 256 + 1),
+            "the ceiling still certifies the crash-terminal walks"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 7 * 256 + 1),
+            "the entry certificate is unaffected by the empty return lane"
+        );
+
+        let caller_bounds = machine_outcomes(&module, 6);
+        assert_eq!(
+            caller_bounds.returned, None,
+            "the caller inherits the callee's honest no-return verdict"
+        );
+        assert_eq!(caller_bounds.crashed, Some(2 + (1 + 7 * 256 + 1)));
+
+        // The unreachable return edge names the call that ends every walk
+        // rather than fabricating an interior bound through member 3's exit.
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared.segment_certificate(id(1), id(5), &mut BTreeMap::new()),
+            Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+                block: id(3),
+                callee: id(5),
+            }),
+            "the exit edge rides a member no traversal can complete"
+        );
+
+        let caller_prepared =
+            PreparedSegments::new(&subject, id(6)).expect("caller machine prepares");
+        assert!(
+            caller_prepared
+                .derive_catalog()
+                .expect("catalog derives")
+                .is_empty(),
+            "a block whose call can never return has no reachable terminator \
+             and publishes no safe-point segment"
+        );
     }
 }

@@ -1,0 +1,118 @@
+{
+  "purpose": "Identical pinned positive/negative subjects for the matching-logic slice comparison (wiki/drafts/matching_logic.md). Each negative declares its positive twin in its header comment; the pairs exercise the same proposition surface so any checker comparison runs the same subject on both routes.",
+  "surface": "bare-file compile via `omega --check <dir>/main.omg` \u2014 positive must exit 0; negative must exit nonzero and emit the recorded expected diagnostic fragment (same contract as the fail corpus's expected.txt).",
+  "pairs": [
+    {
+      "subject": "add_comm",
+      "positive": "tests/omega/pass/proofs/proof_addition_commutativity/main.omg",
+      "negative": "tests/omega/fail/proofs/addition_commutativity_false_twin/main.omg",
+      "expected_fragment": "is disproved by constant arithmetic",
+      "heavy": false
+    },
+    {
+      "subject": "bag_view",
+      "positive": "tests/omega/pass/proofs/proof_bag_view_reflexivity/main.omg",
+      "negative": "tests/omega/fail/proofs/bag_view_false_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract for exit from false_bag_distinct",
+      "heavy": false
+    },
+    {
+      "subject": "congruence",
+      "positive": "tests/omega/pass/proofs/proof_congruence_add_constant/main.omg",
+      "negative": "tests/omega/fail/proofs/congruence_false_twin/main.omg",
+      "expected_fragment": "is disproved by constant arithmetic",
+      "heavy": false
+    },
+    {
+      "subject": "constant_equation",
+      "positive": "tests/omega/pass/proofs/proof_constant_arithmetic_identity/main.omg",
+      "negative": "tests/omega/fail/proofs/constant_equation_refuted/main.omg",
+      "expected_fragment": "cannot prove ensures contract for exit from false_constant_equation at statement 0: false",
+      "heavy": false
+    },
+    {
+      "subject": "climbing_sum_step",
+      "positive": "tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg",
+      "negative": "tests/omega/fail/proofs/inductive_climbing_sum_step_false_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit == true`",
+      "heavy": false
+    },
+    {
+      "subject": "climbing_sum_unbounded",
+      "positive": "tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg",
+      "negative": "tests/omega/fail/proofs/inductive_climbing_sum_unbounded_accumulator/main.omg",
+      "expected_fragment": "transition argument may overflow `u64`: the operands are not provably in range",
+      "heavy": false
+    },
+    {
+      "subject": "gauss_sum",
+      "positive": "tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg",
+      "negative": "tests/omega/fail/proofs/inductive_gauss_sum_false_twin/main.omg",
+      "expected_fragment": "is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation",
+      "heavy": false
+    },
+    {
+      "subject": "gauss_sum_step",
+      "positive": "tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg",
+      "negative": "tests/omega/fail/proofs/inductive_gauss_sum_step_false_twin/main.omg",
+      "expected_fragment": "is disproved on the transition arm guarded by `n > 0 == true`",
+      "heavy": false
+    },
+    {
+      "subject": "kernel_theorem_equality",
+      "positive": "tests/omega/pass/proofs/kernel_theorem_equality_certificates/main.omg",
+      "negative": "tests/omega/fail/proofs/kernel_theorem_equality_false_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract proof fact `b == c` from the requires contract",
+      "heavy": true
+    },
+    {
+      "subject": "linear_range_sum",
+      "positive": "tests/omega/pass/proofs/proof_linear_range_sum/main.omg",
+      "negative": "tests/omega/fail/proofs/linear_range_sum_false_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract proof fact",
+      "heavy": false
+    },
+    {
+      "subject": "nonlinear_square_range",
+      "positive": "tests/omega/pass/proofs/proof_nonlinear_square_range/main.omg",
+      "negative": "tests/omega/fail/proofs/nonlinear_square_range_false_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract proof fact",
+      "heavy": false
+    },
+    {
+      "subject": "order_antisymmetry",
+      "positive": "tests/omega/pass/proofs/proof_order_antisymmetry/main.omg",
+      "negative": "tests/omega/fail/proofs/order_antisymmetry_false_twin/main.omg",
+      "expected_fragment": "is disproved: the requires contract entails its negation",
+      "heavy": false
+    },
+    {
+      "subject": "order_asymmetry",
+      "positive": "tests/omega/pass/proofs/proof_order_transitivity/main.omg",
+      "negative": "tests/omega/fail/proofs/order_asymmetry_refuted/main.omg",
+      "expected_fragment": "is disproved: the requires contract entails its negation",
+      "heavy": false
+    },
+    {
+      "subject": "order_transitivity",
+      "positive": "tests/omega/pass/proofs/proof_order_transitivity/main.omg",
+      "negative": "tests/omega/fail/proofs/order_transitivity_false_twin/main.omg",
+      "expected_fragment": "is disproved: the requires contract entails its negation",
+      "heavy": false
+    },
+    {
+      "subject": "ranked_accumulator",
+      "positive": "tests/omega/pass/proofs/runtime_ranked_accumulator_guarantee_exit/main.omg",
+      "negative": "tests/omega/fail/proofs/ranked_accumulator_guarantee_wrong_step_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract for exit from descend at statement 1: result <= previous; no exact incoming reference origin for previous",
+      "heavy": true
+    },
+    {
+      "subject": "remainder_range",
+      "positive": "tests/omega/pass/proofs/proof_remainder_range/main.omg",
+      "negative": "tests/omega/fail/proofs/remainder_range_false_twin/main.omg",
+      "expected_fragment": "cannot prove ensures contract proof fact",
+      "heavy": false
+    }
+  ]
+}

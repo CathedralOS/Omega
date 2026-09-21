@@ -361,34 +361,64 @@ pub(super) fn retained(
         return false;
     };
     let mut runtime_path = Vec::with_capacity(path.len());
-    for segment in path {
-        let semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) = segment else {
-            return false;
-        };
-        let Some(declaration) = target
-            .graph
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == carrier)
-        else {
-            return false;
-        };
-        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return false;
-        };
-        let Some(selected) = fields
-            .iter()
-            .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
-        else {
-            return false;
-        };
-        let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type else {
-            return false;
-        };
-        runtime_path.push(terminal_psi::StructuralPathSegment::Field(
-            selected.identity.clone(),
-        ));
-        carrier = child;
+    for (position, segment) in path.iter().enumerate() {
+        match segment {
+            semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
+                let Some(declaration) = target
+                    .graph
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == carrier)
+                else {
+                    return false;
+                };
+                let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape
+                else {
+                    return false;
+                };
+                let Some(selected) = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
+                else {
+                    return false;
+                };
+                let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type
+                else {
+                    return false;
+                };
+                runtime_path.push(terminal_psi::StructuralPathSegment::Field(
+                    selected.identity.clone(),
+                ));
+                carrier = child;
+            }
+            // The bounded carrier grammar ends with at most one literal
+            // index: the fixed-array element is the record owning the
+            // observed field. The bound is rechecked against the declared
+            // extent rather than trusted from the producer.
+            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
+                if position + 1 == path.len() =>
+            {
+                let Some(declaration) = target
+                    .graph
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == carrier)
+                else {
+                    return false;
+                };
+                let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
+                    &declaration.shape
+                else {
+                    return false;
+                };
+                if index >= length {
+                    return false;
+                }
+                runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
+                carrier = *element;
+            }
+            _ => return false,
+        }
     }
     let expected_source = StructuralArgument {
         place,

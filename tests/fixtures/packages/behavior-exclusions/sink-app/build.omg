@@ -4,7 +4,7 @@
 machine build(builder: &mut Build) {
     builder.application("sink-app");
     builder.depend(Source::Path { location: "../logger-kit" });
-    builder.select_provider<Sink, QuietSink>();
+    builder.select_provider<logger_kit::main::Sink, logger_kit::main::QuietSink>();
     builder.exclude_service<Sink>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

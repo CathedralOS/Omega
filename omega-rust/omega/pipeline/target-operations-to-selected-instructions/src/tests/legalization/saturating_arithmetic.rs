@@ -40,6 +40,40 @@ fn saturating_binary_inputs(
     TargetOperationPlan,
     PsiOptimizationUnit,
 ) {
+    let operands = (value(1), value(2));
+    binary_inputs(
+        integer,
+        native,
+        if adds {
+            AbstractOperation::SaturatingIntegerAdd {
+                psi_operation: OperationId::new(1).unwrap(),
+                result: value(3),
+                scalar_type: integer,
+                left: operands.0,
+                right: operands.1,
+            }
+        } else {
+            AbstractOperation::SaturatingIntegerSubtract {
+                psi_operation: OperationId::new(1).unwrap(),
+                result: value(3),
+                scalar_type: integer,
+                left: operands.0,
+                right: operands.1,
+            }
+        },
+    )
+}
+
+/// One two-parameter integer operation producing `value(3)`, returned directly.
+fn binary_inputs(
+    integer: IntegerType,
+    native: NativeTarget,
+    operation: AbstractOperation,
+) -> (
+    AbstractOperationPlan,
+    TargetOperationPlan,
+    PsiOptimizationUnit,
+) {
     let scalar_type = ScalarType::Integer(integer);
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let function = &mut source.functions[0];
@@ -51,23 +85,7 @@ fn saturating_binary_inputs(
         scalar_type,
     });
     function.operations = vec![
-        if adds {
-            AbstractOperation::SaturatingIntegerAdd {
-                psi_operation: OperationId::new(1).unwrap(),
-                result: value(3),
-                scalar_type: integer,
-                left: value(1),
-                right: value(2),
-            }
-        } else {
-            AbstractOperation::SaturatingIntegerSubtract {
-                psi_operation: OperationId::new(1).unwrap(),
-                result: value(3),
-                scalar_type: integer,
-                left: value(1),
-                right: value(2),
-            }
-        },
+        operation,
         AbstractOperation::Return {
             psi_edge: EdgeId::new(1).unwrap(),
             result: value(4),
@@ -205,5 +223,52 @@ fn non_native_carriers_are_not_saturating_carriers() {
             SaturatingCarrier::from_integer(carrier.integer_type()),
             Some(carrier)
         );
+    }
+}
+
+/// Saturating multiplication is lowered to target operations but has no
+/// legalized scalar kind at any carrier, so it is the reachable witness the
+/// `UnsupportedScalarOperation` classification exists for. Node admission must
+/// refuse it by name — returning the rejected operation and its machine for the
+/// compile diagnostic — rather than panicking, silently dropping the row, or
+/// collapsing into the `SourceCustodyMismatch` producer-defect spelling.
+#[test]
+fn saturating_multiply_reports_the_unsupported_family_with_its_operation() {
+    for native in hosted_targets() {
+        for carrier in SaturatingCarrier::ALL {
+            let integer = carrier.integer_type();
+            let (source, target, unit) = binary_inputs(
+                integer,
+                native,
+                AbstractOperation::SaturatingIntegerMultiply {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: value(3),
+                    scalar_type: integer,
+                    left: value(1),
+                    right: value(2),
+                },
+            );
+            let error = legalize_target_operations(&target, &source, &unit)
+                .expect_err("saturating multiply has no legalized scalar kind");
+            let crate::LegalizationError::UnsupportedScalarOperation { machine, operation } =
+                &error
+            else {
+                panic!("{native:?} {carrier:?} reported {error:?}");
+            };
+            assert_eq!(*machine, source.functions[0].machine);
+            assert!(
+                matches!(
+                    operation,
+                    AbstractOperation::SaturatingIntegerMultiply { .. }
+                ),
+                "{native:?} {carrier:?} retained {operation:?}"
+            );
+            // The retained operation reaches the compile diagnostic through
+            // this rendering; an abort would never produce a message at all.
+            assert!(
+                format!("{error}").contains("no legal scalar instruction"),
+                "{native:?} {carrier:?} rendered {error}"
+            );
+        }
     }
 }

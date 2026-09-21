@@ -1,7 +1,8 @@
 //! Emit a composed callee using the enclosing closure's catalogs and identities.
 use super::super::super::{
     BoundaryMachineId, LoweredSourceCallOccurrence, MachineId, ServiceDeclaration, ServiceId,
-    ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    ServiceReachId, StructuralDomainDeclaration, StructuralParameterDeclaration,
+    StructuralTypeDeclaration,
 };
 use super::super::{
     BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, ScalarType, SemanticDomainId,
@@ -35,6 +36,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(String, StructuralTypeId)],
+    pub structural_domains: &'a [StructuralDomainDeclaration],
     pub domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
     pub services: &'a [ServiceDeclaration],
     pub service_ids: &'a [(ServiceReachId, ServiceId)],
@@ -132,6 +134,7 @@ pub(in crate::unit::attached_unit) fn emit(
         result_places: Vec::new(),
         structural_types: Cow::Borrowed(shared.structural_types),
         type_ids: Cow::Borrowed(shared.type_ids),
+        structural_domains: Cow::Borrowed(shared.structural_domains),
         domain_ids: Cow::Borrowed(shared.domain_ids),
         services: Cow::Borrowed(shared.services),
         root_service_reach: Cow::Borrowed(shared.root_service_reach),

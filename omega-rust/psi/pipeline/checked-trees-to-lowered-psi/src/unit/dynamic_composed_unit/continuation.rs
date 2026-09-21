@@ -367,7 +367,7 @@ pub(super) fn lower(
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
             structural_types: catalogs.structural_types.into_owned(),
-            structural_domains: Vec::new(),
+            structural_domains: catalogs.structural_domains.into_owned(),
             services: catalogs.services.into_owned(),
             root_service_reach: catalogs.root_service_reach.into_owned(),
             placed_view_inputs: Vec::new(),

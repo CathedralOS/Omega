@@ -443,6 +443,60 @@ pub(super) fn emit_call_operations(
             )?;
             continue;
         }
+        if let CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+            statement_index,
+            destination,
+            path,
+            index,
+            value,
+        } = operation
+        {
+            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+                destination
+            else {
+                return unsupported(
+                    "composed indexed primitive store has no retained parameter destination",
+                );
+            };
+            let parameter =
+                parameters
+                    .get(*parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "composed indexed primitive store parameter is absent",
+                    ))?;
+            let destination = crate::emission::primitive_store::indexed_parameter_destination(
+                parameter,
+                path,
+                &catalogs.structural_types,
+            )?;
+            let mut calls = catalogs.scalar_calls.emission_context();
+            let kind = crate::emission::primitive_store::emit_indexed_assignment(
+                checked,
+                machine,
+                state.state,
+                *statement_index,
+                destination,
+                index,
+                value,
+                evaluation,
+                values.len(),
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                &mut calls,
+            )?;
+            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            let id = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                id,
+                result: OperationResult::Unit,
+                kind,
+            });
+            continue;
+        }
         if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
             destination,
@@ -583,24 +637,46 @@ pub(super) fn emit_call_operations(
                     operations,
                 )?
             }
-            CheckedUnitEffectOperationPlan::ScalarCall { .. } => emit_scalar_call_operation(
-                checked,
-                state,
-                operation,
-                parameters,
-                &catalogs.type_ids,
-                &catalogs.domain_ids,
-                claim_bindings,
-                &catalogs.structural_types,
-                arguments.as_deref(),
-                erased_parameters,
-                &mut catalogs.scalar_calls,
-                &byte_argument_places,
-                &catalogs.result_places,
-                values,
-                next_value,
-                operations,
-            )?,
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate, result, ..
+            } => {
+                let position = values.len();
+                emit_scalar_call_operation(
+                    checked,
+                    state,
+                    operation,
+                    parameters,
+                    &catalogs.type_ids,
+                    &catalogs.domain_ids,
+                    claim_bindings,
+                    &catalogs.structural_types,
+                    arguments.as_deref(),
+                    erased_parameters,
+                    &mut catalogs.scalar_calls,
+                    &byte_argument_places,
+                    &catalogs.result_places,
+                    values,
+                    next_value,
+                    operations,
+                )?;
+                // A retained call result is the next dense value, so it also
+                // enters the source binding namespace at its checked ordinal,
+                // exactly like an established scalar local. A discarded result
+                // occupies no source position; call leaves without a prepared
+                // namespace resolve ordinals through the dense identity map.
+                if !crate::emission::call_source_custody::initializers::discards_result(
+                    checked,
+                    state.state,
+                    *coordinate,
+                )? && let Some(bindings) = evaluation.scalar_bindings.as_mut()
+                {
+                    bindings.append(
+                        checked_trees::CheckedScalarBindingDestination::Immutable,
+                        terminal_scalar_type(result.primitive_type)?,
+                        position,
+                    )?;
+                }
+            }
             _ => return unsupported("composed Unit operation escaped exact call custody"),
         }
         if let CheckedUnitEffectOperationPlan::StructuralCall {

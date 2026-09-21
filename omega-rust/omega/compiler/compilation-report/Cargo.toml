@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+artifacts = { path = "../../tooling/artifacts" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 build-evaluation = { path = "../../build/build-evaluation" }
@@ -24,7 +25,9 @@ function-identity = { path = "../../representations/function-identity" }
 image = { path = "../../backend/images/image" }
 image-macho = { path = "../../backend/images/image-macho" }
 image-pe = { path = "../../backend/images/image-pe" }
+isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
 numerics = { path = "../../../psi/foundation/numerics" }
 package-compilation = { path = "../../build/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
@@ -40,4 +43,5 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 arena = { path = "../../../psi/foundation/arena" }
+optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }
 object-file = { path = "../../backend/object/object-file" }

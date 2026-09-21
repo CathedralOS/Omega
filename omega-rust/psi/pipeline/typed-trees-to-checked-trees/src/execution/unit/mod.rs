@@ -153,6 +153,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod borrowed_windows;
 pub(crate) mod calls;
 mod candidate_closure;
 mod cleanup;
@@ -190,8 +191,8 @@ use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
 use structural_scalar_store::build_structural_scalar_field_store;
-pub(crate) use types::strips_erased_parameter;
 use types::*;
+pub(crate) use types::{is_reference, strips_erased_parameter, structural_parameter_candidate};
 
 /// Scalar callees available to this planning pass, independent of published facts.
 #[derive(Clone, Copy)]
@@ -463,7 +464,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     for machine in program
         .machines()
         .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        // A bodied `boundary machine` is a checked adapter: its body is
+        // authored in-package, so it competes as an ordinary Unit candidate.
+        .filter(|machine| {
+            machine.supply_mode == MachineSupplyMode::CheckedBody
+                || (machine.supply_mode == MachineSupplyMode::Boundary && machine.body_is_present)
+        })
     {
         let trace = LocalConstructionTrace::default();
         match build_checked_machine_traced(
@@ -902,7 +908,14 @@ impl OmissionLedger {
         let unplanned = program
             .machines()
             .iter()
-            .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+            // Same roster as the candidate scan above: a bodied `boundary
+            // machine` adapter competes as an ordinary candidate, so its
+            // local-construction failure must name a row too.
+            .filter(|machine| {
+                machine.supply_mode == MachineSupplyMode::CheckedBody
+                    || (machine.supply_mode == MachineSupplyMode::Boundary
+                        && machine.body_is_present)
+            })
             .filter(|machine| !ledger.admitted.contains(&omission_key(machine.symbol)))
             .map(|machine| machine.symbol)
             .collect::<Vec<_>>();

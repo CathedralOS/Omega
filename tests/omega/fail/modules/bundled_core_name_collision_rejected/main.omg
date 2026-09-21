@@ -1,0 +1,9 @@
+// The bundled toolchain owns the `omega::language` namespace: this fixture's
+// own `omega/language/core/marker.omg` sits below the source root where a
+// requester-local path would resolve, so the import cannot reach it -- the
+// collision is named rather than silently shadowed.
+use omega::language::core::marker;
+
+data Main {}
+
+machine Main::main(&mut self) {}

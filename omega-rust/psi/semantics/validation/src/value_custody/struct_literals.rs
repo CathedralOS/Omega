@@ -477,7 +477,12 @@ fn validate_literal_field_names(
         )));
         return;
     }
-    if data_definition.type_parameters.count() > 0 {
+    // A `Value` binder keeps its index as an implicit leading field, so an
+    // all-value-parametered data type still constructs against concrete
+    // member types and owes its `where` facts at this gate. Type, `const`,
+    // and machine parameters defer the literal's member types to
+    // instantiation and stay exempt here.
+    if !field_obligations::construction_members_are_concrete(program, data_definition) {
         return;
     }
     for field in program.expression_table.struct_fields(literal.fields) {
@@ -556,6 +561,7 @@ fn validate_literal_field_names(
                 machine,
                 state,
                 literal,
+                data_definition,
                 case_name.as_str(),
                 variant,
                 diagnostics,

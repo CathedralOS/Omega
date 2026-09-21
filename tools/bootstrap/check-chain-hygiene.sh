@@ -167,6 +167,49 @@ require_delta_compiler_identity
 require_epsilon_evaluator_identity
 require_omega_compiler_identity
 
+# Every gate-local subject bound in the manifest env — each omega-* gate's
+# customer entry and the request fixture — packs on top of the bound compiler
+# prefix and is a separate bound input, never part of the manifested members.
+# These checks bind the local subjects to the same size and digest records
+# each gate's run.sh verifies before packing, so a substituted or drifted
+# gate-local subject refuses here exactly as a substituted manifest does.
+require_omega_parser_entry_identity
+require_omega_outcome_entry_identity
+require_omega_request_entry_identity
+require_omega_request_fixture_identity
+require_omega_executable_entries_identity
+
+# The manifest's gate-local digests are one subject recorded twice: the bound
+# pin above and the gate's own record of the same subject. The executable
+# gate repins every entry in its README; the single-entry gates repin entry
+# and fixture digests in both README.md and gate.py. Refuse when a record
+# that claims the subject lacks its bound digest — the records are the same
+# pin, not independent identities.
+for bound_record in \
+  "$OMEGA_PARSER_ENTRY_SHA256 tests/bootstrap/omega-parser/README.md" \
+  "$OMEGA_PARSER_ENTRY_SHA256 tests/bootstrap/omega-parser/gate.py" \
+  "$OMEGA_OUTCOME_ENTRY_SHA256 tests/bootstrap/omega-outcome/README.md" \
+  "$OMEGA_OUTCOME_ENTRY_SHA256 tests/bootstrap/omega-outcome/gate.py" \
+  "$OMEGA_REQUEST_ENTRY_SHA256 tests/bootstrap/omega-request/README.md" \
+  "$OMEGA_REQUEST_ENTRY_SHA256 tests/bootstrap/omega-request/gate.py" \
+  "$OMEGA_REQUEST_FIXTURE_SHA256 tests/bootstrap/omega-request/README.md" \
+  "$OMEGA_REQUEST_FIXTURE_SHA256 tests/bootstrap/omega-request/gate.py" \
+  "$OMEGA_EXECUTABLE_MAIN_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_B_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_C_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_D_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_E_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md" \
+  "$OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256 tests/bootstrap/omega-executable/README.md"
+do
+  set -- $bound_record
+  grep -Fq "$1" "$OMEGA_REPO_ROOT/$2" ||
+    fail "bound gate-local digest is absent from the gate's own record: $2"
+done
+
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_EPSILON_COMPILER" \

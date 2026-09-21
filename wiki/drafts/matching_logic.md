@@ -72,6 +72,27 @@ All evidence retains logical fragment, rule/semantics versions, exact subject,
 target capsule, observation profile, bridge graph, and admissions. The paper's
 completeness theorem supplies no Omega authority merely by being cited.
 
+### Measured record
+
+`tools/matching-logic-metrics/run_metrics.py` produces the versioned record the
+measurement list above requires (schema `omega-matching-logic-comparison/1`,
+committed under `tools/matching-logic-metrics/records/`). At revision
+`649d7ca380` the current route measured: admission kernel 26,461 non-test
+source lines across 48 files; certificate translation 5,251 lines; the trusted
+derivation still deciding certificate-uncovered legs 5,566 lines; and an
+accepted-rule inventory of 62 named variants (23 `ProofRule` node rules, 23
+`AcceptedProofRule` families, 4 `PrimitiveJudgment` values, 2 obligation
+classes, 3 evidence routes, 3 accepted-fact routes, 4 classicality
+foundations). Median `compile` phase over the 20 identical-subject pinned
+pairs (44 cases: 20 accept, 24 reject; three documented exclusions in
+`pinned_cases.json` for fixtures that need reviewed package bindings or
+exceed a dev-host budget) was ~16 ms per check on one linux x86-64 dev host.
+Per-obligation certificate nodes and bytes are not emitted on that revision;
+the record marks the axis `unavailable` rather than guessing, and the harness
+captures `OMEGA_PROOF_MEASUREMENTS` lines automatically once the
+proof-search-measurement surface lands. `route.matching_logic_encoding` stays
+`pending` until the bounded slice exists.
+
 ## Possible outcomes and alternatives
 
 A future comparison might motivate an untrusted proof producer, an independent

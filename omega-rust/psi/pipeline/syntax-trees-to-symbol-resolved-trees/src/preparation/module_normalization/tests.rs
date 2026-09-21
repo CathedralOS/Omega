@@ -387,6 +387,19 @@ fn module_domains_and_operators_lower_under_their_namespace() {
     }
 }
 
+/// Declared-domain proof facts take the same selection route: a qualified
+/// case spelling inside a module-owned domain's `requires` clause reaches
+/// the exact declared case rather than rejecting for want of a root-scope
+/// name.
+#[test]
+fn module_domain_facts_admit_qualified_case_membership() {
+    let syntax = parse(&[
+        "module lib; pub data Outcome { tag: u32; case Empty; case Value(item: u32); } pub data Holder { outcome: Outcome; } pub domain Holder::Used requires self.outcome in lib::Outcome::Value;",
+    ]);
+    crate::resolve(crate::ResolutionRequest::new(&syntax))
+        .expect("qualified case membership in a declared-domain fact resolves");
+}
+
 /// Module-owned `IntervalSet`/`CountedQuantity` declarations are ordinary
 /// user templates: the content-algebra exemption covers only the unmoduled
 /// declarations a bare algebra spelling can select, so a qualified or

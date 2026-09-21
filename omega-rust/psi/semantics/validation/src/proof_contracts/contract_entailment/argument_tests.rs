@@ -107,6 +107,53 @@ fn argument(
 }
 
 #[test]
+fn exact_argument_widening_does_not_change_other_strict_reader_languages() {
+    let source = "machine caller(input: u8) -> u64 { input as u64 }";
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let program =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let machine = &program.machines()[0];
+    let parameter = &program.state_parameters(&program.machine_states(machine)[0])[0];
+    let cast = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(handle, expression)| {
+            matches!(expression, ExpressionNode::Cast(_)).then_some(handle)
+        })
+        .unwrap();
+    let bindings = [StrictArithmeticSymbolBinding {
+        symbol: parameter.symbol,
+        value: StrictArithmeticBindingValue::Atom {
+            identity: "input".to_owned(),
+            unsigned: true,
+        },
+    }];
+    let mut engine = super::arithmetic_judgment::Engine::strict_with_symbol_bindings(
+        &program, machine, &bindings,
+    );
+    let arguments = [argument(SymbolHandle::from_arena_index(10001), cast)];
+    assert!(engine.normalize(cast).is_none());
+    assert!(!engine.bind_strict_arguments(&arguments));
+    assert!(engine.bind_exact_arguments(&arguments));
+    assert!(
+        engine.normalize(cast).is_none(),
+        "successful capture restores the ordinary language"
+    );
+    assert!(!engine.bind_exact_arguments(&[argument(SymbolHandle::invalid(), cast)]));
+    assert!(
+        engine.normalize(cast).is_none(),
+        "failed capture also restores the ordinary language"
+    );
+}
+
+#[test]
 fn arithmetic_arguments_transport_nontrivial_lower_and_upper_bounds() {
     for (operator, operand, lower, upper) in [
         (BinaryOperator::Add, 3, 5, 7),

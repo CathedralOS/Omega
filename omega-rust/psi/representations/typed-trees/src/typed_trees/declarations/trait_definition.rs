@@ -16,6 +16,13 @@ pub struct TraitDefinition {
     pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
     pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
+    /// The `= Base` head of a transparent refinement. A refinement is a
+    /// structural bound over an existing base conformance, never a nominal
+    /// conformance target; `None` marks an ordinary trait.
+    pub refines: Option<TraitRequirement>,
+    /// `machine *` / `machine Base::requirement` narrowing clauses carrying
+    /// operational axes only (`reaches`, `suspends`, `blocks`, `terminates`).
+    pub refinement_clauses: Vec<TraitRefinementClause>,
 }
 
 impl Default for TraitDefinition {
@@ -30,8 +37,24 @@ impl Default for TraitDefinition {
             conformance_bounds: Vec::new(),
             requires: HandleSpan::empty(),
             machines: HandleSpan::empty(),
+            refines: None,
+            refinement_clauses: Vec::new(),
         }
     }
+}
+
+/// One `machine *` or `machine Base::requirement` narrowing clause of a
+/// transparent refinement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitRefinementClause {
+    /// The authored base requirement name; `None` for the `machine *`
+    /// wildcard covering every base requirement.
+    pub requirement: Option<Identifier>,
+    /// Operational axes only.
+    pub signature: StateSignature,
+    /// Authored `reaches` names retained until the bound fit check consumes
+    /// them; clause reach rows are not interned with signature reach rows.
+    pub service_reaches: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

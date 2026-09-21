@@ -192,8 +192,14 @@ machine MacosArm64::extent_shape(shape: ValueShape, signature: &BoundarySignatur
     }
     state record(shape: ValueShape, first_field: u64, field_count: u64, signature: &BoundarySignature) -> bool {
         transition shape.byte_size == 16 && shape.alignment == 8
-            && field_count == 2 && first_field < 255
+            && field_count == 2
         {
+            true -> record_bounded(signature, first_field)
+            _ -> no()
+        }
+    }
+    state record_bounded(signature: &BoundarySignature, first_field: u64) -> bool {
+        transition first_field < 255 {
             true -> field_range(signature, first_field)
             _ -> no()
         }

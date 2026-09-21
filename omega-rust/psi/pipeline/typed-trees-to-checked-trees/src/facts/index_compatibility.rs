@@ -623,6 +623,20 @@ fn literal_element_type(
 /// ordinary index-compatibility treatment above, including the distinct
 /// normalized instance refusal, and a predicate-bearing domain keeps its
 /// `checks/contracts/writes.rs` discharge untouched.
+///
+/// A semantic-domain cast is the other introduction surface the same write
+/// must not seed from: `x as T in D` mints a predicate-free, route-free family
+/// instance unconditionally (validation's staged mint fence judges only
+/// predicate-bearing or routed domains). Minting remains the sanctioned
+/// introduction on carriers whose domain set is all tag-style qualifications
+/// (a `Region::Left -> Region::Right` retag, a scalar's `Wrapping`), but on a
+/// custody-marked carrier -- one that already declares a predicate-bearing or
+/// `established by`-routed domain, like `Extent` with `Granted` -- a vacuous
+/// family is a member of a managed custody system, not a tag namespace:
+/// `Resident<P, T>` and `Vacant` assert facts about who owns the range, and
+/// `placed_access.md` fixes `Resident`'s route set while no declaration on
+/// `Extent` authorizes an `as` mint. Until such a family declares its
+/// qualification-carrier route, the only establishment is refusal.
 #[allow(clippy::too_many_arguments)]
 fn append_unevidenced_establishment_diagnostics(
     program: &TypedTrees,
@@ -634,6 +648,18 @@ fn append_unevidenced_establishment_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     unresolved: &mut Vec<CompatibilityKey>,
 ) {
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(value) {
+        append_unevidenced_cast_mint_diagnostic(
+            program,
+            cast,
+            value,
+            target_type,
+            point,
+            diagnostics,
+            unresolved,
+        );
+        return;
+    }
     if !matches!(
         program.expression_table.expression(value),
         ExpressionNode::Call(_)
@@ -673,6 +699,112 @@ fn append_unevidenced_establishment_diagnostics(
             point_label(program, point),
         )));
     }
+}
+
+/// A semantic-domain cast whose introduced family is a predicate-free,
+/// route-free domain declared over a custody-marked carrier mints managed
+/// state the caller never produced. Tag-style minting on carriers whose
+/// domains are all vacuous keeps the staged `as` surface; on a carrier with
+/// any predicate-bearing or routed domain the vacuous member's qualification
+/// names custody state, so the write must refuse the value the cast minted.
+fn append_unevidenced_cast_mint_diagnostic(
+    program: &TypedTrees,
+    cast: &typed_trees::expression::TableCastExpression,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    point: ProgramPoint,
+    diagnostics: &mut Vec<Diagnostic>,
+    unresolved: &mut Vec<CompatibilityKey>,
+) {
+    if !cast.semantic_domain_symbol.is_valid() {
+        return;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == cast.semantic_domain_symbol)
+    else {
+        return;
+    };
+    if domain.predicate_body.is_present() || !domain.establishment_routes.is_empty() {
+        return;
+    }
+    if !domain_target_is_custody_marked(program, domain.target_type) {
+        return;
+    }
+    let key = CompatibilityKey {
+        point,
+        value,
+        target_type,
+        family: cast.semantic_domain_symbol,
+        actual: SemanticDomainId::NULL,
+        expected: cast.semantic_domain_id,
+    };
+    if unresolved.contains(&key) {
+        return;
+    }
+    unresolved.push(key);
+    diagnostics.push(Diagnostic::error(format!(
+        "declared instance `{}` has no establishment: `as` mints an instance of \
+         domain family `{}` on custody-marked carrier `{}` -- the family \
+         declares no predicate body and no `establishment` route, and a \
+         carrier that already route-manages a domain does not admit a minted \
+         member; the instance must come from an establishing call, an \
+         `established by` route, or the family's declared qualification-carrier \
+         route (at {})",
+        qualification_label(program, cast),
+        family_label(&qualification_label(program, cast)),
+        carrier_label(program, domain.target_type),
+        point_label(program, point),
+    )));
+}
+
+/// Whether the type a domain is declared over already carries a
+/// predicate-bearing or `established by`-routed domain: such a carrier's
+/// qualifications are route-managed custody state, so a predicate-free,
+/// route-free member cannot be introduced by `as`. Constrained or borrowed
+/// spellings of the carrier unwrap to the named root the domains attach to.
+fn domain_target_is_custody_marked(program: &TypedTrees, target_type: TypeReferenceHandle) -> bool {
+    let mut type_reference = target_type;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => {
+                if !symbol.is_valid() {
+                    return false;
+                }
+                return program.domain_definitions().iter().any(|domain| {
+                    domain_carrier_symbol(program, domain.target_type) == Some(*symbol)
+                        && (domain.predicate_body.is_present()
+                            || !domain.establishment_routes.is_empty())
+                });
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// The named carrier symbol a domain declaration attaches to, unwrapping
+/// constrained or borrowed spellings.
+fn domain_carrier_symbol(
+    program: &TypedTrees,
+    target_type: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    let mut type_reference = target_type;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => return Some(*symbol),
+            _ => return None,
+        }
+    }
+}
+
+/// Display spelling of a domain's declared carrier for the mint diagnostic.
+fn carrier_label(program: &TypedTrees, target_type: TypeReferenceHandle) -> String {
+    program.display_type_reference(target_type)
 }
 
 /// The family spelling inside an instance label: `Resident<SlotPlacement, Slot>`
@@ -1037,11 +1169,10 @@ pub(crate) fn bound_index_substitutions(
         };
         match slot {
             Slot::Const => {
-                if let Some(parameter) = const_parameters.get(const_index) {
-                    if let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
-                    {
-                        substitutions.push((parameter.symbol, bound));
-                    }
+                if let Some(parameter) = const_parameters.get(const_index)
+                    && let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
+                {
+                    substitutions.push((parameter.symbol, bound));
                 }
                 const_index += 1;
             }
@@ -1793,6 +1924,9 @@ fn instance_from_constraint(program: &TypedTrees, domain: &DomainConstraint) -> 
 }
 
 fn domain_label(program: &TypedTrees, name: &str, arguments: &[TypeReferenceHandle]) -> String {
+    if arguments.is_empty() {
+        return name.to_owned();
+    }
     let arguments = arguments
         .iter()
         .map(|argument| index_argument_label(program, *argument))

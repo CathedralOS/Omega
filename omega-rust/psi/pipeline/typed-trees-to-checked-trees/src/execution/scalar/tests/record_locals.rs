@@ -611,6 +611,19 @@ fn record_move_disposition_retains_only_final_owners_and_original_provenance() {
         .find(|machine| machine.name.as_str() == "moved")
         .unwrap()
         .symbol;
+    for (_, event) in checked.facts.flow.ownership.permissions.iter() {
+        eprintln!("event {event:?}");
+    }
+    eprintln!(
+        "disposition0={:?}",
+        validation::record_local_disposition(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            checked.typed.machine_states(&checked.machines()[0])[0].symbol,
+            0
+        )
+    );
     let graph = checked
         .facts
         .flow
@@ -885,5 +898,97 @@ fn local_record_graph_rejects_missing_affine_exit_receipt() {
             .terminal_scalar_graphs
             .for_machine(machine)
             .is_none()
+    );
+}
+
+#[test]
+fn parameter_origin_record_local_joins_its_own_custody() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
+    let checked = check_source(
+        "data Owned { value: u64; }
+         machine moved(owned: Owned) -> u64 {
+             let keep: Owned = owned;
+             let handed: Owned = keep;
+             handed.value
+         }",
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "moved")
+        .unwrap()
+        .symbol;
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine)
+        .expect("parameter-origin record graph");
+    let state = graph.states[0].state;
+    // `keep` transfers into `handed`; `handed` still owns at exit.
+    assert_eq!(
+        validation::record_local_disposition(&checked.typed, &checked.facts, machine, state, 0),
+        Some(false),
+        "parameter-origin local kept its exact initializer move",
+    );
+    assert_eq!(
+        validation::record_local_disposition(&checked.typed, &checked.facts, machine, state, 1),
+        Some(true),
+        "parameter-origin destination retained its exit obligation",
+    );
+    // An affine parameter mints no state-entry claim, so the move stamps the
+    // receiving local's own statement as the establishment provenance.
+    let establish = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .find(|event| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Establish
+                && event.source == PermissionEventSource::Statement { statement_index: 0 }
+        })
+        .expect("parameter-origin local establishment");
+    assert_eq!(
+        establish.provenance,
+        PermissionProvenance::Established {
+            machine_symbol: machine,
+            state_symbol: state,
+            source: PermissionEventSource::Statement { statement_index: 0 },
+        }
+    );
+    let mut forged = checked.clone();
+    let handle = forged
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find_map(|(handle, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Establish
+                && event.source == PermissionEventSource::Statement { statement_index: 0 })
+            .then_some(handle)
+        })
+        .unwrap();
+    forged
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .get_mut(handle)
+        .provenance = PermissionProvenance::Established {
+        machine_symbol: machine,
+        state_symbol: state,
+        source: PermissionEventSource::StateEntry,
+    };
+    assert_eq!(
+        validation::record_local_disposition(&forged.typed, &forged.facts, machine, state, 0),
+        None,
+        "a re-pointed parameter origin must not join custody",
     );
 }

@@ -92,7 +92,8 @@ fn derive_checked_call_span(
         | OperationKind::CallStructuralScalar { callee, .. }
         | OperationKind::CallStructuralWithScalarArguments { callee, .. } => *callee,
         // Dynamic call kinds carry descriptor/parameter ordinals rather than a
-        // static callee; no resolved call row can join them here.
+        // static callee; they join their own dispatch record families through
+        // `derive_dynamic_call_span`, not the resolved call rows here.
         _ => return Ok(None),
     };
     let function = object
@@ -216,6 +217,171 @@ fn validate_checked_call_relocation(
         );
     }
     Ok(())
+}
+
+/// One surviving `CallDynamic*` occurrence's emitted call instruction. Every
+/// dispatch custody family — rebound, stored, parameter, and the forwarded
+/// forms — names its Terminal operation and plan ordinal on the record, so the
+/// occurrence joins whichever family emitted it. Descriptor dispatches end in
+/// an indirect call instruction that carries no relocation; forwarded forms
+/// end in a resolved direct call whose relocation binds its emitted callee.
+pub(super) fn derive_dynamic_call_span(
+    occurrence: &OptimizedOperatorOccurrence,
+    target: NativeTarget,
+    object: &image_emission::ObjectArtifact,
+    image: &image::EmittedImageOutput,
+) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
+    let function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == occurrence.machine())
+        .ok_or("dynamic call names an absent object function")?;
+    let calls = function
+        .dynamic_calls
+        .iter()
+        .map(|call| {
+            (
+                call.psi_operation,
+                call.operation_ordinal,
+                call.indirect_call_offset,
+                call.indirect_call_byte_count,
+                None,
+            )
+        })
+        .chain(function.stored_dynamic_calls.iter().map(|call| {
+            (
+                call.psi_operation,
+                call.operation_ordinal,
+                call.indirect_call_offset,
+                call.indirect_call_byte_count,
+                None,
+            )
+        }))
+        .chain(function.dynamic_parameter_calls.iter().map(|call| {
+            (
+                call.psi_operation,
+                call.operation_ordinal,
+                call.indirect_call_offset,
+                call.indirect_call_byte_count,
+                None,
+            )
+        }))
+        .chain(
+            function
+                .forwarded_dynamic_parameter_calls
+                .iter()
+                .map(|call| {
+                    (
+                        call.psi_operation,
+                        call.operation_ordinal,
+                        call.direct_call_offset,
+                        call.direct_call_byte_count,
+                        Some(call.callee),
+                    )
+                }),
+        )
+        .chain(
+            function
+                .forwarded_dynamic_descriptor_calls
+                .iter()
+                .map(|call| {
+                    (
+                        call.psi_operation,
+                        call.operation_ordinal,
+                        call.direct_call_offset,
+                        call.direct_call_byte_count,
+                        Some(call.callee),
+                    )
+                }),
+        )
+        .filter(|(psi_operation, operation_ordinal, _, _, _)| {
+            *psi_operation == occurrence.operation()
+                && *operation_ordinal == occurrence.operation_ordinal()
+        })
+        .collect::<Vec<_>>();
+    let [(_, _, code_offset, byte_count, callee)] = calls.as_slice() else {
+        return if calls.is_empty() {
+            Ok(None)
+        } else {
+            Err("dynamic call rejoins multiple emitted dispatch records")
+        };
+    };
+    let object_offset = function
+        .text_offset
+        .checked_add(*code_offset)
+        .ok_or("dynamic call object span overflow")?;
+    let object_end = object_offset
+        .checked_add(*byte_count)
+        .ok_or("dynamic call object end overflow")?;
+    let Some(expected_callee) = callee else {
+        if *byte_count == 0
+            || object.relocations().records().any(|(_, relocation)| {
+                relocation.section == SectionKind::Text
+                    && ranges_overlap(
+                        object_offset,
+                        object_end,
+                        relocation.offset,
+                        relocation.offset.saturating_add(relocation.byte_width),
+                    )
+            })
+        {
+            return Err("dynamic call has an empty or relocated indirect span");
+        }
+        return derive_span(
+            function,
+            *code_offset,
+            *byte_count,
+            object,
+            image,
+            PhysicalRelocationDisposition::DirectInstructionBytes,
+            None,
+        )
+        .map(Some);
+    };
+    let overlapping = object
+        .relocations()
+        .records()
+        .map(|(_, relocation)| relocation)
+        .filter(|relocation| {
+            relocation.section == SectionKind::Text
+                && ranges_overlap(
+                    object_offset,
+                    object_end,
+                    relocation.offset,
+                    relocation.offset.saturating_add(relocation.byte_width),
+                )
+        })
+        .collect::<Vec<_>>();
+    let [relocation] = overlapping.as_slice() else {
+        return Err("forwarded dynamic call does not contain one exact relocation");
+    };
+    let target_function = object
+        .functions()
+        .iter()
+        .find(|candidate| candidate.machine == *expected_callee)
+        .ok_or("forwarded dynamic call names an absent object callee")?;
+    validate_checked_call_relocation(
+        *expected_callee,
+        *expected_callee,
+        *byte_count,
+        target.architecture,
+        function.symbol,
+        target_function.symbol,
+        occurrence.operation(),
+        object_offset,
+        object_end,
+        relocation,
+    )?;
+    derive_span(
+        function,
+        *code_offset,
+        *byte_count,
+        object,
+        image,
+        PhysicalRelocationDisposition::ResolvedInternalCall,
+        Some((relocation.offset, relocation.byte_width)),
+    )
+    .map(Some)
 }
 
 fn derive_fma_span(

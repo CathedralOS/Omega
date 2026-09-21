@@ -504,3 +504,38 @@ fn free_composed_helper_rejects_fabricated_provider_fields() {
         });
     assert!(lower_machine(&checked, "finish").is_err());
 }
+
+// A composed caller retains its embedded scalar-graph callee's result: the
+// dense value and the immutable binding namespace agree, so the transition
+// guard reads `r` through its authored local rather than a stray position.
+#[test]
+fn composed_caller_lowers_a_retained_scalar_graph_call_result() {
+    let checked = checked_source(
+        r#"
+            data Main { tag: u64; }
+            machine Main::rot(&mut self, k: u64, a: u64, b: u64, c: u64)
+            terminates by k;
+            -> u64
+            {
+                transition k > 0 {
+                    true -> rot(k - 1, b, c, a)
+                    false -> a
+                }
+            }
+            machine Main::main(&mut self) {
+                let r: u64 = self.rot(3, 1, 2, 3);
+                transition r == 1 { true -> yes() false -> no() }
+                state yes(&mut self) { self.tag = 1; }
+                state no(&mut self) { self.tag = 2; }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Main::main")
+        .expect("the retained scalar-graph call result joins the caller namespace");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the composed caller and its embedded cyclic callee verify");
+}

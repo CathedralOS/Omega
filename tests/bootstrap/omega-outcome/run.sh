@@ -5,6 +5,7 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
@@ -14,11 +15,7 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Omega outcome: unsupported host; needs macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Omega outcome"
 
 OUTPUT_DIR=${OMEGA_OUTCOME_BUILD_DIR:-"$OMEGA_REPO_ROOT/build/omega-outcome"}
 mkdir -p "$OUTPUT_DIR"

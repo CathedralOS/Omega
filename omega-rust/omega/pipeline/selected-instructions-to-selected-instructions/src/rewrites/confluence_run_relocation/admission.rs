@@ -77,6 +77,8 @@ fn speculatable(instruction: &SelectedInstruction) -> bool {
             | Load32 { .. }
             | Store64 { .. }
             | ExactDivideU64 { .. }
+            | ExactDivideI64 { .. }
+            | ExactRemainderI64 { .. }
             | SaturatingDivide { .. }
             | SaturatingRemainder { .. }
     )

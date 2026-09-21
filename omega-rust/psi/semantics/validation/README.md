@@ -156,6 +156,13 @@ atom. A mutable input or role-less slot outside those sets may be stored to,
 while any store into a protected slot still invalidates the entry-relative
 ranking.
 
+These ranking ranges belong to `terminates by ... in 0..N`, not a scalar
+type-annotation suffix. The current premise-carrier query also protects legacy
+range-constrained entries. Removing those source annotations must preserve the
+same protection for facts supplied by contracts, guards, and domain predicates;
+`REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../../TASKS.md) tracks
+that migration without removing ranking-range reasoning.
+
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
 scalar ranks, slice lengths, and exact direct-field coordinates. A declared
 scalar view beyond identity (`identity_views.rs`: `declared_scalar_view`,
@@ -295,7 +302,7 @@ full source acceptance or executable Terminal realization.
 ## Quotient correspondence
 
 The [published correspondence contract](../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)
-is implemented through [quotients/terminal_bridge.rs](src/quotients/terminal_bridge.rs)
+is implemented through [quotients/terminal_bridge.rs](src/proof_contracts/quotients/terminal_bridge.rs)
 and the relation-plan bridge. Current direct `define`/transport-backed `lift`
 retention and proof-only package review do not admit executable quotient calls.
 Adapted, permuted, repeated, generic/private applications and broader lift forms
@@ -304,7 +311,7 @@ Do not retain schema-bump history as a substitute for those acceptance condition
 
 ## Structural algebra automation
 
-[structural_judgment.rs](src/contract_entailment/structural_judgment.rs) retains
+[structural_judgment.rs](src/proof_contracts/contract_entailment/structural_judgment.rs) retains
 operation licenses and paired add/multiply semiring licenses. The paired form
 requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;
