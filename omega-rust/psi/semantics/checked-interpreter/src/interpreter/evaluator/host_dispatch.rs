@@ -1,4 +1,9 @@
-use super::{EvalResult, Evaluator, Frame, Halt, SymbolHandle, TableCall, Value, unsupported};
+use super::{
+    DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
+    Value, trap, unsupported,
+};
+use typed_trees::signature::StateSignature;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 impl<'program> Evaluator<'program> {
     /// The VIRTUAL TimeHost read ops (std::time rung 4, D12). The
     /// interpreter's clock is deterministic: `sleep` advances virtual_ticks
@@ -162,10 +167,22 @@ impl<'program> Evaluator<'program> {
                 }
             }
             "read_line" => {
-                // Legacy local boundary fixtures only: bundled std read_line is
-                // an ordinary selected checked body over its exact read_byte
-                // leaf. This whole-owner/Boolean fallback is not its bounded
-                // LineReadResult contract and must not serve as that oracle.
+                // Bounded contracts serve their declared `LineReadResult`
+                // surface (wiki/spec/resources/bounded_input.md): the call's
+                // own resolved signature selects the contract, so bundled std
+                // and fixture requirements cannot pick up the legacy path's
+                // whole-owner/Boolean meaning. Calls without that exact result
+                // shape are legacy local boundary fixtures; bundled std
+                // read_line itself is an ordinary selected checked body over
+                // its exact read_byte leaf.
+                if let Some(type_symbol) = self.read_line_result_type(call, frame) {
+                    let value = self.read_stdin_bounded_line(
+                        arguments.first().copied(),
+                        frame,
+                        type_symbol,
+                    )?;
+                    return Ok(Some(value));
+                }
                 // Read up to the next newline from the remaining stdin into
                 // the mutable text-carrier out-parameter. CRLF is normalized (a trailing `\r` is
                 // dropped). Returns whether a line was available (some programs ignore it).
@@ -218,6 +235,243 @@ impl<'program> Evaluator<'program> {
             }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
+    }
+
+    /// The `LineReadResult` data symbol when the boundary signature behind a
+    /// `read_line` call returns that exact settled shape
+    /// (wiki/spec/resources/bounded_input.md). Result-shape identity, not name
+    /// spelling: `Unit`- or Boolean-returning local declarations keep the
+    /// legacy fallback in `try_host_call`.
+    fn read_line_result_type(&self, call: &TableCall, frame: &Frame) -> Option<SymbolHandle> {
+        let signature = self.read_line_boundary_signature(call, frame)?;
+        self.line_read_result_shape(signature.return_type)
+    }
+
+    /// Resolve the boundary signature a `read_line` call resolved against,
+    /// through the same channels `is_boundary_call` admits: the call's target
+    /// symbol naming a boundary-trait requirement, a compiler-intrinsic
+    /// realization through its satisfied requirement, or the receiver field's
+    /// declared boundary-trait type by method name.
+    fn read_line_boundary_signature(
+        &self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> Option<&'program StateSignature> {
+        if call.target_symbol.is_valid() {
+            for definition in self.program.traits() {
+                if !definition.is_boundary {
+                    continue;
+                }
+                if let Some(signature) = self
+                    .program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.symbol == call.target_symbol)
+                {
+                    return Some(signature);
+                }
+            }
+            if let Some((requirement, _provider)) =
+                validation::exact_compiler_intrinsic_boundary_requirement(
+                    self.program,
+                    call.target_symbol,
+                )
+            {
+                for definition in self.program.traits() {
+                    if !definition.is_boundary {
+                        continue;
+                    }
+                    if let Some(signature) = self
+                        .program
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .find(|signature| signature.symbol == requirement)
+                    {
+                        return Some(signature);
+                    }
+                }
+            }
+        }
+
+        let receiver_leaf = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .last()
+            .map(|name| name.as_str().to_owned())?;
+        let self_type = match &*frame.self_cell.borrow() {
+            Value::Struct { type_name, .. } => type_name.clone(),
+            _ => String::new(),
+        };
+        let machine = self.find_machine_by_name(&self_type)?;
+        let data = self.find_data_by_name(machine.attached_data.as_ref()?.as_str())?;
+        for member in self.program.data_members(data) {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+            if field.name.as_str() != receiver_leaf {
+                continue;
+            }
+            let type_symbol = self.program.type_reference_symbol(field.type_reference);
+            let definition = self
+                .program
+                .traits()
+                .iter()
+                .find(|definition| definition.is_boundary && definition.symbol == type_symbol)
+                .or_else(|| {
+                    // `Service<Console>` carriers: the boundary trait is the
+                    // carrier's type argument.
+                    if let TypeReferenceNode::Generic { arguments, .. } = self
+                        .program
+                        .type_reference_table
+                        .type_reference(field.type_reference)
+                    {
+                        let argument = self
+                            .program
+                            .type_reference_table
+                            .type_reference_handles(*arguments)
+                            .first()?;
+                        let argument_symbol = self.program.type_reference_symbol(*argument);
+                        return self.program.traits().iter().find(|definition| {
+                            definition.is_boundary && definition.symbol == argument_symbol
+                        });
+                    }
+                    None
+                })?;
+            return self
+                .program
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| signature.name.as_str() == "read_line");
+        }
+        None
+    }
+
+    /// The bounded line-input result contract by declaration identity: data
+    /// named `LineReadResult` with exactly `Invalid`, `LineComplete(count)`,
+    /// `EndOfInput(count)`, and `Full(count)` variants whose payloads are one
+    /// `u64` field named `count`. Mirrors the `ByteRead` shape check the
+    /// validation crate applies to `read_byte`.
+    fn line_read_result_shape(&self, return_type: TypeReferenceHandle) -> Option<SymbolHandle> {
+        let TypeReferenceNode::Named { symbol, .. } = self
+            .program
+            .type_reference_table
+            .type_reference(return_type)
+        else {
+            return None;
+        };
+        let data = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol)?;
+        if !symbol.is_valid()
+            || data.name.as_str() != "LineReadResult"
+            || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+            || !data.lifetime_parameters.is_empty()
+            || !self.program.data_type_parameters(data).is_empty()
+            || data.generic_instance.is_some()
+            || data.quotient.is_some()
+            || !data.where_facts.is_empty()
+            || data.zero_gated
+            || data.properties.carry.is_some()
+            || data.properties.multiplicity == language_semantics::Multiplicity::Linear
+        {
+            return None;
+        }
+        let [
+            DataMember::Variant(invalid),
+            DataMember::Variant(line_complete),
+            DataMember::Variant(end_of_input),
+            DataMember::Variant(full),
+        ] = self.program.data_members(data)
+        else {
+            return None;
+        };
+        if invalid.name.as_str() != "Invalid"
+            || !invalid.payload.is_empty()
+            || line_complete.name.as_str() != "LineComplete"
+            || end_of_input.name.as_str() != "EndOfInput"
+            || full.name.as_str() != "Full"
+        {
+            return None;
+        }
+        for variant in [line_complete, end_of_input, full] {
+            let [field] = self.program.data_payload_fields(variant) else {
+                return None;
+            };
+            if field.name.as_str() != "count"
+                || field.relevance.is_erased()
+                || self.program.primitive_type_reference(field.type_reference)
+                    != Some(PrimitiveType::U64)
+            {
+                return None;
+            }
+        }
+        Some(*symbol)
+    }
+
+    /// Greedy bounded line read per the `LineReadResult` contract: stop at the
+    /// destination's own extent (`Full`), LF stored (`LineComplete`), or input
+    /// end (`EndOfInput`). A zero-length destination is `Full(0)` without
+    /// consuming input; a full destination is `Full` even when EOF is next;
+    /// bytes are preserved exactly, no CRLF normalization.
+    fn read_stdin_bounded_line(
+        &mut self,
+        destination: Option<ExpressionHandle>,
+        frame: &Frame,
+        type_symbol: SymbolHandle,
+    ) -> EvalResult<Value> {
+        let cell = match destination {
+            Some(argument) => {
+                let place = self.resolve_place(argument, frame)?;
+                Some(self.deref_cell(place))
+            }
+            None => None,
+        };
+        let capacity = match &cell {
+            Some(cell) => match &*cell.borrow() {
+                Value::Str(text) => text.borrow().len(),
+                Value::Array(elements) => elements.len(),
+                _ => return trap("read_line destination is not a bounded byte carrier"),
+            },
+            None => 0,
+        };
+        let mut count: u64 = 0;
+        let variant = loop {
+            if count as usize >= capacity {
+                break "Full";
+            }
+            let Some(byte) = self.stdin.get(self.stdin_cursor).copied() else {
+                break "EndOfInput";
+            };
+            self.stdin_cursor += 1;
+            if let Some(cell) = &cell {
+                match &*cell.borrow() {
+                    Value::Str(text) => text.write_byte(count as usize, byte).map_err(|_| {
+                        Halt::Trap("read_line destination shrank during input".to_owned())
+                    })?,
+                    Value::Array(elements) => {
+                        let Some(element) = elements.get(count as usize) else {
+                            return trap("read_line destination shrank during input");
+                        };
+                        *element.borrow_mut() = Value::Int(i64::from(byte));
+                    }
+                    _ => return trap("read_line destination is not a bounded byte carrier"),
+                }
+            }
+            count += 1;
+            if byte == b'\n' {
+                break "LineComplete";
+            }
+        };
+        let count = i64::try_from(count)
+            .map_err(|_| Halt::Resource("read_line byte count overflowed".to_owned()))?;
+        Ok(Value::Enum {
+            type_symbol,
+            variant_name: variant.to_owned(),
+            payload: vec![("count".to_owned(), self.allocate_cell(Value::Int(count))?)],
+        })
     }
 
     /// Rejoin a concrete hosted leaf to its satisfied requirement before
@@ -283,12 +537,17 @@ mod byte_input_rejection_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::super::CheckedTrees;
-    use super::{Evaluator, Halt};
+    use super::super::{CheckedTrees, Frame};
+    use super::{Evaluator, Halt, SymbolHandle, Value};
+    use crate::value::Cell;
     use source_files_to_tokens::Lexer;
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
+    use typed_trees::statement::{StatementNode, TableCall};
+    use typed_trees::types::TypeReferenceHandle;
     use typed_trees_to_checked_trees::lower_typed_trees;
 
     pub(super) fn checked(source: &str) -> CheckedTrees {
@@ -297,6 +556,287 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("host-call symbols");
         let typed = lower_symbol_resolved_trees(&resolved).expect("host-call types");
         lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    }
+
+    /// Compile `Helper::take(&mut self.line...)` — an ordinary static call the
+    /// single-source harness resolves — then retarget the statement's leaf and
+    /// target symbol to the `read_line` boundary requirement. Service-carrier
+    /// dispatch (`self.console.read_line`) is selected by build-time machinery
+    /// this harness does not run; the requirement symbol is what
+    /// `is_boundary_call` and the arm's contract check actually inspect.
+    fn read_line_call(checked: &CheckedTrees, boundary_trait: &str) -> TableCall {
+        let take = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .and_then(|machine| checked.machine_states(machine).first())
+            .and_then(|state| {
+                checked
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|node| match node {
+                        StatementNode::Call(call) if call.target.as_str() == "take" => {
+                            Some(call.clone())
+                        }
+                        _ => None,
+                    })
+            })
+            .expect("a Helper::take call statement in main");
+        let requirement = checked
+            .traits()
+            .iter()
+            .find(|definition| definition.is_boundary && definition.name.as_str() == boundary_trait)
+            .and_then(|definition| {
+                checked
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.name.as_str() == "read_line")
+            })
+            .expect("a read_line requirement on the boundary trait");
+        TableCall {
+            target: typed_trees::name::Identifier::generated_static("read_line"),
+            target_symbol: requirement.symbol,
+            ..take
+        }
+    }
+
+    /// A `Main` instance with a `line` carrier of 165s (the marker byte whose
+    /// survival proves the destination was not resized or rewritten past the
+    /// bounded prefix).
+    fn main_self(evaluator: &mut Evaluator<'_>, checked: &CheckedTrees, len: usize) -> Cell {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Main::main machine");
+        let line = evaluator
+            .allocate_cell(
+                evaluator
+                    .allocate_text(vec![165; len])
+                    .unwrap_or_else(|_| panic!("line text")),
+            )
+            .unwrap_or_else(|_| panic!("line cell"));
+        let mut fields = BTreeMap::new();
+        fields.insert("line".to_owned(), line);
+        evaluator
+            .allocate_cell(Value::Struct {
+                type_symbol: machine.symbol,
+                type_name: "Main".to_owned(),
+                fields,
+            })
+            .unwrap_or_else(|_| panic!("self cell"))
+    }
+
+    fn bare_frame(self_cell: Cell, machine_symbol: SymbolHandle) -> Frame {
+        Frame {
+            return_type: TypeReferenceHandle::invalid(),
+            locals: RefCell::new(BTreeMap::new()),
+            type_locals: RefCell::new(BTreeMap::new()),
+            scalar_locals: RefCell::new(BTreeMap::new()),
+            mutable_scalar_recasts: RefCell::new(BTreeMap::new()),
+            self_cell,
+            machine_symbol,
+            state_symbol: SymbolHandle::invalid(),
+            guard_call_results: RefCell::new(Vec::new()),
+        }
+    }
+
+    fn line_bytes(self_cell: &Cell) -> Vec<u8> {
+        let guard = self_cell.borrow();
+        let Value::Struct { fields, .. } = &*guard else {
+            panic!("self is a struct")
+        };
+        let line = fields.get("line").expect("line field");
+        match &*line.borrow() {
+            Value::Str(text) => text.borrow().to_vec(),
+            other => panic!("line carrier is a text buffer, not {other:?}"),
+        }
+    }
+
+    const BOUNDED_CONSOLE_SOURCE: &str = "pub data LineReadResult {
+            case Invalid;
+            case LineComplete(count: u64);
+            case EndOfInput(count: u64);
+            case Full(count: u64);
+        }
+        pub boundary trait Console {
+            machine read_line(out_line: &mut [u8]) -> LineReadResult reaches Console;
+        }
+        data Main {
+            line: [u8; 4];
+        }
+        pub data Helper {}
+        machine Helper::take(out: &mut [u8]) {}
+        machine Main::main(&mut self) {
+            Helper::take(&mut self.line);
+        }";
+
+    #[test]
+    fn bounded_read_line_serves_line_read_result_by_signature() {
+        let checked = checked(BOUNDED_CONSOLE_SOURCE);
+        let call = read_line_call(&checked, "Console");
+        let machine_symbol = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Main machine")
+            .symbol;
+        // (stdin, expected variant, count, destination bytes, consumed)
+        for (input, variant, count, bytes, consumed) in [
+            (&b"ok\n"[..], "LineComplete", 3, &b"ok\n\xA5"[..], 3),
+            (&b"abc\n"[..], "LineComplete", 4, &b"abc\n"[..], 4),
+            // Capacity is reached before EOF or LF: Full, not EndOfInput.
+            (&b"pqrs\nt"[..], "Full", 4, &b"pqrs"[..], 4),
+            (&b"pqrs"[..], "Full", 4, &b"pqrs"[..], 4),
+            (&b"xy"[..], "EndOfInput", 2, &b"xy\xA5\xA5"[..], 2),
+            // Bytes are preserved exactly: the \r lands in the destination and
+            // LF still terminates the line. The legacy path normalized CRLF.
+            (&b"a\r\n"[..], "LineComplete", 3, &b"a\r\n\xA5"[..], 3),
+            (&b""[..], "EndOfInput", 0, &b"\xA5\xA5\xA5\xA5"[..], 0),
+        ] {
+            let mut evaluator = Evaluator::new_checked(&checked, input);
+            let self_cell = main_self(&mut evaluator, &checked, 4);
+            let frame = bare_frame(self_cell.clone(), machine_symbol);
+            let value = evaluator
+                .try_host_call(&call, &frame)
+                .unwrap_or_else(|_| panic!("{input:?}: bounded serve"))
+                .expect("boundary call admitted");
+            let Value::Enum {
+                variant_name,
+                payload,
+                ..
+            } = value
+            else {
+                panic!("{input:?}: read_line returned {value:?}")
+            };
+            assert_eq!(variant_name, variant, "{input:?}");
+            let [(name, count_cell)] = payload.as_slice() else {
+                panic!("{input:?}: payload {payload:?}")
+            };
+            assert_eq!(name, "count", "{input:?}");
+            assert!(
+                matches!(&*count_cell.borrow(), Value::Int(value) if *value == count),
+                "{input:?}: count payload"
+            );
+            assert_eq!(line_bytes(&frame.self_cell), bytes, "{input:?}");
+            assert_eq!(evaluator.stdin_cursor, consumed, "{input:?}");
+            assert!(evaluator.host_boundary_touched, "{input:?}");
+            assert!(evaluator.non_fs_host_boundary_touched, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn bounded_read_line_respects_bounded_views() {
+        for (destination, input, variant, count, bytes, consumed) in [
+            // A zero-length destination is Full(0) without consuming input;
+            // the legacy fallback's owner replace could not serve a view.
+            (
+                "[0..0]",
+                &b"ok\n"[..],
+                "Full",
+                0,
+                &b"\xA5\xA5\xA5\xA5"[..],
+                0,
+            ),
+            // The window's own extent bounds the read; bytes land inside it.
+            (
+                "[1..3]",
+                &b"q\n"[..],
+                "LineComplete",
+                2,
+                &b"\xA5q\n\xA5"[..],
+                2,
+            ),
+            ("[1..3]", &b"wxyz"[..], "Full", 2, &b"\xA5wx\xA5"[..], 2),
+        ] {
+            let source = BOUNDED_CONSOLE_SOURCE.replace(
+                "Helper::take(&mut self.line);",
+                &format!("Helper::take(&mut self.line{destination});"),
+            );
+            let checked = checked(&source);
+            let call = read_line_call(&checked, "Console");
+            let machine_symbol = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Main::main")
+                .expect("Main machine")
+                .symbol;
+            let mut evaluator = Evaluator::new_checked(&checked, input);
+            let self_cell = main_self(&mut evaluator, &checked, 4);
+            let frame = bare_frame(self_cell.clone(), machine_symbol);
+            let value = evaluator
+                .try_host_call(&call, &frame)
+                .unwrap_or_else(|_| panic!("{input:?} {destination}: bounded serve"))
+                .expect("boundary call admitted");
+            let Value::Enum {
+                variant_name,
+                payload,
+                ..
+            } = value
+            else {
+                panic!("{input:?} {destination}: read_line returned {value:?}")
+            };
+            assert_eq!(variant_name, variant, "{input:?} {destination}");
+            let [(_, count_cell)] = payload.as_slice() else {
+                panic!("{input:?} {destination}: payload {payload:?}")
+            };
+            assert!(
+                matches!(&*count_cell.borrow(), Value::Int(value) if *value == count),
+                "{input:?} {destination}: count payload"
+            );
+            assert_eq!(
+                line_bytes(&frame.self_cell),
+                bytes,
+                "{input:?} {destination}"
+            );
+            assert_eq!(evaluator.stdin_cursor, consumed, "{input:?} {destination}");
+        }
+    }
+
+    #[test]
+    fn unit_returning_read_line_keeps_the_legacy_fallback() {
+        let checked = checked(
+            "pub domain [u8]::LineUtf8
+            requires
+                valid_utf8(self);
+            pub domain [u8; 16]::LineUtf8
+            requires
+                valid_utf8(self);
+            pub boundary trait Console {
+                machine read_line(out_line: &mut [u8; 16] in LineUtf8);
+            }
+            data Main {
+                line: [u8; 16] in LineUtf8;
+            }
+            pub data Helper {}
+            machine Helper::take(out: &mut [u8; 16] in LineUtf8) {}
+            machine Main::main(&mut self) {
+                Helper::take(&mut self.line);
+            }",
+        );
+        let call = read_line_call(&checked, "Console");
+        let machine_symbol = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Main machine")
+            .symbol;
+        let mut evaluator = Evaluator::new_checked(&checked, b"hi\n");
+        let self_cell = main_self(&mut evaluator, &checked, 16);
+        let frame = bare_frame(self_cell.clone(), machine_symbol);
+        let value = evaluator
+            .try_host_call(&call, &frame)
+            .unwrap_or_else(|_| panic!("legacy serve"))
+            .expect("boundary call admitted");
+        // The Unit-returning shape keeps the whole-owner Boolean fallback: the
+        // carrier is replaced by the (CRLF-normalized) line and the result
+        // reports whether a line was available.
+        assert!(matches!(value, Value::Bool(true)));
+        assert_eq!(line_bytes(&frame.self_cell), b"hi");
+        assert_eq!(evaluator.stdin_cursor, 3);
+        assert!(evaluator.host_boundary_touched);
+        assert!(evaluator.non_fs_host_boundary_touched);
     }
 
     #[test]
