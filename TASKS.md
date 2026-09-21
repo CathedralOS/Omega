@@ -7189,6 +7189,23 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   authority collision on an instantiated template method. Re-run the command above
   before attributing any of them, since the roster moves.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.** — mined candidate; scope verified, covered — sibling re-mine name recorded on the STATE-LOCAL-VALUE-FRONTIER field-store row: the "structural field store: scalar field type" frontier in `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store` (native customers like `filesystem/windows_canonicalize_exit` store structural `UnitResult`; the closure is nested structural sum construction/extraction, borrowed case observation, whole nominal receiver replacement). Re-verified at `8570ba9ae8`: the frontier site is unchanged (`structural_scalar_store/mod.rs:1182` still traces the scalar-field-type phase). The recorded fence map has rotated — `structural_scalar_store` + `primitive_store.rs` are now claimed by PSI-NATIVE-FIELD-STORES (z78, exp ~14:15Z) instead of CORPUS-RED-FAMILY-TRAPSTORE, while the execution/unit control+state_graph, values, flow and field_domain fences recorded earlier have drained or re-fenced (LOWERED-PSI-BASELINE-TAIL on the unit_state_graph tests, CLEANUP-HOOK-SELECTION on `control/checked_machine.rs`, PROVIDER-ATTACHMENT-MACHINE-PLAN on `providers.rs`/`types`). The surface stays claimed — no uncontested implementation leg here.
+||||||| parent of 46a9ef596511 (board/known-baseline-failures: attach fix-leaf names to every recorded cluster)
+- **NEW-BASELINE-CLUSTER-TRIAGE-TO-FIX-LEAVES.** Mined candidate; scope verified —
+  triage `wiki/drafts/known_baseline_failures.md` so every recorded cluster names
+  a fix leaf on the board. Triaged at `d7744b8fbcab` (linux x86-64): most sections
+  already named their leaves; the doc edits attached the missing ones —
+  terminal-verifier digest-ledger pair → **TRUSTED-SURFACE-DIGEST-RE-RECORDING**,
+  the 44 unrostered pass fixtures and the whole fail-canary fragment/true-failure
+  section → **CANARY-CORPUS**, the scalar-return custody family →
+  **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES**, the build-target-activation FMA
+  pair → **FMA-PROVIDER-PIPELINE-TRANSPORT**, `package_compilation_inputs` →
+  **BASELINE-PACKAGE-COMPILATION-INPUTS** (with its 3-failure 1f7301b71020 reading
+  noted against the stale 13-failure macOS census), and the terminal_psi_source
+  `UnsupportedControlFlow` member → **TRANSLATION-VALIDATION** (canonical row in
+  TASKS_OPTIMIZER.md). Sections already fully leafed (t2c, pass canaries,
+  pipeline_ownership, checked-interpreter, package-evidence, host notes) were left
+  unchanged. Every section now names a leaf or is explicitly environmental.
+
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Resolved — the lane is fully
   green: `cargo nextest run -p omega-native-differential-test --test
   terminal_psi_source --no-fail-fast` reports 90 run / 90 passed / 0 skipped
