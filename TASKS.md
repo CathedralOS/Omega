@@ -1133,13 +1133,24 @@ Owners include
   `backend/runtime/external-roots`. Targetless checks select no physical entry;
   deployment cannot substitute a semantic continuation for the physical adapter.
 
-  - Replace qualification-based service admission with exact closed `Service<R>`
-    identity. `core/service.omg` still declares `Bound`, and
-    `typed-trees/src/typed_trees/calls/service.rs` requires it. Retire that
-    service-only domain and its acceptance paths, not general domains. Carry exact
-    requirement, occurrence and selected-plan custody through checking, Terminal,
-    erased Fused fields, native settlement and independent replay. No default-domain
-    feature, bare-trait alias or fabricated establishment row is needed. Resume
+  - **The cut has landed** — verified at `0f75a052f0`, so do not start from its
+    old premise. This bullet used to open "`core/service.omg` still declares
+    `Bound`, and `typed-trees/src/typed_trees/calls/service.rs` requires it";
+    both are now false. `core/service.omg` declares only
+    `pub boundary data Service<R>;` and states that "no authored domain
+    qualification exists for it and any `Service<R> in <domain>` spelling is
+    rejected during source checking", while `calls/service.rs:7` refers to
+    "The retired `Bound` qualification". The only surviving `in Bound`
+    spellings in the tree are two fail fixtures that pin its rejection —
+    `fail/providers/service_bound_nonservice_rejected` and
+    `fail/providers/service_authored_lookalike_not_privileged` — which is what
+    should survive.
+
+    Retire that service-only domain and its acceptance paths, not general
+    domains. Carry exact requirement, occurrence and selected-plan custody
+    through checking, Terminal, erased Fused fields, native settlement and
+    independent replay. No default-domain feature, bare-trait alias or
+    fabricated establishment row is needed. Resume
     evidence (w9, `swarm-w9-entry-content-roots`): the cut is implemented and
     verified on the wave branch — `Bound` is deleted from `core/service.omg`, the
     service classifier requires the exact closed `Service<R>` identity and rejects
