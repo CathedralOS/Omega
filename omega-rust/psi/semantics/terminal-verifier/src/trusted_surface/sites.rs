@@ -105,6 +105,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "levels_and_declarations",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/spine_chains.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests.rs",
+        module: "spine_chains",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests/schemes_and_quotients.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests.rs",
         module: "schemes_and_quotients",
@@ -429,7 +434,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/typing.rs",
-        sha256: Some("5e5982bbaff7af65149c12ec269d22bb744be67f015540893e8e0a3841962c10"),
+        sha256: Some("7c1572f9305268dfbd8d3c29eacde03cadfa379e93c6e47a37224671dafe5be7"),
         inventory_machinery: false,
     },
     ImplementationSite {
