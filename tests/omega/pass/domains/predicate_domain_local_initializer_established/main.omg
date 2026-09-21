@@ -1,0 +1,13 @@
+// A local declared into a predicate domain may initialize straight from a
+// source whose predicate is already established: the first initializer
+// qualifies the literal at the declaration, and the second reads a local
+// that already carries the domain, so no new obligation is owed.
+
+domain i64::Km
+requires
+    self >= 0;
+
+machine copy_established() {
+    let distance: i64 in Km = 5 as i64 in Km;
+    let carried: i64 in Km = distance;
+}
