@@ -9786,6 +9786,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ancestor of main. No residual exists under this stub's name.
 
   this stub's name.
+  this stub's name. Re-verified again at `138ed79a677`: bullet still struck
+  (TASKS_BOOTSTRAP.md:279), `e1fba5f523` still an ancestor of `main`.
 - **GENERAL-LICM.** — mined candidate; verify scope then implement.
 - **GENERAL-RELOCATION-ADMISSION.** Mined candidate — slice landed
   2026-09-21. Re-mines the same EXACT-MACHINE-SIMPLIFICATIONS "one
