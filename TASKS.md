@@ -7888,6 +7888,41 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
       blocked at checked-call selection (PROOF-SAMPLES-CHECKED-CALL-
       SELECTION).
   No unfenced slice exists under this name.
+- **BETA-ENCODING-CERTIFICATE-PRODUCTION** — implemented the request-extent
+  leg of the selected provisions and produced the first native certificate
+  run on this host class. The ledger-selected 136,314,880-byte request extent
+  was stale in the checker implementation (`admission/extents.gamma` still
+  capped at 8,388,608 — witnessed refusal `code=1 limit=8388608
+  requested=135485028`); grew it, re-recorded the bound manifest/packed
+  identities (`implementation.gamma.sources` member row,
+  `tools/bootstrap/proofs/sources_env.sh`, checker README, proofs-identity
+  needles), and re-pinned all seven packed-diagnostic `source.tsv` records
+  (+6 bytes each). Boundary vectors that materialize requests at the extent
+  re-derive by their `LIMIT` constants (derivation-admission fixtures,
+  derivation-layout wire) with the admission watchdog raised 60→600s for the
+  ~50s/136 MiB observations; the formation 65,536-sort/8,388,608-estimate
+  preflights are deliberately retained per CHECKING.md. Also fixed
+  `beta-encoding-check/check.py`'s import shadowing (`import gate` resolved
+  to derivation-layout's gate, lacking `prepare` — ordering bug since
+  `0cc7a2081a`). Witnessed on linux x86-64: `proofs-identity.sh` green;
+  derivation gates green — admission 69v/133 diagnostics (incl. exact/adjacent
+  capacity at the new extent), layout 188v/374, checking 82v/160, formation
+  104v/205, ground 113v/223, substitution 57v/112, comparison 39v/72.
+  `sh tests/gamma/beta-encoding-check/run.sh` now runs end-to-end where it
+  was previously unrunnable here: theory emitted inside the evaluator
+  (116,900-byte package, sha256 6bbdd15a…), host stepper reproduced the
+  135,485,028-byte request byte-exact (sha256 7c0e3bf2…, 32.3s), and the
+  evaluator now ADMITS the request and proceeds into checking — the next
+  boundary is the still-stale 655,360-unit work counter
+  (`comparison/session.gamma:41`; ledger selects 67,108,864). That last leg
+  is NOT a constant bump: the boundary vectors pin the literal limit while
+  materializing row tuples against it, and ~22.3M materialized rows cannot
+  fit the 136 MiB envelope — it needs seeded-work diagnostic entries (the
+  derivation-comparison seeded-budget pattern) plus its own claim slice.
+  Residual: certificate `Checked` verdict awaits that work-counter leg;
+  sibling row BETA-ENCODING-SELECTED-CHAIN-PRODUCTION's "extent-supply leg"
+  phrasing is partially stale — the request extent is no longer pending on
+  this branch.
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
