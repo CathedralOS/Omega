@@ -1,13 +1,18 @@
 //! Compile shared source into independently checked target products.
 //!
-//! The target loop owns sequencing and failure isolation. Product owners build
-//! their artifacts and reports; native input reuse belongs to this invocation.
+//! The target loop owns sequencing and failure isolation. Each checked
+//! compilation joins trust settlement (`admit_checked_compilation`) and the
+//! product fences (`admit_requested_product`) before dispatch. Product owners
+//! build their artifacts and reports; native input reuse belongs to this
+//! invocation.
 
 use crate::{
-    CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
-    admit_checked_compilation,
+    CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, OptimizationRollback,
+    RequestedCompileProduct, admit_checked_compilation,
 };
-use assembled_syntax_to_checked_compilation::{PreparedCheckedSource, run_on_compile_thread};
+use assembled_syntax_to_checked_compilation::{
+    CheckedCompilation, PreparedCheckedSource, run_on_compile_thread,
+};
 use checked_compilation_to_terminal_artifact::produce_terminal_report;
 use diagnostics::Diagnostic;
 use native_realization::{NativeInputReuse, prepare_native_product};
@@ -60,19 +65,14 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                     } else {
                         None
                     };
+                admit_requested_product(
+                    &checked,
+                    request.shared.requested_product,
+                    &target.configuration.optimization_rollback,
+                )?;
                 if checked.application_artifact_only()
                     && request.shared.requested_product != RequestedCompileProduct::Check
                 {
-                    if !target.configuration.optimization_rollback.is_empty() {
-                        return Err(vec![Diagnostic::error(
-                            "artifact-only builds execute no product optimization stages to roll back",
-                        )]);
-                    }
-                    if checked.pcc_requests().any() {
-                        return Err(vec![Diagnostic::error(
-                            "artifact-only builds cannot publish Psi or native proof products",
-                        )]);
-                    }
                     let outputs = build_outputs.ok_or_else(|| {
                         vec![Diagnostic::error("artifact-only build completed no files")]
                     })?;
@@ -91,31 +91,17 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 }
 
                 let report = match request.shared.requested_product {
-                    RequestedCompileProduct::Check => {
-                        if checked.pcc_requests().any() {
-                            Err(vec![Diagnostic::error(
-                                "a check-only stop cannot satisfy an optional proof-product request",
-                            )])?
-                        }
-                        CompileReport::check_only(
-                            target.options.root_path,
-                            checked.source_file_count(),
-                        )
-                        .map_err(|message| vec![Diagnostic::error(message)])?
-                    }
-                    RequestedCompileProduct::TerminalArtifact => {
-                        if checked.pcc_requests().native {
-                            Err(vec![Diagnostic::error(
-                                "a Terminal stop cannot satisfy a native proof-product request",
-                            )])?
-                        }
-                        produce_terminal_report(
-                            target.options.root_path,
-                            checked,
-                            &target.configuration.terminal_admission_profile,
-                            &target.configuration.optimization_rollback,
-                        )?
-                    }
+                    RequestedCompileProduct::Check => CompileReport::check_only(
+                        target.options.root_path,
+                        checked.source_file_count(),
+                    )
+                    .map_err(|message| vec![Diagnostic::error(message)])?,
+                    RequestedCompileProduct::TerminalArtifact => produce_terminal_report(
+                        target.options.root_path,
+                        checked,
+                        &target.configuration.terminal_admission_profile,
+                        &target.configuration.optimization_rollback,
+                    )?,
                     RequestedCompileProduct::NativeArtifact => {
                         let terminal =
                             prepare_native_product(target.into_native_product_request(), checked)?;
@@ -138,6 +124,45 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
         Ok(CompileOutcomes::new(outcomes)?
             .with_prepared_terminal_native_input_count(native_inputs.prepared_input_count()))
     })
+}
+
+/// Refuse a requested product the checked compilation cannot satisfy, once
+/// per target and before the route dispatches production. These are product
+/// fences, not trust settlement, so they stay out of
+/// `admit_checked_compilation`: an artifact-only build executes no product
+/// optimization stages and publishes no proof companions, and a check or
+/// Terminal stop cannot satisfy proof-product requests. Evaluation order
+/// matches the fence order the product dispatch previously enforced.
+fn admit_requested_product(
+    checked: &CheckedCompilation,
+    requested_product: RequestedCompileProduct,
+    optimization_rollback: &OptimizationRollback,
+) -> Result<(), Vec<Diagnostic>> {
+    if checked.application_artifact_only() && requested_product != RequestedCompileProduct::Check {
+        if !optimization_rollback.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "artifact-only builds execute no product optimization stages to roll back",
+            )]);
+        }
+        if checked.pcc_requests().any() {
+            return Err(vec![Diagnostic::error(
+                "artifact-only builds cannot publish Psi or native proof products",
+            )]);
+        }
+    }
+    match requested_product {
+        RequestedCompileProduct::Check if checked.pcc_requests().any() => {
+            Err(vec![Diagnostic::error(
+                "a check-only stop cannot satisfy an optional proof-product request",
+            )])
+        }
+        RequestedCompileProduct::TerminalArtifact if checked.pcc_requests().native => {
+            Err(vec![Diagnostic::error(
+                "a Terminal stop cannot satisfy a native proof-product request",
+            )])
+        }
+        _ => Ok(()),
+    }
 }
 
 #[cfg(test)]
