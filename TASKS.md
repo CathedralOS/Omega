@@ -9486,6 +9486,50 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   both occupants. In-window establishment coverage inside `build-output`
   remains the sibling detector item's slice (its claim holds that dir).
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION.** — mined candidate.
+||||||| parent of b5b71d1e791c (board: BUILD-DIR-ALIAS-RACE-DETECTION restamp — fence map rolled over)
+- **BOOTSTRAP-SEED-EXECUTION-HOSTS** — mined candidate; verify scope then implement.
+- **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; verify scope then implement.
+- **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the race-window residual the landed
+  **BUILD-DIR-HOST-ALIAS-COLLISIONS** row already assigns to
+  **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** — an alias created
+  between admission's `overlap_key` check and the first write (e.g. a
+  symlink planted inside the window) is invisible to the spelling-level
+  fence in `build-evaluation/src/evidence/filesystem_scope.rs`. The
+  implementing surfaces are under live claims: request/options admission
+  (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION, expires 22:14Z),
+  `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION, 23:07Z),
+  `build-output` (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z) and
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z). Sibling re-mine names: BUILD-DIRECTORY-ALIAS-COLLISION,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION, HOST-ALIAS-BUILD-DIR-DETECTION,
+  REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.
+- **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
+- **BOOTSTRAP-SEED-EXECUTION-HOSTS** — mined candidate; verify scope then implement.
+- **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; verify scope then implement.
+- **BUILD-DIR-ALIAS-RACE-DETECTION.** Verified scope — re-mines the
+  race-window residual the landed **BUILD-DIR-HOST-ALIAS-COLLISIONS**
+  row already assigns to **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION**:
+  an alias created between admission's `overlap_key` check and the first
+  write (e.g. a symlink planted inside the window) is invisible to the
+  spelling-level fence in `build-evaluation/src/evidence/filesystem_scope.rs`.
+  Re-verified at `8c6294fcfc8`: the fence map rolled over — the
+  request/options admission surface is still held by
+  BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION (Zergling-136, exp 04:12Z),
+  while the prior fences on `filesystem_scope.rs`
+  (BUILD-DIRECTORY-ALIAS-COLLISION), `build-output`
+  (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE) and
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION)
+  have expired. Sibling re-mine names: BUILD-DIRECTORY-ALIAS-COLLISION,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE,
+  BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION, HOST-ALIAS-BUILD-DIR-DETECTION,
+  REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.
+- **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
   Verified scope: re-mines the same race-window residual assigned to
   **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
   **BUILD-DIR-ALIAS-RACE-DETECTION**'s record and sibling
