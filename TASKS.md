@@ -5320,6 +5320,19 @@ Owners include
     retain rejection of unproved termination, invalid laws and non-hermetic
     identities. Use package provenance: a standalone user source currently
     rejects at `normalized_hermetic_symbol_identity`.
+    `proofs/quotient_lift_unproved_termination_rejected` now pins the
+    termination fence: a pure, single-state representative whose checked
+    summary stays progress-conditional (a `satisfies` conformance inheriting
+    the boundary requirement's `requires fuel in Fuel::Rank` premise) is
+    refused with `not admitted until the termination fence`, exercised by
+    `quotient_lift_rejects_a_representative_with_progress_conditional_termination`
+    in `proof_and_domain_canaries.rs` and rostered under
+    `proof_and_float_suites::FILE_EXPECTATION_FAIL_CANARIES`. Still open in
+    this bullet: the managed `Quotient::lift` pass canary and a
+    CHECKED_ONLY_FAIL seat for the pin — both register through
+    `canary_suite.rs`, fenced at claim time by
+    CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP — plus the invalid-law and
+    non-hermetic retention halves.
   - Exercise the same gate through the CLI after ordinary package review and
     ProgramEntry establishment. At `0504c60747`, the recorded macOS ARM64
     CLI probe stops earlier in std review

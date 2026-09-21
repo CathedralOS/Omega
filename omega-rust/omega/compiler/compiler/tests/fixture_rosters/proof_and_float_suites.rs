@@ -161,6 +161,8 @@ pub const FLOAT_FLOAT_TRAPPING_PROPAGATED_INFINITY_TRAPS: &str =
 pub const FLOAT_EXCLUSIVE_RANGE_BELOW_ENDPOINT: &str = "float/exclusive_float_range_below_endpoint";
 pub const FLOAT_EXCLUSIVE_RANGE_ENDPOINT_REJECTED: &str =
     "float/exclusive_float_range_endpoint_rejected";
+pub const PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED: &str =
+    "proofs/quotient_lift_unproved_termination_rejected";
 
 pub const PASS_CANARIES: &[&str] = &[
     WIRE_DECODE_REQUIREMENT_SURFACE,
@@ -205,6 +207,7 @@ pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     PROOFS_ACCUMULATOR_GUARANTEE_WRONG_STEP_TWIN,
     PROOFS_ACCUMULATOR_GUARANTEE_UNESTABLISHED_TWIN,
     PROOFS_ACCUMULATOR_GUARANTEE_UNBOUNDED_FORMALS,
+    PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED,
 ];
 
 pub const FAIL_CANARIES: &[&str] = &[
