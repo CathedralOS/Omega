@@ -9134,6 +9134,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `build/package-manager/review-<target>.txt` → `omega update --resume`.
   `verify.py` requires Python >=3.11 (`tomllib`); on 3.10 hosts run with
   a `tomli`-backed `tomllib` shim on `PYTHONPATH`.
+- **GEOMETRY-PARITY.** Mined candidate — resolved: the bare name is the
+  app board's own canonical row, `samples/apps/squalr/TASKS.md`
+  **GEOMETRY-PARITY** at gitlink `5b0307c35` — "Validate the geometry
+  application on Windows … then finish the mapped Rust behavior still
+  absent from the seed." Its state is unchanged and it has no Omega-side
+  slice: Omega + std `87d8b227` pass all 12 authored geometry checks on
+  macOS ARM64 (`verify.py native` → `Squalr geometry: PASS`), "Windows
+  was not run" — the acceptance leg is Windows-host-gated — and the
+  residual parity list (Rust debug-only assertions, alignment string
+  parsing, the set_alignment call-site gate, named trait operators) is
+  each already a sibling row: GEOMETRY-WINDOWS-LEG /
+  GEOMETRY-WINDOWS-VALIDATION / GEOMETRY-WINDOWS-REVALIDATION carry the
+  Windows half, SQUALR-ALIGNMENT-STRING-PARSING /
+  SQUALR-NAMED-TRAIT-OPERATORS / SQUALR-GEOMETRY-PARITY the gap clauses,
+  SQUALR-CLONE-SERIALIZATION-PARITY the clone/serialization clause, and
+  the port surface `samples/apps/squalr` is wholesale-fenced this wave
+  by REGION-ALIGNMENT-EXPANSION (~07:25Z) with GEOMETRY-WINDOWS-VALIDATION
+  item-live (~13:53Z). No unfenced slice exists under this name;
+  coordinate on the submodule board.
 - **GEOMETRY-WINDOWS-LEG.** Mined candidate — resolved at `9beef2b045`:
   re-mines the same Windows leg of the app repo's GEOMETRY-PARITY acceptance
   that sibling row GEOMETRY-WINDOWS-VALIDATION (~this file, line 7842)
