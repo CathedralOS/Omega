@@ -84,7 +84,15 @@ is stale.
 
 - Adjacent entry legs sampled for context and not counted above carry the
   same entry-selection residual (`program_entries_and_image_validation`
-  x2, `aarch64_entry_abi` x11).
+  x2, `aarch64_entry_abi` x11). A fuller enumeration at `6ef64f6dd6`
+  counted `program_entries_and_image_validation` at 14 legs — 9 pass, 5
+  fail: three share the entry-selection residual
+  (`catalog_checked_assembly_…`, `structured_machine_control_…`,
+  `migrated_main_entries_…`), and two fail on distinct shapes —
+  `immediate_port_io_…` refuses at terminal-authority closure (`no
+  selected provider requirement custody`) and
+  `production_check_accepts_entry_agnostic_semantic_corpus` misses the
+  expected `05_capability_manifest.json` build artifact.
 - `calling_policy_plans` counts include the module's linux_arm64 policy
   legs (host-independent plan evaluation); all green.
 - Not run: `canary_suite` full corpus (recorded red elsewhere),

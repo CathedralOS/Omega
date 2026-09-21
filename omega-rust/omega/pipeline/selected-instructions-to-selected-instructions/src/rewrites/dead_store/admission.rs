@@ -92,7 +92,8 @@ use crate::rewrites::block_edges::{terminator_instruction, terminator_successors
 use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
-    local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
+    local_slot_is_place_storage, local_store_shape, packed_store_row_shape,
+    place_store_row_shape, slot_is_subject_storage, staging_slot,
     structural_place_declarations, transport_defines,
 };
 
@@ -385,7 +386,9 @@ pub(super) fn admit<'source>(
     if packed {
         packed_store_shape(dead_store, function, environment)?;
     } else if direct_slot.is_some() {
-        local_store_shape(dead_store, environment)?;
+        local_store_shape(dead_store, environment, || {
+            DeadStoreEliminationError::ConstraintMismatch
+        })?;
     } else if byte_span {
         byte_span_store_shape(dead_store, write, function, environment)?;
     } else {
@@ -567,15 +570,7 @@ fn place_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    Ok(())
+    place_store_row_shape(row, || DeadStoreEliminationError::ConstraintMismatch)
 }
 
 /// The removed packed store carries the target's declared `store_packed`
@@ -596,17 +591,7 @@ fn packed_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 3
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || row.operands[2].operand != 2
-        || row.operands[2].access != RegisterOperandAccess::Def
-        || !row.operands[2].early_clobber
-    {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
+    packed_store_row_shape(row, || DeadStoreEliminationError::ConstraintMismatch)?;
     if instruction.operands.len() != 3
         || instruction.operands[2].operand != 2
         || instruction.operands[2].access != RegisterOperandAccess::Def
@@ -614,32 +599,6 @@ fn packed_store_shape(
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     if !scratch_definition_is_dead(function, instruction.operands[2].virtual_register) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    Ok(())
-}
-
-/// The direct slot store's operand surface: the target's declared `store64`
-/// row — exactly `[use value]` — and the instruction carrying just that one
-/// use. Removing it removes no register definition, so no custody check like
-/// the packed scratch's is needed.
-fn local_store_shape(
-    instruction: &SelectedInstruction,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<(), DeadStoreEliminationError> {
-    if environment.selected_keys().store64 != Some(instruction.constraint) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let row = environment
-        .constraint(instruction.constraint)
-        .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 1
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands.len() != 1
-        || instruction.operands[0].operand != 0
-        || instruction.operands[0].access != RegisterOperandAccess::Use
-    {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())

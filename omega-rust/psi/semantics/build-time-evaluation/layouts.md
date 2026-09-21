@@ -109,9 +109,14 @@ allocator contract.
 
 Reports retain distinct normalized `Encode` and `StrictDecode` requirements,
 the normalized plan and dynamic obligations, and generated origin independently
-of compiler-admitted trust. Validated plans and differential canaries do not
-constitute independent verification of generated bodies. Only that verification
-can establish derived trust. The current strict decoder cannot satisfy a
+of compiler-admitted trust. Validated plans and differential canaries are not
+that verification; `checked_interpreter::verify_wire_schema_codec` is -- it
+byte-compares canonical emissions against an independently written reference
+framing, round-trips the strict decoder, and requires malformed frames to be
+rejected. Schemas whose whole requirement is exercised report `Derived` trust;
+a field kind with no decode-side realization (borrowed scalar slices, owned
+text) is named as a coverage gap and the row stays generator-admitted; a proven
+divergence is a compile diagnostic. The current strict decoder cannot satisfy a
 preservation demand; preserving realization remains separate work.
 The [codec specification](../../../../wiki/spec/layouts/codecs.md) owns byte
 grammar, destination establishment, and failure behavior.

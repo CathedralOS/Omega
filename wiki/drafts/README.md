@@ -34,6 +34,12 @@ the existing task boards, not in a second tracking system.
 - [Swarm commit signal](swarm_commit_signal.md): 1,000-commit noise measurement
   against published swarm-orchestration evidence; remove when superseded or the
   board/landing workflow changes make it stale.
+- [Backend vocabulary rejection audit](backend_vocabulary_rejection_audit.md):
+  catalog of the compiler-owned closed vocabularies — backend wire decoders,
+  the legalization/selection operation vocabulary, and build-spec sets
+  (calling-policy primitives, assembly catalog, sealed materialization symbols,
+  root-reach bound) — and where non-admitted values or authored extension
+  reject; delete once a permanent spec section owns it.
 
 Keep useful temporary residue here after review; delete obsolete or redundant
 history. Concrete proposed language or toolchain changes belong in proposals.

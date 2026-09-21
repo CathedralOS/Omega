@@ -374,6 +374,16 @@ pub(crate) fn named_value_type_reference(
                 || (path.head_symbol.is_valid() && candidate == path.head_symbol))
     };
 
+    // The resolved binder's retained symbol parent names its owning
+    // declaration: machine-owned data under the machine, parameters and
+    // locals under the state, parameters under the proposition. Check that
+    // one container before the whole-program scan; a miss still runs the
+    // full scan below, so binders whose retained parent disagrees with
+    // storage keep resolving exactly as before.
+    if let Some(type_reference) = hinted_named_value_type_reference(program, path, matches_symbol) {
+        return Some(type_reference);
+    }
+
     for machine in program.machines() {
         if let Some(owned) = program
             .machine_owned_data(machine)
@@ -406,6 +416,82 @@ pub(crate) fn named_value_type_reference(
             .find(|parameter| matches_symbol(parameter.symbol))
         {
             return Some(parameter.type_reference);
+        }
+    }
+    None
+}
+
+/// Parent-hinted lookup for [`named_value_type_reference`]. The retained
+/// parent resolves the owning declaration in one pass over the machine and
+/// proposition rosters instead of descending every state's parameters and
+/// statements. Each hinted container is verified with the caller's exact
+/// symbol predicate; `None` leaves the whole-program scan authoritative.
+fn hinted_named_value_type_reference(
+    program: &TypedTrees,
+    path: &typed_trees::expression::TableNamePath,
+    matches_symbol: impl Fn(symbols::SymbolHandle) -> bool,
+) -> Option<TypeReferenceHandle> {
+    let binder = if path.symbol.is_valid() {
+        path.symbol
+    } else {
+        path.head_symbol
+    };
+    if !binder.is_valid() {
+        return None;
+    }
+    let parent = program.symbols.get(binder).parent;
+    if !parent.is_valid() {
+        return None;
+    }
+    // Machine-owned data: the binder's parent is the machine itself.
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == parent)
+    {
+        return program
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned| matches_symbol(owned.symbol))
+            .map(|owned| owned.type_reference);
+    }
+    // Proposition parameters: the binder's parent is the proposition.
+    if let Some(proposition) = program
+        .propositions()
+        .iter()
+        .find(|proposition| proposition.symbol == parent)
+    {
+        return program
+            .proposition_parameters(proposition)
+            .iter()
+            .find(|parameter| matches_symbol(parameter.symbol))
+            .map(|parameter| parameter.type_reference);
+    }
+    // State binders: the binder's parent is a state whose own retained
+    // parent names its machine.
+    let grandparent = program.symbols.get(parent).parent;
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == grandparent)
+        && let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == parent)
+    {
+        if let Some(parameter) = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| matches_symbol(parameter.symbol))
+        {
+            return Some(parameter.type_reference);
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::LocalData(local) = statement
+                && matches_symbol(local.symbol)
+            {
+                return Some(local.type_reference);
+            }
         }
     }
     None
@@ -512,5 +598,311 @@ pub(crate) fn expression_type_name_handle(
             typed_trees::expression::UnaryOperator::LogicalNot => "bool",
         },
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::named_value_type_reference;
+    use arena::HandleSpan;
+    use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::TypedTrees;
+    use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
+    use typed_trees::machine::{Machine, OwnedData};
+    use typed_trees::name::Identifier;
+    use typed_trees::proposition::PropositionDefinition;
+    use typed_trees::signature::StateParameter;
+    use typed_trees::state::State;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::TypeReferenceHandle;
+
+    fn typed_source(source: &str) -> TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap_or_else(|diagnostics| panic!("tokenize: {diagnostics:#?}\n{source}"));
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("named_value_type_reference.omg".into(), source.to_owned())
+            .source_id;
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+            .unwrap_or_else(|diagnostics| panic!("parse: {diagnostics:#?}\n{source}"));
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"))
+    }
+
+    fn name_path(
+        program: &mut TypedTrees,
+        spelling: &str,
+        symbol: SymbolHandle,
+        head_symbol: SymbolHandle,
+    ) -> TableNamePath {
+        let mut members = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated(spelling));
+        let mut member_symbols = HandleSpan::empty();
+        program
+            .expression_table
+            .push_name_path_member_symbol(&mut member_symbols, symbol);
+        TableNamePath {
+            members,
+            member_symbols,
+            head_symbol,
+            symbol,
+        }
+    }
+
+    #[test]
+    fn retained_parent_resolves_state_parameter_and_local_binders() {
+        let program = typed_source(
+            "machine inspect(index: u64) {
+                 let base: u64 = index;
+                 let copy: u64 = base;
+             }",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let local = |name: &str| {
+            statements
+                .iter()
+                .find_map(|statement| match statement {
+                    StatementNode::LocalData(local) if local.name.as_str() == name => Some(local),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("local `{name}`"))
+        };
+        let ExpressionNode::Name(parameter_path) = program
+            .expression_table
+            .expression(local("base").initial_value)
+        else {
+            panic!("parameter initializer should be a name")
+        };
+        let index = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "index")
+            .expect("index parameter");
+        assert_eq!(
+            named_value_type_reference(&program, parameter_path),
+            Some(index.type_reference)
+        );
+        let ExpressionNode::Name(local_path) = program
+            .expression_table
+            .expression(local("copy").initial_value)
+        else {
+            panic!("local initializer should be a name")
+        };
+        assert_eq!(
+            named_value_type_reference(&program, local_path),
+            Some(local("base").type_reference)
+        );
+    }
+
+    #[test]
+    fn retained_parent_resolves_machine_owned_data() {
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
+        let machines = symbols.insert_children(
+            root,
+            [(SymbolKind::Machine, SymbolNameRef::Borrowed("inspect"))],
+        );
+        let machine_symbol = SymbolTableBuilder::child_handles(machines)
+            .next()
+            .expect("machine");
+        let owned = symbols.insert_children(
+            machine_symbol,
+            [(SymbolKind::Field, SymbolNameRef::Borrowed("counter"))],
+        );
+        let owned_symbol = SymbolTableBuilder::child_handles(owned)
+            .next()
+            .expect("owned data");
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            ..Machine::default()
+        };
+        let type_reference = TypeReferenceHandle::from_arena_index(7);
+        program.push_machine_owned_data(
+            &mut machine,
+            OwnedData {
+                symbol: owned_symbol,
+                name: Identifier::generated("counter"),
+                type_reference,
+                initial_value: ExpressionHandle::invalid(),
+            },
+        );
+        program.push_machine(machine);
+        let path = name_path(&mut program, "counter", owned_symbol, owned_symbol);
+        assert_eq!(
+            named_value_type_reference(&program, &path),
+            Some(type_reference)
+        );
+    }
+
+    #[test]
+    fn retained_parent_resolves_proposition_parameters() {
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
+        let propositions = symbols.insert_children(
+            root,
+            [(SymbolKind::Proposition, SymbolNameRef::Borrowed("bounded"))],
+        );
+        let proposition_symbol = SymbolTableBuilder::child_handles(propositions)
+            .next()
+            .expect("proposition");
+        let parameters = symbols.insert_children(
+            proposition_symbol,
+            [(SymbolKind::Parameter, SymbolNameRef::Borrowed("limit"))],
+        );
+        let parameter_symbol = SymbolTableBuilder::child_handles(parameters)
+            .next()
+            .expect("parameter");
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let mut proposition = PropositionDefinition {
+            symbol: proposition_symbol,
+            name: Identifier::generated("bounded"),
+            ..PropositionDefinition::default()
+        };
+        let type_reference = TypeReferenceHandle::from_arena_index(9);
+        program.push_proposition_parameter(
+            &mut proposition,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated("limit"),
+                type_reference,
+                ..StateParameter::default()
+            },
+        );
+        program.push_proposition(proposition);
+        let path = name_path(&mut program, "limit", parameter_symbol, parameter_symbol);
+        assert_eq!(
+            named_value_type_reference(&program, &path),
+            Some(type_reference)
+        );
+    }
+
+    #[test]
+    fn retained_parent_falls_back_when_it_disagrees_with_storage() {
+        // Symbols claim `value` is a parameter of `retained`'s state, but the
+        // parameter is actually stored under `stored`'s state. The hinted
+        // container misses and the whole-program scan still resolves it,
+        // matching the pre-hint contract.
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Borrowed("root"));
+        let machines = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("stored")),
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("retained")),
+            ],
+        );
+        let mut machine_symbols = SymbolTableBuilder::child_handles(machines);
+        let stored_machine_symbol = machine_symbols.next().expect("stored machine");
+        let retained_machine_symbol = machine_symbols.next().expect("retained machine");
+        let states = symbols.insert_children(
+            retained_machine_symbol,
+            [(SymbolKind::State, SymbolNameRef::Borrowed("run"))],
+        );
+        let retained_state_symbol = SymbolTableBuilder::child_handles(states)
+            .next()
+            .expect("retained state");
+        let parameters = symbols.insert_children(
+            retained_state_symbol,
+            [(SymbolKind::Parameter, SymbolNameRef::Borrowed("value"))],
+        );
+        let parameter_symbol = SymbolTableBuilder::child_handles(parameters)
+            .next()
+            .expect("parameter");
+
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let mut stored_machine = Machine {
+            symbol: stored_machine_symbol,
+            ..Machine::default()
+        };
+        let mut stored_state = State {
+            symbol: SymbolHandle::from_arena_index(90),
+            ..State::default()
+        };
+        let type_reference = TypeReferenceHandle::from_arena_index(11);
+        program.push_state_parameter(
+            &mut stored_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated("value"),
+                type_reference,
+                ..StateParameter::default()
+            },
+        );
+        program.push_machine_state(&mut stored_machine, stored_state);
+        program.push_machine(stored_machine);
+        // The retained container exists but does not hold the binder.
+        let mut retained_machine = Machine {
+            symbol: retained_machine_symbol,
+            ..Machine::default()
+        };
+        let mut retained_state = State {
+            symbol: retained_state_symbol,
+            ..State::default()
+        };
+        program.push_state_parameter(
+            &mut retained_state,
+            StateParameter {
+                symbol: SymbolHandle::from_arena_index(91),
+                name: Identifier::generated("other"),
+                type_reference: TypeReferenceHandle::from_arena_index(12),
+                ..StateParameter::default()
+            },
+        );
+        program.push_machine_state(&mut retained_machine, retained_state);
+        program.push_machine(retained_machine);
+
+        let path = name_path(&mut program, "value", parameter_symbol, parameter_symbol);
+        assert_eq!(
+            named_value_type_reference(&program, &path),
+            Some(type_reference)
+        );
+    }
+
+    #[test]
+    fn retained_parent_uses_head_symbol_when_leaf_is_invalid() {
+        let program = typed_source(
+            "machine inspect(index: u64) {
+                 let base: u64 = index;
+             }",
+        );
+        let (index_symbol, index_type) = {
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let index = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == "index")
+                .expect("index parameter");
+            (index.symbol, index.type_reference)
+        };
+        let mut program = program;
+        let path = name_path(&mut program, "index", SymbolHandle::invalid(), index_symbol);
+        assert_eq!(
+            named_value_type_reference(&program, &path),
+            Some(index_type)
+        );
     }
 }

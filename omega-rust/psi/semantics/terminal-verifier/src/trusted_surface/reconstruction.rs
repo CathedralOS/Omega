@@ -556,7 +556,7 @@ static FACT_BRANCH_CONDITION_TRANSPORT: TrustedSurfaceEntry = TrustedSurfaceEntr
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a conditional's Boolean condition, the selected arm's polarity, and the reconstructed axiom roster's own value equations",
-    conclusion: "the selected arm's denotation-recognized condition fact, emitted only after its certificate is accepted: the arm's truth premise is assumption zero, every roster equation headed by an SSA value is a cited semantic axiom in newest-first order, and the emitted fact is exactly what that premise transports to",
+    conclusion: "the selected arm's denotation-recognized condition fact, emitted only after its certificate is accepted: the arm's truth premise is assumption zero, the SSA-value roster equations reachable from the premise and conclusion through the cited equations' own value identities are the cited semantic axioms in newest-first order — the whole roster stays cited whenever a walked term cannot be completely visited, since unreachable rows cannot influence the checked relation — and the emitted fact is exactly what that premise transports to",
     dependencies: &[
         "fact:branch-condition",
         "rule:value-equality-transport",

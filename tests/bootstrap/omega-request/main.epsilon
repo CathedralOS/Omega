@@ -1,15 +1,15 @@
 // The OCREQ request entry for Omega D: the canonical program boundary that
 // receives one sealed OCREQ V1 request on stdin and publishes the request's
 // outcome as one OCOUT V1 frame on stdout. Nothing outside the request
-// supplies meaning — no file system, no environment, no second channel.
+// supplies meaning -- no file system, no environment, no second channel.
 //
 // The entry runs the implemented request phases: the envelope's identity and
 // declared-extent check (phases 0/1) and the inner field/tag structure pass
 // (phases 2/6) over the staged bytes. A refusal publishes malformed_request
 // anchored at the structure pass's first bad byte. A request that decodes
 // complete and well-formed stops at the coverage_request_semantics
-// provision — package-key recomputation, canonical ordering, graph,
-// snapshot, admission, and commitment semantics are unimplemented — rather
+// provision -- package-key recomputation, canonical ordering, graph,
+// snapshot, admission, and commitment semantics are unimplemented -- rather
 // than produce a verdict it cannot defend. A request longer than the
 // private staging bound is a request_staging_bytes resource refusal; the
 // entry keeps consuming the stream so the published requested amount is the

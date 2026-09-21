@@ -1,8 +1,7 @@
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression,
-    TableRangeExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression, TableRangeExpression,
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -482,9 +481,8 @@ fn check_unknown_length_slice_index(
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => {
             let reduced = zero_offset_reduced_range(program, range);
-            if unknown_length_range_is_proven(
-                program, machine, state, facts, collection, &reduced,
-            ) {
+            if unknown_length_range_is_proven(program, machine, state, facts, collection, &reduced)
+            {
                 return true;
             }
             let failure =

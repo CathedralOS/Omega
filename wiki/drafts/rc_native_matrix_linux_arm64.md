@@ -14,6 +14,11 @@ in the same frontier and fixture-migration residuals recorded for the
 linux_x86_64 row; no leg that reached a produced artifact misbehaved on the
 AArch64 side of its assertions.
 
+A parallel sweep at the later revision `c267df86ac` (2026-09-20, same host
+and toolchain) returned the identical 13 pass / 73 fail verdict across the
+same 86 legs — the two source-evaluated hosted-receiver legs remain green
+and no new failure family appeared between `96b4afed92` and `c267df86ac`.
+
 ## Baseline gates
 
 | leg | command | result |
