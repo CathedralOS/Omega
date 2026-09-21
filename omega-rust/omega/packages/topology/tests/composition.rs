@@ -9,6 +9,9 @@
 
 mod support;
 
+use std::borrow::Borrow;
+use std::sync::Arc;
+
 use support::*;
 use topology_plan::*;
 
@@ -16,7 +19,7 @@ fn compose(
     request: &TopologyRequest,
     instances: Vec<PlanInstance>,
     bindings: Vec<Binding>,
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
 ) -> Result<(DeploymentPlan, Vec<PolicyOutcome>), CompositionError> {
     let request_bytes = encode_request(request).unwrap();
     compose_plan(
@@ -431,7 +434,7 @@ fn a_self_connection_is_allowed_and_visible() {
         )],
     );
     let mut components = payment_components();
-    components.push(admit(&scheduler));
+    components.push(Arc::new(admit(&scheduler)));
     let request = roster_request(
         &["api", "authorization", "billing", "scheduler"],
         &subjects_of(&components),
@@ -606,4 +609,56 @@ fn multiple_edges_between_the_same_pair_keep_all_evidence() {
     let graph = NormalizedGraph::new(plan.instances.clone(), plan.bindings.clone()).unwrap();
     assert_eq!(graph.successors(0), &[1]);
     assert_eq!(graph.bindings().len(), 3);
+}
+
+#[test]
+fn declaration_order_normalizes_to_the_identical_plan() {
+    // Producer inputs may declare instances and bindings in any order: the
+    // graph resolves endpoint indices against the canonical name order, so
+    // the emitted plan never depends on declaration order.
+    let request = payment_request();
+    let components = payment_components();
+    let (declared_plan, declared_outcomes) = compose(
+        &request,
+        payment_instances(),
+        payment_bindings(),
+        &components,
+    )
+    .expect("payment composition succeeds");
+
+    let mut reordered_instances = payment_instances();
+    reordered_instances.reverse();
+    let mut reordered_bindings = payment_bindings();
+    reordered_bindings.reverse();
+    let (normalized_plan, normalized_outcomes) = compose(
+        &request,
+        reordered_instances,
+        reordered_bindings,
+        &components,
+    )
+    .expect("reordered declarations compose");
+
+    assert_eq!(normalized_outcomes, declared_outcomes);
+    assert_eq!(
+        encode_plan(&normalized_plan).unwrap(),
+        encode_plan(&declared_plan).unwrap(),
+        "declaration order must normalize to the identical plan"
+    );
+
+    // Instance and binding orders vary independently of each other: a partial
+    // swap of both rosters — not a mirror of the earlier reversal — still
+    // yields the identical canonical plan.
+    let mut swapped_instances = payment_instances();
+    swapped_instances.swap(0, 1);
+    let mut swapped_bindings = payment_bindings();
+    swapped_bindings.swap(0, 1);
+    let (swapped_plan, swapped_outcomes) =
+        compose(&request, swapped_instances, swapped_bindings, &components)
+            .expect("independently reordered declarations compose");
+    assert_eq!(swapped_outcomes, declared_outcomes);
+    assert_eq!(
+        encode_plan(&swapped_plan).unwrap(),
+        encode_plan(&declared_plan).unwrap(),
+        "independent roster orders must normalize to the identical plan"
+    );
 }

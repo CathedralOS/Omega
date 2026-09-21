@@ -6,7 +6,9 @@
 // host-boundary trait machines.)
 
 data Pool {
-    size: u64;
+    // Defined-overflow domain: `size + 1` is a wrapping increment, not exact
+    // arithmetic, so the grow body needs no operand range premise.
+    size: u64 in Wrapping;
 }
 
 boundary trait Allocator {

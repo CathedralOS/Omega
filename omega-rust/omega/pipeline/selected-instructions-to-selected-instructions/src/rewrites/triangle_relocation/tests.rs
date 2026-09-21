@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,40 +27,7 @@ use super::{
     TriangleRelocationError, TriangleRelocationReceipt, ValidatedTriangleRelocation,
     relocate_selected_instruction_out_of_triangle, validate_triangle_relocation,
 };
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const LATE: SelectedInstructionId = SelectedInstructionId(3);
@@ -1907,8 +1874,9 @@ fn memory_roster_binds_the_window() {
 /// inside the join's executed prefix, and one positioned past the landing
 /// index observes it inside the head's — both refuse, while positions at
 /// or before either boundary keep the executed set they always had. A
-/// settlement inside the arm never observed the member: the member never
-/// enters the arm's body, so every arm prefix is unchanged.
+/// settlement inside the arm refuses too: the member never enters the
+/// arm's body, but it executes before the arm's point after the move
+/// where it executed after it before.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
@@ -1928,15 +1896,21 @@ fn boundary_settlements_bound_the_window() {
             "join-block settlement at {position}"
         );
     }
-    // The member never enters the arm's body: no arm prefix ever contained
-    // or loses it, so a settlement anywhere in the arm admits.
+    // Every arm position is crossed: the member lands ahead of the arm's
+    // whole body, so a settlement anywhere in the arm observes the member
+    // inside its executed prefix after the move where it never ran there
+    // before.
     for position in [0u32, 1, 2] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        relocate(&settled, &environment, MOVING, TRAIL).unwrap();
+        assert_eq!(
+            relocate(&settled, &environment, MOVING, TRAIL).unwrap_err(),
+            TriangleRelocationError::UnsupportedPair,
+            "arm settlement at {position}"
+        );
     }
     // In the head block the bound is the landing index: at or before it
     // the executed prefix is unchanged; past it the member joins the
@@ -2155,12 +2129,13 @@ fn target_mismatch_rejects() {
 }
 
 /// The bounded audit is measured: the triangle window prices every scan,
-/// crossed-surface pair, and roster row against the work budget, and a
+/// the path walk's edge bound, every crossed position and crossed edge
+/// surface pair, and each roster row against the work budget, and a
 /// budget one step short refuses rather than skimping. The `TRAIL`
-/// landing crosses the join head, the arm's body and `Jump` terminator
-/// and edge, the branch with its two edges, and the head tail — fifteen
-/// crossed-surface pairs — and naming `LATE` lands the member one
-/// position earlier, adding the head middle's pair.
+/// landing crosses the join head, the arm's body, the head tail, the
+/// arm's `Jump` edge, and the branch's two edges — eight position pairs
+/// and eleven edge-surface steps — and naming `LATE` lands the member
+/// one position earlier, adding the head middle's pair.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
@@ -2169,15 +2144,18 @@ fn measured_validation_step_boundary() {
     // Each block contributes its body plus its terminator once to the
     // whole-function scan and once to this function's blocks: 11 + 11.
     // The successor scan counts each terminator's edges: 2 + 1 + 0.
-    // The crossed surfaces pair the member (1) against HEAD (1), the arm
-    // body (1 each), the arm `Jump` terminator (1 use + 1 definition on
-    // x86-64), the branch terminator (2 uses + 1 definition), and
-    // TRAIL (1): 2+2+2+3+4+2 = 15 steps.
-    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */ + 3 /* edges */ + 15;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    // The path walk is bounded by two pushes per branch edge: 4. The
+    // crossed positions pair the member (1) against HEAD (1), the arm
+    // body (1 each), and TRAIL (1): 2+2+2+2 = 8 steps. The crossed edges
+    // pair the member against each edge's terminator instruction plus
+    // its own surface — the branch (2 uses + 1 definition) twice and the
+    // arm `Jump` (1 use + 1 definition): 4+3+4 = 11 steps.
+    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */ + 3 /* edges */
+        + 4 /* path walk edge bound */ + 8 /* crossed positions */ + 11 /* crossed edges */;
+    let exact = measured_step_budget(steps);
     relocate_selected_instruction_out_of_triangle(&source, 0, MOVING, TRAIL, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_instruction_out_of_triangle(
             &source,
@@ -2191,10 +2169,10 @@ fn measured_validation_step_boundary() {
         TriangleRelocationError::WorkBudgetExceeded
     );
     // Landing at `LATE` crosses one more surface pair — the head middle.
-    let exact = OptimizationWorkBudget::new(1, 1, steps + 2, 1, 1).unwrap();
+    let exact = measured_step_budget(steps + 2);
     relocate_selected_instruction_out_of_triangle(&source, 0, MOVING, LATE, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps + 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps + 1);
     assert_eq!(
         relocate_selected_instruction_out_of_triangle(
             &source,
@@ -2277,4 +2255,143 @@ fn triangle_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![LATE, LEAD, MOVING, TRAIL]
     );
+}
+
+/// The validator proves its legality reconstruction is its own: a forged
+/// proposal — the same edit a producer would publish — is produced
+/// directly on the source's plan without consulting admission, so the
+/// validator's verdict cannot ride on the producer's admission record. A
+/// legal forged move validates; a forged move across a hazard-coupled
+/// crossed position rejects with the legality error, not a replay
+/// mismatch.
+mod independence_tests {
+    use super::{
+        BRANCH, MOVING, NativeTarget, R_MOVE, R_TAIL, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, TRAIL, TriangleRelocationError,
+        ValidatedTriangleRelocation, baseline_target_register_environment, budget, fixture,
+        instruction, mutated, validate_triangle_relocation,
+    };
+
+    /// Relocate `member` out of the join onto `landing_index` inside the
+    /// head block's body — the edit a producer emitting that relocation
+    /// would publish — without asking admission whether the window is
+    /// legal.
+    fn forged(
+        source: &ValidatedTriangleRelocation,
+        member: SelectedInstructionId,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let (block_index, member_index) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_index, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.id == member)
+                    .map(|member_index| (block_index, member_index))
+            })
+            .unwrap();
+        let instruction = function.blocks[block_index]
+            .instructions
+            .remove(member_index);
+        function.blocks[0]
+            .instructions
+            .insert(landing_index, instruction);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the member and the crossed positions carry no hazards,
+    /// no roster rows, and no barriers, so the audit derives the move and
+    /// the content comparison accepts it.
+    #[test]
+    fn forged_member_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_triangle_relocation(
+            &source,
+            0,
+            MOVING,
+            TRAIL,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 2),
+        )
+        .unwrap();
+    }
+
+    /// The same forged move validates at the body end: naming the head's
+    /// terminator-carried branch instruction lands the member past every
+    /// body position, and the validator derives that landing itself.
+    #[test]
+    fn forged_member_move_to_the_body_end_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_triangle_relocation(
+            &source,
+            0,
+            MOVING,
+            BRANCH,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the member moved past a crossed position reading the
+    /// register it defines — here `TRAIL` mutated to read `R_MOVE`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`, not
+    /// a replay mismatch, because it reconstructs the window's hazards
+    /// instead of trusting the producer's admission record.
+    #[test]
+    fn forged_member_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                TRAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_TAIL],
+            );
+        });
+        assert_eq!(
+            validate_triangle_relocation(
+                &source,
+                0,
+                MOVING,
+                TRAIL,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 2),
+            )
+            .unwrap_err(),
+            TriangleRelocationError::UnsupportedPair
+        );
+        // Landing the member at the body end keeps the coupled `TRAIL`
+        // ahead of it as the source had it, so the validator's audit
+        // derives that window legal as well.
+        validate_triangle_relocation(
+            &source,
+            0,
+            MOVING,
+            BRANCH,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
 }

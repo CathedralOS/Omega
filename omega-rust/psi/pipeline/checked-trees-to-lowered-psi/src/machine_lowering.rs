@@ -4,9 +4,12 @@
 //! machine, dispatch it through [`crate::machine_lowering::machine_dispatch`] to the plan family
 //! that owns its shape, then sequence the work every selected module still
 //! needs: retained custody, float-meaning projections, evidence and proof
-//! recursion, operand proof completion or module validation, and the debug
-//! companion. [`lower_bounded_callback_identity_machine`] is the deliberately
-//! narrower callback-body entrance. Unsupported source constructs fail closed.
+//! recursion, proof-only quotient correspondence rows, operand proof
+//! completion or module validation, and the debug companion.
+//! [`lower_bounded_callback_identity_machine`] is the callback-body entrance:
+//! it lowers the selected machine through this same ordinary route rooted at
+//! the callback entry, then joins the checked callback coordinate onto the
+//! module's entry machine. Unsupported source constructs fail closed.
 
 pub(crate) mod bounded_callbacks;
 pub(crate) mod conformance_publication;
@@ -36,8 +39,10 @@ use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_ha
 use crate::machine_lowering::specialization_commitments::selected_closure_specializations;
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, OperandProofCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
+use crate::proofs::mathematical_declarations::admit_mathematical_declarations;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::proof_recursion::lower_and_install_proof_recursion;
+use crate::proofs::quotient_correspondence::retain_checked_quotient_correspondences;
 use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
 use crate::retention::{
     closed_reach_applications, operation_crash_contracts, reborrow_restored_call_use,
@@ -69,22 +74,6 @@ pub fn lower_machine_by_symbol(
 ) -> Result<LoweredPsi, LoweringError> {
     let selection = select_terminal_machine_by_symbol(checked, machine)?;
     lower_terminal_selection(checked, selection)
-}
-
-/// The checked `let`/`boundary let` mathematical declarations carry no
-/// Terminal Psi evidence encoding yet, so no production route may emit a
-/// module that omits them: every public lowering entrance refuses the roster
-/// loudly until PROOF-CONTRACT-MIGRATION consumes it downstream.
-pub(crate) fn reject_mathematical_declarations(
-    checked: &CheckedTrees,
-) -> Result<(), LoweringError> {
-    if checked.facts.proof.mathematical_declarations.is_empty() {
-        return Ok(());
-    }
-    unsupported(
-        "mathematical `let`/`boundary let` declarations check onto checked trees, but \
-         no Terminal evidence encoding carries them yet (PROOF-CONTRACT-MIGRATION)",
-    )
 }
 
 /// Source custody may select different claim lineages at different normal
@@ -127,9 +116,17 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
-    reject_mathematical_declarations(checked)?;
+    admit_mathematical_declarations(checked)?;
     reject_conditional_claim_joins(checked, &[selection.machine])?;
     operation_crash_contracts::reject_unjoinable_named_sites(checked, selection.machine)?;
+    // Custody gates order deliberately: this program-level check runs before
+    // per-machine lowering, so a custody-carrying unit-effects plan whose
+    // typed machine/state rows are missing reports "direct Unit parameter
+    // plan has no exact typed machine" ahead of the scalar source-custody
+    // gates in expression_preparation/source_custody. Both refusals name the
+    // same root cause (checked facts alone cannot supply authored occurrence
+    // custody); the earlier one fires first on a fully checked program only
+    // when the typed frontend was dropped. terminal_psi_source pins the order.
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
     let exit_admission = GuardedExitAdmission::for_entry(checked, selection.machine);
     reject_unguarded_outcome_guarantees(
@@ -223,6 +220,10 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
         &mut lowered.proof_bundle,
     )?;
+    // Proof-only quotient correspondence rows join module identity before
+    // validation; a nonempty table is then refused by the execution gate below
+    // until executable quotient lowering exists.
+    retain_checked_quotient_correspondences(checked, &mut lowered.semantic_module)?;
     // Unit closures can be provisional inputs to cleanup/borrow assembly.
     // Discharge operand obligations only after the selected module is complete.
     if completion.operands == OperandProofCompletion::Finalize {

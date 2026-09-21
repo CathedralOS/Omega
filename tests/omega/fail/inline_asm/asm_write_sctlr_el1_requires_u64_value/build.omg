@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("asm-write-sctlr-el1-requires-u64-value");
+    builder.freestanding = true;
+}

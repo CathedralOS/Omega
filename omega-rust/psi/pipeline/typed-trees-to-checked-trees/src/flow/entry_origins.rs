@@ -74,6 +74,61 @@ struct ParameterEdge {
     parameters: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
+/// Resolve a Named transition argument to the source parameter carrying its
+/// exact origin. Immutable `let` locals keep custody of the parameter they
+/// were bound from, so a `let held = input; ... -> next(held)` edge maps
+/// through the local to `input`; a mutable local is opaque (it may be reseated
+/// before the transition). Locals shadow same-named parameters, and each
+/// local's initializer only sees bindings that precede it.
+fn tracked_source_parameter<'a>(
+    program: &'a typed_trees::TypedTrees,
+    source: &'a typed_trees::state::State,
+    locals: &[(
+        SymbolHandle,
+        Option<typed_trees::expression::ExpressionHandle>,
+    )],
+    argument: typed_trees::expression::ExpressionHandle,
+    target: &typed_trees::signature::StateParameter,
+) -> Option<&'a typed_trees::signature::StateParameter> {
+    let mut expression = argument;
+    let mut visible = locals.len();
+    loop {
+        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+            return None;
+        };
+        if !name.head_symbol.is_valid()
+            || name.symbol != name.head_symbol
+            || program
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        match locals[..visible]
+            .iter()
+            .rposition(|(symbol, _)| *symbol == name.head_symbol)
+        {
+            Some(index) => {
+                visible = index;
+                expression = locals[index].1?;
+            }
+            None => {
+                return program.state_parameters(source).iter().find(|candidate| {
+                    candidate.symbol == name.head_symbol
+                        && ((reference_type(program, candidate.type_reference)
+                            && reference_type(program, target.type_reference))
+                            || (immutable_scalar(program, candidate)
+                                && immutable_scalar(program, target)
+                                && program.primitive_type_reference(candidate.type_reference)
+                                    == program.primitive_type_reference(target.type_reference)))
+                });
+            }
+        }
+    }
+}
+
 fn parameter_edges(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -81,38 +136,24 @@ fn parameter_edges(
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
     for (source_index, source) in states.iter().enumerate() {
-        for (statement_index, statement) in program
-            .statement_table
-            .statements(source.statement_nodes)
-            .iter()
-            .enumerate()
-        {
+        let mut locals: Vec<(
+            SymbolHandle,
+            Option<typed_trees::expression::ExpressionHandle>,
+        )> = Vec::new();
+        for statement in program.statement_table.statements(source.statement_nodes) {
+            if let StatementNode::LocalData(local) = statement {
+                locals.push((
+                    local.symbol,
+                    (!local.is_mutable).then_some(local.initial_value),
+                ));
+                continue;
+            }
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
-            // Immutable scalar-typed bindings declared before this transition
-            // hold their initializers forever; a transition argument in such
-            // local custody still names the bound parameter's origin.
-            // Mutable or non-scalar locals stay out — their storage could
-            // name a different referent or value later.
-            let local_inits = program.statement_table.statements(source.statement_nodes)
-                [..statement_index]
-                .iter()
-                .filter_map(|statement| {
-                    let StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
-                    (!local.is_mutable
-                        && local.initial_value.is_valid()
-                        && program
-                            .primitive_type_reference(local.type_reference)
-                            .is_some_and(|primitive| primitive.accepts_integer_literal()))
-                    .then_some((local.symbol, local.initial_value))
-                })
-                .collect::<Vec<_>>();
             for target in [transition.target, transition.continuation] {
                 if !target.is_valid() {
                     continue;
@@ -154,66 +195,7 @@ fn parameter_edges(
                             .copied();
                         nonself_index += 1;
                         argument.and_then(|argument| {
-                            let ExpressionNode::Name(name) =
-                                program.expression_table.expression(argument)
-                            else {
-                                return None;
-                            };
-                            if !name.head_symbol.is_valid()
-                                || name.symbol != name.head_symbol
-                                || program
-                                    .expression_table
-                                    .name_path_members(name.members)
-                                    .len()
-                                    != 1
-                            {
-                                return None;
-                            }
-                            // Follow immutable scalar locals back through
-                            // their initializers to the bound name; the chain
-                            // is short and acyclic because each hop lands on
-                            // a strictly earlier-declared binding.
-                            let mut cursor = name.head_symbol;
-                            for _ in 0..local_inits.len() {
-                                if program
-                                    .state_parameters(source)
-                                    .iter()
-                                    .any(|candidate| candidate.symbol == cursor)
-                                {
-                                    break;
-                                }
-                                let Some((_, initial)) =
-                                    local_inits.iter().rfind(|(symbol, _)| *symbol == cursor)
-                                else {
-                                    break;
-                                };
-                                match program.expression_table.expression(*initial) {
-                                    ExpressionNode::Name(bound)
-                                        if bound.head_symbol.is_valid()
-                                            && bound.symbol == bound.head_symbol
-                                            && program
-                                                .expression_table
-                                                .name_path_members(bound.members)
-                                                .len()
-                                                == 1 =>
-                                    {
-                                        cursor = bound.head_symbol;
-                                    }
-                                    _ => break,
-                                }
-                            }
-                            program.state_parameters(source).iter().find(|candidate| {
-                                candidate.symbol == cursor
-                                    && ((reference_type(program, candidate.type_reference)
-                                        && reference_type(program, parameter.type_reference))
-                                        || (immutable_scalar(program, candidate)
-                                            && immutable_scalar(program, parameter)
-                                            && program.primitive_type_reference(
-                                                candidate.type_reference,
-                                            ) == program.primitive_type_reference(
-                                                parameter.type_reference,
-                                            )))
-                            })
+                            tracked_source_parameter(program, source, &locals, argument, parameter)
                         })
                     };
                     if !tracked_parameter(program, parameter) {

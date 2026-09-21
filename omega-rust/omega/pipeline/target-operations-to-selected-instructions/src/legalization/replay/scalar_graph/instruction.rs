@@ -508,6 +508,13 @@ pub(super) fn validate(
             AbstractOperation::BoundaryCall { .. },
         ) => normalized_foreign::validate(actual, node, optimized, native, plan, unit, operation)?,
         (
+            LegalizedScalarInstructionKind::DynamicParameterCall(_),
+            AbstractOperation::CallDynamicParameterScalar { .. }
+            | AbstractOperation::CallDynamicParameterUnit { .. },
+        ) => call_instructions::validate_dynamic_parameter_call(
+            actual, node, optimized, native, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::WrappingShiftLeft { .. },
             AbstractOperation::WrappingIntegerShiftLeft { .. },
         )

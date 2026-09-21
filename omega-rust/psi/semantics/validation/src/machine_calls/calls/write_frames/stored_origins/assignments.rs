@@ -57,7 +57,12 @@ pub(in crate::machine_calls::calls::write_frames) fn assigned_stored_origins(
         Some(state),
         assignment.target,
     )?;
-    if super::super::type_reference_is_reference(program, target_type) {
+    // A reference-typed bare name is a local rebinding that stays with the
+    // alias paths; a member path replaces an exclusive stored leaf's slot
+    // in place, while a shared leaf rebind retires its record unproven.
+    if super::super::type_reference_is_reference(program, target_type)
+        && (source.segments.is_empty() || !super::super::type_may_carry_write(program, target_type))
+    {
         return None;
     }
     if source.segments.iter().any(|segment| {

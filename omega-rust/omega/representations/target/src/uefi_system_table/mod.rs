@@ -593,6 +593,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |package| match package {
                 ProgramEntryPhysicalContractPackage::UefiX64 => 1,
                 ProgramEntryPhysicalContractPackage::MacosArm64 => 2,
+                ProgramEntryPhysicalContractPackage::MacosX64 => 6,
                 ProgramEntryPhysicalContractPackage::LinuxX86_64 => 3,
                 ProgramEntryPhysicalContractPackage::LinuxArm64 => 4,
                 ProgramEntryPhysicalContractPackage::WindowsX64 => 5,
@@ -671,7 +672,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FIELD_COUNT, LayoutPlacementReport, TargetProfile,
+        UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT, UefiSystemTableNativeField,
+        exact_uefi_x64_system_table_layout_plan_report, exact_uefi_x64_system_table_native_layout,
+        plan_uefi_system_table_native_layout, replayed_uefi_x64_system_table_native_layout,
+        validate_contents,
+    };
 
     #[test]
     fn exact_system_table_layout_retains_every_x64_field_and_padding_row() {

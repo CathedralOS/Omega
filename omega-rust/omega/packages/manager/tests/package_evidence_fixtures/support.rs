@@ -69,7 +69,7 @@ pub(super) fn assert_fixture_evidence(package: &str, review: &CheckedPackageRevi
         "file-journal" => (0, 1, 2, PackageReviewCallableRole::Public),
         "provider-switchboard" => (1, 1, 2, PackageReviewCallableRole::Public),
         "remote-journal" => (1, 1, 2, PackageReviewCallableRole::Public),
-        "capability-vault" => (2, 1, 2, PackageReviewCallableRole::Public),
+        "capability-vault" => (1, 2, 2, PackageReviewCallableRole::Public),
         "network-overreach" => (1, 0, 2, PackageReviewCallableRole::Public),
         "axiom-ledger" => (0, 0, 2, PackageReviewCallableRole::Boundary),
         "opaque-carrier" => (0, 1, 2, PackageReviewCallableRole::Boundary),

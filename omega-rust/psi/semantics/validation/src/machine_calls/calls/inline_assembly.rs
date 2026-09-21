@@ -118,12 +118,19 @@ pub(crate) fn validate_asm_value_destination(
             call.target.as_str(),
         ) {
             Some(register) => register.read_mnemonic(),
-            None => match call.target.as_str() {
-                "asm#port_in" => "in",
-                "asm#pushfq" => "pushfq",
-                "asm#rdmsr" => "rdmsr",
-                _ => return,
-            },
+            None => {
+                match language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(
+                    call.target.as_str(),
+                ) {
+                    Some(register) => register.read_mnemonic(),
+                    None => match call.target.as_str() {
+                        "asm#port_in" => "in",
+                        "asm#pushfq" => "pushfq",
+                        "asm#rdmsr" => "rdmsr",
+                        _ => return,
+                    },
+                }
+            }
         };
     let contract = user_asm_contract(instruction);
     validate_asm_operand_constraint(

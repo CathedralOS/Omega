@@ -13,11 +13,15 @@ This tool produces the record for the route that exists today: it measures
 the current receiver-checking and theory surfaces, inventories the accepted
 proof-rule foundations from proof-admission's enforced classifier, and runs
 the pinned positive/negative corpus pairs through `omega --check`. The
-matching-logic candidate columns are emitted as `pending` until
-MATCHING-LOGIC-BOUNDED-SLICE (tools/matching-logic-slice) and
-MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics) land; the
-record schema already carries their keys so the second column is a fill, not
-a redesign.
+candidate side's translation leg is measured: the typed-to-one-sorted
+encoder under `tools/matching-logic-sort-encoding` is run over its pinned
+case corpus and its emitted clause inventory — every clause an axiom
+admission — lands under `candidate.sort_encoding`. The candidate checker,
+theory, and certificate columns are filled from
+MATCHING-LOGIC-BOUNDED-SLICE's landed slice: `tools/matching-logic-slice`
+`slice_checker.py record` is re-run and its emitted record lands under
+`candidate.slice`. MATCHING-LOGIC-COMPARISON-METRICS
+(tools/matching-logic-metrics) remains the pending column owner.
 
 Standard library only. Run from the repository root or the crate directory:
 
@@ -40,6 +44,7 @@ import platform
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -48,6 +53,9 @@ PINNED_CASES = HERE / "pinned_cases.json"
 CLASSICALITY = Path(
     "omega-rust/psi/semantics/proof-admission/src/classicality.rs"
 )
+SORT_ENCODING = Path("tools/matching-logic-sort-encoding")
+SLICE = Path("tools/matching-logic-slice")
+SLICE_RECORD_SCHEMA = "omega-matching-logic-slice-record/1"
 
 # Receiver-side checking surfaces, by honest role. The comparison measures
 # what a receiver or producer must trust/run, so components are broken out
@@ -116,9 +124,9 @@ def repo_root() -> Path:
     )
 
 
-def count_lines(path: Path) -> dict:
-    """Physical line counts for a file or directory of .rs sources."""
-    files = sorted(path.rglob("*.rs")) if path.is_dir() else [path]
+def count_lines(path: Path, pattern: str = "*.rs") -> dict:
+    """Physical line counts for a file or directory of matching sources."""
+    files = sorted(path.rglob(pattern)) if path.is_dir() else [path]
     total = 0
     nonblank = 0
     missing = []
@@ -262,6 +270,174 @@ def run_pinned_cases(
     return results
 
 
+def sort_encoding_cases(root: Path, timeout: int = 120) -> dict:
+    """Run the typed-to-one-sorted encoder over its pinned case corpus.
+
+    The encoder is the candidate route's translation leg: each case is a
+    typed subject schema, and `check` emits the clause inventory — every
+    clause is an axiom admission — plus the consistency diagnostics the
+    comparison checklist requires. Per-case rows retain the checklist
+    provenance (fragment, versions, subject, capsule, bridge graph,
+    admissions) verbatim from the encoder's emitted record."""
+    tool = root / SORT_ENCODING / "sort_encoding.py"
+    cases_dir = root / SORT_ENCODING / "cases"
+    if not tool.exists() or not cases_dir.is_dir():
+        return {
+            "status": "absent",
+            "tool": str(SORT_ENCODING / "sort_encoding.py"),
+            "note": "encoding tool not in this checkout; "
+            "candidate translation column unmeasured",
+        }
+    results = []
+    for case_path in sorted(cases_dir.glob("*.json")):
+        start = time.monotonic()
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(tool), "check", str(case_path)],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            results.append(
+                {
+                    "case": case_path.name,
+                    "timed_out": True,
+                    "exit_code": None,
+                    "elapsed_ms": timeout * 1000,
+                }
+            )
+            continue
+        try:
+            emitted = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            emitted = {}
+        row = {
+            "case": case_path.name,
+            "exit_code": proc.returncode,
+            "elapsed_ms": round((time.monotonic() - start) * 1000, 1),
+            "check_clean": proc.returncode == 0,
+            "diagnostics": emitted.get("diagnostics", []),
+            "admissions": emitted.get("admissions", []),
+            "declared_memberships": len(
+                emitted.get("declared_type_memberships", [])
+            ),
+        }
+        for key in (
+            "schema",
+            "fragment",
+            "rule_version",
+            "semantics_version",
+            "subject",
+            "target_capsule",
+            "observation_profile",
+            "bridge_graph",
+        ):
+            row[key] = emitted.get(key)
+        results.append(row)
+    clean = sum(1 for r in results if r.get("check_clean"))
+    pinning = sum(1 for r in results if r.get("exit_code") not in (0, None))
+    first = results[0] if results else {}
+    return {
+        "status": "measured",
+        "tool": str(SORT_ENCODING / "sort_encoding.py"),
+        "schema": first.get("schema"),
+        "fragment": first.get("fragment"),
+        "rule_version": first.get("rule_version"),
+        "translation_surface": count_lines(root / SORT_ENCODING, "*.py"),
+        "cases": results,
+        "clean_cases": clean,
+        "violation_pinning_cases": pinning,
+    }
+
+
+def candidate_slice(root: Path, timeout: int = 120) -> dict:
+    """Run the bounded matching-logic slice checker over its pinned corpus.
+
+    `slice_checker.py record` re-derives every pinned case, emits the
+    `omega-matching-logic-slice-record/1` record on stdout, and exits nonzero
+    on any verdict divergence. Its emitted columns map onto the comparison
+    checklist: checker size and rule inventory (`checker`), theory
+    (`theory` — a per-case axiom inventory), certificate bytes and checking
+    time (`cases[].certificate_bytes` / `elapsed_ms`), and the imported
+    rule/assumption inventory (`cases[].admissions` — every clause an axiom
+    admission; the slice has no trusted bridge)."""
+    tool = root / SLICE / "slice_checker.py"
+    if not tool.exists():
+        return {
+            "status": "absent",
+            "tool": str(SLICE / "slice_checker.py"),
+            "note": "slice checker not in this checkout; "
+            "candidate column unmeasured",
+        }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "slice-record.json"
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(tool), "record", "--out", str(out)],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return {
+                "status": "failed",
+                "tool": str(SLICE / "slice_checker.py"),
+                "note": f"slice record timed out after {timeout}s",
+            }
+    try:
+        emitted = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        emitted = {}
+    if emitted.get("schema") != SLICE_RECORD_SCHEMA:
+        return {
+            "status": "failed",
+            "tool": str(SLICE / "slice_checker.py"),
+            "exit_code": proc.returncode,
+            "note": "slice record missing or schema mismatch "
+            f"(expected {SLICE_RECORD_SCHEMA})",
+        }
+    checker = emitted.get("checker", {})
+    cases = emitted.get("cases", [])
+    admissions = sorted(
+        {a for case in cases for a in case.get("admissions", [])}
+    )
+    divergences = emitted.get("summary", {}).get("divergences", [])
+    return {
+        "status": "measured",
+        "tool": str(SLICE / "slice_checker.py"),
+        "schema": emitted.get("schema"),
+        "fragment": emitted.get("fragment"),
+        "semantics_doc": emitted.get("semantics_doc"),
+        "recorded_utc": emitted.get("recorded_utc"),
+        "checker": {
+            "path": checker.get("path"),
+            "physical_lines": checker.get("physical_lines"),
+            "sha256_prefix": (checker.get("sha256") or "")[:16],
+            "rules": checker.get("rules", []),
+        },
+        "theory": emitted.get("theory"),
+        "cases": [
+            {
+                "case": case.get("case"),
+                "expect": case.get("expect"),
+                "verdict": case.get("verdict"),
+                "elapsed_ms": case.get("elapsed_ms"),
+                "certificate_bytes": case.get("certificate_bytes"),
+                "admissions": case.get("admissions", []),
+                "diagnostic": case.get("diagnostic"),
+            }
+            for case in cases
+        ],
+        "imported_admissions": admissions,
+        "trusted_bridge": "none — every consumed clause is an axiom admission",
+        "summary": emitted.get("summary", {}),
+        "divergence_free": proc.returncode == 0 and not divergences,
+    }
+
+
 def version_context(root: Path, omega: Path) -> dict:
     revision = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -300,9 +476,18 @@ def render_report(record: dict) -> str:
     lines = [
         "# Matching-logic slice comparison — bounded record",
         "",
-        "Status: measured Omega-side column; candidate-side columns are pending",
-        "landings of `MATCHING-LOGIC-BOUNDED-SLICE` (tools/matching-logic-slice) "
-        "and `MATCHING-LOGIC-COMPARISON-METRICS` (tools/matching-logic-metrics).",
+        "Status: "
+        + (
+            "both columns measured; the metrics aggregation axis stays "
+            "pending on `MATCHING-LOGIC-COMPARISON-METRICS` "
+            "(tools/matching-logic-metrics)"
+            if record["candidate"].get("status") == "measured"
+            else "measured Omega-side column; candidate-side columns are "
+            "pending landings of `MATCHING-LOGIC-BOUNDED-SLICE` "
+            "(tools/matching-logic-slice) and `MATCHING-LOGIC-COMPARISON-"
+            "METRICS` (tools/matching-logic-metrics)"
+        )
+        + ".",
         "Method and checklist: [matching_logic.md](matching_logic.md). "
         "Regenerate: `python3 tools/matching-logic-slice-comparison/compare.py`.",
         "",
@@ -423,13 +608,98 @@ def render_report(record: dict) -> str:
         "`.psi.proof` sidecar via `--native-sidecar` and currently recorded "
         f"as: `{record['omega_route']['certificate']}`.",
         "",
-        "## Candidate side (pending)",
+        "## Candidate side",
         "",
-        "The matching-logic slice checker, its theory/axiom set, and its "
-        "certificate format do not exist in the tree yet. When "
-        "tools/matching-logic-slice lands, this record's `candidate` section "
-        "is filled with the same axes over the same pinned pairs.",
     ]
+    slice_column = record["candidate"].get("slice", {})
+    if slice_column.get("status") == "measured":
+        checker = slice_column["checker"]
+        summary = slice_column.get("summary", {})
+        lines += [
+            "The bounded slice checker is landed and measured — "
+            f"`{checker['path']}` ({checker['physical_lines']} physical lines, "
+            f"sha256 `{checker['sha256_prefix']}`, "
+            f"{len(checker['rules'])} rules). Theory: "
+            f"{slice_column['theory']}. Fragment: `{slice_column['fragment']}`; "
+            f"record schema `{slice_column['schema']}`. Trusted bridge: "
+            f"{slice_column['trusted_bridge']}.",
+            "",
+            f"{summary.get('total', 0)} pinned case(s): "
+            f"{summary.get('positive', 0)} positive, "
+            f"{summary.get('negative', 0)} negative; divergences: "
+            f"{summary.get('divergences') or 'none'}.",
+            "",
+            "| case | expect | verdict | check ms | certificate bytes | admissions |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for case in slice_column.get("cases", []):
+            certificate_bytes = case.get("certificate_bytes")
+            lines.append(
+                f"| `{case['case']}` | {case['expect']} | {case['verdict']} "
+                f"| {case['elapsed_ms']} "
+                f"| {certificate_bytes if certificate_bytes is not None else '—'} "
+                f"| {len(case.get('admissions', []))} |"
+            )
+        lines += [
+            "",
+            "Imported admission inventory (union over cases): "
+            + ", ".join(
+                f"`{a}`" for a in slice_column.get("imported_admissions", [])
+            )
+            + ".",
+            "",
+        ]
+    else:
+        lines += [
+            "The matching-logic slice checker column is unmeasured: "
+            f"{slice_column.get('note', 'tools/matching-logic-slice not landed')}.",
+            "",
+        ]
+    lines += [
+        "The comparison-metrics aggregation column stays pending on "
+        "tools/matching-logic-metrics landing.",
+        "",
+    ]
+    encoding = record["candidate"].get("sort_encoding", {})
+    if encoding.get("status") == "measured":
+        surface = encoding["translation_surface"]
+        lines += [
+            "### Sort encoding (measured translation leg)",
+            "",
+            f"`{encoding['tool']}` — {surface['lines']} physical lines "
+            f"({surface['nonblank_lines']} nonblank) across {surface['files']} "
+            "file(s). Every emitted clause is an axiom admission on the "
+            f"candidate side. Fragment: `{encoding['fragment']}`; record "
+            f"schema `{encoding['schema']}` at semantics version "
+            f"`{(encoding['cases'][0] if encoding['cases'] else {}).get('semantics_version')}`.",
+            "",
+            f"{encoding['clean_cases']} case(s) check clean; "
+            f"{encoding['violation_pinning_cases']} pin an expected "
+            "violation.",
+            "",
+            "| case | exit | admissions | diagnostics |",
+            "| --- | --- | --- | --- |",
+        ]
+        for case in encoding["cases"]:
+            if case.get("timed_out"):
+                lines.append(
+                    f"| `{case['case']}` | timed out | — | — |"
+                )
+                continue
+            rules_seen = ", ".join(
+                f"`{row.get('rule')}`" for row in case.get("diagnostics", [])
+            ) or "—"
+            lines.append(
+                f"| `{case['case']}` | {case['exit_code']} "
+                f"| {len(case.get('admissions', []))} | {rules_seen} |"
+            )
+    else:
+        lines += [
+            "### Sort encoding (absent)",
+            "",
+            f"`{encoding.get('tool')}` is not present in this checkout; the "
+            "candidate translation column is unmeasured.",
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -496,6 +766,8 @@ def main() -> int:
     cases = [] if options.skip_run else run_pinned_cases(
         options.omega, root, options.timeout, options.include_heavy
     )
+    encoding = sort_encoding_cases(root)
+    slice_column = candidate_slice(root)
 
     record = {
         "record": "matching-logic-slice-comparison/v1",
@@ -510,14 +782,22 @@ def main() -> int:
             "pinned_cases": cases,
         },
         "candidate": {
-            "status": "pending",
+            "status": slice_column["status"],
+            "slice": slice_column,
+            "sort_encoding": encoding,
             "blocked_on": [
+                "MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics)",
+            ]
+            if slice_column["status"] == "measured"
+            else [
                 "MATCHING-LOGIC-BOUNDED-SLICE (tools/matching-logic-slice)",
                 "MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics)",
             ],
-            "note": "columns mirror omega_route: checker/theory/translation "
-            "sizes, rule and axiom admissions, certificate bytes, and the same "
-            "pinned positive/negative case verdicts",
+            "note": "the bounded slice's checker/theory/certificate columns "
+            "and pinned-case verdicts are measured under `slice`; the "
+            "typed-to-one-sorted translation leg is measured under "
+            "sort_encoding — translation surface lines plus per-case clause "
+            "admissions, diagnostics, and checklist provenance",
         },
     }
 

@@ -1,0 +1,15 @@
+// A refinement chain is a predicate declaration, not a name alias: the `=`
+// form names a single existing domain and cannot carry child requirements.
+
+data Player {
+    health: i32;
+}
+
+domain Player::Alive
+requires
+    self.health > 0;
+
+domain Player::Alive::Critical = Player::Alive;
+
+data Main {
+}

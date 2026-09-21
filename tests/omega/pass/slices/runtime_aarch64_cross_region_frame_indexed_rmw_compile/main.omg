@@ -3,11 +3,15 @@
 // base relocations.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main {
+data Main
+where
+    i <= 3,
+    value <= 100,
+{
     console: Service<Console>;
     arr: [i32; 4];
-    i: u64 [0..=3];
-    value: i32 [0..=100];
+    i: u64;
+    value: i32;
     got: i32;
 }
 machine Main::main(&mut self) reaches Console {

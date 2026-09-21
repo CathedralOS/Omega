@@ -1,7 +1,7 @@
 # Structural comparison gate
 
 Run `sh tests/gamma/derivation-comparison/run.sh` from the repository root on
-macOS arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in
+macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the selected checked-in
 Alpha seed are required; macOS also requires `codesign`. Windows runtime
 validation is not implied by this portable entrypoint.
 
@@ -45,9 +45,9 @@ The source-owned entries are:
 | `witness` | Left owner root versus last global identity, repeated and reversed. |
 | `retention` | Fixed `(6,7)`, `(3,4)`, `(6,7)`, `(4,3)`; cumulative 6/8/12/16 steps prove child memo retention and no false-parent memo. |
 | `invalid` | Checked root values 1/2/3 select test operands 0/N+1/1; one failing call at literal caller coordinates 701/709. |
-| `budget` | 327,680 same-ID calls reach 655,360; right root1 selects invalid IDs, root2 the next valid call. Publishes exact-bound result, then failure. |
-| `resume` | 327,679 same-ID calls and one head mismatch reach 655,359; the next visit fits but terminal resume refuses. |
-| `pending` | 327,679 same-ID calls, then two distinct unary parents with one shared child; parent and child visits fit, pending-parent resume refuses. |
+| `budget` | A seeded reservation reaches 67,108,858, then three same-ID calls land on 67,108,864; right root1 selects invalid IDs, root2 the next valid call. Publishes exact-bound result, then failure. |
+| `resume` | A seeded reservation and one same-ID call reach 67,108,862, one head mismatch reaches 67,108,863; the next visit fits but terminal resume refuses. |
+| `pending` | A seeded reservation and one same-ID call reach 67,108,862, then two distinct unary parents with one shared child; parent and child visits fit, pending-parent resume refuses. |
 
 Every returned session is threaded forward. No call continues after failure or
 restarts a session within a request. Invalid identities are checked before

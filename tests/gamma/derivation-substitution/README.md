@@ -1,7 +1,7 @@
 # Checked template substitution gate
 
 Run `sh tests/gamma/derivation-substitution/run.sh` from the repository root on
-macOS arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha
+macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha
 seed are required; macOS additionally needs `codesign`. Windows runtime validation
 is not implied by this portable entrypoint.
 
@@ -48,11 +48,11 @@ The explicit entries and caller coordinates are:
 | `witness` | Unfold global N against N−1, selecting the final witness function and preceding witness target. |
 | `session` | Unfold 2→1; structurally compare 2/1; unfold 4→1 then 4→3. Expected cumulative outcomes true 7 / false 8 / false 13 / true 20. |
 | `retention` | Unfold 6→7, compare ground 3/4, unfold 6→7 again. Expected false 14 / true 16 / false 28. |
-| `bulk` | Right-root selector 1 starts empty, 2 reserves 655360, 3 reserves 1; left-root selector chooses the next amount at coordinate 907. |
+| `bulk` | Right-root selector 1 starts empty, 2 reserves 67108864, 3 reserves 1; left-root selector chooses the next amount at coordinate 907. |
 | `budget` | Reserve a fixed amount, then unfold identity 2→1; selectors 5/6 replace the left/right operand with 0. Successful exact unfolding is followed by a one-unit reserve at 907. |
 
 Bulk left-root selectors 1..8 choose respectively `0`, `-1`, `2147483648`,
-`2147483647`, `655360`, `655361`, `1`, and `INT64_MIN`. Invalid amounts reject
+`2147483647`, `67108864`, `67108865`, `1`, and `INT64_MIN`. Invalid amounts reject
 with code 11 even after exhaustion. A maximum valid amount after one consumed
 unit requests 2,147,483,648 without truncation. These selectors are explicit test
 coordination over already checked root identities, not a new request format.
@@ -66,9 +66,9 @@ Step derivations are independent of the implementation:
 - A false template retains completed ground-child memo entries, but each new
   unfolding has fresh clause/binding-local memo state. Definitional equality
   must never populate the structural `(left,right)` memo.
-- Pre-reservation 655353 permits identity unfolding to finish at 655360. At 655354,
+- Pre-reservation 67108857 permits identity unfolding to finish at 67108864. At 67108858,
   the variable's ground comparison finishes at the limit but template terminal
-  resume refuses. At 655359, the index bulk request is exactly 655362; at 655360,
+  resume refuses. At 67108863, the index bulk request is exactly 67108866; at 67108864,
   clause scanning refuses at clause coordinate 903. Invalid IDs still reject first.
 - A 46,484-row unary template with variable base costs `3T+4 = 139456`; the request
   is 1,859,508 bytes. A 1,024-row shared binary DAG costs `5T+2 = 5122`; its request

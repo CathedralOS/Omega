@@ -77,6 +77,7 @@ def main():
     arguments.add_argument("--expect", type=int)
     arguments.add_argument("--expect-compile", type=int, choices=range(5), default=0)
     arguments.add_argument("--ocreq", action="store_true")
+    arguments.add_argument("--diagnostic", action="store_true")
     arguments.add_argument("--controls", action="store_true")
     arguments.add_argument("--controls-b", action="store_true")
     arguments.add_argument("--controls-c", action="store_true")
@@ -85,12 +86,15 @@ def main():
     arguments.add_argument("--controls-f", action="store_true")
     arguments.add_argument("--controls-g", action="store_true")
     arguments.add_argument("--controls-h", action="store_true")
+    arguments.add_argument("--controls-i", action="store_true")
+    arguments.add_argument("--controls-j", action="store_true")
     options = arguments.parse_args()
     directory = options.directory.resolve()
     gate = Path(__file__).resolve().parent
     selected = [options.controls, options.controls_b, options.controls_c,
                 options.controls_d, options.controls_e, options.controls_f,
-                options.controls_g, options.controls_h]
+                options.controls_g, options.controls_h, options.controls_i,
+                options.controls_j]
     if sum(1 for flag in selected if flag) > 1:
         arguments.error("controls parts are separate runs")
     if any(selected) and \
@@ -98,8 +102,10 @@ def main():
         arguments.error("controls cannot be combined with source or expected-outcome options")
     expected_exit = options.expect if options.expect is not None else int((gate / "expected.txt").read_text())
     controls = any(selected)
-    if options.ocreq and controls:
-        arguments.error("the OCREQ request route does not drive the diagnostic controls")
+    if options.ocreq and options.diagnostic:
+        arguments.error("--ocreq and --diagnostic select different entries")
+    if options.diagnostic and controls:
+        arguments.error("the diagnostic adapter does not drive the controls")
     source = b"" if controls else (options.source or gate / "program.omg").read_bytes()
     limit = int(os.environ.get("OMEGA_EXECUTABLE_OBSERVATION_SECONDS", "14400"))
     if limit <= 0:
@@ -131,11 +137,11 @@ def main():
         raise SystemExit("Epsilon execution receipt differs from the selected gate identity")
     if receipt_cache and not Path(receipt_cache).exists():
         Path(receipt_cache).write_bytes(receipt)
-    # The controls matrix splits across eight customers, so each part ends by
+    # The controls matrix splits across ten customers, so each part ends by
     # republishing the same successful tape and carries the same expected
     # observation. The split predates the V5 arena growth: the retired
     # 40,265,318-node pair arena could not retain even an eighteen-invocation
-    # half, and the eight-way shape remains the bounded evaluated form.
+    # half, and the ten-way shape remains the bounded evaluated form.
     entry = gate / ("controls.epsilon" if options.controls else
                     "controls_b.epsilon" if options.controls_b else
                     "controls_c.epsilon" if options.controls_c else
@@ -144,20 +150,28 @@ def main():
                     "controls_f.epsilon" if options.controls_f else
                     "controls_g.epsilon" if options.controls_g else
                     "controls_h.epsilon" if options.controls_h else
-                    "main_ocreq.epsilon" if options.ocreq else "main.epsilon")
+                    "controls_i.epsilon" if options.controls_i else
+                    "controls_j.epsilon" if options.controls_j else
+                    "main.epsilon" if options.diagnostic else
+                    "main_ocreq.epsilon")
     customer = (directory / "omega_compiler.epsilon").read_bytes() + entry.read_bytes()
     print(f"Compiler customer: {len(customer)} bytes, sha256 {hashlib.sha256(customer).hexdigest()}", flush=True)
     print(f"Omega source: {len(source)} bytes, sha256 {hashlib.sha256(source).hexdigest()}", flush=True)
-    sealed_input = source
-    if options.ocreq:
-        # The real compiler request route: an OCREQ V1 frame whose subject
-        # carries one application package snapshotting the source file, and
-        # whose invocation selects the alpha_bootstrap_tape product on the
-        # alpha_bootstrap profile with the SHA-256 subject commitment bound.
+    # The gate's entry is the real compiler request route: an OCREQ V1 frame
+    # whose subject carries one application package snapshotting the source
+    # file, and whose invocation selects the alpha_bootstrap_tape product on
+    # the alpha_bootstrap profile with the SHA-256 subject commitment bound.
+    # --diagnostic keeps the raw-source adapter lane for refusal coverage.
+    request_route = not (controls or options.diagnostic)
+    if request_route:
         snapshot_path = Path(options.source).name.encode() if options.source \
             else b"program.omg"
         sealed_input = ocreq_request(source, snapshot_path)
         print(f"OCREQ request: {len(sealed_input)} bytes, "
+              f"sha256 {hashlib.sha256(sealed_input).hexdigest()}", flush=True)
+    else:
+        sealed_input = source
+        print(f"Omega source: {len(sealed_input)} bytes, "
               f"sha256 {hashlib.sha256(sealed_input).hexdigest()}", flush=True)
     observation = evaluate(directory, receipt,
                            struct.pack("<I", len(customer)) + customer + sealed_input,
@@ -173,7 +187,7 @@ def main():
         raise SystemExit(f"Unexpected compiler outcome: {observation[:40].hex()}")
     if options.expect_compile:
         refusal = observation[5:]
-        if options.ocreq:
+        if request_route:
             # The request route publishes exactly one closed OCOUT V1 frame
             # on every refusal: identity, matching outcome tag, and the
             # 40/48-byte extents the contract defines.

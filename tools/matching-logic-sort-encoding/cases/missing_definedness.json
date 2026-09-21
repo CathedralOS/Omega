@@ -1,0 +1,16 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "negative: partial op without a definedness precondition",
+  "target": {"capsule": "linux_x86_64", "address_model": "flat_u64"},
+  "types": {
+    "integers": {"signed_widths": [64]}
+  },
+  "operations": [
+    {"name": "exact_divide"}
+  ],
+  "inhabitants": {
+    "Integer": 2,
+    "Nat": 1,
+    "Int64": 1
+  }
+}

@@ -9,4 +9,13 @@ machine build(builder: &mut Build) {
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    // The staged Psi-phase promotion records cite this subject's benchmark
+    // rows as measurement evidence; enabling the complete six-rule selection
+    // here lets each rule's `disabled` row measure its marginal cost.
+    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    builder.optimizations.enable(Optimization::SparseConditionalConstantPropagation);
+    builder.optimizations.enable(Optimization::CopyPropagation);
+    builder.optimizations.enable(Optimization::GlobalValueNumbering);
+    builder.optimizations.enable(Optimization::DeadPureScalarElimination);
+    builder.optimizations.enable(Optimization::ProofCheckElision);
 }

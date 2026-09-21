@@ -112,21 +112,17 @@ impl Fixture {
                 foreign_identity(),
             ));
         }
-        if source.contains("use calling;") {
-            let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .ancestors()
-                .nth(5)
-                .unwrap();
-            package.write(
-                "calling.omg",
-                &fs::read_to_string(repository.join("source/library/std/calling.omg"))
-                    .unwrap()
-                    .replace("\ndata ", "\npub data ")
-                    .replace("\ntrait ", "\npub trait ")
-                    .replace("\ndomain ", "\npub domain "),
-            );
-        }
-        package.write("main.omg", source);
+        // The seeded entry contract already declares
+        // `omega::language::std::calling`; the fixture takes std as an ordinary
+        // dependency instead of copying its calling vocabulary twice.
+        let package_source = if source.contains("use calling;") {
+            sources.push(standard_library_source());
+            dependencies.push(standard_library_dependency(package_identity()));
+            source.replace("use calling;", "use omega_language_std::calling;")
+        } else {
+            source.to_owned()
+        };
+        package.write("main.omg", &package_source);
         package.write("build.omg", build);
         let inputs =
             PackageCompilationInputs::new_package(package_identity(), sources, dependencies)
@@ -204,8 +200,7 @@ pub machine exercise_i32(value: i32) -> i32 { GenericMath::identity(value) }
 pub machine exercise_u64(value: u64) -> u64 { GenericMath::identity(value) }
 "#;
 
-pub(super) const INHERITED: &str = r#"use omega::language::core::service;
-use calling;
+pub(super) const INHERITED: &str = r#"use calling;
 pub data HostPolicy {}
 pub HostPolicyCalling: HostPolicy satisfies CallingPolicy;
 pub machine HostPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -235,7 +230,7 @@ pub machine HostPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     BoundaryPlanResult::Accepted { plan: output }
 }
 pub boundary trait BaseHost { machine ping(value: u64) -> u64; }
-pub boundary trait SelectedHost: Service<BaseHost> + Calling<HostPolicy> {}
+pub boundary trait SelectedHost: BaseHost + Calling<HostPolicy> {}
 pub data HostProvider {}
 HostProviderSelected: HostProvider satisfies SelectedHost;
 pub machine HostProvider::ping(value: u64) -> u64

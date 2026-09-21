@@ -13,11 +13,11 @@ records current experimental status, applicability, and composition limits.
 
 [Build evaluation](omega/build/build-evaluation/src/optimization/mod.rs) admits
 the exact vocabulary. The compiler's
-[build vocabulary](omega/compiler/compiler/src/pipeline/optimization/build_vocabulary/mod.rs)
+[build vocabulary](omega/pipeline/source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/mod.rs)
 supplies both preludes from one mapping; its
-[checked handoff](omega/compiler/compiler/src/pipeline/optimization/checked_handoff/mod.rs)
+[checked handoff](omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs)
 retains selection and report requests.
-[Rollback settlement](omega/compiler/compiler/src/compiler/optimization/rollback/mod.rs)
+[Rollback settlement](omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs)
 computes effective selection before artifact production without changing the
 authored selection.
 

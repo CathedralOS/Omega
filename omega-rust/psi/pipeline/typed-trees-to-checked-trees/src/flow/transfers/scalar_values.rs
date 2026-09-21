@@ -289,13 +289,8 @@ fn retains_values_across_unit_call<Value>(
     {
         return None;
     }
-    let callee = program.machines().iter().find(|candidate| {
-        program
-            .machine_states(candidate)
-            .first()
-            .is_some_and(|entry| entry.symbol == call.target_symbol)
-    })?;
-    let entry = program.machine_states(callee).first()?;
+    let (callee, entry) =
+        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
     if !callee.body_is_present
         || callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.owned_data.is_empty()

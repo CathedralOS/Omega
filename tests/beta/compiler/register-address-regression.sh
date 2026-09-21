@@ -8,14 +8,10 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
 # The materialized compiler and every stamped program run inside the audited
-# Alpha container: a Mach-O seed on macOS arm64, the Windows PE seed elsewhere.
-# Hosts that cannot exec the selected container refuse (exit 2) rather than
-# crash on the execs below.
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Beta addressed regression: requires macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+# Alpha container. Hosts that cannot exec the selected container refuse
+# (exit 2) rather than crash on the execs below; the audited host matrix lives
+# in seed_env.sh.
+require_seed_execution_host "Beta addressed regression"
 command -v python3 >/dev/null 2>&1 || {
   echo "Beta addressed regression: skipped (python3 absent)"
   exit 0
