@@ -9871,6 +9871,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   bounded comparison before a concrete design; imported rules must also
   respect the constructive/classical boundary. No independent slice exists
   here. Sibling alias stub (resolved): PROOF-INTERCHANGE-INDUCTION-CERTIFICATE.
+- **PROOF-INTERCHANGE-SORT-ENCODING.** — mined candidate; scope verified:
+  merged alias of PROOF-INTERCHANGE-IMPORT's "sort encoding" clause
+  (clause (a) of its 3 mined aliases, adjudicated at e76d715c8e) — the
+  one already landed by MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.
+  Re-verified on this host at `0f75a052f0`:
+  `tools/matching-logic-sort-encoding/sort_encoding.py` `check` behaves
+  per its README on all 8 committed cases — `reference.json` exits 0 and
+  the seven violation cases (`exclusive_loan_conflict`,
+  `missing_definedness`, `non_injective_pair`, `sum_payload_unknown`,
+  `uncertified_fixpoint`, `uninhabited_membership`,
+  `widening_revision`) each exit 1 — and
+  `proof-admission/src/admission/` still carries only
+  `evidence.rs`/`normalization.rs`/`recursion.rs`: no route admits an
+  emitted clause into a checked Omega proof, matching the tool's own
+  trust note ("comparison input for the bounded-slice harness, not a
+  checked translation"). Remaining acceptance is wiring the inventory
+  into the bounded comparison — that surface is live-fenced twice over:
+  `tools/matching-logic-sort-encoding` itself under
+  MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING (~05:34Z) and the harness
+  `tools/matching-logic-slice` under MATCHING-LOGIC-BOUNDED-SLICE
+  (~05:30Z). No unfenced slice exists under this name. Sibling alias
+  stubs on the same parent: PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC,
+  PROOF-INTERCHANGE-INDUCTION-CERTIFICATE.
 - **PROOF-OBLIGATION-SEMANTIC-IDENTITY.** — mined candidate; verify scope then implement.
 - **PROOF-QUANTIFIER-AUTOMATION.** Mined candidate; scope verified at `2e1db3ba3e` — the quantifier-automation substrate is landed and was widened today (`a3ab15b7611`): `proof/src/lemmas.rs` carries the `for all i in start..end, P(i)` shape (`ForAllInRangeFact`) with element discharge (`proves_element`/`contains_index`, covering literal, witnessed-literal, and full-extent symbolic indices), the reusable `ProofLemma`/`LemmaFact` registry (`discharging` finds the named lemma whose premises discharge a goal), and `checked-trees/proof/lemmas.rs` holds the durable representation mirror (`LemmaFacts` arena root, `QuantifiedRangeFact`). What is missing is not more vocabulary but the wiring: no check site produces a quantified fact and no entailment surface consults one — both halves are upstream-gated on the entailment surfaces delegated live this wave (`specification_calls`/`refuted_requires`/`call_requirements` under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION, `arithmetic_judgment` under SIGNED-CALL-PREMISES, `inductive_judgment` under PROOF-CERTIFICATION-BRIDGE), and a producer of "every element satisfies the domain" facts needs the guarded-domain establishment route the same cluster owns. Per the PROOF-CERTIFICATION row's own note, unspec'd judgment surgery in a fail-closed proof engine is off-limits — no unmanned widening lane exists. No independent slice to claim here.
   Re-verified at `c267df86acb`: the substrate is unchanged in substance —
