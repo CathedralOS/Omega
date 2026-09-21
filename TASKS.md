@@ -1988,8 +1988,9 @@ syntax and other terminal services are not prerequisites.
     Coordinate `facts/crash_entry_values.rs` and ordinary call-premise transport
     with **CRASH-CONTRACT** and **OPERATOR-MACHINE-SUPPLY**; successful
     interpretation or provider-body inspection is not admission evidence.
-    Ordinary call checking still needs live-premise transport for argument
-    conversions beyond lossless widening and undirected signed disequality.
+    Further argument conversions need exact live-premise transport; lossless
+    widening and signed nonzero forwarding are working controls, including
+    `signed_nonzero_call_preconditions_execute_after_source_removal`.
 
   Runtime qualified-record reads and general array-value execution belong to
   **STATE-LOCAL-VALUE-FRONTIER** / **TR3-TR8** and target
@@ -2169,274 +2170,138 @@ syntax and other terminal services are not prerequisites.
   improvement over explicit branches. No general generic virtual-method or
   reflection extension belongs here.
 
-- **DOMAIN-ISSUER-ROUTES.** Finish independent Terminal qualification evidence
-  for the [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes),
-  including [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes).
-  Source checking introduces `AuthorizedRouteEstablishment` in
-  `typed-trees-to-checked-trees/src/facts/qualification_evidence.rs`; trace that
-  exact subject/invocation through `checked-trees-to-lowered-psi` and the
-  Terminal producer/verifier. Source checking and inert package-row recovery
-  alone do not close artifact acceptance.
+- **DOMAIN-ISSUER-ROUTES.** Finish source-driven, independently replayed
+  qualification establishment for
+  [requirement/exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
+  and [private issuer catalogs](wiki/spec/resources/authority.md#private-issuer-routes).
+  Structural route catalogs, result bindings, codec and present-binding validation
+  exist; scalar catalogs and issuer checks on qualification introduction exist too.
+  Do not rebuild them or treat package-row recovery as artifact acceptance.
 
-  The source-to-package boundary is covered by `cargo nextest run -p
-  package-evidence --test suite -E 'test(public_domains) | test(module_namespaces)'`
-  and compiler `package_compilation_inputs` private-catalog controls, exercised
-  on macOS ARM64 against main `272a371880`, with `RUST_MIN_STACK=67108864`.
-  Private free/attached machine
-  and requirement catalogs retain owner and declaration identity; wrappers
-  forward issued values, outside private calls/conformances reject, and
-  private admission claims remain visible without becoming issuance receipts.
-  Module-qualified machine identities
-  distinguish same-leaf declarations within one package; substituted module,
-  package or callable route rows fail fresh local reconstruction. Preserve
-  these source/review contracts while implementing artifact replay.
+  The remaining ordinary-call producer gap is in
+  `checked-trees-to-lowered-psi/src/unit/attached_unit.rs` and its `catalog.rs`:
+  ordinary attached units publish no conformance applications, and
+  `call_result_qualification_establishments` emits only boundary-requirement
+  bindings backed by an exact `CallEnsures` admitted receipt. Retain the
+  missing ordinary callee/conformance identities and connect checked establishment
+  evidence to its exact invocation result. Establish a source-produced qualified
+  boundary-result roundtrip too; manually assembled Terminal fixtures do not
+  establish source admission.
 
-  Acceptance: a source-free artifact roundtrip independently checks that the
-  established qualification belongs to the exact authorized invocation result,
-  after carrier/predicate/custody obligations that do not assume the introduced
-  qualification. Reject forged result/route evidence, substituted same-spelled
-  issuers and direct-call borrowing of admitted requirement authority. Retain
-  private issuer identities and dependencies without granting consumer call,
-  conformance or private-type access or hiding admissions. Public ordinary
-  requirements still permit valid downstream conformers. Resource capacity and
-  classification-specific boundary-route restrictions remain unchanged.
-  Re-measured at `94e764a6da` (linux x86-64): the source-checking minting
-  leg is landed and green — `QualificationEvidenceOrigin::
-  AuthorizedRouteEstablishment` (language-semantics semantic_domains:199,
-  minted in facts/qualification_evidence.rs:218,223); `nextest -p
-  typed-trees-to-checked-trees -E 'test(~qualification_evidence)'` 17/17
-  incl. exact-machine authorization/rejection, normalized-route-record
-  consumption, requirement-identity retention, exclusive-boundary
-  establishment. The artifact roundtrip has zero downstream consumers:
-  no QualificationEvidence references in checked-trees-to-lowered-psi,
-  lowered-psi-to-terminal-psi, terminal-codec, terminal-semantics, or
-  terminal-verifier — the encoding site, codec section, and verifier
-  replay all remain unbuilt, and the surviving surfaces are live-fenced
-  (c2l unit under STRUCTURAL-UNIT-LOWERING; c2l scalar_contracts.rs under
-  RC-REPOSITORY; l2t boundary_operator_custody under
-  FILESYSTEM-RELEASE-CONTRACT; terminal-verifier frontier under
-  OWNED-SUCCESSOR-DISCARD-ORDER; terminal-verifier provider_result +
-  terminal-interpreter under REGISTERED-CALLBACK-LIFETIME;
-  terminal-codec artifact custody tests under
-  CUSTODY-MATRIX-HARNESS-MIGRATION). The chain is indivisible for a
-  bounded slice — codec without verifier replay is a dead field, and the
-  section boundary is a terminal-semantics decision. (The per-lane
-  ledger `wiki/drafts/domain_issuer_routes.md` was folded into this row
-  under the prior ledger cleanup.)
-  Re-witnessed at `6f91898606` (zergling-132, linux x86-64): the minting
-  leg stays green through the newest route extensions (9964a44a8bb,
-  851052b4f8f) — `cargo nextest run -p typed-trees-to-checked-trees -E
-  'test(~qualification_evidence)'` -> 17/17 PASS. Fence refresh: c2l
-  src/unit under STRUCTURAL-UNIT-LOWERING (~09:16Z), terminal-codec
-  artifact custody tests under CUSTODY-MATRIX-HARNESS-MIGRATION
-  (~09:19Z), proof-admission under PROOF-KERNEL-CORE (~09:49Z),
-  terminal-interpreter src + terminal-verifier provider_result.rs under
-  REGISTERED-CALLBACK-LIFETIME (~14:37Z), c2l scalar_contracts.rs under
-  RC-REPOSITORY (~14:39Z), l2t boundary_operator_custody under
-  TV-OPERATOR-APPLICATIONS-REPLAY (~16:22Z). The terminal-verifier
-  frontier fence (OWNED-SUCCESSOR-DISCARD-ORDER) has drained, but the
-  chain is still indivisible for a bounded slice — codec without
-  verifier replay remains a dead field.
+  Acceptance: source examples serialize, reload without source and independently
+  validate requirement, exact-machine and boundary establishment, including
+  private issuers and authorized selected payloads. Prove carrier, predicate
+  and custody obligations without assuming the introduced qualification.
+  Reject forged, missing or rebound establishment evidence, substituted
+  same-spelled/module/package issuers, and direct calls borrowing admitted
+  requirement authority. The verifier currently skips empty establishment lists;
+  validating present rows alone does not prove evidence completeness.
 
-  Partial — Terminal establishment binding + replay are now in place
-  (zergling/z73). `StructuralDomainDeclaration.establishment_routes` retains the
-  domain's private issuer catalog as `StructuralEstablishmentRoute::{Requirement,
-  ExactMachine, BoundaryRequirement}`, and `StructuralOperationResult.
-  qualification_establishments` binds each carried membership to one route row.
-  The checked plan carries `CheckedUnitStructuralDomainPlan.establishment_routes`
-  populated from `program.domain_definitions()`, and terminal-codec round-trips
-  both surfaces. The verifier replays every binding fail-closed: the domain must
-  appear on the result (or a projected row), the route index must land inside the
-  canonical sorted catalog, and the route kind must match the call — a
-  `BoundaryRequirement` binding replays against the `BoundaryCall` callee's
-  retained declaration identity, a `Requirement` binding replays against the
-  callee's conformance-application rows (or a dynamic-dispatch requirement
-  identity, including parameter-descriptor slots), and an `ExactMachine` binding
-  replays against a realization callable identity (or a dispatch realization).
-  `terminal-verifier/tests/calls/qualification_establishments.rs` pins one
-  authorized boundary call plus six forged/misaligned rejections; noncanonical
-  catalogs reject under `NonCanonicalStructuralEstablishmentRoutes`.
+  Preserve private owner/declaration identity and dependencies without granting
+  consumer call/conformance/private-type access or hiding admissions; public
+  ordinary requirements must still admit valid downstream conformers. Keep
+  resource-capacity and classification-specific boundary restrictions.
+  Extend `terminal-verifier/tests/calls/qualification_establishments.rs`
+  and `tests/straight_line/scalar_qualifications.rs` with source-produced
+  evidence. Retain `package-evidence --test suite` public-domain/module-namespace
+  and compiler `package_compilation_inputs` private-catalog controls.
+  Reuse the existing issuer surfaces rather than parallel metadata.
 
-  The producer emits bindings only where an attached-unit module retains a
-  replayable callee identity — today that is exclusively `BoundaryRequirement`
-  routes on `BoundaryCall` operations (`catalog::
-  call_result_qualification_establishments`). An attached-unit Terminal module
-  publishes no conformance applications or callable registry, so an ordinary
-  `Call*`/`CallUnit`/`CallStructural*` callee has no retained issuer identity:
-  `Requirement` and `ExactMachine` routes remain catalog rows only, and no
-  binding is emitted rather than one the verifier could not check. The emission
-  lane is additionally dormant because no admitted source currently produces a
-  qualified boundary result in a unit closure (qualified results reject at
-  `let`/`->`/discard positions). Closing the item still needs (a) conformance-
-  application/callable-identity surfaces on attached units for the ordinary-call
-  routes, and (b) a source admission path that introduces qualified boundary
-  results so the producer lane carries real bindings end to end.
+- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Complete ordinary package review,
+  retained permissions, selected-mechanism classification and explicit receiver
+  admission under the
+  [production/admission split](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
+  and [filesystem policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
+  No receiving permission policy means no admission claim, not denial or
+  approval. Project/package acceptance must not manufacture receiver approval.
 
-- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish receiver admission under
-  [artifact production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
-  and the settled
-  [filesystem control/lifecycle policy](wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
-  The production/admission split exists: the receiving permission policy is
-  `Option` at every join from
-  `packages/manager/src/operations/compile_project.rs` through native
-  realization, absence makes no receiver-admission claim, and an unclaimed
-  artifact cannot satisfy explicit admission replay. The canonical
-  `FilesystemHost` cohort table and its permission/mechanism row emitters
-  exist in
-  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`.
-  Customer coverage remains incomplete. Only tests call the facet-cohort
-  row emitters, and package review still publishes the broad `Filesystem`
-  class; SQUALR-INTEGRATION retains the current native geometry acceptance.
+  The optional receiver-policy path and its acceptance/rejection controls exist.
+  Filesystem cohort emitters also have production callers:
+  `providers/settlements/source_imports.rs` emits mechanism classifications;
+  `packages/manager/src/review/candidate/semantic_bindings.rs` attaches
+  consumer permission rows. The merge in `native_realization/providers/mod.rs`
+  is a **mechanism-classification** policy, separate from the optional receiver
+  permission policy; preserve both exact identities.
 
-  The explicit admission replay is now pinned at the operations join:
-  `accepted_lock` shows an accepted project emits an artifact carrying no
-  receiver-admission claim with no supplied policy — the replay rejects it —
-  and binds the supplied policy's exact identity when given one, admitting
-  only under that identity and rejecting under any other. The
-  `receiving_admission` leg drives the same join through one demanded leaf:
-  an accepted customer whose demanded closure is a package-owned
-  `Console::exit_process` compiler intrinsic emits with no receiving policy
-  and binds no permission-policy identity; the same program rejects under
-  the explicit empty policy, under rows substituting the accepted permission
-  in either direction (a narrower or wider disposition at an approved
-  coordinate), and under rows keyed to foreign coordinates; and it admits
-  under the policy rejoining every demanded leaf's exercised classes,
-  replaying that recorded admission exactly. The receiving policy is not
-  canonicalized to the demanded set: surplus rows at undemanded coordinates
-  admit and the emitted artifact binds the supplied policy's identity.
+  Remaining delivery:
 
-  The toolchain-settled filesystem cohort is now wired at the single provider
-  admission join: `validate_source_evaluated_import_coverage` mints the exact
-  `filesystem_mechanism_row` for each demanded leaf served by a settled
-  facet-cohort method, `admit_native_providers` merges minted rows into the
-  effective receiving policy (caller rows win; identical rows dedup; a
-  conflicting row on a cohort mechanism rejects as a duplicate mechanism, so
-  a forged classification cannot substitute), and the merged identity is what
-  the closure review and emitted artifact bind. Ordinary-release cohort
-  methods mint nothing, and unknown method names keep the fail-closed
-  classification demand. On the permission axis, package-review discovery
-  attaches `filesystem_host_permission_rows` to the root consumer's
-  `FilesystemHostService` binding proposal so the accepted policy covers the
-  demanded leaves. The remaining pipeline blocker is named: a demanded
-  canonical `FilesystemHost` leaf resolves to zero selected provider rows at
-  the closure review — provider plans derive only from `satisfies`
-  conformances, none exists for the canonical host, and a package-authored
-  `satisfies`/`select_provider` for a trait named `FilesystemHost` is refused
-  as an unknown boundary slot;
-  `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` pins that
-  stop. The `cli_mvp` and `console-exit-app` READMEs no longer describe the
-  removed gate.
-
-  The [cli_mvp README](samples/cli/basics/cli_mvp/README.md) records ordinary
-  package review and native macOS ARM64 execution without receiving-policy
-  input at `c459b1d25c`; SAMPLE-CORPUS owns its remaining Windows and Linux
-  host runs. Preserve that customer and Squalr's recorded native geometry
-  control while completing the remaining production/admission matrix.
-
-  Remaining work:
-
-  - Complete console-exit-app, the Cathedral native smoke and the remaining
-    host legs of `cli_mvp` and Squalr after ordinary package acceptance with
-    no receiving-policy input. Report each one's next unrelated blocker
-    without claiming its end-to-end completion.
-    Preserve the ordinary-production harness route without projecting
-    accepted package rows into a receiving policy; explicit admission tests
-    separately supply their receiver policy.
-  - Receiver rows for the exact replacement: every admitted leaf has one exact
-    mechanism/contract row, unknowns and duplicates reject, exercised classes
-    fit independently supplied service permissions, and explicit empties
-    retain service reach and exact review identity. Do not fabricate a broad
-    union to complete the table.
-  - Retire the transitional broad `Filesystem` summary only after that
-    replacement closes: the `FilesystemHostService` arm of
+  - Connect the bounded Linux filesystem plan to native settlement transport.
+    `build-evaluation/src/provider_settlement/canonical_filesystem_host.rs`
+    already mints accepted-schema plans for supported positional syscalls.
+    `compiler/tests/terminal_authority/filesystem_cohort_witness.rs` calls
+    `set_len` and now pins `MissingBoundarySettlement`, not zero provider rows.
+    Complete that native realization path without guessing unsupported target,
+    path/slice adaptation or host-error mechanisms. General provider planning
+    is not the missing implementation for this witness.
+  - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
+    ordinary package acceptance to native production without receiver-policy
+    input. Coordinate their application owners, preserving existing host
+    successes and reporting actual remaining blockers. The CLI
+    `console_exit_permission` test currently accepts either nonempty output
+    or `Selection(Legalization(SourceCustodyMismatch))`; that green test is not
+    evidence of delivered native output. Resume at the physical legalization
+    owner if that rejection persists.
+  - Replace the broad filesystem review summary with exact classes through
+    discovery, retained acceptance, classification and admission. Then remove
+    the `FilesystemHostService` arm of
     `packages/review/evidence/src/capture/authority.rs::dangerous_authority_class`,
-    its triage consumers in `packages/manager/src/review/audit/triage/`, and
-    the "one transitional broad filesystem row" assertion in
-    `packages/manager/tests/standard_library_package_resolution.rs`.
-  - The release cohort (`close`, `find_close`, `close_handle`) is blocked. Its
-    evidence-bound explicit-empty row needs a retained occurrence, and no
-    authored source can produce one;
-    The customer is a program, not a compile: every build
-    activation, including a dependency's own, runs against its own package
-    snapshot with no ambient host filesystem under
-    [inputs and default filesystem](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem),
-    and the `$OmegaBuildSourceRoot`/`$OmegaBuildOutputRoot` facets enforce
-    that root in `build_paths.rs`. Confined activity inside that box is not
-    authority the shipped artifact carries, so restate the acceptance above
-    to name a program customer rather than an ordinary compile.
-    FILESYSTEM-RELEASE-CONTRACT owns the occurrence evidence. Generic close
-    need not be supported to admit a separately proved constrained
-    occurrence.
+    dependent triage in `packages/manager/src/review/audit/triage/`, and the
+    transitional-row assertion in `standard_library_package_resolution.rs`.
+    **FILESYSTEM-RELEASE-CONTRACT** owns occurrence-bound release evidence;
+    generic close must not inherit an empty classification. Build filesystem
+    observations are not shipped-program lifecycle evidence.
 
-  The console CLI witness requires a nonempty reported native output or the
-  exact witnessed physical legalization rejection, preserving the accepted
-  project in both cases. At `ffd6cc9009` on macOS ARM64, ordinary package
-  review retains all three Console decisions, then compilation without a
-  receiving policy rejects with `Selection(Legalization(SourceCustodyMismatch))`.
-  Resume through `target-operations-to-selected-instructions/src/legalization`;
-  this is an implementation dependency, not a design block. Run
-  `RUST_MIN_STACK=67108864 cargo nextest run -p omega --test package_commands --no-fail-fast -E 'test(=console_exit_permission::console_exit_permission_is_an_explicit_decision_that_the_lock_retains)'`
-  on macOS; the fixture README gives the project audit command.
-  FILESYSTEM-RELEASE-CONTRACT owns the program-side release proof.
+  Acceptance: all four customers produce without receiving input and make no
+  admission claim. The same demanding program rejects explicit denying input
+  and admits independently supplied sufficient input, retaining its exact
+  identity, including surplus undemanded rows. Every demanded leaf has one
+  exact mechanism/contract classification fitting service permissions;
+  unknown, conflicting/duplicate, cyclic or substituted classifications,
+  stale evidence and violated physical exclusions reject. Preserve explicit
+  empty classifications, service reach and exact review identity. No mandatory
+  PCC request or synthesized receiver-policy file.
 
-  Acceptance: after ordinary package acceptance the four customers above emit
-  with no receiving-policy input. The same program rejects at explicit
-  admission under a denying policy and admits under a sufficient accepted
-  policy; an absent policy never yields an admission receipt. Forged
-  classifications, invalid proofs and violated requested physical exclusions
-  still reject. No PCC request becomes mandatory.
+- **FILESYSTEM-RELEASE-CONTRACT.** Connect the program's checked open/query/close
+  derivation to native authority classification under the
+  [bounded occurrence-specific release contract](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof).
+  Successful acquisition must establish the exact object/argument contract;
+  every intervening call must preserve the handle and aliases; applicable
+  returning paths release once with no later use. Query-only or empty authority
+  is not a preservation contract, and build execution proves nothing about the
+  shipped program's lifecycle.
 
-- **FILESYSTEM-RELEASE-CONTRACT.** Implement the
-  [bounded occurrence-specific release proof](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
-  for a program's own open/query/close occurrence through checked flow and native
-  realization: exact object/argument contract, handle/alias preservation through
-  intervening calls, one applicable release, and no later use. Authority classes
-  alone are not preservation evidence. Build execution observations establish
-  nothing about the shipped program's calls.
+  The native policy helpers in
+  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`
+  already bind an occurrence commitment into syscall/foreign-import mechanism
+  identities and emit a constrained empty row, but only tests call them.
+  Implement the checked-flow derivation, retained Terminal evidence and independent
+  validation, then rejoin that exact occurrence at realization. Hashing an asserted
+  proof is not checking it. Changed arguments, flow, calls or contracts require
+  re-establishment; absent proof uses only a justified conservative classification
+  or rejects, never an invented empty row.
 
-  Carry the program-side derivation as Terminal evidence and rejoin its exact
-  occurrence at native realization in
-  `native-realization/src/native_realization/terminal_authority_policy/filesystem.rs`.
-  Missing evidence must retain the conservative classification, not synthesize
-  an empty permission row.
+  Drive `tests/omega/pass/filesystem/windows_canonicalize_exit` through native
+  execution (expected exit 70 on Windows), including its failed-open control.
+  Its stored `UnitResult` customer still needs general structural sum
+  replacement, borrowed case observation, whole nominal receiver replacement
+  (including match-produced assignments), and nested layout/custody through
+  **STATE-LOCAL-VALUE-FRONTIER** / **NOMINAL-FIELD-FLOW**. The scalar-store path
+  does not provide this; existing `StoreStructuralField` repairs an opened
+  borrowed hole, not arbitrary nominal replacement. Resume prerequisite work
+  with that full customer plan, not another isolated source-shape recognizer.
+  The earlier entry-attachment/fused-provider diagnostics at `069276b986dc`
+  have not been rerun; re-drive the fixture before treating them as current.
+  Migrate its remaining `Service<R>` spelling with **BINDING-CARRIER-NAME**.
 
-  Native customer:
-  `tests/omega/pass/filesystem/windows_canonicalize_exit`. Its recorded stop is
-  `structural field store: scalar field type` in
-  `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store/`:
-  `self.unit_result = self.fs.write_all(..)` stores a structural `UnitResult`,
-  while that path admits scalar fields. The transitive closure also needs nested
-  structural sum construction/extraction, borrowed case observation, and whole
-  nominal receiver replacement, including match-produced assignments.
-  Further isolated prerequisites are paused: resume with a plan covering that
-  closure through shared state/value planning, preserving recursive layout and
-  referent identity. Rerun `filesystem/native_close` before assuming a stop.
-
-  Acceptance: a constrained ordinary close has one evidence-bound empty row.
-  Failed acquisition, escape, stale/substituted proof, invalidating calls,
-  reused aliases and attached deferred deletion prevent narrowing. External
-  pending-deletion completion alone leaves ordinary close empty. Keep this
-  bounded proof separate from general owned-handle design.
-  TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns the receiver rows and the broad
-  `Filesystem` summary.
-
-  Scope re-verified at `069276b986dc` (linux x86-64, z140): the realization-side
-  contract machinery is already landed (`filesystem_ordinary_release_contract`,
-  `filesystem_release_bound_mechanism`, `filesystem_release_mechanism_row` in
-  `terminal_authority_policy/filesystem.rs`) but has only test callers — the
-  missing leg is a checked-flow producer minting `occurrence_commitment`, plus
-  the native-rejoin call. Both recorded customer stops moved upstream:
-  `filesystem/native_close` now rejects at `Main::fs requires a selected Fused
-  provider for boundary FilesystemHost` (the canary roster's named gate), and
-  `windows_canonicalize_exit --target windows_x86_64` rejects at `ProgramEntry
-  establishment rejoins 0 Terminal attachment identities ... state graph:
-  state signature: parameter signature: attached data shape` — the
-  ENTRY-CONTENT-ROOTS family — before reaching `structural field store: scalar
-  field type`. The paused transitive closure plan is in
-  `wiki/drafts/filesystem_release_contract_z140.md`. Implementing surfaces are
-  fenced: `filesystem.rs` under TWO-AXIS-TERMINAL-AUTHORITY-REVIEW (~04:54Z),
-  `structural_scalar_store` under the STATE-LOCAL-VALUE-FRONTIER /
-  CORPUS-RED-FAMILY-TRAPSTORE ownership recorded by PSI-NATIVE-FIELD-STORES.
+  Acceptance: constrained close earns one evidence-bound empty row; failed
+  acquisition, escape, reused aliases, second close, invalidating calls and
+  stale/substituted evidence reject narrowing. Preserve Windows shared-delete
+  behavior: another actor's pending deletion may complete on ordinary close,
+  but deletion attached to this handle excludes the empty classification.
+  `filesystem/native_close` closes an arbitrary integer, so retain it as an
+  unconstrained control, not proof of a successful acquisition. General owned
+  handles are not a prerequisite. **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns
+  permission/review rows and the broad filesystem-summary replacement.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   in `validation/src/machine_calls/calls/write_frames/`. The inference returns
