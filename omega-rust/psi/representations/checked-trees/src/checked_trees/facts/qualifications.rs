@@ -2,10 +2,12 @@
 //! QUALIFICATION facts -- per machine, the semantic-domain commitments its
 //! body's `as`-casts make, as normalized SemanticDomainId sets. V1 covers
 //! the compiler-blessed arithmetic policies (Wrapping/Saturating/Trapping
-//! casts -- the closed semantic-facet subset); declared-domain
-//! qualification joins when its cast spelling lowers. The published
-//! AUTHORITY half waits on the permission model (the facets brief's
-//! sealed-by-default introduction).
+//! casts -- the closed semantic-facet subset) and declared domains alike:
+//! their cast spellings lower to normalized instance identities
+//! (`semantic_domain_id` on the typed cast), and sites whose domain carries
+//! no predicates or establishment routes are recorded in `vacuous_uses`.
+//! The published AUTHORITY half waits on the permission model (the facets
+//! brief's sealed-by-default introduction).
 
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
