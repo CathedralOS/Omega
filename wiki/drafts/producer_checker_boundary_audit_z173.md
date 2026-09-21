@@ -8,7 +8,7 @@ found.** linux x86-64.
 
 ## Artifact boundary — clean
 
-`terminal-interpreter/src/terminal_interpreter/execution.rs::start_artifact`
+`terminal-interpreter/src/terminal_interpreter.rs::TerminalExecution::start_artifact`
 is the only execution entry: decodes the canonical module, decodes the proof
 section *sealed to that module's reconstructed identity*
 (`decode_proof_section_for`), then runs
