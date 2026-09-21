@@ -1,0 +1,102 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-21T13:16:53Z",
+  "subject": {
+    "name": "wrapping_square_sum",
+    "root": "samples/cli/arithmetic/wrapping_square_sum/main.omg",
+    "source_revision": "aeb4d7ee212b2842fe7f11666c55d5860c0797ea"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [
+        "ControlFlowCleanup",
+        "CopyPropagation",
+        "DeadPureScalarElimination",
+        "GlobalValueNumbering",
+        "ProofCheckElision",
+        "SparseConditionalConstantPropagation"
+      ],
+      "disabled": [
+        "SparseConditionalConstantPropagation"
+      ]
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "/home/ubuntu/repos/Omega/target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        32403.63325699991,
+        32503.233038000188,
+        32364.23842599993
+      ],
+      "median_ms": 32403.63325699991,
+      "min_ms": 32364.23842599993,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 4.571,
+        "compile: sources -> requested product": 32032.591,
+        "publish: retained product -> published product": 315.827,
+        "Stage 01: SourceFiles -> TokenStreams": 7.102,
+        "Stage 02: TokenStreams -> SyntaxTrees": 6.961,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 104.413,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 24.542,
+        "Stage 05: TypedTrees -> CheckedTrees": 23034.083,
+        "total elapsed": 32353.461
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 156237824,
+      "run_max_rss": 12304384
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        4.545907000192528,
+        4.852778999975271,
+        4.05272100010734,
+        4.45418599997538,
+        4.3239960000391875
+      ],
+      "median_ms": 4.45418599997538,
+      "min_ms": 4.05272100010734,
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "exit_code_expected": null,
+      "stdin": "devnull"
+    }
+  },
+  "notes": [
+    "six staged Psi-phase rules enabled with SparseConditionalConstantPropagation disabled; promotion-evidence marginal-cost row on linux x86_64"
+  ]
+}

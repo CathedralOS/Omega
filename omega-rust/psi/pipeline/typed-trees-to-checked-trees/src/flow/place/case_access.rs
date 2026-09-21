@@ -59,11 +59,7 @@ pub(crate) fn place_case_has_value(
     case: SymbolHandle,
     required: bool,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return false;
     };
     let Some(state) = program

@@ -51,6 +51,7 @@ fn owned_field(multiplicity: StructuralMultiplicity) -> TerminalModule {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(901),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

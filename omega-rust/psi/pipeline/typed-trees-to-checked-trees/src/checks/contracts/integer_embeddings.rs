@@ -16,11 +16,7 @@ pub(super) fn proves_exit_equality(
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     if exit_flow.machine_symbol != machine.symbol || exit_flow.state_symbol != state_flow.state_symbol

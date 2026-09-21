@@ -123,6 +123,16 @@ struct CapturedPhysicalMetadataRow {
 }
 
 pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, String> {
+    let (index, _) = metadata_rows(root)?;
+    require_stable_recapture(&index, || metadata_rows(root).map(|(index, _)| index))?;
+    Ok(index)
+}
+
+/// One metadata-only traversal of the canonical source root: the kind, size,
+/// and content commitment of every member, without retaining file bytes.
+fn metadata_rows(
+    root: &Path,
+) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, ())>), String> {
     capture_rows(
         root.to_path_buf(),
         |path, physical, aggregate_content_bytes| {
@@ -130,7 +140,28 @@ pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, S
                 .map(|row| (row, ()))
         },
     )
-    .map(|(index, _)| index)
+}
+
+/// Re-traverse the admitted membership and require the second traversal to
+/// reproduce the committed index exactly. Per-member reads already reject
+/// local drift between inspection and consumption, but a single traversal
+/// still pairs each member's row with whatever tree it happened to meet; a
+/// member created, removed, renamed, retargeted, or edited between the two
+/// traversals produces a different index, so the committed rows cannot
+/// describe two different trees at once.
+fn require_stable_recapture(
+    index: &CanonicalFilesystemMetadataIndex,
+    recapture: impl FnOnce() -> Result<CanonicalFilesystemMetadataIndex, String>,
+) -> Result<(), String> {
+    let revalidated = recapture()?;
+    if &revalidated == index {
+        Ok(())
+    } else {
+        Err(
+            "canonical Source metadata changed during capture; the complete physical root is not stable"
+                .to_owned(),
+        )
+    }
 }
 
 /// Capture one complete compiler-owned immutable build input for this exact
@@ -140,7 +171,10 @@ pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, S
 ///
 /// The retained entries and the index's source-content commitment come from
 /// the same traversal, so the retained bytes and granted metadata cannot
-/// disagree. File reads reject detected identity or content drift; these
+/// disagree. A second metadata-only traversal must reproduce the committed
+/// index before publication: membership, link, and content changes spanning
+/// the traversal reject instead of mixing rows from two different trees.
+/// File reads reject detected identity or content drift; these
 /// checks do not make a mutable host tree atomic. Callers supply sealed
 /// resolver-owned backing and capture before execution; a later replay never
 /// rereads the host to rebuild this input.
@@ -148,7 +182,10 @@ pub fn capture_package_source_input(
     source_root: &Path,
 ) -> Result<CapturedBuildSourceInput, String> {
     let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
-    let (index, retained) = capture_rows(canonical_root, capture_physical_source_row)?;
+    let (index, retained) = capture_rows(canonical_root.clone(), capture_physical_source_row)?;
+    require_stable_recapture(&index, || {
+        metadata_rows(&canonical_root).map(|(index, _)| index)
+    })?;
     CapturedBuildSourceInput::from_capture_rows(index, retained).map_err(|diagnostics| {
         diagnostics
             .iter()
@@ -177,6 +214,16 @@ pub fn capture_scoped_source_input(
     let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
     let (index, retained) =
         capture_scoped_rows(canonical_root.clone(), request, capture_physical_source_row)?;
+    require_stable_recapture(&index, || {
+        capture_scoped_rows(
+            canonical_root.clone(),
+            request,
+            |path, physical, aggregate| {
+                capture_physical_metadata_row(path, physical, aggregate).map(|row| (row, ()))
+            },
+        )
+        .map(|(index, _)| index)
+    })?;
     let captured: BTreeSet<&[u8]> = retained.iter().map(|(path, _)| path.as_slice()).collect();
     for member in required_members {
         let relative = match member.canonicalize() {
@@ -773,6 +820,221 @@ fn os_str_from_bytes(bytes: &[u8]) -> Result<std::ffi::OsString, String> {
 #[cfg(test)]
 #[path = "source_snapshot/file_read_tests.rs"]
 mod file_read_tests;
+
+#[cfg(test)]
+mod capture_coherence_tests {
+    use super::{
+        BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture,
+        capture_physical_metadata_row, capture_scoped_rows, metadata_rows,
+        require_stable_recapture,
+    };
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+    struct CaptureTree(PathBuf);
+
+    impl CaptureTree {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "omega-source-capture-{}-{}",
+                std::process::id(),
+                NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).expect("create capture fixture root");
+            Self(path.canonicalize().expect("canonicalize fixture root"))
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+
+        fn write(&self, relative: &str, bytes: &[u8]) {
+            fs::write(self.0.join(relative), bytes).expect("write fixture member");
+        }
+
+        fn mkdir(&self, relative: &str) {
+            fs::create_dir(self.0.join(relative)).expect("create fixture directory");
+        }
+
+        fn seal(&self) {
+            set_tree_permissions(&self.0, true);
+        }
+
+        fn unseal(&self) {
+            set_tree_permissions(&self.0, false);
+        }
+    }
+
+    impl Drop for CaptureTree {
+        fn drop(&mut self) {
+            set_tree_permissions(&self.0, false);
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Canonical mode discipline only applies on hosts where the capture
+    /// checks it; other platforms keep the fixture writable throughout.
+    #[cfg(unix)]
+    fn set_tree_permissions(root: &Path, sealed: bool) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir_mode = if sealed { 0o555 } else { 0o755 };
+        let file_mode = if sealed { 0o444 } else { 0o644 };
+        let mut stack = vec![root.to_path_buf()];
+        while let Some(directory) = stack.pop() {
+            for entry in fs::read_dir(&directory).expect("enumerate fixture") {
+                let entry = entry.expect("fixture entry");
+                let kind = entry.file_type().expect("fixture member kind");
+                if kind.is_symlink() {
+                    continue;
+                }
+                if kind.is_dir() {
+                    stack.push(entry.path());
+                }
+                let mode = if kind.is_dir() { dir_mode } else { file_mode };
+                fs::set_permissions(entry.path(), fs::Permissions::from_mode(mode))
+                    .expect("set fixture permissions");
+            }
+        }
+        fs::set_permissions(root, fs::Permissions::from_mode(dir_mode)).expect("seal fixture root");
+    }
+
+    #[cfg(not(unix))]
+    fn set_tree_permissions(_root: &Path, _sealed: bool) {}
+
+    fn recapture_index(
+        root: &Path,
+    ) -> Result<checked_interpreter::CanonicalFilesystemMetadataIndex, String> {
+        metadata_rows(root).map(|(index, _)| index)
+    }
+
+    fn scoped_recapture_index(
+        root: &Path,
+        request: &BuildSourceCaptureRequest,
+    ) -> Result<checked_interpreter::CanonicalFilesystemMetadataIndex, String> {
+        capture_scoped_rows(root.to_path_buf(), request, |path, physical, aggregate| {
+            capture_physical_metadata_row(path, physical, aggregate).map(|row| (row, ()))
+        })
+        .map(|(index, _)| index)
+    }
+
+    #[test]
+    fn stable_tree_recapture_reproduces_the_committed_index() {
+        let tree = CaptureTree::new();
+        tree.write("main.omg", b"data Main {}\n");
+        tree.mkdir("docs");
+        tree.write("docs/readme.md", b"readme\n");
+        tree.seal();
+
+        let index = capture(tree.path()).expect("capture stable fixture");
+        require_stable_recapture(&index, || recapture_index(tree.path()))
+            .expect("an unchanged tree must revalidate");
+    }
+
+    #[test]
+    fn recapture_rejects_a_member_added_after_the_first_traversal() {
+        let tree = CaptureTree::new();
+        tree.write("main.omg", b"data Main {}\n");
+        tree.mkdir("docs");
+        tree.write("docs/readme.md", b"readme\n");
+        tree.seal();
+
+        let index = capture(tree.path()).expect("capture stable fixture");
+        tree.unseal();
+        tree.write("docs/added.omg", b"data Added {}\n");
+        tree.seal();
+
+        let error = require_stable_recapture(&index, || recapture_index(tree.path()))
+            .expect_err("a member added after traversal cannot inherit the committed index");
+        assert!(error.contains("not stable"), "{error}");
+    }
+
+    #[test]
+    fn recapture_rejects_a_member_removed_after_the_first_traversal() {
+        let tree = CaptureTree::new();
+        tree.write("main.omg", b"data Main {}\n");
+        tree.write("extra.omg", b"data Extra {}\n");
+        tree.seal();
+
+        let index = capture(tree.path()).expect("capture stable fixture");
+        tree.unseal();
+        fs::remove_file(tree.path().join("extra.omg")).expect("remove fixture member");
+        tree.seal();
+
+        assert!(
+            require_stable_recapture(&index, || recapture_index(tree.path())).is_err(),
+            "a member removed after traversal cannot inherit the committed index"
+        );
+    }
+
+    #[test]
+    fn recapture_rejects_same_length_content_replacement() {
+        let tree = CaptureTree::new();
+        tree.write("main.omg", b"data Main {}\n");
+        tree.seal();
+
+        let index = capture(tree.path()).expect("capture stable fixture");
+        tree.unseal();
+        tree.write("main.omg", b"data Repl {}\n");
+        tree.seal();
+
+        assert!(
+            require_stable_recapture(&index, || recapture_index(tree.path())).is_err(),
+            "edited bytes cannot inherit the earlier commitment"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recapture_rejects_a_retargeted_link_after_the_first_traversal() {
+        let tree = CaptureTree::new();
+        tree.write("main.omg", b"data Main {}\n");
+        tree.mkdir("docs");
+        tree.mkdir("other");
+        std::os::unix::fs::symlink("docs", tree.path().join("link")).expect("create fixture link");
+        tree.seal();
+
+        let index = capture(tree.path()).expect("capture stable fixture");
+        tree.unseal();
+        fs::remove_file(tree.path().join("link")).expect("unlink fixture link");
+        std::os::unix::fs::symlink("other", tree.path().join("link"))
+            .expect("retarget fixture link");
+        tree.seal();
+
+        assert!(
+            require_stable_recapture(&index, || recapture_index(tree.path())).is_err(),
+            "a retargeted link cannot inherit the earlier commitment"
+        );
+    }
+
+    #[test]
+    fn scoped_recapture_rejects_inventory_drift_after_the_first_traversal() {
+        let tree = CaptureTree::new();
+        tree.write("main.omg", b"data Main {}\n");
+        tree.mkdir("docs");
+        tree.write("docs/readme.md", b"readme\n");
+        tree.seal();
+
+        let request = BuildSourceCaptureRequest::new([
+            (b"main.omg".to_vec(), BuildSourceCaptureObligation::Required),
+            (b"docs".to_vec(), BuildSourceCaptureObligation::Required),
+        ])
+        .expect("fixture inventory");
+        let index = scoped_recapture_index(tree.path(), &request)
+            .expect("scoped capture of stable fixture");
+        tree.unseal();
+        tree.write("docs/added.omg", b"data Added {}\n");
+        tree.seal();
+
+        assert!(
+            require_stable_recapture(&index, || { scoped_recapture_index(tree.path(), &request) })
+                .is_err(),
+            "a member added to a declared subtree cannot inherit the committed index"
+        );
+    }
+}
 
 #[cfg(test)]
 mod capture_request_tests {

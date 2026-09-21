@@ -1,7 +1,8 @@
-// Chapter 20 (Wire Protocols): a `wire data` declaration may name an encoding
-// family (e.g. `encoding compact_binary`) that fixes integer encoding,
-// endianness, and field ordering. Unimplemented: `wire` is not a top-level
-// declaration keyword.
+// Chapter 20 (Wire Protocols): the encoding-family axis rides a PLAIN `data`
+// with identity numbers on its fields. `wire` IS a recognized top-level
+// contextual keyword -- what is retired is the `wire data` declaration form,
+// which `parse_declaration.rs` refuses by name and redirects to exactly the
+// spelling below. This canary pins that the replacement compiles.
 
 data CounterMessage {
     #0 counter: i32;

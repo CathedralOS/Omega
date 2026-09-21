@@ -1,7 +1,7 @@
 # Recast validation implementation
 
 The [recast contract](../../../../wiki/spec/layouts/recasts.md) defines the
-representation judgment. `src/recasts.rs` and its child modules implement the
+representation judgment. `src/value_custody/recasts.rs` and its child modules implement the
 supported source subset; their restrictions are not new language semantics.
 
 Shared scalar, bounded byte-region, and recursively nested record/array views
@@ -22,6 +22,11 @@ compiler-derived element stride, including padding. Runtime multi-byte
 offsets need proved congruence. Source recasts are currently validated as direct
 reference-typed `let` initializers restating the target type. Other positions
 remain fenced; a mismatched bare borrow cannot bypass the recast judgment.
+
+Every recast-path diagnostic attaches the authored source span of the
+offending `as` expression (the stray cast itself for the positional sweep, the
+let's initializer for the unspelled reference pun), so fenced positions and
+judgment refusals name their exact site.
 
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence

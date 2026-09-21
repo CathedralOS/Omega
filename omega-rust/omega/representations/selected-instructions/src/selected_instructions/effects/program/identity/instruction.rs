@@ -155,6 +155,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::WrappingSubtractI64 => 90,
         SelectedInstructionKind::WrappingMultiplyI64 => 91,
         SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
+        SelectedInstructionKind::ExactDivideI64 { .. } => 112,
+        SelectedInstructionKind::ExactRemainderI64 { .. } => 113,
         SelectedInstructionKind::BitwiseOrI64 => 93,
         SelectedInstructionKind::BitwiseNotI64 => 94,
         SelectedInstructionKind::SaveFloatingControl { .. } => 103,
@@ -240,6 +242,14 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             accepted_fact,
         }
         | SelectedInstructionKind::WrappingDivideI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactDivideI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactRemainderI64 {
             obligation,
             accepted_fact,
         }

@@ -121,7 +121,7 @@ pub use artifact_custody::{
     OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
     OptimizedObjectArtifactUnavailableData, StagedValidatedOptimizedObjectArtifact,
     ValidatedOptimizedObjectArtifactManifest, stage_validated_optimized_object_artifact,
-    validate_optimized_object_artifact,
+    stage_validated_optimized_object_artifact_shared, validate_optimized_object_artifact,
 };
 pub use fragment_container::{
     RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,
@@ -147,6 +147,10 @@ pub use names::{
 };
 pub use object_plan::container::{
     ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container,
+};
+pub use object_plan::relocations::admission::{
+    RelocationAdmissionError, RelocationAdmissionFailure, ValidatedRelocationPlan,
+    admit_relocation_plan,
 };
 pub use object_plan::relocations::{
     RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet,

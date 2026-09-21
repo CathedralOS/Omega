@@ -45,6 +45,15 @@ pub(super) fn register_structural_domains<'m>(
                 declaration.id,
             ));
         }
+        if declaration
+            .establishment_routes
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalStructuralEstablishmentRoutes(
+                declaration.id,
+            ));
+        }
     }
     Ok(domains)
 }

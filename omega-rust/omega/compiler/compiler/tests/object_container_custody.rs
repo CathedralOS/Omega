@@ -109,8 +109,10 @@ fn minimal_module() -> TerminalModule {
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(declaration(1)),
                     kind: OperationKind::IntegerConstant {
@@ -129,6 +131,7 @@ fn minimal_module() -> TerminalModule {
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 crash_routes: Vec::new(),
             },
         }],

@@ -111,11 +111,7 @@ pub(crate) fn bind_token_bound_machine_calls(
             },
             _ => unreachable!("binding candidates are binary or indexed expressions"),
         };
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
             diagnostics.push(Diagnostic::error(
                 "a selected token-bearing machine lost its typed declaration before body binding",
             ));
@@ -232,14 +228,10 @@ pub(crate) fn token_bound_machine_call_target(
 }
 
 fn machine_name(program: &TypedTrees, symbol: SymbolHandle) -> String {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-        .map_or_else(
-            || "<unknown machine>".to_owned(),
-            |machine| machine.name.to_string(),
-        )
+    crate::lookup::machine_by_symbol(program, symbol).map_or_else(
+        || "<unknown machine>".to_owned(),
+        |machine| machine.name.to_string(),
+    )
 }
 
 /// Operand source positions of a token-bound expression, copied out before

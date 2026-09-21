@@ -5,7 +5,7 @@
 
 mod children;
 mod evidence;
-mod hashing;
+pub(crate) mod hashing;
 mod provider_custody;
 mod settlement_identity;
 #[cfg(test)]

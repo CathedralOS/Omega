@@ -15,8 +15,8 @@ mode, or broad `O1`/`O2`/`O3` level implicitly enables an optimization.
 
 Every optimization has exactly one phase owner. The complete selection projects
 into closed phase-local sets for checked trees, Psi, abstract operations, target
-operations/instruction selection, pre-allocation, post-allocation, and resolved
-layout. A stage consumes only its projection; downstream coordinators must not
+operations/instruction selection, pre-allocation, allocation recovery,
+post-allocation, and resolved layout. A stage consumes only its projection; downstream coordinators must not
 rescan the global selection to construct another schedule. Projection retains
 the complete build-selection identity so evidence from different builds cannot
 be silently recombined. Psi-local pass identities do not import target-specific
@@ -231,8 +231,8 @@ change the catalog, or masquerade as source selection. An empty request creates
 no rollback receipt; an empty effective set executes the ordinary identity phases.
 
 A product cannot claim rollback for stages it does not execute. Check-only
-production rejects nonempty requests; Terminal production admits Psi-phase
-rollback, not post-Terminal names; native production admits its phase-scoped
+production rejects nonempty requests; Terminal production admits checked-tree
+and Psi-phase rollback, not post-Terminal names; native production admits its phase-scoped
 overlay. Invalid requests reject before frontend work or auxiliary output.
 Successful publication retains rollback provenance separately from effective
 optimization identity and reports exact requested, applied, and effective names.

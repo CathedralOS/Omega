@@ -20,7 +20,8 @@ cover overlaps, call-argument composition, subject-once execution and skipped ca
 The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
 close coverage. Runtime scalar lowering currently supports Boolean/integer
-subjects and Boolean/integer/float results; an anonymous-only numeric subject has no invented default width.
+subjects and Boolean/integer/float results, plus f32/f64 subjects through the
+retained floating comparison described below; an anonymous-only numeric subject has no invented default width.
 Structural/domain/payload patterns remain explicit limitations. Conditional joins
 can select whole immutable plain-affine locals alongside fresh scalar-case or
 record constructors. Fresh record children can contain their own dispatch without
@@ -144,9 +145,15 @@ exercises f32 result selection inside ordinary calls. Match carries f32/f64
 results through the same typed continuation as other scalar values, preserving
 format and payload without arithmetic, conversion, or comparison of the result.
 Boolean/integer subjects and exact anonymous selection are supported here;
-floating-point subjects still need their independently retained comparison
-meaning and lowering. A floating result does not authorize integer equality on
-a floating subject.
+floating subjects share the retained `IeeeFloatCompare` operation — the subject
+is evaluated once, each reached pattern once, and NaN and signed-zero behavior
+is preserved through Terminal, interpreter, and native replay. The
+[match_float_interpretation](../../../tests/omega/pass/expressions/match_float_interpretation/main.omg)
+and [match_float_subjects](../../../tests/omega/pass/expressions/match_float_subjects/main.omg)
+fixtures pin named, call, indexed, projected, and computed subject shapes in
+both formats. A floating result does not authorize integer equality on
+a floating subject, and a domain-carried floating subject still needs a
+pattern vocabulary for its constraint surface.
 
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal
@@ -202,58 +209,37 @@ and the current language specification must agree.
 
 The settled [value-binder contract](../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
 distinguishes runtime-capable `Count: u32` from static `const Count: u32`.
-The current static-index evaluator and instance cache do not implement the new
-runtime-value path. Preserve rejection of runtime subjects in const applications;
-do not turn a failed constant evaluation into a guessed value or runtime fallback.
+Distinct binder kinds, exact runtime-subject substitution, and ordinary operand
+lowering with checked representation/custody are landed for machine signatures
+(`monomorphization::runtime_value_bindings`). Preserve rejection of runtime
+subjects in const applications; do not turn a failed constant evaluation into a
+guessed value or runtime fallback.
 
-Implement distinct binder kinds, exact runtime-subject substitution, and ordinary
-operand lowering with checked representation/custody under `RUNTIME-VALUE-GENERICS`
-on the [execution board](../../../TASKS.md). Runtime witnesses are not canonical
-static index bytes. Scope/name resolution, parameter modes, contract dependencies,
-and result identity must survive through Terminal and artifact replay.
+Runtime witnesses are not canonical static index bytes. Scope/name resolution,
+parameter modes, contract dependencies, and result identity survive through
+Terminal and artifact replay, and stay that way. The residual legs — the
+contract/domain-qualification work and layout-determining uses, which still
+reject — remain under `RUNTIME-VALUE-GENERICS` on the
+[execution board](../../../TASKS.md).
 
-The [type-equation and range-matching rules](../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
-add source type equality, endpoint extraction, and canonical interval matching.
-Machine-call inference extracts literal and closed anonymous declared endpoints
-through `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`. It uses
-resolved integer carriers, the shared exact numeric evaluator and canonical const
-leaves, not flow intervals or rendered type identity. Explicit arguments stay
-fixed; result context fills only slots not supplied by inputs. Open forwarded
-occurrences defer selection until the caller specializes. Ordinary compatibility
-and const validation still run.
-The checked customer is `cargo run -p omega -- --check
-tests/omega/pass/generics/declared_range_endpoint_inference/main.omg` (use `mbx`
-instead of Cargo when available). The `canary_suite` test
-`generics_and_dependent_facts::declared_range_inference_returns_the_selected_endpoint`
-executes its inferred calls through the compile-time evaluator. Terminal
-execution is checked separately: the same test decodes canonical Terminal bytes
-and executes each endpoint case with fresh scalar inputs. Local scalar calls
-without an outer result-operation owner use the shared computation plan even
-when their arguments are pure; operand purity cannot exclude them from ordinary
-state-local sequencing.
+The [structural type-equation rules](../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
+require inference from exact type/domain applications and their explicit argument
+structure. Matching a declared domain application can determine its index;
+proving a scalar bound cannot invent a generic capacity or recover a missing
+domain argument. Explicit arguments stay fixed, and ordinary compatibility,
+carrier, const, and predicate obligations still apply. Contracts and guards
+retain their ordinary implicit proof facts without creating new type structure.
 
-The same fixture has an authored hosted entry, a bound `Service<Console>` receiver
-field, and `build.omg`. Run `cargo nextest run -p compiler --test canary_suite
---no-fail-fast -E 'test(declared_range_inference_hosted_entry_runs_natively)'` to
-produce Terminal for `Main::main`, publish for the current hosted target, and
-execute the real entry bridge. It requires exit 70 (confirming scalar and nested
-record range inference, a negative bounded i64, a nested bounded i8, and a
-full-width bounded u64 field value), not exit 71; the test does not supply `self`. Static
-declaration endpoints also pass native package checking: explicit integer
-suffixes contribute their validated carrier to authored operator selection,
-while anonymous literals remain unknown and matching authored operators retain
-custody. A raw CLI invocation still needs the ordinary local-package review;
-the canary uses the repository's reviewed-fixture harness, not a package-admission
-bypass. Construction, nested field observation and the hosted caller share the
-ordinary native storage and scalar call path.
+The current compiler and `declared_range_endpoint_inference` fixtures still use
+removed scalar range annotations and range-shell inference. Their migration is
+tracked by `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../TASKS.md).
+That implementation is not the accepted structural inference contract, and
+existing test results do not establish support for the replacement syntax.
 
-Its `RangeValue<T>` applications also exercise closed range identity through
-generic-data synthesis. Pre-resolution typed probes retain structured interval
-observations and original carrier/constant selection; syntax substitution keeps
-the authored constrained type. After full typing, application replay recomputes
-interval equality independently with the same numeric query. Literal and named
-constant range fields, equivalent-instance copies, and full-width bounded fields
-reach Terminal execution. Whole record copies use the existing owned block edge:
+Local scalar calls without an outer result-operation owner use the shared
+computation plan even when their arguments are pure; operand purity cannot
+exclude them from ordinary state-local sequencing.
+Whole record copies use the existing owned block edge:
 unrestricted payloads get independent backing, while affine payloads transfer.
 Bounded field reads recover the declared interval on their fresh scalar result;
 they do not need equality with the original constructor's initializer. Field
@@ -285,8 +271,7 @@ copies, moved homes and captured scalar values. Each write uses the current home
 and the existing `StructuralScalarFieldStore`; it introduces no reference carrier
 or wire operation. Plain `let` permits member writes under existing source rules;
 `mut` gates whole-local rebinding. Bounded leaf stores still need independently
-reconstructed range obligations. The `declared_range_inference` canaries retain
-the separate borrowed-local-call mutation gap. Native owned/local field stores
+reconstructed invariant obligations. Native owned/local field stores
 remain explicitly unsupported. Parameter-origin
 moves into local storage still need their formal/local custody join.
 Cyclic record construction remains rejected by
@@ -294,92 +279,20 @@ Terminal's cycle admission until repeated establishment and per-iteration custod
 are independently closed. Connect those shared operations rather than adding a
 generic-specific fallback.
 
-Closed integer endpoints share typed trees' `type_system/closed_numeric.rs`
-through validation's `closed_integer_range_bound` and
-`closed_integer_range_maximum`, inference, declaration/store checking,
-proof, retained entry predicates, scalar field custody, wire decoding and layout.
-It evaluates fractional intermediates exactly before the final integer landing;
-bounded readers convert only that result. The authored roots remain intact for
-operator selection and fractional-origin warnings. Thus `1 / 2 * 512` supplies
-the same bound 256 to inference and to an actual call accepting 256.
-
 Closed builtin typed arithmetic shares its value query with immutable integer
 analysis and the fixed-width kernels, preserving carrier checks and integer
-division/remainder.
-Exact constant points survive full-width unsigned intermediates independently
-of the signed compatibility interval; each operand still lands and each typed
-operation must fit before a later cancellation. The same customer exercises
-inferred bounds 511 and 256 through these wide computations.
+division/remainder. Exact constant points survive full-width unsigned
+intermediates independently of the signed compatibility interval; each operand
+still lands and each typed operation must fit before a later cancellation.
+Integer results are decoded using the callee's declared signedness before
+literal formation or proof-integer normalization. Const data arguments and array
+lengths retain their own fit and layout obligations. These numeric rules remain
+independent of the removed scalar annotation syntax.
 
-A named computation endpoint (`u64[0..=limit()]` or
-`u64[0..=Limits::capacity(256)]`, a closed resolved call) folds before checking
-in `build-time-evaluation/src/range_endpoints.rs`
-through the same `BuildTimeAdmissionPlan` and checked-interpreter route as
-fixed-array lengths, with source invocation custody; the endpoint becomes an
-ordinary landed literal that inference, declaration checking, proof and layout all
-read. Integer results are decoded using the callee's declared signedness before
-literal formation or proof-integer normalization: a returned `u64::MAX` remains
-positive, while an `i64` result of -1 remains negative. The shared decoder also
-serves const data arguments and both ordinary and replayed array-length folds;
-each receiving position retains its own fit and layout obligations.
-The typed call's resolved entry and existing receiver classification distinguish
-a type qualifier from a runtime value. Folding evaluates the exact retained
-machine symbol, not a reconstructed name. Unbound generic callees remain calls
-so folding cannot erase an underdetermined application.
-Integer arguments land at exact builtin parameters before entering
-the interpreter's value snapshots. The shared context-free numeric query first
-excludes owner-dependent arithmetic; the scalar constant evaluator then retains
-exact carriers and fractional warnings, including nested anonymous landings.
-Argument selections pass their own package gate rather than inheriting the
-callee's permission. This repeats scalar evaluation to reuse both existing
-contracts; it does not add another arithmetic implementation.
-Nested calls use the same admission and argument evaluation in postorder,
-including calls inside surrounding integer arithmetic. Substitutions preserve
-each result's exact builtin integer carrier; a returned u8 cannot silently
-widen arithmetic or initialize an incompatible parameter. Selections read the
-original call/qualifier before execution and the original argument graph before
-numeric evaluation reads completed call values. Machine bodies execute against
-one immutable prepared program. Temporary substitutions roll back together on
-failure; surrounding endpoint arithmetic retains its ordinary checking path.
-Closed range refinements check each argument before invocation and each returned
-value before folding, using every retained range and the exact carrier. Original
-bound selections are admitted before execution; computed signature bounds join
-the same dependency traversal, independent of declaration order. Empty ranges
-admit no values, and exclusive bounds normalize in proof integers. This concrete
-value check does not replace ordinary body checking or erase nominal qualifications.
-Record and case-payload field endpoints resolve in their own lexical scope;
-payload subjects shadow common fields and global names. Local bounded records
-retain declaration-owned range proofs at construction and exact field-read
-equations at observation. The range-inference fixture executes those reads and
-their inferred calls from canonical Terminal bytes, independently of compile-time
-evaluation; the hosted entry's receiver provisioning remains a separate gap.
-Noninteger arguments/results, nominal/policy qualifications, generic machine arguments,
-open symbolic endpoints,
-full-width variable compatibility intervals and exact type equations remain
-open; context-free typed evaluation refuses matching selected trait operators
-until the endpoint has direct owner context.
-
-Exclusive ranges retain the authored endpoint and explicit end-kind through
-parsing, resolution, typing, substitution and snapshots. The shared numeric
-query validates the endpoint before taking its predecessor in proof integers:
-`u64[0..18446744073709551616]` has inclusive maximum `u64::MAX`, but `256u8`
-cannot become a valid endpoint by subtracting one first. Canonical type identity
-uses this same query, so `[0..8]` and `[0..=7]` remain equal. Open endpoints use
-the existing structural binder/context normalizer, not diagnostic spelling;
-direct binder substitutions that close numerically use the same predecessor.
-
-Empty integer declarations remain legal without granting value establishment.
-Bounded readers preserve an empty interval before narrowing BigInt endpoints to
-i64, and store checks intersect all range clauses instead of ignoring a later
-empty clause. Zeroed storage alone is not an established value. Exclusive
-floating ranges currently reject with an explicit implementation diagnostic;
-their strict-order evidence is separate from integer predecessor arithmetic.
-
-`generic_data/arguments.rs` still excludes range-qualified arguments from its
-slug path, and constrained-shell substitution is not general decomposition.
-`STRUCTURAL-GENERIC-MATCHING` tracks migration through source,
-type identity, checking, evaluation, and artifact consumers; preserve unsupported
-rejections until the corresponding representation and evidence are complete.
+`STRUCTURAL-GENERIC-MATCHING` tracks exact type/domain application decomposition
+through source, type identity, checking, evaluation, and artifact consumers.
+Preserve unsupported rejections until the corresponding representation and
+evidence are complete.
 
 `FINITE-GENERIC-DISPATCH` implements the
 [explicit family contract](../../../wiki/spec/language/generics.md#finite-specialization-boundary)
@@ -439,10 +352,11 @@ in bodies have namespace coverage. Scalar constants include qualified Terminal
 selection and independently executable artifacts; nominal aggregate body uses
 have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
-the selected declaration at the original use. This is not completion of the
-[module/name contract](../../../wiki/spec/language/modules.md):
-remaining indexed domain constraints, operator homes and qualified case membership
-in declared-domain proof facts still need end-to-end selection coverage.
+the selected declaration at the original use. The rest of the
+[module/name contract](../../../wiki/spec/language/modules.md) rides the same
+law: indexed domain constraints, operator homes and qualified case membership
+in declared-domain proof facts all select through it (`module_machine_indices`
+probes and the `module_normalization` tests pin the boundaries).
 
 Closed integer- and Boolean-indexed constraints on scalar constants replay nested declared
 domain memberships in each fact author's import context. Forwarded indices keep
@@ -507,9 +421,11 @@ arithmetic-policy projections remain rejected until scalar production and source
 replay carry that policy together. These boundaries are covered by
 `module_machine_indices::indexed_domains` and validation's
 `qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy`.
-Scalar result annotations still need the independent body-proof obligation
-tracked by `SCALAR-DOMAIN-RETURN-PROOF`; distinct identities alone do not prove a
-returned value satisfies its declared predicates.
+Scalar result annotations are established in the producing body: ordinary exits
+prove the machine and state result obligations from live exact membership or the
+arithmetic prover, closed indices retain their declaration binders, and routed
+qualifications require authorized provenance
+(`typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
@@ -517,9 +433,10 @@ be checked as the real constrained declaration's index. Likewise, a computed
 module constant must be materialized before a dependent declaration selects its
 Boolean value. Untyped fact folding cannot replace that route because it does
 not retain authored numeric operand widths or selected operation custody.
-The `computed_boolean_domain_indices_retain_their_pending_typed_probe_boundary`
-regression retains these failures, including standalone logical-not's earlier
-parser boundary.
+`module_machine_indices::indexed_domains::computed_boolean_domain_indices_reach_source_free_terminal`
+and `..._do_not_publish_placeholder_membership` pin that route through to
+source-free Terminal; false predicates feeding another constant, foreign private
+selections, mixed carriers and missing unary custody still reject.
 
 Module-owned constants with foreign nominal and closed generic value types
 retain separate declaration, carrier and initializer owners. Name expressions

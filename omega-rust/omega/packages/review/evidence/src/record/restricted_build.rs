@@ -10,6 +10,7 @@
 //! the requested authority is unchanged
 //! (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
+use build_evaluation::{RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation};
 use target::TargetProfile;
 
 /// The restricted operation one retained request asks of the host.
@@ -100,4 +101,73 @@ pub struct PackagePolicyRestrictedBuildRequest {
     /// The product target the requesting compilation selected for this
     /// activation.
     pub(crate) selected_target_profile: Option<TargetProfile>,
+}
+
+/// Retained-request meaning projects from the compiler's admitted request
+/// unchanged — logical grant roots by compiler vocabulary, narrowing and
+/// capture *presence*, sponsor ceilings, declared required outputs, and the
+/// activation profiles — never host paths, live handles, or ephemeral
+/// capability state.
+impl From<&build_evaluation::RestrictedBuildRequest> for PackagePolicyRestrictedBuildRequest {
+    fn from(request: &build_evaluation::RestrictedBuildRequest) -> Self {
+        let bounds = request.bounds();
+        Self {
+            operation: match request.operation() {
+                RestrictedBuildOperation::ScopedFilesystemExecution => {
+                    PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution
+                }
+                RestrictedBuildOperation::UnscopedFilesystemExecution => {
+                    PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution
+                }
+            },
+            read_grants: request.read_grants().iter().map(Into::into).collect(),
+            write_grants: request.write_grants().iter().map(Into::into).collect(),
+            bounds: PackagePolicyRestrictedBuildBounds {
+                filesystem_sponsor_limits: bounds.filesystem_sponsor_limits().map(|limits| {
+                    PackagePolicyFilesystemSponsorLimits {
+                        maximum_entries: limits.maximum_entries,
+                        maximum_total_logical_bytes: limits.maximum_total_logical_bytes,
+                        maximum_object_extent: limits.maximum_object_extent,
+                    }
+                }),
+                evaluation_sponsor_limits: bounds.evaluation_sponsor_limits().map(|limits| {
+                    PackagePolicyEvaluationSponsorLimits {
+                        maximum_fuel_units: limits.maximum_fuel_units(),
+                        maximum_build_log_bytes: limits.maximum_build_log_bytes(),
+                        maximum_filesystem_operation_attempts: limits
+                            .maximum_filesystem_operation_attempts(),
+                        maximum_live_filesystem_handles: limits.maximum_live_filesystem_handles(),
+                        maximum_live_cells: limits.maximum_live_cells(),
+                        maximum_live_text_bytes: limits.maximum_live_text_bytes(),
+                        maximum_result_cells: limits.maximum_result_cells(),
+                        maximum_result_text_bytes: limits.maximum_result_text_bytes(),
+                    }
+                }),
+                required_outputs: bounds.required_outputs().to_vec(),
+                artifact_only: bounds.artifact_only(),
+            },
+            build_execution_profile: request.build_execution_profile(),
+            selected_target_profile: request.selected_target_profile(),
+        }
+    }
+}
+
+impl From<&RestrictedBuildGrant> for PackagePolicyRestrictedBuildGrant {
+    fn from(grant: &RestrictedBuildGrant) -> Self {
+        Self {
+            root: match grant.root() {
+                RestrictedBuildGrantRoot::SourceInventory => {
+                    PackagePolicyRestrictedBuildGrantRoot::SourceInventory
+                }
+                RestrictedBuildGrantRoot::StagedOutput => {
+                    PackagePolicyRestrictedBuildGrantRoot::StagedOutput
+                }
+                RestrictedBuildGrantRoot::Other(identity) => {
+                    PackagePolicyRestrictedBuildGrantRoot::Other(identity)
+                }
+            },
+            narrowed: grant.narrowed(),
+            captured: grant.captured().is_some(),
+        }
+    }
 }

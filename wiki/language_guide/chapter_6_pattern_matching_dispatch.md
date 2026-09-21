@@ -20,11 +20,16 @@ The intended semantics evaluate the subject once, test arms in order, and
 evaluate only the selected arm. Arm values need compatible types and the
 dispatch must be exhaustive.
 
-The Rust parser's current arithmetic expansion does not implement general
-selective evaluation. Do not treat an accepted arithmetic-shaped example as
-coverage for effects, owned values, or general result types. The
-[source processing note](../../omega-rust/psi/pipeline/README.md#lexing-and-parsing)
-records the gap.
+Scalar `match` implements that schedule today: the parser retains the subject
+and ordered arms, the subject is evaluated once, patterns are tested in
+authored order, and only the selected arm's value is evaluated — carried
+through checked trees into Terminal and native lowering. Value-position arms
+still admit value and wildcard patterns only; record, domain and guarded
+spellings belong to `transition` dispatch, and the residual owned/borrowed
+custody frontier is recorded in the
+[source processing note](../../omega-rust/psi/pipeline/README.md#lexing-and-parsing).
+An accepted scalar example is not coverage for those shapes or for general
+owned results.
 
 ## Transition Dispatch
 

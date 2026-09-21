@@ -1,0 +1,28 @@
+// PASS CANARY: unmeasured call-spelled self-recursion (measured-recursion
+// ruling 2026-07-18, MR1). A recursive CALL spelling (`true ->
+// self.countdown(remaining - 1)`) on an unmeasured machine used to refuse
+// with `call-spelled self-recursion WITHOUT a measure`. That checked-stage
+// fence was retired upstream: resolution now folds the self-prefixed arm
+// target onto the same bare loop-back edge `-> countdown(..)` spells
+// (constant stack, may legally diverge), so checked semantics admits the
+// machine, and the transitive Unit-plan admission produces the machine's
+// plan — the native route compiles it. The measured twin RUNS:
+// pass/calls/runtime_measured_tail_recursion_exit.
+data Main {
+}
+machine Main::countdown(&mut self, remaining: u64) -> u64
+{
+    transition remaining > 0 {
+        true -> self.countdown(remaining - 1)
+        false -> 7
+    }
+}
+machine Main::main(&mut self) {
+    let value: u64 = self.countdown(2);
+    transition value == 7 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { }
+    state no(&mut self) { }
+}

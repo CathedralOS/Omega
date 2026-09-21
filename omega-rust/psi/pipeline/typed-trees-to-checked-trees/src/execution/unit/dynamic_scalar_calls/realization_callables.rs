@@ -42,10 +42,8 @@ pub(super) fn checked_dynamic_realization_callables(
             .trait_machine_signatures(declaring_trait)
             .iter()
             .find(|candidate| candidate.symbol == closed.requirement)?;
-        let row_realization_machine = program
-            .machines()
-            .iter()
-            .find(|candidate| candidate.symbol == closed.realization_machine)?;
+        let row_realization_machine =
+            crate::lookup::machine_by_symbol(program, closed.realization_machine)?;
         let row_realization_state = program
             .machine_states(row_realization_machine)
             .iter()
@@ -254,10 +252,7 @@ pub(crate) fn dynamic_family_realization<'program>(
     if candidates.next().is_some() {
         return None;
     }
-    let realization_machine = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == specialization.instance)?;
+    let realization_machine = crate::lookup::machine_by_symbol(program, specialization.instance)?;
     let state_position = program
         .machine_states(row_realization_machine)
         .iter()

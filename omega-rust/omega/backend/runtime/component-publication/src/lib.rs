@@ -11,7 +11,8 @@
 //! independent gates' results for one era. `callback_registration` registers a
 //! runnable component's external-root and compiler-private callbacks, and
 //! `stack_provision` leases the provider-admitted external stacks an installed
-//! component runs on.
+//! component runs on, and `entry_acquisition` seals the concrete runtime
+//! entry a live era entry may dispatch through.
 //! Deployment persistence and restart recovery belong to the consuming runtime
 //! or OS, not this installation/lifetime checking layer.
 
@@ -32,9 +33,11 @@ use external_roots::{
 use image_emission::InstalledArtifact;
 
 mod callback_registration;
+mod entry_acquisition;
 mod stack_provision;
 
 pub use callback_registration::*;
+pub use entry_acquisition::*;
 pub use stack_provision::*;
 
 /// Installed terminal artifact plus the concrete accepted progress closure

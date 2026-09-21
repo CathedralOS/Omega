@@ -1,0 +1,1 @@
+state `push` receives mutable receiver while local borrow `slots` is still active

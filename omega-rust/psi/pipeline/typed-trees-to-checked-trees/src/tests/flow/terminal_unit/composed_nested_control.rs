@@ -404,3 +404,71 @@ fn composes_balanced_control_with_a_convergent_leaf() {
         ));
     }
 }
+
+#[test]
+fn composes_an_equality_complement_pair_without_an_authored_fallback() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root { flag: i32; }
+        machine Root::enter(&mut self) reaches Host {
+            self.flag = 5;
+            transition {
+                self.flag == 3 -> bad()
+                self.flag != 3 -> good()
+            }
+            state good(&mut self) { Host::exit(70); }
+            state bad(&mut self) { Host::exit(71); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("`x == k` / `x != k` over one subject is an exact false fallback");
+    let [entry, good, bad] = plan.states.as_slice() else {
+        panic!("the complement pair keeps the entry conditional and both leaves")
+    };
+    let (when_true, when_false) = conditional_successors(entry);
+    assert_eq!(when_true.target_state, bad.state);
+    assert_eq!(when_false.target_state, good.state);
+    for leaf in [good, bad] {
+        assert!(matches!(
+            leaf.operations.as_slice(),
+            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+        ));
+    }
+}
+
+#[test]
+fn composes_a_reversed_boolean_label_pair_without_an_authored_fallback() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root { flag: bool; }
+        machine Root::enter(&mut self) reaches Host {
+            self.flag = true;
+            transition {
+                self.flag == false -> good()
+                self.flag == true -> bad()
+            }
+            state good(&mut self) { Host::exit(70); }
+            state bad(&mut self) { Host::exit(71); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("`x == false` / `x == true` over one subject is an exact false fallback");
+    let [entry, good, bad] = plan.states.as_slice() else {
+        panic!("the reversed Boolean pair keeps the entry conditional and both leaves")
+    };
+    let (when_true, when_false) = conditional_successors(entry);
+    assert_eq!(when_true.target_state, good.state);
+    assert_eq!(when_false.target_state, bad.state);
+}

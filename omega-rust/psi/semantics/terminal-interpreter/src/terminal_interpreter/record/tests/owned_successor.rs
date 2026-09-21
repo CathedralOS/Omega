@@ -29,6 +29,7 @@ fn owned_successor_module() -> TerminalModule {
     writer.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(21).unwrap(),
             result: OperationResult::Scalar(scalar(21)),
             kind: OperationKind::IntegerConstant {
@@ -37,6 +38,7 @@ fn owned_successor_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(22).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -69,6 +71,7 @@ fn owned_successor_module() -> TerminalModule {
         target,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
             place: PlaceId::new(1).unwrap(),
             access: StructuralAccess::Owned,
@@ -80,16 +83,19 @@ fn owned_successor_module() -> TerminalModule {
     caller.result = TerminalMachineResult::Scalar(scalar(6));
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: target,
         parameters: Vec::new(),
         structural_parameters: vec![parameter],
         operations: vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(3).unwrap(),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: writer.id,
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {

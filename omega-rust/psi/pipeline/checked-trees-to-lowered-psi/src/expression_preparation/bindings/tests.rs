@@ -536,6 +536,7 @@ fn primitive_reads_emit_fresh_typed_results_after_intervening_stores() {
         let store = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: store,
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {

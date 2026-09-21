@@ -3,7 +3,7 @@
 Contract: [task activation and lifecycle](../../../../wiki/spec/build/task_runtime.md).
 [lib.rs](src/lib.rs) owns activation plans, selected-runtime facts, exact
 preservation/invocation joins, and provider-instance lifecycle accounting.
-[stack_composition.rs](src/stack_composition.rs) owns provider-independent same-stack composition.
+[stack_composition.rs](src/stack_composition/mod.rs) owns provider-independent same-stack composition.
 
 Activation planning is Omega-owned post-check state. The compiler reports
 `05_task_activations.json`; target calling/layout, stack, and runtime selection

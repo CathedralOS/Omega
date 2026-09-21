@@ -30,10 +30,27 @@ fn segment<'image>(bytes: &'image [u8], name: &[u8; 16]) -> &'image [u8] {
 }
 
 fn storage_image(data_size: usize, bss_size: usize, bss_alignment: usize) -> FinalImage {
-    let mut image = FinalImage::with_capacity(
+    storage_image_for(
         target::NativeTarget::macos_arm64(),
+        0xd65f_03c0u32.to_le_bytes().to_vec(), // ret
+        data_size,
+        bss_size,
+        bss_alignment,
+    )
+}
+
+fn storage_image_for(
+    target: target::NativeTarget,
+    text: Vec<u8>,
+    data_size: usize,
+    bss_size: usize,
+    bss_alignment: usize,
+) -> FinalImage {
+    let text_size = text.len();
+    let mut image = FinalImage::with_capacity(
+        target,
         FinalImageMemory {
-            text: 0xd65f_03c0u32.to_le_bytes().to_vec(), // ret
+            text,
             data: vec![0; data_size],
             bss_size,
             bss_alignment,
@@ -46,7 +63,7 @@ fn storage_image(data_size: usize, bss_size: usize, bss_alignment: usize) -> Fin
     image.symbol_table.entry_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "entry".into(),
         section: FinalImageSection::Text,
-        size: 4,
+        size: text_size,
         kind: SymbolKind::Function,
         ..Default::default()
     });
@@ -124,6 +141,124 @@ fn validate_mapping(output: &image::ExecutableImageOutput) -> Result<(), diagnos
         &output.final_data_bytes,
         output.bss_bytes,
     )
+}
+
+fn x86_64_storage_image(data_size: usize, bss_size: usize, bss_alignment: usize) -> FinalImage {
+    storage_image_for(
+        target::NativeTarget::macos_x64(),
+        vec![0xc3], // ret
+        data_size,
+        bss_size,
+        bss_alignment,
+    )
+}
+
+fn validate_x86_64_mapping(
+    output: &image::ExecutableImageOutput,
+) -> Result<(), diagnostics::Diagnostic> {
+    super::validate_macho_x86_64_loader_mapping(
+        &output.bytes,
+        output.final_image_layout,
+        &output.final_text_bytes,
+        &output.final_data_bytes,
+        output.bss_bytes,
+    )
+}
+
+#[test]
+fn x86_64_emission_writes_intel_cpu_fields_and_four_kib_pages() {
+    let output =
+        super::emit_macho_x86_64_executable(x86_64_storage_image(13, 24, 16)).expect("emit x86-64");
+    assert_eq!(output.format, "mach-o-x86_64-executable");
+    assert_eq!(word(&output.bytes, 0), 0xfeed_facf);
+    assert_eq!(word(&output.bytes, 4), 0x0100_0007, "CPU_TYPE_X86_64");
+    assert_eq!(
+        word(&output.bytes, 8),
+        0x8000_0003,
+        "CPU_SUBTYPE_X86_64_ALL|LIB64"
+    );
+    // The 4 KiB loader page: __DATA's file offset is 0x1000, not arm64's 0x4000.
+    let data = segment(&output.bytes, b"__DATA\0\0\0\0\0\0\0\0\0\0");
+    assert_eq!(wide(data, 40), 0x1000);
+    assert_eq!(output.final_image_layout.data_address, 0x1_0000_1000);
+    validate_x86_64_mapping(&output).expect("x86-64 loader mapping");
+}
+
+#[test]
+fn x86_64_loader_mapping_accepts_storage_variations() {
+    for (data_size, bss_size, alignment) in [
+        (0, 0, 1),
+        (13, 0, 8),
+        (13, 0, 0x10000),
+        (0, 24, 16),
+        (13, 24, 16),
+        (13, 0x4000, 0x4000),
+        (0, 0x8000, 0x10000),
+    ] {
+        let output = super::emit_macho_x86_64_executable(x86_64_storage_image(
+            data_size, bss_size, alignment,
+        ))
+        .expect("emit x86-64 storage variation");
+        validate_x86_64_mapping(&output).expect("exact x86-64 loader mapping");
+    }
+}
+
+#[test]
+fn x86_64_loader_mapping_accepts_eager_import_storage() {
+    // A four-byte text carrying a rel32 call site at offset 0.
+    let mut image = storage_image_for(
+        target::NativeTarget::macos_x64(),
+        vec![0xc3, 0, 0, 0],
+        13,
+        24,
+        16,
+    );
+    let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
+        name: "_write".into(),
+        kind: SymbolKind::Import,
+        ..Default::default()
+    });
+    image.symbol_table.imports.insert(image::FinalImageImport {
+        symbol_handle: imported,
+        import: image::FinalImageImportPlan::StringBackedBootstrap {
+            library: String::new(),
+        },
+    });
+    image
+        .relocation_table
+        .relocations
+        .insert(FinalImageRelocation {
+            section: FinalImageSection::Text,
+            byte_width: 4,
+            symbol_handle: imported,
+            kind: RelocationKind::X86_64Relative32,
+            ..Default::default()
+        });
+    let output = super::emit_macho_x86_64_executable(image).expect("emit x86-64 eager import");
+    validate_x86_64_mapping(&output).expect("x86-64 eager import loader mapping");
+    // The thunk is the closed `jmp qword ptr [rip + disp32]` form, and it must
+    // point at the one placed binding slot carrying the same import symbol.
+    let thunk = output
+        .executable_regions
+        .regions
+        .iter()
+        .find(|region| region.origin == image::FinalExecutableRegionOrigin::ImportThunk)
+        .expect("x86-64 import thunk region");
+    assert_eq!(thunk.byte_count, 6);
+    let thunk_bytes = &output.final_text_bytes[thunk.section_offset..thunk.section_offset + 6];
+    assert_eq!(&thunk_bytes[..2], &[0xff, 0x25]);
+    super::validate_macho_x86_64_import_binding_pairing(
+        &output.final_text_bytes,
+        &output.executable_regions,
+        &output.data_regions,
+    )
+    .expect("x86-64 thunk↔slot pairing");
+}
+
+#[test]
+fn x86_64_emission_rejects_a_mismatched_image_target() {
+    assert!(super::emit_macho_x86_64_executable(storage_image(0, 0, 1)).is_err());
+    assert!(super::emit_macho_aarch64_executable(x86_64_storage_image(0, 0, 1)).is_err());
 }
 
 fn segment_offset(bytes: &[u8], name: &[u8; 16]) -> usize {

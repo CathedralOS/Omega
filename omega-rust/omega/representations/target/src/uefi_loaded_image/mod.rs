@@ -452,7 +452,11 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        Field, LayoutPlacementReport, UEFI_X64_LOADED_IMAGE_NATIVE_LAYOUT_COMMITMENT,
+        exact_uefi_x64_loaded_image_layout_plan_report, exact_uefi_x64_loaded_image_native_layout,
+        replayed_uefi_x64_loaded_image_native_layout,
+    };
 
     #[test]
     fn exact_loaded_image_layout_retains_every_x64_field_and_padding_row() {

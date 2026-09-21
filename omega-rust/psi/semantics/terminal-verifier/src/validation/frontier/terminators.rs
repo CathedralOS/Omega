@@ -1,5 +1,17 @@
 //! How each terminator kind closes a block and hands its frontier to the
 //! block's successors.
+//!
+//! Every successor-bearing edge closes in the same diagnostic order:
+//! owned successor sources are consumed before that edge's residual and
+//! trivial discard rosters run, and the target's parameters are established
+//! last. Residual evidence exists only on `Jump` edges; `Conditional` and
+//! `StructuralCase` edges carry trivial discards only, and `Conditional`
+//! handles each arm against its own frontier clone in the same order.
+//! Return-style terminators close exit custody instead: they verify the
+//! authored cleanup rosters, the absence of partial custody and pending
+//! restoration debt, and the consumed terminal self receiver; which
+//! diagnostic surfaces first is pinned by each close's check order and by
+//! the structural field tests.
 
 use super::super::{
     BTreeMap, BlockId, ModuleError, OperationKind, StructuralAccess, StructuralMultiplicity,
@@ -658,8 +670,7 @@ fn close_return_structural(
             place: *source,
         });
     }
-    if !super::super::structural_result_contracts::matches_function_result(source_signature, result)
-    {
+    if !super::super::structural_result_contracts::matches_return_source(source_signature, result) {
         return Err(ModuleError::StructuralReturnSignatureMismatch {
             machine: machine.id,
             block: block.id,

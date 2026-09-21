@@ -110,7 +110,28 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmReadCr4
         | BuiltinFunction::AsmWriteCr0
         | BuiltinFunction::AsmWriteCr3
-        | BuiltinFunction::AsmWriteCr4 => disposition([TerminalAuthorityClass::MachineControl]),
+        | BuiltinFunction::AsmWriteCr4
+        | BuiltinFunction::AsmWriteBackInvalidate
+        | BuiltinFunction::AsmInvalidate
+        | BuiltinFunction::AsmWriteBackNoInvalidate
+        | BuiltinFunction::AsmReadSctlrEl1
+        | BuiltinFunction::AsmReadTcrEl1
+        | BuiltinFunction::AsmReadTtbr0El1
+        | BuiltinFunction::AsmReadTtbr1El1
+        | BuiltinFunction::AsmReadMairEl1
+        | BuiltinFunction::AsmReadVbarEl1
+        | BuiltinFunction::AsmReadTpidrEl1
+        | BuiltinFunction::AsmReadEsrEl1
+        | BuiltinFunction::AsmReadFarEl1
+        | BuiltinFunction::AsmWriteSctlrEl1
+        | BuiltinFunction::AsmWriteTcrEl1
+        | BuiltinFunction::AsmWriteTtbr0El1
+        | BuiltinFunction::AsmWriteTtbr1El1
+        | BuiltinFunction::AsmWriteMairEl1
+        | BuiltinFunction::AsmWriteVbarEl1
+        | BuiltinFunction::AsmWriteTpidrEl1 => {
+            disposition([TerminalAuthorityClass::MachineControl])
+        }
         BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
             disposition([TerminalAuthorityClass::PortIo])
         }
@@ -120,6 +141,15 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmLoadFence
         | BuiltinFunction::AsmStoreFence
         | BuiltinFunction::AsmFullFence
+        | BuiltinFunction::AsmSerialize
+        | BuiltinFunction::AsmInstructionSyncBarrier
+        | BuiltinFunction::AsmSpinPause
+        | BuiltinFunction::AsmYieldHint
+        | BuiltinFunction::AsmNop
+        | BuiltinFunction::AsmWaitForEvent
+        | BuiltinFunction::AsmWaitForInterrupt
+        | BuiltinFunction::AsmSendEvent
+        | BuiltinFunction::AsmSendEventLocal
         | BuiltinFunction::AsmSnapshotFlags
         | BuiltinFunction::FloatIsNan
         | BuiltinFunction::FloatMultiplyThenAddF32

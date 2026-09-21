@@ -1,10 +1,12 @@
 //! Checked crash predicates and boolean propositions under an expansion
 //! budget.
 
-use crate::proofs::crash_routes::scalar_terms::checked_boolean_scalar_term;
+use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
 use crate::proofs::{
-    CheckedBooleanExpression, LoweringError, Proposition, ScalarTerm, ValueDeclaration, unsupported,
+    CheckedBooleanExpression, CheckedScalarExpression, LoweringError, Proposition, ScalarTerm,
+    ScalarType, ValueDeclaration, unsupported,
 };
+use checked_trees::CheckedIeeeFloatComparisonKind;
 
 pub(crate) fn lower_checked_crash_predicates(
     predicates: &[CheckedBooleanExpression],
@@ -93,6 +95,22 @@ fn checked_boolean_proposition_with_budget(
     match expression {
         CheckedBooleanExpression::Not(operand) if contains_boolean_connective(operand) => {
             checked_boolean_connective_polarity(operand, values, false, remaining, depth + 1)
+        }
+        // IEEE `!=` is the true negation of `==` (NaN included), so negation
+        // distributes into the atomic kind rather than an outer proposition.
+        CheckedBooleanExpression::Not(operand)
+            if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } =
+                operand.as_ref() =>
+        {
+            scalar_ieee_float_comparison_proposition(
+                negated_float_comparison_kind(*kind),
+                left,
+                right,
+                values,
+            )
+        }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            scalar_ieee_float_comparison_proposition(*kind, left, right, values)
         }
         CheckedBooleanExpression::Equal { .. } if contains_boolean_connective(expression) => {
             checked_boolean_connective_polarity(expression, values, true, remaining, depth + 1)
@@ -268,6 +286,18 @@ fn checked_boolean_atom_polarity(
     depth: usize,
 ) -> Result<Proposition, LoweringError> {
     charge_boolean_expansion(remaining, depth)?;
+    if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } = expression {
+        return scalar_ieee_float_comparison_proposition(
+            if positive {
+                *kind
+            } else {
+                negated_float_comparison_kind(*kind)
+            },
+            left,
+            right,
+            values,
+        );
+    }
     if positive {
         return checked_boolean_proposition_with_budget(expression, values, remaining, depth + 1);
     }
@@ -278,4 +308,48 @@ fn checked_boolean_atom_polarity(
         std::mem::swap(&mut left, &mut right);
     }
     Ok(Proposition::Equal(left, right))
+}
+
+fn negated_float_comparison_kind(
+    kind: CheckedIeeeFloatComparisonKind,
+) -> CheckedIeeeFloatComparisonKind {
+    match kind {
+        CheckedIeeeFloatComparisonKind::Equal => CheckedIeeeFloatComparisonKind::NotEqual,
+        CheckedIeeeFloatComparisonKind::NotEqual => CheckedIeeeFloatComparisonKind::Equal,
+    }
+}
+
+fn scalar_ieee_float_comparison_proposition(
+    kind: CheckedIeeeFloatComparisonKind,
+    left: &CheckedScalarExpression,
+    right: &CheckedScalarExpression,
+    values: &[ValueDeclaration],
+) -> Result<Proposition, LoweringError> {
+    let mut left = checked_scalar_term(left, values, &[])?;
+    let mut right = checked_scalar_term(right, values, &[])?;
+    let ScalarType::IeeeFloat(format) = left.scalar_type() else {
+        return unsupported("IEEE crash comparison operand is not a float");
+    };
+    let ScalarType::IeeeFloat(right_format) = right.scalar_type() else {
+        return unsupported("IEEE crash comparison operand is not a float");
+    };
+    if right_format != format {
+        return unsupported("IEEE crash comparison operands have different float formats");
+    }
+    if left > right {
+        std::mem::swap(&mut left, &mut right);
+    }
+    Ok(Proposition::ScalarIeeeFloatComparison {
+        kind: match kind {
+            CheckedIeeeFloatComparisonKind::Equal => {
+                semantic_vocabulary::IeeeFloatComparisonKind::Equal
+            }
+            CheckedIeeeFloatComparisonKind::NotEqual => {
+                semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
+            }
+        },
+        format,
+        left,
+        right,
+    })
 }

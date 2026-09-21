@@ -3,7 +3,6 @@
 
 use crate::selected_form_encoding::X86_64SelectedFormEncodingError;
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
-use crate::x86_64_physical_register_model;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SaturatingOperation, SelectedInstructionKind,
@@ -15,7 +14,7 @@ pub(crate) fn validate_request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     let (family, count, variants) = family_and_operand_count(kind)?;
@@ -115,6 +114,12 @@ fn family_and_operand_count(
         }
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
             (MachineAlternativeFamily::WrappingDivideI64, 4, 0..=0)
+        }
+        SelectedInstructionKind::ExactDivideI64 { .. } => {
+            (MachineAlternativeFamily::ExactDivideI64, 4, 0..=0)
+        }
+        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+            (MachineAlternativeFamily::ExactRemainderI64, 4, 0..=0)
         }
         // The carrier's realization shape fixes the operand count: the u64
         // add and every unsigned subtract are three-operand forms, everything

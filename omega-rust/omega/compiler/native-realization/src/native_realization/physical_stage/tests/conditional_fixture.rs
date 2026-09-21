@@ -29,6 +29,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     };
     let successor = |id, block| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: EdgeId::new(id).unwrap(),
         target: BlockId::new(block).unwrap(),
@@ -37,11 +38,13 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     };
     let leaf = |block, operation, result, edge, literal| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: BlockId::new(block).unwrap(),
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(operation).unwrap(),
             result: OperationResult::Scalar(value(result, integer)),
             kind: OperationKind::IntegerConstant {
@@ -73,11 +76,13 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         blocks: vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(value(3, ScalarType::Boolean)),
                     kind: match comparison {
@@ -110,6 +115,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         ],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -123,6 +129,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
             0,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1).unwrap(),
                 result: OperationResult::Scalar(value(2, integer)),
                 kind: OperationKind::IntegerConstant {
@@ -134,6 +141,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     if matches!(comparison, Comparison::NotEqual | Comparison::NotEqualZero) {
         machine.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(value(7, ScalarType::Boolean)),
             kind: OperationKind::BooleanNot {

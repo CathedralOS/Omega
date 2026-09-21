@@ -3,10 +3,12 @@
 //! runs.
 
 use crate::admission::configuration::BuildConfig;
+use crate::admission::target_vocabulary::{
+    TargetBuildVocabulary, target_build_vocabulary, validate_immutable_build_target,
+};
 use crate::admission::vocabulary;
 use crate::admission::vocabulary::{
-    TargetBuildVocabulary, build_reaches_filesystem_facet, has_exact_toolchain_build_facet,
-    is_build_machine, target_build_vocabulary, validate_immutable_build_target,
+    build_reaches_filesystem_facet, has_exact_toolchain_build_facet, is_build_machine,
 };
 use crate::evidence::filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
@@ -737,6 +739,21 @@ pub fn admit_build_program(
                 fields: vec![
                     ("psi".to_owned(), BuildTimeValue::Bool(false)),
                     ("native".to_owned(), BuildTimeValue::Bool(false)),
+                ],
+            },
+        ));
+    }
+    // Granular privileged-service grants (wiki/spec/build/permissions.md
+    // #privileged-services): every flag is false until the root build machine
+    // assigns it, so a hosted image admits no mediated privileged class.
+    if has_exact_toolchain_build_facet(typed, "PrivilegedServices") {
+        build_fields.push((
+            "privileged_services".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "PrivilegedServices".to_owned(),
+                fields: vec![
+                    ("port_io".to_owned(), BuildTimeValue::Bool(false)),
+                    ("interrupt_table".to_owned(), BuildTimeValue::Bool(false)),
                 ],
             },
         ));

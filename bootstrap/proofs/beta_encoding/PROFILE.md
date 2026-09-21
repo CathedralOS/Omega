@@ -39,7 +39,7 @@ closure or entry requires a fresh audit.
 
 ## Checked finite requests
 
-The generic checker diagnostic is 63,504 bytes under
+The generic checker diagnostic is 63,512 bytes under
 the [existing checking profile](../checker/CHECKING.md).
 The emitted theory has `S=18, C=361, A=40, F=107, W=29224`; its formation work
 estimate is 163,160. Every supplied clause and proof row is checked, including
@@ -132,7 +132,7 @@ derivation in 24.1 seconds at ~2.8GB peak RSS on macOS arm64:
 | Witness terms | 2,130,039 |
 | Proof rows (unfold / trans / congr / refl) | 3,182,484 (1,018,573 / 1,157,485 / 936,597 / 69,829) |
 | Maximum proof depth | 204 |
-| Total request bytes | 135,451,492 — 16.1 times the 8,388,608 provision |
+| Total request bytes | 135,451,492 — inside the selected 136,314,880-byte request extent |
 | Projected checker work | ~45-52M — ~70-80 times the 655,360 provision and the ~675,017 pair ceiling |
 
 The derivation value is exactly `Success(T)` for the real tape. Every figure
@@ -186,6 +186,6 @@ the [cost review](../../../wiki/drafts/bootstrap_cost_review.md) records the
 named reduction levers and confirms the remaining shortfall is structural.
 
 Windows runtime validation is unavailable in this session. The gate documents
-the same Git Bash/Python entrypoint for Windows x64 and macOS arm64.
+the same shell/Python entrypoint for Windows x64 (Git Bash), macOS arm64, and Linux x86-64.
 Full-source certificate acceptance remains open on the resource routes named
 in the cost review.

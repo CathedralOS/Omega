@@ -1,0 +1,134 @@
+// The OCREQ request entry for Omega D: the canonical program boundary that
+// receives one sealed OCREQ V1 request on stdin and publishes the request's
+// outcome as one OCOUT V1 frame on stdout. Nothing outside the request
+// supplies meaning -- no file system, no environment, no second channel.
+//
+// The entry runs the implemented request phases: the envelope's identity and
+// declared-extent check (phases 0/1) and the inner field/tag structure pass
+// (phases 2/6) over the staged bytes. A refusal publishes malformed_request
+// anchored at the structure pass's first bad byte. A request that decodes
+// complete and well-formed stops at the coverage_request_semantics
+// provision -- package-key recomputation, canonical ordering, graph,
+// snapshot, admission, and commitment semantics are unimplemented -- rather
+// than produce a verdict it cannot defend. A request longer than the
+// private staging bound is a request_staging_bytes resource refusal; the
+// entry keeps consuming the stream so the published requested amount is the
+// request's full observed length.
+//
+// Exit code is the outcome tag (1 Reject, 2 Incomplete); the frame on stdout
+// is the outcome. This is the sealed-request boundary the raw-source stdin
+// convention of the executable gate cannot express.
+
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    structure: OmegaRequestStructure;
+    frame: OmegaOutcomeFrame;
+    request: [u8; 65536];
+    length: i32;
+    extra: i32;
+    exit_code: i32;
+}
+
+machine Main::main(&mut self) {
+    self.length = 0;
+    self.extra = 0;
+    transition true { true -> read() }
+
+    state read() {
+        let value: i32 = self.console.read_byte();
+        transition value == -1 {
+            true -> staged()
+            _ -> append(value)
+        }
+    }
+
+    state append(value: i32) {
+        transition self.length < 65536 {
+            true -> retain(value)
+            _ -> skip()
+        }
+    }
+
+    state retain(value: i32) {
+        self.request[self.length] = value;
+        self.length = self.length + 1;
+        transition true { true -> read() }
+    }
+
+    state skip() {
+        self.extra = self.extra + 1;
+        transition true { true -> read() }
+    }
+
+    state staged() {
+        transition self.extra {
+            0 -> structure()
+            _ -> refuse_staging()
+        }
+    }
+
+    state structure() {
+        self.structure.check(self.request.as_slice[0..self.length]);
+        transition self.structure.complete {
+            1 -> coverage()
+            _ -> refuse()
+        }
+    }
+
+    state coverage() {
+        let encoded: i32 = self.frame.encode(2, 0, 25, 0, 0, 0, 0, 0);
+        transition encoded {
+            1 -> publish(2)
+            _ -> self.console.exit_process(4)
+        }
+    }
+
+    state refuse() {
+        let encoded: i32 = self.frame.encode(
+            self.structure.outcome_tag,
+            self.structure.outcome_space,
+            self.structure.outcome_code,
+            self.structure.outcome_coordinate,
+            0,
+            0,
+            self.structure.outcome_limit,
+            self.structure.outcome_requested);
+        transition encoded {
+            1 -> publish(1)
+            _ -> self.console.exit_process(4)
+        }
+    }
+
+    state refuse_staging() {
+        let encoded: i32 = self.frame.encode(
+            2, 1, 26, 65536, 0, 0, 65536, self.length + self.extra);
+        transition encoded {
+            1 -> publish(2)
+            _ -> self.console.exit_process(4)
+        }
+    }
+
+    state publish(code: i32) {
+        self.exit_code = code;
+        transition true { true -> emit(0) }
+    }
+
+    state emit(index: i32) {
+        transition index < self.frame.length {
+            true -> write(index)
+            _ -> self.console.exit_process(self.exit_code)
+        }
+    }
+
+    state write(index: i32) {
+        self.console.write_byte(self.frame.bytes[index]);
+        transition true { true -> emit(index + 1) }
+    }
+}

@@ -155,6 +155,7 @@ fn descriptor_cycle() -> AbstractOperationPlan {
                 length: value(20),
                 obligation: semantic_vocabulary::ObligationId::new(21).unwrap(),
                 result: terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: suffix,
                     structural_type,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

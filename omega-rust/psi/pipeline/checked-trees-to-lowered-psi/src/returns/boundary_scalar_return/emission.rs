@@ -233,6 +233,7 @@ pub(crate) fn emit_boundary_scalar_return(
     )?;
     let operation = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id,
         result: terminal_psi::OperationResult::Scalar(call_result),
         kind: OperationKind::BoundaryCall {
@@ -294,6 +295,7 @@ pub(crate) fn emit_boundary_scalar_return(
         id: evaluation.current,
         parameters: evaluation.parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::Return {
             edge: edge_id(allocate_dense(&mut next_edge)?),
@@ -341,6 +343,10 @@ pub(crate) fn emit_boundary_scalar_return(
         contract: MachineContract {
             id: identities.contract,
             erased_scalar_formals: erased_scalar_formals.clone(),
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &plan.erased_proof_parameters,
+                ),
             crash_routes: lower_checked_crash_route_buckets(
                 &crate::unit::effective_crash_routes(checked, plan.machine)?,
                 &scalar_parameters,

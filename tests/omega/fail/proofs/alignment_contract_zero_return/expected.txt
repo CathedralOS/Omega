@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from get_size_in_bytes at statement 0: result >= 1 && result <= 8

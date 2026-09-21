@@ -1,6 +1,7 @@
 use super::calling_plans::validate_paired_calling_plans;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
+use terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment;
 
 /// Exact build-owned source-entry custody carried into native realization.
 /// This is declaration and calling-contract evidence only: it owns no runtime
@@ -162,6 +163,13 @@ pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) storage_entry: Option<program_entry_plan::SelectedProgramStorageEntryPlan>,
     pub(crate) fused_service_establishments:
         Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+    /// Provider establishments bound to the entry machine's placed-view
+    /// roster rows, in roster order. The executable input boundary joined
+    /// each supply to its declared row before settlement replayed the
+    /// artifact; the settlement retains the exact loans so the emitted entry
+    /// boundary is the custody the binder must satisfy. Empty when the entry
+    /// declared no placed-view inputs.
+    pub(crate) placed_view_establishments: Vec<TerminalPlacedViewEstablishment>,
 }
 
 impl ValidatedNativeProgramEntrySettlement {
@@ -204,6 +212,24 @@ impl ValidatedNativeProgramEntrySettlement {
         &self,
     ) -> &[program_entry_plan::ProgramEntryFusedServiceEstablishment] {
         &self.fused_service_establishments
+    }
+
+    /// The provider establishments bound to this entry's placed-view roster
+    /// rows, in roster order. Empty when the entry declared no placed-view
+    /// inputs.
+    pub fn placed_view_establishments(&self) -> &[TerminalPlacedViewEstablishment] {
+        &self.placed_view_establishments
+    }
+
+    /// Attach the placed-view establishments the executable input boundary
+    /// already joined to this artifact's roster. Settlement retains the exact
+    /// loans as boundary custody; it does not re-validate them.
+    pub(crate) fn with_placed_view_establishments(
+        mut self,
+        establishments: &[TerminalPlacedViewEstablishment],
+    ) -> Self {
+        self.placed_view_establishments = establishments.to_vec();
+        self
     }
 }
 

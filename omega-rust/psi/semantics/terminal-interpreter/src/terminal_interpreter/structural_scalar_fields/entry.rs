@@ -106,7 +106,9 @@ fn validate_type(
         | StructuralTypeShape::Reference { .. } => {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+        StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::ByteSequence(_)
+        | StructuralTypeShape::ElementView { .. } => {}
     }
     active.pop();
     Ok(())
@@ -128,7 +130,9 @@ fn requires_contents(
         let mut fields = Vec::new();
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. } => {
                 continue;
             }
             StructuralTypeShape::FixedArray { element, length } => {
@@ -138,6 +142,12 @@ fn requires_contents(
                 if *length != 0 {
                     pending.push(*element);
                 }
+                continue;
+            }
+            // A borrowed view's element is referent-owned; traverse it so the
+            // reachability answer tracks the viewed element type.
+            StructuralTypeShape::ElementView { element } => {
+                pending.push(*element);
                 continue;
             }
             StructuralTypeShape::Record { fields: members } => fields.extend(members),

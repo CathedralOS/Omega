@@ -350,6 +350,8 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
         (MachineSemanticKind::ExactShiftLeftI64, 108),
         (MachineSemanticKind::ExactShiftRightI64, 109),
         (MachineSemanticKind::ExactShiftRightU64, 110),
+        (MachineSemanticKind::ExactDivideI64, 112),
+        (MachineSemanticKind::ExactRemainderI64, 113),
     ] {
         assert_eq!(semantic_kind_tag(semantic), tag);
         assert_eq!(

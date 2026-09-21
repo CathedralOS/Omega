@@ -1,19 +1,21 @@
 //! Optimizer module role: validation leaf. Independent plan replay and exact custody reconstruction.
 //!
-//! Validation never trusts the candidate's membership rows: it re-derives the
-//! specialization plan from the place roster and the producer operation,
-//! requires the claimed rows to equal the replayed rows exactly, rebuilds the
-//! output itself, and binds the result through the candidate identity. The
-//! custody walk then proves the transformed function differs only at the
-//! folded observation sites — a forged or mismatched row changes the
-//! reconstructed function and fails the comparison before the transformed
-//! unit is re-validated.
+//! Validation never trusts the candidate's membership rows: it re-admits
+//! every declared row against the shared admission predicates — the place's
+//! declaration/type/proof evidence and per-node admissibility proposal also
+//! uses — without re-running the producer's own plan enumeration, requires
+//! the rows to be sorted and distinct by site, rebuilds the output itself,
+//! and binds the result through the candidate identity. The custody walk
+//! then proves the transformed function differs only at the folded
+//! observation sites — a forged or mismatched row changes the reconstructed
+//! function and fails the comparison before the transformed unit is
+//! re-validated.
 
 use super::{
     CaseMembershipPlan, CaseMembershipSpecializationCandidate, CaseMembershipSpecializationError,
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite,
-    ValidatedCaseMembershipSpecialization, VerifiedPsiOptimizationSession, apply,
-    candidate_identity, propose,
+    ValidatedCaseMembershipSpecialization, VerifiedPsiOptimizationSession, admission, apply,
+    candidate_identity,
 };
 
 pub(super) fn candidate(
@@ -40,19 +42,53 @@ pub(super) fn candidate(
         .iter()
         .find(|function| function.machine == candidate.machine)
         .ok_or(CaseMembershipSpecializationError::UnknownPlace)?;
-    let Some(plan) = propose::plan(unit, function, candidate.place) else {
+    let Some(evidence) = admission::membership_evidence(unit, function, candidate.place) else {
         return Err(CaseMembershipSpecializationError::UnknownPlace);
     };
-    if plan.memberships.is_empty() {
+    if candidate.memberships.is_empty() {
         return Err(CaseMembershipSpecializationError::AlreadySpecialized);
     }
-    if plan.machine != candidate.machine
-        || plan.place != candidate.place
-        || plan.producer != candidate.producer
-        || plan.memberships != candidate.memberships
-    {
+    if candidate.producer != evidence.root_basis.and_then(|(_, producer)| producer) {
         return Err(CaseMembershipSpecializationError::CandidateMismatch);
     }
+    // The declared roster must be strictly ordered by site — that canonical
+    // order is also what rejects a duplicated observation site.
+    if candidate.memberships.windows(2).any(|pair| {
+        (pair[0].site().block, pair[0].site().node) >= (pair[1].site().block, pair[1].site().node)
+    }) {
+        return Err(CaseMembershipSpecializationError::CandidateMismatch);
+    }
+    for declared in &candidate.memberships {
+        if declared.site().machine != candidate.machine {
+            return Err(CaseMembershipSpecializationError::CandidateMismatch);
+        }
+        let index = usize::try_from(declared.site().node)
+            .map_err(|_| CaseMembershipSpecializationError::CandidateMismatch)?;
+        let node = function
+            .blocks
+            .iter()
+            .find(|block| block.id == declared.site().block)
+            .and_then(|block| block.nodes.get(index))
+            .ok_or(CaseMembershipSpecializationError::CandidateMismatch)?;
+        let admitted = admission::admit_membership_node(
+            unit,
+            &evidence,
+            candidate.machine,
+            declared.site().block,
+            index,
+            node,
+        )
+        .ok_or(CaseMembershipSpecializationError::CandidateMismatch)?;
+        if admitted != *declared {
+            return Err(CaseMembershipSpecializationError::CandidateMismatch);
+        }
+    }
+    let plan = CaseMembershipPlan {
+        machine: candidate.machine,
+        place: candidate.place,
+        producer: candidate.producer,
+        memberships: candidate.memberships.clone(),
+    };
     let output = apply::realize(unit, &plan)?;
     let expected_identity = candidate_identity(
         unit.identity,
@@ -120,6 +156,19 @@ fn reconstruct_provenance(
     if *output_function != expected_function {
         return Err(CaseMembershipSpecializationError::CandidateMismatch);
     }
+    provenance_rows(input_function, plan)
+}
+
+/// The exact node custody a plan's folded observations carry: each folded
+/// site retains the membership's own provenance and fuel settlement, realized
+/// at the same node. Proposal and validation share this reconstruction so a
+/// published candidate names exactly the custody the walk independently
+/// derives.
+pub(crate) fn provenance_rows(
+    input_function: &optimization_unit::PsiOptimizationFunction,
+    plan: &CaseMembershipPlan,
+) -> Result<Vec<ProvenanceRewrite>, CaseMembershipSpecializationError> {
+    let machine = plan.machine;
     let mut rows = Vec::new();
     for row in &plan.memberships {
         let index = usize::try_from(row.site.node)

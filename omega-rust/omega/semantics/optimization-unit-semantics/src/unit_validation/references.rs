@@ -77,7 +77,8 @@ pub(crate) fn contains_reference(
                     push_fields(&case.fields);
                 }
             }
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
+            | terminal_psi::StructuralTypeShape::ElementView { element } => pending.push(*element),
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
         }
