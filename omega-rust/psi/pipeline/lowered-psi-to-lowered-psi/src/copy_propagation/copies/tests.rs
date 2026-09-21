@@ -581,6 +581,7 @@ fn call_continuations_site_guards_and_call_joins_retain_named_copies() {
     let mut continuation_machine = two_copy_machine();
     continuation_machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(10).unwrap(),
         result: OperationResult::Scalar(declaration(50)),
         kind: OperationKind::Call {
@@ -624,6 +625,7 @@ fn call_continuations_site_guards_and_call_joins_retain_named_copies() {
     };
     join_machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(11).unwrap(),
         result: OperationResult::Scalar(declaration(51)),
         kind: OperationKind::IntegerConstant {

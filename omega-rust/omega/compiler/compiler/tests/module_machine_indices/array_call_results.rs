@@ -263,6 +263,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
         operations: vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(10001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -275,6 +276,7 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),

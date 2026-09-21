@@ -278,6 +278,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -666,6 +667,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {

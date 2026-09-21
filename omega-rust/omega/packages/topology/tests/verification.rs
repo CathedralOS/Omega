@@ -616,6 +616,67 @@ fn a_modified_binding_after_check_rejects_independently() {
 }
 
 #[test]
+fn a_fabricated_exporter_instance_rejects_as_unknown() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // The export key names an instance index outside the roster entirely —
+    // fabricated, not merely a wrong slot on a real member.
+    plan.bindings[1].export = endpoint(9, 1);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::UnknownInstance {
+            index: 9
+        }))
+    ));
+}
+
+#[test]
+fn a_fabricated_import_key_naming_an_export_endpoint_rejects() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // authorization's slot 1 exists but is export-only; a fabricated import
+    // key naming it resolves to the wrong direction, not a real endpoint.
+    plan.bindings[1].import = endpoint(1, 1);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::WrongDirection {
+            key,
+            expected: EndpointDirection::Import,
+        })) if key == endpoint(1, 1)
+    ));
+}
+
+#[test]
+fn a_duplicated_binding_rejects() {
+    let (_, _, mut plan) = payment_pair();
+    // A fabricated second binding over api's already-bound import cannot
+    // even serialize: the codec refuses non-canonical binding rows before
+    // the bytes could reach the verifier.
+    plan.bindings.push(plan.bindings[0].clone());
+    assert!(matches!(
+        encode_plan(&plan),
+        Err(CodecError::NotCanonical {
+            section: "plan bindings"
+        })
+    ));
+}
+
+#[test]
+fn a_dropped_binding_leaves_the_import_unbound() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // Erasing a binding fabricates the same gap: api's demanded import now
+    // has no edge at all.
+    plan.bindings.remove(0);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::UnboundImport {
+            key,
+        })) if key == endpoint(0, 0)
+    ));
+}
+
+#[test]
 fn invalid_policy_selectors_reject() {
     // A request requiring an overlapping-selector policy and a plan carrying
     // it: the row is required, and replay rejects its selectors.

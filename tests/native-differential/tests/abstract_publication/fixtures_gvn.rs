@@ -32,12 +32,14 @@ pub(super) fn local_cse_verified() -> VerifiedPsiOptimizationUnit {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_327).unwrap(),
                     result: OperationResult::Scalar(declaration(leader)),
                     kind: OperationKind::IntegerBitwiseNot { operand },
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_328).unwrap(),
                     result: OperationResult::Scalar(declaration(redundant)),
                     kind: OperationKind::IntegerBitwiseNot { operand },
@@ -85,6 +87,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_393).unwrap(),
                     result: OperationResult::Scalar(declaration(left)),
                     kind: OperationKind::IntegerConstant {
@@ -93,6 +96,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_394).unwrap(),
                     result: OperationResult::Scalar(declaration(right)),
                     kind: OperationKind::IntegerConstant {
@@ -101,6 +105,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: leader_operation,
                     result: OperationResult::Scalar(declaration(leader)),
                     kind: OperationKind::ExactIntegerAdd {
@@ -111,6 +116,7 @@ pub(super) fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUni
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: redundant_operation,
                     result: OperationResult::Scalar(declaration(redundant)),
                     kind: OperationKind::ExactIntegerAdd {
@@ -176,6 +182,7 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_413).unwrap(),
                     result: OperationResult::Scalar(declaration(left)),
                     kind: OperationKind::IntegerConstant {
@@ -184,6 +191,7 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_414).unwrap(),
                     result: OperationResult::Scalar(declaration(right)),
                     kind: OperationKind::IntegerConstant {
@@ -192,12 +200,14 @@ pub(super) fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationU
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_408).unwrap(),
                     result: OperationResult::Scalar(declaration(leader)),
                     kind: OperationKind::SaturatingIntegerAdd { left, right },
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: redundant_operation,
                     result: OperationResult::Scalar(declaration(redundant)),
                     kind: OperationKind::ExactIntegerAdd {
@@ -255,6 +265,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_368).unwrap(),
                     result: OperationResult::Scalar(declaration(redundant)),
                     kind: OperationKind::IntegerBitwiseNot { operand },
@@ -273,6 +284,7 @@ pub(super) fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_370).unwrap(),
                     result: OperationResult::Scalar(declaration(leader)),
                     kind: OperationKind::IntegerBitwiseNot { operand },
@@ -347,6 +359,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 parameters: vec![declaration(join_input, integer)],
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_463).unwrap(),
                     result: OperationResult::Scalar(declaration(redundant, result_integer)),
                     kind: if proof_certified || compatible_policy {
@@ -375,6 +388,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_465).unwrap(),
                     result: OperationResult::Scalar(declaration(left_leader, result_integer)),
                     kind: if proof_certified {
@@ -414,6 +428,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 operations: if proof_certified || compatible_policy {
                     vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_476).unwrap(),
                         result: OperationResult::Scalar(declaration(zero, integer)),
                         kind: OperationKind::IntegerConstant {
@@ -453,6 +468,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_469).unwrap(),
                     result: OperationResult::Scalar(declaration(right_leader, result_integer)),
                     kind: if proof_certified {

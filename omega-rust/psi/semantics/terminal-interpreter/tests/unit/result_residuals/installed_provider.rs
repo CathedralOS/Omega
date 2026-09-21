@@ -264,6 +264,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     });
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -566,6 +567,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
         });
     provider.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(9),
         result: OperationResult::Structural(super::StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -612,6 +614,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
         });
     caller.blocks[0].operations[1] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

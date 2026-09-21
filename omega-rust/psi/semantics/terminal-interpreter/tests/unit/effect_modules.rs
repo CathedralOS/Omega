@@ -43,6 +43,7 @@ pub(super) fn reference_release_module() -> TerminalModule {
     caller.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(94),
             result: OperationResult::Structural(StructuralOperationResult {
                 place: place_id(94),
@@ -63,6 +64,7 @@ pub(super) fn reference_release_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(95),
             result: OperationResult::Unit,
             kind: OperationKind::ReleaseReference {
@@ -163,6 +165,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -172,6 +175,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -276,6 +280,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -286,6 +291,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -296,6 +302,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(3),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -466,6 +473,7 @@ pub(super) fn effect_module() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: OperationResult::Unit,
                             kind: OperationKind::CallUnit {
@@ -488,6 +496,7 @@ pub(super) fn effect_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -536,6 +545,7 @@ pub(super) fn effect_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(3),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -604,6 +614,7 @@ pub(super) fn payloadless_case_module() -> TerminalModule {
     ];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -684,6 +695,7 @@ pub(super) fn payloadless_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(2),
                 result: OperationResult::Structural(StructuralOperationResult {
                     place: place_id(3),
@@ -818,6 +830,7 @@ pub(super) fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModul
         .enumerate()
         .map(|(index, (value, id))| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(index as u64 + 1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -828,6 +841,7 @@ pub(super) fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModul
         })
         .chain(std::iter::once(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(result),
             kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {

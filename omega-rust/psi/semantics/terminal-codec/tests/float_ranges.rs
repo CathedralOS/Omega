@@ -86,6 +86,7 @@ fn module(argument_bits: u64) -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: OperationResult::Scalar(declaration(caller_constant)),
                             kind: OperationKind::IeeeFloatConstant {
@@ -94,6 +95,7 @@ fn module(argument_bits: u64) -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: OperationResult::Scalar(declaration(call_result)),
                             kind: OperationKind::Call {

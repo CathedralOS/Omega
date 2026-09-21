@@ -17,7 +17,7 @@ data ParseResult {
 }
 
 machine App::run(&mut self, input: &[u8]) {
-    let outcome = self.parser.parse(input);
+    let outcome: ParseResult = self.parser.parse(input);
     transition outcome {
         ParseResult::Parsed { value } -> self.use_value(value)
         ParseResult::BadDigit { at } -> self.report(at)

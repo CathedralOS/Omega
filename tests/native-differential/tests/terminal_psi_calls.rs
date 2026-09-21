@@ -511,6 +511,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 caller_constant,
@@ -520,6 +521,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(scalar_declaration(
                                 call_result,

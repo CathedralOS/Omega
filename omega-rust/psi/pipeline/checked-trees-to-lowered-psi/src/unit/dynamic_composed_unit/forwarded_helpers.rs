@@ -389,6 +389,7 @@ fn materialize_helper_body(
             };
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation,
                 result: OperationResult::Scalar(result),
                 kind: match next_helper {

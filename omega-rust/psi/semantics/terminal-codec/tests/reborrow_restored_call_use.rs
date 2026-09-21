@@ -149,6 +149,7 @@ fn restored_call_use_module() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation,
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -284,6 +285,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2, OperationId::new),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

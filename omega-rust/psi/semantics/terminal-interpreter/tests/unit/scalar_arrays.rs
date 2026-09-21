@@ -79,6 +79,7 @@ fn fixture(
         };
         machine.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(position as u64 + 1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -90,6 +91,7 @@ fn fixture(
     }
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(99),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -386,6 +388,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
     module.machines[0].blocks[0].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(100),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -403,6 +406,7 @@ fn scalar_array_contents_survive_later_scalar_work_and_nested_local_arrays() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(200),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -473,6 +477,7 @@ fn scalar_array_owned_unit_argument_preserves_caller_contents() {
     module.machines.push(callee);
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(100),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
@@ -554,6 +559,7 @@ fn internal_array_returns(dimensions: &[u64], return_prior_array: bool) -> Termi
             });
             machine.blocks[0].operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(offset + 100),
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -576,6 +582,7 @@ fn internal_array_returns(dimensions: &[u64], return_prior_array: bool) -> Termi
             });
             machine.blocks[0].operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(offset + 101),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -863,6 +870,7 @@ fn scalar_array_call_results_keep_payload_through_unit_arguments() {
     module.machines.push(sink);
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(302),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

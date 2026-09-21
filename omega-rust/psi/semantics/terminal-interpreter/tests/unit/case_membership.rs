@@ -84,6 +84,7 @@ fn projected_membership_module(
     machine.blocks[0].operations = (1..=2)
         .map(|identity| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(identity),
             result: OperationResult::Scalar(boolean(identity)),
             kind: OperationKind::StructuralCaseMembership {
@@ -580,6 +581,7 @@ fn observed_constructor(
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(1),
@@ -595,6 +597,7 @@ fn observed_constructor(
         constructor,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(boolean(2)),
             kind: OperationKind::StructuralCaseMembership {
@@ -605,6 +608,7 @@ fn observed_constructor(
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(boolean(3)),
             kind: OperationKind::StructuralCaseMembership {
@@ -707,6 +711,7 @@ fn ordinary_case_calls_move_affine_and_preserve_copy_or_shared_payloads() {
                 operations: vec![Operation {
                     id: operation_id(10),
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     result: OperationResult::Scalar(ValueDeclaration {
                         id: value_id(10),
                         ..result

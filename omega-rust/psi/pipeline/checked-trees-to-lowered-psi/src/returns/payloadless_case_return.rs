@@ -94,6 +94,7 @@ pub(crate) fn lower_payloadless_case_return_machine(
             erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: terminal_psi::OperationResult::Structural(
                     terminal_psi::StructuralOperationResult {

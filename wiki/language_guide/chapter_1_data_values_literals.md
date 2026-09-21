@@ -105,7 +105,7 @@ data RoomEvent {
     case Treasure(gold: u32);
 }
 
-let event = RoomEvent::Treasure { consumed: true, gold: 5 };
+let event: RoomEvent = RoomEvent::Treasure { consumed: true, gold: 5 };
 ```
 
 This mixed shape has `consumed` in every case, with a case-specific payload.
@@ -253,7 +253,7 @@ keeps tokenization independent of host Unicode tables.
 A quoted literal is a shared byte view, not automatically text:
 
 ```omega
-let greeting = "Hello, Omega."; // &[u8], no encoding qualification
+let greeting: &[u8] = "Hello, Omega."; // no encoding qualification
 pub const DLL_NAME: [u8; 12] = "kernel32.dll";
 ```
 

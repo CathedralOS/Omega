@@ -176,6 +176,7 @@ fn composition_pressure_module(
         |index: u64| ObligationId::new(COMPOSITION_PRESSURE_OBLIGATION_BASE + index).unwrap();
     let constant = |id: u64, result, n: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind: OperationKind::IntegerConstant {
@@ -184,6 +185,7 @@ fn composition_pressure_module(
     };
     let exact_add = |id: u64, left, right, result, obligation: ObligationId| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind: OperationKind::ExactIntegerAdd {
@@ -194,24 +196,28 @@ fn composition_pressure_module(
     };
     let wrapping_add = |id: u64, left, right, result| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(scalar(result)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
     };
     let boolean_constant = |id: u64, result| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(boolean(result)),
         kind: OperationKind::BooleanConstant { value: true },
     };
     let less_than = |id: u64, left, right, result| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(boolean(result)),
         kind: OperationKind::IntegerLessThan { left, right },
     };
     let unit_call = |id: u64, callee, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

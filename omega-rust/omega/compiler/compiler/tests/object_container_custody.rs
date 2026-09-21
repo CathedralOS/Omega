@@ -112,6 +112,7 @@ fn minimal_module() -> TerminalModule {
                 erased_proof_formals: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(declaration(1)),
                     kind: OperationKind::IntegerConstant {

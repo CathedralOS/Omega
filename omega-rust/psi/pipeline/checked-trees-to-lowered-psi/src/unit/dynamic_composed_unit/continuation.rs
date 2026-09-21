@@ -302,6 +302,7 @@ pub(super) fn lower(
     if let Some(id) = descriptor_store_operation {
         caller_operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
@@ -311,6 +312,7 @@ pub(super) fn lower(
     }
     caller_operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: call_operation,
         result: OperationResult::Scalar(call_result),
         kind: call_kind,

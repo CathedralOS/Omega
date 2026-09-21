@@ -183,10 +183,19 @@ fn arguments(
         machine,
         path.symbol,
     )?;
+    // Authored actuals exclude an implicit `self`, and an ambient borrowed
+    // receiver owns no graph parameter entry. Pair each actual with its
+    // authored formal so ordinals keep the authored target position; an
+    // explicit `self` actual has no counterpart here and refuses the edge.
+    let target_formals = target_parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| !parameter.is_self)
+        .collect::<Vec<_>>();
     if states.get(target_index)?.symbol != target.state
         || arguments.len() != successor.argument_count as usize
-        || arguments.len() != target_parameters.len()
-        || target_parameters.len()
+        || arguments.len() != target_formals.len()
+        || target_formals.len()
             != target.scalar_parameters.len()
                 + target.structural_parameters.len()
                 + target.erased_scalar_parameters.len()
@@ -202,7 +211,8 @@ fn arguments(
         proof: Vec::new(),
     };
     let mut transferred_affine = Vec::new();
-    for (argument_position, (actual, formal)) in arguments.iter().zip(target_parameters).enumerate()
+    for (actual, (argument_position, formal)) in
+        arguments.iter().zip(target_formals.iter().copied())
     {
         let argument_ordinal = u32::try_from(argument_position).ok()?;
         if formal.relevance.is_erased() {

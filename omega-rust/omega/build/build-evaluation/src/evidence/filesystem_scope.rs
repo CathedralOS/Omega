@@ -206,11 +206,12 @@ impl BuildMachineFilesystemScope {
             .filter(|parent| !parent.as_os_str().is_empty())
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
+        let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,
             canonical_source_metadata: None,
             canonical_source_metadata_required: false,
-            admitted_build_dir_key: overlap_key(&build_dir),
+            admitted_build_dir_key,
             build_dir,
             sponsor,
             root_package_identity: None,
@@ -230,11 +231,12 @@ impl BuildMachineFilesystemScope {
         sponsor: Option<BuildMachineFilesystemSponsor>,
         metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
     ) -> Self {
+        let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,
             canonical_source_metadata: metadata,
             canonical_source_metadata_required: true,
-            admitted_build_dir_key: overlap_key(&build_dir),
+            admitted_build_dir_key,
             build_dir,
             sponsor,
             root_package_identity: None,
@@ -1543,6 +1545,17 @@ mod tests {
                 .to_string()
                 .contains("different directory than admission checked"),
             "{diagnostics:?}"
+        );
+        assert_eq!(
+            fs::read_link(&ancestor).expect("the host alias is host-owned, not ours to remove"),
+            redirect_target
+        );
+        assert_eq!(
+            fs::read_dir(&redirect_target)
+                .expect("read redirect target")
+                .count(),
+            0,
+            "the refusal must precede any write through the alias"
         );
 
         fs::remove_dir_all(session_root).expect("remove session root");

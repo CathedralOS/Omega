@@ -46,6 +46,7 @@ pub(crate) fn scalar_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
     );
     let call = |id, result, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::Call {
@@ -84,6 +85,7 @@ pub(crate) fn scalar_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(SCALAR_CALL_PRESERVING_CONSTANT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(constant)),
                     kind: OperationKind::IntegerConstant {

@@ -109,6 +109,7 @@ fn provider_attachment_root() -> StructuralPlaceDeclaration {
 fn provider_boundary_call() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -232,6 +233,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -704,6 +706,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
@@ -779,6 +782,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -789,6 +793,7 @@ fn structural_effect_fixture() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(3),
                             result: OperationResult::Unit,
                             kind: OperationKind::BoundaryCall {
@@ -1325,6 +1330,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(901),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1337,6 +1343,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(902),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1380,6 +1387,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(903),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1392,6 +1400,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(904),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1502,6 +1511,7 @@ fn fixture() -> TerminalModule {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -1535,6 +1545,7 @@ fn fixture() -> TerminalModule {
                     }],
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -1917,12 +1928,14 @@ fn call_fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(100),
                             result: OperationResult::Scalar(boolean(100)),
                             kind: OperationKind::BooleanConstant { value: true },
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(101),
                             result: OperationResult::Scalar(boolean(101)),
                             kind: OperationKind::Call {

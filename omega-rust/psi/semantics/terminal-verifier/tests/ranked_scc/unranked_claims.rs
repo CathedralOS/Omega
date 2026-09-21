@@ -277,6 +277,7 @@ fn claim_cycle_rejects_operations_naming_a_pinned_root() {
     // `claims_pinned_at_entry` rechecks the same invariant at the fence.
     retain.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -402,6 +403,7 @@ fn claim_cycle_rejects_transfer_of_a_pinned_claim() {
     // custody unpinned.
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

@@ -193,6 +193,7 @@ fn indexed_store_call_module(read_index: u64) -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {

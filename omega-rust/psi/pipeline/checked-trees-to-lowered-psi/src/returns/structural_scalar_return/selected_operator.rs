@@ -239,6 +239,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
             erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call_operation,
                 result: terminal_psi::OperationResult::Scalar(call_result),
                 kind: OperationKind::CallStructuralScalar {

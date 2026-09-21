@@ -311,11 +311,14 @@ fixtures in the same missing-plan/entry classes
 `runtime_branching_helper_local_guard_value`,
 `runtime_nested_branch_{value,prelude_value,assignment_prelude_value}`,
 `runtime_multi_assignment_value_calls`,
-`runtime_compare_pair_dispatch_exit`,
 `runtime_guarded_leaf_ordering_call` — the last on "native-artifact
 production requires one exact selected program entry"); whether they
 were added since the recorded reading or regressed is unbisected, but
 every diagnostic is one of the owned families above.
+`runtime_compare_pair_dispatch_exit` left this set when composed-control
+admission learned the checker's exact guard complements — builtin `==`/`!=`
+over identical operands and opposite Boolean labels in either authored
+order — so the pair no longer stops at a missing unit plan.
 
 ## compiler canary suite (fail-canary diagnostic fragments)
 

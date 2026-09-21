@@ -875,6 +875,7 @@ fn lower_ranked_structural_unit_countdown(
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -887,6 +888,7 @@ fn lower_ranked_structural_unit_countdown(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -930,6 +932,7 @@ fn lower_ranked_structural_unit_countdown(
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(3),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -942,6 +945,7 @@ fn lower_ranked_structural_unit_countdown(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(4),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),

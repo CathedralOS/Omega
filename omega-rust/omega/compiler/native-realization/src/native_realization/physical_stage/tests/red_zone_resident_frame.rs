@@ -39,6 +39,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
     let obligation = ObligationId::new(69).unwrap();
     let operation = |id: u64, result: ValueId, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result.get())),
         kind,

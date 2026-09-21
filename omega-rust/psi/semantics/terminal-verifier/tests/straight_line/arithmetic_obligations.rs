@@ -88,6 +88,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(198).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerSubtract {
@@ -188,6 +189,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(202).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerMultiply {
@@ -296,6 +298,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(212).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerDivide {
@@ -422,6 +425,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(222).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerRemainder {
@@ -521,6 +525,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(232).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::WrappingIntegerDivide {
@@ -620,6 +625,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(242).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::WrappingIntegerRemainder {
@@ -719,6 +725,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(252).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::SaturatingIntegerDivide {
@@ -818,6 +825,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(256).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::SaturatingIntegerRemainder {
@@ -957,6 +965,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(70).expect("operation"),
                         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),

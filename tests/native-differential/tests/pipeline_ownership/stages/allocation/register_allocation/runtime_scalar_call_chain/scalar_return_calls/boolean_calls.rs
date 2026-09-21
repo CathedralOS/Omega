@@ -56,6 +56,7 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
         let result = ValueId::new(29_001).unwrap();
         prefix.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(29_001).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

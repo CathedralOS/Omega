@@ -83,6 +83,7 @@ fn scalar_guard_transfer_module(boolean: bool) -> TerminalModule {
         caller.blocks[0].operations.extend([
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(161).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -95,6 +96,7 @@ fn scalar_guard_transfer_module(boolean: bool) -> TerminalModule {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(162).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -201,6 +203,7 @@ fn literal_boolean_transfer_module() -> TerminalModule {
         .unwrap();
     entry.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(161).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

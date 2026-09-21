@@ -28,6 +28,7 @@ fn constant_delivery_module(range: ScalarIntegerRange, argument: u128) -> Termin
         vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: OperationResult::Scalar(declaration(caller_constant)),
                 kind: OperationKind::IntegerConstant {
@@ -36,6 +37,7 @@ fn constant_delivery_module(range: ScalarIntegerRange, argument: u128) -> Termin
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(2),
                 result: OperationResult::Scalar(declaration(call_result)),
                 kind: OperationKind::Call {
@@ -241,6 +243,7 @@ fn forwarded_parameter_is_not_eagerly_rejected() {
         vec![declaration(caller_parameter)],
         vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Scalar(declaration(call_result)),
             kind: OperationKind::Call {

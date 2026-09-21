@@ -36,13 +36,8 @@ pub(super) fn root(
             parameter.name == *name
                 && (parameter.symbol == symbol
                     || (parameter.is_self
-                        && program.machines().iter().any(|machine| {
-                            machine.symbol == symbol
-                                && program
-                                    .machine_states(machine)
-                                    .iter()
-                                    .any(|candidate| candidate.symbol == state.symbol)
-                        })))
+                        && crate::semantic_calls::find_state_with_machine(program, state.symbol)
+                            .is_some_and(|(machine, _)| machine.symbol == symbol)))
         })
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
@@ -65,12 +60,8 @@ pub(super) fn root(
             {
                 return None;
             }
-            let machine = program.machines().iter().find(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|candidate| candidate.symbol == state.symbol)
-            })?;
+            let (machine, _) =
+                crate::semantic_calls::find_state_with_machine(program, state.symbol)?;
             validation::exact_attached_field(program, machine, symbol, name.as_str())
                 .map(|field| field.type_reference)
         })?;
@@ -269,20 +260,17 @@ pub(super) fn matches_symbol(
     selected: SymbolHandle,
 ) -> bool {
     authored == selected
-        || program.machines().iter().any(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-                && program.state_parameters(state).iter().any(|parameter| {
+        || crate::semantic_calls::find_state_with_machine(program, state.symbol).is_some_and(
+            |(machine, _)| {
+                program.state_parameters(state).iter().any(|parameter| {
                     parameter.is_self && (root == machine.symbol || root == parameter.symbol)
-                })
-                && validation::exact_attached_field(
+                }) && validation::exact_attached_field(
                     program,
                     machine,
                     authored,
                     program.symbols.name(authored),
                 )
                 .is_some_and(|field| field.symbol == selected)
-        })
+            },
+        )
 }

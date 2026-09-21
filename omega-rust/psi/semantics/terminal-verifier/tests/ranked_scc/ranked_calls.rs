@@ -50,6 +50,7 @@ fn ranked_scalar_call_cycle() -> TerminalModule {
     module.machines[0].contract.crash_routes = routes.clone();
     module.machines[0].blocks[2].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

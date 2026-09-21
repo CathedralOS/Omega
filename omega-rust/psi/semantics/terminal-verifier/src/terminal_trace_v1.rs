@@ -767,6 +767,7 @@ mod tests {
         module.machines[0].blocks[0].operations = vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(2, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -793,6 +794,7 @@ mod tests {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(1, OperationId::new),
                 result: OperationResult::Unit,
                 kind: OperationKind::PortWrite {

@@ -129,6 +129,7 @@ fn shared_parameter(
 fn read_flag(operation: u64, source: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -430,6 +431,7 @@ fn shared_loan_keeps_the_root_whole_for_the_binding_block() {
     });
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -464,6 +466,7 @@ fn shared_loan_keeps_the_root_whole_for_the_binding_block() {
         module.machines.push(consumer_machine(access));
         module.machines[0].blocks[1].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(904),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -565,6 +568,7 @@ fn joined_shared_view_stays_read_only() {
     });
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(903),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -658,6 +662,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(910),
             result: structural_result(PAYLOAD_RESULT, PAYLOAD_TYPE),
             kind: OperationKind::EstablishRecord {
@@ -681,6 +686,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(911),
             result: structural_result(SECOND_PAYLOAD_RESULT, PAYLOAD_TYPE),
             kind: OperationKind::EstablishRecord {
@@ -704,6 +710,7 @@ fn shared_loan_joins_from_a_completed_result_root() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(912),
             result: structural_result(PAIR_RESULT, PAIR_TYPE),
             kind: OperationKind::EstablishRecord {

@@ -164,6 +164,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(1, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -176,6 +177,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(2, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -219,6 +221,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(3, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -231,6 +234,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(4, OperationId::new),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -352,6 +356,7 @@ fn unranked_effectful_unit_cycle() -> TerminalModule {
     module.machines[0].published_service_ceiling.push(service);
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(5, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {
@@ -655,6 +660,7 @@ fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
     machine.blocks[2].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(5, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -665,6 +671,7 @@ fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(6, OperationId::new),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -899,6 +906,7 @@ fn ranked_countdown_admits_extra_pure_scalar_work() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(20, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

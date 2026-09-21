@@ -250,6 +250,7 @@ pub(crate) fn lower_structural_return_machine(
                 .map(|(index, (_, _, destination))| {
                     Ok(Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(dense_identity(index)?),
                         result: terminal_psi::OperationResult::Unit,
                         kind: OperationKind::EstablishTrivialAffineLocal {

@@ -360,6 +360,7 @@ pub(super) fn emit(
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -1212,6 +1213,7 @@ impl MachineEmission<'_> {
         }
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: terminal_psi::OperationResult::Unit,
             kind,

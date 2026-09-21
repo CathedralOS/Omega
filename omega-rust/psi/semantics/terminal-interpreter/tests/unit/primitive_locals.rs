@@ -29,6 +29,7 @@ fn scalar(ordinal: u64) -> ValueDeclaration {
 fn constant(ordinal: u64, value: u128) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Scalar(scalar(ordinal)),
         kind: OperationKind::IntegerConstant {
@@ -51,6 +52,7 @@ fn local_module() -> TerminalModule {
         constant(1, 91),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -65,6 +67,7 @@ fn local_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(scalar(3)),
             kind: OperationKind::CallStructuralScalar {
@@ -84,6 +87,7 @@ fn local_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(scalar(4)),
             kind: OperationKind::PrimitiveScalarRead {
@@ -167,6 +171,7 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
     });
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(700),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -231,6 +236,7 @@ fn primitive_local_direct_store_and_repeated_reads_share_backing() {
     let mut module = local_module();
     module.machines[0].blocks[0].operations[2] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -279,6 +285,7 @@ fn primitive_local_missing_reordered_or_non_dominating_establishment_rejects() {
     caller.blocks[0].operations.truncate(1);
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(6),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -335,6 +342,7 @@ fn primitive_local_wrong_types_and_write_only_read_reject() {
     let mut read = local_module();
     read.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(95),
         result: OperationResult::Scalar(scalar(95)),
         kind: OperationKind::PrimitiveScalarRead {
@@ -364,6 +372,7 @@ fn primitive_local_shared_call_is_not_affine_custody() {
     module.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
     module.machines[1].blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(92),
         result: OperationResult::Scalar(scalar(92)),
         kind: OperationKind::PrimitiveScalarRead {
@@ -479,6 +488,7 @@ fn primitive_local_outer_storage_survives_nested_and_repeated_callee_activations
         call,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(503),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -489,6 +499,7 @@ fn primitive_local_outer_storage_survives_nested_and_repeated_callee_activations
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(504),
             result: OperationResult::Scalar(scalar(504)),
             kind: OperationKind::PrimitiveScalarRead {

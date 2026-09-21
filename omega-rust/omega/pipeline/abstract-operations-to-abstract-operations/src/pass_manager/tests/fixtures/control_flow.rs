@@ -135,6 +135,7 @@ pub(in crate::pass_manager::tests) fn verified_linear_empty_block_unit()
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(5_211).unwrap(),
                             result: OperationResult::Scalar(declaration(c1)),
                             kind: OperationKind::IntegerConstant {
@@ -143,6 +144,7 @@ pub(in crate::pass_manager::tests) fn verified_linear_empty_block_unit()
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(5_212).unwrap(),
                             result: OperationResult::Scalar(declaration(c2)),
                             kind: OperationKind::IntegerConstant {
@@ -250,6 +252,7 @@ pub(in crate::pass_manager::tests) fn verified_merge_parameter_unit(
                     parameters: vec![declaration(parameter, scalar_type)],
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_311).unwrap(),
                         result: OperationResult::Scalar(declaration(sum, scalar_type)),
                         kind: OperationKind::WrappingIntegerAdd {

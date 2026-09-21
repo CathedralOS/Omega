@@ -461,6 +461,7 @@ pub(super) fn emit_structural(
     };
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Structural(returned.clone()),
         kind,

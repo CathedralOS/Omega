@@ -147,6 +147,7 @@ pub(super) fn atomic_establishment_artifact(
     };
     let literal = |id, result, value: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::IntegerConstant {
@@ -204,6 +205,7 @@ pub(super) fn atomic_establishment_artifact(
         }
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: establish_op,
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -221,6 +223,7 @@ pub(super) fn atomic_establishment_artifact(
         });
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: member_op,
             result: OperationResult::Scalar(declaration(result_value, ScalarType::Boolean)),
             kind: OperationKind::StructuralCaseMembership {
@@ -238,6 +241,7 @@ pub(super) fn atomic_establishment_artifact(
         }
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: array_op,
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -527,6 +531,7 @@ pub(super) fn transition_artifact(
         (
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation(),
                 result: OperationResult::Scalar(declaration(result)),
                 kind: OperationKind::IntegerConstant {
@@ -553,6 +558,7 @@ pub(super) fn transition_artifact(
         (
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation(),
                 result: OperationResult::Scalar(declaration(result)),
                 kind,
@@ -566,6 +572,7 @@ pub(super) fn transition_artifact(
             (
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: ids.operation(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -983,6 +990,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     };
     let literal = |id, result, value: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::IntegerConstant {
@@ -991,6 +999,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     };
     let wrapping_add = |id, result, left, right| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
@@ -1001,6 +1010,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     // cleanup lane's observation a pure two-operand scalar deterministic fold.
     let saturating_add = |id, result, left, right| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::SaturatingIntegerAdd { left, right },
@@ -1008,6 +1018,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let float_scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
     let ieee_literal = |id, result, bits| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, float_scalar_type)),
         kind: OperationKind::IeeeFloatConstant {
@@ -1016,6 +1027,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     };
     let ieee_compare = |id, result, comparison, left, right| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, ScalarType::Boolean)),
         kind: OperationKind::IeeeFloatCompare {
@@ -1060,6 +1072,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     literal(right_operation, right_id, right),
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: combine_operation,
                         result: OperationResult::Scalar(declaration(
                             result_id,
@@ -1073,6 +1086,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 literal(left_operation, left_id, left),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: right_operation,
                     result: OperationResult::Scalar(declaration(
                         right_id,
@@ -1085,6 +1099,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: combine_operation,
                     result: OperationResult::Scalar(declaration(result_id, integer_scalar_type)),
                     kind: OperationKind::IntegerWiden { operand: right_id },
@@ -1217,6 +1232,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 let false_records = records(base + 51, base + 61, false_records);
                 let establish = |(place, producer): (PlaceId, OperationId)| Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: producer,
                     result: OperationResult::Structural(StructuralOperationResult {
                         qualification_establishments: Vec::new(),
@@ -1333,6 +1349,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         literal(left_operation, left_value, initial),
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: establish_local,
                             result: OperationResult::Structural(StructuralOperationResult {
                                 qualification_establishments: Vec::new(),
@@ -1364,6 +1381,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         ));
                         operations.push(Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(arm_base + 16 + u64::from(index)).unwrap(),
                             result: OperationResult::Unit,
                             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1376,6 +1394,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     operations.extend([
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: read,
                             result: OperationResult::Scalar(declaration(
                                 loaded,
@@ -1389,6 +1408,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         literal(right_operation, right_value, field),
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: establish_record,
                             result: OperationResult::Structural(StructuralOperationResult {
                                 qualification_establishments: Vec::new(),
@@ -1411,6 +1431,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: field_read,
                             result: OperationResult::Scalar(declaration(
                                 field_value,

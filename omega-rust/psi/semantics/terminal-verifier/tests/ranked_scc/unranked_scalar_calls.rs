@@ -37,6 +37,7 @@ fn scalar_call_cycle() -> TerminalModule {
     };
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -261,6 +262,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(20, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -277,6 +279,7 @@ fn structural_scalar_call_cycle() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(30, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -499,6 +502,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(20, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -536,6 +540,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(30, OperationId::new),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -560,6 +565,7 @@ fn unrestricted_structural_call_cycle() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(31, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
