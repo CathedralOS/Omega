@@ -4744,6 +4744,24 @@ Owners include
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns the receiver rows and the broad
   `Filesystem` summary.
 
+  Scope re-verified at `069276b986dc` (linux x86-64, z140): the realization-side
+  contract machinery is already landed (`filesystem_ordinary_release_contract`,
+  `filesystem_release_bound_mechanism`, `filesystem_release_mechanism_row` in
+  `terminal_authority_policy/filesystem.rs`) but has only test callers — the
+  missing leg is a checked-flow producer minting `occurrence_commitment`, plus
+  the native-rejoin call. Both recorded customer stops moved upstream:
+  `filesystem/native_close` now rejects at `Main::fs requires a selected Fused
+  provider for boundary FilesystemHost` (the canary roster's named gate), and
+  `windows_canonicalize_exit --target windows_x86_64` rejects at `ProgramEntry
+  establishment rejoins 0 Terminal attachment identities ... state graph:
+  state signature: parameter signature: attached data shape` — the
+  ENTRY-CONTENT-ROOTS family — before reaching `structural field store: scalar
+  field type`. The paused transitive closure plan is in
+  `wiki/drafts/filesystem_release_contract_z140.md`. Implementing surfaces are
+  fenced: `filesystem.rs` under TWO-AXIS-TERMINAL-AUTHORITY-REVIEW (~04:54Z),
+  `structural_scalar_store` under the STATE-LOCAL-VALUE-FRONTIER /
+  CORPUS-RED-FAMILY-TRAPSTORE ownership recorded by PSI-NATIVE-FIELD-STORES.
+
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   in `validation/src/machine_calls/calls/write_frames/`. The inference returns
   complete caller-visible paths or fails closed as opaque. It carries finite
