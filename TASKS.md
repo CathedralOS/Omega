@@ -11395,6 +11395,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   preparation equations, draft prose, pass-corpus tests, and
   terminal-verifier call-graph validation, none of which implement this leg.
   The dependency gate still holds: no independent slice.
+  Re-verified at `12ea4941ebd` (linux x86-64): RUNTIME-VALUE-GENERICS is
+  still an open row — guard-derived parameter qualifications landed at
+  `725798149efe` but the remaining-work bullets still list
+  contract/qualification preservation and native call/storage routes; no
+  live claim fences `dynamic_scalar_calls/` or
+  `monomorphization/dynamic_families.rs`. The dependency gate still holds
+  — no independent slice.
 - **GENERIC-VIRTUAL-DISPATCH.** Resolved — scope verified: sibling
   re-mine of the same GENERIC-VIRTUAL-CALLS bullet (recorded in its
   sibling-stub roster above) — a `Value` argument proven a roster
