@@ -105,6 +105,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
                 program,
                 semantic,
                 context,
+                entry_contexts,
                 state_flow.state_symbol,
                 call_flow.statement_index,
                 &call_site,
