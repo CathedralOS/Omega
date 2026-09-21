@@ -5,7 +5,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-    aarch64_physical_register_model, resolve_registers,
+    resolve_registers,
 };
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
@@ -76,7 +76,7 @@ fn request(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<[u8; 3], Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model()
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || displacement != 0
         || alternative
             != (MachineAlternativeKey {

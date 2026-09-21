@@ -54,7 +54,6 @@ pub(super) fn replay(
         if block.id != source.id
             || block.parameters != source.parameters
             || block.structural_parameters != source.structural_parameters
-            || block.instructions.len() != body.len()
         {
             return Err(invalid);
         }
@@ -62,7 +61,17 @@ pub(super) fn replay(
             .get(&block.id)
             .cloned()
             .ok_or(invalid.clone())?;
-        for (actual, node) in block.instructions.iter().zip(body) {
+        // Descriptor-parameter declarations retain no operation identity and
+        // so have no instruction row; a fabricated payload on one stays in
+        // `body` and fails the pairing below.
+        let body: Vec<_> = body
+            .iter()
+            .filter(|node| !scalar_graph_input::indirect_calls::is_descriptor_declaration(node))
+            .collect();
+        if block.instructions.len() != body.len() {
+            return Err(invalid);
+        }
+        for (actual, node) in block.instructions.iter().zip(&body) {
             instruction::validate(
                 actual,
                 node,

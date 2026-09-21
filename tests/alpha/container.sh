@@ -48,14 +48,14 @@ LIN_SEED="$OMEGA_PATH_ALPHA/alpha_x64_linux"
 CONTAINER_PY="$TEST_DIR/container.py"
 INVENTORY="bootstrap/0_alpha/README.md"
 
-# The Linux seed's bound identity lives in the retention inventory until
-# seed_env.sh carries the third container's constants (host-selection wiring
-# belongs to the gate-enablement item, not this artifact leg).
+# The Linux seed's bound identity is parsed from the retention inventory;
+# seed_env.sh now carries the third container's constants for host selection,
+# so the hole offset cross-checks them rather than restating a literal.
 LIN_ROW=$(grep -F '`alpha_x64_linux`' "$OMEGA_REPO_ROOT/$INVENTORY") ||
   fail "retention inventory lacks an alpha_x64_linux row"
 LIN_SIZE=$(printf '%s\n' "$LIN_ROW" | sed -n 's/.*| *\([0-9,][0-9,]*\) *|.*/\1/p' | tr -d ',')
 LIN_SHA=$(printf '%s\n' "$LIN_ROW" | sed -n 's/.*| *`\([0-9a-f]\{64\}\)` *|.*/\1/p')
-LIN_HOLE_OFF=12288
+LIN_HOLE_OFF=$ALPHA_SEED_X64_LINUX_HOLE_OFF
 [ -n "$LIN_SIZE" ] && [ -n "$LIN_SHA" ] ||
   fail "alpha_x64_linux inventory row is not parseable as '| name | bytes | sha256 |'"
 

@@ -553,6 +553,24 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
     let exact = argument.path.last().and_then(|name| {
         symbols.find_top_level_by_name_and_kinds_from_source(&rendered, kinds, name.source_span())
     });
+    // A qualified operand (`producer::types::Token`) may name a declaration in
+    // the product-scope checked instance of a dependency — the scope a build
+    // occurrence cannot reach through `use`. Mirror the provider-selection
+    // product bridge with the candidates this stage can enumerate.
+    let exact = exact.or_else(|| {
+        if argument.path.len() < 2 {
+            return None;
+        }
+        let occurrence = argument.path.last().map(|name| name.source_span())?;
+        let candidates = symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .filter(|(handle, _)| kinds.contains(&symbols.get(*handle).kind))
+            .map(|(handle, _)| (handle, true))
+            .collect::<Vec<_>>();
+        symbols.find_product_declaration_from_source(&rendered, occurrence, candidates)
+    });
     argument.symbol = exact.unwrap_or_else(|| {
         let reference = argument.path.last().map(|name| name.source_span());
         symbols

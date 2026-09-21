@@ -1,15 +1,43 @@
+// A transition arm yields a call result as a runtime value: `navigate`
+// dispatches on `resolve_command`'s value and returns the arm's call. The
+// deployable shape matches the sibling runtime canaries: the returned record
+// is checked in a guard ladder and the process exits 70 only when exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
 domain [u8]::Utf8
 requires
     valid_utf8(self);
+
 data NavigationChoice { case Invalid; case Move; }
 data CellId { case Empty; }
 data Navigation { choice: NavigationChoice; destination: CellId; }
 data ConsoleLine { text: &[u8] in Utf8; }
 
 data Main {
+    console: Service<Console>;
 }
 
-machine Main::main(&mut self, line: &ConsoleLine) -> Navigation {
+machine Main::main(&mut self) reaches Console {
+    let line: ConsoleLine = ConsoleLine { text: "north" };
+    let result: Navigation = self.navigate(&line);
+
+    transition result.choice == NavigationChoice::Move {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::navigate(&mut self, line: &ConsoleLine) -> Navigation {
     let choice: NavigationChoice = self.resolve_command(line);
     transition {
         choice == NavigationChoice::Invalid -> self.resolve_exit(line)
@@ -30,5 +58,4 @@ machine Main::resolve_exit(&mut self, line: &ConsoleLine) -> Navigation {
 
 machine Main::navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
     Navigation { choice: choice, destination: destination }
-    
 }

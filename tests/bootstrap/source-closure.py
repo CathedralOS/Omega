@@ -65,7 +65,8 @@ class SourceClosure(unittest.TestCase):
 
     def test_prefix_order_and_failure_preservation(self):
         for header in HEADERS:
-            for case in ("valid", "missing", "control", "nonascii", "symlink", "stale_member"):
+            for case in ("valid", "missing", "control", "nonascii", "symlink",
+                         "stale_member", "wrong_suffix", "directory"):
                 with self.subTest(header=header, case=case), tempfile.TemporaryDirectory() as temporary:
                     directory = Path(temporary)
                     manifest, first, second, rows = self.fixture(directory, header)
@@ -80,6 +81,16 @@ class SourceClosure(unittest.TestCase):
                         prefix.rename(target)
                         prefix.symlink_to(target)
                     elif case == "stale_member": first.write_bytes(b"changed")
+                    elif case == "wrong_suffix":
+                        foreign = next(
+                            suffix for suffix in HEADERS.values()
+                            if suffix != HEADERS[header]
+                        )
+                        prefix = prefix.with_suffix(foreign)
+                        prefix.write_bytes(b"; wrong-language entry\n")
+                    elif case == "directory":
+                        prefix = directory / "entry_dir"
+                        prefix.mkdir()
                     output = directory / "output"
                     for existing in (False, True):
                         if existing:
@@ -175,8 +186,8 @@ class SourceClosure(unittest.TestCase):
         closures = [
             (ROOT / "tests/bootstrap/epsilon-source-closure/fixture.sources", 89,
              "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c", None),
-            (Path(os.environ["OMEGA_PATH_OMEGA_COMPILER_SOURCES"]), 558065,
-             "3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950", None),
+            (Path(os.environ["OMEGA_PATH_OMEGA_COMPILER_SOURCES"]), 561794,
+             "60754c730dfb928f9b2b6edbf2904d9a7bb292b0657eb6656a31930c28be05af", None),
             (Path(os.environ["OMEGA_PATH_EPSILON_COMPILER_SOURCES"]), 617354,
              "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e", None),
             (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 147840,

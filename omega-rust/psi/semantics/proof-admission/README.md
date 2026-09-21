@@ -9,7 +9,7 @@ normalization, and producer-visible witness checks. [proof.rs](src/proof.rs)
 owns certificate admission; its traversal uses explicit pending work rather than
 the host call stack at accepted proof depths.
 
-[closed_integer.rs](src/closed_integer.rs) owns exact signed mathematical integer
+[closed_integer.rs](src/integer_rules/closed_integer.rs) owns exact signed mathematical integer
 denotation shared by primitive judgments and execution-time closed guard checks.
 It does not truncate to a runtime carrier or admit a new proof rule. Open values
 and undefined negative shift counts have no closed relation; resource refusal is
@@ -47,10 +47,10 @@ certificate the kernel rejects is rejected.
 
 ## Normalization is not authority
 
-[integer_affine.rs](src/integer_affine.rs),
-[integer_cast.rs](src/integer_cast.rs),
-[integer_shift.rs](src/integer_shift.rs), and
-[integer_forbidden_root.rs](src/integer_forbidden_root.rs) independently replay
+[integer_affine.rs](src/integer_rules/integer_affine.rs),
+[integer_cast.rs](src/integer_rules/integer_cast.rs),
+[integer_shift.rs](src/integer_rules/integer_shift.rs), and
+[integer_forbidden_root.rs](src/integer_rules/integer_forbidden_root.rs) independently replay
 exact witness coordinates. A checked normalization result is not an assumed
 bound. Only its specified proof rule, checked child evidence, and accepted
 premise closure establish the conclusion.

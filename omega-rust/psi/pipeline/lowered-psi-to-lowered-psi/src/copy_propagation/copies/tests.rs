@@ -54,6 +54,7 @@ fn machine(blocks: Vec<Block>) -> TerminalMachine {
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
         },
     }
 }
@@ -64,6 +65,7 @@ fn block(ordinal: u64, parameters: Vec<ValueDeclaration>, terminator: Terminator
         id: BlockId::new(ordinal).unwrap(),
         parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: Vec::new(),
         terminator,
     }
@@ -78,6 +80,7 @@ fn jump(ordinal: u64, target: u64, arguments: Vec<u64>) -> Terminator {
             .map(|ordinal| ValueId::new(ordinal).unwrap())
             .collect(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -232,6 +235,7 @@ fn covered_component_coordinates_stay_while_outside_copies_collapse() {
                     target: BlockId::new(2).unwrap(),
                     arguments: vec![ValueId::new(12).unwrap(), ValueId::new(1).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
@@ -240,6 +244,7 @@ fn covered_component_coordinates_stay_while_outside_copies_collapse() {
                     target: BlockId::new(3).unwrap(),
                     arguments: vec![ValueId::new(1).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
@@ -576,10 +581,12 @@ fn call_continuations_site_guards_and_call_joins_retain_named_copies() {
     let mut continuation_machine = two_copy_machine();
     continuation_machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(10).unwrap(),
         result: OperationResult::Scalar(declaration(50)),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: MachineId::new(9).unwrap(),
             arguments: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -618,6 +625,7 @@ fn call_continuations_site_guards_and_call_joins_retain_named_copies() {
     };
     join_machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(11).unwrap(),
         result: OperationResult::Scalar(declaration(51)),
         kind: OperationKind::IntegerConstant {

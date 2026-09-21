@@ -1,4 +1,4 @@
-use super::{BoundsSource, ByteSequencePredicate, meet};
+use super::{BoundsSource, ByteSequencePredicate, integer_literal_thresholds, meet};
 use crate::flow::state_values::fields::FieldValue;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
@@ -55,7 +55,8 @@ fn field_meet_loses_literal_identity_but_keeps_common_predicates() {
         &machine,
         &mut previous,
         &[field(1, 3, predicates.clone())],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     assert!(!previous[0].literal.is_valid());
     assert_eq!(previous[0].predicates, predicates);
@@ -66,7 +67,8 @@ fn field_meet_loses_literal_identity_but_keeps_common_predicates() {
         &machine,
         &mut previous,
         &[field(1, 2, predicates.clone())],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     assert_eq!(previous[0].literal, ExpressionHandle::from_arena_index(2));
 }
@@ -82,7 +84,8 @@ fn missing_field_evidence_is_absorbing_and_exact_paths_do_not_merge() {
         &machine,
         &mut previous,
         &[field(2, 2, ByteSequencePredicate::ALL.to_vec())],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     assert_eq!(previous.len(), 2);
     assert!(!previous[0].literal.is_valid());
@@ -96,7 +99,8 @@ fn missing_field_evidence_is_absorbing_and_exact_paths_do_not_merge() {
         &machine,
         &mut previous,
         &[field(1, 2, ByteSequencePredicate::ALL.to_vec())],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     assert_eq!(previous[0].predicates, ByteSequencePredicate::ALL.to_vec());
 }
@@ -114,6 +118,7 @@ fn deliveries_shrink_and_regrow_with_each_edges_latest_evidence() {
             &mut previous,
             &[incoming.clone()],
             edge(0),
+            &integer_literal_thresholds(&program),
         );
     }
     assert!(previous[0].predicates.is_empty());
@@ -124,7 +129,8 @@ fn deliveries_shrink_and_regrow_with_each_edges_latest_evidence() {
         &machine,
         &mut previous,
         &[field(1, 2, ByteSequencePredicate::ALL.to_vec())],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     assert_eq!(previous[0].predicates, ByteSequencePredicate::ALL.to_vec());
     assert_eq!(previous[0].literal, ExpressionHandle::from_arena_index(2));
@@ -149,7 +155,8 @@ fn equal_integer_ranges_survive_and_differing_ranges_union() {
         &machine,
         &mut previous,
         &[initial.clone()],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     // A wider bound arriving on a second edge unions into the join.
     let mut wider = initial.clone();
@@ -159,11 +166,19 @@ fn equal_integer_ranges_survive_and_differing_ranges_union() {
         &machine,
         &mut previous,
         &[wider.clone()],
-        edge(1)
+        edge(1),
+        &integer_literal_thresholds(&program)
     ));
     assert_eq!(previous[0].integer_bounds, Some(range(0, 19)));
     // A repeated identical arrival is a no-op.
-    assert!(!meet(&program, &machine, &mut previous, &[wider], edge(1)));
+    assert!(!meet(
+        &program,
+        &machine,
+        &mut previous,
+        &[wider],
+        edge(1),
+        &integer_literal_thresholds(&program)
+    ));
 }
 
 #[test]
@@ -174,12 +189,26 @@ fn integer_bounds_retighten_when_an_edges_delivery_shrinks() {
     let mut previous = vec![initial.clone()];
     let mut wider = initial.clone();
     wider.integer_bounds = Some(range(0, 19));
-    assert!(meet(&program, &machine, &mut previous, &[wider], edge(0)));
+    assert!(meet(
+        &program,
+        &machine,
+        &mut previous,
+        &[wider],
+        edge(0),
+        &integer_literal_thresholds(&program)
+    ));
     assert_eq!(previous[0].integer_bounds, Some(range(0, 19)));
     // The same edge later proving the tighter interval retightens the join:
     // only the latest delivery per edge contributes, so a transient
     // over-approximation cannot wedge the row at a widened bound.
-    assert!(meet(&program, &machine, &mut previous, &[initial], edge(0)));
+    assert!(meet(
+        &program,
+        &machine,
+        &mut previous,
+        &[initial],
+        edge(0),
+        &integer_literal_thresholds(&program)
+    ));
     assert_eq!(previous[0].integer_bounds, Some(range(0, 9)));
 }
 
@@ -198,7 +227,8 @@ fn missing_integer_bounds_widen_the_join_to_the_carrier() {
         &machine,
         &mut previous,
         &[incoming],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     // The row survives with no bound: a carrier-less field contributes no
     // bound evidence rather than vanishing.
@@ -217,7 +247,14 @@ fn potential_only_changes_propagate_through_missing_call_deliveries() {
     let call = BoundsSource::invocation(SymbolHandle::from_arena_index(7), 0, 0);
 
     // The call carries no row, but must still be recorded as a predecessor.
-    assert!(!meet(&program, &machine, &mut previous, &[], call));
+    assert!(!meet(
+        &program,
+        &machine,
+        &mut previous,
+        &[],
+        call,
+        &integer_literal_thresholds(&program)
+    ));
     assert_eq!(previous[0].deliveries.len(), 2);
     assert_eq!(previous[0].predicate_ceiling(), ByteSequencePredicate::ALL);
 
@@ -229,13 +266,21 @@ fn potential_only_changes_propagate_through_missing_call_deliveries() {
         &machine,
         &mut previous,
         &[incoming],
-        edge(0)
+        edge(0),
+        &integer_literal_thresholds(&program)
     ));
     assert!(previous[0].predicate_ceiling().is_empty());
 
     // The same absent call row now forwards the changed ceiling. Its stored
     // delivery changes even though the joined result is already empty.
-    assert!(!meet(&program, &machine, &mut previous, &[], call));
+    assert!(!meet(
+        &program,
+        &machine,
+        &mut previous,
+        &[],
+        call,
+        &integer_literal_thresholds(&program)
+    ));
     let (_, delivery) = previous[0]
         .deliveries
         .iter()
@@ -280,7 +325,8 @@ fn repeated_delivery_preserves_widening_until_the_evidence_changes() {
             machine,
             &mut previous,
             &[incoming.clone()],
-            edge(0)
+            edge(0),
+            &integer_literal_thresholds(&program)
         ));
     }
     assert_eq!(previous[0].integer_bounds, Some(range(0, 10)));
@@ -290,7 +336,8 @@ fn repeated_delivery_preserves_widening_until_the_evidence_changes() {
             machine,
             &mut previous,
             &[incoming.clone()],
-            edge(0)
+            edge(0),
+            &integer_literal_thresholds(&program)
         ),
         "identical edge evidence must not undo widening and dirty the state"
     );
@@ -299,6 +346,13 @@ fn repeated_delivery_preserves_widening_until_the_evidence_changes() {
     // A genuinely tighter delivery still improves the live join; avoiding
     // duplicate work must not make old widening an absorbing unknown.
     incoming.integer_bounds = Some(range(0, 2));
-    assert!(meet(&program, machine, &mut previous, &[incoming], edge(0)));
+    assert!(meet(
+        &program,
+        machine,
+        &mut previous,
+        &[incoming],
+        edge(0),
+        &integer_literal_thresholds(&program)
+    ));
     assert_eq!(previous[0].integer_bounds, Some(range(0, 2)));
 }

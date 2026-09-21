@@ -16,16 +16,20 @@ use crate::physical::derivation::children::{
     derive_normalized_foreign_child, hosted_builtin_settlement,
 };
 use crate::physical::derivation::hashing::{
-    canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
-    hash_relocation_origin, physical_evidence_gap_identity, relocation_kind_tag,
+    canonical_usize, hash_bytes, hash_callback_relocation, hash_machine_function_identity,
+    hash_object_symbol, hash_relocation_origin, physical_evidence_gap_identity,
+    relocation_kind_tag,
 };
+use crate::physical::model::dynamic_call_dispatch;
 use crate::physical::model::native_optimization_projection;
 use crate::physical::model::native_physical_evidence;
 use crate::physical::model::native_physical_evidence_gap;
 use crate::physical::model::optimized_boundary_occurrence;
 use crate::physical::model::optimized_operator_occurrence;
 use crate::physical::model::{NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject};
-use crate::physical::operator_applications::derive_operator_physical_span;
+use crate::physical::operator_applications::{
+    derive_dynamic_call_span, derive_operator_physical_span,
+};
 use crate::{NativePhysicalEvidenceScope, NativeProviderExecution, NativeSelectedProviderPlan};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
 use optimization_core::{
@@ -376,6 +380,52 @@ pub(crate) fn derive_physical_evidence(
             .into(),
         );
     }
+    for occurrence in projection.dynamic_call_occurrences() {
+        // The dispatch catalog row is the occurrence's semantic parent; the
+        // emitted call record supplies the span. Either failing names the
+        // occurrence as the exact blocked subject.
+        let parent_identity = dynamic_call_dispatch_identity(&module, occurrence)?;
+        let Some(span) = derive_dynamic_call_span(occurrence, target, object, image)? else {
+            return Ok(blocked(
+                NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan {
+                    occurrence: *occurrence,
+                },
+            ));
+        };
+        let parent = PhysicalChildParent::DynamicCallDispatch(dynamic_call_dispatch(
+            *occurrence,
+            parent_identity,
+        ));
+        let physical_occurrence = NativePhysicalOccurrence::DynamicCall(occurrence.identity());
+        let identity = physical_child_identity(
+            &parent,
+            projection.identity(),
+            physical_occurrence,
+            span.machine,
+            span.object,
+            span.final_image,
+            span.machine_bytes_digest,
+            span.object_bytes_digest,
+            span.final_image_bytes_digest,
+            span.relocation,
+        );
+        children.push(
+            NativePhysicalChildParts {
+                parent,
+                projection: projection.identity(),
+                occurrence: physical_occurrence,
+                machine_span: span.machine,
+                object_span: span.object,
+                final_image_span: span.final_image,
+                machine_bytes_digest: span.machine_bytes_digest,
+                object_bytes_digest: span.object_bytes_digest,
+                final_image_bytes_digest: span.final_image_bytes_digest,
+                relocation: span.relocation,
+                identity,
+            }
+            .into(),
+        );
+    }
     children.sort_by_key(|child| child.occurrence());
     validate_exact_physical_children(&projection, &children)?;
     let identity = physical_evidence_identity(projection.identity(), &children);
@@ -419,12 +469,24 @@ pub(crate) fn validate_exact_physical_child_coordinates(
                 .iter()
                 .map(|occurrence| (NativePhysicalOccurrence::Boundary(occurrence.identity()), 2)),
         )
+        .chain(
+            projection
+                .dynamic_call_occurrences()
+                .iter()
+                .map(|occurrence| {
+                    (
+                        NativePhysicalOccurrence::DynamicCall(occurrence.identity()),
+                        3,
+                    )
+                }),
+        )
         .collect::<BTreeMap<_, _>>();
     if expected.len()
         != projection
             .operator_occurrences()
             .len()
             .checked_add(projection.boundary_occurrences().len())
+            .and_then(|total| total.checked_add(projection.dynamic_call_occurrences().len()))
             .ok_or("native physical evidence occurrence count overflow")?
     {
         return Err("native physical evidence projection repeats an optimized occurrence");
@@ -453,6 +515,106 @@ pub(crate) fn validate_exact_physical_child_coordinates(
     Ok(())
 }
 
+/// Strong identity of the dynamic-dispatch catalog row one surviving
+/// `CallDynamic*` occurrence's Terminal operation names. Every dispatch family
+/// keys its rows on `(owner, operation)`; hashing the family's retained
+/// ordinals and requirement/realization coordinates makes the physical
+/// child's parent the exact semantic dispatch row rather than the operation
+/// alone. A `CallDynamic*` operation names exactly one catalog row.
+fn dynamic_call_dispatch_identity(
+    module: &terminal_psi::TerminalModule,
+    occurrence: &crate::OptimizedOperatorOccurrence,
+) -> Result<[u8; 32], &'static str> {
+    let catalog = &module.dynamic_dispatch;
+    let machine = occurrence.machine();
+    let operation = occurrence.operation();
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-physical-parent.dynamic-dispatch.sha256.v1\0");
+    digest.update(occurrence.identity().bytes());
+    let mut matched = false;
+    let mut write_row = |body: &mut dyn FnMut(&mut Sha256)| -> Result<(), &'static str> {
+        if matched {
+            return Err("native physical evidence rejoins duplicate dynamic dispatch rows");
+        }
+        matched = true;
+        body(&mut digest);
+        Ok(())
+    };
+    for row in catalog
+        .direct_dispatches
+        .iter()
+        .filter(|row| row.owner == machine && row.operation == operation)
+    {
+        write_row(&mut |digest| {
+            digest.update([1]);
+            hash_bytes(digest, row.requirement_identity.as_bytes());
+            hash_bytes(digest, row.realization_identity.as_bytes());
+            hash_bytes(digest, row.realization_callable_identity.as_bytes());
+            digest.update(row.realization.get().to_le_bytes());
+        })?;
+    }
+    for row in catalog
+        .indirect_dispatches
+        .iter()
+        .filter(|row| row.owner == machine && row.operation == operation)
+    {
+        write_row(&mut |digest| {
+            digest.update([2]);
+            digest.update(row.descriptor_ordinal.to_le_bytes());
+            hash_bytes(digest, row.requirement_identity.as_bytes());
+            hash_bytes(digest, row.realization_identity.as_bytes());
+            hash_bytes(digest, row.realization_callable_identity.as_bytes());
+            digest.update(row.realization.get().to_le_bytes());
+        })?;
+    }
+    for row in catalog
+        .stored_dispatches
+        .iter()
+        .filter(|row| row.owner == machine && row.operation == operation)
+    {
+        write_row(&mut |digest| {
+            digest.update([3]);
+            digest.update(row.descriptor_ordinal.to_le_bytes());
+            hash_bytes(digest, row.requirement_identity.as_bytes());
+            hash_bytes(digest, row.realization_identity.as_bytes());
+            hash_bytes(digest, row.realization_callable_identity.as_bytes());
+            digest.update(row.realization.get().to_le_bytes());
+        })?;
+    }
+    for row in catalog
+        .parameter_dispatches
+        .iter()
+        .filter(|row| row.owner == machine && row.operation == operation)
+    {
+        // The dispatch row carries only ordinals; the parameter's slot row
+        // retains the closed requirement identities the caller dispatched.
+        let parameter = catalog
+            .parameters
+            .iter()
+            .find(|parameter| {
+                parameter.owner == machine && parameter.ordinal == row.parameter_ordinal
+            })
+            .and_then(|parameter| {
+                parameter
+                    .requirements
+                    .iter()
+                    .find(|requirement| requirement.slot == row.requirement_slot)
+            })
+            .ok_or("native physical evidence names an absent dynamic parameter slot")?;
+        write_row(&mut |digest| {
+            digest.update([4]);
+            digest.update(row.parameter_ordinal.to_le_bytes());
+            digest.update(row.requirement_slot.to_le_bytes());
+            hash_bytes(digest, parameter.declaring_trait_identity.as_bytes());
+            hash_bytes(digest, parameter.public_requirement_identity.as_bytes());
+        })?;
+    }
+    if !matched {
+        return Err("native physical evidence cannot rejoin the dynamic dispatch row");
+    }
+    Ok(digest.finalize().into())
+}
+
 fn derive_identity_projection(
     terminal: terminal_psi::TerminalPsiIdentity,
     module: &terminal_psi::TerminalModule,
@@ -468,6 +630,7 @@ fn derive_identity_projection(
     }
     let mut operator_occurrences = Vec::with_capacity(operator_operations.len());
     let mut boundary_occurrences = Vec::new();
+    let mut dynamic_call_occurrences = Vec::new();
     for machine in &module.machines {
         let mut operation_ordinal = 0_usize;
         for block in &machine.blocks {
@@ -480,6 +643,27 @@ fn derive_identity_projection(
                         operation_ordinal,
                     );
                     operator_occurrences.push(optimized_operator_occurrence(
+                        terminal,
+                        machine.id,
+                        operation.id,
+                        operation_ordinal,
+                        identity,
+                    ));
+                }
+                if matches!(
+                    operation.kind,
+                    OperationKind::CallDynamicScalar { .. }
+                        | OperationKind::CallDynamicParameterScalar { .. }
+                        | OperationKind::CallDynamicUnit { .. }
+                        | OperationKind::CallDynamicParameterUnit { .. }
+                ) {
+                    let identity = operator_occurrence_identity(
+                        terminal,
+                        machine.id,
+                        operation.id,
+                        operation_ordinal,
+                    );
+                    dynamic_call_occurrences.push(optimized_operator_occurrence(
                         terminal,
                         machine.id,
                         operation.id,
@@ -527,11 +711,17 @@ fn derive_identity_projection(
     for occurrence in &boundary_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
+    canonical.push(3); // Dynamic-call occurrences.
+    canonical.extend_from_slice(&canonical_usize(dynamic_call_occurrences.len()));
+    for occurrence in &dynamic_call_occurrences {
+        canonical.extend_from_slice(&occurrence.identity().bytes());
+    }
     let identity = NativeOptimizationProjectionIdentity::from_canonical_bytes(&canonical);
     Ok(native_optimization_projection(
         terminal,
         operator_occurrences,
         boundary_occurrences,
+        dynamic_call_occurrences,
         identity,
     ))
 }
@@ -596,7 +786,12 @@ pub(crate) fn physical_child_identity(
         PhysicalRelocationDisposition::ResolvedInternalCall => 2,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_) => 3,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(_) => 4,
+        PhysicalRelocationDisposition::DynamicCallCustody(_) => 5,
     }]);
+    if let PhysicalRelocationDisposition::DynamicCallCustody(custody) = relocation {
+        digest.update(custody.windows_digest());
+        digest.update(u64::from(custody.window_count()).to_le_bytes());
+    }
     if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) = relocation {
         digest.update(relocation.locator_identity());
         digest.update(relocation.boundary_plan_identity());

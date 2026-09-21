@@ -24,6 +24,7 @@ pub(crate) fn primitive_local_plan() -> AbstractOperationPlan {
         panic!("fixture store");
     };
     let result = terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: parameter.place,
         structural_type: parameter.structural_type,
         multiplicity: parameter.multiplicity,

@@ -48,8 +48,12 @@ fn confined_generator_checks_from_a_lock_without_restricted_host_decisions() {
         "captured input and private staging carry no restricted host request"
     );
     assert!(
-        ungranted_restricted_build_requests(checked.accepted(), checked.reviews())
-            .unwrap()
-            .is_empty()
+        ungranted_restricted_build_requests(
+            checked.accepted(),
+            checked.reviews(),
+            checked.source_closure(),
+        )
+        .unwrap()
+        .is_empty()
     );
 }

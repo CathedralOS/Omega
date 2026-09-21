@@ -2,7 +2,7 @@
 // outlaw its zero-filled representation. An explicit in-range write
 // establishes the value before its first read/consumption.
 data Main {
-    m: i32 [1..=100];
+    m: i32;
     q: i32;
 }
 

@@ -73,6 +73,7 @@ fn call_result(
         },
     });
     StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(place),
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -118,6 +119,7 @@ fn module(
     let second = call_result(entry, 100, 3);
     entry.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(100),
         result: OperationResult::Structural(second),
         kind: OperationKind::EstablishScalarArray {
@@ -133,10 +135,12 @@ fn module(
     ];
     entry.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(101),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(2),
             arguments: vec![],
             structural_arguments: arguments.clone(),
@@ -147,6 +151,7 @@ fn module(
     });
     entry.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(102),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -155,6 +160,7 @@ fn module(
         }),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: vec![],
             structural_arguments: arguments.clone(),
@@ -166,10 +172,12 @@ fn module(
     let result = call_result(entry, 103, 4);
     entry.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(103),
         result: OperationResult::Structural(result),
         kind: OperationKind::CallStructuralWithScalarArguments {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(4),
             arguments: vec![],
             structural_arguments: arguments,
@@ -193,6 +201,7 @@ fn module(
     });
     scalar.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3001),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -210,6 +219,7 @@ fn module(
     let result = call_result(&mut forwarding, 4001, 4003);
     forwarding.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4001),
         result: OperationResult::Structural(result),
         kind: OperationKind::CallStructural {

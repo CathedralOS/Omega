@@ -251,19 +251,30 @@ fn discarded_scalar_invocation_precedes_whole_owned_return() {
             .iter()
             .find(|machine| machine.name.as_str() == "retain")
             .unwrap();
-        let plan = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(source.symbol)
-            .expect(
+        let effects = &checked.facts.flow.terminal_unit_effects;
+        // Structural-result bodies are recorded either in the ordinary
+        // catalog or in the composed state graph, depending on the carrier.
+        let has_call_and_result = if let Some(plan) = effects.for_machine(source.symbol) {
+            plan.operations.iter().any(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
+            }) && plan.structural_result.is_some()
+        } else {
+            let graph = effects.composed_for_machine(source.symbol).expect(
                 "ordered body retains a structural result independently of preceding scalar calls",
             );
-        assert!(plan.operations.iter().any(|operation| matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::ScalarCall { .. }
-        )));
-        assert!(plan.structural_result.is_some());
+            graph
+                .states
+                .iter()
+                .flat_map(|state| state.operations.iter())
+                .any(|operation| {
+                    matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
+                })
+                && matches!(
+                    graph.result,
+                    checked_trees::CheckedControlResultPlan::Structural(_)
+                )
+        };
+        assert!(has_call_and_result);
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "retain")
             .produce_artifact()
             .unwrap_or_else(|error| panic!("{property} {carrier}: {error:?}"));
@@ -382,27 +393,66 @@ fn source_replay_rejects_return_parameter_and_carrier_substitution() {
             .symbol;
         for mutation in ["parameter", "carrier"] {
             let mut changed = original.clone();
-            let plan = changed
-                .facts
-                .flow
-                .terminal_unit_effects
+            let effects = &mut changed.facts.flow.terminal_unit_effects;
+            // Structural-result bodies are recorded either in the ordinary
+            // catalog or in the composed state graph, depending on the
+            // carrier; substitute in whichever catalog retained the plan.
+            if let Some(plan) = effects
                 .machines
                 .iter_mut()
                 .find(|plan| plan.machine == source)
-                .unwrap();
-            let result = plan.structural_result.as_mut().unwrap();
-            match mutation {
-                "parameter" => {
-                    result.source =
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index: 0,
-                        };
+            {
+                let result = plan.structural_result.as_mut().unwrap();
+                match mutation {
+                    "parameter" => {
+                        result.source =
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index: 0,
+                            };
+                    }
+                    _ => {
+                        // Keep the plan's parameter and result consistent with each other,
+                        // but substitute a carrier different from the source declaration.
+                        result.type_identity = wrong_carrier.into();
+                        plan.structural_parameters[1].type_identity = wrong_carrier.into();
+                    }
                 }
-                _ => {
-                    // Keep the plan's parameter and result consistent with each other,
-                    // but substitute a carrier different from the source declaration.
-                    result.type_identity = wrong_carrier.into();
-                    plan.structural_parameters[1].type_identity = wrong_carrier.into();
+            } else {
+                let graph = effects
+                    .composed_machines
+                    .iter_mut()
+                    .find(|graph| graph.machine == source)
+                    .expect("composed catalog retains the ordered body");
+                match mutation {
+                    "parameter" => {
+                        for state in &mut graph.states {
+                            if let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
+                                &mut state.terminator
+                            {
+                                result.source =
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                        parameter_index: 0,
+                                    };
+                            }
+                        }
+                    }
+                    _ => {
+                        // Keep the plan's parameter and result consistent with each other,
+                        // but substitute a carrier different from the source declaration.
+                        if let checked_trees::CheckedControlResultPlan::Structural(result) =
+                            &mut graph.result
+                        {
+                            result.type_identity = wrong_carrier.into();
+                        }
+                        for state in &mut graph.states {
+                            state.structural_parameters[1].type_identity = wrong_carrier.into();
+                            if let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result } =
+                                &mut state.terminator
+                            {
+                                result.type_identity = wrong_carrier.into();
+                            }
+                        }
+                    }
                 }
             }
             assert!(
