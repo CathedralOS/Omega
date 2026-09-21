@@ -1465,7 +1465,7 @@ syntax and other terminal services are not prerequisites.
   PLACED-ACCESS-NATIVE-OPS owns native realization of the retained indexed-store
   operation. Its source fixture still needs the revoked bracketed-range
   migration owned by REMOVE-BRACKETED-RANGE-ANNOTATIONS. Route mutable dynamic
-  dispatch through GENERIC-VIRTUAL-DISPATCH, common reference identity through
+  dispatch through FINITE-GENERIC-DISPATCH, common reference identity through
   STRUCTURAL-BORROW-IDENTITY, and sequencing through STATE-LOCAL-VALUE-FRONTIER.
   Consult the [parked IEEE recovery record](wiki/drafts/write_only_borrow_ieee_store_branch.md)
   before duplicating work; its unpublished tip is not available in this checkout.
@@ -2015,337 +2015,159 @@ syntax and other terminal services are not prerequisites.
   remain; runtime-index fail fixtures change only when their materialization
   obligations are met.
 
-- **RUNTIME-VALUE-GENERICS.** Implement the settled
-  [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
-  for APIs whose result or stored qualification depends on an input value.
-  `TypeParameterKind::Value` runs through syntax, symbol-resolved and typed
-  trees with its own template identity and review-evidence tags; machine
-  declarations and trait requirement signatures parse `<Count: u32>`. A
-  runtime argument becomes one trailing ordinary parameter of a single shared
-  specialization (`typed-trees-to-checked-trees/src/monomorphization/`),
-  `requires` contracts bind the realized subject, and `const` binders still
-  reject runtime inputs. `compiler/tests/runtime_value_generics.rs` replays
-  captured, forwarded, reassigned, guard-established and structural subjects
-  from Terminal artifacts, with native scenarios on macOS ARM64. None of
-  this lets a type depend on a runtime subject:
-  `monomorphization/body_rewriting/type_parameter_substitution.rs` rejects a
-  runtime-bound binder in every type position, and data declarations parse no
-  value binder (`GenericParameterSyntax::TypeAndConst` in
-  `tokens-to-syntax-trees/src/parameters/parse_generic_parameters.rs`).
+- **RUNTIME-VALUE-GENERICS.** Complete
+  [runtime-capable value binders](wiki/spec/language/generics.md#value-binders-and-const-requirements)
+  and [captured index identity](wiki/spec/language/generics.md#runtime-index-identity-and-storage)
+  for result and stored qualifications. Machine value binders already share
+  one dynamic body with ordinary arguments and captured-subject/guard transport.
+  Data headers parse value binders, and a checked descriptor-field slice
+  enforces construction/default-domain and later write obligations.
 
   Remaining work:
 
-  - Preserve runtime-bound subjects in ordinary contracts and domain
-    qualifications while **REMOVE-BRACKETED-RANGE-ANNOTATIONS** migrates the
-    legacy result-bound fixtures. Layout-determining uses (array extents,
-    `const` positions) still reject. Domain-index qualifications forward through
-    call-bound index substitution: a call's const-position binder instantiation (`literal`,
-    `const` binder, or runtime `Value` binder) rewrites the callee's declared
-    `Coordinate<I>` membership to the caller's bound index in both index
-    compatibility and requires-fact instantiation, so
-    `machine outer<N: u32>(v: i64 in Coordinate<N>) { relay<N>(v) }` now
-    checks while `relay<M>(v)` still rejects.
-    Ordered and equality scalar guards establish result and local qualifications
-    through the existing write-invalidated arithmetic environment, with independent
-    Terminal replay and macOS ARM64 native execution in
-    `runtime_value_generics::runtime_bound_result_qualification_follows_the_dominating_guard`.
-    `equal_runtime_indices_preserve_the_guarded_result_subject` also checks
-    transport between distinct bound subjects under true `==` and false `!=`,
-    with a shared dynamic body; writes to either subject retire the equality.
-    Guard-derived parameter qualifications: **landed** at `725798149efe`
-    ("checks: retire stale guard premises at the source contract check") —
-    `incoming_guard_proves_requires`'s preservation gate now covers every
-    unqualified operand name the instantiated requirement spells, so a
-    stale guard followed by `limit = 0` before `bounded_result<limit>(value)`
-    rejects at the call's source contract check ("cannot prove requires
-    contract") and never reaches the artifact gate. Re-witnessed at
-    `e5a620b04d9c` (linux x86-64): `cargo nextest run -p compiler --test
-    runtime_value_generics` — 21/21 pass, including
-    `runtime_bound_stale_call_guard_rejects_publication` and the
-    dominating-guard transport controls.
-  - Parse and check value binders on data declarations:
-    `data Index<Limit: u32> where value < Limit, { value: u32; }` owes its
-    default domain at construction, erases a proof-only index, and keeps an executable index as
-    ordinary data, an argument or an existing descriptor field.
-  - Module-owned forms, once **MODULE-NAMESPACE-RESOLUTION** supplies exact
-    lexical selection. No source-spelling fallback, and no runtime value used
-    as a static cache key.
-  - Finish the native call/storage routes using ordinary operations, not
-    generic-specific substitutes. Keep
-    `scalar_case_results::record_reads::call_requirements` as the working
-    indexed-field receiver-call control: scalar requirements preserve their
-    ordered proof custody without relaxing ownership `entry_claims`.
-    A structural subject over a record local beside a provider receiver gets
-    no checked Unit plan
-    (**STATE-LOCAL-VALUE-FRONTIER**). Native receivers spell
-    `console: Service<Console>`; validity is intrinsic to the closed carrier,
-    not an authored `Bound` qualification. A bare `Console` field stops in
-    `image-emission/src/hosted_receiver.rs` (**ENTRY-CONTENT-ROOTS**). Only a
-    macOS ARM64 host runs the native module; other hosts report a skip.
+  - Preserve exact runtime application subjects through data construction,
+    parameters/results, stored qualifications and artifact publication.
+    `runtime_value_generics::data_value_binder_arguments_carry_no_static_identity`
+    currently expects `Index<9>` to assign into `Index<7>` without relating
+    those arguments. Shared layout/code does not prove captured indices agree.
+    Correct application compatibility, bind construction arguments to their
+    actual subjects, and retain executable indices as ordinary data, arguments
+    or descriptors. Erase proof-only uses only after checking their obligations;
+    `lowering/data.rs` currently synthesizes ordinary fields unconditionally.
+  - Complete domain/index qualification transport with exact value versions and
+    static-only gates. Migrate legacy range-shell fixtures through
+    **REMOVE-BRACKETED-RANGE-ANNOTATIONS**, without extending revoked syntax or
+    counting those tests as general domain-index support. Preserve forwarding,
+    reassignment and live/stale guard/equality controls. Runtime inline-array
+    extents and const positions remain rejected.
+  - Carry module-owned forms through exact lexical/package selection with
+    **MODULE-NAMESPACE-RESOLUTION**. Runtime values are never static cache keys.
+  - Execute the value-indexed data/storage customer through verified Terminal,
+    interpretation and native ordinary call/storage routes. Coordinate
+    record-local/provider composition with **STATE-LOCAL-VALUE-FRONTIER** and
+    binding establishment with **ENTRY-CONTENT-ROOTS**. Native fixtures still
+    spell `Service<Console>`; migrate to ratified `Binding<R>`. Their native
+    test module runs only on macOS ARM64; report unavailable hosts separately.
 
-  Acceptance: `<Count: u32>` accepts static and runtime arguments when the
-  caller establishes its obligations; `<const Count: u32>` still requires a
-  static specialization. One dynamic machine body handles distinct runtime
-  counts without per-value code generation. Parameter and result
-  qualifications and a value-indexed scalar field preserve the same captured
-  subject, including after reassignment of its source variable.
-  Equality-guarded uses retain their proof; stale relationships, invalid
-  bounds, duplicate or lost linear custody and unsupported static-only uses
-  reject. Add no heap boxing or stack reservation of a range's maximum, and do
-  not read integer finiteness as a specialization request. Check source
-  diagnostics, representation and interpreter/native replay for each
-  supported slice before widening it.
+  Acceptance: `<Count: u32>` accepts static/runtime arguments under proved
+  obligations, while `<const Count: u32>` remains static. One dynamic machine
+  body handles distinct counts. Parameter/result qualifications and an actual
+  value-indexed data field retain the captured subject after source reassignment;
+  equality permits only the relationships it proves. Invalid construction,
+  bounds, stale/mismatched indices, unsupported static-only uses and duplicated/
+  lost linear custody reject in source checking and independent artifact replay.
+  Preserve `runtime_value_generics`' shared-body, domain-index forwarding and
+  guard/equality controls; its descriptor-field tests currently check source,
+  not execution, and literal array-index tests are not value-indexed types.
+  Exercise interpreter and native behavior for each supported slice. No hidden
+  boxing, maximum-range stack reservation, runtime per-value code generation or
+  specialization inferred from integer finiteness. Begin with fixed
+  representation; **FINITE-GENERIC-DISPATCH** separately owns finite families.
 
-  Begin with scalar binders and fixed-representation uses, not dynamic stack
-  layouts or automatic SIMD specialization. **FINITE-GENERIC-DISPATCH** owns
-  finite families and dynamic interfaces; this item depends on neither it nor
-  general reflection.
-
-  Flag: legacy range-shell acceptance does not establish general runtime
-  domain-index support. The value-indexed data-field/default-domain case is
-  the bullet-2 fence, and the suite's two "indexed scalar field" scenarios
-  index a `[u8; 8]` receiver field with a literal, which involves no
-  value-indexed type.
-
-  Claim evidence (Zergling-181, `e12b9e8e06`): the first bullet's named
-  owning file `checks/contracts/calls.rs` is fenced by
-  PROOF-CERTIFICATION-BRIDGE until ~2026-09-21T00:51Z. Bullet 2's parse
-  surface already admits `Value` binders (`GenericParameterSyntax::
-  DataDeclaration`); its remaining construction-time obligation and
-  erased-versus-executable index leg intersects `execution/unit` surfaces
-  nominally claimed by PLACED-ACCESS-NATIVE-OPS. Bullet 3 waits on
-  MODULE-NAMESPACE-RESOLUTION; bullet 4 waits on STATE-LOCAL-VALUE-FRONTIER
-  and ENTRY-CONTENT-ROOTS, and its native leg needs a macOS ARM64 host.
-  Re-verified at `0f75a052f09` on linux x86-64 (Zergling-202): bullets 1 and
-  2 have since landed — the local-initializer bullet is enforced in
-  `writes.rs` (`requires_provenance || predicate_domain` discharges through
-  `initializer_satisfies_predicate_domain`) and pinned by the
-  `predicate_domain_initializer_*` matrix in `tests/contracts/main.rs`
-  (wrong case, union membership, member predicates, live and stale
-  evidence, wrong owner all adjudicated); the source-map bullet's
-  regression `runtime_bound_stale_call_guard_rejects_publication` already
-  rejects at `check_source` with "cannot prove requires contract" before
-  the artifact gate; the z142 ledger run independently re-witnessed the
-  flip and its neighbors at `b53c7ea260` — `cargo nextest run -p compiler
-  --test runtime_value_generics stale runtime_bound` 13/13 PASS, covering
-  both stale-guard rejections plus the dominating-guard and
-  equality-transport legs (draft folded under
-  the prior ledger cleanup). The open bullets stay fenced: the value-binder
-  construction leg intersects `execution/unit` (PLACED-ACCESS-NATIVE-OPS,
-  item-level 06:27Z, plus `providers.rs` under
-  PROVIDER-ATTACHMENT-MACHINE-PLAN 09:49Z and `unit/calls` under
-  BASELINE-T2C-INDEXED-OPERAND-ACCESS 12:17Z); the module-owned-forms
-  follow-through crosses `preparation/type_equations` +
-  `machine_equations.rs` (STRUCTURAL-GENERIC-INFERENCE, 09:58Z), the
-  `const_evaluation` tree (TARGET-SEMANTIC-APPLICATIONS, 11:23Z/11:43Z),
-  `checked-trees-to-lowered-psi/src/unit` (STRUCTURAL-UNIT-LOWERING,
-  09:16Z) and `terminal_module/contracts` (PROOF-RELEVANCE-MIGRATION,
-  11:29Z); the native route bullet still waits on
-  STATE-LOCAL-VALUE-FRONTIER + ENTRY-CONTENT-ROOTS
-  (`hosted_receiver.rs` under PLAN-LAID-VIEWS, 09:25Z) and needs a macOS
-  ARM64 host. No unfenced slice remains.
-
-- **STRUCTURAL-GENERIC-MATCHING.** Implement
+- **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
-  [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
+  [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference)
   and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
-  for containers deriving backing from explicit type structure. Scalar
-  range-annotation shells are revoked: **REMOVE-BRACKETED-RANGE-ANNOTATIONS**
-  owns deleting that route and migrating its fixtures. Do not extend it or
-  infer capacities from interval facts.
-
-  The shared structural matcher is
-  `syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations.rs`.
-  It matches fixed arrays and lifetime-free declared applications with
-  type/integer/Boolean const arguments, including reverse construction, and
-  retains pending equations until exact application checking. Reuse
-  `compiler --test array_type_equations`, `machine_type_equations`, and
-  `application_type_equations` for their independent non-range customers.
+  through specialization, layout and source-free artifacts. Reuse
+  `preparation/type_equations/`, `machine_equations.rs` and canonical argument
+  identity; no second evaluator or generic-specific storage plan.
+  **REMOVE-BRACKETED-RANGE-ANNOTATIONS** owns retiring range-shell inference.
 
   Remaining work:
 
-  - Static type equality and finite disjunctions on machines and requirements:
-    check unspecialized bodies under every admitted alternative, reject
-    type/value mixtures, and discard branch-local equality at its join.
-  - Extend structural matching to explicit domain applications and named
-    lifetime/other const-index identities. An indexed predicate domain can
-    expose an authored capacity argument; its predicate is not searched for a
-    maximum. Distinct domain indices gain no implicit variance.
-    Named lifetimes require selected lexical identity, not equal spelling or
-    layout. Keep `application_type_equations::reference_equations_` as the
-    anonymous-reference/slice control. Write-only type arguments retain their
-    **WRITE-ONLY-BORROW** dependency.
-  - Combine equations with argument/result inference rather than requiring a
-    closed explicit prefix. Preserve obligations through forwarding, retained
-    compilation extensions, late-selected result receivers, operator supplies,
-    conformance realizations, and machine/evidence/value binders. A method
-    selected during typing must not evade the equation check that ordinarily
-    belongs to exact-target resolution.
-  - Normalize computed const arguments through ordinary semantic evaluation,
-    retaining complete type, policy, selection and invocation-admission
-    evidence. An open domain index binds as one whole expression; solving
-    `N * 2 == 256` remains outside structural matching. Do not repurpose the
-    old range-endpoint evaluator as a second domain-index evaluator.
-    Trapping calls depend on **ARITHMETIC-POLICY-REALIZATION**: require proved
-    failure exclusion before execution, not interpreter overflow as admission.
-    Nominal arguments and late-selected operators keep their exact owners.
-  - Runtime value binders in data equations depend on
-    **RUNTIME-VALUE-GENERICS**, not const-folding their captured subjects.
-  - Use one normalizer for source equality, matching, canonical type identity,
-    layout and artifact readers. Instances deduplicate by
-    `ClosedArgumentIdentity`; display names stay diagnostic-only.
+  - Check unspecialized machine/requirement bodies under every admitted
+    type-equality alternative, including finite disjunctions and branch-local
+    equalities that cannot escape joins. Closed case-equation decisions do
+    not establish this general route.
+  - Finish domain-application identity after matching. Declared domain heads
+    and constrained spellings already match; constrained indexed domains also
+    have `ClosedConstraintIdentity::IndexedDeclaration`. Join both spellings
+    to exact declaration/carrier/index identity, including package selection
+    and generic carriers. `generic_data/arguments.rs` still takes a data-only
+    identity route for generic heads and rejects generic-carrier domain identity.
+    Re-drive `domain_application_arguments_reach_instance_identity_after_binding`:
+    its expectation that both spellings fail predates constrained identity
+    support. Do not present that stale pin as a newly observed failure.
+    Distinct domain indices gain no implicit variance; compatibility evidence
+    does not rename their identities.
+  - Support selected named-lifetime identity and remaining const-index kinds;
+    anonymous reference/slice and integer/Boolean application matching already
+    exist. **WRITE-ONLY-BORROW** owns write-only type admission.
+  - Combine equations with argument/result inference instead of requiring
+    closed explicit machine tuples. Preserve obligations through forwarding,
+    retained compilation extensions, late-selected receivers, operator/
+    conformance supply and machine/evidence/value binders. Keep rejection of
+    undisclosed equations until those routes can discharge them; selection
+    during typing must not bypass the equation check.
+  - Evaluate computed const arguments through ordinary semantic evaluation and
+    invocation admission, retaining declared carrier, arithmetic policy,
+    selected operation and canonical identity. Match an open index as a whole;
+    no arbitrary equation solving, predicate maximum search or flow-derived
+    capacities. Share normalization across equality, matching, layout and
+    artifact readers, deduplicating equivalent closed tuples.
+    **ARITHMETIC-POLICY-REALIZATION** owns trapping-call exclusion;
+    **RUNTIME-VALUE-GENERICS** owns runtime subjects, not const-folding them.
 
-  Acceptance: TinyBytes from the spec infers Capacity from the explicit
-  `u64::AtMost<256>` application before layout; equivalent closed const
-  arguments select one instance. Array/application equations also bind omitted
-  arguments on data and machine applications. Repeated or explicit conflicts,
-  missing indices, occurs cycles, type/value-kind mismatches, false constructor
-  predicates and unmet conformance requirements reject. Flow narrowing cannot
-  alter inferred layout or collapse domain identities. Preserve const staging,
-  initialization, stack supply and source-free Terminal/native checking.
+  Acceptance: the spec's TinyBytes infers Capacity from `u64::AtMost<256>`
+  before layout; equivalent closed computations select one instance. Data/
+  machine array and application equations infer omitted arguments while
+  preserving all obligations. Repeated/explicit conflicts, missing indices,
+  occurs cycles, kind mismatches, false constructor predicates and unmet
+  conformances reject. Flow narrowing cannot alter layout or domain identity.
+  Extend `array_type_equations`, `machine_type_equations` and
+  `application_type_equations` through source-free Terminal/native checking.
 
-  Migrate the constructed-direction customer currently housed in
-  `generics/omitted_data_binder_range_equation` to a domain-index equation,
-  preserving its nested backing array and invalid-initializer controls.
-  At `f6adb89fb3` on macOS ARM64, its `constructed_value` probe has no
-  checked scalar control plan: **STATE-LOCAL-VALUE-FRONTIER** owns nested
-  fixed-array record establishment. Borrowed-local mutation in
-  `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
-  has that same independent storage owner. Neither migration may delete the
-  backing storage or introduce generic-specific plans to make the probe pass.
+  Preserve the domain-index `Bytes` migration in
+  `generics/omitted_data_binder_range_equation`, its nested backing array and
+  invalid-initializer controls; migrate its remaining range-shell half under
+  that owner. The current `constructed_value` only casts a scalar qualification.
+  Complete a customer actually constructing and accessing the nested backing;
+  **STATE-LOCAL-VALUE-FRONTIER** owns that storage and borrowed-local mutation,
+  not a generic-specific plan. Const staging, initialization and stack supply
+  remain separate obligations.
 
-  Dispatch note (`8fc2b84a17`): every leg of this item edits the shared
-  structural matcher `preparation/type_equations.rs` (plus
-  `machine_equations.rs`), and that surface is claimed this wave —
-  **STRUCTURAL-GENERIC-INFERENCE** (Zergling-136, ~09:58Z) — so no slice
-  is independently landable while it holds. The named cross-item
-  dependencies also stand: WRITE-ONLY-BORROW on write-only type
-  arguments, ARITHMETIC-POLICY-REALIZATION on trapping-call exclusion,
-  RUNTIME-VALUE-GENERICS on runtime binder equations, and
-  STATE-LOCAL-VALUE-FRONTIER (~02:17Z) on the migration's storage legs.
-  Coordinate with the structural-inference lane before picking this up.
-  Re-verified at `7241e022270d` (z157 leg): the controlling constraint is
-  unchanged — STRUCTURAL-GENERIC-INFERENCE still holds
-  `preparation/type_equations/` + `machine_equations.rs` live. Drift since
-  the note: the four dependency lanes' claims have all drained
-  (STATE-LOCAL-VALUE-FRONTIER, WRITE-ONLY-BORROW, ARITHMETIC-POLICY-
-  REALIZATION, RUNTIME-VALUE-GENERICS hold no paths at this check), so
-  their surfaces are technically open — but every leg here still edits the
-  fenced shared matcher, so no slice is independently landable regardless.
-  Re-verified at `771d0469a1c` (z203 leg): the controlling constraint is
-  unchanged — STRUCTURAL-GENERIC-INFERENCE (Zergling-136) still holds
-  `preparation/type_equations/` + `machine_equations.rs` live to ~09:58Z.
-  New fences since `7241e022270d`: NEW-RBRA-PASS-RECAST-GENERICS now holds
-  `tests/omega/pass/{recast,generics}` (~15:22Z) where this item's
-  migration customers live, and CONST-GENERIC-EXTENT-RANGE-DISCHARGE
-  holds its wiki draft (~14:03Z).
-
-- **FINITE-GENERIC-DISPATCH.** Implement the
+- **FINITE-GENERIC-DISPATCH.** Complete runtime selection under the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
   and [dynamic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-  for Squalr-style scanner widths and runtime-selected datatype providers.
-  `TypedTrees::finite_signature_family`
-  (`typed-trees/src/typed_trees/calls/finite_family.rs`) is the one roster
-  authority for the local `dyn` surface and the selected-dispatch boundary. A
-  local `dyn` call that spells one closed roster tuple (`erased.code<16>()`)
-  selects that row, and
-  `typed-trees-to-checked-trees/src/monomorphization/dynamic_families.rs`
-  generates every roster tuple's provider specialization from the selected
-  conformance. The boundary adapter surface now draws from that same
-  authority: `selected-dispatch`'s
-  `selected_boundary_family_specializations` reads each selected provider
-  plan's checked adapter and queues the requirement's complete declared
-  roster into `generate_dynamic_family_specializations` before checking, so
-  a source program that selects a family provider settles every roster row
-  even when no static call site demanded the tuple (`omega --check` accepts a
-  `scan<16>` call under a `{16,32}` roster where it previously rejected
-  "partial provider coverage"; off-roster tuples still reject). Missing
-  roster bodies and runtime-bound or wrong-template records still reject the
-  whole family. Correlated multi-binder rosters are covered end to end:
-  `where W == 16 && L == 4 || W == 32 && L == 8` generates both authored
-  tuples, a call spelling `(16, 4)` selects exactly that row, an
-  uncorrelated `(16, 8)` rejects, and a fabricated boundary demand naming an
-  open roster now rejects rather than silently generating nothing.
-  `family_tuple` is an exact join coordinate in Terminal rows,
-  the codec, the verifier, checked-to-lowered evidence and the Omega custody,
-  lowering, image-replay and optimization-unit identity rejoins. That does
-  not establish runtime selection or a native customer: every call names its
-  tuple statically, and the Omega joins have seen only test-constructed
-  nonempty tuples.
+  for scanner widths and runtime-selected datatype providers.
+  `TypedTrees::finite_signature_family` owns the roster;
+  `monomorphization/dynamic_families.rs` specializes selected providers.
+  Static tuple selection, correlated multi-binder rosters, boundary family
+  coverage and Terminal tuple identities already exist.
 
   Remaining work:
 
-  - Runtime-capable family calls in Psi checking
-    (`execution/unit/dynamic_scalar_calls/`): a `Value` argument proven a
-    roster member selects its row through generated dispatch among the closed
-    bodies, and an unproven argument rejects. Depends on
-    RUNTIME-VALUE-GENERICS, not generic JIT execution. Begin with one scalar
-    binder, a common concrete result and dispatch around a region-sized
-    operation.
-  - One source-produced family through Omega native tables and image replay,
-    with `tests/omega` pass, fail and run canaries. This depends on
-    **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**, not merely tuple tests:
-    the existing `REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE` pattern publishes
-    verified Terminal, but native staging at `59402436c4` rejects
-    `CallDynamicScalar` with `Selection(Legalization(UnsupportedScalarOperation))`.
-    The common-graph legalizer admits no descriptor-call family. Complete its
-    ordinary indirect-call, table and replay route; the native test must observe
-    distinct tuple results and the rebound selected instance, not discard a
-    result from a provider that ignores its width.
+  - In `execution/unit/dynamic_scalar_calls/`, replace the static-only
+    `dynamic_family_tuple` path for runtime-capable calls with checked roster
+    membership and generated selection among the closed bodies. Begin with
+    one scalar binder, one common concrete result and dispatch around a
+    region-sized operation. Reuse **RUNTIME-VALUE-GENERICS**' existing scalar
+    argument/guard machinery; its unfinished general value-indexed data support
+    is not a blanket prerequisite. Unproved membership rejects; no JIT or
+    invented fallback.
+  - Carry a source-produced family through native tables and independent image
+    replay, using **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**'s ordinary
+    indirect-call mechanism. The rebound `CallDynamicScalar` route still lacks
+    common-graph legalization. Parameter descriptor calls have legalization
+    and replay but still lack selected instruction construction; do not conflate
+    those stages. Resume from `dynamic_composed_unit/finite_family.rs` and
+    `REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE`, replacing its ignored-width,
+    discarded-result probe with observed distinct tuple results and the actual
+    rebound selected instance. Test-constructed tuple rows do not close this.
 
-  Coordination note (verified at `1f10f6fd40`, linux x86-64): both
-  remaining legs are dependency-gated *and* their implementing surfaces
-  are live-fenced this wave — the Psi dispatch leg writes into
-  `execution/unit/dynamic_scalar_calls/` + `dynamic_families.rs`, claimed
-  by GENERIC-DYNAMIC-FAMILY-DISPATCH (expires 2026-09-21T05:31Z) and
-  gated on RUNTIME-VALUE-GENERICS (live claim to 05:47Z), while the
-  native customer leg needs RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-
-  CUSTODY's legalizer admission (open row; `CallDynamicScalar` still
-  rejects with `Selection(Legalization(UnsupportedScalarOperation))`).
-  No unfenced slice exists under this item until those lanes land;
-  sibling stubs GENERIC-VIRTUAL-CALLS and FINITE-GENERIC-METHOD-FAMILIES
-  already record the same verdict.
-
-  Re-witnessed at `069276b986` (linux x86-64): fences renewed and extended.
-  GENERIC-DYNAMIC-FAMILY-DISPATCH still holds `dynamic_scalar_calls/` +
-  `monomorphization/dynamic_families.rs` (Zergling-136, exp 05:31Z);
-  RUNTIME-VALUE-GENERICS' claim has drained from the registry but its
-  row stays open and gating. The native leg's implementing surface is now
-  fenced twice over: `target-operations-to-selected-instructions/src/
-  legalization` under X86-FMA-PROVIDER-TRANSPORT (exp 09:07Z) and
-  `src/selection/construction` under CALLBACK-PRIVATE-MATERIALIZATION
-  (exp 09:13Z). The rejection pin holds verbatim: `CallDynamicScalar` has no
-  legalizer admission — `legalization/source/scalar_graph/instruction.rs`
-  enumerates no such case, so it still falls to
-  `LegalizationError::UnsupportedScalarOperation` at
-  `legalization/model.rs:120`. Still no unfenced slice under this item.
-
-  Coordination note (verified at `1f10f6fd40`, linux x86-64): both
-  remaining legs are dependency-gated *and* their implementing surfaces
-  are live-fenced this wave — the Psi dispatch leg writes into
-  `execution/unit/dynamic_scalar_calls/` + `dynamic_families.rs`, claimed
-  by GENERIC-DYNAMIC-FAMILY-DISPATCH (expires 2026-09-21T05:31Z) and
-  gated on RUNTIME-VALUE-GENERICS (live claim to 05:47Z), while the
-  native customer leg needs RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-
-  CUSTODY's legalizer admission (open row; `CallDynamicScalar` still
-  rejects with `Selection(Legalization(UnsupportedScalarOperation))`).
-  No unfenced slice exists under this item until those lanes land;
-  sibling stubs GENERIC-VIRTUAL-CALLS and FINITE-GENERIC-METHOD-FAMILIES
-  already record the same verdict.
-
-  Acceptance: a source program dispatches widths 16/32/64 from a runtime value
-  through one selected conformance with no handwritten suffix-method family,
-  and executes natively. Source alternative order and duplicates normalize
-  deterministically. Missing, wrong-width, mixed-provider or shape-substituted
-  rows reject. Const-only calls still reject dynamic inputs without a checked
-  bridge. Short explicit tuple sets preserve correlations and do not enumerate
-  arbitrary ranges; target-ineligible bodies and invented fallbacks reject.
-  Preserve parameter effects, index identity and once-only moves/cleanup
-  through selection, forwarding, storage and replay. Escaping variable-shaped
-  results require an explicit sum or eligible owned/borrowed descriptor, not
-  implicit allocation. Retain compile/code-size evidence and scan-loop
-  dispatch placement before claiming an improvement over explicit branches.
-  No new reflection API or arbitrary generic virtual method is needed.
+  Acceptance: source pass/fail/run cases dispatch widths 16/32/64 from a runtime
+  value through one selected conformance and execute natively without
+  handwritten suffix methods. Alternative order and duplicates normalize
+  deterministically; short explicit tuple sets retain correlations rather than
+  enumerating ranges or cross-products. Missing/wrong-width/mixed-provider/
+  shape-substituted rows, unproved membership, target-ineligible bodies and
+  const-only dynamic inputs without a checked bridge reject. Preserve effects,
+  index identity and once-only moves/cleanup through selection, forwarding,
+  storage and independent artifact/image replay. Escaping variable-shaped
+  results require an authored sum or eligible descriptor, not implicit boxing.
+  Record compile/code-size and scan-loop dispatch placement before claiming an
+  improvement over explicit branches. No general generic virtual-method or
+  reflection extension belongs here.
 
 - **DOMAIN-ISSUER-ROUTES.** Finish independent Terminal qualification evidence
   for the [requirement and exact-machine routes](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes),
@@ -7527,19 +7349,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   | test(/captures/) | test(/reads/)'`: 197/197 PASS on linux x86-64;
   `cargo fmt` clean. Worked unclaimed — no claimable marker existed for
   this name and `checks/ranges/facts/dependencies*` carries no live fence.
-- **FINITE-GENERIC-METHOD-FAMILIES.** Mined candidate — alias for the
-  [finite generic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-  section, the exact spec surface owned by FINITE-GENERIC-DISPATCH (the
-  roster authority `finite_signature_family`, `dynamic_families.rs`
-  tuple-specialization generation, boundary settle coverage, and
-  `family_tuple` join coordinates are landed; remaining work is
-  runtime-capable family calls gated on RUNTIME-VALUE-GENERICS and one
-  native family customer gated on
-  RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY). No independent slice
-  exists: every implementation path is inside FINITE-GENERIC-DISPATCH's
-  own live claim. Sibling stubs on the same surface:
-  GENERIC-DYNAMIC-FAMILY-DISPATCH, GENERIC-VIRTUAL-DISPATCH,
-  GENERIC-VIRTUAL-CALLS (resolved as the same leg).
 - **FMA-PROVIDER-PIPELINE-TRANSPORT.** — mined candidate; merged alias of
   X86-FMA-PROVIDER-TRANSPORT (verify-scope: the named tests confirmed the
   frontier; see that row for landed legs and the remaining transport work).
@@ -7589,7 +7398,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Fence caveat: a dangling helper under a still-Admitted flip would be
   dead machinery, so the check and the pin inversion land together
   once `admission/` opens. No unfenced slice exists.
-- **GENERIC-DYNAMIC-FAMILY-DISPATCH.** — mined candidate; verify scope then implement.
 - **GENERIC-RETURNED-VIEW-LIFETIMES.** Mined candidate — scope verified,
   owner row; residuals fenced or spec-gated. This is the named owner of
   the view-lifetime correspondence surface cited by resolved sibling
@@ -7619,64 +7427,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   expired and `src/borrow/` is currently unclaimed. Residual (2) is still
   spec-gated (lifetimes.md:33, conformances.md:66). The only open slice
   under this name remains the outlives spec decision.
-- **GENERIC-VIRTUAL-CALLS.** Mined candidate — scope verified, covered:
-  same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet
-  "Runtime-capable family calls in Psi checking
-  (`execution/unit/dynamic_scalar_calls/`)" — a `Value` argument proven
-  a roster member selects its row through generated dispatch among the
-  closed bodies, and an unproven argument rejects. Re-verified at
-  `8734480a01`: the leg still depends on RUNTIME-VALUE-GENERICS (open),
-  `dynamic_scalar_calls` is fenced by the parent item's live claim, and
-  the item rules out "a new reflection API or arbitrary generic virtual
-  method" — no independent slice exists under this stub. Sibling stubs
-  on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH,
-  GENERIC-VIRTUAL-DISPATCH. Fence re-audit at `e7c0099cb2`: the recorded
-  claims have all drained — GENERIC-DYNAMIC-FAMILY-DISPATCH's hold on
-  `dynamic_scalar_calls/` + `monomorphization/dynamic_families.rs` (expired
-  05:31Z, holder now on STRUCTURAL-GENERIC-INFERENCE) and
-  RUNTIME-VALUE-GENERICS' registry claim are both gone, so the implementing
-  surface is currently unfenced but untouched since `8734480a01`. The
-  dependency gate is what holds: the leg cannot start until
-  RUNTIME-VALUE-GENERICS lands the value-binder machinery the roster
-  membership proof runs on — still an open row with no live claim.
-  Re-verified holding at `90df29812c` (linux x86-64): RUNTIME-VALUE-GENERICS
-  remains an open row (its `monomorphization/` remaining-work bullets still
-  list contract/qualification preservation and native call/storage routes);
-  no live claim fences `dynamic_scalar_calls/` or
-  `monomorphization/dynamic_families.rs` — the current GENERIC-* claims cover
-  preparation equations, draft prose, pass-corpus tests, and
-  terminal-verifier call-graph validation, none of which implement this leg.
-  The dependency gate still holds: no independent slice.
-  Re-verified at `12ea4941ebd` (linux x86-64): RUNTIME-VALUE-GENERICS is
-  still an open row — guard-derived parameter qualifications landed at
-  `725798149efe` but the remaining-work bullets still list
-  contract/qualification preservation and native call/storage routes; no
-  live claim fences `dynamic_scalar_calls/` or
-  `monomorphization/dynamic_families.rs`. The dependency gate still holds
-  — no independent slice.
-- **GENERIC-VIRTUAL-DISPATCH.** Resolved — scope verified: sibling
-  re-mine of the same GENERIC-VIRTUAL-CALLS bullet (recorded in its
-  sibling-stub roster above) — a `Value` argument proven a roster
-  member selects its closed row through generated dispatch, an
-  unproven argument rejects. Re-audited at `82741ec439` (linux x86-64):
-  the gate picture is unchanged in kind — RUNTIME-VALUE-GENERICS is
-  still an open row (native call/storage routes and the stale-guard
-  contract check remain listed), and no live claim fences
-  `dynamic_scalar_calls/` or `monomorphization/dynamic_families.rs`.
-  In the interim the value-binder machinery has visibly advanced
-  (`compiler/tests/runtime_value_generics.rs` replays bound subjects
-  sharing one dynamic body) and the selection side still resolves
-  closed rows via `dynamic_family_tuple` + normalized row identities
-  (`scalar_call_plans.rs`), but the specific leg this stub names —
-  runtime `Value` argument proven a roster member — is not landed and
-  is owned by FINITE-GENERIC-DISPATCH's remaining-work bullet. No
-  independent slice.
-  Re-verified at `6f91898606` (linux x86-64): RUNTIME-VALUE-GENERICS
-  remains an open row with the same remaining-work bullets (guard-derived
-  parameter qualifications, data-declaration value binders, module-owned
-  forms, native call/storage routes) and no live claim fences
-  `dynamic_scalar_calls/` or `monomorphization/dynamic_families.rs`.
-  Dependency gate still holds — no independent slice.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
   "region alignment/expansion" parity gap). Resolved — the gap is already
@@ -9858,33 +9608,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   fences.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
 - **ROOT-FILE-DISCIPLINE.** — mined candidate; verify scope then implement.
-- **RUNTIME-CAPABLE-BINDERS.** Mined candidate — scope verified, covered:
-  re-mines the runtime-capable-versus-const binder contract
-  ([generics](wiki/spec/language/generics.md#value-binders-and-const-requirements):
-  `N: u64` runtime-capable vs `const N: u64` static; dependent_values.md's
-  "Runtime-capable generic index" row), which is exactly the surface owned
-  by open item RUNTIME-VALUE-GENERICS (TASKS.md:3914). Verified at
-  `d8041919add`: the landed half is in place — `TypeParameterKind::Value`
-  flows through syntax/symbol-resolved/typed trees, `<Count: u32>` parses
-  on machine and trait signatures, runtime arguments become one trailing
-  ordinary parameter of the shared specialization under
-  `typed-trees-to-checked-trees/src/monomorphization/`, and
-  `compiler/tests/runtime_value_generics.rs` replays the captured /
-  forwarded / reassigned / guard-established / structural subject legs.
-  No independent slice exists: the remaining legs are the parent's own
-  named bullets — guard-derived parameter qualifications and the native
-  call/storage routes owned by STATE-LOCAL-VALUE-FRONTIER and
-  ENTRY-CONTENT-ROOTS — plus the runtime-capable family-call leg owned by
-  FINITE-GENERIC-DISPATCH (`execution/unit/dynamic_scalar_calls/`).
-  Sibling re-mine on the same contract: GENERAL-SOURCE-BINDER-SYNTAX
-  (resolved, PROOF-CONTRACT-MIGRATION surface, distinct). Re-verified at
-  `4f9fb5964f` (linux x86-64, 2026-09-21 ~06:16Z): the landed half is
-  intact — `TypeParameterKind::Value` still flows through typed-trees,
-  `monomorphization/` and `runtime_value_generics.rs` are in place — and
-  none of the residual-owner lanes (STATE-LOCAL-VALUE-FRONTIER,
-  ENTRY-CONTENT-ROOTS, FINITE-GENERIC-DISPATCH) currently holds a live
-  claim, but those legs remain named bullets on their own board items,
-  not free slices under this name.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
   [bounded activation claim](wiki/spec/resources/activation_storage.md) to
   authored source and Terminal Psi. Use ordinary callable/core-declaration
@@ -10801,7 +10524,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   no independent slice exists.
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
-- **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
 - **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
 - **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.** Mined candidate; scope verified
   at 10d93dd448, resolved — this stub owns the lowered-psi cleanup-roster
