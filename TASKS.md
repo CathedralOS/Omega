@@ -10393,6 +10393,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   17/17 PASS on linux x86-64; `cargo fmt` clean. Worked unclaimed — no
   claimable marker existed for this name and the file carries no live
   fence.
+- **NEW-C2LPSB-RANGE-FACTS-RECURSION-PROFILE.** Mined candidate; slice
+  landed. The name resolves to the recursion profile of the range-facts
+  dependency walks: three sites carried the same unnamed `128` bound —
+  `record_dependencies` and `collect_reads` recursion guards plus the two
+  chain-unrolling loops in `captures.rs` — and `reads.rs` already asked
+  for it to be named once. The bound is now
+  `dependencies::EXPRESSION_WALK_DEPTH_BOUND`, shared by all eight sites,
+  and `tests/depth.rs` asserts against the constant itself so the pin and
+  the profile cannot drift. `cargo nextest run -p
+  typed-trees-to-checked-trees --lib -E 'test(/depth/) | test(/dependencies/)
+  | test(/captures/) | test(/reads/)'`: 197/197 PASS on linux x86-64;
+  `cargo fmt` clean. Worked unclaimed — no claimable marker existed for
+  this name and `checks/ranges/facts/dependencies*` carries no live fence.
 - **FINITE-GENERIC-METHOD-FAMILIES.** Mined candidate — alias for the
   [finite generic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
   section, the exact spec surface owned by FINITE-GENERIC-DISPATCH (the
