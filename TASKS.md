@@ -9725,7 +9725,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   family closes.
 - **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
-- **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY.** Mined candidate — scope verified, bounded replay landed
+  and exercised; residual named. Re-mines the PCC replay leg of
+  **PCC-PRODUCT-PUBLICATION** (~TASKS.md:1622): `compilation-report/src/pcc.rs`
+  `verify_native_proof_sidecar` replays the placed-image evidence section
+  against the exact artifact bytes — region/gap digests, addresses,
+  fingerprints, both inventory seals, closed-form import-thunk realization,
+  re-derived container entry (ELF `e_entry` / PE32+ / Mach-O `LC_MAIN`
+  landing on a committed placed-region start), and the declared loadable
+  map — under the receiver's own pinned policy, never the producer's.
+  Witnessed on linux x86-64 at `dccdfd1fd1`: `cargo nextest run -p compiler
+  --test pcc_publication` — 22/22 pass, including
+  `receiver_replay_never_inherits_the_producer_admission_profile`,
+  `standalone_pair_checking_rejects_wrong_bytes_premises_policy_and_assumptions`,
+  `a_tampered_native_pair_rejects_from_bytes`, and
+  `a_stale_companion_never_certifies_republished_bytes`. Remaining residual
+  is recorded on the module contract itself: behavioral legs (instruction
+  rows against closed target semantics, edges, premise availability,
+  lowering correspondence) keep the verdict at `Incomplete` until
+  standalone native semantics + correspondence checking exists — that is
+  the PCC-CANONICAL-SEMANTIC-LEDGER lane, not a slice here. Both claimed
+  surfaces (`pcc.rs`, `tests/pcc_publication.rs`) were unfenced at
+  verification; two claim attempts under Jarod / swarm-z10-rc-pcc-replay
+  lost to coordination-ref push races (exit 1, never exit 2) — board-line
+  edit rides unclaimed by convention. Sibling stub: RC-PCC-REPLAY-GATE.
 - **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
 - **RC-PLATFORM-RUN-RECORDS.** — scope verified 2026-09-20: re-mines the
   "required platform runs" contract in
