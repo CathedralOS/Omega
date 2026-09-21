@@ -43,9 +43,13 @@ your claim ticket instead — `python3 tools/claims.py note --ticket <ticket>
 coordinator writes board updates at drain. A re-verification that confirms
 the board's current text is the common case and rides the claim note alone:
 do not take a board-only claim to stamp the row, and expect no board edit
-for an unchanged verdict. A row carries at most one current verification
-line; a stamp that does land replaces the dated observation it supersedes
-rather than stacking under it. Never touch these excluded items:
+for an unchanged verdict. Re-verification at a newer revision that reproduces
+the recorded verdict is noise, not evidence — no stamp lands for it. A row
+carries at most one current verification line; a stamp that does land
+replaces the dated observation it supersedes rather than stacking under it,
+and at most one stamp per assigned row per session is permitted — only when
+it changes the row's frontier. Serial witness paragraphs ("re-verified a
+second/third time") are never appended. Never touch these excluded items:
 {exclusions}.
 If your fix needs a path owned by another item in the wave, stop and report
 `blocked` with the needed path so the coordinator can arrange a handoff. Apply
