@@ -8378,6 +8378,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   families is **TV-OPERATOR-APPLICATIONS-REPLAY**'s scope. Sibling stubs
   on the same surface: REMAINING-INTRINSIC-SPAN-ARMS,
   TV-DYNAMIC-AND-INTRINSIC-SPANS.
+- **INSTALLATION-ERA-JOURNAL.** Resolved — settled-name marker (do not
+  re-mine): the named surface was deliberately deleted, not implemented.
+  `20bd592af1` removed `ComponentEraJournal`, its restart fact
+  vocabulary, replay roster, tests, exports and journal-only receipt
+  accessors from `effects/src/component_eras/` — the owner rejected
+  compiler-owned deployment recovery (Cathedral's domain), and that
+  commit deleted both mined journal tasks; the entry ledger survives
+  byte-identical to `8f9b82fef2`. Re-verified at `b9635834f3`
+  (linux x86-64): zero `ComponentEraJournal`/`era_journal` references
+  remain in the tree. No leg exists under this name.
 - **KNOWN-BASELINE-FAILURES-DOC-REFRESH.** Mined candidate; scope verified at
   `669925b8b9`: the item is a refresh sweep of
   `wiki/drafts/known_baseline_failures.md` — several board entries record
