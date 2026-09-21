@@ -6720,6 +6720,24 @@ Platform/cross-host (structurally gated — document host limits):
   `native_hosted_target()` cfg arm in `compiler/tests/canary_suite.rs`
   (fenced by PRIVILEGED-PORT-EFFECT-SETTLEMENTS), and a real x86_64-apple-darwin host run
   (requires the Intel host; this session ran on linux x86-64).
+  Fence re-audit at `f6bb8e6c2e` (INTEL-MACOS-HOST-PROFILE — the retired
+  re-mine stub, verified named alias of this row; its scope paragraph
+  orphaned under HOSTED-INLINE-ASSEMBLY-AUTHORITY is folded here): the
+  recorded dispatch-time fences have rotated. UEFI-PHYSICAL-SEMANTIC-ENTRY's
+  live claim no longer covers `representations/target/src/lib.rs` or
+  `program-entry-plan/src/program_entry_physical/` (scoped to the UEFI dirs
+  + `optimized_semantic_entry`), so the enum arm + slot row are nominally
+  unfenced — but not landable: the new
+  `ProgramEntryPhysicalContractPackage::MacosX64` forces
+  `AcceptedSemanticBindingRole::MacosX64ProgramEntry` in
+  `package-compilation/src/semantic_bindings.rs`, which is held by
+  OPTIONAL-STDLIB-SEMANTIC-BINDINGS (dev-88738, exp 04:23Z), while its two
+  match consumers in `build-evaluation/admission/selection.rs` are unfenced.
+  The `native_hosted_target()` cfg arm's file is held by
+  DOMAIN-ISSUER-ROUTES (swarm-w9-ffival, exp 11:40Z); the hosted-receiver
+  bridge arm stays fenced by PLAN-LAID-VIEWS (zergling-z27, exp 09:25Z);
+  the Intel-host run remains hardware-gated. Earliest reopen ~04:23Z for
+  the entry-contract leg.
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
   validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a
   host-free `alpha-beta-edge.sh` leg, validates both committed containers as
@@ -8552,19 +8570,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   whole-root and resolution-drift rejections stay green
   (`cargo nextest run -p build-evaluation --lib`).
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY.** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
-  Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
-  — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
-  already catalogues the host through checked admission (which refuses on
-  the missing `targets/macos_x86_64` provider package); the enumerated legs
-  are the `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
-  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
-  (`image_output.rs` refuses `(MachO, X86_64)`), the
-  `native_hosted_target()` cfg arm in `canary_suite.rs`, and a real
-  x86_64-apple-darwin host run. Every implementing surface is under that
-  item's live claims this wave (image-macho/image_output.rs +
-  macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
-  installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
-  all Devin / swarm-w9-macos-x64-host-profile).
 - **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
   span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
   (verified `14e6f8f72e`). Verified at `96b4afed92e5`: every intrinsic
