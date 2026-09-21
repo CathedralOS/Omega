@@ -2,7 +2,7 @@
 
 from groups import cases as group_cases
 from mutations import cases as mutation_cases
-from physical_cases import cases as physical_cases, source_spine
+from physical_cases import cases as physical_cases, full_extent, source_spine
 from wire import LIMIT, MAGIC, envelope, example, rejected, words
 
 
@@ -22,6 +22,9 @@ def cases():
     yield "outer_trailing", valid + b"X", rejected(228, 5), 2, 60
 
     yield source_spine()
+    # The provision's exact extent admits and the inner scan traverses every
+    # payload word; the certificate ends at the request's final byte.
+    yield full_extent()
     # This tests forwarding, not a 130-MiB inner scan: outer admission stops first.
     oversized = MAGIC + words(LIMIT - 23, 0, 0, 0) + b"\x00" * (LIMIT - 23)
     incomplete = b"\x02" + words(1, LIMIT, LIMIT, LIMIT + 1)
