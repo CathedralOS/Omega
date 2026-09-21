@@ -10602,6 +10602,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `test_matching_logic_metrics.py` → 16/16.
   Re-witnessed again at `138ed79a677`: validate → 3/3 conform,
   unittest → 16/16.
+  Re-witnessed at `0a0662ad27a`: `run_metrics.py validate
+  tools/matching-logic-metrics/records/*.json` → 3/3 conform to
+  `omega-matching-logic-comparison/1`;
+  `tools/tests/test_matching_logic_metrics.py` → 16/16
+  (the suite lives under `tools/tests/`, not beside the harness).
 - **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
   at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
   adjudicated surface (chapter 14's recorded gap: a trait requirement
