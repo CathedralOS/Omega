@@ -9183,6 +9183,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   entrypoint, and the `aggregate_foreign_boundary_members` early-refusal
   recorded above is still absent from `wiki/drafts/known_baseline_failures.md`.
   The lane is still red upstream of itself.
+  Re-verified at `0a0662ad27a` (linux x86-64): the custody stop is
+  unchanged at `root.rs:146` and the pin suite is back to 4/4 PASS —
+  `36b4b2c0a0d76` re-pinned `aggregate_foreign_boundary_members_refuse_at_terminal_entry_establishment`
+  against the earlier c2l guard, discharging the `ded56393da2` staleness
+  note. The z50 parser merge (`e1fed3a9f83ec`: generic parameter lists on
+  data declarations, harness growth) landed upstream but does not move
+  the custody frontier. No claims on `service_custody`, `source/psi`,
+  `source/omega`, or the test-parser surfaces; the only adjacent fence
+  is NOMINAL-FIELD-FLOW's `boundary_dispatch.rs` (z30 ~11:23Z), disjoint
+  from the stop. The blocker is the item-owned
+  OMEGA-PRODUCT-COMPILER-SOURCE frontier, not a fence.
+  Remaining: none inside this row.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the cross-package dynamic loan-origin cluster already
   closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per the
