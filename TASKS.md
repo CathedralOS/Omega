@@ -10350,7 +10350,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   UEFI-OS-HANDOFF — the source-authored two-surface entry and the
   handoff that make an EFI host row possible at all). No implementable
   slice exists inside the current matrix fence; the promotion decision is
-  a milestone statement, not a lane task.
+  a milestone statement, not a lane task. Re-verified at `7d03d489e3d9` (swarm-w9-ffival, linux x86-64): the hosted matrix in rust_compiler_completion.md is unchanged — four hosted rows, EFI still a separately stated milestone (:21) — and both named UEFI gates remain open rows (UEFI-PHYSICAL-SEMANTIC-ENTRY live-claimed by z88 to ~08:44Z; UEFI-OS-HANDOFF depends on it). Claim probe on TASKS.md exits 2 under broad board fencing. Promotion stays a milestone decision, not a lane task — nothing new to do here.
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
 - **EPSILON-BOOTSTRAP-CHAIN.** Mined candidate — resolved: scope verified,
   route already exercised. The name re-mines the epsilon rung of the
