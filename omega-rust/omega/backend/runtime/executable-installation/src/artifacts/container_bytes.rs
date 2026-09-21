@@ -13,11 +13,12 @@ mod tests;
 
 pub use decoding::decode_executable_container;
 
-use super::{
-    Artifact, ContainerLimits, InstallationDiagnostic, NonAuthoritativeInformationalFingerprint64,
-};
+use crate::artifacts::Artifact;
+use crate::artifacts::container::ContainerLimits;
+use crate::authority_digests::NonAuthoritativeInformationalFingerprint64;
+use crate::installation::InstallationDiagnostic;
 
-use crate::executable_installation::container_bytes::encoding::encode_executable_container_version;
+use crate::artifacts::container_bytes::encoding::encode_executable_container_version;
 
 pub const OMEGA_EXECUTABLE_CONTAINER_MAGIC: [u8; 8] = *b"OMEGAXE!";
 

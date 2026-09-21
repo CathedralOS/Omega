@@ -1,26 +1,29 @@
 //! Encoding one executable container version and its records.
 
-use crate::executable_installation::container_bytes::decoding::checked_slice_mut;
-use crate::executable_installation::container_bytes::record_layouts::{
+use crate::artifacts::Artifact;
+use crate::artifacts::container::{
+    ArtifactRelocationKind, ContainerLimits, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
+    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, normalized_proof_payload_digest,
+};
+use crate::artifacts::container_bytes::decoding::checked_slice_mut;
+use crate::artifacts::container_bytes::decoding::decode_executable_container;
+use crate::artifacts::container_bytes::record_layouts::{
     entry_layout, header_layout, identity_layout, placement_layout, relocation_layout,
     section_layout,
 };
-use crate::executable_installation::container_bytes::{
+use crate::artifacts::container_bytes::{
     AUTHORITY_COMMITMENT_BYTES, ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES,
     OMEGA_EXECUTABLE_CONTAINER_MAGIC, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
     PLACEMENT_RECORD_BYTES, RELOCATION_COUNT_BYTES, RELOCATION_RECORD_BYTES,
     SECTION_AUTHORITY_COMMITMENTS, SECTION_CODE, SECTION_CONTRACTS, SECTION_ENTRIES,
     SECTION_FOOTPRINT, SECTION_PLACEMENT, SECTION_PROOF, SECTION_RELOCATIONS,
-    decode_executable_container,
 };
-use crate::executable_installation::{
-    Architecture, Artifact, ArtifactRelocationKind, ContainerLimits, InstallationDiagnostic,
-    OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, RelocationTarget,
-    normalized_proof_payload_digest,
-};
+use crate::installation::InstallationDiagnostic;
+use layout_plans::RelocationTarget;
 use layout_plans::{
     ByteOrder, LayoutPlanReport, PlacementPhase, ScalarFieldValue, materialize_scalar_layout_into,
 };
+use target::Architecture;
 
 pub(crate) fn encode_executable_container_version(
     artifact: &Artifact,

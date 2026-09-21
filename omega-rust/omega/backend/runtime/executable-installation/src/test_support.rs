@@ -1,15 +1,24 @@
-use super::{
-    AdmissionReceiptId, AdmittedArtifact, Architecture, Artifact, ArtifactAdmissionEvidence,
-    ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId, CodePlacementAuthority,
-    CodePlacementId, DecodedArtifactRelocation, DestinationPreparationReceipt,
-    DestinationPreparationReceiptId, EntrySetId, EntryStubId, FinalValidationCertificate,
-    FinalValidationId, FrozenPlacement, InstallAuthority, InstallationAudience,
-    InstallationDiagnostic, InstallationReceipt, InstallationScopeId, InstalledCode,
-    InstalledCodeId, MachineContractSetId, MachineFootprintId, MaterializationReceipt,
-    PlacementConstraints, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
-    install_validated, materialize_admitted_artifact, materialize_and_freeze,
-    validate_final_placement,
+use crate::artifacts::container::DecodedArtifactRelocation;
+use crate::artifacts::{
+    AdmittedArtifact, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, InstallationAudience,
 };
+use crate::authority_digests::ArtifactAuthorityCommitments;
+use crate::authority_digests::{
+    AdmissionReceiptId, ArtifactId, CodePlacementId, DestinationPreparationReceiptId, EntrySetId,
+    FinalValidationId, InstallationScopeId, InstalledCodeId, MachineContractSetId,
+    MachineFootprintId, PlacementPlanId, RelocationSetId,
+};
+use crate::executable_installation::{
+    admit_executable, install_validated, materialize_and_freeze, validate_final_placement,
+};
+use crate::installation::{
+    InstallAuthority, InstallationDiagnostic, InstallationReceipt, InstalledCode, WxEnforcement,
+};
+use crate::placement::materializer::materialize_admitted_artifact;
+use crate::placement::{
+    CodePlacementAuthority, FinalValidationCertificate, FrozenPlacement, MaterializationReceipt,
+};
+use crate::post_handoff_writer::DestinationPreparationReceipt;
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use extents::{
     ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappedExtent, MappingEraId,
@@ -20,6 +29,8 @@ use extents::{
 use layout_plans::{
     ArtifactInstallationScopeId, PlacementAddressRange, PlacementPhase, PlacementSite,
 };
+use layout_plans::{EntryStubId, PlacementConstraints};
+use target::Architecture;
 
 pub(super) fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
     constructor(identity).expect("normalized installation identity")

@@ -4,11 +4,12 @@
 //! belong to this protocol. Successful output remains unpublished; it does not
 //! grant hardware-table validity or executable installation authority.
 
-use super::{
-    ArtifactId, DestinationPreparationReceiptId, InstallationDiagnostic, InstalledCode,
-    InstalledCodeId, NonAuthoritativeWriterContextFingerprint64,
+use crate::authority_digests::{
+    ArtifactId, DestinationPreparationReceiptId, InstalledCodeId,
+    NonAuthoritativeWriterContextFingerprint64,
 };
-use crate::executable_installation::installation::InstalledCodeEvidence;
+use crate::installation::InstalledCodeEvidence;
+use crate::installation::{InstallationDiagnostic, InstalledCode};
 use extents::{ExtentRights, MappedExtent, MappingReceiptContext};
 use layout_plans::{
     MaterializationDiagnostic, POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PlacementSite,

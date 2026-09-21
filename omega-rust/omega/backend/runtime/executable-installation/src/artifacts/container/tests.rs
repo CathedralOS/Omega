@@ -1,21 +1,30 @@
 //! Executable container encoding and validation tests.
 
-use super::super::{ArtifactAdmissionEvidence, EntryStubId, admit_executable};
-use super::{
-    AdmissionReceiptId, Architecture, ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId,
+use crate::artifacts::ArtifactAdmissionEvidence;
+use crate::artifacts::ArtifactEntry;
+use crate::artifacts::container::{
     ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
-    DecodedArtifactContainer, DecodedArtifactRelocation, EntrySetId, InstallationDiagnostic,
-    MachineContractSetId, MachineFootprintId, NonAuthoritativeContainerFingerprint64,
-    NonAuthoritativeInformationalFingerprint64, OMEGA_EXECUTABLE_CONTAINER_MARKER,
-    OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, PlacementConstraints, PlacementPlanId, RelocationSetId,
-    RelocationTarget, ValidatedArtifactContainer, ValidatedContainerAdmissionEvidence,
-    admit_validated_container, non_authoritative_decoded_container_fingerprint,
-    normalized_decoded_content_digest, normalized_proof_payload_digest, validate_decoded_container,
+    DecodedArtifactContainer, DecodedArtifactRelocation, OMEGA_EXECUTABLE_CONTAINER_MARKER,
+    OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, ValidatedArtifactContainer,
+    ValidatedContainerAdmissionEvidence, admit_validated_container,
+    non_authoritative_decoded_container_fingerprint, normalized_decoded_content_digest,
+    normalized_proof_payload_digest, validate_decoded_container,
 };
+use crate::authority_digests::ArtifactAuthorityCommitments;
+use crate::authority_digests::{
+    AdmissionReceiptId, ArtifactId, EntrySetId, MachineContractSetId, MachineFootprintId,
+    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
+    PlacementPlanId, RelocationSetId,
+};
+use crate::executable_installation::admit_executable;
+use crate::installation::InstallationDiagnostic;
+use layout_plans::EntryStubId;
 use layout_plans::{
     ArtifactInstallationScopeId, DataSymbolId, MachineRegimeId, PlacementAddressRange,
     PlacementPhase,
 };
+use layout_plans::{PlacementConstraints, RelocationTarget};
+use target::Architecture;
 
 fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic>) -> T {
     constructor(identity).expect("normalized identity")

@@ -750,7 +750,18 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ),
     (
         "omega/backend/runtime/executable-installation",
-        &["executable_installation"],
+        &[
+            "artifacts",
+            "authority_digests",
+            "entry_references",
+            "executable_installation",
+            "installation",
+            "owned_image_provider",
+            "placement",
+            "post_handoff_writer",
+            "retirement",
+            "test_support",
+        ],
     ),
     (
         "omega/backend/runtime/external-roots",

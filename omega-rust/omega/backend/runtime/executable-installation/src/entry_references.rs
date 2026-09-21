@@ -21,11 +21,11 @@
 
 use std::collections::BTreeSet;
 
-use crate::executable_installation::installation::InstalledCodeEvidence;
-use crate::executable_installation::{
-    ArtifactId, EntryContractDigest, EntryReferenceFactDigest, InstallationDiagnostic,
-    InstalledCode, InstalledCodeContext, InstalledCodeId,
+use crate::authority_digests::{
+    ArtifactId, EntryContractDigest, EntryReferenceFactDigest, InstalledCodeId,
 };
+use crate::installation::InstalledCodeEvidence;
+use crate::installation::{InstallationDiagnostic, InstalledCode, InstalledCodeContext};
 use installation_evidence::InstalledArtifactOccurrenceDigest;
 use layout_plans::{EntryStubId, RelocationTarget};
 

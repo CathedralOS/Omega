@@ -45,16 +45,23 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::executable_installation::code_placement::ValidatedPlacementEvidence;
-use crate::executable_installation::installation::InstalledCodeEvidence;
-use crate::executable_installation::{
-    Artifact, ArtifactContentDigest, EntryContractDigest, EntryReferenceAuthority,
-    EntryReferenceFactDigest, EntryReferenceReceipt, InstallAuthority, InstallationDiagnostic,
-    InstallationFactDigest, InstallationReceipt, InstalledCode, InstalledCodeId,
-    InstalledEntryReference, MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt,
-    ReplacementAuthority, ReplacementFactDigest, ReplacementReceipt, RetirementAuthority,
-    RetirementFactDigest, RetirementReceipt, ValidatedPlacement, WxEnforcement,
+use crate::artifacts::Artifact;
+use crate::authority_digests::{
+    ArtifactContentDigest, EntryContractDigest, EntryReferenceFactDigest, InstallationFactDigest,
+    InstalledCodeId, MappingQuarantineId, ReplacementFactDigest, RetirementFactDigest,
 };
+use crate::entry_references::{
+    EntryReferenceAuthority, EntryReferenceReceipt, InstalledEntryReference,
+};
+use crate::installation::InstalledCodeEvidence;
+use crate::installation::{
+    InstallAuthority, InstallationDiagnostic, InstallationReceipt, InstalledCode, WxEnforcement,
+};
+use crate::placement::ValidatedPlacement;
+use crate::placement::ValidatedPlacementEvidence;
+use crate::retirement::quarantine::{MappingQuarantineCause, MappingQuarantineReceipt};
+use crate::retirement::replacement::{ReplacementAuthority, ReplacementReceipt};
+use crate::retirement::{RetirementAuthority, RetirementReceipt};
 use layout_plans::EntryStubId;
 use target::Architecture;
 

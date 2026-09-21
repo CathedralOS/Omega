@@ -1,14 +1,19 @@
 use sha2::Digest;
 
-use super::{
-    AdmissionReceiptId, AdmittedArtifact, Architecture, Artifact, ArtifactAdmissionEvidence,
-    ArtifactAuthorityCommitments, ArtifactContentDigest, ArtifactEntry, ArtifactId, EntrySetId,
-    InstallationDiagnostic, MachineContractSetId, MachineFootprintId,
-    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
-    PlacementConstraints, PlacementPlanId, ProofPayloadDigest, RelocationSetId, RelocationTarget,
-    Sha256, admit_executable,
+use crate::artifacts::RetainedContainerProof;
+use crate::artifacts::{AdmittedArtifact, Artifact, ArtifactAdmissionEvidence, ArtifactEntry};
+use crate::authority_digests::ArtifactAuthorityCommitments;
+use crate::authority_digests::{
+    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, EntrySetId, MachineContractSetId,
+    MachineFootprintId, NonAuthoritativeContainerFingerprint64,
+    NonAuthoritativeInformationalFingerprint64, PlacementPlanId, ProofPayloadDigest,
+    RelocationSetId,
 };
-use crate::executable_installation::artifacts::RetainedContainerProof;
+use crate::executable_installation::admit_executable;
+use crate::installation::InstallationDiagnostic;
+use layout_plans::{PlacementConstraints, RelocationTarget};
+use sha2::Sha256;
+use target::Architecture;
 pub const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
 pub const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");
 pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;

@@ -219,7 +219,7 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "component section names bound to sealed digests",
     ),
     (
-        "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation/container_bytes/decoding.rs",
+        "omega-rust/omega/backend/runtime/executable-installation/src/artifacts/container_bytes/decoding.rs",
         "container section names bound to byte offsets",
     ),
     (

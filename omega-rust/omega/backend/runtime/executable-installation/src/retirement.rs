@@ -1,9 +1,19 @@
-//! Retirement authorities, receipts and retired installations.
+//! Retirement authorities, receipts and retired installations — the endings
+//! of an installed realization.
+//!
+//! `uninstall.rs` is the drain-or-quarantine join, `replacement.rs` the
+//! patch-then-drain join, and `quarantine.rs` the trapping reservation a
+//! drain that cannot complete parks in.
 
-use crate::executable_installation::installation::InstalledCodeEvidence;
-use crate::executable_installation::{
-    AdmittedArtifact, CodePlacement, InstallationDiagnostic, InstalledCode, RetirementFactDigest,
-};
+pub(crate) mod quarantine;
+pub(crate) mod replacement;
+pub(crate) mod uninstall;
+
+use crate::artifacts::AdmittedArtifact;
+use crate::authority_digests::RetirementFactDigest;
+use crate::installation::InstalledCodeEvidence;
+use crate::installation::{InstallationDiagnostic, InstalledCode};
+use crate::placement::CodePlacement;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetirementAuthority {

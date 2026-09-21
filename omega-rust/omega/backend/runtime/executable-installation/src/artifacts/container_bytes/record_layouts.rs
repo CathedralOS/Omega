@@ -1,6 +1,6 @@
 //! Fixed record layouts and schemas of the container sections.
 
-use crate::executable_installation::container_bytes::{
+use crate::artifacts::container_bytes::{
     ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES,
     OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES, PLACEMENT_RECORD_BYTES,
     RELOCATION_RECORD_BYTES,

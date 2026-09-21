@@ -1,11 +1,13 @@
 //! Install authorities, receipts, installed code, its registry authority
 //! and installation diagnostics.
 
-use crate::executable_installation::code_placement::ValidatedPlacementEvidence;
-use crate::executable_installation::{
-    ArtifactId, CodePlacementId, FinalValidationId, InstallationAudience, InstallationFactDigest,
-    InstallationScopeId, InstalledCodeId, ValidatedPlacement,
+use crate::artifacts::InstallationAudience;
+use crate::authority_digests::{
+    ArtifactId, CodePlacementId, FinalValidationId, InstallationFactDigest, InstallationScopeId,
+    InstalledCodeId,
 };
+use crate::placement::ValidatedPlacement;
+use crate::placement::ValidatedPlacementEvidence;
 use installation_evidence::InstalledArtifactOccurrenceDigest;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
 use sha2::Digest;
