@@ -9443,7 +9443,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (PCC-PRODUCT-PUBLICATION, 22:38Z), `terminal_product/integer_comparisons.rs`
   (BENCHMARK-COMPARISON-OCCURRENCE-GATE, 22:09Z). A new observation product
   would first need a concrete authorized design. Sibling re-mine name:
-  COMPILER-OBSERVATION-OUTPUTS.
+  COMPILER-OBSERVATION-OUTPUTS. Re-audited at `6f91898606` (z161, ~08:33Z)
+  under the COMPILER-OBSERVATION-OUTPUTS dispatch: README.md:92 still
+  pins "no full/output-only observation policy" and observations.md plus
+  the cited product surfaces are unchanged since the row's recorded
+  verification (empty diff `3dac85e5cc..HEAD`); the recorded claims have
+  all drained — no live claim covers `compile_report.rs`, `pcc.rs`, or
+  `terminal_product/integer_comparisons.rs`. The closure is a spec
+  boundary, not a fence — a new observation product still needs an
+  authorized design before any slice exists.
 - **COMPILER-PASS-PROFILE-INSTRUMENTATION.** — mined candidate; scope verified,
   covered — z142's verification draft
   (`wiki/drafts/compiler_pass_profile_instrumentation_z142.md`) already
