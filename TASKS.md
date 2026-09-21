@@ -10750,6 +10750,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `omega-matching-logic-comparison/1`;
   `tools/tests/test_matching_logic_metrics.py` → 16/16
   (the suite lives under `tools/tests/`, not beside the harness).
+  Re-witnessed at `72fc66d6c3267`: `run_metrics.py validate` → 3/3
+  records conform to `omega-matching-logic-comparison/1`,
+  `tools/tests/test_matching_logic_metrics.py` → 16/16.
 - **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
   at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
   adjudicated surface (chapter 14's recorded gap: a trait requirement
