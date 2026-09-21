@@ -9399,7 +9399,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   nine fail at clean `origin/main` with no local commits. Their assertions are correct as
   written and were deliberately left unrelaxed — relaxing them would mask the regression.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
-- **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
+- **REGION-ALIGNMENT-EXPANSION.** Mined candidate — scope verified,
+  owner row for the region alignment/expansion residual of the Squalr
+  geometry-parity audit. The gap is concrete:
+  `samples/apps/squalr/squalr-engine-api/src/structures/memory/normalized_region.omg`
+  carries the seed's own admission — "hashing, alignment adjustment, and
+  expansion are not implemented in this seed" — so the residual is the
+  normalized-region alignment-adjustment and expansion machines plus their
+  rejection cases in the seed port. The implementing edit lives inside
+  `samples/apps/squalr`, wholesale dir-fenced this wave by
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z); the earlier
+  GEOMETRY-ALIGNMENT-REGIONS dir-fence (~01:18Z) has drained. Sibling
+  SQUALR-REGION-ALIGNMENT-EXPANSION is the app-lane row for the same
+  residual, and SQUALR-GEOMETRY-PARITY-RESIDUE's resolved audit maps this
+  enumerated gap to these rows. No linux_x86_64 slice exists outside the
+  claimed fence — coordinate with the squalr port lane before working it.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
 - **REPOSITORY-BASELINE-GATE** — mined candidate; verify scope then implement.
