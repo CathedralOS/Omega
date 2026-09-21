@@ -53,7 +53,7 @@ pub use contract_queries::{
     proven_machine_contract_expressions, validate_checked_operator_realization_contract,
     validate_generic_machine_contract_entailment,
 };
-use statements::{is_exact_executable_drop_body, validate_state_statement_node};
+use statements::validate_state_statement_node;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExactIntegerCastFact {
@@ -246,24 +246,6 @@ fn validate(
     let call_frames = calls::CallFrameResolver::new(program);
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
-
-        // Besides the established empty body, the executable cleanup slice
-        // admits a finite nonempty source-ordered list of ordinary zero-argument
-        // calls to mutually distinct exact-empty attached helpers.
-        if machine.name.as_str().ends_with("::drop")
-            && program.machine_states(machine).iter().any(|state| {
-                !program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .is_empty()
-            })
-            && !is_exact_executable_drop_body(program, machine)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has a non-empty `drop` body outside the executable cleanup slice. Keep the body empty, or use a finite nonempty source-ordered list of ordinary zero-argument calls to mutually distinct empty attached helpers.",
-                machine.name,
-            )));
-        }
 
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_generic_conformance_bounds(program, machine, &mut diagnostics);

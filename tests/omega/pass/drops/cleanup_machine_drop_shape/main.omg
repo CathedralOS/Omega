@@ -4,17 +4,14 @@
 // responsible for the structural cleanup. Defining the drop machine and letting
 // an owned local die at end of state type-checks cleanly.
 //
-// The executable cleanup slice additionally admits a NON-EMPTY `drop` body as
-// a source-ordered list of zero-argument calls to mutually distinct empty
-// helpers, each attached to a member-less marker type — the declared teardown
-// ordering shape until ordinary drop lowering lands.
+// A non-empty `drop` body is an ordinary Unit machine body: a source-ordered
+// list of ordinary calls to attached helpers runs at the cleanup edge.
 
 data Guard {
     handle: i32;
 }
 
-// Marker carrier for the ordered teardown helpers: the slice requires each
-// helper to attach to a data type with no members.
+// Marker carrier for the ordered teardown helpers.
 data Teardown {
 }
 
