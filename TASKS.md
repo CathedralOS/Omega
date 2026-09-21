@@ -1982,8 +1982,20 @@ Owners include
 
   Remaining work:
 
-  - Add a Terminal Trapping operation family with its `terminal-verifier`
-    rule, `terminal-interpreter` case and Omega realization.
+  - DESIGN-BLOCKED on OWNER_QUESTIONS.md question 3
+    (`terminal-operation-level-trap-crash-site`): add a Terminal Trapping
+    operation family with its `terminal-verifier` rule,
+    `terminal-interpreter` case and Omega realization. The blocker is not
+    the family but its crash site. `observations.md` enumerates the
+    reconstructed profile as a closed row list, and only two groups carry a
+    crash — group 3 keyed by edge (`terminal_trace_v1.rs:232`,
+    `(MachineId, BlockId, EdgeId)`) and group 4 keyed by a `BoundaryCall`'s
+    operation plus its boundary public identity and route bucket
+    (`terminal_trace_v1.rs:236`). A trapping `a + b` has neither an edge nor
+    a boundary identity, and the same section forbids fabricating a
+    terminator edge for an operation-level crash, so no admitted encoding
+    exists for it. Resuming means choosing a profile row shape and moving
+    `omega.terminal.observation-profile.v1` with it.
     `checked-trees-to-lowered-psi/src/expression_preparation/`
     (`prepare_expression.rs`, `bindings/mod.rs`) refuses `IntegerTrappingCast`
     and now the checked `TrappingShiftLeft`/`TrappingShiftRight` forms with
