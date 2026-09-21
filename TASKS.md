@@ -9088,13 +9088,37 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     scans per operator-by-fact pair and `member_targets.rs:369-381` tests
     membership with a `Vec` linear scan.
 
-  Remaining work, in increasing risk: thread one reconstruction through
-  `retain_provable` rather than reconstructing twice (measured headroom ~2x);
-  fix the `expression_contains` visited set and hoist the per-operator scan
-  (most of the checking stage); and stop rebuilding the full equality roster
-  per condition fact, which is the actual O(N^2) and the only one that changes
-  the asymptotics — it alters what the kernel is shown, so it needs a careful
-  design pass, though not an owner decision.
+  **Two of the four centres are closed at `4003c703186`**, measured on the
+  terminating reduction: the checking-stage `expression_contains` visited set
+  and per-operator scan (7.02s to 3.35s, 2.09x), and the duplicated
+  whole-module reconstruction in `retain_provable` (lowering 37.8s to 31.0s;
+  a counter inside `reconstruct_terminal_obligations` showed the call count
+  fall from 2 to 1, 13.4s to 6.7s, so the whole saving is the removed
+  duplicate). Total 51.6s to 41.1s, 1.26x. The same obligations are
+  discharged either way — 633 evidence rows and 633 reconstructed obligations
+  before and after, on every run. The unreduced fixture still returns no
+  verdict, killed at 780s; these two were never predicted to make it
+  terminate.
+
+  Remaining work: stop rebuilding the full equality roster per condition fact
+  in `terminal-verifier/.../path_facts/conditions.rs:71-84`. That is the
+  actual O(N^2) and the only one of the four that changes the asymptotics; it
+  alters what the kernel is shown, so it needs a careful design pass, though
+  not an owner decision.
+
+  A fourth centre is now what remains of checking, and it is not one the
+  original diagnosis named: a profile of the remaining 3.3s shows no frame in
+  the repaired walk at all, and the time sits in
+  `checks::ranges::indexes::check_expression` and
+  `checks::ranges::facts::dependencies::RangeFacts::record_dependencies`,
+  each recursing about 25 levels beneath `seed_binary_guard_facts`. The
+  diagnosis's estimate that the two checking fixes were worth "most of a
+  7-second checking stage" was half right — they were worth exactly half.
+
+  Reproduction note for the reduction: it is the first **72** top-level `&&`
+  conjuncts under a split that treats the leading parenthesised triple as one
+  conjunct. That reading is the one that reproduces 7s checking, 38s lowering
+  and 633 evidence rows; counting the triple separately gives 73.
 
   **Do not bound the search.** 192 of 192 traced obligations are provable, so
   any bound here abandons obligations the compiler demonstrably proves. The
