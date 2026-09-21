@@ -29,7 +29,8 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
+    surface,
 };
 
 pub(super) struct Admission {
@@ -47,42 +48,6 @@ pub(super) struct Admission {
     /// instruction lands the run at the body end, index
     /// `target.instructions.len()`.
     pub landing_index: usize,
-}
-
-/// Whether a member's effect is pure register and condition-state work
-/// that adds no observable execution on the arrivals it never ran on.
-/// `schedulable` already cleared barrier kinds, call contracts, and
-/// unaccounted memory-capable kinds, but a row-less load or private-slot
-/// `Store64` still performs a memory access: sinking it would add the
-/// access — and any fault or slot write it carried — to every traversal
-/// entering the join through the other inflows. The same holds for kinds
-/// whose target encoding may architecturally fault: their proof
-/// obligations establish definedness for the source operation, but this
-/// audit runs at the selected level where the encoded trap behavior is
-/// the honest bound — an execution that could fault must still run only
-/// on the paths that ran it before. Every member of the run meets the
-/// bar independently: one impure member would newly run its effect on
-/// the same foreign arrivals.
-fn speculatable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        CopyBytes
-            | LoadPacked { .. }
-            | StorePacked { .. }
-            | Store { .. }
-            | Load8Indexed
-            | Load64 { .. }
-            | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Store64 { .. }
-            | ExactDivideU64 { .. }
-            | ExactDivideI64 { .. }
-            | ExactRemainderI64 { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-    )
 }
 
 pub(super) fn admit(
