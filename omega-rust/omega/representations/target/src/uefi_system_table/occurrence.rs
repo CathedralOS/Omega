@@ -341,7 +341,12 @@ fn crc32_ieee(bytes: impl IntoIterator<Item = u8>) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        HeaderGeometry, UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableNativeField,
+        UefiSystemTableNativeFieldLayout, UefiSystemTableOccurrenceValidationError,
+        ValidatedUefiSystemTableNativeLayout, crc32_ieee, header_geometry, read_u32,
+        system_table_crc32, validate_header_geometry, validate_uefi_system_table_occurrence,
+    };
     use crate::{TargetProfile, exact_uefi_x64_system_table_native_layout};
 
     const TEST_REVISION: u32 = (2 << 16) | 100;
