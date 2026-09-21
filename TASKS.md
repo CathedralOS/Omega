@@ -4917,6 +4917,14 @@ Owners include
   RUNTIME-VALUE-GENERICS on runtime binder equations, and
   STATE-LOCAL-VALUE-FRONTIER (~02:17Z) on the migration's storage legs.
   Coordinate with the structural-inference lane before picking this up.
+  Re-verified at `7241e022270d` (z157 leg): the controlling constraint is
+  unchanged — STRUCTURAL-GENERIC-INFERENCE still holds
+  `preparation/type_equations/` + `machine_equations.rs` live. Drift since
+  the note: the four dependency lanes' claims have all drained
+  (STATE-LOCAL-VALUE-FRONTIER, WRITE-ONLY-BORROW, ARITHMETIC-POLICY-
+  REALIZATION, RUNTIME-VALUE-GENERICS hold no paths at this check), so
+  their surfaces are technically open — but every leg here still edits the
+  fenced shared matcher, so no slice is independently landable regardless.
 
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
