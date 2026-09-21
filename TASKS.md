@@ -9539,7 +9539,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   by RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL (z140, ~15:31Z Sep 21). Fixture
   claim b7ba6f3a released.
 
-
+  Re-verified at `c3e3bfec35`: fixture still
+  authored under `tests/omega/pass/host/runtime_gui_foreground_window_exit`
+  and rostered in `ACTIVE_PASS_CANARIES` (`canary_suite.rs:4911`); the
+  Fused-`Gui`-provider compile stop, the `#[cfg(windows)]` run-leg gating,
+  and the producing-surface ownership are unchanged.
 - **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT.** — mined candidate; scope verified
   2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
   _literal_dispatch_exit` pair in the known-baseline-failures InvalidUnitMachinePlan
