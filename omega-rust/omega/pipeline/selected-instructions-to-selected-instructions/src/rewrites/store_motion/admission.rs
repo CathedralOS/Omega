@@ -89,7 +89,8 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
-    local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
+    local_slot_is_place_storage, local_store_shape, packed_store_row_shape,
+    place_store_row_shape, slot_is_subject_storage, staging_slot,
     structural_place_declarations,
 };
 use crate::rewrites::window_hazards::{coupled, is_barrier};
@@ -308,7 +309,9 @@ pub(super) fn admit<'source>(
     if packed {
         packed_store_shape(moved_store, environment)?;
     } else if direct_slot.is_some() {
-        local_store_shape(moved_store, environment)?;
+        local_store_shape(moved_store, environment, || {
+            StoreMutationMotionError::ConstraintMismatch
+        })?;
     } else {
         place_store_shape(moved_store, environment)?;
     }
@@ -449,42 +452,13 @@ fn place_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || !row.implicit_uses.is_empty()
+    place_store_row_shape(row, || StoreMutationMotionError::ConstraintMismatch)?;
+    if !row.implicit_uses.is_empty()
         || !row.implicit_defs.is_empty()
         || !row.clobbers.is_empty()
         || row.operands.iter().any(|operand| {
             operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
         })
-    {
-        return Err(StoreMutationMotionError::ConstraintMismatch);
-    }
-    Ok(())
-}
-
-/// The direct slot store's operand surface: the target's declared `store64`
-/// row — exactly `[use value]` — and the instruction carrying just that one
-/// use. The move defines nothing, so no custody check is needed.
-fn local_store_shape(
-    instruction: &SelectedInstruction,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<(), StoreMutationMotionError> {
-    if environment.selected_keys().store64 != Some(instruction.constraint) {
-        return Err(StoreMutationMotionError::ConstraintMismatch);
-    }
-    let row = environment
-        .constraint(instruction.constraint)
-        .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if row.operands.len() != 1
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands.len() != 1
-        || instruction.operands[0].operand != 0
-        || instruction.operands[0].access != RegisterOperandAccess::Use
     {
         return Err(StoreMutationMotionError::ConstraintMismatch);
     }
@@ -509,15 +483,8 @@ fn packed_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if row.operands.len() != 3
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || row.operands[2].operand != 2
-        || row.operands[2].access != RegisterOperandAccess::Def
-        || !row.operands[2].early_clobber
-        || row.operands[0].early_clobber
+    packed_store_row_shape(row, || StoreMutationMotionError::ConstraintMismatch)?;
+    if row.operands[0].early_clobber
         || row.operands[1].early_clobber
         || row
             .operands
