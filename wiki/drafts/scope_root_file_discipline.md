@@ -1,8 +1,8 @@
 # Scope verification: SV root-file discipline
 
 Scope-verification draft for `NEW-SV-ROOT-FILE-DISCIPLINE-SCOPE`, re-mining
-**ROOT-FILE-DISCIPLINE** (TASKS.md). Recorded against `59e0b5ec22d` on
-linux x86-64.
+**ROOT-FILE-DISCIPLINE** (TASKS.md). Recorded against `59e0b5ec22d`,
+re-verified at `b53c7ea2603` on linux x86-64.
 
 ## What the name binds
 
@@ -27,7 +27,7 @@ crate, not a `representations/` crate: it is absent from
 exhaustiveness check only sweeps `omega-rust/*/representations/*`. Its binding
 discipline is therefore the second rule.
 
-## Measured state at `59e0b5ec22d`
+## Measured state at `b53c7ea2603`
 
 `omega-rust/psi/foundation/semantic-vocabulary/src/`:
 
