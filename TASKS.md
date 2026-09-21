@@ -12262,6 +12262,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `--no-fail-fast` run of `checked-trees-to-lowered-psi` reports no SIGTERM
   member.
 
+||||||| parent of c9b90b49c416 (board: LOWERED-UNIT-FAILURE-ATTRIBUTION scope-verified — attribution already landed)
+- **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
+- **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
+- **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
+- **LOWERED-UNIT-FAILURE-ATTRIBUTION.** Scope verified at `9637703955c` —
+  names the unit-* failure attribution leg inside
+  `checked-trees-to-lowered-psi`. The attribution is already performed by
+  the fresh census (`wiki/drafts/c2l_failure_census_d936717f.md`, landed
+  `54e321bdf00`): the unit family is 19 of the 24 live failures —
+  `provider_attachment_source::*` (6) + `unit_state_graph::
+  provider_attachments::*` (9) + `guarded_scalar_returns_source::
+  stored_returned_cases_support_borrowed_refined_getters` (1) all in the
+  missing-transitive-machine-plans family owned by
+  GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, and `unit_plan_omissions::*`
+  (3) missing entry claims on omitted local constructions. Writing the
+  attribution into `known_baseline_failures.md` is file-fenced by
+  KNOWN-BASELINE-FAILURES-REFRESH (live claim); the owning repair lanes
+  are fenced separately (c2l `src/unit` by STRUCTURAL-UNIT-LOWERING,
+  `src/returns` by C2L-RESIDUAL-FAILURE-ATTRIBUTION). No independent
+  slice remains under this name.
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
   (Zergling-181): the "typed-to-one-sorted encoding" bullet of the bounded
   comparison in `wiki/drafts/matching_logic.md`, drafted in
