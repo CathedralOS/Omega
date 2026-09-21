@@ -8433,7 +8433,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `component-publication/` itself is unfenced tonight, but its tests.rs
   custody-matrix migration is CUSTODY-MATRIX-HARNESS-MIGRATION's item, not a
   startup-mechanics leg. No independent slice landable from this stub.
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; verify scope then implement.
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved
+  as drained (re-verified `7d03d489e3d`): the canonical same-name row below
+  carries the triage (57-failure census at `bd6cddcb59`, closed by
+  attribution into `wiki/drafts/known_baseline_failures.md`; residual
+  ledger refreshed at `e7c0099cb2b7` — 2206 run / 2183 pass / 23 fail).
+  Repairs stay with the owning lanes named there; the ledger itself is
+  claim-fenced this wave (NEW-KBF-LIB-CLUSTER-AND-STALE-ROWS-REFRESH holds
+  the draft path; KNOWN-BASELINE-FAILURES-REFRESH +
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION live pathless). No slice under
+  this stub.
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md) — produce committed
   `tools/benchmark/records/` rows for cross-target compile legs
