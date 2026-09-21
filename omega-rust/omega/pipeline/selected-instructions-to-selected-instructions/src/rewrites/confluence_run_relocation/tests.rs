@@ -2368,15 +2368,17 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+5+3+4 = 15), and again for this function's
-    // blocks (15). The crossed surfaces pair each member (1) against
-    // `T_TAIL` (1) and the `Jump` terminator (2 uses + defs on x86-64):
-    // (2+3) per member = 10 steps. The dead-path bound prices each
+    // blocks (15); the path walk pushes the lone `Jump` edge once (1).
+    // The crossed surfaces pair each member (1) against `T_TAIL` (1) —
+    // 2 per member — and each member against the `Jump` terminator (2
+    // uses + defs on x86-64) plus the plain edge's empty surface — 3 per
+    // member: (2+3)*2 = 10 steps. The dead-path bound prices each
     // block's body, terminator, and edge surfaces once per run location
     // plus the initial scan: on x86-64 the materializations cost 1 each,
     // the jumps 2, the branch 3, and the return 9 — (2+3)+(4+2)+(2+2)+
     // (3+9) = 27 — times two written member registers plus one:
     // 27*3 = 81.
-    let steps: u64 = 15 + 15 + 10 + 81;
+    let steps: u64 = 15 + 15 + 1 + 10 + 81;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_run_into_confluence(&source, 0, RUN_A, RUN_B, HEAD, &environment, exact)
         .unwrap();
@@ -2395,8 +2397,9 @@ fn measured_validation_step_boundary() {
         ConfluenceRunRelocationError::WorkBudgetExceeded
     );
     // Landing at the body end crosses the whole join body: each member
-    // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the terminator.
-    let steps_end: u64 = 15 + 15 + 22 + 81;
+    // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the `Jump`
+    // terminator's edge — (2+2+2+2+3) per member = 22.
+    let steps_end: u64 = 15 + 15 + 1 + 22 + 81;
     let exact = OptimizationWorkBudget::new(1, 1, steps_end, 1, 1).unwrap();
     relocate_selected_run_into_confluence(&source, 0, RUN_A, RUN_B, RET, &environment, exact)
         .unwrap();

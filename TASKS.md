@@ -9101,13 +9101,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   clean.
   Since recorded: `join_relocation`, `fork_relocation`,
   `local_relocation`, `diamond_relocation`, `diamond_run_relocation`,
-  `run_relocation`, `triangle_relocation`, `inflow_relocation`, and
-  `bypass_run_relocation` migrated the same way — each arm of the
-  shared audit's intermediate-block settlement refusal now covers the
-  triangle/diamond arms too (49c2e8d1ea's `window_hazards.rs` fix keys
-  the refusal on the crossed block, so an empty-bodied arm's index-0
-  settlement refuses).
-  Remaining legs: migrate arm/bypass/confluence/fork_run and the
+  `run_relocation`, `triangle_relocation`, `inflow_relocation`,
+  `bypass_relocation`, `bypass_run_relocation`,
+  `confluence_relocation`, and `confluence_run_relocation` migrated the
+  same way — each arm of the shared audit's intermediate-block
+  settlement refusal now covers the triangle/diamond arms too
+  (49c2e8d1ea's `window_hazards.rs` fix keys the refusal on the crossed
+  block, so an empty-bodied arm's index-0 settlement refuses). The
+  confluence pair keeps its own speculation burdens local — the
+  row-less `speculatable` member gate and the dead-path audit from the
+  landing index forward — while the lone `Jump` edge's window comes
+  from `crossed_window` + `admit_run_relocation`.
+  Remaining legs: migrate arm/fork_run and the
   interchange/commuting variants, then `local_schedule`, retiring each
   family's hand-rolled window scan — `arm_relocation` stays fenced to
   Zergling-65.
