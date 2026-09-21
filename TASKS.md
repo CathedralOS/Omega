@@ -7157,13 +7157,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
   alignment-string parsing gap inside the Squalr app's geometry lane
   (TASKS.md:6086; the parity audit at :6088 attributes it to that row).
-  Its only implementing surface is the `samples/apps/squalr` submodule,
-  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
-  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
-  residual set_alignment call-site gate is a compiler entry-mechanics
-  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
-  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
-  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+  Its only implementing surface is the `samples/apps/squalr` submodule.
+  Re-verified at `58b08fc20f2`: still covered — the sibling claims named
+  here drained; the submodule dir is now fenced only by
+  REGION-ALIGNMENT-EXPANSION (~07:25Z), with SQUALR-NAMED-TRAIT-OPERATORS
+  (~10:24Z) and GEOMETRY-WINDOWS-VALIDATION (~13:53Z) holding item claims
+  on the same lane. The residual set_alignment call-site gate stays a
+  compiler entry-mechanics item tracked under GEOMETRY-PARITY, not this
+  row. Sibling re-mine stubs on the same surface:
+  GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING,
+  SQUALR-ALIGNMENT-STRING-PARSING.
 - **ALPHA-WINDOWS-SEED-EXECUTION.** Mined candidate — scope verified at
   `a51cb805cc`, host-gated re-mine: the name re-covers the Windows x64 leg of
   the audited Alpha seed-execution surface already owned by
