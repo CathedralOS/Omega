@@ -17,6 +17,13 @@ pub data Seq<T> {
 // (order-insensitive multiplicity) rides the slice-extraction recursion
 // rungs that land later; this is the imported declaration the math_proofs
 // ladder's `Bag(items)` calls select.
+// Field note (review e561cf115d7e..088bd948dc20): pass/proofs/
+// proof_bag_view_reflexivity and fail/proofs/bag_view_false_twin describe
+// `Bag` as the *sorted canonical representative*; this stage is the slice
+// view, so `Bag([2,1]) == Bag([1,2])` is not derivable and a proof that
+// concludes `Bag(a) != Bag(b)` from slice inequality would affirm a false
+// multiset fact. Fix the canary comments or land the sorted form before
+// any rung relies on Bag inequality.
 pub data BagView {
     items: &[u64];
 }
