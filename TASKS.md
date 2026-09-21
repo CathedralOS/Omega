@@ -13023,7 +13023,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SINGLE-PROGRAM-ENTRY-SELECTION** — mined candidate; verify scope then implement.
 - **SNAPSHOT-STORAGE** — mined candidate; verify scope then implement.
 - **SNAPSHOT-STORAGE-AND-FILTERING** — mined candidate; verify scope then implement.
-- **SOURCE-SEMANTICS-SUITE** — mined candidate; verify scope then implement.
+- **SOURCE-SEMANTICS-SUITE** — mined candidate; scope verified,
+  covered — re-mines the release-matrix row **RC-SOURCE-SEMANTICS**
+  (`wiki/drafts/rust_compiler_completion.md`): `cargo nextest run
+  -p compiler --all-targets --no-fail-fast`, whose canonical row and
+  gate row are both under live sibling claims this wave
+  (RC-SOURCE-SEMANTICS, RC-SOURCE-SEMANTICS-GATE). Fresh linux-x86_64
+  measurement attempted at `b8d336adcf`: the suite ran to 3,118/3,123
+  completions with ≥1,110 failures before a host restart killed the
+  run (log lost with /tmp) — including `entry_and_abi::
+  pass_canaries_compile` FAIL reporting 177 member fixtures, dominated
+  by the recorded families still live: ProgramEntry↔Terminal
+  `rejoins 0 Terminal attachment identities` (fenced by
+  ENTRY-CONTENT-ROOTS), borrowed-storage `cannot transfer a non-copy
+  value out of borrowed storage`, `Service<R>` fixture-spelling
+  rejections, envelope `block` mismatches, and the samples_compile
+  umbrellas still open beyond 6,400 s. Prior full receipts remain the
+  canonical census: 1,887/3,070 pass (1,183 fail) in
+  `rc_native_matrix_host_legs_linux_x86_64.md` and the bounded
+  1,351/3,057 run in `rc_release_run_linux_x86_64.md`. No unclaimed
+  repair slice exists under this stub — the suite's green legs belong
+  to the named failure-family owners.
 - **SPILL-FAMILY-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **SPILL-STAGES-OWNERSHIP.** — mined candidate; scope verified, covered — the
   ownership answer is already recorded on the canonical row and in the module
