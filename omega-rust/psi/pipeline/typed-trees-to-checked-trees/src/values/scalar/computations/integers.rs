@@ -172,12 +172,10 @@ impl Builder<'_, '_> {
             ExpressionNode::Call(call) => {
                 // The resolved callee owns both the result carrier and its policy.
                 // A destination carrier is not evidence for either one.
-                let state = self.program.machines().iter().find_map(|machine| {
-                    self.program
-                        .machine_states(machine)
-                        .first()
-                        .filter(|state| state.symbol == call.target_symbol)
-                })?;
+                let (_, state) = crate::semantic_calls::find_machine_by_entry_state(
+                    self.program,
+                    call.target_symbol,
+                )?;
                 let primitive_type = self.program.primitive_type_reference(state.return_type)?;
                 if !is_integer(primitive_type) {
                     return None;
