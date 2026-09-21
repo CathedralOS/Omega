@@ -2225,6 +2225,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "IntegerMathTerm",
     ),
     (
+        "proof-term-tags",
+        "semantic_module/proof_term_wire.rs",
+        "decode_proof_term",
+        "proof term",
+    ),
+    (
         "content-term-tags",
         "semantic_module/content_wire.rs",
         "decode_content_term",
