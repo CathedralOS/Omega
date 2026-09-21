@@ -52,15 +52,28 @@ order, which contains no such record. A gate failure whose only difference is
 an extra `0000000000` group is this known transport artifact, not a contract
 violation.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-outcome/run.sh
 ```
 
+`run.sh --identity` is a host-free leg: it validates every bound identity and
+the expected observation, and assembles the customer and receipt-request byte
+streams on any Python-3 host (including Linux, or a Windows host before the
+multi-hour run). Only the evaluator executions need a seed host:
+
+```sh
+sh tests/bootstrap/omega-outcome/run.sh --identity
+```
+
 The gate requires Python 3, the selected checked-in Alpha seed, and the
 existing shell tools; macOS also requires `codesign` for the materialized
-evaluator. Outputs live in ignored `build/omega-outcome/`.
+evaluator. On the Windows route `python3` resolves to a Windows interpreter,
+which cannot open MSYS virtual paths; the wrapper translates the gate script,
+output directory, and execution-driver paths to Windows form via `cygpath`,
+and a `python3` PATH shim covers the sourced materializers' own interpreter
+calls. Outputs live in ignored `build/omega-outcome/`.
 `OMEGA_OUTCOME_OBSERVATION_SECONDS` overrides the default 14,400-second
 customer watchdog, `OMEGA_OUTCOME_RECEIPT_SECONDS` overrides the default
 1,800-second receipt-reconstruction watchdog, and `OMEGA_OUTCOME_BUILD_DIR`
