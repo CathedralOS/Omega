@@ -12580,7 +12580,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_arm64 cross-emit only; macos_arm64 unrecorded (no runner); and
   windows_x86_64 open with the runner procedure recorded. Re-run per row
   when the Service<R> fixture migrations and host runners land.
-- **RC-NATIVE-MATRIX-LINUX-ARM64.** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-ARM64.** Recorded at
+  `wiki/drafts/rc_native_matrix_linux_arm64.md` (suite counts re-witnessed
+  at `96b4afed92`, x86-64 host: 13 pass / 73 fail across 86 legs; emulated
+  execution leg recorded at `6ef64f6dd6` under named emulator
+  `qemu-aarch64-static` 1:6.2+dfsg-2ubuntu6.31). The hosted aarch64
+  receiver compiles and emits its ELF everywhere (3/3 cross-emit, 2/2
+  source-evaluated — that pair closed since the prior row), `cli_mvp`
+  cross-compiled and ran to exit 0 under qemu-user, and all 73 failures sit
+  in the recorded residual families (dominant: selected-ProgramEntry
+  rejoin). Closure needs a real `aarch64-unknown-linux-gnu` re-run — the
+  suite's `#[cfg]`-gated runtime legs skip under emulation.
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Re-run at `6ef64f6dd6`
   (linux-x86_64): 24 pass / 14 fail across 38 legs — identical to the
   `0977a4249e` recording; every green leg stays green and all 14 sysv legs
