@@ -346,23 +346,160 @@ pub(crate) fn normalize_index_expression(
             [normalize_index_expression(program, unary.operand, context)],
         ),
         // These shapes are rejected by PDI3 index validation. Keep their
-        // provisional identity structural and independent of diagnostic
-        // rendering so even a rejected tree never makes display text an
-        // equality oracle.
+        // provisional identity structural -- a kind tag over normalized
+        // children -- and independent of diagnostic rendering so even a
+        // rejected tree never makes display text an equality oracle, and two
+        // differently shaped rejected expressions never share one identity.
         ExpressionNode::Boolean(value) => atom("boolean", &value.to_string()),
         ExpressionNode::Float(value) => atom("float", &value.to_string()),
         ExpressionNode::String(value) => byte_atom("string", value),
-        ExpressionNode::ArrayLiteral(_)
-        | ExpressionNode::Match(_)
-        | ExpressionNode::Atomic(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Call(_)
-        | ExpressionNode::Indexed(_)
-        | ExpressionNode::Member(_)
-        | ExpressionNode::Borrow(_)
-        | ExpressionNode::Range(_)
-        | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::ZeroValue(_) => "unsupported-index-expression".to_owned(),
+        ExpressionNode::ArrayLiteral(elements) => compound(
+            "array-literal",
+            program
+                .expression_table
+                .expression_handles(*elements)
+                .iter()
+                .map(|element| normalize_index_expression(program, *element, context)),
+        ),
+        ExpressionNode::Match(match_expression) => compound(
+            "match",
+            std::iter::once(normalize_index_expression(
+                program,
+                match_expression.subject,
+                context,
+            ))
+            .chain(
+                program
+                    .expression_table
+                    .match_arms(match_expression.arms)
+                    .iter()
+                    .map(|arm| {
+                        compound(
+                            "arm",
+                            [
+                                match arm.pattern {
+                                    crate::expression::MatchPattern::Value(pattern) => {
+                                        normalize_index_expression(program, pattern, context)
+                                    }
+                                    crate::expression::MatchPattern::Wildcard => {
+                                        "wildcard".to_owned()
+                                    }
+                                },
+                                normalize_index_expression(program, arm.value, context),
+                            ],
+                        )
+                    }),
+            ),
+        ),
+        ExpressionNode::Atomic(atomic) => compound(
+            "atomic",
+            [
+                normalize_index_expression(program, atomic.value, context),
+                normalize_index_expression(program, atomic.result, context),
+                atom("ordering", &format!("{:?}", atomic.ordering)),
+                atom("result-custody", &format!("{:?}", atomic.result_custody)),
+            ],
+        ),
+        ExpressionNode::Cast(cast) => compound(
+            "cast",
+            [
+                normalize_index_expression(program, cast.value, context),
+                normalize_type_reference(program, cast.target_type, context),
+                atom("domain", cast.domain.name()),
+            ],
+        ),
+        ExpressionNode::Call(call) => compound(
+            "call",
+            std::iter::once(atom(
+                "target",
+                &context.name(program, call.target_symbol, call.target.as_str()),
+            ))
+            .chain(
+                call.receiver
+                    .is_valid()
+                    .then(|| normalize_index_expression(program, call.receiver, context)),
+            )
+            .chain(
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| normalize_index_expression(program, *argument, context)),
+            ),
+        ),
+        ExpressionNode::Indexed(indexed) => compound(
+            "indexed",
+            [
+                normalize_index_expression(program, indexed.collection, context),
+                normalize_index_expression(program, indexed.index, context),
+            ],
+        ),
+        ExpressionNode::Member(member) => compound(
+            "member",
+            std::iter::once(normalize_index_expression(
+                program,
+                member.receiver,
+                context,
+            ))
+            .chain(std::iter::once(atom("member", member.member.as_str())))
+            .chain(
+                member
+                    .case_variant
+                    .iter()
+                    .map(|variant| atom("case", variant.as_str())),
+            ),
+        ),
+        ExpressionNode::Borrow(borrow) => compound(
+            match borrow.access {
+                language_core::ReferenceAccess::Shared => "borrow",
+                language_core::ReferenceAccess::Mutable => "borrow-mut",
+                language_core::ReferenceAccess::WriteOnly => "borrow-write",
+            },
+            [normalize_index_expression(program, borrow.target, context)],
+        ),
+        ExpressionNode::Range(range) => compound(
+            if range.end_inclusive {
+                "range-inclusive"
+            } else {
+                "range-exclusive"
+            },
+            [
+                normalize_index_expression(program, range.start, context),
+                normalize_index_expression(program, range.end, context),
+            ],
+        ),
+        ExpressionNode::StructLiteral(literal) => compound(
+            "struct-literal",
+            std::iter::once(atom(
+                "type",
+                &context.name(program, literal.type_symbol, literal.type_name.as_str()),
+            ))
+            .chain(
+                literal
+                    .case_name
+                    .as_ref()
+                    .map(|case| atom("case", case.as_str())),
+            )
+            .chain(
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| {
+                        compound(
+                            "field",
+                            [
+                                atom("name", field.name.as_str()),
+                                normalize_index_expression(program, field.value, context),
+                            ],
+                        )
+                    }),
+            ),
+        ),
+        ExpressionNode::ZeroValue(type_reference) => compound(
+            "zero-value",
+            [normalize_type_reference(program, *type_reference, context)],
+        ),
     }
 }
 
