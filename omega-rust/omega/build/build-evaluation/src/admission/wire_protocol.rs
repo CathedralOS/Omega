@@ -1325,8 +1325,7 @@ mod tests {
     use super::{
         ScopeTable, build_wire_protocol_report, codec_requirement_report_identity,
         compatibility_verdicts, encode_requirement_report_identity, fields_equal,
-        normalized_wire_plan_report_identity, qualified_schema_path, schema_accepts,
-        search_route,
+        normalized_wire_plan_report_identity, qualified_schema_path, schema_accepts, search_route,
     };
     use artifacts::{
         WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry, WireTrustClass,

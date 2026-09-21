@@ -3,14 +3,14 @@
 pub mod preparation;
 
 use crate::{
+    BuildCanonicalSourceMetadataIdentity,
     evidence::observations::{
         BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
     },
-    BuildCanonicalSourceMetadataIdentity,
 };
 use build_output::{
-    capture, discard_materialized_snapshot, empty, BuildStagedOutputEntryKind,
-    BuildStagedOutputTree, CapturedBuildSourceInput,
+    BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
+    discard_materialized_snapshot, empty,
 };
 use build_time_evaluation::{
     BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
@@ -1098,8 +1098,10 @@ mod tests {
         assert!(!live_source.is_private_snapshot_execution(&live_source.filesystem_access()));
         let mut supplied_directory = scope.clone();
         supplied_directory.sponsor = Some(FilesystemSponsor::new(&private_root).unwrap());
-        assert!(!supplied_directory
-            .is_private_snapshot_execution(&supplied_directory.filesystem_access()));
+        assert!(
+            !supplied_directory
+                .is_private_snapshot_execution(&supplied_directory.filesystem_access())
+        );
         sponsor.dispose_private_staging().unwrap();
         assert!(!scope.is_private_snapshot_execution(&access));
         fs::remove_dir_all(fixture).unwrap();
@@ -1583,9 +1585,11 @@ mod tests {
                 None,
             )
         };
-        assert!(scope()
-            .with_required_outputs([b"artifact.txt".to_vec()])
-            .is_ok());
+        assert!(
+            scope()
+                .with_required_outputs([b"artifact.txt".to_vec()])
+                .is_ok()
+        );
         for bad in [
             Vec::new(),
             b"./dot".to_vec(),
@@ -1658,9 +1662,11 @@ mod tests {
         let diagnostics = scope
             .verify_required_outputs(Some(&dirs_only), "build")
             .expect_err("a directory cannot complete a required file");
-        assert!(diagnostics[0]
-            .to_string()
-            .contains("not a sealed regular file"));
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a sealed regular file")
+        );
     }
 
     #[cfg(unix)]
