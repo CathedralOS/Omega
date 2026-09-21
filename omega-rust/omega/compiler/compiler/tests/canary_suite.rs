@@ -309,6 +309,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "borrows/borrow_proposition_index_disequality_mut",
     "proofs/mathematical_call_premises",
     "proofs/case_call_premises",
+    "proofs/signature_call_premises",
     "proofs/constructor_zero_fields",
     // Graduated from fail/: each pinned a checked-stage fence that has since
     // lifted, so checked semantics admits the source.
@@ -1078,6 +1079,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/mathematical_call_missing_premise",
     "proofs/contract_call_missing_premise",
     "proofs/case_call_wrong_subject",
+    "proofs/signature_call_wrong_subject",
     "proofs/case_citation_wrong_result",
     "proofs/constructor_omitted_field_wrong_guarantee",
     "proofs/quotient_lift_unproved_termination_rejected",
