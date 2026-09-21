@@ -140,9 +140,37 @@ rc=0
 (
   export OMEGA_PATH_BETA_ENCODING_PACKAGE=$TMP/definition_package.bin
   require_beta_encoding_definition_package_identity
-) 2>/dev/null || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted definition package: identity check unexpectedly passed"
+) 2>"$TMP/corrupt-package.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted definition package: expected exit 3, got $rc"
+grep -q 'beta_encoding/README.md' "$TMP/corrupt-package.err" ||
+  fail "corrupted definition package: refusal did not cite the proof record"
 echo "corrupt: a one-byte definition package change is refused"
 
-echo "Proofs identity: bound closures materialized exactly; corrupted manifests, members, and package refused"
+head -c $((BETA_ENCODING_DEFINITION_PACKAGE_SIZE - 1)) \
+  "$OMEGA_PATH_BETA_ENCODING_PACKAGE" > "$TMP/truncated-package.bin"
+rc=0
+(
+  export OMEGA_PATH_BETA_ENCODING_PACKAGE=$TMP/truncated-package.bin
+  require_beta_encoding_definition_package_identity
+) 2>"$TMP/truncated-package.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated definition package: expected exit 3, got $rc"
+grep -q 'beta_encoding/README.md' "$TMP/truncated-package.err" ||
+  fail "truncated definition package: refusal did not cite the proof record"
+echo "truncate: a truncated definition package is refused with its record"
+
+cp "$OMEGA_PATH_BETA_ENCODING_PACKAGE" "$TMP/extended-package.bin"
+printf 'x' >> "$TMP/extended-package.bin"
+rc=0
+(
+  export OMEGA_PATH_BETA_ENCODING_PACKAGE=$TMP/extended-package.bin
+  require_beta_encoding_definition_package_identity
+) 2>"$TMP/extended-package.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "extended definition package: expected exit 3, got $rc"
+grep -q 'beta_encoding/README.md' "$TMP/extended-package.err" ||
+  fail "extended definition package: refusal did not cite the proof record"
+echo "extend: an extended definition package is refused with its record"
+
+echo "Proofs identity: bound closures materialized exactly; corrupted manifests and members refused; package corruption, truncation, and extension refused"
