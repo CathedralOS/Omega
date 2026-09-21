@@ -185,9 +185,7 @@ fn check_program(
     )?;
 
     match mode {
-        CheckingMode::Complete
-        | CheckingMode::PreliminaryPackage
-        | CheckingMode::SettledPackage => {
+        CheckingMode::PreliminaryPackage | CheckingMode::SettledPackage => {
             checks::check_checked_facts_recording_with_mutation_summaries(
                 &program,
                 &mut facts,
@@ -252,30 +250,16 @@ pub struct SelectedBoundaryFamilySpecialization {
     pub realization_machine: symbols::SymbolHandle,
 }
 
-/// Lower with exact selected generic operator providers supplied by the
-/// orchestration owner. Psi derives applications from authored uses and uses
-/// ordinary authoritative specialization; the request carries no application
-/// strings, capability assertions, or provider-selection policy.
+/// Settled checking with the exact selected generic operator providers the
+/// orchestration owner supplies. Psi derives applications from authored uses
+/// and uses ordinary authoritative specialization; the request carries no
+/// application strings, capability assertions, or provider-selection policy.
+///
+/// Standalone programs and package builds share this checkpoint: ordinary
+/// package selections stay strict while unresolved compiler-owned toolchain
+/// selections remain TCB input, so a package build must run its declaration
+/// authority gate over the result before issuing package evidence.
 pub fn lower_typed_trees_with_selected_generic_operator_providers(
-    program: typed_trees::TypedTrees,
-    selected: &[SelectedGenericOperatorProviderSpecialization],
-    selected_boundary_families: &[SelectedBoundaryFamilySpecialization],
-    opaque_property_receipts: &[::validation::OpaqueDataPropertyReceipt],
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(
-        program,
-        CheckingMode::SettledPackage,
-        selected,
-        selected_boundary_families,
-        opaque_property_receipts,
-    )
-}
-
-/// Final package-aware lowering keeps ordinary package selections strict while
-/// permitting unresolved compiler-owned toolchain selections to remain TCB
-/// input. The compiler must run its package declaration-authority gate over
-/// the result before issuing package evidence.
-pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
     program: typed_trees::TypedTrees,
     selected: &[SelectedGenericOperatorProviderSpecialization],
     selected_boundary_families: &[SelectedBoundaryFamilySpecialization],
@@ -293,11 +277,6 @@ pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
 /// These are distinct checking checkpoints, not freely combinable permissions.
 #[derive(Clone, Copy)]
 enum CheckingMode {
-    /// Strictly finalized checking retained for callers that must reject
-    /// toolchain late bindings; standalone and package routes currently both
-    /// settle toolchain-owned selections at build-time evaluation.
-    #[allow(dead_code)]
-    Complete,
     PreliminaryPackage,
     SettledPackage,
     #[cfg(test)]
@@ -380,11 +359,9 @@ mod tests {
 
     #[test]
     fn checking_modes_preserve_package_settlement_permissions() {
-        for mode in [CheckingMode::Complete, CheckingMode::CrashFactInspection] {
-            assert!(!mode.allows_pending_opaque_copy());
-            assert!(!mode.allows_pending_const_range_endpoints());
-            assert!(!mode.allows_unresolved_toolchain_selections());
-        }
+        assert!(!CheckingMode::CrashFactInspection.allows_pending_opaque_copy());
+        assert!(!CheckingMode::CrashFactInspection.allows_pending_const_range_endpoints());
+        assert!(!CheckingMode::CrashFactInspection.allows_unresolved_toolchain_selections());
         assert!(CheckingMode::PreliminaryPackage.allows_pending_opaque_copy());
         assert!(CheckingMode::PreliminaryPackage.allows_pending_const_range_endpoints());
         assert!(CheckingMode::PreliminaryPackage.allows_unresolved_toolchain_selections());

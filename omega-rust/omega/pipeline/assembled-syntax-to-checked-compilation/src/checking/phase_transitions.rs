@@ -199,21 +199,13 @@ pub(crate) fn typed_trees_to_checked_trees(
                 settlement.privileged_interrupt_table,
             ),
         )?;
-        let mut program = if settlement.package_inputs.is_some() {
-            typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(
-                typed,
-                &selected_generic_operator_providers,
-                &selected_boundary_families,
-                &opaque_property_receipts,
-            )?
-        } else {
+        let mut program =
             typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
                 typed,
                 &selected_generic_operator_providers,
                 &selected_boundary_families,
                 &opaque_property_receipts,
-            )?
-        };
+            )?;
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
             crate::package::declaration_admission::validate_authored_declaration_selections(

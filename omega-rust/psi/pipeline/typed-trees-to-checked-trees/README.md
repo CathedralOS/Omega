@@ -37,12 +37,11 @@ diagnostics clear; these views are not persisted rejection certificates.
 
 Semantic fact construction owns declaration facts, proof obligations and initial
 domain assumptions. Shared call-coordinate queries come directly from
-`semantic_calls`, not through the semantic fact builder. The legacy
-`lower_typed_program` API is an alias of the ordinary checking entrypoint; it
-does not introduce a second semantic-to-checked route.
+`semantic_calls`, not through the semantic fact builder.
 
-`checking.rs` names complete, preliminary-package, and settled-package checking
-as distinct modes. Semantic validation returns both operational and service-reach
+`checking.rs` names preliminary-package and settled-package checking as
+distinct modes; standalone programs and package builds share the settled
+checkpoint. Semantic validation returns both operational and service-reach
 analyses; behavior checking and fact construction consume those exact results
 without re-inferring them on the unchanged typed tree. Only the preliminary checkpoint permits pending opaque-copy
 evidence; both package checkpoints retain unresolved toolchain selections. Crash
