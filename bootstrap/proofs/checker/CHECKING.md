@@ -135,8 +135,8 @@ canonical closure and diagnostic compositions are measured by their
 manifests/pins; the whole artifact owner must retain its exact entry
 composition and verify this framing requirement.
 The [checking diagnostic](../../../tests/gamma/derivation-checking/source.tsv)
-is 1,391 lines and 63,510 bytes; an exact-limit checker input yields
-`4 + 63,510 + 136,314,880 = 136,382,494` framed bytes.
+is 1,391 lines and 63,512 bytes; an exact-limit checker input yields
+`4 + 63,512 + 136,314,880 = 136,382,496` framed bytes.
 
 Formation retains its independent 65,536-sort and 8,388,608-work-estimate
 preflights. The physical extent bounds payload words below 34,078,720 (< 2^26),
@@ -190,7 +190,7 @@ is admitted under a premise the checker did not derive in its own table.
 **GAMMA-DERIVATION-CHECKER** rederived the bounds of this ledger at the
 measured extent and selects the three coupled provisions: the 136,314,880-byte
 request extent and the 137,363,456-byte evaluator frame that holds it with the
-63,508-byte source framing; the 67,108,864-unit work counter, ~28% above the
+63,516-byte source framing; the 67,108,864-unit work counter, ~28% above the
 44.2-52.5M projection (the measured 13.9-16.5 work/row over 3,182,484 rows);
 and the 3,387,293,850-pair arena this ledger implies. The deeper memo key
 spaces move the amortized constant to 50 pairs per unit. The ~129 MiB frame,
@@ -212,7 +212,12 @@ work counter was already a 64-bit budget and needs no extent. Seed
 identities are repinned in `tools/bootstrap/alpha/seed_env.sh`; the
 evaluator source/tape identities in `tools/bootstrap/gamma/evaluator_env.sh`.
 No opcode transition moved; `M` remains a flat zeroed array and execution
-stays a function of tape and input alone.
+stays a function of tape and input alone. Checker-side,
+`implementation/admission/extents.gamma` applies the same 136,314,880-byte
+request bound and `implementation/comparison/session.gamma`'s
+`comparison_limit` carries the 67,108,864-unit work counter — the earlier
+8,388,608-byte and 655,360-unit figures predated this ledger's selection
+and refused the recorded request at admission and at session reservation.
 
 Recorded consequences of the larger extents: the exact/adjacent pair
 boundary is no longer executable in gate time, so
