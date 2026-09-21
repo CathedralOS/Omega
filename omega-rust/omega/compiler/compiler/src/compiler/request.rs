@@ -283,14 +283,17 @@ impl CompileRequest {
                         configuration.target_name = Some(host.target_name().to_owned());
                     }
                     None => {
-                        diagnostics.push(Diagnostic::error(
+                        let catalogued = TargetProfile::ALL
+                            .into_iter()
+                            .filter(|profile| profile.native_realization().is_some())
+                            .map(|profile| profile.target_name())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        diagnostics.push(Diagnostic::error(format!(
                             "native production needs an exact target profile: none was \
                              named and this host has no catalogued Omega deployment \
-                             profile (name one of linux_arm64, linux_x86_64, \
-                             macos_arm64, macos_x86_64, windows_x86_64, \
-                             uefi_x86_64, cross_platform_cli, or \
-                             local_unchecked)",
-                        ));
+                             profile (name one of {catalogued})"
+                        )));
                         continue;
                     }
                 }
