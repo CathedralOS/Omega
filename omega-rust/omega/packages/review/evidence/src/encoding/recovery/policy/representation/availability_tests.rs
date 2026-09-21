@@ -55,6 +55,9 @@ fn conformance_availability_inverse_retains_every_subject_and_parameter_family()
         PackageReviewTypeParameterKind::Proposition(PackageReviewPropositionParameterSignature {
             parameters: vec![PackageReviewPropositionParameterValue {
                 type_identity: value("u64"),
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
             }],
         }),
     ];

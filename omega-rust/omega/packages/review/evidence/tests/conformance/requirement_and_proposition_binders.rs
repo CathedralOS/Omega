@@ -264,7 +264,7 @@ where proposition {relation}({left}: {carrier}, {right}: {right_type});
 }
 
 #[test]
-fn review_rejects_uncertified_proposition_parameter_modes() {
+fn review_certifies_proposition_parameter_value_modes() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -272,7 +272,7 @@ fn review_rejects_uncertified_proposition_parameter_modes() {
     package.write(
         "main.omg",
         r#"pub trait RelationShape<Carrier, proposition Relation>
-where proposition Relation(const value: Carrier);
+where proposition Relation(const value: Carrier, plain: Carrier);
 {}
 "#,
     );
@@ -285,13 +285,29 @@ where proposition Relation(const value: Carrier);
         package_inputs: Some(package_inputs(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
-    .expect("non-default proposition parameter mode currently reaches checked IR");
-    let diagnostics = project_checked_package_review(&checked).unwrap_err();
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("non-default value-parameter mode not yet certified")
-    }));
+    .expect("non-default proposition parameter mode reaches checked IR");
+    let review = project_checked_package_review(&checked)
+        .expect("proposition parameter value modes are certified");
+    let shape = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "RelationShape")
+        .expect("RelationShape trait");
+    let [_, relation] = shape.type_parameters() else {
+        panic!("carrier and proposition parameters")
+    };
+    let PackageReviewTypeParameterKind::Proposition(signature) = relation.kind() else {
+        panic!("proposition parameter signature")
+    };
+    let [constant, plain] = signature.parameters() else {
+        panic!("two proposition value parameters")
+    };
+    assert!(constant.is_const());
+    assert!(!constant.is_mutable());
+    assert!(!constant.is_self());
+    assert!(!plain.is_const());
+    assert!(!plain.is_mutable());
+    assert!(!plain.is_self());
 }
 
 #[test]

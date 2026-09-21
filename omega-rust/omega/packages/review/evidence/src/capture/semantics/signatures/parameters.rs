@@ -176,14 +176,6 @@ fn project_type_parameters_inner(
             typed_trees::data::TypeParameterKind::Proposition { contract } => {
                 let mut projected_parameters = Vec::new();
                 for value_parameter in typed.state_parameters.span_or_empty(contract.parameters) {
-                    if value_parameter.is_const
-                        || value_parameter.is_mutable
-                        || value_parameter.is_self
-                    {
-                        return Err(vec![Diagnostic::error(format!(
-                            "public {declaration_kind} `{declaration_path}` proposition parameter uses a non-default value-parameter mode not yet certified by package review",
-                        ))]);
-                    }
                     projected_parameters.push(PackageReviewPropositionParameterValue {
                         type_identity: projection.value_type(
                             typed,
@@ -192,6 +184,9 @@ fn project_type_parameters_inner(
                             &binders,
                             lifetime_binders,
                         )?,
+                        is_const: value_parameter.is_const,
+                        is_mutable: value_parameter.is_mutable,
+                        is_self: value_parameter.is_self,
                     });
                 }
                 PackageReviewTypeParameterKind::Proposition(
