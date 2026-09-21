@@ -1,4 +1,7 @@
-use super::{ExpressionHandle, ExpressionNode, Machine, State, SymbolHandle, TypedTrees};
+use super::{
+    EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State, SymbolHandle,
+    TypedTrees,
+};
 use crate::checks::ranges::RangeFacts;
 use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
 use crate::checks::ranges::facts::dependencies::collect_reads;
@@ -198,7 +201,7 @@ pub(super) fn integer_value_identity(
             };
             Some(path.symbol)
         })?;
-    for _ in 0..128 {
+    for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
             return None;
         };
@@ -259,7 +262,7 @@ pub(super) fn is_integer_value(
     ) else {
         return false;
     };
-    for _ in 0..128 {
+    for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {

@@ -353,6 +353,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
                 .map(|plan| plan.report_identity()),
             artifact.provider_executions().iter(),
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         )
         .expect("installation retains the admitted foreign stack projection");
     let foreign_stacks = installation
@@ -495,6 +496,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         artifact.object().clone(),
         artifact.image().clone(),
         installation.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         install_complete(),
     )
     .expect("the imported Mach-O image binds complete installed-code custody");
@@ -521,6 +523,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         artifact.object().clone(),
         artifact.image().clone(),
         installation.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         truncated,
     )
     .expect_err("a compiler-prefix artifact whose resolver claims an uninstalled thunk address must not bind");
@@ -550,6 +553,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
             artifact.object().clone(),
             artifact.image().clone(),
             installation.clone(),
+            &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
             misresolved,
         )
         .is_err(),
@@ -637,6 +641,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
                 artifact.object().clone(),
                 mutated,
                 installation.clone(),
+                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
                 install_complete(),
             )
             .is_err(),
@@ -1780,7 +1785,7 @@ fn retained_source_evaluated_fixed_i64_result_requires_complete_scalar_custody()
 }
 
 #[test]
-fn widened_scalar_foreign_boundary_refuses_at_selection_legalization() {
+fn widened_scalar_foreign_boundary_retains_complete_physical_custody() {
     for (label, fixture, receipt_identity) in [
         (
             "bool-argument",
@@ -1836,7 +1841,7 @@ fn widened_scalar_foreign_boundary_refuses_at_selection_legalization() {
         );
         let policy = terminal_authority_policy(&retained);
         let permission_policy = terminal_authority_permission_policy(&retained);
-        let diagnostics = {
+        let artifact = {
             let image_request = native_realization::ExecutableImageEmissionRequest::direct(
                 retained
                     .native_realization_proposal()
@@ -1868,12 +1873,20 @@ fn widened_scalar_foreign_boundary_refuses_at_selection_legalization() {
             })
             .map_err(|(_, diagnostics)| diagnostics)
         }
-        .expect_err("a widened scalar foreign boundary must refuse selection admission today");
-        assert_eq!(diagnostics.len(), 1, "unexpected diagnostics for {label}");
-        assert!(
-            diagnostics[0].message.contains("SourceCustodyMismatch"),
-            "unexpected diagnostic for {label}: {}",
-            diagnostics[0].message
+        .unwrap_or_else(|diagnostics| panic!("{label}: {diagnostics:#?}"));
+        artifact.validate().expect("scalar native custody replays");
+        assert!(matches!(
+            artifact.physical_evidence_scope(),
+            native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        ));
+        let evidence = artifact
+            .physical_evidence()
+            .expect("complete scalar physical evidence");
+        assert_eq!(
+            evidence.projection().boundary_occurrences().len(),
+            1,
+            "{label}"
         );
+        assert_eq!(evidence.children().len(), 1, "{label}");
     }
 }

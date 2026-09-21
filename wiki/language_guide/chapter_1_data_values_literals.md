@@ -19,7 +19,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -44,7 +44,7 @@ These are the central source forms, not a complete package setup. The
 declarations and target bindings.
 
 The invocation selects an exact target; naming a binding does not select it.
-`Service<Console>` is a compiler-known service carrier, not a Console provider
+`Binding<Console>` is a compiler-known service carrier, not a Console provider
 object. Its binding must be established before use. Missing or incompatible
 build supply rejects compilation; no additional domain annotation is needed.
 The target's entry bridge provisions one receiver and the admitted storage and
@@ -105,7 +105,7 @@ data RoomEvent {
     case Treasure(gold: u32);
 }
 
-let event = RoomEvent::Treasure { consumed: true, gold: 5 };
+let event: RoomEvent = RoomEvent::Treasure { consumed: true, gold: 5 };
 ```
 
 This mixed shape has `consumed` in every case, with a case-specific payload.
@@ -157,9 +157,9 @@ contract and flow facts, not because one later instantiation happens to work.
 
 These clauses do not introduce hidden case-local generic types or automatic
 boxing. See the [case-constraint specification](../spec/language/data_and_literals.md#case-constraints)
-and [matching rules](chapter_6_pattern_matching_dispatch.md). The compiler work
-is tracked separately as CASE-CONSTRAINTS in [TASKS.md](../../TASKS.md);
-the examples describe the language contract, not completed implementation.
+and [matching rules](chapter_6_pattern_matching_dispatch.md). The compiler
+implements this contract; the `dependent/case_where_*` canaries pin its
+construction, match, coverage, and custody acceptance.
 
 ## Cases Are Domains
 
@@ -253,7 +253,7 @@ keeps tokenization independent of host Unicode tables.
 A quoted literal is a shared byte view, not automatically text:
 
 ```omega
-let greeting = "Hello, Omega."; // &[u8], no encoding qualification
+let greeting: &[u8] = "Hello, Omega."; // no encoding qualification
 pub const DLL_NAME: [u8; 12] = "kernel32.dll";
 ```
 

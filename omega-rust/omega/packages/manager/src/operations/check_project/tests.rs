@@ -74,6 +74,34 @@ fn assert_empty_directory(path: &Path) {
 }
 
 #[test]
+fn the_prepared_check_route_carries_the_stage_ladder_only_when_asked() {
+    let project = Project::new();
+    project.write(
+        "source/build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"timed\"); }\n",
+    );
+    project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
+
+    let quiet = check_prepared_local_project(project.request("source/main.omg", "quiet"))
+        .expect("checked without the stage ladder");
+    assert!(
+        quiet.timings().is_empty(),
+        "the ladder measures nothing until a caller asks for it"
+    );
+
+    let timed = check_prepared_local_project(
+        project
+            .request("source/main.omg", "timed")
+            .with_timings(true),
+    )
+    .expect("checked with the stage ladder enabled");
+    assert!(
+        !timed.timings().is_empty(),
+        "with_timings must reach the compiler through the prepared-project route"
+    );
+}
+
+#[test]
 fn requested_entry_is_checked_and_reported_instead_of_main() {
     let project = Project::new();
     project.write(

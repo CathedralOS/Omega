@@ -19,8 +19,8 @@ use crate::dynamic_executable::section_headers::section_header_bytes::ValidatedE
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 13;
-const DYNAMIC_FIXUP_COUNT: usize = 8;
+const SECTION_COUNT: usize = 14;
+const DYNAMIC_FIXUP_COUNT: usize = 9;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -230,7 +230,7 @@ fn derive_contents(
         .iter()
         .map(|fixup| ElfIndexedDynamicFixup {
             row_ordinal: fixup.row_ordinal,
-            storage_section_index: 11,
+            storage_section_index: 12,
             byte_offset: fixup.byte_offset,
             byte_width: fixup.byte_width,
             kind: fixup.kind,
@@ -288,6 +288,7 @@ fn upstream_payload(
         ElfDynamicRosterSectionKind::ProcedureLinkage => &bytes.plt,
         ElfDynamicRosterSectionKind::ProcedureGot => &bytes.got_plt,
         ElfDynamicRosterSectionKind::ProcedureRelocation => &bytes.rela_plt,
+        ElfDynamicRosterSectionKind::GeneralRelocation => &bytes.rela_dyn,
         ElfDynamicRosterSectionKind::DynamicTable => {
             &dynamic_payload(section_headers).contents().bytes
         }
@@ -314,17 +315,24 @@ const fn indexed_procedure_storage(
             index: 10,
             kind: ElfDynamicRosterSectionKind::ProcedureRelocation,
         },
+        ElfProcedureLinkageFixupStorage::RelaDyn => ElfIndexedProcedureFixupStorage::Section {
+            index: 11,
+            kind: ElfDynamicRosterSectionKind::GeneralRelocation,
+        },
     }
 }
 
 const fn procedure_target_section(target: ElfProcedureLinkageSemanticTarget) -> u32 {
     match target {
-        ElfProcedureLinkageSemanticTarget::FutureDynamicSection => 11,
+        ElfProcedureLinkageSemanticTarget::FutureDynamicSection => 12,
         ElfProcedureLinkageSemanticTarget::PltHeader
         | ElfProcedureLinkageSemanticTarget::PltEntry { .. }
         | ElfProcedureLinkageSemanticTarget::PltLazyTail { .. } => 8,
         ElfProcedureLinkageSemanticTarget::GotPltHeaderWord { .. }
         | ElfProcedureLinkageSemanticTarget::GotPltSlot { .. } => 9,
+        // Retained source sections are not numbered roster rows; the applied
+        // layout resolves them through the image-memory placement instead.
+        ElfProcedureLinkageSemanticTarget::RelocatedImageSection { .. } => u32::MAX,
     }
 }
 
@@ -338,6 +346,7 @@ const fn dynamic_target_section(target: ElfDynamicAddressTarget) -> u32 {
         ElfDynamicAddressTarget::ProcedureRelocation => 10,
         ElfDynamicAddressTarget::GnuSymbolVersion => 5,
         ElfDynamicAddressTarget::GnuVersionRequirement => 6,
+        ElfDynamicAddressTarget::GeneralRelocation => 11,
     }
 }
 
@@ -378,7 +387,7 @@ fn validate_contents(
     let roster = &section_headers.roster().contents().rows;
     require(
         roster.len() == SECTION_COUNT && contents.rows.len() == SECTION_COUNT,
-        "indexed ELF payload roster must contain exactly thirteen rows",
+        "indexed ELF payload roster must contain exactly fourteen rows",
     )?;
     for (ordinal, (row, descriptor)) in contents.rows.iter().zip(roster).enumerate() {
         require(
@@ -468,16 +477,16 @@ fn validate_dynamic_fixups(
     let upstream = &dynamic_payload(section_headers).contents().address_fixups;
     require(
         upstream.len() == DYNAMIC_FIXUP_COUNT && contents.dynamic_fixups.len() == upstream.len(),
-        "indexed dynamic fixups do not contain exactly eight rows",
+        "indexed dynamic fixups do not contain exactly nine rows",
     )?;
     let storage = contents
         .rows
-        .get(11)
+        .get(12)
         .ok_or_else(|| Diagnostic::error("indexed .dynamic payload is missing"))?;
     for (indexed, upstream) in contents.dynamic_fixups.iter().zip(upstream) {
         require(
             indexed.row_ordinal == upstream.row_ordinal
-                && indexed.storage_section_index == 11
+                && indexed.storage_section_index == 12
                 && indexed.byte_offset == upstream.byte_offset
                 && indexed.byte_width == upstream.byte_width
                 && indexed.kind == upstream.kind
@@ -582,6 +591,23 @@ fn hash_procedure_target(hash: &mut Fnv1a, target: ElfProcedureLinkageSemanticTa
             hash.byte(5);
             hash.bytes(&logical_ordinal.to_le_bytes());
         }
+        ElfProcedureLinkageSemanticTarget::RelocatedImageSection {
+            section,
+            byte_offset,
+        } => {
+            hash.byte(6);
+            hash.byte(image_section_tag(section));
+            hash.bytes(&(byte_offset as u64).to_le_bytes());
+        }
+    }
+}
+
+const fn image_section_tag(section: image::FinalImageSection) -> u8 {
+    match section {
+        image::FinalImageSection::Text => 1,
+        image::FinalImageSection::Data => 2,
+        image::FinalImageSection::Bss => 3,
+        image::FinalImageSection::None => 4,
     }
 }
 

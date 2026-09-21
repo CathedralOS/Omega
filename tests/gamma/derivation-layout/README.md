@@ -1,11 +1,15 @@
 # Derivation physical-layout gate
 
 Run `sh tests/gamma/derivation-layout/run.sh` on macOS arm64 with `python3` and
-`codesign`, or Windows x64 through Git Bash with `python3`. Windows execution
+`codesign`, Linux x86-64, or Windows x64 through Git Bash with `python3`. Windows execution
 is not yet validated. Other hosts fail explicitly.
 
 The gate materializes the complete role-selected derivation-checker source
-closure with one explicit ordinary-Gamma diagnostic entry. The diagnostic
+closure with one explicit ordinary-Gamma diagnostic entry: the bound
+`main.gamma` prefix, 1,198 bytes, SHA-256
+`49b1d9e459cfcb6b81f84725fc5855f4554174102a3b78269627ae91de0e2985`, recorded
+in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_derivation_layout_entry_identity` before packing. The diagnostic
 returns process status zero only to publish an owned outcome: tag 3 plus three
 u32 section ends is 13 bytes; tags 1 and 2 plus their four existing failure
 fields are 17 bytes. Tag 3 means physical layout, never formation, proof
@@ -30,7 +34,7 @@ There are 188 vectors and 374 expected observations. The 186 small vectors run
 twice under a 60-second host watchdog. A 46,484-row source
 spine runs once under 600 seconds: child references are physical words and must
 not cause one Gamma call frame per logical term. Its 929,848-byte request is
-not the complete Beta certificate. One 8-MiB-plus-one outer request also runs
+not the complete Beta certificate. One 130-MiB-plus-one outer request also runs
 once; outer capacity refusal must forward unchanged without scanning invalid
-inner contents. No exact-8-MiB inner traversal is claimed or performed here.
+inner contents. No exact-130-MiB inner traversal is claimed or performed here.
 Host timeouts and outer evaluator failures are not checker outcomes.

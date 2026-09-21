@@ -399,25 +399,25 @@ fn validate_anonymous_float(
     {
         return Err("floating constant lost its distinct source-owned initializer roots".into());
     }
+    // A literal root carrying no occurrences is the complete authored value:
+    // its bits and encoding prove custody without a probe. A literal carrying
+    // occurrences is a substituted declaration use (`const Q: f32 = A`); those
+    // occurrences join dependency and operator custody the same probe replay
+    // revalidates, so fall through rather than rejecting them.
     if matches!(
         typed.expression_table.expression(original),
         ExpressionNode::Float(_) | ExpressionNode::Integer(_)
-    ) {
-        if typed
+    ) && typed
+        .expression_table
+        .authored_selection_occurrences(original)
+        .next()
+        .is_none()
+        && typed
             .expression_table
-            .authored_selection_occurrences(original)
+            .authored_selection_occurrences(materialized)
             .next()
-            .is_some()
-            || typed
-                .expression_table
-                .authored_selection_occurrences(materialized)
-                .next()
-                .is_some()
-        {
-            return Err(
-                "floating constant literal root retains computation or declaration custody".into(),
-            );
-        }
+            .is_none()
+    {
         let format = match destination {
             PrimitiveType::F32 => FloatFormat::F32,
             PrimitiveType::F64 => FloatFormat::F64,

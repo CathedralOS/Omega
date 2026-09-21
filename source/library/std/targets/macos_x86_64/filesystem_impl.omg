@@ -1,0 +1,874 @@
+// macos_x86_64 `Filesystem` DIRECTORY-WALK implementations (fs portable-contract
+// settle 2026-07-18; bodies moved VERBATIM from filesystem.omg the same day).
+// The paradigm-split ops -- dirent-record walking and the dirfd-relative
+// removal recursion -- live PER TARGET behind the portable contract declared
+// beside the wrapper (filesystem.omg's directory-walk contract block). This
+// file is darwin's paradigm: a single `read_dir` fill of packed
+// `___getdirentries64` records (d_reclen@16, d_namlen@18, d_type@20, name@21),
+// and `open_at`/`unlink_at` dirfd recursion for `remove_dir_all`. Every
+// machine is target-scoped (`macos_x86_64 machine ...`): selected only when
+// compiling for this target and inert otherwise.
+//
+// Darwin open flags are a foreign bitfield format, encoded by checked target
+// package code rather than smuggled through provider-plan VALUE rows. The
+// semantic `OpenOptions` value is portable; only this encoder owns Darwin's bit
+// positions. Access mode 0/1/2 is the POSIX O_RDONLY/O_WRONLY/O_RDWR field.
+// macOS arm64 Darwin `struct stat` layout. The policy is ordinary checked
+// build-time Omega code; offsets and physical integer widths are foreign-format
+// facts owned by this target package, not provider-plan scalar values.
+macos_x86_64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
+    entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::IntegerAt { offset: 4, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
+    entries[2] = FieldEntry { key: schema.fields[2].key, placement: FieldPlan::IntegerAt { offset: 6, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
+    entries[3] = FieldEntry { key: schema.fields[3].key, placement: FieldPlan::At { offset: 8 } };
+    entries[4] = FieldEntry { key: schema.fields[4].key, placement: FieldPlan::At { offset: 16 } };
+    entries[5] = FieldEntry { key: schema.fields[5].key, placement: FieldPlan::At { offset: 20 } };
+    entries[6] = FieldEntry { key: schema.fields[6].key, placement: FieldPlan::IntegerAt { offset: 24, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
+    entries[7] = FieldEntry { key: schema.fields[7].key, placement: FieldPlan::At { offset: 32 } };
+    entries[8] = FieldEntry { key: schema.fields[8].key, placement: FieldPlan::At { offset: 48 } };
+    entries[9] = FieldEntry { key: schema.fields[9].key, placement: FieldPlan::At { offset: 64 } };
+    entries[10] = FieldEntry { key: schema.fields[10].key, placement: FieldPlan::At { offset: 80 } };
+    entries[11] = FieldEntry { key: schema.fields[11].key, placement: FieldPlan::At { offset: 96 } };
+    entries[12] = FieldEntry { key: schema.fields[12].key, placement: FieldPlan::At { offset: 104 } };
+    entries[13] = FieldEntry { key: schema.fields[13].key, placement: FieldPlan::IntegerAt { offset: 112, stored_width: 32, interpretation: IntegerInterpretation::Unsigned } };
+    Plan { entries: entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
+}
+
+macos_x86_64 machine Filesystem::encode_open_options(&mut self) {
+    self.open_writable = (self.open_options.write as i32) | (self.open_options.append as i32);
+    self.open_readable = self.open_options.read as i32;
+    self.open_creating = (self.open_options.create as i32) | (self.open_options.create_new as i32);
+    self.open_flags = ((self.open_writable & (self.open_readable ^ 1))
+        | ((self.open_writable & self.open_readable) << 1)
+        | ((self.open_options.append as i32) << 3)
+        | (self.open_creating << 9)
+        | ((self.open_options.truncate as i32) << 10)
+        | ((self.open_options.create_new as i32) << 11));
+}
+
+// Darwin libc operations report -1 and retain detail in thread-local errno.
+// The explicit result parameter keeps the portable wrapper shape aligned with
+// Linux's direct-syscall path; it is intentionally not interpreted here.
+macos_x86_64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32
+reaches FilesystemHost
+{
+    let code: i32 = self.host.errno();
+    code
+}
+
+macos_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32
+reaches FilesystemHost
+{
+    let code: i32 = self.host.errno();
+    code
+}
+
+pub macos_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.open_options = options;
+    self.encode_open_options();
+    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
+// excluding "." and ".."). Opens the directory, repeatedly fills a buffer of packed
+// Darwin `dirent` records via the raw `read_dir` op, then walks them with a
+// runtime-indexed cursor over the little-endian `d_reclen` at record offset +16
+// (the same record layout as `___getdirentries64`, identical on both engines),
+// advancing until the filled byte count. The descriptor cursor is retained across
+// fills until EOF and the descriptor is closed exactly once on the terminal or
+// error path. A malformed record fails as `Other` instead of making the state loop
+// stall. "." and ".." are the first two records of every real directory, so the
+// child count is `records - 2` after the complete drain.
+pub macos_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_count = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rd_read(dfd) _ -> rd_err() }
+    state rd_read(&mut self, dfd: i32) -> IoResult {
+        self.rd_off = 0;
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        transition total > 0 { true -> rd_walk(dfd) _ -> rd_nonpositive(dfd, total) }
+    }
+    state rd_nonpositive(&mut self, dfd: i32, total: i64) -> IoResult {
+        transition total == 0 { true -> rd_finish(dfd) _ -> rd_read_error(dfd, total) }
+    }
+    state rd_walk(&mut self, dfd: i32) -> IoResult {
+        transition self.rd_off < self.rd_total { true -> rd_header(dfd) _ -> rd_read(dfd) }
+    }
+    state rd_header(&mut self, dfd: i32) -> IoResult {
+        transition self.rd_off < 495 { true -> rd_body(dfd) _ -> rd_malformed(dfd) }
+    }
+    state rd_body(&mut self, dfd: i32) -> IoResult {
+        // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed reads).
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
+        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rd_accept(dfd) _ -> rd_malformed(dfd) }
+    }
+    state rd_accept(&mut self, dfd: i32) -> IoResult {
+        self.rd_count = self.rd_count + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition { _ -> rd_walk(dfd) }
+    }
+    state rd_finish(&mut self, dfd: i32) -> IoResult {
+        let closed: i32 = self.host.close(dfd);
+        // Every real directory yields "." and ".." first, so children = records - 2.
+        transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
+    }
+    state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
+    state rd_ok(&mut self) -> IoResult {
+        self.rd_lou = narrow_i32_to_u64_wrapping(self.rd_count - 2) as u64 in Wrapping;
+        let count: u64 = self.rd_lou as u64;
+        IoResult::Ok { count: count }
+    }
+    state rd_err(&mut self) -> IoResult {
+        let kind: ErrorKind = self.last_error();
+        IoResult::Error { kind: kind }
+    }
+    state rd_read_error(&mut self, dfd: i32, total: i64) -> IoResult {
+        self.err_kind = self.last_error_i64(total);
+        let closed: i32 = self.host.close(dfd);
+        let kind: ErrorKind = self.err_kind.reconstruct();
+        IoResult::Error { kind: kind }
+    }
+    state rd_malformed(&mut self, dfd: i32) -> IoResult {
+        let closed: i32 = self.host.close(dfd);
+        self.err_kind = ErrorKind::Other;
+        IoResult::Error { kind: ErrorKind::Other }
+    }
+}
+
+// Summarize a directory's composition (`DirStats { entries, subdirs, files }`) --
+// the type-aware companion to `read_dir_count`. The same complete multi-fill
+// walk reads each record's `d_type` byte at offset +20 (within the `off < 492`
+// bound) and tallies DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the
+// child counts subtract 2 from both `entries` and `subdirs`. DT_UNKNOWN remains
+// included in entries but in neither type-specific tally.
+macos_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult
+reaches FilesystemHost
+{
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_count = 0;
+    self.rd_dirs = 0;
+    self.rd_files = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rds_read(dfd) _ -> rds_err() }
+    state rds_read(&mut self, dfd: i32) -> DirStatsResult {
+        self.rd_off = 0;
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        transition total > 0 { true -> rds_walk(dfd) _ -> rds_nonpositive(dfd, total) }
+    }
+    state rds_nonpositive(&mut self, dfd: i32, total: i64) -> DirStatsResult {
+        transition total == 0 { true -> rds_finish(dfd) _ -> rds_read_error(dfd, total) }
+    }
+    state rds_walk(&mut self, dfd: i32) -> DirStatsResult {
+        transition self.rd_off < self.rd_total { true -> rds_header(dfd) _ -> rds_read(dfd) }
+    }
+    state rds_header(&mut self, dfd: i32) -> DirStatsResult {
+        transition self.rd_off < 492 { true -> rds_body(dfd) _ -> rds_malformed(dfd) }
+    }
+    state rds_body(&mut self, dfd: i32) -> DirStatsResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
+        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rds_accept(dfd) _ -> rds_malformed(dfd) }
+    }
+    state rds_accept(&mut self, dfd: i32) -> DirStatsResult {
+        self.rd_count = self.rd_count + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_dtype == 4 { true -> rds_dir(dfd) _ -> rds_maybe_file(dfd) }
+    }
+    state rds_dir(&mut self, dfd: i32) -> DirStatsResult {
+        self.rd_dirs = self.rd_dirs + 1;
+        transition { _ -> rds_walk(dfd) }
+    }
+    state rds_maybe_file(&mut self, dfd: i32) -> DirStatsResult {
+        transition self.rd_dtype == 8 { true -> rds_file(dfd) _ -> rds_cont(dfd) }
+    }
+    state rds_file(&mut self, dfd: i32) -> DirStatsResult {
+        self.rd_files = self.rd_files + 1;
+        transition { _ -> rds_walk(dfd) }
+    }
+    state rds_cont(&mut self, dfd: i32) -> DirStatsResult {
+        transition { _ -> rds_walk(dfd) }
+    }
+    state rds_finish(&mut self, dfd: i32) -> DirStatsResult {
+        let closed: i32 = self.host.close(dfd);
+        transition self.rd_count > 2 { true -> rds_ok() _ -> rds_empty() }
+    }
+    state rds_ok(&mut self) -> DirStatsResult {
+        let converted_entries: u64 = narrow_i32_to_u64_wrapping(self.rd_count - 2);
+        let converted_subdirs: u64 = narrow_i32_to_u64_wrapping(self.rd_dirs - 2);
+        let converted_files: u64 = narrow_i32_to_u64_wrapping(self.rd_files as i32);
+        DirStatsResult::Ok { stats: DirStats {
+            entries: converted_entries,
+            subdirs: converted_subdirs,
+            files: converted_files,
+        } }
+    }
+    state rds_empty(&mut self) -> DirStatsResult {
+        DirStatsResult::Ok { stats: DirStats { entries: 0, subdirs: 0, files: 0 } }
+    }
+    state rds_err(&mut self) -> DirStatsResult {
+        let kind: ErrorKind = self.last_error();
+        DirStatsResult::Error { kind: kind }
+    }
+    state rds_read_error(&mut self, dfd: i32, total: i64) -> DirStatsResult {
+        self.err_kind = self.last_error_i64(total);
+        let closed: i32 = self.host.close(dfd);
+        let kind: ErrorKind = self.err_kind.reconstruct();
+        DirStatsResult::Error { kind: kind }
+    }
+    state rds_malformed(&mut self, dfd: i32) -> DirStatsResult {
+        let closed: i32 = self.host.close(dfd);
+        self.err_kind = ErrorKind::Other;
+        DirStatsResult::Error { kind: ErrorKind::Other }
+    }
+}
+
+// Fetch the N-th CHILD directory entry as a `DirEntry` (Rust's `ReadDir` iterator,
+// indexed): `read_dir_nth(path, 0)` is the first child, `1` the second, … . The
+// caller loops n = 0, 1, 2, … until `End`. Walks complete dirent fills to record
+// index `n + 2` (skipping "." and ".."), then EXTRACTS the name by copying
+// `dir_buf[off+21+j]` into the entry's `[u8; 256]` name field with a field-cursor
+// loop (the `ridx < 512` guard keeps each read in the buffer; `j < 255` keeps each
+// write in the name field), and reads the `d_type` for `is_dir`/`is_file`.
+//
+// A name longer than 255 bytes is truncated (`name_len` is the copied length).
+// The descriptor cursor remains open across fills and closes at the found, EOF,
+// malformed-record, or syscall-error terminal.
+pub macos_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_recno = 0;
+    self.rd_target = (n as u64 in Wrapping) + 2;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rdn_read(dfd) _ -> rdn_err() }
+    state rdn_read(&mut self, dfd: i32) -> DirEntryResult {
+        self.rd_off = 0;
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        transition total > 0 { true -> rdn_walk(dfd) _ -> rdn_nonpositive(dfd, total) }
+    }
+    state rdn_nonpositive(&mut self, dfd: i32, total: i64) -> DirEntryResult {
+        transition total == 0 { true -> rdn_finish(dfd) _ -> rdn_read_error(dfd, total) }
+    }
+    state rdn_walk(&mut self, dfd: i32) -> DirEntryResult {
+        transition self.rd_off < self.rd_total { true -> rdn_header(dfd) _ -> rdn_read(dfd) }
+    }
+    state rdn_header(&mut self, dfd: i32) -> DirEntryResult {
+        transition self.rd_off < 492 { true -> rdn_at(dfd) _ -> rdn_malformed(dfd) }
+    }
+    state rdn_at(&mut self, dfd: i32) -> DirEntryResult {
+        transition self.rd_recno == self.rd_target { true -> rdn_found(dfd) _ -> rdn_advance(dfd) }
+    }
+    state rdn_advance(&mut self, dfd: i32) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
+        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rdn_accept(dfd) _ -> rdn_malformed(dfd) }
+    }
+    state rdn_accept(&mut self, dfd: i32) -> DirEntryResult {
+        self.rd_recno = self.rd_recno + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition { _ -> rdn_walk(dfd) }
+    }
+    state rdn_found(&mut self, dfd: i32) -> DirEntryResult {
+        let closed: i32 = self.host.close(dfd);
+        transition { _ -> rdn_extract() }
+    }
+    state rdn_extract(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 18;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 19;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
+        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
+        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_j = 0;
+        transition { _ -> rdn_copy() }
+    }
+    state rdn_copy(&mut self) -> DirEntryResult {
+        transition self.rd_j < self.rd_namlen { true -> rdn_cap() _ -> rdn_build() }
+    }
+    state rdn_cap(&mut self) -> DirEntryResult {
+        transition self.rd_j < 255 { true -> rdn_cbyte() _ -> rdn_build() }
+    }
+    state rdn_cbyte(&mut self) -> DirEntryResult {
+        self.rd_ridx = self.rd_off + 21 + self.rd_j;
+        transition self.rd_ridx < 512 && self.rd_ridx < self.rd_total { true -> rdn_cdo() _ -> rdn_build() }
+    }
+    state rdn_cdo(&mut self) -> DirEntryResult {
+        self.rd_nb = self.dir_buf[self.rd_ridx];
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rdn_copy() }
+    }
+    state rdn_build(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 4 { true -> rdn_ok_dir() _ -> rdn_maybe_file() }
+    }
+    state rdn_ok_dir(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: name_len,
+            is_dir: true,
+            is_file: false,
+        } }
+    }
+    state rdn_maybe_file(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 8 { true -> rdn_ok_file() _ -> rdn_ok_other() }
+    }
+    state rdn_ok_file(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: name_len,
+            is_dir: false,
+            is_file: true,
+        } }
+    }
+    state rdn_ok_other(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: name_len,
+            is_dir: false,
+            is_file: false,
+        } }
+    }
+    state rdn_finish(&mut self, dfd: i32) -> DirEntryResult {
+        let closed: i32 = self.host.close(dfd);
+        DirEntryResult::End
+    }
+    state rdn_err(&mut self) -> DirEntryResult {
+        let kind: ErrorKind = self.last_error();
+        DirEntryResult::Error { kind: kind }
+    }
+    state rdn_read_error(&mut self, dfd: i32, total: i64) -> DirEntryResult {
+        self.err_kind = self.last_error_i64(total);
+        let closed: i32 = self.host.close(dfd);
+        let kind: ErrorKind = self.err_kind.reconstruct();
+        DirEntryResult::Error { kind: kind }
+    }
+    state rdn_malformed(&mut self, dfd: i32) -> DirEntryResult {
+        let closed: i32 = self.host.close(dfd);
+        self.err_kind = ErrorKind::Other;
+        DirEntryResult::Error { kind: ErrorKind::Other }
+    }
+}
+
+// Fetch the N-th CHILD entry as a `DirEntry`, reading an ALREADY-OPEN directory fd
+// (the caller OWNS `dfd`; it is not closed here). Skips "." and ".." (records 0,1)
+// to record n+2 across as many fills as needed and copies the name into the
+// entry's field. This is the fd-based core `remove_dir_all` drains through (it
+// rewinds and re-reads the same fd after each removal).
+// NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
+// path); a future refactor should route `read_dir_nth` through this fd core.
+macos_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult
+reaches FilesystemHost
+{
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_recno = 0;
+    self.rd_target = (n as u64 in Wrapping) + 2;
+    // REWIND the directory fd before reading (2026-07-09j): the native
+    // getdirentries cursor is the FD OFFSET -- zeroing the basep out-param
+    // does not rewind it, so a second "first entry" read on the same fd
+    // returned End natively while the hermetic interpreter (which reads at
+    // the passed position) returned the entry. The drain's per-iteration
+    // first-entry re-reads depend on this. lseek(dfd, 0, SEEK_SET) is a
+    // no-op for the interpreter's model and rewinds the native cursor.
+    self.rd_seek_rc = self.host.seek(dfd, 0, 0);
+    transition self.rd_seek_rc >= 0 { true -> rdef_read(dfd) _ -> rdef_err(self.rd_seek_rc) }
+    state rdef_read(&mut self, dfd: i32) -> DirEntryResult {
+        self.rd_off = 0;
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        transition total > 0 { true -> rdef_walk(dfd) _ -> rdef_nonpositive(total) }
+    }
+    state rdef_nonpositive(&mut self, total: i64) -> DirEntryResult {
+        transition total == 0 { true -> rdef_end() _ -> rdef_err(total) }
+    }
+    state rdef_err(&mut self, total: i64) -> DirEntryResult {
+        self.rda_rc = narrow_i64_to_i32_wrapping(total);
+        self.err_kind = self.last_error_i64(total);
+        let kind: ErrorKind = self.err_kind.reconstruct();
+        DirEntryResult::Error { kind: kind }
+    }
+    state rdef_walk(&mut self, dfd: i32) -> DirEntryResult {
+        transition self.rd_off < self.rd_total { true -> rdef_header(dfd) _ -> rdef_read(dfd) }
+    }
+    state rdef_header(&mut self, dfd: i32) -> DirEntryResult {
+        transition self.rd_off < 492 { true -> rdef_at(dfd) _ -> rdef_malformed() }
+    }
+    state rdef_at(&mut self, dfd: i32) -> DirEntryResult {
+        transition self.rd_recno == self.rd_target { true -> rdef_extract() _ -> rdef_advance(dfd) }
+    }
+    state rdef_advance(&mut self, dfd: i32) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
+        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rdef_accept(dfd) _ -> rdef_malformed() }
+    }
+    state rdef_accept(&mut self, dfd: i32) -> DirEntryResult {
+        self.rd_recno = self.rd_recno + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition { _ -> rdef_walk(dfd) }
+    }
+    state rdef_extract(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 18;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 19;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
+        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
+        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_j = 0;
+        transition { _ -> rdef_copy() }
+    }
+    state rdef_copy(&mut self) -> DirEntryResult {
+        transition self.rd_j < self.rd_namlen { true -> rdef_cap() _ -> rdef_nul() }
+    }
+    // NUL-terminate the copied name (2026-07-09k): `entry_name` is a REUSED
+    // machine buffer, so a shorter name over a longer one left the previous
+    // tail ("b" over "f1.txt" read back as "b1.txt") -- unlink_at/open_at
+    // take the subslice's POINTER and read to the NUL, so the stale tail was
+    // passed to the kernel (ENOENT; the drain's parent-remove step failed).
+    // The interpreter slices by LENGTH, which is why only native diverged.
+    state rdef_nul(&mut self) -> DirEntryResult {
+        transition self.rd_j < 256 { true -> rdef_nul_go() _ -> rdef_build() }
+    }
+    state rdef_nul_go(&mut self) -> DirEntryResult {
+        self.entry_name[self.rd_j] = 0;
+        transition { _ -> rdef_build() }
+    }
+    state rdef_cap(&mut self) -> DirEntryResult {
+        transition self.rd_j < 255 { true -> rdef_cbyte() _ -> rdef_nul() }
+    }
+    state rdef_cbyte(&mut self) -> DirEntryResult {
+        self.rd_ridx = self.rd_off + 21 + self.rd_j;
+        transition self.rd_ridx < 512 && self.rd_ridx < self.rd_total { true -> rdef_cdo() _ -> rdef_nul() }
+    }
+    state rdef_cdo(&mut self) -> DirEntryResult {
+        self.rd_nb = self.dir_buf[self.rd_ridx];
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rdef_copy() }
+    }
+    state rdef_build(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 4 { true -> rdef_ok_dir() _ -> rdef_maybe_file() }
+    }
+    state rdef_ok_dir(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: name_len, is_dir: true, is_file: false } }
+    }
+    state rdef_maybe_file(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 8 { true -> rdef_ok_file() _ -> rdef_ok_other() }
+    }
+    state rdef_ok_file(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: name_len, is_dir: false, is_file: true } }
+    }
+    state rdef_ok_other(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: name_len, is_dir: false, is_file: false } }
+    }
+    state rdef_end(&mut self) -> DirEntryResult { DirEntryResult::End }
+    state rdef_malformed(&mut self) -> DirEntryResult {
+        self.rda_rc = 0 - 5;
+        self.err_kind = ErrorKind::Other;
+        DirEntryResult::Error { kind: ErrorKind::Other }
+    }
+}
+
+// Recursively remove a directory and ALL of its contents (Rust
+// `std::fs::remove_dir_all`). The `*at` route: never build a child path in Omega.
+// Open the dir, DRAIN it (repeatedly remove the first child until empty), then
+// `remove_dir` the now-empty dir. Draining recurses into subdirectories via
+// `open_at` (fd-relative), so no path construction and no name-domain proof.
+//
+// JUDGEMENT CALL (D-rda): a single `fuel` budget (4096) bounds TOTAL operations
+// (every removal + every descent costs 1) since a filesystem tree has no static
+// depth/breadth bound — a tree needing > 4096 ops returns an Error rather than
+// looping forever (Rust trusts finiteness; Omega must prove termination). The
+// re-read-first-child drain dodges the shared `dir_buf`-vs-recursion clobber: each
+// step re-reads the fd fresh, and the entry NAME rides a by-value `DirEntry` param
+// so a nested drain cannot overwrite it.
+pub macos_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.read_flags = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path) }
+    state rda_run(&mut self, dfd: i32, path: &[u8] in Path) -> UnitResult {
+        // Seed the drain stack with the root fd; the loop closes every fd it
+        // pops (including this one), so no close here.
+        self.rda_depth = 1;
+        self.rda_stack[0] = dfd;
+        self.rda_rc = self.rda_drain(4096);
+        transition self.rda_rc == 0 { true -> rda_rmdir(path) _ -> rda_err(path) }
+    }
+    state rda_rmdir(&mut self, path: &[u8] in Path) -> UnitResult {
+        let rc: i32 = self.host.remove_dir(path);
+        transition rc == 0 { true -> rda_ok() _ -> rda_err(path) }
+    }
+    state rda_ok(&mut self) -> UnitResult { UnitResult::Ok }
+    // `path` is threaded in (unused) so the shared-param domain grant re-establishes
+    // `path in Path` here after the drain value-call's conservative invalidation.
+    state rda_err(&mut self, path: &[u8] in Path) -> UnitResult {
+        let kind: ErrorKind = self.last_error();
+        UnitResult::Error { kind: kind }
+    }
+}
+
+// Drain every child of the stacked directories (files unlinked, subdirs
+// emptied + removed), ITERATIVELY: an explicit dirfd stack replaces the old
+// call recursion, which no native route can lower (the clone dispatch
+// refuses cycles; the splice runs effects once). The loop is ENTRY-recursion
+// (`rda_drain(fuel - 1)` from the entry's own transition -- the only shape
+// the ranking prover accepts, the mkall precedent); each iteration's WORK
+// is one `rda_step` STATEMENT call (the fence doctrine's prescribed shape:
+// a statement call from a dispatched state, verdict read from a field).
+// Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
+macos_x86_64 machine Filesystem::rda_drain(&mut self, fuel: u64)
+terminates by fuel;
+-> i32
+{
+    self.rda_step(0);
+    // The re-entry is the ENTRY's OWN single-comparison transition -- the only
+    // shape the ranking prover accepts (the mkall precedent; an arm-state
+    // re-entry or a conjunct guard is unprovable to it). The loop therefore
+    // runs its FULL fuel unconditionally; once the stack drains, rda_step
+    // no-ops (depth == 0 -> verdict 0) and the tail settles on the verdict.
+    // Cost: 4096 cheap no-op iterations after completion -- the provable
+    // trade, documented here deliberately.
+    transition fuel > 0 { true -> rda_drain(fuel - 1) false -> rdd_settle() }
+    state rdd_settle(&mut self) -> i32 {
+        transition self.rda_verdict == 0 { true -> rdd_done() _ -> rdd_fail() }
+    }
+    state rdd_done(&mut self) -> i32 { 0 }
+    state rdd_fail(&mut self) -> i32 { 0 - 1 }
+}
+
+// ONE drain step: unlink the top directory's first file, or descend into its
+// first subdir (push), or close+pop a drained directory and remove it from
+// its parent. Sets `rda_verdict` (1 continue / 0 done / -1 error). Statement-
+// called from rda_drain, so its states are real dispatch cases and the host
+// calls in arm states are legal. Every array index is guarded by a SINGLE
+// dominating conjunct in its OWN incoming transition (facts do not travel).
+// The `step` param exists so the machine has entry arguments (uniform call
+// shape); it is unused.
+macos_x86_64 machine Filesystem::rda_step(&mut self, step: u64)
+reaches FilesystemHost
+{
+    transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_read() }
+
+    state rds_alldone(&mut self) { self.rda_verdict = 0; }
+
+    state rds_read(&mut self) {
+        // The guard expression matches the INDEX expression exactly (the
+        // prover threads same-shape facts only; `depth <= 16` does not imply
+        // `depth - 1 < 16` to it). The left conjunct discharges the
+        // subtraction's own underflow proof.
+        transition self.rda_depth >= 1 && self.rda_depth - 1 < 16 {
+            true -> rds_read_go()
+            _ -> rds_fail()
+        }
+    }
+    state rds_read_go(&mut self) {
+        self.rda_fd = self.rda_stack[self.rda_depth - 1];
+        self.rdn_result = self.read_dir_entry_fd(self.rda_fd, 0);
+        transition self.rdn_result {
+            DirEntryResult::End -> rds_pop()
+            DirEntryResult::Ok { entry } -> rds_entry(entry)
+            DirEntryResult::Error { kind } -> rds_fail()
+        }
+    }
+
+    // TOP is empty: close + pop. If a parent remains, the drained child is
+    // (still) the parent's FIRST entry -- re-read its name fresh and remove
+    // it (AT_REMOVEDIR = 128). The ROOT (depth hits 0) is the caller's.
+    state rds_pop(&mut self) {
+        self.rda_close_rc = self.host.close(self.rda_fd);
+        transition self.rda_depth >= 1 { true -> rds_pop_go() _ -> rds_fail() }
+    }
+    state rds_pop_go(&mut self) {
+        self.rda_depth = self.rda_depth - 1;
+        transition self.rda_depth == 0 { true -> rds_continue() _ -> rds_parent() }
+    }
+    state rds_parent(&mut self) {
+        transition self.rda_depth >= 1 && self.rda_depth - 1 < 16 {
+            true -> rds_parent_go()
+            _ -> rds_fail()
+        }
+    }
+    state rds_parent_go(&mut self) {
+        self.rda_fd = self.rda_stack[self.rda_depth - 1];
+        self.rdn_result = self.read_dir_entry_fd(self.rda_fd, 0);
+        transition self.rdn_result {
+            DirEntryResult::Ok { entry } -> rds_rm_child(entry)
+            DirEntryResult::End -> rds_continue()
+            DirEntryResult::Error { kind } -> rds_fail()
+        }
+    }
+    state rds_rm_child(&mut self, entry: DirEntry) {
+        transition entry.name_len < 256 { true -> rds_rm_child_go(entry, entry.name_len) _ -> rds_fail() }
+    }
+    state rds_rm_child_go(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..name_len], 128);
+        transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
+    }
+
+    // A live first entry: files unlink; subdirs open + PUSH (descend).
+    state rds_entry(&mut self, entry: DirEntry) {
+        transition entry.name_len < 256 { true -> rds_kind(entry, entry.name_len) _ -> rds_fail() }
+    }
+    state rds_kind(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        transition entry.is_dir {
+            true -> rds_descend(entry, name_len)
+            false -> rds_unlink(entry, name_len)
+        }
+    }
+    state rds_unlink(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..name_len], 0);
+        transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
+    }
+    state rds_descend(&mut self, entry: DirEntry, name_len: u64[0..=255]) {
+        self.rda_sub = self.host.open_at(self.rda_fd, entry.name[0..name_len], self.read_flags);
+        transition self.rda_sub >= 0 { true -> rds_push() _ -> rds_fail() }
+    }
+    state rds_push(&mut self) {
+        transition self.rda_depth < 16 { true -> rds_push_go() _ -> rds_fail() }
+    }
+    state rds_push_go(&mut self) {
+        self.rda_stack[self.rda_depth] = self.rda_sub;
+        self.rda_depth = self.rda_depth + 1;
+        transition true { true -> rds_continue() _ -> rds_fail() }
+    }
+
+    state rds_continue(&mut self) { self.rda_verdict = 1; }
+    state rds_fail(&mut self) { self.rda_verdict = 0 - 1; }
+}
+
+// POSITIONED IO (the portable positioned-io contract, windows session
+// slice 2): posix binds the ATOMIC pread/pwrite raw ops directly -- the
+// kernel reads/writes at the offset without touching the fd's cursor.
+// (The windows twin composes seek/op/restore; see its impl file.)
+pub macos_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+pub macos_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// HARD LINK (the portable hard-link contract, windows session slice 3):
+// posix binds link(2) directly -- errno carries the failure kind
+// (AlreadyExists / NotFound). (The windows twin rides the designed
+// create_hard_link seam op; see its impl file.)
+pub macos_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    let rc: i32 = self.host.hard_link(original, link);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Set an open file's access + modification times. Compose two native timespec
+// records (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64}) and futimens.
+pub macos_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.times_buf[0] = narrow_i64_to_u8_wrapping(accessed);
+    self.times_buf[1] = narrow_i64_to_u8_wrapping(accessed >> 8);
+    self.times_buf[2] = narrow_i64_to_u8_wrapping(accessed >> 16);
+    self.times_buf[3] = narrow_i64_to_u8_wrapping(accessed >> 24);
+    self.times_buf[4] = narrow_i64_to_u8_wrapping(accessed >> 32);
+    self.times_buf[5] = narrow_i64_to_u8_wrapping(accessed >> 40);
+    self.times_buf[6] = narrow_i64_to_u8_wrapping(accessed >> 48);
+    self.times_buf[7] = narrow_i64_to_u8_wrapping(accessed >> 56);
+    self.times_buf[16] = narrow_i64_to_u8_wrapping(modified);
+    self.times_buf[17] = narrow_i64_to_u8_wrapping(modified >> 8);
+    self.times_buf[18] = narrow_i64_to_u8_wrapping(modified >> 16);
+    self.times_buf[19] = narrow_i64_to_u8_wrapping(modified >> 24);
+    self.times_buf[20] = narrow_i64_to_u8_wrapping(modified >> 32);
+    self.times_buf[21] = narrow_i64_to_u8_wrapping(modified >> 40);
+    self.times_buf[22] = narrow_i64_to_u8_wrapping(modified >> 48);
+    self.times_buf[23] = narrow_i64_to_u8_wrapping(modified >> 56);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.set_file_times(self.file_fd, &mut self.times_buf);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// CANONICALIZE (the portable canonicalize contract, windows session slice
+// 4a): posix binds realpath(3) directly -- symlink-resolving,
+// existence-checked, writes the NUL-terminated absolute path into the
+// caller's >= 1024-byte buffer. (The windows twin composes the handle
+// bridge; see its impl file.)
+pub macos_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    let rc: i64 = self.host.canonicalize(path, buffer);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+pub macos_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 2);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+pub macos_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 1);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+pub macos_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 6);
+    self.lock_errno = self.host.errno();
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+pub macos_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 5);
+    self.lock_errno = self.host.errno();
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed() } }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+pub macos_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 8);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}

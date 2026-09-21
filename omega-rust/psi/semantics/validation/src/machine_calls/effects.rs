@@ -137,8 +137,8 @@ fn format_service_row(
 }
 
 mod asm_discharge;
-pub use asm_discharge::validate_asm_discharge;
 use asm_discharge::validate_asm_intrinsic_declarations;
+pub use asm_discharge::{AsmAuthorityAdmission, validate_asm_discharge};
 
 mod pure_discards;
 use pure_discards::validate_pure_discards;

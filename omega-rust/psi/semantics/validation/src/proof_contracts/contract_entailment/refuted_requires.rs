@@ -90,7 +90,13 @@ pub(crate) fn reject_refuted_value_call_requires(
                 continue;
             };
             if matches!(
-                instantiated_fact_judgment(program, &judge, callee_state, *expression, &map),
+                instantiated_fact_judgment(
+                    program,
+                    &judge,
+                    program.state_parameters(callee_state),
+                    *expression,
+                    &map,
+                ),
                 StructuralJudgment::Refuted
             ) {
                 diagnostics.push(Diagnostic::error(format!(
@@ -108,12 +114,12 @@ pub(crate) fn reject_refuted_value_call_requires(
 pub(super) fn instantiated_fact_judgment(
     program: &TypedTrees,
     judge: &StructuralJudge,
-    callee: &typed_trees::state::State,
+    callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
 ) -> StructuralJudgment {
     if super::structural_terms::is_case_observation(program, fact) {
-        return judge.instantiated_case_judgment(program.state_parameters(callee), fact, map);
+        return judge.instantiated_case_judgment(callee_parameters, fact, map);
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
         return StructuralJudgment::Unknown;
@@ -121,8 +127,8 @@ pub(super) fn instantiated_fact_judgment(
     match binary.operator {
         BinaryOperator::And => {
             match (
-                instantiated_fact_judgment(program, judge, callee, binary.left, map),
-                instantiated_fact_judgment(program, judge, callee, binary.right, map),
+                instantiated_fact_judgment(program, judge, callee_parameters, binary.left, map),
+                instantiated_fact_judgment(program, judge, callee_parameters, binary.right, map),
             ) {
                 (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
                     StructuralJudgment::Refuted

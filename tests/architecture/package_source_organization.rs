@@ -4,6 +4,8 @@
 //! not preserve a blacklist of historical paths: architecture is proved by the
 //! tree that exists and its documented dependency direction.
 
+mod entrypoint_module_layout;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -428,6 +428,7 @@ pub(super) fn split_affine_frontier_at_projection(
         StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)
+        | StructuralTypeShape::ElementView { .. }
         | StructuralTypeShape::FixedArray { .. }
         | StructuralTypeShape::Sum { .. }
         | StructuralTypeShape::Mixed { .. } => None,

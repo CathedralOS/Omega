@@ -23,9 +23,10 @@ use terminal_verifier::validate_module_for_optimization;
 /// exhaustive, so a future selection added without an implementation fails to
 /// compile rather than being silently recorded as an executed identity — every
 /// member's preterminal semantics must be stated here explicitly.
-/// `StateSpecialization` rewrites the abstract-operations unit produced only
-/// after this stage, so it executes in the post-terminal stage and is left out
-/// of this stage's execution record.
+/// `StateSpecialization` and `RepresentationSpecialization` rewrite the
+/// abstract-operations unit produced only after this stage, so they execute
+/// in the post-terminal stage and are left out of this stage's execution
+/// record.
 pub fn run_psi_optimization(
     mut lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
@@ -51,7 +52,8 @@ pub fn run_psi_optimization(
             PsiOptimization::ProofCheckElision => {
                 lowered = proof_check_elision::elide(lowered)?;
             }
-            PsiOptimization::StateSpecialization => {}
+            PsiOptimization::StateSpecialization
+            | PsiOptimization::RepresentationSpecialization => {}
         }
     }
 

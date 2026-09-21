@@ -1,7 +1,7 @@
 # Finite Beta encoding theory diagnostics
 
 Run `sh tests/gamma/beta-encoding-theory/run.sh` from the repository root on
-macOS arm64 or Windows x64 Git Bash, with Python 3 available as `python3`.
+macOS arm64 or Linux x86-64, or Windows x64 Git Bash, with Python 3 available as `python3`.
 The same command applies on both hosts; PowerShell is not required.
 Missing Python explicitly skips; unsupported hosts fail with status 2.
 The gate prints the executing host. A result on one host does not establish
@@ -56,6 +56,31 @@ production only: the certificate has to be produced through the selected
 chain and checked under the exact profile. See
 [PROFILE.md](../../../bootstrap/proofs/beta_encoding/PROFILE.md) for the
 measured figures.
+
+`sh tests/gamma/beta-encoding-theory/run.sh --produce-request PATH`
+materializes the certificate artifact itself: the same host-side
+production plus the recorded extent/digest pin, then an atomic write of
+the complete 135,485,028-byte framed request to PATH. The file is the
+untrusted derivation input the
+[check gate](../beta-encoding-check) frames for the evaluator — producing
+it grants no admission.
+
+`sh tests/gamma/beta-encoding-theory/run.sh --mutations` selects the
+[mutation-control leg](mutations.py) and, like the default gate, needs a
+native evaluator host. It rebuilds the complete full-subject certificate
+with the checked-in stepper, then requires the checker to publish exact
+owned rejections for corruptions across the
+[ACCEPTANCE.md](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
+taxonomy: a positive unmutated control, theory clause-body identity,
+source- and tape-side instance roots, an unknown rule tag, clause ordinal
+range and case errors, a swapped substitution environment, wrong and
+self-referential premises, a term arity count, the owner/witness partition
+joint, claimed endpoints, both final-root selections, and two rows
+following a valid prefix. Expected diagnostics carry the coordinate and
+code conventions from
+[CHECKING.md](../../../bootstrap/proofs/checker/CHECKING.md). On any host
+with python3, `python3 mutations.py --self-test` reproduces the
+certificate and verifies vector construction without asserting verdicts.
 
 The shell entry resolves bootstrap roles, materializes both complete source
 closures, and invokes `materialize_gamma_evaluator` for the selected

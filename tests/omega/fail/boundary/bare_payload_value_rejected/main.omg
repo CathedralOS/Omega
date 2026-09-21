@@ -1,0 +1,15 @@
+// Bare boundary trait as a variant payload field is a value position and
+// rejects as a non-carrier during source checking.
+boundary trait Console {
+    machine write_line(text: &[u8]);
+}
+
+data Command {
+    case Idle;
+    case Carries(console: Console);
+}
+
+data Main { command: Command; }
+
+machine Main::main(&mut self) {
+}

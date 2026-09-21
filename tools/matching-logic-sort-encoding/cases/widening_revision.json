@@ -1,0 +1,24 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "negative: a revision that widens instead of refining",
+  "target": {"capsule": "linux_x86_64", "address_model": "flat_u64"},
+  "types": {
+    "integers": {},
+    "ranged": [
+      {"name": "U3", "low": 0, "high": 3}
+    ]
+  },
+  "inhabitants": {
+    "Integer": 1,
+    "Nat": 1,
+    "U3": 1
+  },
+  "revisions": [
+    {
+      "element": "x",
+      "prior_lower": 0,
+      "prior_upper": 3,
+      "tightened_upper": 7
+    }
+  ]
+}

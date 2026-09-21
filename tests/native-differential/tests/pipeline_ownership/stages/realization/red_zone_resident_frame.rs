@@ -47,6 +47,7 @@ fn resident_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
     let obligation = ObligationId::new(69).unwrap();
     let operation = |id: u64, result: ValueId, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result.get())),
         kind,
@@ -100,6 +101,7 @@ fn resident_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
             entry: block,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -127,6 +129,7 @@ fn resident_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(73).unwrap(),
                 crash_routes: Vec::new(),
                 requires: vec![goal.clone()],

@@ -23,7 +23,10 @@
 //! and quarantine operations over resident image buffers it owns, turns a
 //! sealed entry reference into the resident call content, and frees storage
 //! only once retirement has unwound a range's execution state — minting the
-//! receipts the transitions consume.
+//! receipts the transitions consume. `provider_driver.rs` composes each of
+//! that provider's contracted operations with the lifecycle transition that
+//! consumes its receipt, so one call drives install, sealed entry call,
+//! retirement, quarantine, uninstall, or replacement end to end.
 
 mod artifacts;
 mod authority_digests;
@@ -35,6 +38,7 @@ mod installation;
 mod materializer;
 mod owned_image_provider;
 mod post_handoff_writer;
+mod provider_driver;
 mod replacement;
 mod replacement_quarantine;
 mod retirement;
@@ -75,6 +79,7 @@ pub use installation::{
 pub use materializer::*;
 pub use owned_image_provider::*;
 pub use post_handoff_writer::*;
+pub use provider_driver::*;
 pub use replacement::{
     ReplacementAuthority, ReplacementError, ReplacementOutcome, ReplacementReceipt,
     replace_installed,

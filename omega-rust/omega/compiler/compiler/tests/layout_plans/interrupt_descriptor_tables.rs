@@ -73,8 +73,9 @@ use executable_installation::{
 use extents::{
     AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappedExtent, MappingEraId, MappingGrant, MappingGrantId,
-    MappingId, MappingSourceMode, TranslationActivationFactId, TranslationActivationReceipt,
-    TranslationInstallObligations, TranslationReleaseObligations, map_owned,
+    MappingId, MappingSourceMode, PeerWriteRevocationObligations, TranslationActivationFactId,
+    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+    map_owned,
 };
 use external_roots::{
     AcknowledgementPolicyId, BoundEpochStackCompositionInput, ComponentArtifactId,
@@ -82,18 +83,19 @@ use external_roots::{
     EstablishedInterruptTable, ExternalRootCandidate, ExternalRootDiagnostic,
     ExternalRootEntryClaim, ExternalRootId, ExternalRootResultClaim, FixedFuelCall,
     FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity, FuelValidationReceiptId,
-    InstalledExternalRoot, InstalledRootLedger, InterruptTableDescriptorOperand,
-    InterruptTableEstablishedMember, InterruptTableEstablishmentId, InterruptTableGateDescriptor,
-    InterruptTableLedger, InterruptTableMemberPlan, InterruptTableObligation,
-    InterruptTableProfile, InterruptTableProfileId, InterruptTablePublicationAuthority,
-    InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
-    InterruptTablePublicationOutcome, InterruptTablePublicationReceiptId,
-    InterruptTablePublicationScope, LogicalFuelResourceColumn, MachineStateResourceColumn,
-    NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId,
-    ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary,
-    ResolvedRootServiceReach, RootAdmission, RootAdmissionId, RootEffectId, RootProviderId,
-    RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
-    StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
+    InstalledExternalRoot, InstalledRootLedger, InstalledRootRecord,
+    InterruptTableDescriptorOperand, InterruptTableEstablishedMember,
+    InterruptTableEstablishmentId, InterruptTableGateDescriptor, InterruptTableLedger,
+    InterruptTableMemberAdmission, InterruptTableMemberFacts, InterruptTableMemberPlan,
+    InterruptTableObligation, InterruptTableProfile, InterruptTableProfileId,
+    InterruptTablePublicationAuthority, InterruptTablePublicationAuthorityId,
+    InterruptTablePublicationId, InterruptTablePublicationOutcome,
+    InterruptTablePublicationReceiptId, InterruptTablePublicationScope, LogicalFuelResourceColumn,
+    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
+    ProviderStackSummary, ResolvedRootServiceReach, RootAdmission, RootAdmissionId, RootEffectId,
+    RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation,
+    StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
     admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
     compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
 };
@@ -185,6 +187,7 @@ struct AuthoredMember {
 struct AuthoredMembership {
     members: Vec<AuthoredMember>,
     members_arg: BuildTimeValue,
+    member_rows: Vec<BuildTimeValue>,
     ist: Vec<(u8, u16)>,
 }
 
@@ -269,8 +272,90 @@ fn authored_membership(typed: &typed_trees::TypedTrees) -> AuthoredMembership {
     AuthoredMembership {
         members,
         members_arg: BuildTimeValue::Array(member_rows.clone()),
+        member_rows: member_rows.clone(),
         ist,
     }
+}
+
+/// The verbatim `TableMemberDeclaration` row the authored membership
+/// declared for one vector — the value the package's admission machine
+/// binds against.
+fn member_row(membership: &AuthoredMembership, vector: u8) -> &BuildTimeValue {
+    membership
+        .member_rows
+        .iter()
+        .find(|row| int_field(record_fields(row, "declared member"), "vector") == i64::from(vector))
+        .expect("the authored membership declares this member's row")
+}
+
+/// The member-arrival facts expressed in the authored `MemberFacts` shape
+/// the package's admission machine consumes.
+fn member_facts_value(
+    typed: &typed_trees::TypedTrees,
+    facts: InterruptTableMemberFacts,
+) -> BuildTimeValue {
+    BuildTimeValue::Struct {
+        type_name: qualified_data_name(typed, "MemberFacts"),
+        fields: vec![
+            (
+                "entry_interrupt_return".to_owned(),
+                BuildTimeValue::Bool(facts.entry_interrupt_return),
+            ),
+            (
+                "stack_dedicated_class".to_owned(),
+                BuildTimeValue::Int(i64::from(facts.stack_dedicated_class)),
+            ),
+            (
+                "acknowledgement_policy".to_owned(),
+                BuildTimeValue::Bool(facts.acknowledgement_policy),
+            ),
+            (
+                "acknowledgement_parameter".to_owned(),
+                BuildTimeValue::Bool(facts.acknowledgement_parameter),
+            ),
+        ],
+    }
+}
+
+/// Evaluate the package's `TableMemberAdmission::admit` for one declared
+/// row against the given arrival facts and return its authored verdict.
+fn authored_member_verdict(
+    typed: &typed_trees::TypedTrees,
+    member_row: &BuildTimeValue,
+    facts: InterruptTableMemberFacts,
+) -> BuildTimeValue {
+    let machine = qualified_machine_name(typed, "TableMemberAdmission::admit");
+    evaluate_build_time_machine(
+        typed,
+        BuildMachineEvaluationRequest::named(
+            &machine,
+            vec![member_row.clone(), member_facts_value(typed, facts)],
+        ),
+    )
+    .unwrap_or_else(|reason| panic!("the authored member admission does not evaluate: {reason}"))
+    .into_value()
+}
+
+/// Mint the admission record an `Admitted` verdict warrants: the ledger
+/// replays the declared row and the record's verbatim arrival facts while
+/// the authored machine remains the semantic warrant.
+fn authored_member_admission(
+    typed: &typed_trees::TypedTrees,
+    member_row: &BuildTimeValue,
+    plan: InterruptTableMemberPlan,
+    record: &InstalledRootRecord,
+) -> InterruptTableMemberAdmission {
+    let facts = InterruptTableMemberFacts::from_record(record);
+    let verdict = authored_member_verdict(typed, member_row, facts);
+    let BuildTimeValue::Case { variant, .. } = &verdict else {
+        panic!("the authored member admission produced {verdict:?}, not a verdict case")
+    };
+    assert_eq!(
+        variant.as_str(),
+        "Admitted",
+        "the authored admission rejects a member its record satisfies"
+    );
+    InterruptTableMemberAdmission::from_consumer(plan, facts)
 }
 
 /// The installed identities the authored declaration deliberately does
@@ -617,6 +702,7 @@ fn activated_table_mapping(seed: u64, base: u64, length: u64) -> MappedExtent<'s
         extent_identity(seed + 7000, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::from_normalized_facts([activation]),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         extent_grant(seed + 8000, 0x20_0000, length, rights.clone()),
@@ -1887,6 +1973,58 @@ fn descriptor_operand(seed: u64, destination: &Extent) -> InterruptTableDescript
     )
 }
 
+/// The authored member-admission verdict owns the declaration's
+/// semantics: arrival facts falling outside the declared row reject in
+/// authored code, and no admission record is minted for the ledger.
+#[test]
+fn authored_member_admission_verdict_rejects_unsatisfying_facts() {
+    let (checked, _, _) = authored_layouts();
+    let (_, membership) = declared_members(&checked.typed);
+    let row = member_row(&membership, DIVIDE_ERROR);
+
+    let reject_reason = |facts: InterruptTableMemberFacts| match authored_member_verdict(
+        &checked.typed,
+        row,
+        facts,
+    ) {
+        BuildTimeValue::Case { variant, payload } if variant == "Rejected" => {
+            int_field(&payload, "reason")
+        }
+        other => panic!("the authored admission produced {other:?}, not a rejection"),
+    };
+
+    // A member that does not exit through interrupt return cannot admit.
+    assert_eq!(
+        reject_reason(InterruptTableMemberFacts {
+            entry_interrupt_return: false,
+            stack_dedicated_class: 11,
+            acknowledgement_policy: false,
+            acknowledgement_parameter: false,
+        }),
+        1
+    );
+    // Arrival on a dedicated class other than the declared one rejects.
+    assert_eq!(
+        reject_reason(InterruptTableMemberFacts {
+            entry_interrupt_return: true,
+            stack_dedicated_class: 13,
+            acknowledgement_policy: false,
+            acknowledgement_parameter: false,
+        }),
+        2
+    );
+    // An acknowledgement contract the fatal obligation forbids rejects.
+    assert_eq!(
+        reject_reason(InterruptTableMemberFacts {
+            entry_interrupt_return: true,
+            stack_dedicated_class: 11,
+            acknowledgement_policy: true,
+            acknowledgement_parameter: true,
+        }),
+        3
+    );
+}
+
 #[test]
 fn established_table_publishes_through_the_checked_lidt_edge() {
     let (checked, gate_layout, table_layout) = authored_layouts();
@@ -1901,8 +2039,21 @@ fn established_table_publishes_through_the_checked_lidt_edge() {
     let handles = installed_member_roots(&mut ledger, &code, &members);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
     for (member, handle) in members.values().zip(handles) {
+        let record = ledger
+            .record(handle.root())
+            .expect("the installed member's record is retained");
         table
-            .admit_interrupt_table_member(&ledger, member.profile.vector, handle)
+            .admit_interrupt_table_member(
+                &ledger,
+                member.profile.vector,
+                handle,
+                authored_member_admission(
+                    &checked.typed,
+                    member_row(&membership, member.profile.vector),
+                    member.profile,
+                    record,
+                ),
+            )
             .expect("admitted interrupt-table member");
     }
     assert!(table.is_complete());
@@ -2168,7 +2319,7 @@ fn authored_fatal_exception_root_installs_through_selected_provider() {
 
     // The candidate's compiler-visible fields are real; only the
     // admitted-provider columns stay test-admitted.
-    let (all_members, _membership) = declared_members(&checked.typed);
+    let (all_members, membership) = declared_members(&checked.typed);
     let member = all_members[&DIVIDE_ERROR];
     let members = BTreeMap::from([(DIVIDE_ERROR, member)]);
     let mut code = table_installed_code(&members);
@@ -2305,12 +2456,23 @@ fn authored_fatal_exception_root_installs_through_selected_provider() {
         boundary.contract_report_fingerprint()
     );
 
-    // The table's member admission joins the authored boundary against the
-    // declared divide-error profile: dedicated stack class 11 and the fatal
-    // obligation's no-acknowledgement shape.
+    // The package's authored admission machine rules the member under its
+    // declared divide-error row — dedicated stack class 11 and the fatal
+    // obligation's no-acknowledgement shape — and its `Admitted` verdict
+    // mints the record the ledger replays.
     let mut table = InterruptTableLedger::new(table_profile(0x600, &all_members), &ledger);
     let admitted = table
-        .admit_interrupt_table_member(&ledger, DIVIDE_ERROR, installed)
+        .admit_interrupt_table_member(
+            &ledger,
+            DIVIDE_ERROR,
+            installed,
+            authored_member_admission(
+                &checked.typed,
+                member_row(&membership, DIVIDE_ERROR),
+                member.profile,
+                record,
+            ),
+        )
         .expect("the authored fatal-exception member admits into the declared table");
     assert_eq!(admitted.vector(), DIVIDE_ERROR);
     assert_eq!(admitted.dedicated_stack_class(), 11);
@@ -2445,7 +2607,7 @@ fn authored_timer_root_installs_through_selected_provider() {
 
     // The candidate's compiler-visible fields are real; only the
     // admitted-provider columns stay test-admitted.
-    let (all_members, _membership) = declared_members(&checked.typed);
+    let (all_members, membership) = declared_members(&checked.typed);
     let member = all_members[&TIMER_TICK];
     let members = BTreeMap::from([(TIMER_TICK, member)]);
     let mut code = table_installed_code(&members);
@@ -2592,12 +2754,23 @@ fn authored_timer_root_installs_through_selected_provider() {
         boundary.contract_report_fingerprint()
     );
 
-    // The table's member admission joins the authored boundary against the
-    // declared timer profile: dedicated stack class 14 and the
-    // acknowledged-interrupt obligation.
+    // The package's authored admission machine rules the member under its
+    // declared timer row — dedicated stack class 14 and the
+    // acknowledged-interrupt obligation — and its `Admitted` verdict mints
+    // the record the ledger replays.
     let mut table = InterruptTableLedger::new(table_profile(0x600, &all_members), &ledger);
     let admitted = table
-        .admit_interrupt_table_member(&ledger, TIMER_TICK, installed)
+        .admit_interrupt_table_member(
+            &ledger,
+            TIMER_TICK,
+            installed,
+            authored_member_admission(
+                &checked.typed,
+                member_row(&membership, TIMER_TICK),
+                member.profile,
+                record,
+            ),
+        )
         .expect("the authored timer member admits into the declared table");
     assert_eq!(admitted.vector(), TIMER_TICK);
     assert_eq!(admitted.dedicated_stack_class(), 14);

@@ -383,11 +383,47 @@ normalizing a source equality can reverse its endpoints. An open sum whose
 correlated difference has collapsed to its numeral `n` cannot match the
 applicative `add (sub e r) r` cancellation, so the chain substitutes the
 checked numeral-operation equation `add n r = e` — an exact interned
-assumption, once per evaluated operand triple — in its place. No
+assumption, once per evaluated operand triple — in its place.
+Correlated subtraction lower and upper bounds reuse the same machinery
+with two fixed `add`/`sub` adjunctions — `add a c ≤ b → a ≤ sub b c` and
+`b ≤ add a c → sub b c ≤ a`: after a value root substitutes through its
+cited definition, a closed sum's numeral `n` substitutes the checked
+equation `add e r = n` in reverse to reach the applicative premise the
+adjunction expects, and a landed endpoint substitutes through its cited
+literal equality as in the addition chain. No
 arithmetic law becomes definitional conversion. Other open operations
 remain opaque. These fixed laws are assumptions, not an arithmetic consistency
 result. Recursive evaluator preflights may revisit prefixes;
 shallow term storage does not establish linear checking cost.
+
+The exact-add definition bound cites a semantic `out = l + r` equality
+beside the two operand bounds. A fixed two-sided monotonicity law
+`a ≤ b → c ≤ d → add a c ≤ add b d` combines the operand evidence into a
+bound on the applicative sum, the cited definition transports that bound
+onto `out`, and a checked numeral-operation equation `add lb rb = k`
+lands the conclusion's literal endpoint. Each operand's endpoint re-shapes
+its evidence to the required direction: an oriented `≤` stands, an
+operand-to-literal `Equal` transports through `eq_le` in either citation
+orientation, and a literal addend is its own endpoint through `refl`.
+A `Truth` bound over an open addend contributes its carrier endpoint
+through an interned membership assumption `IntLe min' op'` or
+`IntLe op' max'` — the exact fixed-carrier fact, interned once per
+operand and direction; quantifying it as a law would range over every
+`Int`, which membership does not survive. A bound literal the carrier
+cannot represent keeps the explicit instance fallback below. The direct
+`IntegerAffineBound` add form skips the cited definition: its premise is
+the conjunction of the two operand bounds, whose denoted `Σ` pair
+projects each conjunct onto the same endpoint machinery, and its
+conclusion names the `add` application itself, so two-sided monotonicity
+and the checked `add lb rb = k` equation land the bound on the
+application directly. An endpoint sum outside the representable numeral
+range keeps the instance fallback. The direct subtract form shares the
+machinery with subtraction's antitone twist: the right operand's
+endpoint re-shapes to the direction opposite the conclusion's, a fixed
+`a ≤ b → d ≤ c → sub a c ≤ sub b d` law combines the operands, and the
+checked `sub lb rb = k` numeral equation lands the literal — including
+the `(Exact, Carrier)` boundary cases the checker admits and negative
+bounds over unsigned carriers.
 
 Remaining families, including other bound and correlated-root
 witnesses, transport through opaque operations, reversed identities nested

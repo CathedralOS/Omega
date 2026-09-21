@@ -9,6 +9,8 @@ mod block_bindings;
 mod error;
 #[path = "machine/lower_machine.rs"]
 mod machine;
+#[cfg(test)]
+mod rejection_audit;
 
 pub use error::LoweringError;
 

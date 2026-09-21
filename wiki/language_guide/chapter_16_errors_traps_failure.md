@@ -17,7 +17,7 @@ data ParseResult {
 }
 
 machine App::run(&mut self, input: &[u8]) {
-    let outcome = self.parser.parse(input);
+    let outcome: ParseResult = self.parser.parse(input);
     transition outcome {
         ParseResult::Parsed { value } -> self.use_value(value)
         ParseResult::BadDigit { at } -> self.report(at)
@@ -41,8 +41,10 @@ Facts can travel with the successful payload. For example, a table with sixteen
 entries can return a bounded index:
 
 ```omega
+domain u32::TableIndex requires self < 16;
+
 data Slot {
-    case Found(index: u32 [0..16]);
+    case Found(index: u32::TableIndex);
     case Full;
 }
 ```

@@ -366,8 +366,8 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
 
     assert_eq!(
         checked.source_file_count(),
-        4,
-        "authored, generated, and compiler-injected source custody remains exact",
+        3 + checked.exact_toolchain_sources().len(),
+        "authored, generated, and mounted toolchain source custody remains exact",
     );
     assert_ne!(
         checked.base_source_consumption_commitment(),

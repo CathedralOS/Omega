@@ -10,7 +10,7 @@ use super::constraints::selection_constraints;
 use super::model::{OptimizedSelectionCustodyError, StagedOptimizedSelectionCustodyReceipt};
 
 pub fn validate_optimized_selection_custody(
-    optimized_target: &ValidatedOptimizedTargetOperations,
+    optimized_target: &std::sync::Arc<ValidatedOptimizedTargetOperations>,
     register_environment: &ValidatedTargetRegisterEnvironment,
     legalized: &ValidatedLegalizedOperations,
     selected: &ValidatedSelectedInstructions,

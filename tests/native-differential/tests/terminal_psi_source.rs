@@ -177,18 +177,22 @@ fn stage_terminal_component_with_policies(
         )]
     })?;
     let entry_machine = selected_program_entry.machine_name();
-    let artifact = terminal_production::TerminalProductionRequest::new(checked, entry_machine)
-        .produce_artifact()
-        .map_err(|error| {
-            vec![diagnostics::Diagnostic::error(format!(
-                "terminal component artifact production failed: {error}"
-            ))]
-        })?;
+    // Stage through the production program-entry route so the artifact carries
+    // the checked entry receipt, boundary-operator scope, and application
+    // coverage that native realization rejoins; a bare `produce_artifact` never
+    // supplies the checked custody the hosted-receiver gate requires.
+    let (artifact, checked_program_entry, checked_boundary_operator_scope, boundary_coverage) =
+        checked_compilation_to_terminal_artifact::produce_program_entry_terminal_artifact(
+            checked,
+            selected_program_entry,
+            checked.optimization_selections(),
+        )?
+        .into_parts();
     let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,
         native_realization::NativeRealizationRequest {
-            checked_scope: None,
+            checked_scope: Some(&checked_boundary_operator_scope),
             prepared_input: None,
             target,
             image_request: image_emission::ExecutableImageEmissionRequest::direct(subsystem),
@@ -205,12 +209,13 @@ fn stage_terminal_component_with_policies(
                     )
                 }),
                 selected_program_entry.fused_service_establishments(),
-            ),
+            )
+            .with_checked_entry(&checked_program_entry),
             optimization_selections: post_terminal_optimizations.selections(),
             selected_provider_plans: checked.selected_provider_plans(),
             external_binding_rows: checked.external_binding_rows(),
             settlements,
-            boundary_application_coverage: None,
+            boundary_application_coverage: Some(&boundary_coverage),
             compiler_builtins: &[],
             ieee_float_fma: &[],
             native_callbacks: &[],
@@ -565,7 +570,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 
     let (installed, _) = install_terminal_object(
         candidate.object(),
-        candidate.object().text_bytes().to_vec(),
+        candidate.image().output().final_text_bytes.clone(),
         entry_offset,
     );
     let mut other_text = candidate.object().text_bytes().to_vec();
@@ -580,7 +585,9 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     assert!(
         claimed_error
             .diagnostic()
-            .contains("different installed-code")
+            .contains("different installed-code"),
+        "{}",
+        claimed_error.diagnostic()
     );
     let (candidate, mut installed, other_roots) = claimed_error.into_parts();
     assert!(other_roots.binds_installed_code(&other_installed));
@@ -740,12 +747,12 @@ fn selected_preterminal_optimizers_rejoin_one_native_pipeline() {
 }
 
 #[test]
-fn retired_selected_lowering_rejects_before_native_publication() {
+fn unimplemented_post_terminal_phase_rejects_before_native_publication() {
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &selected_lowering_optimizer_source_canary(),
         Some("linux_x64"),
     ))
-    .expect("selected-lowering source remains valid through checking");
+    .expect("post-terminal-optimized source remains valid through checking");
     let entry = checked
         .selected_program_entry_machine()
         .expect("selected entry");
@@ -755,7 +762,7 @@ fn retired_selected_lowering_rejects_before_native_publication() {
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("retiring a physical rewrite must not change Terminal admission");
+    .expect("an unimplemented physical rewrite must not change Terminal admission");
     let errors = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
@@ -763,12 +770,14 @@ fn retired_selected_lowering_rejects_before_native_publication() {
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("a retired selected-lowering phase must not produce a native candidate");
+    .expect_err(
+        "a post-terminal phase with no native implementation must not produce a native candidate",
+    );
     assert!(
         errors.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("UnconsumedPostTerminalPhase(SelectedLowering)")
+                .contains("UnconsumedPostTerminalPhase(PostAllocationMachine)")
                 && diagnostic
                     .message
                     .contains("no alternate compiler route was run and no output was installed")
@@ -816,7 +825,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let selected_plan = &checked.selected_provider_plans().plans()[0];
     let demand = &manifest.pending()[0];
     assert_eq!(demand.provider_service_identity, "Scheduler");
-    assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
+    assert_eq!(demand.profile_identity, "SchedulerHandle::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
 
     let terminal = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
@@ -1015,10 +1024,41 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert!(candidate.object().foreign_calls().is_empty());
     assert_eq!(candidate.image().output().final_image_imports, 0);
     assert!(candidate.image().output().final_data_bytes.is_empty());
+    let semantic_text_len = candidate.object().text_bytes().len();
+    let final_text = &candidate.image().output().final_text_bytes;
     assert_eq!(
-        candidate.image().output().final_text_bytes,
+        &final_text[..semantic_text_len],
         candidate.object().text_bytes()
     );
+    // The only emitted bytes beyond compiler-authored text are the one
+    // classified hosted Unit-entry adapter the exact target selects.
+    assert!(
+        candidate
+            .image()
+            .output()
+            .executable_regions
+            .unclassified_gaps
+            .is_empty()
+    );
+    let entry_adapters: Vec<_> = candidate
+        .image()
+        .output()
+        .executable_regions
+        .regions
+        .iter()
+        .filter(|region| region.section_offset >= semantic_text_len)
+        .collect();
+    let [entry_adapter] = entry_adapters.as_slice() else {
+        panic!(
+            "final text must classify one hosted entry adapter beyond the compiler text: {entry_adapters:#?}"
+        )
+    };
+    assert_eq!(entry_adapter.section_offset, semantic_text_len);
+    assert_eq!(
+        entry_adapter.byte_count,
+        final_text.len() - semantic_text_len
+    );
+    assert_eq!(entry_adapter.symbol, "omega_linux_x86_64_unit_entry");
     assert_eq!(
         candidate
             .component_progress()
@@ -1030,7 +1070,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         .expect("progress terminal entry offset fits installation geometry");
     let (installed, _) = install_terminal_object(
         candidate.object(),
-        candidate.object().text_bytes().to_vec(),
+        candidate.image().output().final_text_bytes.clone(),
         entry_offset,
     );
     let installed_identity = installed.identity();
@@ -1230,7 +1270,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             .expect("progress transaction entry offset fits installation geometry");
         let (installed, _) = install_terminal_object(
             candidate.object(),
-            candidate.object().text_bytes().to_vec(),
+            candidate.image().output().final_text_bytes.clone(),
             entry_offset,
         );
         let installed_identity = installed.identity();

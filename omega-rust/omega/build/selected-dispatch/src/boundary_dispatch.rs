@@ -9,7 +9,7 @@
 //! adapter calls; `tests.rs` holds the dispatch tests.
 
 mod adapter_rows;
-mod boundary_fields;
+pub(crate) mod boundary_fields;
 mod signature_families;
 #[cfg(test)]
 mod tests;
@@ -303,8 +303,9 @@ fn plan_selected_boundary_adapter_dispatch(
     }
 
     // A by-value `self` requirement is called through a member receiver
-    // (`token.consume()`), whose retained receiver symbol is the receiver
-    // PLACE -- a per-site parameter, `self` binding or local -- not the
+    // (`token.consume()` or a projected place like `holder.inner.token.consume()`),
+    // whose retained receiver symbol is the receiver PLACE leaf -- a per-site
+    // parameter, `self` binding, local, or projected field member -- not the
     // nominal owner. Register the receiver place of each member call that
     // targets a settled self row after verifying its declared type is the
     // requirement owner; the row's forward_receiver flag carries that place
@@ -317,31 +318,105 @@ fn plan_selected_boundary_adapter_dispatch(
         .filter(|adapter| adapter.forward_receiver && adapter.top_level_owner.is_some())
         .collect::<Vec<_>>();
     if !self_adapters.is_empty() {
-        // The declared type of one receiver place, wherever it is bound --
-        // place symbols are unique across the program, so the search is exact
-        // rather than scoped to the call's state.
-        let receiver_place_types = |receiver_symbol: symbols::SymbolHandle| {
+        // The declared types of the member `member_name` inside a named data
+        // type: the owning definition is already exact, so the member name
+        // resolves inside it alone.
+        let member_field_types = |type_reference, member_name: &str| {
             let mut type_references = Vec::new();
-            for machine in typed.machines() {
-                for state in typed.machine_states(machine) {
-                    for parameter in typed.state_parameters(state) {
-                        if parameter.symbol == receiver_symbol {
-                            type_references.push(parameter.type_reference);
-                        }
-                    }
-                    for statement in typed.statement_table.statements(state.statement_nodes) {
-                        if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                            && local.symbol == receiver_symbol
-                        {
-                            type_references.push(local.type_reference);
-                        }
+            if let Some(data_symbol) = named_type_symbol(typed, type_reference)
+                && let Some(owner) = typed
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == data_symbol)
+            {
+                for member in typed.data_members(owner) {
+                    if let typed_trees::data::DataMember::Field(field) = member
+                        && field.name.as_str() == member_name
+                    {
+                        type_references.push(field.type_reference);
                     }
                 }
             }
             type_references
         };
+        // The declared type of one receiver place path, wherever it is
+        // bound: the root place resolves through its parameter or local
+        // declaration -- place symbols are unique across the program, so the
+        // search is exact rather than scoped to the call's state -- then each
+        // projected member resolves its declared field type inside the
+        // previous member's named data definition.
+        let receiver_place_types =
+            |root: symbols::SymbolHandle, members: &[typed_trees::name::Identifier]| {
+                let mut type_references = Vec::new();
+                // A `self.`-rooted receiver names its enclosing machine or
+                // state as the root place, whose type is the machine's
+                // attached data rather than a parameter or local
+                // declaration.
+                let mut self_attached_data = Vec::new();
+                for machine in typed.machines() {
+                    if machine.symbol == root
+                        || typed
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == root)
+                    {
+                        self_attached_data.push(machine.attached_data_symbol);
+                    }
+                    for state in typed.machine_states(machine) {
+                        for parameter in typed.state_parameters(state) {
+                            if parameter.symbol == root {
+                                type_references.push(parameter.type_reference);
+                            }
+                        }
+                        for statement in typed.statement_table.statements(state.statement_nodes) {
+                            if let typed_trees::statement::StatementNode::LocalData(local) =
+                                statement
+                                && local.symbol == root
+                            {
+                                type_references.push(local.type_reference);
+                            }
+                        }
+                    }
+                }
+                for (member_index, member) in members.iter().enumerate() {
+                    let mut next = type_references
+                        .iter()
+                        .flat_map(|type_reference| {
+                            member_field_types(*type_reference, member.as_str())
+                        })
+                        .collect::<Vec<_>>();
+                    if member_index == 0 {
+                        for data_symbol in self_attached_data.iter().copied() {
+                            if let Some(owner) = typed
+                                .data_definitions()
+                                .iter()
+                                .find(|data| data.symbol == data_symbol)
+                            {
+                                next.extend(typed.data_members(owner).iter().filter_map(
+                                    |data_member| match data_member {
+                                        typed_trees::data::DataMember::Field(field)
+                                            if field.name.as_str() == member.as_str() =>
+                                        {
+                                            Some(field.type_reference)
+                                        }
+                                        _ => None,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                    type_references = next;
+                    if type_references.is_empty() {
+                        break;
+                    }
+                }
+                type_references
+            };
         let mut register_receiver_place =
-            |receiver_symbol: symbols::SymbolHandle, target_symbol: symbols::SymbolHandle| {
+            |root: symbols::SymbolHandle,
+             members: &[typed_trees::name::Identifier],
+             leaf: symbols::SymbolHandle,
+             target_symbol: symbols::SymbolHandle| {
                 let Some(adapter) = self_adapters
                     .iter()
                     .find(|adapter| adapter.requirement_symbol == target_symbol)
@@ -351,14 +426,14 @@ fn plan_selected_boundary_adapter_dispatch(
                 let Some(owner) = adapter.top_level_owner else {
                     return;
                 };
-                if !receiver_place_types(receiver_symbol)
+                if !receiver_place_types(root, members)
                     .iter()
                     .any(|type_reference| named_type_symbol(typed, *type_reference) == Some(owner))
                 {
                     return;
                 }
                 let field = BoundaryField {
-                    symbol: receiver_symbol,
+                    symbol: leaf,
                     trait_symbol: adapter.receiver_trait,
                 };
                 if !boundary_fields.contains(&field) {
@@ -371,7 +446,19 @@ fn plan_selected_boundary_adapter_dispatch(
                     let typed_trees::statement::StatementNode::Call(call) = statement else {
                         continue;
                     };
-                    register_receiver_place(call.receiver_symbol, call.target_symbol);
+                    let members = typed.statement_table.name_path_members(call.receiver);
+                    if members.is_empty()
+                        || !call.receiver_root_symbol.is_valid()
+                        || !call.receiver_symbol.is_valid()
+                    {
+                        continue;
+                    }
+                    register_receiver_place(
+                        call.receiver_root_symbol,
+                        &members[1..],
+                        call.receiver_symbol,
+                        call.target_symbol,
+                    );
                 }
             }
         }
@@ -379,12 +466,31 @@ fn plan_selected_boundary_adapter_dispatch(
             let typed_trees::expression::ExpressionNode::Call(call) = expression else {
                 continue;
             };
-            let receiver = match typed.expression_table.expression(call.receiver) {
+            // The receiver expression is a name path or a member-projection
+            // chain; walk it to the root place, collecting member names in
+            // path order and the leaf's exact member symbol.
+            let leaf = match typed.expression_table.expression(call.receiver) {
                 typed_trees::expression::ExpressionNode::Member(member) => member.member_symbol,
                 typed_trees::expression::ExpressionNode::Name(path) => path.symbol,
                 _ => continue,
             };
-            register_receiver_place(receiver, call.target_symbol);
+            let mut members = Vec::new();
+            let mut cursor = call.receiver;
+            let root = loop {
+                match typed.expression_table.expression(cursor) {
+                    typed_trees::expression::ExpressionNode::Member(member) => {
+                        members.push(member.member.clone());
+                        cursor = member.receiver;
+                    }
+                    typed_trees::expression::ExpressionNode::Name(path) => break path.symbol,
+                    _ => break symbols::SymbolHandle::invalid(),
+                }
+            };
+            if !root.is_valid() || !leaf.is_valid() {
+                continue;
+            }
+            members.reverse();
+            register_receiver_place(root, &members, leaf, call.target_symbol);
         }
     }
 

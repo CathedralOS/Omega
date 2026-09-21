@@ -136,6 +136,20 @@ fn attenuation_never_restores_or_widens_rights() {
 }
 
 #[test]
+fn peer_shared_backing_cannot_merge_into_exclusive_lineage() {
+    let exclusive = root_grant(1).mint(0, 32).expect("exclusive root");
+    let peer_shared = root_grant(1)
+        .admitting_peer_shared_backing()
+        .mint(32, 32)
+        .expect("peer-shared root");
+
+    let error = exclusive
+        .merge(peer_shared)
+        .expect_err("sharing admission differs");
+    assert!(error.diagnostic().0.contains("and sharing"));
+}
+
+#[test]
 fn incompatible_sibling_facts_cannot_launder_authority() {
     let (lower, upper) = grant(1, 0, 64).split_at(32).expect("split");
     let lower = lower

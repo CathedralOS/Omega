@@ -105,6 +105,7 @@ fn fixture() -> (
             block,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: block,
                 structural_parameters: Vec::new(),
                 parameters: Vec::new(),
@@ -342,6 +343,7 @@ fn boolean_reads_require_entry_inputs_but_integer_reads_defer_until_execution() 
             .operations
             .push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

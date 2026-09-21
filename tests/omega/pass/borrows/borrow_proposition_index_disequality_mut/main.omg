@@ -1,0 +1,24 @@
+// A transparent proposition requires-row derives the same disequality
+// premise an inline `left_index != right_index` would supply: in-range
+// disequal indexes select disjoint singleton elements. The stated relation
+// supplies compatibility evidence, not additional loan authority.
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+proposition Distinct(left: u64, right: u64) = left != right;
+
+machine Main::main(&mut self, left_index: u64 [0..=1], right_index: u64 [0..=1])
+requires
+    Distinct(left_index, right_index)
+{
+    let view: &mut [Entry] = self.entries.as_mut_slice();
+    let left: &mut Entry = &mut view[left_index];
+    let right: &mut Entry = &mut view[right_index];
+    left = Entry { value: 1 };
+    right = Entry { value: 2 };
+}
