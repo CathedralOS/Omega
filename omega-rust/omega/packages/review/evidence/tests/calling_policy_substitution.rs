@@ -12,10 +12,14 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
         repository_root().join("source/library/std/tests/direct_callback_parameter.omg"),
     )
     .unwrap();
+    // `use calling` would import the now-public standard `calling` module,
+    // colliding with the package-local copy written beside main.omg.
     let prefix = fixture
-        .split_once("pub boundary trait HookProcedure:")
+        .split_once("boundary trait HookProcedure:")
         .unwrap()
-        .0;
+        .0
+        .replace("use calling;\n", "")
+        .replace("\ndata ", "\npub data ");
     let package = TempPackage::new();
     package.write(
         "main.omg",
@@ -61,7 +65,7 @@ pub boundary trait ProcedureBase<Value> {
     machine call(message: &Value) -> u64;
 }
 
-pub boundary trait HookProcedure: Service<ProcedureBase><[u8; 7]> + Calling<HookProcedurePolicy> {}
+pub boundary trait HookProcedure: ProcedureBase<[u8; 7]> + Calling<HookProcedurePolicy> {}
 "#,
     );
     let concrete = policy(
@@ -86,7 +90,7 @@ pub boundary trait ProcedureBase<Value> {
     machine call(message: &Value) -> u64;
 }
 pub boundary trait ProcedureMiddle<Element>: ProcedureBase<[Element; 7]> {}
-pub boundary trait HookProcedure: Service<ProcedureMiddle><u8> + Calling<HookProcedurePolicy> {}
+pub boundary trait HookProcedure: ProcedureMiddle<u8> + Calling<HookProcedurePolicy> {}
 "#;
     let inherited = policy(declaration);
     let concrete =
@@ -104,7 +108,7 @@ pub boundary trait HookProcedure: Service<ProcedureMiddle><u8> + Calling<HookPro
 #[test]
 fn inherited_nested_static_contract_keeps_private_nominal_and_outer_telescope() {
     let declaration = r#"
-trait Hidden { machine apply(value: u64) -> u64; }
+pub trait Hidden { machine apply(value: u64) -> u64; }
 use omega::language::core::service;
 pub boundary trait ProcedureBase<Value> {
     machine call<machine Work, Later>(message: u64) -> u64
@@ -112,7 +116,7 @@ pub boundary trait ProcedureBase<Value> {
     where machine Nested satisfies Hidden::apply;
     ;
 }
-pub boundary trait HookProcedure: Service<ProcedureBase><u64> + Calling<HookProcedurePolicy> {}
+pub boundary trait HookProcedure: ProcedureBase<u64> + Calling<HookProcedurePolicy> {}
 "#;
     let inherited = policy(declaration);
     let concrete = policy(&declaration.replace("value: Value) -> Value", "value: u64) -> u64"));

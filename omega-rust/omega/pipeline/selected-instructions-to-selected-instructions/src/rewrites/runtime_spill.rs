@@ -14,8 +14,13 @@
 //! allocator. ABI-pinned uses keep a private pair so the pin attaches
 //! to the load-to-use window alone, and blocks with no surviving view keep the
 //! per-use shape entirely.
-//! Admission and control projection are shared predicates; proposal inserts the
-//! private accesses while independent replay consumes them and restores source.
+//! The contract vocabulary — lineage, storage positions, transport sizing,
+//! the span and surviving-home predicates, control projection — is shared;
+//! the legality audit itself is not: the proposal's admission and the
+//! validator's reconstruction each derive it from the source records alone,
+//! so a defect inside either one fails rather than propagating. Proposal
+//! inserts the private accesses while independent replay consumes them and
+//! restores source.
 //!
 //! Instruction-result definitions must dominate every flexible use. Incoming parameters
 //! instead require a dedicated edge definition on every predecessor: the edge
@@ -143,15 +148,21 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::FuelScheduleIdentity;
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterClassId, RegisterInstructionConstraint, RegisterUnitId};
+use selected_instructions::{
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity, SelectedStructuralTransport, VirtualRegisterId,
+};
+use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ValueId};
 
 pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
 pub use validation::{validate_runtime_spill, validate_runtime_spill_with_span_policy};
 
-/// How far a block's still-open shared reload interval may reach. Admission
-/// fixes this once per rewrite so proposal and independent replay share one
-/// decision procedure over the same recorded unit writes.
+/// How far a block's still-open shared reload interval may reach. The
+/// entrypoint fixes this once per rewrite so the proposal and the
+/// validator's own reconstruction apply the same policy rule to the same
+/// recorded unit writes — each computes its open/close decision itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeSpillSpanPolicy {
     /// A clobber or implicit definition always closes the open pair: every
@@ -228,6 +239,152 @@ impl std::fmt::Display for RuntimeSpillError {
 }
 
 impl std::error::Error for RuntimeSpillError {}
+
+/// The identity a spilled register's reloads restate. A scalar victim keeps
+/// its source `ValueId`; a structural victim is identified by the declared
+/// place and byte offset it restates and names no source value at all —
+/// value bindings can transport only the former, and the reload's register
+/// origin follows suit. A boundary live-in keeps offset zero: the structural
+/// parameter or hidden result destination names the whole place. An
+/// instruction-defined structural register keeps its own coordinate, so a
+/// reload replacing it as a case-payload argument still satisfies the exact
+/// place and field offset that transport requires.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VictimLineage {
+    Scalar(ValueId),
+    Structural { place: PlaceId, byte_offset: u32 },
+}
+
+/// Source definition coordinates, not proposed spill instructions. An incoming
+/// parameter has one exact edge definition per predecessor: the predecessor's
+/// own copy output, or a case bridge's field observation behind its load. An
+/// entry-bound register's single definition is the function-entry boundary
+/// itself.
+pub(crate) struct StorageDefinition {
+    pub block_index: usize,
+    pub position: StoragePosition,
+    /// The register the emitted store reads. `AfterUseDef` ignores this field:
+    /// the operand was rewritten to a reload register and the store must read
+    /// that emitted operand's register, resolved from the produced (or
+    /// replayed) instruction at emission time.
+    pub register: VirtualRegisterId,
+}
+
+/// Where the definition's store lands inside `block_index`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StoragePosition {
+    /// Immediately after the instruction that physically defines the stored
+    /// register — the victim's own result or an edge's copy/observation output.
+    AfterInstruction(SelectedInstructionId),
+    /// Immediately after the instruction carrying `operand` — a `UseDef`
+    /// operand on the victim. The read-modify-write leaves the new value in
+    /// the register the operand was redirected to, so the store reads that
+    /// emitted operand's register rather than the victim itself.
+    AfterUseDef {
+        instruction: SelectedInstructionId,
+        operand: u16,
+    },
+    /// Ahead of every block instruction: an entry-bound register's boundary
+    /// definition. Its register is live-in, so position zero is the earliest
+    /// point the stored value exists and the only one every use follows.
+    BlockStart,
+}
+
+/// One stored structural-transport argument — a `Descriptor` or `WholeValue`
+/// snapshot source — naming the victim. The binding sits on an edge-transfer
+/// continuation in `block`; its snapshot loads carry `ReadPlace` memory
+/// accesses for `edge`/`place` in `byte_size`'s chunk decomposition, and
+/// `loads` is their instruction identities in byte order.
+pub(crate) struct StructuralArgumentUse {
+    pub block: usize,
+    pub edge: EdgeId,
+    pub place: PlaceId,
+    pub byte_size: u32,
+    pub loads: Vec<SelectedInstructionId>,
+}
+
+/// The declared bit-preserving pair bridging a foreign-class victim to the
+/// slot's carrier class. `to_bits` re-exposes the payload in the carrier
+/// class ahead of each store; `from_bits` restores the victim's class behind
+/// each load. `to_kind`/`from_kind` are the selected instruction kinds those
+/// rows realize.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BitsConversion<'source> {
+    pub to_bits: &'source RegisterInstructionConstraint,
+    pub from_bits: &'source RegisterInstructionConstraint,
+    pub to_kind: SelectedInstructionKind,
+    pub from_kind: SelectedInstructionKind,
+}
+
+/// The stored byte extent a structural transport snapshots — a descriptor's
+/// fixed sixteen bytes, or a whole value's declared size. `Unused` transports
+/// snapshot nothing.
+pub(crate) fn stored_transport_size(transport: SelectedStructuralTransport) -> Option<u32> {
+    match transport {
+        SelectedStructuralTransport::Unused => None,
+        SelectedStructuralTransport::Descriptor { .. } => Some(16),
+        SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(u32::from(byte_size)),
+    }
+}
+
+/// The chunk decomposition edge-transfer selection emits for one snapshot:
+/// the largest of 8, 4, 2, 1 bytes at each remaining offset. The audit walks
+/// the sorted access stream against this split rather than inferring widths.
+/// `offset` stays at or below `byte_size`, so the subtraction cannot
+/// underflow; once it equals `byte_size` no chunk remains and `None` is
+/// returned for any further access.
+pub(crate) fn next_chunk(byte_size: u32, offset: u32) -> Option<u8> {
+    [8u32, 4, 2, 1]
+        .into_iter()
+        .find(|width| *width <= byte_size - offset)
+        .map(|width| width as u8)
+}
+
+/// Whether one reload register can keep a legal home across a flexible-use
+/// span. Under the bounded policy an open reload never spans an instruction
+/// that can destroy register content — a clobber or implicit definition
+/// closes it — so the produced interval only covers instructions that write
+/// no unit at all; under the crossing policy the caller instead collects the
+/// units every crossed instruction writes into `written_units`, and the
+/// surviving view must avoid those too — the callee-saved candidates a call
+/// crossing leaves. What remains is function-wide either way: a unit
+/// implicitly used anywhere can be live through every interior point (the
+/// caller collects those into `implicit_use_units`, including the frame rows
+/// the rewrite inserts), a unit precolored by a fixed-view operand or an
+/// entry-bound register (`pinned_units`) is likewise unavailable, and a
+/// reserved unit is never allocatable. Where no view survives, every use
+/// keeps a private reload pair — the shape the rewrite always produced.
+pub(crate) fn surviving_home_exists(
+    environment: &ValidatedTargetRegisterEnvironment,
+    class: RegisterClassId,
+    implicit_use_units: &std::collections::BTreeSet<RegisterUnitId>,
+    pinned_units: &std::collections::BTreeSet<RegisterUnitId>,
+    written_units: &std::collections::BTreeSet<RegisterUnitId>,
+) -> bool {
+    let reserved = environment.reservations().reserved_units();
+    let physical = environment.physical().model();
+    physical
+        .classes
+        .iter()
+        .find(|row| row.id == class)
+        .is_some_and(|row| {
+            row.views.iter().any(|view_id| {
+                physical
+                    .views
+                    .get(usize::from(view_id.0))
+                    .is_some_and(|view| {
+                        view.id == *view_id
+                            && view.allocatable
+                            && view.units.iter().chain(&view.write_units).all(|unit| {
+                                !implicit_use_units.contains(unit)
+                                    && !pinned_units.contains(unit)
+                                    && !written_units.contains(unit)
+                                    && reserved.binary_search(unit).is_err()
+                            })
+                    })
+            })
+        })
+}
 
 /// Project every selected terminator without conflating edge transport with
 /// instruction operands. Both can keep a virtual value live across blocks.

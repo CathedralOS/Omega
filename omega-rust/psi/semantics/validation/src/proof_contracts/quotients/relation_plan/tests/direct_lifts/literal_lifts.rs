@@ -499,8 +499,15 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
         carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("the exact representative type lands an anonymous integer once");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("the exact representative type lands an anonymous integer once");
     assert_eq!(
         plan.input_relations,
         [
@@ -606,8 +613,15 @@ fn direct_lift_runtime_accepts_explicit_and_target_landed_float_literals() {
         carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("the exact f32 target lands an anonymous decimal once");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("the exact f32 target lands an anonymous decimal once");
     assert_eq!(
         plan.input_relations,
         [
@@ -689,8 +703,15 @@ fn direct_lift_runtime_accepts_exact_shared_and_bounded_byte_string_literals() {
         carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("an immutable-image byte string has the exact shared byte-view type");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("an immutable-image byte string has the exact shared byte-view type");
     assert_eq!(
         plan.input_relations,
         [
@@ -764,8 +785,15 @@ fn direct_lift_runtime_accepts_exact_fixed_byte_array_literals() {
     };
     let request = push_representative(&mut program, &[(fixed_bytes, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("ordinary contextual typing already landed the exact fixed byte array");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("ordinary contextual typing already landed the exact fixed byte array");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(fixed_bytes)]
@@ -821,8 +849,15 @@ fn direct_lift_runtime_accepts_exact_nested_fixed_byte_array_literals() {
     };
     let request = push_representative(&mut program, &[(fixed_bytes, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("each exact byte row is already canonically context-landed");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("each exact byte row is already canonically context-landed");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(fixed_bytes)]
@@ -884,8 +919,15 @@ fn direct_lift_runtime_accepts_exact_boolean_array_literals() {
     };
     let request = push_representative(&mut program, &[(fixed_booleans, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("an exact fixed Boolean array needs no element adaptation");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("an exact fixed Boolean array needs no element adaptation");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(fixed_booleans)]
@@ -942,8 +984,15 @@ fn direct_lift_runtime_accepts_exact_nested_boolean_array_literals() {
     };
     let request = push_representative(&mut program, &[(fixed_booleans, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("an exact depth-two Boolean array needs no adaptation");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("an exact depth-two Boolean array needs no adaptation");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(fixed_booleans)]
@@ -1011,8 +1060,15 @@ fn direct_lift_runtime_accepts_exact_boolean_tensor3_literals() {
     };
     let request = push_representative(&mut program, &[(tensor_type, false, false)], carrier);
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("an exact depth-three Boolean tensor needs no adaptation");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("an exact depth-three Boolean tensor needs no adaptation");
     assert_eq!(
         plan.input_relations,
         [InputRelation::ExactEquality(tensor_type)]
@@ -1126,8 +1182,15 @@ fn direct_lift_runtime_accepts_remaining_recursive_primitive_arrays() {
         carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("remaining exact primitive arrays use recursive evidence");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("remaining exact primitive arrays use recursive evidence");
     let runtime = plan
         .direct_lift_correspondence
         .expect("recursive primitive-array runtime correspondence");
@@ -1266,8 +1329,15 @@ fn direct_lift_runtime_accepts_exact_integer_array_literals() {
         carrier,
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("each fixed integer-array element lands by the exact scalar rule");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("each fixed integer-array element lands by the exact scalar rule");
     assert_eq!(
         plan.input_relations,
         [

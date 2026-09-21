@@ -1,11 +1,13 @@
-// COMPILE CANARY: x86 pipeline directives serialize/pause are checked
-// zero-operand intrinsics -- no authority requirement, no operands and no
-// register clobbers, so `clobbers none` exactly matches the catalog contract.
+// COMPILE CANARY: x86 pipeline directives serialize/pause and the
+// ISA-neutral nop are checked zero-operand intrinsics -- no authority
+// requirement, no operands and no register clobbers, so `clobbers none`
+// exactly matches the catalog contracts.
 data Main {}
 
 machine Main::main(&mut self) {
     asm where clobbers none {
         serialize;
-        pause
+        pause;
+        nop
     }
 }

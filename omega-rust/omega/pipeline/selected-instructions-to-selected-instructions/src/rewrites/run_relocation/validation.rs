@@ -7,7 +7,8 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{RunRelocationError, RunRelocationReceipt, ValidatedRunRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
+use crate::rewrites::block_edges::{CrossingDirection, all_edges, crossed_window};
+use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the touched block, the contiguous run's bounding positions,
@@ -21,16 +22,34 @@ struct Reconstructed<'source> {
     destination_index: usize,
 }
 
+/// Map the shared audit's rejection onto this module's public error the
+/// same way the producer does: an unschedulable member or crossed
+/// position is `UnsupportedInstruction`; every other refusal is
+/// `UnsupportedPair`. The unreachable and edge kinds cannot arise on an
+/// in-block move, whose crossing is reachable by construction and crosses
+/// no edge.
+fn reject(rejection: RunRelocationRejection) -> RunRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => RunRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => RunRelocationError::UnsupportedPair,
+    }
+}
+
 /// Reconstruct the legality of moving the run `first_member`..`last_member`
 /// onto `destination` from the source records: locate all three by
-/// identity, re-derive the window's independence audit — every run member
-/// and crossed position schedulable, the roster-carrying run meeting no
-/// second accounted actor, every member's hazard directions against each
-/// crossed position, and no boundary settlement inside the window — and
-/// account the family's measured steps against the budget. Nothing in
-/// this audit reads the producer's admission decision, so a producer-side
-/// legality error fails here even when the proposal matches the emitted
-/// edit.
+/// identity, hand the window they bound to the shared derivation and
+/// run-relocation audit — every run member and crossed position
+/// schedulable, the roster-carrying run meeting no second accounted actor,
+/// every member's hazard directions against each crossed position, and no
+/// boundary settlement inside the window — and account the family's
+/// measured steps against the budget. Nothing in this audit reads the
+/// producer's admission decision, so a producer-side legality error fails
+/// here even when the proposal matches the emitted edit.
 fn reconstruct<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,
@@ -79,43 +98,27 @@ fn reconstruct<'source>(
         .filter(|position| !(first_index..=last_index).contains(position))
         .ok_or(RunRelocationError::UnsupportedPair)?;
     let run = &block.instructions[first_index..=last_index];
-    // Every member meets the schedulable bar itself; the run's memory
-    // accounting is the union of its members' roster rows.
-    let mut run_accounted = false;
-    for member in run {
-        run_accounted |=
-            schedulable(function, member).ok_or(RunRelocationError::UnsupportedInstruction)?;
-    }
-    let (first, last) = (
-        first_index.min(destination_index),
-        last_index.max(destination_index),
-    );
-    let window = &block.instructions[first..=last];
-    for (offset, crossed) in window.iter().enumerate() {
-        if (first_index..=last_index).contains(&(first + offset)) {
-            continue;
-        }
-        // Every crossed instruction meets the same schedulable bar as the
-        // members: no barrier kind, no call contract, and no unaccounted
-        // memory reach. Its roster rows may keep their relative order only
-        // while no member records any — a row-carrying run passing a
-        // second accounted actor would reorder recorded accesses.
-        let crossed_accounted =
-            schedulable(function, crossed).ok_or(RunRelocationError::UnsupportedInstruction)?;
-        if run_accounted && crossed_accounted {
-            return Err(RunRelocationError::UnsupportedPair);
-        }
-        // Every member trades order with every crossed position, so each
-        // direction of every hazard applies against each pair.
-        for member in run {
-            if coupled(member, crossed) {
-                return Err(RunRelocationError::UnsupportedPair);
-            }
-        }
-    }
-    if interior_settlement(function, block.id, first + 1..=last) {
-        return Err(RunRelocationError::UnsupportedPair);
-    }
+    // The crossed window is the shared derivation rather than this
+    // family's own enumeration: an in-block move crosses no edge, so the
+    // same-block branch of `crossed_window` derives exactly the positions
+    // between the run and the landing, and the direction is inert. The
+    // shared audit applies the schedulable, hazard, memory-roster, and
+    // settlement checks once — the family's own composition of the shared
+    // primitives, not the producer's audit result.
+    let edge_limit = all_edges(function).count();
+    let crossing = crossed_window(
+        function,
+        block_index,
+        first_index,
+        last_index,
+        block_index,
+        destination_index,
+        CrossingDirection::Forward,
+        edge_limit,
+    )
+    .ok_or(RunRelocationError::WorkBudgetExceeded)?;
+    let members: Vec<_> = run.iter().collect();
+    admit_run_relocation(function, &members, &crossing).map_err(reject)?;
     // The validator's own audit walks the same surfaces the family
     // publishes: one scan of the plan's body and terminator instructions,
     // every member-against-crossed operand and unit surface, and the
@@ -130,16 +133,14 @@ fn reconstruct<'source>(
         })
         .and_then(|total| {
             run.iter().try_fold(total, |total, member| {
-                window
+                crossing
+                    .positions
                     .iter()
-                    .enumerate()
-                    .try_fold(total, |total, (offset, crossed)| {
-                        if (first_index..=last_index).contains(&(first + offset)) {
-                            return Some(total);
-                        }
+                    .flat_map(|(_, positions)| positions.iter())
+                    .try_fold(total, |total, position| {
                         total
                             .checked_add(surface(member))?
-                            .checked_add(surface(crossed))
+                            .checked_add(surface(&block.instructions[*position]))
                     })
             })
         })

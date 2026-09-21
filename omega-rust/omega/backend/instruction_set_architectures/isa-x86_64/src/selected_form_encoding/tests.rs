@@ -10,10 +10,11 @@ use super::{
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
-    validate_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
+    validate_x86_64_selected_u64_less_than_branch_form,
 };
 use crate::selected_form_encoding::decoding::{DecodedInstruction, decode_one};
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
+use crate::x86_64_physical_register_model;
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::validate_physical_register_model;
 use selected_instructions::{SaturatingCarrier, SaturatingOperation};
@@ -176,6 +177,44 @@ fn saturation_high_register_bytes_match_independent_assembler() {
         let key = alternative(family, 0);
         let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
         assert_eq!(encoded.bytes(), bytes);
+        validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &bytes).unwrap();
+    }
+}
+
+#[test]
+fn variable_shift_bytes_match_independent_assembler() {
+    // D3 /digit shifts r/m64 by CL. The digit is the whole difference
+    // between the three families, and encoder and decoder previously agreed
+    // on /6 for the logical right shift, so a round trip could not catch it:
+    // /6 is an undocumented SAL alias of /4 and shifts LEFT. SHR is /5.
+    // Independently assembled; not derived from this encoder.
+    //   mov r10, r8   -> 4d 89 c2
+    //   shl r10, cl   -> 49 d3 e2   (D3 /4)
+    //   shr r10, cl   -> 49 d3 ea   (D3 /5)
+    //   sar r10, cl   -> 49 d3 fa   (D3 /7)
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let operands = ["r8", "rcx", "r10"].map(|name| physical.model().view_named(name).unwrap().id);
+    for (kind, family, tail) in [
+        (
+            SelectedInstructionKind::WrappingShiftLeftI64,
+            MachineAlternativeFamily::WrappingShiftLeftI64,
+            0xe2u8,
+        ),
+        (
+            SelectedInstructionKind::WrappingShiftRightU64,
+            MachineAlternativeFamily::WrappingShiftRightU64,
+            0xea,
+        ),
+        (
+            SelectedInstructionKind::WrappingShiftRightI64,
+            MachineAlternativeFamily::WrappingShiftRightI64,
+            0xfa,
+        ),
+    ] {
+        let bytes = vec![0x4d, 0x89, 0xc2, 0x49, 0xd3, tail];
+        let key = alternative(family, 0);
+        let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+        assert_eq!(encoded.bytes(), bytes, "{kind:?} encodes its own D3 digit");
         validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &bytes).unwrap();
     }
 }

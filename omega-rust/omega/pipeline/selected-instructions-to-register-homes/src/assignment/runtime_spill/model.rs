@@ -3,6 +3,7 @@ use crate::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
     ValidatedLogicalSpillOperations, ValidatedPostAllocationOptimizationManifest,
     ValidatedRegisterHomes, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedStackSlotColoring,
 };
 use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
 
@@ -19,6 +20,10 @@ pub(crate) struct RuntimeSpillAllocation {
     /// observed pressure; `None` records a declined boundary rather than a
     /// recovered failure.
     pub(crate) logical_operations: Option<ValidatedLogicalSpillOperations>,
+    /// The sequenced stack-slot coloring boundary's assignments over the
+    /// retained logical operations; `None` when that boundary declined or
+    /// produced no plan to color.
+    pub(crate) slot_coloring: Option<ValidatedStackSlotColoring>,
 }
 
 impl RuntimeSpillAllocation {
@@ -26,6 +31,12 @@ impl RuntimeSpillAllocation {
     /// recovery's input, when the sequenced boundary covered its shape.
     pub(crate) fn logical_operations(&self) -> Option<&ValidatedLogicalSpillOperations> {
         self.logical_operations.as_ref()
+    }
+
+    /// The stack-slot assignments colored over the retained logical
+    /// spill-operation plan, when both sequenced boundaries covered its shape.
+    pub(crate) fn slot_coloring(&self) -> Option<&ValidatedStackSlotColoring> {
+        self.slot_coloring.as_ref()
     }
 
     /// Replayed custody evidence for retained selection validation: the
@@ -58,6 +69,19 @@ impl RuntimeSpillAllocation {
         operations: ValidatedLogicalSpillOperations,
     ) {
         self.logical_operations = Some(operations);
+    }
+
+    /// Drop the retained stack-slot coloring so tests can prove replay
+    /// rejects the missing sequenced-boundary evidence. Returns `false` when
+    /// the coloring boundary declined and has no evidence to corrupt.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub(crate) fn corrupt_slot_coloring_for_test(&mut self) -> bool {
+        if self.slot_coloring.is_none() {
+            return false;
+        }
+        self.slot_coloring = None;
+        true
     }
 
     /// Corrupt the recorded active-resident prefix custody so cross-phase
@@ -376,6 +400,10 @@ pub enum RuntimeSpillAllocationError {
     /// replay re-derived over the recovery's input facts — either the fact or
     /// its source custody was forged.
     LogicalOperationsMismatch,
+    /// The retained stack-slot coloring does not match the coloring replay
+    /// re-derived over the re-derived logical operations — either the
+    /// evidence or the plan it claims to color was forged.
+    SlotColoringMismatch,
     ReceiptMismatch,
 }
 

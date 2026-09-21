@@ -1,0 +1,27 @@
+// A `drop` body is an ordinary Unit machine: helpers it calls may carry
+// their own bodies, and the call closure keeps them transitively.
+
+data Guard {
+    handle: i32;
+}
+
+data Teardown {
+}
+
+machine Teardown::unlock() {
+    Teardown::flush();
+}
+
+machine Teardown::flush() {
+}
+
+machine Guard::drop(&mut self) {
+    Teardown::unlock();
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}

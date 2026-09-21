@@ -9,6 +9,8 @@ pub const RUNTIME_FREE_CONST_EXIT: &str = "constants/runtime_free_const_exit";
 pub const RUNTIME_VALUE_CALL_TERMINAL_EXIT: &str = "calls/runtime_value_call_terminal_exit";
 pub const RUNTIME_RESULT_DOMAIN_MACHINE_OVERLOAD_EXIT: &str =
     "domains/runtime_result_domain_machine_overload_exit";
+pub const RUNTIME_RESULT_DOMAIN_ATTACHED_OVERLOAD_EXIT: &str =
+    "domains/runtime_result_domain_attached_overload_exit";
 pub const RUNTIME_STD_MATH_SIN_COS_EXIT: &str = "calls/runtime_std_math_sin_cos_exit";
 pub const RUNTIME_COMPUTED_INDEX_MATCH_SUBJECT_EXIT: &str =
     "collections/runtime_computed_index_match_subject_exit";

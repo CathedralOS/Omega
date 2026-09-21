@@ -394,13 +394,31 @@ fn inferred_slice_selectors_check_but_await_structural_control_plan() {
     );
     // Keep the original slice customer visible beside its working scalar
     // dependency. Checked/interpreter success must not masquerade as native
-    // slice support; replace this assertion with execution when lowering lands.
-    let error = terminal_production::TerminalProductionRequest::new(&checked, "main")
-        .produce_artifact()
-        .expect_err("slice control-plan production remains unfinished");
-    assert!(
-        format!("{error:?}")
-            .contains("machine has no source-independent checked scalar control plan"),
-        "{error:?}",
-    );
+    // slice support; replace these stops with execution when lowering lands.
+    // Each machine stops at its own omission site: the endpoint's `&[u8; N]`
+    // witness signature is not an admitted body, `window`'s `self.endpoint`
+    // call statements have no statement sequence, and `main` has no checked
+    // scalar control plan at all.
+    for (machine, stop) in [
+        (
+            "Main::endpoint",
+            "`Main::endpoint` has no admitted body (local construction stopped at signature)",
+        ),
+        (
+            "Main::window",
+            "`Main::window` has no admitted body (local construction stopped at call statement shape: call statements without a statement sequence, statement 4)",
+        ),
+        (
+            "main",
+            "machine has no source-independent checked scalar control plan",
+        ),
+    ] {
+        let error = terminal_production::TerminalProductionRequest::new(&checked, machine)
+            .produce_artifact()
+            .expect_err("slice control-plan production remains unfinished");
+        assert!(
+            format!("{error:?}").contains(stop),
+            "{machine} stopped at a different omission: {error:?}",
+        );
+    }
 }

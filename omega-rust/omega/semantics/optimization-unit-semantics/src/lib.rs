@@ -22,12 +22,13 @@ use optimization_core::{
 };
 use optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
-    ConstantConditionalRewrite, DeadScalarNodeRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, LocalScalarCommonSubexpressionRewrite, NodeLocation,
-    NonAdjacentBlockMergeRewrite, ObservationKnowledge, OptimizationEdge, OptimizationFact,
-    OptimizationNode, OwnershipEvent, OwnershipFrontierOwnedPlace, OwnershipFrontierSite,
-    OwnershipFrontierSnapshot, OwnershipFrontierWitness, OwnershipFrontierWitnessRow,
-    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
+    ConstantConditionalRewrite, DeadScalarNodeRewrite, FoldedCaseMembershipRow, FoldedFieldValue,
+    FoldedFieldValueRow, IntegerConstantRewrite, IntegerEvaluationWitness,
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, NonAdjacentBlockMergeRewrite,
+    ObservationKnowledge, OptimizationEdge, OptimizationFact, OptimizationNode, OwnershipEvent,
+    OwnershipFrontierOwnedPlace, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    OwnershipFrontierWitness, OwnershipFrontierWitnessRow, PhiTranslatedScalarGvnRewrite,
+    PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
     ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
     PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
@@ -42,8 +43,8 @@ use optimization_unit::{
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, ContentProjectionExpression, ContentProjectionScalar,
     ContentTerm, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_fuel::TerminalFuelSchedule;
 

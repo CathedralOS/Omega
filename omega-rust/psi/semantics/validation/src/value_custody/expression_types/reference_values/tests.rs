@@ -190,6 +190,84 @@ fn mutable_array_views_do_not_erase_carrier_constraints() {
 }
 
 #[test]
+fn shared_slice_views_forget_constrained_referee_predicates() {
+    // `&[u8] in D` spells `Reference { referee: Constrained { Slice } }`: the
+    // carrier predicate wraps the slice inside the reference, not the loan.
+    // Handing that member to a plain `&[u8]` parameter carries identical
+    // bytes while the callee simply cannot rely on the dropped
+    // qualification — the documented shared-view forget extended from
+    // fixed-array carriers to a constrained slice referee.
+    let mut program = typed(
+        "machine inspect(constrained: &[u8], plain: &[u8], expected: &[u8], mutable: &mut [u8], narrow: &[u16]) { plain; }",
+    );
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    let constrained_actual = parameters[0].type_reference;
+    let plain_actual = parameters[1].type_reference;
+    let shared_view = parameters[2].type_reference;
+    let mutable_view = parameters[3].type_reference;
+    let narrow_view = parameters[4].type_reference;
+    assert!(reference_type_matches(
+        &program,
+        constrained_actual,
+        shared_view,
+        &[]
+    ));
+    let constraints = program
+        .type_reference_table
+        .insert_constraints([TypeConstraintNode::Named("qualified".into())]);
+    let mut reference = program
+        .type_reference_table
+        .type_reference(constrained_actual)
+        .clone();
+    let TypeReferenceNode::Reference { referee, .. } = &mut reference else {
+        panic!("shared slice reference");
+    };
+    *referee = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: *referee,
+            constraints,
+        });
+    program
+        .type_reference_table
+        .substitute_node(constrained_actual, reference);
+    assert!(
+        reference_type_matches(&program, constrained_actual, shared_view, &[]),
+        "a shared view forgets the constrained slice referee's predicate"
+    );
+    assert!(
+        !reference_type_matches(&program, constrained_actual, mutable_view, &[]),
+        "a mutable view could write past the forgotten predicate"
+    );
+    assert!(
+        !reference_type_matches(&program, constrained_actual, narrow_view, &[]),
+        "forgetting the predicate does not change the element type"
+    );
+    // The required side's qualification is the callee's claim, not the
+    // caller's to drop: a plain slice cannot satisfy a constrained referee.
+    let mut constrained_required = program
+        .type_reference_table
+        .type_reference(shared_view)
+        .clone();
+    let TypeReferenceNode::Reference { referee, .. } = &mut constrained_required else {
+        panic!("required reference");
+    };
+    *referee = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: *referee,
+            constraints,
+        });
+    program
+        .type_reference_table
+        .substitute_node(shared_view, constrained_required);
+    assert!(
+        !reference_type_matches(&program, plain_actual, shared_view, &[]),
+        "an unqualified slice cannot satisfy the callee's constrained referee"
+    );
+}
+
+#[test]
 fn generic_array_views_compare_selected_elements_not_the_data_telescope() {
     let mut program = typed(
         "data Box<Element> { values: [Element; 2]; } machine inspect<Value>(value: Box<Value>, expected: &[Value]) { value.values; }",

@@ -32,6 +32,17 @@ Ordinary checks and internal validation still run without a sidecar. A receiving
 policy may require PCC and refuse ordinary output. Absence of independently
 checked evidence cannot be reported as independently verified safety.
 
+Cyclic controls are specified throughout the premise-availability rules
+below: merge tokens exist only on acyclic joins, cyclic reconvergence
+requires checked invariant establishment and preservation, unproved cyclic
+arrivals prevent primitive-read equality introduction, and the scalar
+block-predicate rule presumes the existing cyclic cuts. Source-bound
+implementations cover bounded families — cyclic exit-header checks,
+cyclic-guarantee strengthening, and the enumerated cyclic call fixtures —
+while the general cyclic execution composition remains an open ledger leg
+tracked on the execution board. This revision claims no proved general
+cyclic composition theorem.
+
 ## Responsibilities
 
 | Component | Responsibility | Cannot choose |
@@ -170,6 +181,26 @@ implementation remains within the unfinished ledger-framework dependency;
 this implementation revision does not claim a proved universal composition
 theorem or change the accepting trust policy.
 
+**Implementation status (re-verified `52d95a9d76f`, linux x86-64):** the
+cyclic controls above have checked equivalents on the source path.
+`typed-trees-to-checked-trees`'s `checks/ranges/incoming_guards.rs` meets
+multi-predecessor joins by intersection — a fact holds at a join's entry only
+when every incoming edge carries it — and declines loop-header bounds to the
+invariant pass. `checks/ranges/loop_invariants.rs` (`collect`/`seed` entry
+points) and `checks/contracts/exits/cyclic_headers.rs` implement the cyclic
+reconvergence rule: a re-entered state's header conjunct is proposed, proved
+at every arrival (entry arrival, induction-step backedge under simultaneous
+argument substitution, and each base edge on ambient entry facts), and a
+failed arrival discards every proposal — so a uniformly forwarded parameter
+keeps its exact typed origin and an unestablished cyclic origin supplies no
+equality. `terminal-verifier`'s `validation/control_flow/unranked_cycles.rs`
+still admits cyclic machines only through its shape allowlist, and the
+"integer ranges use this same predicate rule" clause is pinned by the
+`cyclic_field_divisor_*` controls under
+`checked-trees-to-lowered-psi/src/tests/`. What remains open is recorded on
+GENERAL-CYCLIC-EXECUTION: composed cyclic Unit plans and the per-callee
+call/return composition the admission roster cannot yet express.
+
 Call coverage reconstructs one exact obligation for every callee `requires`
 clause. Instantiation independently checks arity, binder kinds/types,
 capture-free positional substitution, pre/post versions, moves and reborrows,
@@ -274,8 +305,13 @@ Each entry states its exact licensed premises/conclusion, dependencies,
 implementation identity/site and soundness status: `Proved`, `ExplicitlyTrusted`
 or `Unfinished`. A source path locates code; it does not identify its semantics.
 `Proved` binds checked evidence and its assumptions. `ExplicitlyTrusted` needs
-an identified accepting root/policy and rationale. `Unfinished` cannot establish
-an independent claim merely because the implementation returns success.
+an identified accepting root/policy and rationale. `Unfinished` names the gap
+that keeps it open and cannot establish an independent claim merely because the
+implementation returns success. Only an `Unfinished` row may depend on an
+`Unfinished` row. The `Proved` set is recorded explicitly and reconciled on
+every run: a row marked `Proved` outside the record fails, and a recorded row
+that regresses to `ExplicitlyTrusted` or `Unfinished` fails, so a
+soundness-status change cannot hide inside an ordinary entry edit.
 
 Mechanically check coverage of accepted checker dispatch paths and reconstructed
 fact kinds. A new accepted variant without its entry fails before publication.

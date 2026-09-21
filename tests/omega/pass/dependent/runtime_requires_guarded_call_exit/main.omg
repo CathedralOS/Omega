@@ -7,7 +7,7 @@
 // intermediate states, plus the caller state's own pre-call
 // preservation), and INSIDE helper the same requires proves the exact
 // u32 subtraction (channel b). The same incoming guard now discharges the
-// dependent call argument: `x: u32 [0..=self.b]` accepts `self.a` because
+// dependent call argument: `x: u32, requires param <= self.b` accepts `self.a` because
 // every edge into `go` carries the proving guard. Guard-then-WRITE before
 // the call refuses (probed), as does the unguarded caller
 // (fail/dependent/requires_call_unproven_rejected).
@@ -27,7 +27,7 @@ machine Main::main(&mut self) reaches Console {
     }
     state bad(&mut self) { self.console.exit_process(9); }
 }
-machine Main::helper(&mut self, x: u32 [0..=self.b]) requires self.a <= self.b {
+machine Main::helper(&mut self, x: u32) requires self.a <= self.b, x <= self.b {
     let diff: u32 = self.b - x;
     self.out = narrow_u32_to_i32_trapping(diff);
 }

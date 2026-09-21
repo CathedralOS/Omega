@@ -28,6 +28,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Delta resource boundary"
+
 RESOURCE_BOUNDARY_TMP=$(mktemp -d)
 trap 'rm -rf -- "$RESOURCE_BOUNDARY_TMP"' EXIT HUP INT TERM
 materialize_delta_compiler "$RESOURCE_BOUNDARY_TMP/compiler.gamma"

@@ -1,0 +1,32 @@
+// RUN canary, payload-position control: a case payload field declared
+// `[erased]` carries proof-side data only — construction fills it from its
+// unique nullary constructor, destructuring discards it with `as _`, and the
+// case's runtime payload keeps its own value across the round trip. If the
+// erased payload took an ABI position, `value` would shift and the exit code
+// would change. Exit 70 = `value` observed as 70; 71 = wrong tag or a
+// payload-position slide.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Evidence { case Only; }
+data Certified {
+    case Pending;
+    case Proven(value: i32, proof [erased]: Evidence);
+}
+
+data Main {
+    console: Service<Console>;
+    record: Certified;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.record = Certified::Proven { value: 70 };
+    transition self.record {
+        Certified::Proven { value, proof as _ } -> good(value)
+        Certified::Pending -> bad()
+    }
+    state good(&mut self, value: i32) {
+        self.console.exit_process(value);
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -42,6 +42,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
     }];
     let successor = |edge, block| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(block),
@@ -54,11 +55,13 @@ pub(super) fn byte_operation_fence(subslice: bool) {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -81,12 +84,14 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(1),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -99,6 +104,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(2),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -119,6 +125,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
@@ -139,6 +146,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         });
         machine.blocks[0].operations[0].result =
             OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(3),
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -155,6 +163,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         };
         machine.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -277,6 +286,7 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
         &AbstractOperation::ByteSequenceSubslice {
             psi_operation: operation_id(3),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(3),
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,

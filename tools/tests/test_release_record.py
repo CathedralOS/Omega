@@ -51,6 +51,19 @@ def minimal_command_result(command, exit_code=0):
     }
 
 
+def minimal_observation(exit_code=0):
+    """A passing direct-execution observation on a lane's own row."""
+    return {
+        "command": "probe --emit-and-run",
+        "argv": ["probe", "--emit-and-run"],
+        "exit": exit_code,
+        "elapsed_ms": 1.0,
+        "skipped_tests": 0,
+        "skipped_names": [],
+        "output_tail": "",
+    }
+
+
 def minimal_record():
     gates = [{
         "name": name,
@@ -78,6 +91,8 @@ def minimal_record():
             "status": ("recorded" if row["target"] == "linux_x86_64"
                        else "open"),
             "emulator": None,
+            "observation": (minimal_observation()
+                            if row["target"] == "linux_x86_64" else None),
         } for row in release_record.PLATFORM_RUNNERS],
         "expected_skips": [],
         "unlisted_skips": [],
@@ -134,11 +149,66 @@ class Validator(unittest.TestCase):
         release_record.validate_record(minimal_record(), "fixture.json")
 
     def test_closed_record_is_valid(self):
+        # A single lane's record can only evidence its own row, so a closed
+        # record fixture marks the other lanes recorded as if their own
+        # records produced them — each still needs a passing observation.
         record = minimal_record()
         for row in record["platform_runs"]:
             row["status"] = "recorded"
+            row["observation"] = minimal_observation()
         record["closure"] = {"status": "closed", "open_rows": []}
+        self.assert_invalid(record, "another lane")
+
+    def test_rejects_recorded_row_without_observation(self):
+        record = minimal_record()
+        record["platform_runs"][0]["observation"] = None
+        self.assert_invalid(record, "observation")
+
+    def test_rejects_recorded_row_with_failed_observation(self):
+        record = minimal_record()
+        record["platform_runs"][0]["observation"] = minimal_observation(
+            exit_code=65)
+        self.assert_invalid(record, "observation")
+
+    def test_rejects_recorded_row_on_unmatched_host(self):
+        # darwin/arm64 cannot record the linux_x86_64 lane; the recorded
+        # host must be able to execute the lane's emitted programs.
+        record = minimal_record()
+        record["host"] = {"os": "darwin", "machine": "arm64",
+                          "python": "3.10.0"}
+        self.assert_invalid(record, "cannot execute lane")
+
+    def test_linux_arm64_emulator_lane_is_valid(self):
+        # The contract's named-emulator lane: a non-aarch64 host records
+        # linux_arm64 only when the record names the emulator and carries
+        # the passed observation.
+        record = minimal_record()
+        record["target"] = "linux_arm64"
+        record["emulator"] = "qemu-aarch64 9.0.0"
+        row = record["platform_runs"][1]
+        row["status"] = "recorded"
+        row["emulator"] = "qemu-aarch64 9.0.0"
+        row["observation"] = minimal_observation()
+        record["platform_runs"][0]["status"] = "open"
+        record["platform_runs"][0]["observation"] = None
+        record["closure"] = {"status": "open",
+                             "open_rows": ["linux_x86_64", "macos_arm64",
+                                           "windows_x86_64"]}
         release_record.validate_record(record, "fixture.json")
+
+    def test_linux_arm64_without_emulator_needs_matching_host(self):
+        record = minimal_record()
+        record["target"] = "linux_arm64"
+        row = record["platform_runs"][1]
+        row["status"] = "recorded"
+        row["observation"] = minimal_observation()
+        record["platform_runs"][0]["status"] = "open"
+        record["platform_runs"][0]["observation"] = None
+        record["closure"] = {"status": "open",
+                             "open_rows": ["linux_x86_64", "macos_arm64",
+                                           "windows_x86_64"]}
+        # linux/x86_64 host has no emulator named: not the lane's host.
+        self.assert_invalid(record, "cannot execute lane")
 
     def test_rejects_schema_drift(self):
         record = minimal_record()
@@ -181,8 +251,6 @@ class Validator(unittest.TestCase):
 
     def test_rejects_failed_gate_reading_closed(self):
         record = minimal_record()
-        for row in record["platform_runs"]:
-            row["status"] = "recorded"
         record["gates"][2]["status"] = "fail"
         record["closure"] = {"status": "closed", "open_rows": []}
         self.assert_invalid(record, "closure")

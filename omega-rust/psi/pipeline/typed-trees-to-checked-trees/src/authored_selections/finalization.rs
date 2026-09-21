@@ -10,8 +10,9 @@ use crate::authored_selections::intrinsic_calls::{
 };
 use crate::authored_selections::member_targets::checked_member_target;
 use crate::authored_selections::operator_targets::{
-    checked_generic_operator_target, checked_operator_target_for_occurrence,
-    checked_structural_equality_call, typed_operator_has_no_authored_selection,
+    GenericOperatorValueOrigins, checked_generic_operator_target,
+    checked_operator_target_for_occurrence, checked_structural_equality_call,
+    typed_operator_has_no_authored_selection,
 };
 use crate::authored_selections::selection_collection::{
     checked_struct_literal_type_symbol, collect_checked_proof_membership_selections,
@@ -21,11 +22,12 @@ use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionFinalizationError, AuthoredDeclarationSelectionIntrinsic,
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
-    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionFinalizationError,
+    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+    AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionOccurrenceId,
+    AuthoredDeclarationSelectionTarget,
 };
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
@@ -37,6 +39,10 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
     let mut resolutions = Vec::new();
     let mut inferred_conformances = Vec::new();
     let expressions = &program.tables.expression_table;
+    // Built at the first open-generic operator occurrence and shared by every
+    // later one: this loop reads the expression table and the checked facts
+    // and writes neither, so one index answers them all.
+    let mut generic_operator_values: Option<GenericOperatorValueOrigins> = None;
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -185,6 +191,34 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                         declaration_target(argument.map(|argument| argument.symbol).unwrap_or_default())
                     }
                 }
+                // A sealed quotient request selects compiler vocabulary, not a
+                // declaration: it has no target symbol and produces no checked
+                // call fact (the checked value paths skip it), so it resolves
+                // as a proof-only intrinsic. Its representative and theorem
+                // operands are separate static-argument selections.
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    ExpressionNode::Call(call),
+                ) if call.quotient_operation.is_some() => {
+                    let request = call
+                        .quotient_operation
+                        .as_ref()
+                        .expect("guarded sealed quotient request");
+                    if call.target_symbol.is_valid() {
+                        return Err(Diagnostic::error(
+                            "a sealed quotient request cannot also select an authored declaration",
+                        )
+                        .with_source_span(selection.source_span()));
+                    }
+                    Some(CheckedResolutionTarget::Intrinsic(match request.kind {
+                        typed_trees::expression::QuotientOperationKind::Define => {
+                            AuthoredDeclarationSelectionIntrinsic::QuotientDefine
+                        }
+                        typed_trees::expression::QuotientOperationKind::Lift => {
+                            AuthoredDeclarationSelectionIntrinsic::QuotientLift
+                        }
+                    }))
+                }
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
@@ -269,7 +303,14 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                             | ExpressionNode::Unary(_)
                     ) =>
                 {
-                    checked_generic_operator_target(program, facts, expression)?
+                    checked_generic_operator_target(
+                        program,
+                        facts,
+                        generic_operator_values.get_or_insert_with(|| {
+                            GenericOperatorValueOrigins::index(program, facts)
+                        }),
+                        expression,
+                    )?
                     .or_else(|| checked_operator_target_for_occurrence(
                         program,
                         facts,
@@ -340,7 +381,12 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
         &mut inferred_conformances,
     )?;
     collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
-    collect_checked_proof_view_call_selections(program, &mut resolutions)?;
+    let mut unoccurred_view_calls = Vec::new();
+    collect_checked_proof_view_call_selections(
+        program,
+        &mut resolutions,
+        &mut unoccurred_view_calls,
+    )?;
 
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
@@ -353,6 +399,58 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
             }
         };
         result.map_err(|error| finalization_diagnostic(resolution, error))?;
+    }
+    // A contract clause may spell a bare uninterpreted view atom
+    // (`Bag(items)`); the resolver deliberately records no Call occurrence
+    // for it because it names no declaration. Once checking admits the atom
+    // as a proof view, the checked ledger still owes the spelling explicit
+    // compiler-owned custody: mint one finalized ProofView row per exact call
+    // site and attach it as the expression's occurrence.
+    let mut minted_view_calls: Vec<(
+        source::SourceSpan,
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+        AuthoredDeclarationSelectionOccurrenceId,
+    )> = Vec::new();
+    for (source_span, exposure, expression) in unoccurred_view_calls {
+        let occurrence = match minted_view_calls
+            .iter()
+            .find(|(seen_span, seen_exposure, _)| {
+                *seen_span == source_span && *seen_exposure == exposure
+            }) {
+            Some((_, _, occurrence)) => *occurrence,
+            None => {
+                let occurrence = selections
+                    .record_late_bound(
+                        source_span,
+                        exposure,
+                        AuthoredDeclarationSelectionKind::Call,
+                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "failed to retain proof-view call selection: {error:?}"
+                        ))
+                        .with_source_span(source_span)
+                    })?;
+                selections
+                    .finalize_intrinsic(
+                        occurrence,
+                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                        AuthoredDeclarationSelectionIntrinsic::ProofView,
+                    )
+                    .map_err(|error| {
+                        Diagnostic::error(format!(
+                            "failed to finalize proof-view call selection: {error:?}"
+                        ))
+                        .with_source_span(source_span)
+                    })?;
+                minted_view_calls.push((source_span, exposure, occurrence));
+                occurrence
+            }
+        };
+        program
+            .expression_table
+            .attach_authored_selection_occurrences(expression, [occurrence]);
     }
     for (source_span, exposure, selected_symbol) in inferred_conformances {
         let already_retained = selections.iter().any(|selection| {
@@ -398,6 +496,15 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
         let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
             unreachable!("guarded late-bound authored selection")
         };
+        if selection.kind() == AuthoredDeclarationSelectionKind::Call
+            && binding == AuthoredDeclarationSelectionLateBinding::CheckedCall
+            && let Some(callee) = undeclared_checked_call_callee(program, *selection)
+        {
+            return Err(Diagnostic::error(format!(
+                "call `{callee}` selects no declaration: `{callee}` is not a declared machine, data, or proof definition"
+            ))
+            .with_source_span(selection.source_span()));
+        }
         return Err(Diagnostic::error(format!(
             "authored {:?} declaration selection occurrence {} remained unresolved after successful checking ({binding:?})",
             selection.kind(),
@@ -458,4 +565,55 @@ pub(crate) fn finalization_diagnostic(
         "failed to finalize authored declaration selection occurrence {}: {error:?}",
         resolution.occurrence.ordinal()
     ))
+}
+
+/// Names the receiverless authored call target that stayed late-bound because
+/// no declaration carries the name — the `Bag(items)` proof-view shape, where
+/// every declared-target resolution correctly found no candidate. Receiver
+/// calls, qualified paths, and already-bound targets keep the generic
+/// unresolved-selection diagnostic so selection ambiguity retains its ledger
+/// identity.
+fn undeclared_checked_call_callee(
+    program: &TypedTrees,
+    selection: AuthoredDeclarationSelection,
+) -> Option<String> {
+    let expressions = &program.tables.expression_table;
+    expressions
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            let ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            if !expressions
+                .authored_selection_occurrences(expression)
+                .any(|occurrence| occurrence == selection.occurrence_id())
+            {
+                return None;
+            }
+            if call.target_symbol.is_valid() || call.receiver.is_valid() {
+                return None;
+            }
+            let name = call.target.as_str();
+            if name.contains("::") {
+                return None;
+            }
+            program
+                .symbols
+                .find_top_level_declaration_or_operator_family_from_source(
+                    name,
+                    &[
+                        SymbolKind::Machine,
+                        SymbolKind::Data,
+                        SymbolKind::MathematicalDefinition,
+                        SymbolKind::Proposition,
+                        SymbolKind::BuiltinFunction,
+                        SymbolKind::Operator,
+                        SymbolKind::Measure,
+                        SymbolKind::Domain,
+                    ],
+                    selection.source_span(),
+                )
+                .is_none()
+                .then(|| name.to_string())
+        })
 }
