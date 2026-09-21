@@ -436,7 +436,7 @@ fn checked_uefi_os_handoff_invocation_retains_edge_binding() {
 }
 
 #[test]
-fn native_uefi_os_handoff_invocation_reports_cyclic_control_frontier() {
+fn native_uefi_os_handoff_invocation_reports_termination_catalog_frontier() {
     // The checked canary pins the invocation surface; this pins the authored
     // handoff route's first refusing emission stage. The cycle's Boot Services
     // calls live on `UefiOsHandoffLegs` `boundary machine`s — scalar-returning
@@ -444,14 +444,19 @@ fn native_uefi_os_handoff_invocation_reports_cyclic_control_frontier() {
     // unit lane, so each leg owns one firmware call and lands its status on
     // the legs record. Bodied boundary machines now lower as ordinary Unit
     // callees and `&mut` boundary requirements carry caller-side plans, so the
-    // whole call chain — entry, cycle, legs, termination — emits to Terminal.
-    // The next fence is cyclic-machine custody: the verifier admits a cycle
-    // only when every call receiver is the bare persistent `self` and every
-    // pinned claim stays on owned entry parameters — `self.legs.*`/`self.
-    // terminal.*`/`self.cycle` receivers and `retain`'s granted extents stay
-    // outside that envelope today. Once cyclic machines admit projected
-    // receivers (and claim-carrying block parameters), this canary becomes
-    // the PE32+ emission assertion.
+    // whole call chain — entry, drive, cycle, legs, termination — emits to
+    // Terminal. The cyclic-custody envelope admits only the bare persistent
+    // `&mut self` receiver and claim roots pinned on owned entry parameters,
+    // so the authored shape keeps the cycle's calls on record-local
+    // forwarders and rides the granted extents on `Loader::run`'s plain
+    // block parameters.
+    // The next fence is native realization of the compiler-owned termination
+    // edges: `UefiOsHandoffTermination::transfer`/`firmware_return` settle as
+    // compiler-intrinsic provider rows, but no closed native catalog identity
+    // (execution identity + emission machinery) exists for them yet — that
+    // leg belongs to the UEFI physical-entry lane. Once the termination edges
+    // carry a closed identity, this canary becomes the PE32+ emission
+    // assertion.
     let canary = pass_canary(fixture_roster::BUILD_UEFI_OS_HANDOFF_INVOCATION);
     let build_dir = std::env::temp_dir().join(format!("omega-uefi-handoff-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -461,7 +466,7 @@ fn native_uefi_os_handoff_invocation_reports_cyclic_control_frontier() {
         target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
-    .expect_err("the authored cycle must stay pinned at the cyclic-control fence");
+    .expect_err("the authored cycle must stay pinned at the termination-edge catalog fence");
     let messages: Vec<&str> = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -469,8 +474,8 @@ fn native_uefi_os_handoff_invocation_reports_cyclic_control_frontier() {
     assert!(
         messages
             .iter()
-            .any(|message| message.contains("ControlCycle")),
-        "expected the pinned cyclic-control refusal, got {messages:?}"
+            .any(|message| message.contains("no closed native catalog identity")),
+        "expected the pinned termination-catalog refusal, got {messages:?}"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

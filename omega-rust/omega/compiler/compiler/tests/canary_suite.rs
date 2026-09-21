@@ -295,9 +295,11 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     // unclassified zero-width row`, `needs mutation lowering`, runtime
     // storage write lowering, unmeasured self-recursion) were removed
     // upstream; checked semantics now admits those six fixtures, so they
-    // cannot stay on this Check route. They remain in
+    // cannot stay on this Check route. The rest remain in
     // `ACTIVE_FAIL_CANARIES`, where the native route still refuses them at
-    // the transitive Unit-plan admission wall.
+    // the transitive Unit-plan admission wall; `machine_self_call_recursion`
+    // graduated to `ACTIVE_PASS_CANARIES` once the admission started
+    // producing its plan.
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
@@ -319,6 +321,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "structural/local_record_receivers",
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
+    // Routed scalar-domain establishment: the source compiles through
+    // checked semantics, but the artifact's unit-plan admission does not yet
+    // emit machines carrying routed scalar qualifications.
+    "domains/scalar_domain_issuer_route",
     // `drop<T>` specializations check through checked semantics and lower to
     // terminal nominal cleanup; the native codec route is not yet realized.
     "drops/core_drop_explicit_consume",
@@ -689,10 +695,22 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/signature_free_requirement_route_compile",
     "domains/string_non_empty_fact",
     "domains/bodyless_internal_state_forwarding",
+    // Refinement chains: a `Parent::Child` domain inherits the parent's
+    // requirements and routed provenance, and member-relative spellings
+    // establish child membership through the parent first.
+    "domains/refinement_chain_predicates",
+    "domains/refinement_chain_routed_provenance",
     "dependent/value_rebinding_cycle_call_frame_preserves_disjoint_fact_compile",
+    // `embed` reads a `self`-rooted field as its exact proof-Int term, so the
+    // ensures view compares the result against the post-write field value.
+    "dependent/embed_self_field_view",
     "generics/const_data_param",
     "generics/closed_sum_case_membership",
     "generics/const_machine_value_params",
+    // A generic-application call occupies each declared const argument
+    // destination; authored calls fold to the closed argument before
+    // parameter checking.
+    "generics/authored_const_application_local_destination",
     "generics/declared_range_endpoint_inference",
     "generics/declared_range_endpoint_boolean_arguments",
     "generics/declared_range_endpoint_domain_qualified_calls",
@@ -835,6 +853,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/inherited_acyclic_requirement_guarantee_compile",
     "termination/inherited_requirement_guarantee_compile",
     "termination/joint_lexicographic_machine_call_cycle_compile",
+    // A lexicographic component's strict step amount is the closed integer
+    // its spelling evaluates to.
+    "termination/lexicographic_component_constant_step_compile",
     "termination/joint_machine_call_cycle_forwarding_compile",
     "termination/mutual_recursion_countdown_compile",
     "termination/default_order_nat_countdown_compile",
@@ -907,6 +928,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/rank_range_call_indexed_store_write",
     "termination/rank_range_prefix_call",
     "termination/rank_range_prefix_let_binding",
+    "termination/rank_range_prefix_let_call_argument",
     "termination/rank_range_call_component_prefix_call",
     "termination/identity_measure_call_component",
     "termination/computed_measure_rank_range",
@@ -1049,6 +1071,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/case_call_wrong_subject",
     "proofs/case_citation_wrong_result",
     "proofs/constructor_omitted_field_wrong_guarantee",
+    "proofs/quotient_lift_unproved_termination_rejected",
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
     "relevance/erased_state_parameter_runtime_read",
@@ -1235,6 +1258,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/boundary_requirement_direct_call_unselected",
     "providers/boundary_requirement_statement_call_unselected",
     "providers/private_boundary_requirement_direct_call",
+    "providers/generic_boundary_requirement_direct_call_rejected",
     "providers/via_on_axiom_rejected",
     "providers/via_requires_satisfies",
     "providers/via_repeated_effects_rejected",
@@ -1438,6 +1462,11 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "domains/type_constraint_unknown_domain",
     "domains/domain_pattern_payload_binding_rejected",
     "domains/signature_free_requirement_route_overloaded",
+    // A refinement chain cannot be spelled through an alias, and a routed
+    // chain cannot fabricate the default-domain provenance a field
+    // requirement demands.
+    "domains/refinement_chain_alias_rejected",
+    "domains/refinement_chain_routed_provenance_forge",
     "generics/closed_indexed_array_element_mismatch",
     "generics/closed_indexed_domain_mismatch",
     "generics/closed_indexed_domain_noncanonical_rat",
@@ -1447,6 +1476,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/closed_indexed_struct_field_mismatch",
     "generics/colon_bound_rejected",
     "generics/authored_const_call_operator_requires_selection",
+    "generics/authored_const_call_operator_unselected_provider",
     "generics/authored_const_operator_requires_selection",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_argument_requires_value",
@@ -1693,6 +1723,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "termination/rank_range_field_state_call_requires_unproven",
     "termination/rank_range_projected_endpoint_requires_unproven",
     "termination/lexicographic_state_call_unproven",
+    "termination/lexicographic_component_zero_step_rejected",
     "termination/retired_block_form",
     "termination/retired_standalone_decreases",
     "termination/retired_standalone_increases",
@@ -3905,6 +3936,9 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+    // Unmeasured call-spelled self-recursion folds onto the loop-back edge
+    // (MR1); the transitive Unit-plan admission plans it, so it compiles.
+    "calls/machine_self_call_recursion_compile",
     "control_flow/runtime_tuple_transition_exit",
     "errors/runtime_result_match_exit",
     "expressions/runtime_enum_match_breadth_exit",
@@ -4956,7 +4990,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",
     "wire/layout_domain_on_non_bytes",
-    "calls/machine_self_call_recursion_rejected",
     "calls/ambiguous_spliced_second_receiver_rejected",
     "wire/wire_policy_plan_disagrees",
     "wire/wire_compatibility_preservation_unmet",

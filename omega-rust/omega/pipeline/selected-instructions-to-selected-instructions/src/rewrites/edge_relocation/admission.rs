@@ -12,9 +12,7 @@
 //! and no boundary settlement whose observed executed prefix changes.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedTerminator,
-};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator};
 
 use super::EdgeRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -24,8 +22,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -39,14 +36,14 @@ pub(super) struct Admission<'source> {
     pub landing_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, EdgeRelocationError> {
+) -> Result<Admission, EdgeRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(EdgeRelocationError::SourceMismatch);
@@ -193,7 +190,6 @@ pub(super) fn admit<'source>(
         return Err(EdgeRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,

@@ -52,11 +52,14 @@ when this block drifts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28129.6 ms | measured 150441984 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 1.68124e+06 ms | measured 246046720 B compile | measured 8192 B | measured 1.93834 ms |
+| linux_x86_64 | linux x86_64 | structural_proofs | default | measured 34932.9 ms | measured 150704128 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-9c09e32a82fb | measured 29846.9 ms | measured 148590592 B compile | measured 8192 B | measured 4.17697 ms |
 | macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
+| macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
 | windows_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 24117.5 ms | measured 147505152 B compile | measured 1024 B | skipped (--no-run was passed) |
+| uefi_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
 | uefi_x86_64 | QEMU or UEFI hardware | — | — | measurable | pending (run leg needs a UEFI runtime) | measurable | unavailable (needs QEMU or UEFI hardware) |
 | cross_platform_cli | build host | — | — | measurable | measurable | measurable | pending build host |
 | local_unchecked | build host | — | — | measurable | measurable | measurable | pending build host |
@@ -72,13 +75,30 @@ selection (`CopyPropagation` disabled; record
 selection-keyed row, covering the enabled/disabled dimension of the record
 space).
 `cli_mvp` is the canonical compile-and-run smoke subject (expected exit
-0, EOF-tolerant stdin); `prime_counter` was ruled out on this revision
-because its `i32` remainder operation does not legalize to a native
-artifact — see that record's notes when a selection row for it lands.
+0, EOF-tolerant stdin). The `i32` remainder blocker that once ruled
+`prime_counter` out is landed (`3c1ead6df4`, `ExactRemainderI64`
+legalization — the subject compiles and runs to exit 8 under the
+samples harness); its remaining row blocker is package-review
+settlement, recorded in the frontier notes below.
 Cross-target compile legs (`--no-run`) measure compile-time and
 code-size but mark `runtime_ms` as `skipped`.
 
 ## Frontier: `linux_x86_64` rows resumable, hosts still uncovered
+
+Update (z125, `18cebfa1062`, linux x86_64 host): `prime_counter` is
+still unmeasurable end-to-end, but the blocker has moved — package
+review settlement (`omega update`) now fails inside the
+`omega-language-std` candidate check with `routed service field
+`Filesystem::host` has no exact Fused selected-provider-plan join`.
+That is the recorded selected-provider frontier family (the same class
+as the ~90 `Service field Main::<field> requires a selected Fused
+provider` rejections in the native-matrix host docs), not a
+subject-level defect: `omega --check` on `source/library/std/main.omg`
+passes clean, so the rejection lives in the package-candidate check's
+provider-plan join. A settlement-rejected `(subject, target)` still has
+no commit-able record shape — that schema gap is owned by
+BENCHMARK-REJECTED-ROW-RECORDING. No prime_counter record was produced.
+
 
 A w9 benchmarks session attempted two further `linux_x86_64` rows on
 this host at `e48558bd41` — `cli_mvp` with `CopyPropagation` disabled
@@ -125,7 +145,14 @@ matrix block above is current against the committed record set.
 both fail review settlement with "no bound required root slot
 `<target>::ProgramEntry`" (MACOS-X64-HOST-PROFILE owns the x86-64
 macOS host-profile gap) — record them as non-applicable, not failed
-compiles.
+compiles. **Both are now recorded that way** (BENCHMARK-REJECTED-ROW-RECORDING):
+the schema carries an optional row-level `applicability`
+(`{"status": "non_applicable", "reason": ...}`), `measure` turns that exact
+settlement rejection into such a record instead of exiting, and the matrix
+renders the pairing as its own row. A non-applicable pairing speaks only for
+its `(subject, target)` pair, so it does NOT retire its host leg's projected
+row — `uefi_x86_64` still shows "needs QEMU or UEFI hardware" beside the
+`wrapping_square_sum` row.
 
 Update (z113, `1a772e4ae1`, linux x86_64 host): the remaining
 measurable cross-target compile legs for `wrapping_square_sum`
@@ -141,6 +168,15 @@ once per `--target` leg before `measure`, and a failed settlement
 leaves the lock's earlier accepted sections intact. The produced JSON
 rows await commit under `tools/benchmark/records/` once its claim
 frees; regenerating them is one `measure` invocation per target.
+
+Update (z27, `5e2d355a02`, linux x86_64 host): the first
+dependency-free proof subject is committed — `structural_proofs` ×
+`linux_x86_64` default selection
+(`tools/benchmark/records/structural_proofs__linux_x86_64__default.json`):
+3 compile samples, median 34932.9 ms, published 8192 B artifact,
+runtime `skipped` (proof machines emit no runtime code). `math_proofs`
+still fails earlier at checked-call selection
+(PROOF-SUBJECT-CALL-SELECTION family).
 
 ## Reading a row
 

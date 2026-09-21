@@ -50,6 +50,7 @@ fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee_id,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -164,6 +165,7 @@ fn execution() -> TerminalExecution {
                         entry,
                         Block {
                             erased_scalar_formals: Vec::new(),
+                            erased_proof_formals: Vec::new(),
                             id: entry,
                             parameters: Vec::new(),
                             structural_parameters: Vec::new(),

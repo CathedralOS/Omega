@@ -640,6 +640,7 @@ fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> 
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
         | CheckedUnitStructuralTypeShape::Sum { .. }
         | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
     }

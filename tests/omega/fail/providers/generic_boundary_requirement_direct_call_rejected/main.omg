@@ -1,0 +1,23 @@
+// A parameterized top-level boundary requirement is not an executable
+// declaration today: `is_directly_callable_top_level_requirement` admits no
+// type or lifetime parameter, so a direct call to `StaticGeneric::complete<T>`
+// settles no dispatch row even when a same-generic provider satisfies it, and
+// the ordinary bodyless boundary symbol fence rejects the call at check.
+pub data StaticGeneric {}
+
+pub boundary requirement StaticGeneric::complete<T>(value: T) -> T;
+
+data GenericProvider {}
+
+machine GenericProvider::complete<T>(value: T) -> T
+satisfies StaticGeneric::complete
+{
+    transition { _ -> (value) }
+}
+
+data Main {}
+
+machine Main::main(&mut self) -> i32 {
+    let selected: i32 = StaticGeneric::complete<i32>(35);
+    transition { _ -> (selected) }
+}

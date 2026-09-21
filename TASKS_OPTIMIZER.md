@@ -736,16 +736,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `Optimization` member in `representations/optimization-core`, claimed by
     WORKSPACE-ROLLOUT in wave w9 — arrange the handoff there before the
     catalog work proceeds.
-  - Separate validation from proposal: `copy_removal` and
-    `redundant_extension` now re-derive the legality contract without the
-    producer's `admission` routine — a wrong legality decision fails their
-    validators even when the proposal matches the emitted edit, and each
-    validator proves it on a forged proposal in its own `independence_tests`.
-    Every other module's `validation.rs` still calls the same
-    `admission::admit` as its `rewrite.rs`, then checks that undoing the edit
-    restores the source. That detects a wrong edit, not a wrong legality
-    decision. The validator must reconstruct the preconditions without the
-    producer's admission routine.
+  - Separate validation from proposal: `copy_removal`, `redundant_extension`,
+    `load_forwarding`, `constant_boolean`, `constant_branch`, the scheduling
+    relocation family, and the `dead_compare` families now re-derive the
+    legality contract without the producer's `admission` routine — a wrong
+    legality decision fails their validators even when the proposal matches
+    the emitted edit, and each validator proves it on a forged proposal in
+    its own `independence_tests`. Every other module's `validation.rs` still
+    calls the same `admission::admit` as its `rewrite.rs`, then checks that
+    undoing the edit restores the source. That detects a wrong edit, not a
+    wrong legality decision. The validator must reconstruct the preconditions
+    without the producer's admission routine.
   - Scheduling refuses any window containing a call, hosted effect, barrier
     kind or call-roster entry, any cross-block move through a block that is
     not a plain `Source` block, and any control-flow shape without its own
@@ -888,9 +889,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selects `omega.psi-pass.state-specialization.v1` (rule
   `omega.psi-rule.state-argument-specialization.v1`) by exact name through
   `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
-  independently under the evidence-matrix legs. It still declines every
+  independently under the evidence-matrix legs. The fused incoming edge is an
+  unconditional `Jump` successor or one arm of a `Conditional` predecessor —
+  a fused conditional arm leaves its sibling byte-exact, and both arms of one
+  predecessor may specialize in a single candidate. It still declines every
   machine holding a cyclic component and does not cover non-Boolean state
-  arguments, conditional incoming edges, or result specialization.
+  arguments or result specialization.
   Acceptance: a source-produced state machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently. Forged or stale edge provenance, a dispatch whose every

@@ -7,17 +7,15 @@ use super::super::{
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 use super::cursor::Cursor;
 use super::values::{decode_definition_site, decode_origin, decode_scalar_type};
 use super::{MAGIC, VERSION};
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-    SpillChoiceIdentity,
-};
+use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity};
 
 pub(super) fn decode(
     encoded: &[u8],

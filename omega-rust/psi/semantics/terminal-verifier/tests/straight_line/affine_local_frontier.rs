@@ -46,6 +46,7 @@ fn branched_locals() -> TerminalModule {
             target: BlockId::new(901).unwrap(),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
@@ -54,12 +55,14 @@ fn branched_locals() -> TerminalModule {
             target: BlockId::new(902).unwrap(),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     for index in 0..2 {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(901 + index).unwrap(),
             parameters: Vec::new(),

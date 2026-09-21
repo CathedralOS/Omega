@@ -15,72 +15,98 @@ Command:
 cargo nextest run -p compiler --test samples_compile --no-fail-fast
 ```
 
-Measured at `5958706064e` (2026-09-20), host `x86_64-unknown-linux-gnu`,
-cargo-nextest (mbx unavailable). Verdict: **red**.
+Measured at `5246ff65f4c` (2026-09-21), host `x86_64-unknown-linux-gnu`,
+cargo-nextest (mbx unavailable). Verdict: **red** — 8 pass / 24 fail.
+All legs in the compile matrix completed; only the run-leg
+`samples_with_documented_exit_run_correctly` was excluded from this
+measurement (its >130 min execution cannot lift the gate either way).
 
 ## Per-leg results
 
 | leg | result | seconds |
 |-----|--------|---------|
-| basics_samples_compile_from_authored_program_entry_bindings | FAIL | 11.0 |
-| dutch_flag_sample_reaches_checked_trees | PASS | 21.5 |
-| cli_mvp_preserves_both_lines_with_eof_and_enter | PASS | 78.9 |
-| euclid_gcd_retains_service_call_entry_plan | PASS | 69.2 |
-| fletcher_checksum_checks_its_slice_iteration | FAIL | 166.3 |
-| generic_counter_sample_reaches_terminal_psi | PASS | 21.7 |
-| caesar_cipher_preserves_its_declared_text_carrier | FAIL | 479.4 |
-| format_number_preserves_its_declared_text_carrier | FAIL | 600.0 |
-| named_integer_conversion_samples_reach_checked_trees | FAIL | 110.1 |
-| native_acceptance::native_sample_console_acceptance_binds_the_exact_selected_target | PASS | 325.4 |
-| native_acceptance::native_sample_without_standard_library_does_not_gain_console_acceptance | PASS | 0.008 |
-| print_squares_preserves_its_declared_text_carrier | FAIL | 609.3 |
-| algorithm_samples_compile_from_authored_program_entry_bindings | FAIL | 1774.6 |
-| proof_samples_compile_from_authored_program_entry_bindings | FAIL | 11.2 |
-| recursive_slice_samples_reach_checked_trees | PASS | 109.6 |
-| interpreter_samples_compile_from_authored_program_entry_bindings | FAIL | 1512.9 |
-| sample_entry_exceptions_are_explicit_and_non_runnable | FAIL | 0.016 |
-| gui_samples_compile_from_authored_program_entry_bindings | FAIL | 2350.2 |
-| collection_samples_compile_from_authored_program_entry_bindings | FAIL | 3157.5 |
+| basics_samples_compile_from_authored_program_entry_bindings | FAIL | 11.6 |
+| dutch_flag_sample_reaches_checked_trees | PASS | 22.5 |
+| cli_mvp_preserves_both_lines_with_eof_and_enter | PASS | 79.9 |
+| euclid_gcd_retains_service_call_entry_plan | PASS | 71.6 |
+| fletcher_checksum_checks_its_slice_iteration | FAIL | 166.6 |
+| generic_counter_sample_reaches_terminal_psi | PASS | 22.2 |
+| caesar_cipher_preserves_its_declared_text_carrier | FAIL | 470.3 |
+| format_number_preserves_its_declared_text_carrier | FAIL | 606.7 |
+| named_integer_conversion_samples_reach_checked_trees | FAIL | 110.4 |
+| native_acceptance::native_sample_console_acceptance_binds_the_exact_selected_target | PASS | 318.6 |
+| native_acceptance::native_sample_without_standard_library_does_not_gain_console_acceptance | PASS | 0.009 |
+| print_squares_preserves_its_declared_text_carrier | FAIL | 622.2 |
+| algorithm_samples_compile_from_authored_program_entry_bindings | FAIL | 1769.5 |
+| proof_samples_compile_from_authored_program_entry_bindings | FAIL | 11.8 |
+| recursive_slice_samples_reach_checked_trees | PASS | 110.1 |
+| interpreter_samples_compile_from_authored_program_entry_bindings | FAIL | 1500.2 |
+| sample_entry_exceptions_are_explicit_and_non_runnable | PASS | 0.016 |
+| gui_samples_compile_from_authored_program_entry_bindings | FAIL | 2202.2 |
 | standard_sample_discovery_excludes_application_submodules | PASS | 0.008 |
-| stdin_samples_compile_from_authored_program_entry_bindings | FAIL | 1406.1 |
+| collection_samples_compile_from_authored_program_entry_bindings | FAIL | 2959.4 |
+| stdin_samples_compile_from_authored_program_entry_bindings | FAIL | 1422.1 |
+| temperature_sample_retains_exact_float_operator_evidence | FAIL | 133.6 |
+| text_padding_accepts_its_projected_text_argument | FAIL | 161.9 |
+| probe_samples_compile_from_authored_program_entry_bindings | FAIL | 3544.9 |
+| simulation_samples_compile_from_authored_program_entry_bindings | FAIL | 3351.2 |
+| rendering_samples_compile_from_authored_program_entry_bindings | FAIL | 3446.9 |
+| unit_closure::cli_mvp_retains_checked_entry_and_console_call_closure | FAIL | 216.4 |
+| game_samples_compile_from_authored_program_entry_bindings | FAIL | 6390.2 |
+| text_samples_compile_from_authored_program_entry_bindings | FAIL | 3055.2 |
+| system_samples_compile_from_authored_program_entry_bindings | FAIL | 4230.3 |
+| all_samples_reach_checked_trees | FAIL | 8088.3 |
+| arithmetic_samples_compile_from_authored_program_entry_bindings | FAIL | 9635.5 |
 
 ## Observed failure families
 
-The observed failures are the cataloged residual families, unchanged in
-kind since `edc77c21480`:
+Every leg completed this measurement, including the heavyweight
+cohorts the prior record cut at ~45 min. The named families persist,
+and the completed cohorts expose three additional families inside
+system/all_samples:
 
-- `named-callable(path(WindowsProcessEntry::enter),parameters(),
-  result-dispatch())` entry selection still rejects the bundled std
-  `targets/windows_x86_64/entry.omg` — basics cohort, caesar_cipher,
-  format_number, print_squares, and the windows leg of
-  fletcher_checksum.
+- `target physical entry requirement and schema
+  named-callable(WindowsProcessEntry::enter)` still rejects the bundled
+  std `targets/windows_x86_64/entry.omg` — basics cohort, caesar_cipher,
+  format_number, print_squares, the windows leg of fletcher_checksum,
+  and the windows legs of unit_closure (124 occurrences).
 - `selected ProgramEntry establishment rejoins 0 Terminal attachment
-  identities; expected one` — non-Windows host legs and the
+  identities; expected one; the machine's unit plan was omitted at
+  local construction at 'call statement shape: call count without a
+  statement sequence'` — non-Windows host legs and the
   authored-entry-binding cohorts (basics, algorithm, interpreter,
-  proof, gui, collection, stdin); 63 occurrences observed.
-- `selected ProgramEntry Service field Main::{clock,gui,input}`
-  requires a selected Fused provider for boundary {Clock,Gui,Input}
-  — the GUI cohort's macOS-style boundary legs (14+ occurrences).
+  proof, gui, collection, stdin, arithmetic, system), plus the
+  newly-measured temperature_sample and text_padding legs
+  (208 occurrences; the diagnostic now names the omitted unit-plan
+  shape, richer than the prior record).
+- `selected ProgramEntry Service field Main::{clock,gui,input,fs}`
+  requires a selected Fused provider for boundary
+  {Clock,Gui,Input,FilesystemHost} — the GUI cohort's boundary legs.
 - `authored Operator declaration selection occurrence 108 remained
   unresolved after successful checking (CheckedOperator)` — the
-  CheckedOperator-occurrence residual in the algorithm/gui cohorts.
+  CheckedOperator-occurrence residual in the algorithm/gui cohorts
+  (4 occurrences).
 - `cannot prove default-domain field requirement for return from
   Main::main: self.out requires [u8; N]::Utf8` —
   named_integer_conversion_samples_reach_checked_trees
-  (cli/basics/print_number).
-- `sample_entry_exceptions_are_explicit_and_non_runnable` still rejects
-  `cli__device__device_extent_access` for lacking an authored root.
+  (cli/basics/print_number), unchanged; sibling render-path legs also
+  fail on per-call parameter requirements (`render_col`/`col_loop`
+  `self.line` parameters in the gui/rendering cohorts).
+- Newly observed (first completed runs of the heavyweight cohorts):
+  `call to 'apply' has operational envelope 'block' but acknowledges
+  neither suspension nor blocking` — system_samples and all_samples
+  (60 occurrences); `cannot prove index self.index is within length 32`
+  in CompactBinary::evaluate::place (18) plus
+  `self.x`/`self.idx` within unknown slice length in
+  Main::main::write_pixel (24); `cannot transfer a non-copy value out
+  of borrowed storage without replacing its owner` in
+  CompactBinary::evaluate (6).
 
-Legs still executing at record time (each >45 min at cut):
-`all_samples_reach_checked_trees`, the remaining
-`*_from_authored_program_entry_bindings` cohorts (arithmetic,
-game, probe, rendering, simulation, system, text), and
-`samples_with_documented_exit_run_correctly`. Their outcomes
-cannot lift the gate — every observed family is a named board residual
-(the ENTRY-CONTENT-ROOTS lane, the windows entry schema, the
-`[u8; N]::Utf8` domain-field leg, the device_extent_access authored
-root, the CheckedOperator-occurrence audit, and the GUI Fused-provider
-legs).
+## Closed since the prior measurement
+
+- `sample_entry_exceptions_are_explicit_and_non_runnable` is green —
+  the `cli__device__device_extent_access` authored-root pin landed via
+  ENTRY-CONTENT-ROOTS (confirmed at `20a7d1332c`, still green here).
 
 macOS arm64 / Windows x86-64 host legs are unavailable on this host per
 the completion-matrix platform table.

@@ -2034,15 +2034,17 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+4+3+4 = 14), and again for this function's
-    // blocks (14). The crossed surfaces pair the member (1) against LEAD
-    // (1), TRAIL (1), the branch terminator (2 uses + 1 definition on
-    // x86-64), and T_HEAD (1): 2+2+4+2 = 10 steps. The dead-path bound
-    // prices each block's body, terminator, and edge surfaces once per
-    // member location plus the initial scan: on x86-64 the materializations
-    // cost 1 each, the jumps 2, the branch 3, and the return 9 —
-    // (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written member register
-    // plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 10 + 52;
+    // blocks (14). The window walk's bound is the function's edge roster
+    // (4). The crossed surfaces pair the member (1) against T_HEAD (1),
+    // LEAD (1), and TRAIL (1): 2+2+2 = 6 — and the one crossed edge
+    // pairs the member against the branch terminator (2 uses + 1
+    // definition on x86-64) and the edge row (1+3+0 = 4). The dead-path
+    // bound prices each block's body, terminator, and edge surfaces once
+    // per member location plus the initial scan: on x86-64 the
+    // materializations cost 1 each, the jumps 2, the branch 3, and the
+    // return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written member
+    // register plus one: 26*2 = 52.
+    let steps: u64 = 14 + 14 + 4 + 6 + 4 + 52;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_out_of_arm(&source, 0, MOVING, LEAD, &environment, exact)
         .unwrap();
