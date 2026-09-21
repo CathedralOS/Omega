@@ -1,24 +1,33 @@
 use super::{Fixture, assert_status};
-use std::process::Output;
 
-/// The target the targetless `run` route resolves to on this compiler host:
-/// the catalogued host profile when one exists, an exact declared target
-/// otherwise (macOS x86-64 owns no host profile). Legs asserting compile-side
-/// rejection pin it; legs that must execute a host artifact skip instead.
+/// The target `accept` settles so a targetless `run` finds its resolved
+/// profile already reviewed: the catalogued host profile on catalogued
+/// hosts. Every supported development host owns one; a host outside the
+/// catalog stops at the no-profile diagnostic before consulting package
+/// acceptance, so the choice is unconstrained there and an exact catalogued
+/// name is pinned for `update`.
 fn probe_target_name() -> String {
     target::TargetProfile::host_if_supported()
         .map(|host| host.target_name().to_owned())
         .unwrap_or_else(|| "linux_x86_64".to_owned())
 }
 
-/// `run --both` stays targetless on hosts with a catalogued profile and pins
-/// an exact target on hosts that own none, where the implicit host profile
-/// cannot resolve. Assertions that only observe compile-side rejection hold
-/// under either route.
-fn run_probe(fixture: &Fixture) -> Output {
+/// A catalogued host resolves the targetless `run` to its own profile, so
+/// rejection legs observe the package check. A host outside the catalog
+/// reports the missing host profile first: it earns the ordinary diagnostic
+/// rather than the panic `TargetProfile::host` retains for callers that
+/// intrinsically require one.
+fn assert_probe_rejection(output: &std::process::Output, diagnostic: &str) {
+    let stderr = String::from_utf8_lossy(&output.stderr);
     match target::TargetProfile::host_if_supported() {
-        Some(_) => fixture.omega(&["run", "--both", "main.omg"]),
-        None => fixture.omega(&["run", "--both", "--target", "linux_x86_64", "main.omg"]),
+        Some(_) => assert!(stderr.contains(diagnostic), "{stderr}"),
+        None => {
+            assert!(
+                stderr.contains("no catalogued Omega deployment profile"),
+                "{stderr}"
+            );
+            assert!(!stderr.contains("panic"), "{stderr}");
+        }
     }
 }
 
@@ -79,7 +88,7 @@ fn native_probe_resolves_package_aliases_for_both_engines() {
     let output = fixture.omega(&["run", "--both", "main.omg"]);
     assert_status(&output, 0);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("native exit: 0"), "{stderr}");
+    assert!(stderr.contains("native exit 0"), "{stderr}");
     assert!(stderr.contains("interp exit: 0"), "{stderr}");
     assert_eq!(fixture.accepted_files(), before);
 }
@@ -92,12 +101,12 @@ fn native_probe_requires_ordinary_package_acceptance() {
         "pub machine value() -> i32 { 7 }\nboundary machine trusted_zero() -> u64 ensures result == 0;\n",
     );
     let before = fixture.accepted_files();
-    let output = run_probe(&fixture);
+    let output = fixture.omega(&["run", "--both", "main.omg"]);
     assert_status(&output, 200);
+    assert_probe_rejection(&output, "run omega update");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("run omega update"), "{stderr}");
-    assert!(!stderr.contains("native exit:"), "{stderr}");
-    assert!(!stderr.contains("interp exit:"), "{stderr}");
+    assert!(!stderr.contains("native exit"), "{stderr}");
+    assert!(!stderr.contains("interp exit"), "{stderr}");
     assert_eq!(fixture.accepted_files(), before);
 }
 
@@ -112,8 +121,8 @@ fn native_probe_explicit_target_only_compiles_the_package() {
         stderr.contains("compiled for target `linux_x86_64` OK"),
         "{stderr}"
     );
-    assert!(!stderr.contains("native exit:"), "{stderr}");
-    assert!(!stderr.contains("interp exit:"), "{stderr}");
+    assert!(!stderr.contains("native exit"), "{stderr}");
+    assert!(!stderr.contains("interp exit"), "{stderr}");
 }
 
 #[test]
@@ -144,7 +153,7 @@ fn native_probe_observes_generated_package_source_in_both_engines() {
     let output = fixture.omega(&["run", "--both", "main.omg"]);
     assert_status(&output, 0);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("native exit: 0"), "{stderr}");
+    assert!(stderr.contains("native exit 0"), "{stderr}");
     assert!(stderr.contains("interp exit: 0"), "{stderr}");
     assert!(!fixture.path("dependency/value.generated.omg").exists());
     assert_eq!(fixture.accepted_files(), before);
@@ -162,11 +171,11 @@ fn native_probe_rejects_malformed_and_stale_authored_admissions() {
         ),
     ] {
         fixture.write("root/omega.admissions", &contents);
-        let output = run_probe(&fixture);
+        let output = fixture.omega(&["run", "--both", "main.omg"]);
         assert_status(&output, 200);
+        assert_probe_rejection(&output, &diagnostic);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains(diagnostic), "{stderr}");
-        assert!(!stderr.contains("native exit:"), "{stderr}");
+        assert!(!stderr.contains("native exit"), "{stderr}");
         assert_eq!(fixture.read("root/omega.admissions"), contents);
     }
 }
@@ -188,12 +197,9 @@ fn standalone_probe_preserves_focused_compilation_and_reads_admissions() {
         String::from_utf8_lossy(&output.stderr)
     );
     fixture.write("root/omega.admissions", "not a trust receipt\n");
-    let output = match target::TargetProfile::host_if_supported() {
-        Some(_) => fixture.omega(&["run", "main.omg"]),
-        None => fixture.omega(&["run", "--target", "linux_x86_64", "main.omg"]),
-    };
+    let output = fixture.omega(&["run", "main.omg"]);
     assert_status(&output, 200);
-    assert!(String::from_utf8_lossy(&output.stderr).contains("malformed"));
+    assert_probe_rejection(&output, "malformed");
     assert!(!fixture.path("root/omega.lock").exists());
 }
 
