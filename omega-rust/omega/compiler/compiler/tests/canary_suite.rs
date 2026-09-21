@@ -295,9 +295,11 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     // unclassified zero-width row`, `needs mutation lowering`, runtime
     // storage write lowering, unmeasured self-recursion) were removed
     // upstream; checked semantics now admits those six fixtures, so they
-    // cannot stay on this Check route. They remain in
+    // cannot stay on this Check route. The rest remain in
     // `ACTIVE_FAIL_CANARIES`, where the native route still refuses them at
-    // the transitive Unit-plan admission wall.
+    // the transitive Unit-plan admission wall; `machine_self_call_recursion`
+    // graduated to `ACTIVE_PASS_CANARIES` once the admission started
+    // producing its plan.
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
@@ -3934,6 +3936,9 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+    // Unmeasured call-spelled self-recursion folds onto the loop-back edge
+    // (MR1); the transitive Unit-plan admission plans it, so it compiles.
+    "calls/machine_self_call_recursion_compile",
     "control_flow/runtime_tuple_transition_exit",
     "errors/runtime_result_match_exit",
     "expressions/runtime_enum_match_breadth_exit",
@@ -4985,7 +4990,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",
     "wire/layout_domain_on_non_bytes",
-    "calls/machine_self_call_recursion_rejected",
     "calls/ambiguous_spliced_second_receiver_rejected",
     "wire/wire_policy_plan_disagrees",
     "wire/wire_compatibility_preservation_unmet",
