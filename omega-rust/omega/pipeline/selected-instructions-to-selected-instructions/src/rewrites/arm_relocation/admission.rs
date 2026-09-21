@@ -19,11 +19,12 @@ use selected_instructions::{
 use super::ArmRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    edge_surface, plain_edge, terminator_instruction, terminator_successors, transport_conflict,
+    CrossingDirection, all_edges, crossed_window, edge_surface, terminator_instruction,
+    terminator_successors,
 };
 use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
 };
 
 pub(super) struct Admission<'source> {
@@ -188,18 +189,10 @@ pub(super) fn admit<'source>(
     // between the member's old and new positions. The head's remaining
     // edges are the speculative side the member's new position adds it
     // to — they are never crossed positions.
-    let mut landing_edges: Vec<&SelectedSuccessor> = Vec::new();
     let mut skipped_edges: Vec<&SelectedSuccessor> = Vec::new();
     for edge in &branch_edges {
-        if edge.block == block.id {
-            landing_edges.push(*edge);
-        } else {
+        if edge.block != block.id {
             skipped_edges.push(*edge);
-        }
-    }
-    for edge in &landing_edges {
-        if !plain_edge(edge) || transport_conflict(member_instruction, edge) {
-            return Err(ArmRelocationError::UnsupportedPair);
         }
     }
     // The member's execution becomes unconditional: it newly runs on every
@@ -211,41 +204,31 @@ pub(super) fn admit<'source>(
     if schedulable(function, member_instruction) != Some(false) || !hoistable(member_instruction) {
         return Err(ArmRelocationError::UnsupportedInstruction);
     }
-    // The branch terminator is the crossed edges' position: it is exempt
-    // from the barrier-kind rule but not from the call or hazard audit.
-    if has_call_contract(function, terminator.id) {
-        return Err(ArmRelocationError::UnsupportedInstruction);
-    }
-    if coupled(member_instruction, terminator) {
-        return Err(ArmRelocationError::UnsupportedPair);
-    }
-    // The member trades order with the positions at and after the landing
-    // index in the head — they ran before it and now run after — and the
-    // positions ahead of it in its own body, which now follow it across
-    // the boundary. Every other position keeps the member on the side it
-    // always had.
-    for crossed in target.instructions[landing_index..]
-        .iter()
-        .chain(block.instructions[..member_index].iter())
-    {
-        schedulable(function, crossed).ok_or(ArmRelocationError::UnsupportedInstruction)?;
-        if coupled(member_instruction, crossed) {
-            return Err(ArmRelocationError::UnsupportedPair);
-        }
-    }
-    // A settlement positioned past the member's index observed it inside
-    // the arm's executed prefix; a settlement positioned past the landing
-    // index observes it inside the head's. Both refuse; positions at or
-    // before either boundary keep the executed set they always had.
-    // Blocks on the speculative paths are unaffected: the member was
-    // never in their streams and still never enters them.
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > member_index)
-            || (settlement.block == target.id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(ArmRelocationError::UnsupportedPair);
-    }
+    // The crossed window is the shared derivation rather than this
+    // family's own enumeration: the member is the one-member run, and the
+    // gates above leave only head-to-arm acyclic paths; the walk may also
+    // explore the skipped edges' subtrees before they dead-end, so the
+    // function's edge roster bounds it. The shared audit applies the
+    // hazard, transport, memory-roster, and settlement checks once: the
+    // branch terminator rides each crossed edge's record — exempt from
+    // the barrier-kind rule but inside the call and hazard audit — and
+    // the head's skipped edges are never crossed positions. A boundary
+    // settlement positioned past the member's index in the arm or past
+    // the landing index in the head observed a changed executed prefix
+    // and refuses.
+    let edge_limit = all_edges(function).count();
+    let crossing = crossed_window(
+        function,
+        block_index,
+        member_index,
+        member_index,
+        target_index,
+        landing_index,
+        CrossingDirection::Backward,
+        edge_limit,
+    )
+    .ok_or(ArmRelocationError::WorkBudgetExceeded)?;
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(rejection)?;
     // The dead-path audit: every location the member writes must be dead —
     // unread until rewritten — along every path leaving the head's other
     // edges, where the member's execution is new.
@@ -314,27 +297,34 @@ pub(super) fn admit<'source>(
                     .try_fold(total, |total, _| total.checked_add(1))
             })
         })
+        .and_then(|total| total.checked_add(edge_limit))
         .and_then(|total| {
-            target.instructions[landing_index..]
+            crossing
+                .positions
                 .iter()
-                .chain(block.instructions[..member_index].iter())
-                .chain(std::iter::once(terminator))
-                .try_fold(total, |total, crossed| {
-                    total
-                        .checked_add(surface(member_instruction))?
-                        .checked_add(surface(crossed))
+                .try_fold(total, |total, (crossed_block, positions)| {
+                    positions.iter().try_fold(total, |total, position| {
+                        total
+                            .checked_add(surface(member_instruction))?
+                            .checked_add(surface(
+                                &function.blocks[*crossed_block].instructions[*position],
+                            ))
+                    })
                 })
+        })
+        .and_then(|total| {
+            crossing.edges.iter().try_fold(total, |total, edge| {
+                total
+                    .checked_add(surface(member_instruction))?
+                    .checked_add(surface(edge.instruction))?
+                    .checked_add(edge_surface(edge.successor))
+            })
         })
         .and_then(|total| {
             total
                 .checked_add(function.memory_accesses.len())?
                 .checked_add(function.calls.len())?
                 .checked_add(function.boundary_settlements.len())
-        })
-        .and_then(|total| {
-            landing_edges
-                .iter()
-                .try_fold(total, |total, edge| total.checked_add(edge.bindings.len()))
         })
         .and_then(|total| {
             total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
@@ -352,4 +342,20 @@ pub(super) fn admit<'source>(
         target_index,
         landing_index,
     })
+}
+
+/// Keeps the family's typed rejection vocabulary over the shared audit's
+/// rejection kinds: an unschedulable member or crossed position is the
+/// instruction-level refusal and every window-level refusal is the pair
+/// kind.
+fn rejection(rejection: RunRelocationRejection) -> ArmRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => ArmRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement
+        | RunRelocationRejection::TransportConflict => ArmRelocationError::UnsupportedPair,
+    }
 }
