@@ -7233,6 +7233,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 ## Mined items (deep-mine sweep, wave 9)
 
+- **AARCH64-BRANCH-RELAXATION.** Mined candidate — resolved, alias of
+  NON-X86-LAYOUT-RELAXATION (its row names this stub verbatim:
+  "AARCH64-BRANCH-RELAXATION names this same surface — no separate board
+  row"; re-verified `f600f8400b7`): the only functioning pins are the
+  rejects — `x86_rel8_selected` rejects `Architecture::Aarch64` as
+  `UnsupportedTarget` in catalog.rs and `hosted_sequences.rs` emits the
+  out-of-range diagnostic. No authorized implementation surface; resolved
+  with the parent row.
 - **ABI-LAYOUT-REDERIVATION-AUDIT.** Mined candidate — resolved: the name
   names the landed opaque-representation-selection rederivation audit.
   `representation-planning::rederive_opaque_representation_selections`
