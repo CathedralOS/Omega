@@ -9579,6 +9579,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   callee signature", checked-trees-to-lowered-psi structural_arguments gate) —
   the run fixture reads `self.seed` so both overloads retain the receiver.
 - **DURABLE-CODEC-EXTRACTION.** — mined candidate; verify scope then implement.
+  Scope verified 2026-09-21 (ffival) at `691fd334a1e`: re-mine of
+  DURABLE-CODEC-RELOCATION's residual — legs (1)-(3) landed (identity
+  newtypes + post_allocation_manifest + fixed_view_copy codecs now live in
+  `representations/register-homes`/`selected-instructions`); the only open
+  leg is `compiler/native-realization/src/optimized_semantic_wrapper_object/
+  codec.rs`, which waits on PIPELINE-OWNER-CONSOLIDATION's keep/move owner
+  decision (still open — both sites re-verified resident under live claims
+  at `c1e0b085375`) and is live-fenced to UEFI-PHYSICAL-SEMANTIC-ENTRY
+  (z88, exp ~08:44Z Sep 21): claim exit 2. Other `codec.rs` sites surveyed
+  are backend/artifact codecs beside their durable types (image-emission,
+  machine-emission, native-artifact, object-file) — in-scope per the
+  representations-home rule, not transform orphans. No independent slice
+  exists here.
+
 - **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
   [PIPELINE-OWNER-CONSOLIDATION](TASKS_OPTIMIZER.md) remaining-work bullet in
   TASKS_OPTIMIZER.md: "Move durable codecs out of transforms and coordinators
