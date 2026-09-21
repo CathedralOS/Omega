@@ -11564,6 +11564,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `records/577d6ac2ba.json` carries `route.matching_logic_encoding`
   **measured** (44/44 cases, 0 mismatches, 22 checkerRules / 38
   encodingClauses, 1256 certificate bytes).
+  Re-witnessed at `c3dd8016a7` (z175, linux x86-64):
+  `python3 tools/tests/test_matching_logic_slice.py` -> 13/13 green
+  (Ran 13 tests OK).
 - **MATCHING-LOGIC-COMPARISON-METRICS.** Resolved at `577d6ac2ba` —
   the "records regenerate" leg named on MATCHING-LOGIC-VERTICAL-SLICE:
   `tools/matching-logic-metrics/records/577d6ac2ba.json` is the first
