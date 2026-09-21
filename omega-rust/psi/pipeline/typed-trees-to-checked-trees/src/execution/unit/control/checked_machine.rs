@@ -396,6 +396,7 @@ fn build_checked_machine_with_trace(
             borrowed_windows::borrowed_window_shape(
                 program,
                 shapes,
+                machine,
                 state,
                 &structural_parameters,
                 statements,
@@ -549,7 +550,7 @@ fn build_checked_machine_with_trace(
             } else if let Some(window) = &borrowed_window {
                 !calls.is_empty()
                     || local_count != window.local_count
-                    || statements.len() != window.operations.len()
+                    || statements.len() != window.operations.len() + window.reference_locals
             } else {
                 local_count != 0 || !calls.is_empty()
             }
