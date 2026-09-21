@@ -7482,6 +7482,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   QEMU/hardware. Producing surfaces now fenced by
   BENCHMARK-ROW-RESUMPTION (03:42Z) and BENCHMARK-PRIME-COUNTER-ROW
   (05:19Z); the named sibling fences have expired.
+  **BENCHMARK-LINUX-X64-ROW-REFRESH landed 2026-09-21** (`z177` lane):
+  the missing `wrapping_square_sum × linux_x86_64 × default` record is
+  committed as
+  `tools/benchmark/records/wrapping_square_sum__linux_x86_64__default.json`
+  — measured natively on this host at `e7c0099cb2` (compile median
+  33396.8 ms across 3 samples, runtime median 4.37554 ms across 5
+  exit-0 samples, 8192 B artifact, peak RSS measured via os.wait4);
+  `benchmark.py validate` passes and the host-row matrix is
+  regenerated. Remaining legs are the genuinely host-gated ones:
+  `linux_arm64` (needs an arm64 runner), `macos_arm64`/`windows_x86_64`
+  (need their own hosts; windows peak-RSS stays `unavailable`), and
+  `uefi_x86_64` (needs QEMU/hardware).
 - **BENCHMARK-CROSS-TARGET-COMPILE-LEGS.** Scope verified — re-mine of
   BENCHMARK-COMPILE-ONLY-ROWS (~line 6395), which owns this exact deliverable:
   committed `tools/benchmark/records/` rows for the cross-target compile legs
