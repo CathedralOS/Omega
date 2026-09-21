@@ -7,7 +7,7 @@ so the counts carry the revision they were measured at. Refresh by re-running
 the enumeration below on a later HEAD and replacing the tables wholesale —
 do not append dated copies of the same table.
 
-Revision: `b53c7ea26032` (origin/main at measurement time, 2026-09-21).
+Revision: `2dbccb9bd68` (origin/main at measurement time, 2026-09-21).
 Host: linux x86-64. Method: directory enumeration of
 `tests/omega/pass/<group>/<fixture>/` and `tests/omega/fail/<group>/<fixture>/`
 (each fixture is a directory holding `main.omg`; suites may also carry
@@ -41,8 +41,8 @@ owning suite declares.
 
 | Corpus | `*_exit` | `*_compile` | `*_warns` | `*_traps` | unsuffixed | total |
 |--------|----------|-------------|-----------|-----------|------------|-------|
-| pass   | 996      | 211         | 0         | 22        | 806        | 2035  |
-| fail   | 1        | 6           | 0         | 0         | 1215       | 1222  |
+| pass   | 996      | 212         | 0         | 22        | 807        | 2037  |
+| fail   | 1        | 6           | 0         | 0         | 1218       | 1225  |
 
 ## Per-group distribution
 
@@ -94,7 +94,7 @@ owning suite declares.
 | platform | 0 | 1 |
 | ports | 0 | 1 |
 | progress | 1 | 0 |
-| proofs | 58 | 115 |
+| proofs | 60 | 118 |
 | providers | 36 | 32 |
 | range | 6 | 14 |
 | ranges | 3 | 12 |
@@ -117,16 +117,16 @@ owning suite declares.
 | types | 8 | 4 |
 | versioning | 9 | 1 |
 | wire | 48 | 33 |
-| **total** | **2035** | **1222** |
+| **total** | **2037** | **1225** |
 
-63 pass groups, 56 fail groups, 3257 fixtures total at this revision.
+63 pass groups, 56 fail groups, 3262 fixtures total at this revision.
 
 ## Reading the distribution
 
 - The heaviest pass groups (`calls` 190, `arithmetic` 162, `termination`
   114, `slices` 111, `collections` 99, `domains` 91) are where runtime and
   structural semantics concentrate; the heaviest fail groups
-  (`termination` 117, `proofs` 115, `arithmetic` 84, `dependent` 78,
+  (`termination` 117, `proofs` 118, `arithmetic` 84, `dependent` 78,
   `generics` 77) mirror the checker/admission surfaces that reject programs.
 - Groups present in only one corpus (e.g. `filesystem` 86/0, `dungeon`
   19/0, `ffi` 0/1, `ports` 0/1) are asymmetric by surface, not by gap —
