@@ -297,6 +297,19 @@ pub fn infer_sort(
 }
 
 /// The type of `term` under `context`, computed without search.
+///
+/// Single-child chains run on collected worklists rather than the call
+/// stack: a certificate can carry a telescope `Πx₁.Πx₂.…`, a curried
+/// application spine `f a₁…aₙ`, a right-nested tuple, or a projection
+/// chain thousands of links deep, and the judgment must not spend one
+/// native frame per link. The spine arms delegate to the helpers below
+/// `infer_type`; every branching position — an application's argument, a
+/// domain, an eliminator's motive and branches — still recurses through
+/// the same rules, so the residual call depth follows the term's
+/// branching structure instead of its chain length. Binder-spine
+/// contexts accumulate by pushing onto one cloned `bindings` vector,
+/// which also removes the per-link `extend` clone that squared the
+/// cost of a long telescope.
 pub fn infer_type(
     arena: &mut TermArena,
     context: &Context,
@@ -321,111 +334,11 @@ pub fn infer_type(
             let level = sort.level().successor().ok_or(CoreError::LevelOverflow)?;
             Ok(arena.insert(Term::Sort(Sort::Type(level))))
         }
-        Term::Pi { domain, codomain } => {
-            let domain_sort = infer_sort(arena, context, domain, budget)?;
-            let extended = context.extend(domain);
-            let codomain_sort = infer_sort(arena, &extended, codomain, budget)?;
-            let level = domain_sort.level().maximum(codomain_sort.level());
-            // The codomain's sort selects the layer; the level is the maximum.
-            let result_sort = match codomain_sort {
-                Sort::Strict(_) => Sort::Strict(level),
-                Sort::Type(_) => Sort::Type(level),
-            };
-            Ok(arena.insert(Term::Sort(result_sort)))
-        }
-        Term::Lambda { domain, body } => {
-            infer_sort(arena, context, domain, budget)?;
-            let extended = context.extend(domain);
-            let body_type = infer_type(arena, &extended, body, budget)?;
-            Ok(arena.insert(Term::Pi {
-                domain,
-                codomain: body_type,
-            }))
-        }
-        Term::Apply { function, argument } => {
-            let function_type = infer_type(arena, context, function, budget)?;
-            let function_head =
-                weak_head_normalize(arena, context.signature(), function_type, budget)?;
-            match arena.get(function_head) {
-                Term::Pi { domain, codomain } => {
-                    if let Term::Pair { .. } = arena.get(argument) {
-                        // A dependent pair checks componentwise against a
-                        // `Sigma` domain; its non-dependent inference could
-                        // never convert there.
-                        check_type(arena, context, argument, domain, budget)?;
-                    } else {
-                        let argument_type = infer_type(arena, context, argument, budget)?;
-                        let domain_sort = infer_sort(arena, context, domain, budget)?;
-                        let shared_type = arena.insert(Term::Sort(domain_sort));
-                        if !convertible(arena, context, argument_type, domain, shared_type, budget)?
-                        {
-                            return Err(CoreError::ArgumentTypeMismatch {
-                                expected: domain,
-                                actual: argument_type,
-                            });
-                        }
-                    }
-                    Ok(substitute(arena, codomain, argument))
-                }
-                _ => Err(CoreError::NotAFunction {
-                    function,
-                    actual_type: function_head,
-                }),
-            }
-        }
-        Term::Sigma { domain, codomain } => {
-            let domain_sort = infer_sort(arena, context, domain, budget)?;
-            let extended = context.extend(domain);
-            let codomain_sort = infer_sort(arena, &extended, codomain, budget)?;
-            let level = domain_sort.level().maximum(codomain_sort.level());
-            // A pair type is a strict proposition only when both components
-            // are; any relevant component carries data and keeps the whole
-            // type relevant.
-            let result_sort = match (domain_sort, codomain_sort) {
-                (Sort::Strict(_), Sort::Strict(_)) => Sort::Strict(level),
-                _ => Sort::Type(level),
-            };
-            Ok(arena.insert(Term::Sort(result_sort)))
-        }
-        Term::Pair { first, second } => {
-            // Inference is non-dependent: nothing records how the codomain
-            // should mention the first component. `check_type` admits a
-            // dependent pair componentwise against an expected `Sigma`.
-            let first_type = infer_type(arena, context, first, budget)?;
-            let second_type = infer_type(arena, context, second, budget)?;
-            let codomain = shift(arena, second_type, 0, 1);
-            Ok(arena.insert(Term::Sigma {
-                domain: first_type,
-                codomain,
-            }))
-        }
-        Term::Fst { pair } => {
-            let pair_type = infer_type(arena, context, pair, budget)?;
-            let head = weak_head_normalize(arena, context.signature(), pair_type, budget)?;
-            match arena.get(head) {
-                Term::Sigma { domain, .. } => Ok(domain),
-                _ => Err(CoreError::NotAPair {
-                    pair,
-                    actual_type: head,
-                }),
-            }
-        }
-        Term::Snd { pair } => {
-            let pair_type = infer_type(arena, context, pair, budget)?;
-            let head = weak_head_normalize(arena, context.signature(), pair_type, budget)?;
-            match arena.get(head) {
-                Term::Sigma { codomain, .. } => {
-                    // `snd p : B[fst p]` — the dependent result keeps the
-                    // projected first component.
-                    let projected = arena.insert(Term::Fst { pair });
-                    Ok(substitute(arena, codomain, projected))
-                }
-                _ => Err(CoreError::NotAPair {
-                    pair,
-                    actual_type: head,
-                }),
-            }
-        }
+        Term::Pi { .. } | Term::Sigma { .. } => infer_formation_spine(arena, context, term, budget),
+        Term::Lambda { .. } => infer_lambda_spine(arena, context, term, budget),
+        Term::Apply { .. } => infer_apply_spine(arena, context, term, budget),
+        Term::Pair { .. } => infer_pair_spine(arena, context, term, budget),
+        Term::Fst { .. } | Term::Snd { .. } => infer_projection_spine(arena, context, term, budget),
         Term::Two => Ok(arena.insert(Term::Sort(Sort::Type(Level::Constant(0))))),
         Term::TwoZero | Term::TwoOne => Ok(arena.insert(Term::Two)),
         Term::CaseTwo {
@@ -1123,11 +1036,231 @@ pub(super) fn box_body_type(
     })
 }
 
+/// Which formation rule produced one link of a `Π`/`Σ` codomain chain:
+/// `Pi` takes the codomain's layer at the maximum level, `Sigma` is a
+/// strict proposition only while both components are.
+enum Formation {
+    Pi,
+    Sigma,
+}
+
+/// `infer_type` over a `Π`/`Σ` codomain chain `Π(x₁:A₁). Σ(x₂:A₂). … R`.
+/// The judgment runs each domain's formation under the binders before it
+/// and each binder's context extension is one push — collecting the
+/// links and folding their sorts inside-out walks the same rules in the
+/// same order without a call-stack frame per binder.
+fn infer_formation_spine(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    budget: &mut Budget,
+) -> Result<TermHandle, CoreError> {
+    let mut extended = context.clone();
+    let mut links: Vec<(Formation, Sort)> = Vec::new();
+    let mut tail = term;
+    loop {
+        let (formation, domain, codomain) = match arena.get(tail) {
+            Term::Pi { domain, codomain } => (Formation::Pi, domain, codomain),
+            Term::Sigma { domain, codomain } => (Formation::Sigma, domain, codomain),
+            _ => break,
+        };
+        let domain_sort = infer_sort(arena, &extended, domain, budget)?;
+        links.push((formation, domain_sort));
+        extended.bindings.push(domain);
+        tail = codomain;
+    }
+    let mut running = infer_sort(arena, &extended, tail, budget)?;
+    // `term` itself is a `Π`/`Σ`, so `links` always holds its own binder.
+    let mut result = TermHandle::invalid();
+    for (formation, domain_sort) in links.into_iter().rev() {
+        let level = domain_sort.level().maximum(running.level());
+        running = match formation {
+            // The codomain's sort selects the layer; the level is the maximum.
+            Formation::Pi => match running {
+                Sort::Strict(_) => Sort::Strict(level),
+                Sort::Type(_) => Sort::Type(level),
+            },
+            // A pair type is a strict proposition only when both components
+            // are; any relevant component carries data and keeps the whole
+            // type relevant.
+            Formation::Sigma => match (domain_sort, running) {
+                (Sort::Strict(_), Sort::Strict(_)) => Sort::Strict(level),
+                _ => Sort::Type(level),
+            },
+        };
+        result = arena.insert(Term::Sort(running.clone()));
+    }
+    Ok(result)
+}
+
+/// `infer_type` over a `λx₁. λx₂. … body` binder spine. Each domain is
+/// checked under the accumulated context, then the body's inferred type
+/// wraps back into the same `Π` chain inside-out — off the call stack.
+fn infer_lambda_spine(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    budget: &mut Budget,
+) -> Result<TermHandle, CoreError> {
+    let mut extended = context.clone();
+    let mut domains: Vec<TermHandle> = Vec::new();
+    let mut tail = term;
+    while let Term::Lambda { domain, body } = arena.get(tail) {
+        infer_sort(arena, &extended, domain, budget)?;
+        extended.bindings.push(domain);
+        domains.push(domain);
+        tail = body;
+    }
+    let mut inferred = infer_type(arena, &extended, tail, budget)?;
+    for domain in domains.into_iter().rev() {
+        inferred = arena.insert(Term::Pi {
+            domain,
+            codomain: inferred,
+        });
+    }
+    Ok(inferred)
+}
+
+/// `infer_type` over an application spine `f a₁ … aₙ`. The links gather
+/// outermost-first and fold innermost-first — the judgment consumes the
+/// arguments in application order — and each step's `NotAFunction` still
+/// names the exact `function` subterm whose type failed to be a `Π`.
+fn infer_apply_spine(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    budget: &mut Budget,
+) -> Result<TermHandle, CoreError> {
+    let mut spine: Vec<(TermHandle, TermHandle)> = Vec::new();
+    let mut head = term;
+    while let Term::Apply { function, argument } = arena.get(head) {
+        spine.push((function, argument));
+        head = function;
+    }
+    let mut inferred = infer_type(arena, context, head, budget)?;
+    for (function, argument) in spine.into_iter().rev() {
+        let function_head = weak_head_normalize(arena, context.signature(), inferred, budget)?;
+        match arena.get(function_head) {
+            Term::Pi { domain, codomain } => {
+                if let Term::Pair { .. } = arena.get(argument) {
+                    // A dependent pair checks componentwise against a
+                    // `Sigma` domain; its non-dependent inference could
+                    // never convert there.
+                    check_type(arena, context, argument, domain, budget)?;
+                } else {
+                    let argument_type = infer_type(arena, context, argument, budget)?;
+                    let domain_sort = infer_sort(arena, context, domain, budget)?;
+                    let shared_type = arena.insert(Term::Sort(domain_sort));
+                    if !convertible(arena, context, argument_type, domain, shared_type, budget)? {
+                        return Err(CoreError::ArgumentTypeMismatch {
+                            expected: domain,
+                            actual: argument_type,
+                        });
+                    }
+                }
+                inferred = substitute(arena, codomain, argument);
+            }
+            _ => {
+                return Err(CoreError::NotAFunction {
+                    function,
+                    actual_type: function_head,
+                });
+            }
+        }
+    }
+    Ok(inferred)
+}
+
+/// `infer_type` over a `pair`-in-`second` tuple chain. Inference is
+/// non-dependent: nothing records how the codomain should mention the
+/// first component — `check_type` admits a dependent pair componentwise
+/// against an expected `Sigma`. The `first` types infer top-down, then
+/// the `Σ` results fold inside-out, each codomain the shifted type of
+/// the link's `second`.
+fn infer_pair_spine(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    budget: &mut Budget,
+) -> Result<TermHandle, CoreError> {
+    let mut first_types: Vec<TermHandle> = Vec::new();
+    let mut tail = term;
+    while let Term::Pair { first, second } = arena.get(tail) {
+        first_types.push(infer_type(arena, context, first, budget)?);
+        tail = second;
+    }
+    let mut inferred = infer_type(arena, context, tail, budget)?;
+    for first_type in first_types.into_iter().rev() {
+        let codomain = shift(arena, inferred, 0, 1);
+        inferred = arena.insert(Term::Sigma {
+            domain: first_type,
+            codomain,
+        });
+    }
+    Ok(inferred)
+}
+
+/// `infer_type` over a `fst`/`snd` projection chain `fst (snd (fst p))`.
+/// The projections gather outermost-first and fold innermost-first:
+/// each step weak-head normalizes the current pair type and takes the
+/// `Σ` domain for `fst` or substitutes the reconstructed `fst` for
+/// `snd`. The stored pair handle keeps each link's operand for the
+/// `NotAPair` payload and the `snd` substitution.
+fn infer_projection_spine(
+    arena: &mut TermArena,
+    context: &Context,
+    term: TermHandle,
+    budget: &mut Budget,
+) -> Result<TermHandle, CoreError> {
+    let mut spine: Vec<(bool, TermHandle)> = Vec::new();
+    let mut tail = term;
+    loop {
+        match arena.get(tail) {
+            Term::Fst { pair } => {
+                spine.push((true, pair));
+                tail = pair;
+            }
+            Term::Snd { pair } => {
+                spine.push((false, pair));
+                tail = pair;
+            }
+            _ => break,
+        }
+    }
+    let mut inferred = infer_type(arena, context, tail, budget)?;
+    for (is_fst, pair) in spine.into_iter().rev() {
+        let head = weak_head_normalize(arena, context.signature(), inferred, budget)?;
+        match arena.get(head) {
+            Term::Sigma { domain, codomain } => {
+                inferred = if is_fst {
+                    domain
+                } else {
+                    // `snd p : B[fst p]` — the dependent result keeps the
+                    // projected first component.
+                    let projected = arena.insert(Term::Fst { pair });
+                    substitute(arena, codomain, projected)
+                };
+            }
+            _ => {
+                return Err(CoreError::NotAPair {
+                    pair,
+                    actual_type: head,
+                });
+            }
+        }
+    }
+    Ok(inferred)
+}
+
 /// Check `term` against `expected`. The two types are compared at
 /// `Sort(s)` where `s` is `expected`'s own sort — a universe, whose own
 /// sort is always `Type`, so strict collapse can never fire for the
 /// *types* themselves even when `expected` is a strict proposition such
 /// as `sEmpty` or a squash's payload.
+///
+/// The componentwise descents — a `Pair` against a `Sigma`, a `Lambda`
+/// against a `Pi` — loop instead of returning through recursion, so a
+/// right-nested tuple witness or a telescope body adds no call depth.
 pub fn check_type(
     arena: &mut TermArena,
     context: &Context,
@@ -1135,54 +1268,62 @@ pub fn check_type(
     expected: TermHandle,
     budget: &mut Budget,
 ) -> Result<(), CoreError> {
-    let expected_sort = infer_sort(arena, context, expected, budget)?;
-    // A pair against a `Sigma` checks componentwise, so the second
-    // component sees the dependent codomain instantiated by the first.
-    if let Term::Pair { first, second } = arena.get(term) {
-        let head = weak_head_normalize(arena, context.signature(), expected, budget)?;
-        if let Term::Sigma { domain, codomain } = arena.get(head) {
-            check_type(arena, context, first, domain, budget)?;
-            let second_type = substitute(arena, codomain, first);
-            return check_type(arena, context, second, second_type, budget);
-        }
-    }
-    // A lambda against a `Pi` checks componentwise, so the body sees the
-    // dependent codomain rather than the lambda's non-dependent
-    // inference — the dual of the pair rule above. The annotation must
-    // still denote the expected domain, and the body is checked under
-    // the binder, so a nested pair can meet a dependent `Sigma`
-    // componentwise instead of comparing whole inferred types.
-    if let Term::Lambda { domain, body } = arena.get(term) {
-        let head = weak_head_normalize(arena, context.signature(), expected, budget)?;
-        if let Term::Pi {
-            domain: expected_domain,
-            codomain,
-        } = arena.get(head)
-        {
-            let domain_sort = infer_sort(arena, context, expected_domain, budget)?;
-            let shared_domain = arena.insert(Term::Sort(domain_sort));
-            if !convertible(
-                arena,
-                context,
-                domain,
-                expected_domain,
-                shared_domain,
-                budget,
-            )? {
-                return Err(CoreError::TypeMismatch {
-                    expected: expected_domain,
-                    actual: domain,
-                });
+    let mut extended = context.clone();
+    let mut term = term;
+    let mut expected = expected;
+    loop {
+        let expected_sort = infer_sort(arena, &extended, expected, budget)?;
+        // A pair against a `Sigma` checks componentwise, so the second
+        // component sees the dependent codomain instantiated by the first.
+        if let Term::Pair { first, second } = arena.get(term) {
+            let head = weak_head_normalize(arena, extended.signature(), expected, budget)?;
+            if let Term::Sigma { domain, codomain } = arena.get(head) {
+                check_type(arena, &extended, first, domain, budget)?;
+                term = second;
+                expected = substitute(arena, codomain, first);
+                continue;
             }
-            let extended = context.extend(domain);
-            return check_type(arena, &extended, body, codomain, budget);
         }
-    }
-    let shared_type = arena.insert(Term::Sort(expected_sort));
-    let actual = infer_type(arena, context, term, budget)?;
-    if convertible(arena, context, actual, expected, shared_type, budget)? {
-        Ok(())
-    } else {
-        Err(CoreError::TypeMismatch { expected, actual })
+        // A lambda against a `Pi` checks componentwise, so the body sees the
+        // dependent codomain rather than the lambda's non-dependent
+        // inference — the dual of the pair rule above. The annotation must
+        // still denote the expected domain, and the body is checked under
+        // the binder, so a nested pair can meet a dependent `Sigma`
+        // componentwise instead of comparing whole inferred types.
+        if let Term::Lambda { domain, body } = arena.get(term) {
+            let head = weak_head_normalize(arena, extended.signature(), expected, budget)?;
+            if let Term::Pi {
+                domain: expected_domain,
+                codomain,
+            } = arena.get(head)
+            {
+                let domain_sort = infer_sort(arena, &extended, expected_domain, budget)?;
+                let shared_domain = arena.insert(Term::Sort(domain_sort));
+                if !convertible(
+                    arena,
+                    &extended,
+                    domain,
+                    expected_domain,
+                    shared_domain,
+                    budget,
+                )? {
+                    return Err(CoreError::TypeMismatch {
+                        expected: expected_domain,
+                        actual: domain,
+                    });
+                }
+                extended.bindings.push(domain);
+                term = body;
+                expected = codomain;
+                continue;
+            }
+        }
+        let shared_type = arena.insert(Term::Sort(expected_sort));
+        let actual = infer_type(arena, &extended, term, budget)?;
+        return if convertible(arena, &extended, actual, expected, shared_type, budget)? {
+            Ok(())
+        } else {
+            Err(CoreError::TypeMismatch { expected, actual })
+        };
     }
 }
