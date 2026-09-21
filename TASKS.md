@@ -13199,11 +13199,44 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   verdict, killed at 780s; these two were never predicted to make it
   terminate.
 
-  Remaining work: stop rebuilding the full equality roster per condition fact
-  in `terminal-verifier/.../path_facts/conditions.rs:71-84`. That is the
-  actual O(N^2) and the only one of the four that changes the asymptotics; it
-  alters what the kernel is shown, so it needs a careful design pass, though
-  not an owner decision.
+  **The third centre was measured and is misattributed.** Rebuilding the
+  roster at `path_facts/conditions.rs:71-84` is real, but it is **0.4-1.4% of
+  the `condition_fact` call** and it is *linear* (0.125 us/axiom, flat from
+  N=1 to N=801). The call itself is super-linear over the same range (x2 on N
+  costs x2.45, then x2.80, then x3.25), so the quadratic is provably
+  elsewhere. Counting inside the kernel at one `condition_fact` call:
+  `check_node` visits and `context.validate` calls are linear in N, while
+  comparisons in `proof-admission/src/proof.rs`'s `record_premise` are
+  exactly N(N-1)/2 -- 325 at N=26, 20,100 at N=201, 352,575 at N=801. Each
+  comparison is a full structural `Proposition == Proposition`. A certificate
+  cites the whole roster by design, so N cited nodes x an O(N) scan of the
+  accepted set is the O(N^2), and it is O(N^3) per path.
+
+  **Closed.** `record_premise`'s accepted-premise list now carries an
+  index-keyed map of the positions each index occupies, so the proposition
+  comparison runs only against rows that already share the citation's index.
+  The admitted predicate is untouched -- a citation is new unless a recorded
+  premise shares both index and proposition -- and cited axioms carry
+  distinct indices, so the pathological case falls from N(N-1)/2 comparisons
+  to none. Both copies of the routine were converted (`proof.rs` and
+  `mathematical_core/bounded_denotation.rs`); 1316/1316 green across
+  proof-admission, proof and terminal-verifier, with the two trusted-surface
+  digests re-recorded.
+
+  This is a whole-system win, not a condition-fact one: every certificate the
+  kernel accepts went through that scan.
+
+  Hoisting the roster itself was written and validated separately and is
+  **not worth landing**: `ValueEqualityTransport` owns its equalities, so each
+  certificate must still deep-clone them, and measurement puts the saving at
+  ~12% of a term that is at most 1.4% of the call, against churn in five
+  digest-pinned files. Narrowing the cited roster to the equations the walk
+  actually traversed remains the only other asymptotic lever, and that one
+  does alter what the kernel is shown.
+
+  Tail-risk note: across a full `terminal-verifier` run (4,835 calls) the
+  roster is tiny -- p50 2, p90 6, p99 42, max 582 -- so this was a deep
+  straight-line-path risk, not a present cost in the suite.
 
   A fourth centre is now what remains of checking, and it is not one the
   original diagnosis named: a profile of the remaining 3.3s shows no frame in
