@@ -12132,6 +12132,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   at `5b0307c`, so the gap evidence stands verbatim. Live fences rotated —
   `samples/apps/squalr` is still wholesale dir-fenced by
   REGION-ALIGNMENT-EXPANSION (zergling-z68, exp 07:25Z);
+  Fence re-audit at `138ed79a677` for sibling stub
+  **SQUALR-DEBUG-ASSERTIONS** (same re-mine of the Rust debug-only-assertions
+  gap — the name's whole surface is this row's): the submodule dir-fence has
+  drained, but the lane still sits under item-level claims
+  (SQUALR-NAMED-TRAIT-OPERATORS 10:24Z, SQUALR-SEED-PARITY 15:14Z on the seed
+  draft) and, per this row's standing note, must coordinate with
+  GEOMETRY-PARITY's owner lane before working it — authored `crash`/
+  `requires` parity on the ported structures belongs to that lane, not to a
+  one-stub slice.
   SQUALR-WINDOWS-GEOMETRY-VALIDATION drained and re-upped as
   GEOMETRY-WINDOWS-VALIDATION (item claim, exp 13:53Z);
   SQUALR-NAMED-TRAIT-OPERATORS item claim still live (exp 10:24Z);
