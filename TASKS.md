@@ -13832,7 +13832,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wholesale under POC-SPILL-FAMILY-SEQUENCING (~06:53Z Sep 21) and the
   adjacent UNSEQUENCED-SPILL-STAGE-DISPOSITION claim (~08:13Z). No
   independent slice.
-- **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-STAGE-DISPOSITION.** Mined candidate — resolved at
+  `58b08fc20f`: seventh mined duplicate of the
+  UNSEQUENCED-SPILL-STAGES-DISPOSITION row (this file, same
+  UNSEQUENCED-SPILL-* cluster), whose verified scope covers the
+  sequence-or-delete disposition of the staged spill families in
+  `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`;
+  the family inventory, dependency chain and resolved
+  `stack_slot_coloring`/`runtime_spill/slot.rs` duplicate-owner pair are
+  recorded there and on UNSEQUENCED-SPILL-STAGE-TRIAGE /
+  UNSEQUENCED-SPILL-FAMILY-DISPOSITION / SPILL-STAGES-OWNERSHIP /
+  UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE (all folded same-way).
+  Re-verified live on linux x86-64: the wholesale dir fence
+  (POC-SPILL-FAMILY-SEQUENCING ~06:53Z) has expired; the only surviving
+  fence on the territory is `tests/native-differential/tests/pipeline_ownership*`
+  under BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP
+  (~07:31Z), which does not carry the sequence leg. The disposition work
+  itself belongs to the canonical item — this stub folds; no independent
+  slice exists under this name.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE.** Mined candidate — resolved at
   `0f5ae41e7d`: one of the four mined duplicates the
   UNSEQUENCED-SPILL-STAGES-DISPOSITION row (~this file, line 10032) names
