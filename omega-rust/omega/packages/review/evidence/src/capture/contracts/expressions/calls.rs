@@ -385,6 +385,46 @@ pub(crate) fn exact_checked_contract_call_target(
                 },
             ))
         }
+        // A bare receiverless contract call whose spelled callee selects no
+        // package declaration is admitted by checking as an opaque proof-view
+        // atom (`Bag(items)`-style schematic views); the finalized ledger row
+        // carries the compiler-owned ProofView intrinsic. Package review
+        // rejoins that admission shape: the callee stays unresolved and
+        // receiverless, and the retained name is the atom's whole identity.
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ProofView,
+        ) if !call.target_symbol.is_valid()
+            && !call.receiver.is_valid()
+            && matches!(
+                compilation.typed.symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                    call.target.as_str(),
+                    &[
+                        symbols::SymbolKind::Module,
+                        symbols::SymbolKind::BuiltinType,
+                        symbols::SymbolKind::BuiltinFunction,
+                        symbols::SymbolKind::Data,
+                        symbols::SymbolKind::Domain,
+                        symbols::SymbolKind::Machine,
+                        symbols::SymbolKind::Operator,
+                        symbols::SymbolKind::Measure,
+                        symbols::SymbolKind::Proposition,
+                        symbols::SymbolKind::MathematicalDefinition,
+                        symbols::SymbolKind::Trait,
+                        symbols::SymbolKind::Conformance,
+                        symbols::SymbolKind::Const,
+                        symbols::SymbolKind::ConformanceParameter,
+                        symbols::SymbolKind::WireSchema,
+                    ],
+                    selection.source_span(),
+                    |_| true,
+                ),
+                symbols::SymbolLookup::NotFound
+            ) =>
+        {
+            Ok(PackageReviewContractCallTarget::ProofView {
+                name: call.target.as_str().to_owned(),
+            })
+        }
         AuthoredDeclarationSelectionTarget::Intrinsic(_) => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract-call intrinsic identity disagrees with its exact checked call-selection row or is not yet represented by package review",
             context.subject_kind, context.subject_name

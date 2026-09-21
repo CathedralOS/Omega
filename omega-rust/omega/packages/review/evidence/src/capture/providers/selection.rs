@@ -100,12 +100,22 @@ pub(crate) fn selected_provider_row_source(
             )?);
         }
 
-        for realization in &retained.provider.row_realizations {
-            locations.push(canonical_source_location(
-                compilation,
-                *realization,
-                PackageReviewSourceLocationRole::ProviderRealization,
-            )?);
+        // A toolchain-settled plan's rows are realized by the toolchain
+        // settlement table, not authored machines: the provenance retains
+        // `invalid` realization symbols, so there are no authored locations
+        // to project.
+        if !compilation
+            .custody
+            .selected_provider_plans()
+            .is_toolchain_settled(plan)
+        {
+            for realization in &retained.provider.row_realizations {
+                locations.push(canonical_source_location(
+                    compilation,
+                    *realization,
+                    PackageReviewSourceLocationRole::ProviderRealization,
+                )?);
+            }
         }
     }
     for grant in compilation.custody.selected_provider_grants() {

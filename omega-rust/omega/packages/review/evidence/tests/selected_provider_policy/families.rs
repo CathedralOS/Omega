@@ -25,12 +25,23 @@ machine ping_leaf() satisfies Host::ping via Binding::Syscall(60);
     );
     assert_eq!(plan.rows().len(), 1);
     assert!(policy.families().is_empty());
+    // The toolchain settles entry-boundary calling plans on selected-target
+    // compiles; the fixture contract is that the authored boundary trait
+    // carries no calling realization of its own.
+    let host = granted
+        .checked
+        .traits()
+        .iter()
+        .find(|trait_| trait_.name.as_str() == "Host")
+        .expect("fixture boundary trait")
+        .symbol;
     assert!(
         granted
             .checked
             .custody
             .boundary_calling_plan_realizations()
-            .is_empty()
+            .iter()
+            .all(|realization| realization.boundary_trait != host)
     );
     assert!(
         project_checked_selected_provider_policy(

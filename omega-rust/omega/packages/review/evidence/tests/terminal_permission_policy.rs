@@ -158,7 +158,7 @@ fn exact_service_owner_and_requested_target_and_package_are_checked() {
     assert!(
         project_checked_terminal_permission_policy(
             &checked,
-            TargetProfile::WindowsX64,
+            TargetProfile::LinuxX64,
             package_identity()
         )
         .is_err()

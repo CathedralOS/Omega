@@ -335,9 +335,18 @@ crashes Abort
         provider_declarations.requirement().owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-    assert_eq!(provider_declarations.realization().path(), "ping_leaf");
     assert_eq!(
-        provider_declarations.realization().owner(),
+        provider_declarations
+            .realization()
+            .expect("authored row realization")
+            .path(),
+        "ping_leaf"
+    );
+    assert_eq!(
+        provider_declarations
+            .realization()
+            .expect("authored row realization")
+            .owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
     assert!(matches!(

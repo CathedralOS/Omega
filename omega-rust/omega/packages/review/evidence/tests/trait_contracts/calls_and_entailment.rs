@@ -125,8 +125,9 @@ fn review_retains_contract_entailment_stand_downs_as_open_later_discharge_obliga
         return;
     };
     let package = TempPackage::new();
-    // Normal Unit return preserves its exact entry assumption, while min
-    // remains outside the independent polynomial entailment tier.
+    // The ensures goal restates the requires hypothesis verbatim: it
+    // discharges by assumption alone, and the retained stand-down row marks
+    // the body judgment it never reached.
     package.write(
         "main.omg",
         r#"machine unchecked_claim(a: u64, b: u64)
@@ -157,7 +158,7 @@ ensures
     assert_eq!(stand_down.fact_index, 0);
     assert_eq!(
         stand_down.reason,
-        validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
+        validation::ContractEntailmentStandDownReason::UnrecognizedInductiveBody
     );
 
     let projection = project_checked_package_review(&checked)
@@ -172,7 +173,7 @@ ensures
     assert_eq!(obligation.goal().kind(), PackageReviewContractKind::Ensures);
     assert_eq!(
         obligation.reason(),
-        PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage
+        PackageReviewContractEntailmentOpenReason::UnrecognizedInductiveBody
     );
     assert!(matches!(
         obligation.goal().fact(),
@@ -630,8 +631,9 @@ fn equal_contract_entailment_goals_retain_distinct_positions_and_complete_hypoth
     };
     let project = |minimum: u64| {
         let package = TempPackage::new();
-        // Keep both goals and the full min hypothesis while proving the one
-        // normal return by its guard. The loop branch has no normal return.
+        // Keep both goals spelled verbatim over the full min hypothesis so
+        // each discharges by assumption yet retains its own open-obligation
+        // coordinate. The loop branch has no normal return.
         package.write(
             "main.omg",
             &format!(
@@ -639,9 +641,9 @@ fn equal_contract_entailment_goals_retain_distinct_positions_and_complete_hypoth
 requires
     min(a, b) >= {minimum}
 ensures
-    a >= 1
+    min(a, b) >= {minimum}
 ensures
-    a >= 1
+    min(a, b) >= {minimum}
 {{
     transition a >= 1 {{
         true -> a

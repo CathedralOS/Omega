@@ -62,7 +62,7 @@ satisfies CheckedMath::offset_zero
     let [provider_row] = provider.row_declarations() else {
         panic!("one selected boundary operator provider row")
     };
-    assert_eq!(provider_row.realization(), callable.identity());
+    assert_eq!(provider_row.realization(), Some(callable.identity()));
     assert_eq!(
         provider_row.requirement().owner(),
         declaration.coordinate().identity().owner()
@@ -402,7 +402,7 @@ satisfies CheckedMath::convert
         .selected_providers()
         .iter()
         .flat_map(|provider| provider.row_declarations())
-        .map(|row| row.realization().path())
+        .map(|row| row.realization().expect("authored row realization").path())
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         selected_realizations,
@@ -549,7 +549,10 @@ satisfies GenericMath::identity
     let [row] = provider.row_declarations() else {
         panic!("one selected generic provider row")
     };
-    assert_eq!(row.realization().path(), "GenericProvider::identity");
+    assert_eq!(
+        row.realization().expect("authored row realization").path(),
+        "GenericProvider::identity"
+    );
     assert!(review.boundary_application_realizations().is_empty());
 }
 

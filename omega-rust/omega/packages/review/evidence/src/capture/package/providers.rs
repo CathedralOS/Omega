@@ -78,6 +78,15 @@ pub(super) fn project_selected_providers(
                 plan.name,
             ))]);
         }
+        // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
+        // has no authored conformance rows: its realizations live in the
+        // toolchain settlement table, so each row's realization symbol is
+        // `invalid` by construction. The lifetime-partition replay and
+        // realization nominal join have no authored declarations to resolve.
+        let toolchain_settled = compilation
+            .custody
+            .selected_provider_plans()
+            .is_toolchain_settled(plan);
         let row_declarations = retained
             .provider
             .row_requirements
@@ -86,13 +95,28 @@ pub(super) fn project_selected_providers(
             .zip(&retained.row_compiler_intrinsic_executions)
             .zip(&plan.rows)
             .map(|(((requirement, realization), retained_execution), row)| {
-                validate_selected_requirement_lifetime_partition(
-                    compilation,
-                    plan,
-                    row,
-                    *requirement,
-                    *realization,
-                )?;
+                if toolchain_settled {
+                    if realization.is_valid() {
+                        return Err(vec![Diagnostic::error(format!(
+                            "toolchain-settled provider plan `{}` row `{}` names an authored realization",
+                            plan.name, row.requirement_identity,
+                        ))]);
+                    }
+                    if !row.requirement_lifetime_partition.is_empty() {
+                        return Err(vec![Diagnostic::error(format!(
+                            "toolchain-settled provider plan `{}` row `{}` retains a lifetime partition with no authored realization",
+                            plan.name, row.requirement_identity,
+                        ))]);
+                    }
+                } else {
+                    validate_selected_requirement_lifetime_partition(
+                        compilation,
+                        plan,
+                        row,
+                        *requirement,
+                        *realization,
+                    )?;
+                }
                 let requirement_identity = provider_requirement_identity(
                     compilation,
                     retained.provider.schema,
@@ -109,7 +133,11 @@ pub(super) fn project_selected_providers(
                 projected_installation_reaches += usize::from(installation_reach.is_some());
                 Ok(CheckedPackageProviderRowIdentity {
                     requirement: requirement_identity,
-                    realization: nominal_identity(compilation, *realization)?,
+                    realization: if toolchain_settled {
+                        None
+                    } else {
+                        Some(nominal_identity(compilation, *realization)?)
+                    },
                     compiler_intrinsic_execution: project_compiler_intrinsic_execution(
                         compilation,
                         plan,
@@ -143,8 +171,8 @@ pub(super) fn project_selected_providers(
                 &plan.name,
                 "provider type",
             )?,
-            None if plan.provider_type.is_empty()
-                && plan.provider_type_package_identity.is_none() => {}
+            None if plan.provider_type_package_identity.is_none()
+                && (plan.provider_type.is_empty() || toolchain_settled) => {}
             None => {
                 return Err(vec![Diagnostic::error(format!(
                     "selected provider plan `{}` has provider-type identity without one exact declaration",
@@ -176,12 +204,14 @@ pub(super) fn project_selected_providers(
                 &plan.name,
                 "row requirement",
             )?;
-            validate_selected_provider_declaration_owner(
-                &declarations.realization,
-                plan.origin_package_identity,
-                &plan.name,
-                "row realization",
-            )?;
+            if let Some(realization) = &declarations.realization {
+                validate_selected_provider_declaration_owner(
+                    realization,
+                    plan.origin_package_identity,
+                    &plan.name,
+                    "row realization",
+                )?;
+            }
         }
         let mut grants = selected_provider_grants
             .iter()
