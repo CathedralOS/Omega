@@ -303,6 +303,7 @@ fn owned_subloans_preserve_qualification_checks() {
     let mut module = owned_receiver(&["record".into()], StructuralAccess::MutableBorrow);
     verifies(&module);
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
         identity: "Record::Ready".into(),

@@ -16,6 +16,9 @@ use lowered_psi_to_terminal_psi::{
 };
 use terminal_codec::terminal_psi_identity;
 use terminal_psi::{CheckedProgramEntryTerminalReceipt, TerminalMachineResult};
+
+use crate::stage_timings::{TerminalProductionStage, TerminalProductionTimings};
+
 mod receiver_eligibility;
 /// Canonical Terminal output coupled to its non-caller-authored checked D29
 /// demand scope.
@@ -468,8 +471,21 @@ impl<'a> TerminalProductionRequest<'a> {
         self,
         source_signature_identity: [u8; 32],
     ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
+        self.produce_program_entry_timed(
+            source_signature_identity,
+            &mut TerminalProductionTimings::default(),
+        )
+    }
+
+    /// [`Self::produce_program_entry`] recording each production leg into the
+    /// Psi-owned timing carrier the caller merges into its timing report.
+    pub fn produce_program_entry_timed(
+        self,
+        source_signature_identity: [u8; 32],
+        timings: &mut TerminalProductionTimings,
+    ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
         let (artifact, receipt, boundary_operator_scope, lowered) =
-            self.produce_program_entry_parts(source_signature_identity)?;
+            self.produce_program_entry_parts_timed(source_signature_identity, timings)?;
         Ok(ProducedProgramEntryTerminalArtifact {
             boundary_operator_scope,
             artifact,
@@ -497,8 +513,27 @@ impl<'a> TerminalProductionRequest<'a> {
         ProducedProgramEntryTerminalArtifactWithCallbackCustody<C>,
         CallbackCustodyTerminalArtifactProductionError<C>,
     > {
+        self.produce_program_entry_with_callback_custody_timed(
+            source_signature_identity,
+            callback_custody,
+            &mut TerminalProductionTimings::default(),
+        )
+    }
+
+    /// [`Self::produce_program_entry_with_callback_custody`] recording each
+    /// production leg into the Psi-owned timing carrier the caller merges into
+    /// its timing report.
+    pub fn produce_program_entry_with_callback_custody_timed<C>(
+        self,
+        source_signature_identity: [u8; 32],
+        callback_custody: C,
+        timings: &mut TerminalProductionTimings,
+    ) -> Result<
+        ProducedProgramEntryTerminalArtifactWithCallbackCustody<C>,
+        CallbackCustodyTerminalArtifactProductionError<C>,
+    > {
         let (artifact, receipt, boundary_operator_scope, lowered) =
-            match self.produce_program_entry_parts(source_signature_identity) {
+            match self.produce_program_entry_parts_timed(source_signature_identity, timings) {
                 Ok(parts) => parts,
                 Err(error) => {
                     return Err(CallbackCustodyTerminalArtifactProductionError {
@@ -522,9 +557,10 @@ impl<'a> TerminalProductionRequest<'a> {
     }
 
     #[allow(clippy::type_complexity)]
-    fn produce_program_entry_parts(
+    fn produce_program_entry_parts_timed(
         self,
         source_signature_identity: [u8; 32],
+        timings: &mut TerminalProductionTimings,
     ) -> Result<
         (
             terminal_codec::CanonicalTerminalArtifact,
@@ -534,43 +570,66 @@ impl<'a> TerminalProductionRequest<'a> {
         ),
         TerminalArtifactProductionError,
     > {
-        let selection = self
-            .selected_terminal_machine()
+        let selection = timings
+            .record_result(TerminalProductionStage::MachineSelection, || {
+                self.selected_terminal_machine()
+            })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         let source_machine_name = selection.name.clone();
         let source_machine_symbol = selection.machine;
         let checked = self.checked;
-        let optimized = self.lower_and_optimize()?;
+        let optimized = self.lower_and_optimize_timed(timings)?;
         let optimized_lowered = optimized.lowered();
-        let entry_matches = optimized_lowered
-            .semantic_module
-            .machines
-            .iter()
-            .filter(|machine| machine.id == optimized_lowered.semantic_module.entry)
-            .collect::<Vec<_>>();
-        let [entry] = entry_matches.as_slice() else {
-            return Err(TerminalArtifactProductionError::EntryReceipt(
-                ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(entry_matches.len()),
-            ));
-        };
-        if entry.result != TerminalMachineResult::Unit {
-            return Err(TerminalArtifactProductionError::EntryReceipt(
-                ProgramEntryTerminalReceiptError::NonUnitEntry,
-            ));
-        }
-        let terminal_psi_identity = terminal_psi_identity(&optimized_lowered.semantic_module)
+        timings.record_result(TerminalProductionStage::EntryReceipt, || {
+            let entry_matches = optimized_lowered
+                .semantic_module
+                .machines
+                .iter()
+                .filter(|machine| machine.id == optimized_lowered.semantic_module.entry)
+                .collect::<Vec<_>>();
+            let [entry] = entry_matches.as_slice() else {
+                return Err(TerminalArtifactProductionError::EntryReceipt(
+                    ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(
+                        entry_matches.len(),
+                    ),
+                ));
+            };
+            if entry.result != TerminalMachineResult::Unit {
+                return Err(TerminalArtifactProductionError::EntryReceipt(
+                    ProgramEntryTerminalReceiptError::NonUnitEntry,
+                ));
+            }
+            Ok(())
+        })?;
+        let terminal_psi_identity = timings
+            .record_result(TerminalProductionStage::TerminalIdentity, || {
+                terminal_psi_identity(&optimized_lowered.semantic_module)
+            })
             .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
             .map_err(TerminalArtifactProductionError::EntryReceipt)?;
         let terminal_entry = optimized_lowered.semantic_module.entry;
-        let receiver_eligibility =
-            receiver_eligibility::derive(checked, selection, &optimized_lowered.semantic_module);
-        let (artifact, lowered) = publish_terminal_artifact(optimized)?;
+        let receiver_eligibility = timings
+            .record_result(TerminalProductionStage::ReceiverEligibility, || {
+                Ok::<_, ()>(receiver_eligibility::derive(
+                    checked,
+                    selection,
+                    &optimized_lowered.semantic_module,
+                ))
+            })
+            .expect("receiver eligibility derivation is infallible");
+        let (artifact, lowered) = timings
+            .record_result(TerminalProductionStage::Publication, || {
+                publish_terminal_artifact(optimized)
+            })?;
         if artifact.manifest().semantic() != terminal_psi_identity {
             return Err(TerminalArtifactProductionError::EntryReceipt(
                 ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,
             ));
         }
-        let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
+        let boundary_operator_scope = timings
+            .record_result(TerminalProductionStage::BoundaryOperatorScope, || {
+                checked_boundary_operator_scope(checked, &artifact, &lowered)
+            })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         Ok((
             artifact,
@@ -590,14 +649,30 @@ impl<'a> TerminalProductionRequest<'a> {
     fn lower_and_optimize(
         self,
     ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
-        let lowered = match self.machine {
-            TerminalMachineSelection::Name(name) => lower_machine(self.checked, name),
-            TerminalMachineSelection::Symbol(machine) => {
-                lower_machine_by_symbol(self.checked, machine)
-            }
-        }
-        .map_err(TerminalArtifactProductionError::Lowering)?;
-        run_psi_optimization(lowered, self.optimization_selections)
+        self.lower_and_optimize_timed(&mut TerminalProductionTimings::default())
+    }
+
+    fn lower_and_optimize_timed(
+        self,
+        timings: &mut TerminalProductionTimings,
+    ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
+        timings
+            .record_result(TerminalProductionStage::LedgerCheck, || {
+                crate::checked_ledger::verify(self.checked)
+            })
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        let lowered = timings
+            .record_result(TerminalProductionStage::Lowering, || match self.machine {
+                TerminalMachineSelection::Name(name) => lower_machine(self.checked, name),
+                TerminalMachineSelection::Symbol(machine) => {
+                    lower_machine_by_symbol(self.checked, machine)
+                }
+            })
+            .map_err(TerminalArtifactProductionError::Lowering)?;
+        timings
+            .record_result(TerminalProductionStage::Optimization, || {
+                run_psi_optimization(lowered, self.optimization_selections)
+            })
             .map_err(TerminalArtifactProductionError::Optimization)
     }
 
@@ -670,4 +745,42 @@ fn checked_boundary_operator_scope(
 ) -> Result<CheckedBoundaryOperatorApplicationScope, LoweringError> {
     lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, artifact, lowered)
         .map_err(LoweringError::Unsupported)
+}
+
+#[cfg(test)]
+mod tests {
+    use checked_trees::CheckedTrees;
+
+    use crate::TerminalProductionRequest;
+
+    fn check_source(source: &str) -> CheckedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
+    }
+
+    /// Production lowering runs the correspondence retention route: the batch
+    /// is extracted from the checked program's typed trees and installed on
+    /// the module the artifact publishes. Ordinary programs produce an empty
+    /// batch, so the published module carries no quotient rows and still
+    /// decodes to identical identity.
+    #[test]
+    fn production_installs_the_extracted_quotient_correspondence_batch() {
+        let checked = check_source(
+            "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        assert!(module.quotient_correspondences.is_empty());
+    }
 }

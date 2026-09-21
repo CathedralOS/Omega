@@ -54,7 +54,7 @@ pub(crate) fn relocated_scalar_case_result_places(
     for function in &unit.functions {
         for block in &function.blocks {
             for node in &block.nodes {
-                let (psi_operation, result) = match &node.operation {
+                let (psi_operation, place) = match &node.operation {
                     O::EstablishScalarCase {
                         psi_operation,
                         result,
@@ -69,19 +69,25 @@ pub(crate) fn relocated_scalar_case_result_places(
                         psi_operation,
                         result,
                         ..
-                    } => (*psi_operation, result),
+                    } => {
+                        if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine {
+                            continue;
+                        }
+                        (*psi_operation, result.place)
+                    }
+                    // A trivial affine local's declared place is affine by
+                    // construction — relocation moves its single establishment.
+                    O::EstablishTrivialAffineLocal {
+                        psi_operation,
+                        place,
+                        ..
+                    } => (*psi_operation, place.id),
                     _ => continue,
                 };
-                if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine {
-                    continue;
-                }
                 if seed_home.get(&(function.machine, psi_operation)) == Some(&block.id) {
                     continue;
                 }
-                relocated
-                    .entry(function.machine)
-                    .or_default()
-                    .insert(result.place);
+                relocated.entry(function.machine).or_default().insert(place);
             }
         }
     }

@@ -11,13 +11,25 @@
 // type; they only enter the story at stage 2 (`Vec<'r, T>` borrowing a
 // Arena).
 //
-// GENERIC INSTANTIATION FRONTIER (measured 2026-06-12): the generic `data`
+// GENERIC INSTANTIATION FRONTIER (re-measured 2026-09-21): the generic `data`
 // declaration below compiles structurally (chapter 12 const value
-// parameters), and so do the boundary-operator contracts. What does NOT
-// compile yet is ATTACHING A MACHINE to a generic data whose layout depends
-// on `T`: even `machine FixedVec::clear<T, const N: u64>(&mut self)` with
-// no `T` in its own signature fails layout with "unknown layout-bearing type
-// `T`" because the receiver's `[T; N]` field has no concrete extent. The
+// parameters), and so do the boundary-operator contracts. Attaching a machine
+// to generic data is no longer the blocker it was in the 2026-06-12 reading:
+// a machine attached to a template with no type parameters of its own now
+// lays out through its concrete clones, which the layout builder names for
+// exactly this case, and both halves are canaried —
+// `tests/omega/pass/generics/runtime_container_setter_matrix_exit`
+// (`Cell<T>` with `Cell::touch_count(&self)`) and
+// `.../runtime_const_container_methods_exit` (`FixedBuffer<const N: u64>`
+// with attached accessors). What is still unproven is this file's own shape:
+// a field that binds BOTH a type and a const extent, `[T; N]`, carrying an
+// attached machine. The three `[T; N]` canaries
+// (`const_data_param`, `runtime_const_data_array_length_exit`,
+// `runtime_const_data_multiple_instances_exit`) reach those fields only from
+// `Main::main`; none attaches a machine to the container. A generic TEMPLATE
+// machine also still has no layout of its own — only its concrete clones do —
+// so a declaration-only surface like this one, with no concrete
+// `FixedVec<i32, 4>` in the program, still emits nothing. The
 // machine-shaped implementation pattern (real bodies, real proofs, real
 // runtime) is therefore pinned CONCRETELY in
 // tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit (i32, N = 4):

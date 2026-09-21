@@ -219,7 +219,8 @@ fn a_changed_token_binding_is_a_breaking_revision_of_the_reviewed_callables() {
     assert!(!baseline_add.contains("token-bound"));
 
     // The admission claim is an explicit acceptance row: its token change
-    // retires the accepted row and adds one that needs a decision.
+    // retires the accepted row, and the token-bound form now reviews as a
+    // public boundary operator declaration rather than a callable.
     let changes = compare_package_policy_changes(
         Some(&accepted),
         &bound_reviews,
@@ -240,10 +241,10 @@ fn a_changed_token_binding_is_a_breaking_revision_of_the_reviewed_callables() {
         .iter()
         .map(|row| row.change())
         .collect::<Vec<_>>();
-    assert!(
-        kinds.contains(&PackagePolicyChangeKind::Removed)
-            && kinds.contains(&PackagePolicyChangeKind::Added),
-        "the tokenless claim row is retired and the token-bound one added: {kinds:?}"
+    assert_eq!(
+        kinds,
+        [PackagePolicyChangeKind::Removed],
+        "the tokenless claim row is retired: {kinds:?}"
     );
     assert!(
         callable_rows.iter().all(|row| row.requires_decision()),
@@ -253,16 +254,23 @@ fn a_changed_token_binding_is_a_breaking_revision_of_the_reviewed_callables() {
     assert!(
         callable_rows
             .iter()
-            .filter_map(|row| row.candidate())
-            .any(|row| row.canonical_text().contains("token-bound")
-                && row.canonical_text().contains("1:*")),
-        "the added row names the token binding"
-    );
-    assert!(
-        callable_rows
-            .iter()
             .filter_map(|row| row.baseline())
             .all(|row| !row.canonical_text().contains("token-bound")),
         "the retired tokenless row carried no token coordinate"
+    );
+    // The bound revision still publishes the claim's surface: the fixed token
+    // marks `trusted_product` a boundary operator requirement.
+    let bound_operators = bound_reviews.reviews()[0].policy().public_api().operators();
+    let [operator] = bound_operators else {
+        panic!("one boundary operator requirement: {bound_operators:?}");
+    };
+    assert!(operator.is_boundary());
+    assert!(operator.spelling().is_some());
+    assert!(
+        operator
+            .coordinate()
+            .identity()
+            .path()
+            .contains("trusted_product")
     );
 }

@@ -16,6 +16,7 @@ fn scalar_array_roster_composes_exact_primitive_local_producers() {
         O::EstablishPrimitiveLocal {
             psi_operation: OperationId::new(4).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: local,
                 structural_type: StructuralTypeId::new(2).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,

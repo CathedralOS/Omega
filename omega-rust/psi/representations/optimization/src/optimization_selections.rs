@@ -27,10 +27,11 @@ pub enum PsiOptimization {
     DeadPureScalarElimination = 5,
     ProofCheckElision = 6,
     StateSpecialization = 7,
+    RepresentationSpecialization = 8,
 }
 
 impl PsiOptimization {
-    pub const ALL: [Self; 7] = crate::PRETERMINAL_PSI_PASS_CATALOG;
+    pub const ALL: [Self; 8] = crate::PRETERMINAL_PSI_PASS_CATALOG;
 
     pub const fn name(self) -> &'static str {
         match self {
@@ -41,6 +42,7 @@ impl PsiOptimization {
             Self::DeadPureScalarElimination => "DeadPureScalarElimination",
             Self::ProofCheckElision => "ProofCheckElision",
             Self::StateSpecialization => "StateSpecialization",
+            Self::RepresentationSpecialization => "RepresentationSpecialization",
         }
     }
 

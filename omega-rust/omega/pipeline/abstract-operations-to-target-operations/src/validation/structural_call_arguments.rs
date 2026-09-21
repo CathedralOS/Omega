@@ -18,8 +18,8 @@ use abstract_operations::{
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, EntryControl, ValueLocation, ValuePlacement,
-    ValueShape, evaluate_call_plan,
+    CallPlan, CallSignature, CallingPolicy, EntryControl, ValueClass, ValueLocation,
+    ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
@@ -33,8 +33,9 @@ use target_operations::{
     TargetBoundaryResult, TargetControlTerminator, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
     TargetNativeCallbackArgument, TargetReferenceResult, TargetStructuralArgument,
-    TargetStructuralArgumentSource, TargetStructuralHomeRequirement, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    TargetStructuralArgumentSource, TargetStructuralHomeLayout, TargetStructuralHomeRequirement,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceCallableResult, CrashRouteBucket,
@@ -1147,9 +1148,12 @@ impl Replay<'_> {
         {
             return Err(psi_operation);
         }
-        // Each borrowed structural parameter transports one referent pointer:
-        // the signature is rebuilt from the target's pointer word, never from
-        // the retained rows. A retained callback occupies one such slot too.
+        // A borrowed formal transports its referent's pointer word — except a
+        // `ByteSequence(BorrowedView)` formal, whose stored two-word view
+        // crosses by value — and an owned formal carries the aggregate's
+        // policy-classified by-value shape. The signature is rebuilt from the
+        // declarations, never from the retained rows. A retained callback
+        // occupies one pointer slot.
         let pointer_size =
             u16::try_from(self.native_target.pointer_size).map_err(|_| psi_operation)?;
         let pointer_alignment =
@@ -1247,6 +1251,7 @@ impl Replay<'_> {
         // formals — semantic argument indices shift around the callback's
         // native ordinal.
         let mut next_scalar_shape = scalar_shapes.iter();
+        let mut next_structural_formal = declaration.structural_parameters.iter();
         let mut parameter_shapes = declaration
             .parameter_order
             .iter()
@@ -1254,7 +1259,17 @@ impl Replay<'_> {
                 terminal_psi::BoundaryParameterKind::Scalar => {
                     next_scalar_shape.next().copied().ok_or(psi_operation)
                 }
-                terminal_psi::BoundaryParameterKind::Structural => Ok(pointer_shape),
+                terminal_psi::BoundaryParameterKind::Structural => {
+                    let formal = next_structural_formal.next().ok_or(psi_operation)?;
+                    structural_shapes::boundary_formal_shape(
+                        formal.structural_type,
+                        formal.access,
+                        self.declarations,
+                        binding.boundary_entry_plan.call.policy,
+                        pointer_shape,
+                    )
+                    .map_err(|_| psi_operation)
+                }
             })
             .collect::<Result<Vec<_>, _>>()?;
         if let Some((_, ordinal)) = callback {
@@ -1480,31 +1495,12 @@ impl Replay<'_> {
                         .parameter_positions(terminal_psi::BoundaryParameterKind::Structural),
                 )
         {
-            // The referent root must be one of the caller's own checked
-            // structural parameters; the projected type, offset, and home are
-            // re-derived from its declaration rather than the retained row.
-            let root = self
-                .target
-                .graph
-                .parameters
-                .iter()
-                .find(|parameter| parameter.place == semantic.place)
-                .ok_or(psi_operation)?;
-            if semantic.path.is_empty()
-                || semantic
-                    .path
-                    .iter()
-                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-            {
-                return Err(psi_operation);
-            }
-            let (projected_type, projected_shape, byte_offset) =
-                structural_shapes::projected_field(
-                    root.structural_type,
-                    &semantic.path,
-                    self.declarations,
-                )
-                .map_err(|_| psi_operation)?;
+            // The referent root resolves through the caller's own checked
+            // structural places — parameters, block entries, and
+            // operation-established results — and the projected type,
+            // offset, and home are re-derived from those declarations
+            // rather than the retained row.
+            let root = self.roots.get(&semantic.place).ok_or(psi_operation)?;
             let destination = binding
                 .boundary_entry_plan
                 .call
@@ -1516,42 +1512,260 @@ impl Replay<'_> {
                         ),
                 )
                 .ok_or(psi_operation)?;
-            let placed_pointer_word = match destination.locations.as_slice() {
-                [
-                    ValueLocation::Register {
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    },
-                ]
-                | [
-                    ValueLocation::Stack {
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    },
-                ] => *byte_size,
-                _ => return Err(psi_operation),
-            };
             if usize::try_from(declaration_parameter.position).ok() != Some(index)
                 || semantic.access != declaration_parameter.access
-                || !matches!(
-                    semantic.access,
-                    StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                )
-                || projected_type != declaration_parameter.structural_type
-                || declaration_parameter.multiplicity
-                    != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !declaration_parameter.qualifications.is_empty()
                 || !declaration_parameter.projected_qualifications.is_empty()
+            {
+                return Err(psi_operation);
+            }
+            // Source custody replays exactly: a caller structural parameter
+            // contributes its declared placement and requires the formal's
+            // unrestricted contract; a dominating call's consumed-once
+            // result answers through its structural home under the affine
+            // contract.
+            let (source_byte_size, expected_multiplicity) = match &actual.source {
+                TargetStructuralArgumentSource::Placement(placement) => {
+                    let parameter = self
+                        .target
+                        .graph
+                        .parameters
+                        .iter()
+                        .find(|parameter| parameter.place == semantic.place)
+                        .ok_or(psi_operation)?;
+                    if parameter.structural_type != root.structural_type
+                        || *placement != parameter.placement
+                    {
+                        return Err(psi_operation);
+                    }
+                    (
+                        parameter.shape.byte_size,
+                        terminal_psi::StructuralMultiplicity::Unrestricted,
+                    )
+                }
+                TargetStructuralArgumentSource::StructuralHome {
+                    psi_operation: producer,
+                } => {
+                    // The producing call must dominate the argument inside
+                    // the same block, as the materialization's block-local
+                    // scan requires.
+                    let home_block = self
+                        .target
+                        .graph
+                        .blocks
+                        .iter()
+                        .find(|block| {
+                            block.operations.iter().any(|operation| {
+                                matches!(
+                                    operation,
+                                    TargetUnitOperation::NormalizedForeignCall {
+                                        psi_operation: candidate,
+                                        ..
+                                    } if *candidate == psi_operation
+                                )
+                            })
+                        })
+                        .ok_or(psi_operation)?;
+                    let consuming_index = home_block
+                        .operations
+                        .iter()
+                        .position(|operation| {
+                            matches!(
+                                operation,
+                                TargetUnitOperation::NormalizedForeignCall {
+                                    psi_operation: candidate,
+                                    ..
+                                } if *candidate == psi_operation
+                            )
+                        })
+                        .ok_or(psi_operation)?;
+                    let mut homes =
+                        home_block.operations[..consuming_index]
+                            .iter()
+                            .filter_map(|operation| {
+                                let TargetUnitOperation::Call {
+                                    psi_operation: candidate,
+                                    result:
+                                        target_operations::TargetCallResult::Structural {
+                                            result,
+                                            result_home: Some(home),
+                                            ..
+                                        },
+                                    call_plan,
+                                    ..
+                                } = operation
+                                else {
+                                    return None;
+                                };
+                                let TargetStructuralHomeLayout::Aggregate(home_shape) = home.layout
+                                else {
+                                    return None;
+                                };
+                                let placement = call_plan.result.as_ref()?;
+                                (result.place == semantic.place
+                                    && home.operation_result() == Some((*candidate, result))
+                                    && *candidate == *producer
+                                    && home_shape == placement.shape
+                                    && register_fragment_stores(placement)
+                                    && result.multiplicity
+                                        == terminal_psi::StructuralMultiplicity::Affine
+                                    && result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty()
+                                    && result.claims.is_empty())
+                                .then_some(home_shape)
+                            });
+                    let home_shape = homes.next().ok_or(psi_operation)?;
+                    if homes.next().is_some() || *producer == psi_operation {
+                        return Err(psi_operation);
+                    }
+                    (
+                        home_shape.byte_size,
+                        terminal_psi::StructuralMultiplicity::Affine,
+                    )
+                }
+                _ => return Err(psi_operation),
+            };
+            if declaration_parameter.multiplicity != expected_multiplicity {
+                return Err(psi_operation);
+            }
+            let descriptor_formal = self.declarations.iter().any(|entry| {
+                entry.id == declaration_parameter.structural_type
+                    && matches!(
+                        entry.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                        )
+                    )
+            });
+            let borrowed_view_root = self.declarations.iter().any(|entry| {
+                entry.id == root.structural_type
+                    && matches!(
+                        entry.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                        )
+                    )
+            });
+            let (projected_type, projected_shape, byte_offset) = match declaration_parameter.access
+            {
+                StructuralAccess::Owned => {
+                    // Whole-place owned transport names the root itself.
+                    if !semantic.path.is_empty() {
+                        return Err(psi_operation);
+                    }
+                    (
+                        root.structural_type,
+                        structural_shapes::reconstruct(root.structural_type, self.declarations)
+                            .map_err(|_| psi_operation)?,
+                        0,
+                    )
+                }
+                StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow => {
+                    if semantic.path.is_empty() {
+                        // A whole-place borrow is legal only as a stored
+                        // descriptor view: the root itself must carry
+                        // `ByteSequence(BorrowedView)` storage.
+                        if !borrowed_view_root {
+                            return Err(psi_operation);
+                        }
+                        (
+                            root.structural_type,
+                            structural_shapes::reconstruct(root.structural_type, self.declarations)
+                                .map_err(|_| psi_operation)?,
+                            0,
+                        )
+                    } else {
+                        if semantic
+                            .path
+                            .iter()
+                            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                        {
+                            return Err(psi_operation);
+                        }
+                        match structural_shapes::projected_field(
+                            root.structural_type,
+                            &semantic.path,
+                            self.declarations,
+                        ) {
+                            Ok(projection) => projection,
+                            Err(_) => {
+                                // A leaf carrying BorrowedView storage
+                                // has no projected carrier identity; its
+                                // field offset inside the root replays
+                                // instead, and only a descriptor formal
+                                // admits it.
+                                let field_offset = structural_shapes::borrowed_view_field_offset(
+                                    root.structural_type,
+                                    &semantic.path,
+                                    self.declarations,
+                                )
+                                .map_err(|_| psi_operation)?;
+                                if !descriptor_formal {
+                                    return Err(psi_operation);
+                                }
+                                (
+                                    declaration_parameter.structural_type,
+                                    structural_shapes::reconstruct(
+                                        declaration_parameter.structural_type,
+                                        self.declarations,
+                                    )
+                                    .map_err(|_| psi_operation)?,
+                                    field_offset,
+                                )
+                            }
+                        }
+                    }
+                }
+            };
+            if projected_type != declaration_parameter.structural_type
                 || u32::from(projected_shape.byte_size)
                     .checked_add(byte_offset)
-                    .is_none_or(|end| end > u32::from(root.shape.byte_size))
-                || destination.shape != pointer_shape
-                || placed_pointer_word != pointer_size
+                    .is_none_or(|end| end > u32::from(source_byte_size))
             {
+                return Err(psi_operation);
+            }
+            let destination_ok = match declaration_parameter.access {
+                StructuralAccess::Owned => {
+                    // By-value transport lands the aggregate's classified
+                    // shape — one integer register pair, an HFA row, or a
+                    // SysV split — never a borrowed-reference destination.
+                    !destination.locations.is_empty()
+                        && destination.shape.byte_size == projected_shape.byte_size
+                        && destination.shape.alignment == projected_shape.alignment
+                        && destination.shape.class != ValueClass::BorrowedReference
+                }
+                _ if descriptor_formal => {
+                    // The stored view crosses by value under the aggregate
+                    // class: two pointer words in the plan's own placement.
+                    !destination.locations.is_empty()
+                        && destination.shape.byte_size == projected_shape.byte_size
+                        && destination.shape.alignment == projected_shape.alignment
+                        && destination.shape.class != ValueClass::BorrowedReference
+                }
+                _ => {
+                    let placed_pointer_word = match destination.locations.as_slice() {
+                        [
+                            ValueLocation::Register {
+                                value_byte_offset: 0,
+                                byte_size,
+                                ..
+                            },
+                        ]
+                        | [
+                            ValueLocation::Stack {
+                                value_byte_offset: 0,
+                                byte_size,
+                                ..
+                            },
+                        ] => *byte_size,
+                        _ => return Err(psi_operation),
+                    };
+                    destination.shape == pointer_shape && placed_pointer_word == pointer_size
+                }
+            };
+            if !destination_ok {
                 return Err(psi_operation);
             }
             let expected_shape =
@@ -1565,8 +1779,6 @@ impl Replay<'_> {
                 || actual.source_byte_offset != byte_offset
                 || actual.fixed_array_length.is_some()
                 || actual.element_stride.is_some()
-                || actual.source
-                    != TargetStructuralArgumentSource::Placement(root.placement.clone())
                 || actual.destination != *destination
             {
                 return Err(psi_operation);
@@ -3088,6 +3300,33 @@ fn matches_projected_carrier(
         )
         && actual.fixed_array_length == Some(*length)
         && actual.element_stride == Some(1)
+}
+
+/// A structural-home result reaches the boundary through the placement its
+/// own call plan stored: contiguous register fragments of one to eight bytes
+/// covering the whole shape, exactly as the materialization's store-fragment
+/// projection requires.
+fn register_fragment_stores(placement: &ValuePlacement) -> bool {
+    placement.shape.class == ValueClass::Integer
+        && placement.shape.byte_size != 0
+        && placement
+            .locations
+            .iter()
+            .try_fold(0_u16, |cursor, location| {
+                let ValueLocation::Register {
+                    value_byte_offset,
+                    byte_size,
+                    ..
+                } = location
+                else {
+                    return None;
+                };
+                if *value_byte_offset != cursor || !matches!(byte_size, 1..=8) {
+                    return None;
+                }
+                cursor.checked_add(*byte_size)
+            })
+            == Some(placement.shape.byte_size)
 }
 
 /// A bounded inline byte field has no projected carrier identity of its own.

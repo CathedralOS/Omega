@@ -13,7 +13,9 @@ use crate::execution::terminal_unit::calls::boundary_admission::{
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
+use crate::execution::terminal_unit::types::{
+    borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitClaimTransferPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
@@ -197,6 +199,11 @@ pub(crate) fn structural_call_arguments(
             attached_data_identity(program, target_machine)?
         } else if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
             byte_sequence_type_identity(program, target.type_reference, &[], &[])?
+        } else if borrowed_slice_view_element(program, target.type_reference, &[]).is_some() {
+            // A borrowed `&[T]` view names its own carrier, the way a
+            // borrowed byte view does: the reference shell is the loan, not
+            // part of the viewed type.
+            borrowed_slice_view_type_identity(program, target.type_reference, &[], &[])
         } else {
             base_type_identity(program, target.type_reference, &[])?
         };
@@ -1083,12 +1090,9 @@ pub(crate) fn call_claim_transfers(
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal()
                 && argument.access == CheckedStructuralAccess::Owned
             {
-                let Some((_, root)) = caller_structural_results
+                let (_, root) = caller_structural_results
                     .iter()
-                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)
-                else {
-                    return None;
-                };
+                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
                 let mut claims = Vec::new();
                 for event in events.iter().filter(|event| event.root == *root) {
                     if event.claim_identity == PermissionClaimIdentity::Unknown

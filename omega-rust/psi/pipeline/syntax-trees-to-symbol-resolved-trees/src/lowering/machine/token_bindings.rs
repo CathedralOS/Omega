@@ -19,9 +19,19 @@
 //! of bare compiler-owned primitives has no declaration-owned home, so
 //! `machine + add(left: u8, right: u8)` would inject into `u8`'s closed
 //! family and rejects here rather than becoming a candidate at every `u8 +`.
-//! Which declared type is the home of a free binding, and whether that
-//! declaration's package may publish it, are typed-stage and package-graph
-//! questions and remain open in OPERATOR-MACHINE-SUPPLY.
+//!
+//! Ownership is package-scoped, not merely program-local: a closed direct
+//! family is published only by its semantic-home owner's package
+//! ([operator families](../../../../../../../wiki/spec/language/expressions.md#operator-families)),
+//! so a `machine <token>` binding whose home is owned by another package
+//! rejects at its own declaration rather than entering that family's
+//! candidate set to collide at a use. The home for an attached binding is
+//! the attached declaration; for a domain-homed binding the domain; for a
+//! free binding every declared type or domain the operand tuple names.
+//! Package identity comes from each declaration's checked source owner, so
+//! symbols without one (toolchain, source-free, or unmanaged inputs) cannot
+//! prove a foreign owner and keep the owner-local rule; compiler-owned
+//! primitive custody is enforced by its own sealed-source checks.
 //!
 //! A binding attached to a domain (`machine + Quantity::Additive::add`) is a
 //! domain-family meaning ([domains: semantic roles and operators](../../../../../../../wiki/spec/language/domains.md#semantic-roles-and-operators)):
@@ -91,6 +101,10 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
                 .operand_shape(entry_parameters(program, machine)),
         };
         if let Some(diagnostic) = binding.missing_semantic_home(program) {
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        if let Some(diagnostic) = binding.foreign_semantic_home(program) {
             diagnostics.push(diagnostic);
             continue;
         }
@@ -248,6 +262,53 @@ impl TokenBinding<'_> {
             }
         };
         Some(Diagnostic::error(message).with_source_span(self.name_span))
+    }
+
+    /// The rejection for a binding whose semantic home is owned by another
+    /// package, or `None` when every home resolves inside the binding's own
+    /// package. Only `machine <token>` declarations answer this rule (the
+    /// same machine-only scope as [`TokenBinding::missing_semantic_home`]):
+    /// `operator`-form and `boundary` slots occupy the token space but the
+    /// introducer's retirement owns their admission change.
+    ///
+    /// A home owned by another package rejects the whole binding -- a
+    /// package that owns one operand still injects the binding into the
+    /// foreign operand's closed family. Declarations without a reconciled
+    /// package identity cannot prove a foreign owner and are left to the
+    /// owner-local rules.
+    fn foreign_semantic_home(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
+        let machine = self.machine?;
+        let binding_package = program.symbols.symbol_package_identity(machine.symbol)?;
+        let foreign = |home: SymbolHandle| {
+            program
+                .symbols
+                .symbol_package_identity(home)
+                .is_some_and(|owner| owner != binding_package)
+        };
+        let (home, participant) = match self.owner {
+            BindingOwner::AttachedData(home) => {
+                (home.is_valid() && foreign(home)).then_some((home, "attached declaration"))
+            }
+            BindingOwner::Domain { domain, .. } => {
+                (domain.is_valid() && foreign(domain)).then_some((domain, "home domain"))
+            }
+            BindingOwner::Module(_) => entry_operand_types(program, machine)
+                .iter()
+                .flat_map(|type_reference| declared_operand_symbols(program, type_reference))
+                .find(|symbol| foreign(*symbol))
+                .map(|symbol| (symbol, "operand declaration")),
+        }?;
+        Some(
+            Diagnostic::error(format!(
+                "`{}` binds the fixed operator token `{}` into a closed family through the \
+                 {participant} `{}`, which another package owns; only the semantic-home owner's \
+                 package may publish a closed direct family's token bindings",
+                self.name,
+                self.spelling.symbol(),
+                program.symbols.display_path(home, "::"),
+            ))
+            .with_source_span(self.name_span),
+        )
     }
 }
 
@@ -532,6 +593,100 @@ fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReferen
         }
         TypeReference::ConstExpression(_) | TypeReference::Unit => false,
     }
+}
+
+/// Every declaration-owned symbol a type reference participates in, matching
+/// [`names_declaration`]'s walk: named data/domain/trait declarations, the
+/// declarations behind references, generic bases and arguments, array and
+/// slice elements, constrained bases, and the declared domains named by
+/// domain constraints. Domain constraint arguments parameterize the indexed
+/// family rather than joining it, so they are not homes.
+fn declared_operand_symbols(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Vec<SymbolHandle> {
+    let mut symbols = Vec::new();
+    collect_declared_symbols(program, type_reference, &mut symbols);
+    symbols
+}
+
+fn collect_declared_symbols(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    symbols: &mut Vec<SymbolHandle>,
+) {
+    let is_declaration = |symbol: &SymbolHandle| {
+        symbol.is_valid()
+            && matches!(
+                program.symbols.get(*symbol).kind,
+                SymbolKind::Data | SymbolKind::Domain | SymbolKind::Trait
+            )
+    };
+    match type_reference {
+        TypeReference::Named { symbol, .. }
+        | TypeReference::SelfType { symbol }
+        | TypeReference::DynamicTrait { symbol, .. } => {
+            if is_declaration(symbol) {
+                symbols.push(*symbol);
+            }
+        }
+        TypeReference::Generic(generic) => {
+            if is_declaration(&generic.base_symbol) {
+                symbols.push(generic.base_symbol);
+            }
+            for argument in program.child_type_references(generic.arguments) {
+                collect_declared_symbols(program, argument, symbols);
+            }
+        }
+        TypeReference::Reference(reference) => collect_declared_symbols(
+            program,
+            program.child_type_reference(reference.referee),
+            symbols,
+        ),
+        TypeReference::Constrained(constrained) => {
+            for constraint in program
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+            {
+                if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint {
+                    symbols.extend(domains_named(program, domain.name.as_str()));
+                }
+            }
+            collect_declared_symbols(
+                program,
+                program.child_type_reference(constrained.base_type),
+                symbols,
+            );
+        }
+        TypeReference::FixedArray(fixed_array) => collect_declared_symbols(
+            program,
+            program.child_type_reference(fixed_array.element_type),
+            symbols,
+        ),
+        TypeReference::Slice(slice) => collect_declared_symbols(
+            program,
+            program.child_type_reference(slice.element_type),
+            symbols,
+        ),
+        TypeReference::ConstExpression(_) | TypeReference::Unit => {}
+    }
+}
+
+/// The declared domains a domain constraint spells. Constraint names match a
+/// domain's full name or its leaf (`u8 in Level` spells `u8::Level`), exactly
+/// as [`qualified_by_domain`] joins them; same-leaf domains in different
+/// packages all surface, and any foreign one rejects.
+fn domains_named<'a>(
+    program: &'a SymbolResolvedTrees,
+    constraint_name: &'a str,
+) -> impl Iterator<Item = SymbolHandle> + 'a {
+    program.domain_definitions.iter().filter_map(move |domain| {
+        let name = domain.name.as_str();
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        (constraint_name == name || constraint_name == leaf).then_some(domain.symbol)
+    })
 }
 
 /// The declaration set a direct binding is validated against.

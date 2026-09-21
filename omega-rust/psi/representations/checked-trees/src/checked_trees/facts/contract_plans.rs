@@ -39,7 +39,8 @@ pub use resource_envelopes::{
     CheckedResourceDerivationObligation, RealizedMachineContractEnvelope,
 };
 pub use scalar_contracts::{
-    ClosedFloatRangeRequirement, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    ClosedFloatRangeRequirement, ClosedIntegerRangeRequirement, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan,
 };
 
 use language_semantics::{

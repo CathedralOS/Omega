@@ -69,7 +69,7 @@ executes through the canonical edge. [`d_closure.py`](d_closure.py) assembles
 the six whole-member customers from the live, digest-pinned members under
 `bootstrap/5_omega/` plus the pinned customer mains under
 `tests/epsilon/interpreted-omega-experiment/customers/`, then the two
-whole-closure customers from the bound 558,161-byte packed closure and the
+whole-closure customers from the bound 569,920-byte packed closure and the
 d-composition entry sources (`main.epsilon` reading the sealed
 [`program.omg`](../d-composition/program.omg) stdin, and
 `check_only_main.epsilon`). Member and packed identities restate the bound
@@ -99,7 +99,7 @@ and summary lines — never assigned a judgment to force agreement.
 sh tests/epsilon/refinement/run.sh
 ```
 
-The gate needs macOS arm64 or Windows x64 (the bound Gamma tape runs
+The gate needs macOS arm64, Linux x86-64, or Windows x64 (the bound Gamma tape runs
 natively) and `python3`. The canonical evaluator receipt is reconstructed
 once per run (~5 minutes), the ~120 synthetic-corpus request executions take
 a few minutes, and the D-member leg is the slow part: the edge's per-customer

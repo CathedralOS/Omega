@@ -187,9 +187,9 @@ mod tests {
     /// compiler intrinsic, so the mechanism-closure review exercises the
     /// intrinsic's physical class for the requirement's leaf.
     const SINK_SOURCE: &str = "boundary trait Sink { machine emit(text: u8); }
-         data Main { sink: Sink; }
+         data Main {}
          machine Main::launch(&mut self) reaches Sink {
-             self.sink.emit(7);
+             Sink::emit(7);
          }";
 
     fn sink_entry_artifact() -> (

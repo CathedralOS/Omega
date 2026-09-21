@@ -4,6 +4,7 @@
 mod atomic_specialization;
 mod device_operations;
 mod external_specialization;
+mod owned_external_correspondence;
 mod placed_views;
 mod placement_admission;
 mod plan_validation;
@@ -23,11 +24,11 @@ use crate::{
     DeviceOrderingScopeId, DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
     DormantOwnedAtomicResident, EffectFootprint, EffectiveFieldSupply, EffectiveSupplyKind,
     EstablishedOwnedPlacement, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    FieldAccessDescriptor, LogicalFieldExtent, ObservationModel, PlacedOccurrenceId,
-    PlacementAdmission, PlacementAdmissionId, PlacementPlan, PlacementPlanId, PlacementRejection,
-    PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim, ResourceProfile,
-    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
-    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
+    FieldAccessDescriptor, LogicalFieldExtent, ObservationModel, PeerWritability,
+    PlacedOccurrenceId, PlacementAdmission, PlacementAdmissionId, PlacementPlan, PlacementPlanId,
+    PlacementRejection, PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim,
+    ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
+    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
     SchemaDeviceCorrespondenceReceiptContext, StableCapability, StableDeviceInstanceId,
     TransferRule, ValidatedAccessPlan, ValidatedPlacementPlan, admit_owned_placement,
     admit_placement, adopt_owned_atomic, adopt_owned_stable, validate_access_plan,
@@ -40,8 +41,9 @@ use extents::ResidentClaimId;
 use extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
     ExtentProvenanceId, ExtentRights, MappedRangeReceiptContext, MappingEraId, MappingGrant,
-    MappingGrantId, MappingId, MappingSourceMode, TranslationActivationReceipt,
-    TranslationInstallObligations, TranslationReleaseObligations, map_owned,
+    MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationObligations,
+    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+    map_owned,
 };
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 
@@ -259,6 +261,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
         regions: vec![ResourceRegion {
             offset: 0,
             length,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -317,6 +320,7 @@ fn stable_word_profile(extent: &Extent) -> AdmittedResourceProfile {
         regions: vec![ResourceRegion {
             offset: 0,
             length: extent.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::ReadWrite,
             external: ExternalCapability::None,
             atomic: AtomicCapability::None,
@@ -341,6 +345,7 @@ fn stable_uart_resource_profile(
         regions: vec![ResourceRegion {
             offset: 0,
             length: loan.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::ReadWrite,
             external: ExternalCapability::None,
             atomic: AtomicCapability::None,
@@ -393,6 +398,7 @@ fn destructive_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
         regions: vec![ResourceRegion {
             offset: 0,
             length: loan.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Destructive,
@@ -475,6 +481,7 @@ fn atomic_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
         regions: vec![ResourceRegion {
             offset: 0,
             length: loan.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {
@@ -564,6 +571,10 @@ fn primitive_request_snapshot(
         ),
         PlacementAuthorityRef::EstablishedOwnedAtomic(established) => (
             "established-owned-atomic",
+            std::ptr::from_ref(established).cast::<()>(),
+        ),
+        PlacementAuthorityRef::OwnedCorrespondedExternal(established) => (
+            "owned-corresponded-external",
             std::ptr::from_ref(established).cast::<()>(),
         ),
     };
@@ -783,6 +794,7 @@ fn device_requirement_mapped_range(offset: u64, length: u64) -> MappedRangeRecei
         extent_id(815, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::default(),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         source,

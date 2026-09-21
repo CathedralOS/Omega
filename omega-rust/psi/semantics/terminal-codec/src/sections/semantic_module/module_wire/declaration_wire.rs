@@ -7,12 +7,55 @@ use super::super::structural_signature_wire::{
     decode_content_projection_expression, encode_content_projection_expression,
 };
 use super::super::wire::{Reader, Writer};
-use crate::sections::semantic_module::wire::decode_ids;
+use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use semantic_vocabulary::ContentProjectionIdentity;
 use terminal_psi::{
     InstallationReachDependency, ServiceDeclaration, StructuralContentProjection,
-    StructuralDomainDeclaration,
+    StructuralDomainDeclaration, StructuralEstablishmentRoute,
 };
+
+fn encode_establishment_routes(
+    writer: &mut Writer,
+    routes: &[StructuralEstablishmentRoute],
+) -> Result<(), CodecError> {
+    writer.len("domain establishment routes", routes.len())?;
+    for route in routes {
+        match route {
+            StructuralEstablishmentRoute::Requirement { requirement } => {
+                writer.u8(1);
+                writer.string("route requirement identity", requirement)?;
+            }
+            StructuralEstablishmentRoute::ExactMachine { machine } => {
+                writer.u8(2);
+                writer.string("route machine identity", machine)?;
+            }
+            StructuralEstablishmentRoute::BoundaryRequirement { requirement } => {
+                writer.u8(3);
+                writer.string("route boundary requirement identity", requirement)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_establishment_routes(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralEstablishmentRoute>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(match reader.u8()? {
+            1 => StructuralEstablishmentRoute::Requirement {
+                requirement: reader.string("route requirement identity")?,
+            },
+            2 => StructuralEstablishmentRoute::ExactMachine {
+                machine: reader.string("route machine identity")?,
+            },
+            3 => StructuralEstablishmentRoute::BoundaryRequirement {
+                requirement: reader.string("route boundary requirement identity")?,
+            },
+            tag => return Err(CodecError::InvalidTag("StructuralEstablishmentRoute", tag)),
+        })
+    })
+}
 
 pub(super) fn encode_structural_domain(
     writer: &mut Writer,
@@ -29,6 +72,7 @@ pub(super) fn encode_structural_domain(
         encode_content_algebra(writer, &projection.algebra)?;
         encode_content_projection_expression(writer, &projection.expression)?;
     }
+    encode_establishment_routes(writer, &declaration.establishment_routes)?;
     Ok(())
 }
 
@@ -83,6 +127,7 @@ pub(super) fn decode_structural_domain(
         } else {
             None
         },
+        establishment_routes: decode_establishment_routes(reader)?,
     })
 }
 

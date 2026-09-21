@@ -27,6 +27,11 @@ pub enum SparseConditionalConstantPropagationRewriteError {
 /// every value identity are unchanged. Ranked machines carry ranking evidence
 /// over execution positions and pass through unchanged.
 ///
+/// A proof-bearing scalar leaf whose canonical goal literal-decides under the
+/// same scan is never rewritten by this rule — its obligation belongs to the
+/// reconstructed question — but the constant it computes still binds its
+/// result value in `literals`, so a later goal-free leaf reading it folds.
+///
 /// A `before` module carrying reconstructed proof obligations admits only a
 /// rewrite the question carries verbatim: the unchanged-question check above
 /// is the refusal boundary, so a fold that leaves the question intact is
@@ -126,6 +131,24 @@ pub fn validate_sparse_conditional_constant_propagation(
                     &literals,
                     &value_types,
                 ) else {
+                    // A proof-bearing leaf whose canonical goal literal-decides
+                    // is not rewritten here — its obligation still enters the
+                    // reconstructed question — but the constant it computes
+                    // carries to every later fold that reads its result.
+                    if let Some(elision) = terminal_semantics::elidable_proof_bearing_scalar_leaf(
+                        operation,
+                        &literals,
+                        &value_types,
+                    )
+                    .map_err(|error| {
+                        RewriteError::InvalidModule(ModuleError::OperationSemanticSchema(error))
+                    })? && let Some(literal) = elision.result_literal()
+                    {
+                        literals.insert(
+                            result.id,
+                            terminal_semantics::ScalarLeafLiteral::Integer(literal),
+                        );
+                    }
                     continue;
                 };
                 literals.insert(result.id, literal);

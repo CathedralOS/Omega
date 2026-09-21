@@ -24,6 +24,7 @@ use terminal_psi::{
 fn empty_contract(raw: u64) -> terminal_psi::MachineContract {
     terminal_psi::MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(raw, semantic_vocabulary::ContractId::new),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -144,6 +145,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
     call.operation = AbstractOperation::CallStructural {
         psi_operation: operation,
         result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type: parent,
             multiplicity: StructuralMultiplicity::Affine,

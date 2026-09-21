@@ -451,6 +451,9 @@ pub(crate) fn call_target_return_type(
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
         return Some(signature.return_type);
     }
+    if let Some(reference) = asm_intrinsic_result_type(program, target_state_symbol) {
+        return Some(reference);
+    }
     program.traits().iter().find_map(|trait_definition| {
         program
             .trait_machine_signatures(trait_definition)
@@ -458,6 +461,45 @@ pub(crate) fn call_target_return_type(
             .find(|signature| signature.symbol == target_state_symbol)
             .map(|signature| signature.return_type)
     })
+}
+
+/// The asm-block value intrinsics (`in`, `rdmsr`, `pushfq`, `read_crN`,
+/// `read_<sysreg>`) carry
+/// fixed result types declared by the instruction contract rather than an
+/// authored signature: their desugared calls target compiler builtin symbols,
+/// which own no state, machine-parameter, or trait row to rejoin above. The
+/// atom lookup keeps this a read over seeded symbols — a package cannot supply
+/// a substitute signature for an unnameable intrinsic.
+fn asm_intrinsic_result_type(
+    program: &typed_trees::TypedTrees,
+    target: SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let atom = match program.symbols.builtin_function_for_symbol(target)? {
+        symbols::BuiltinFunction::AsmPortIn => symbols::BuiltinTypeAtom::U8,
+        symbols::BuiltinFunction::AsmSnapshotFlags
+        | symbols::BuiltinFunction::AsmReadMsr
+        | symbols::BuiltinFunction::AsmReadCr0
+        | symbols::BuiltinFunction::AsmReadCr2
+        | symbols::BuiltinFunction::AsmReadCr3
+        | symbols::BuiltinFunction::AsmReadCr4
+        | symbols::BuiltinFunction::AsmReadSctlrEl1
+        | symbols::BuiltinFunction::AsmReadTcrEl1
+        | symbols::BuiltinFunction::AsmReadTtbr0El1
+        | symbols::BuiltinFunction::AsmReadTtbr1El1
+        | symbols::BuiltinFunction::AsmReadMairEl1
+        | symbols::BuiltinFunction::AsmReadVbarEl1
+        | symbols::BuiltinFunction::AsmReadTpidrEl1
+        | symbols::BuiltinFunction::AsmReadEsrEl1
+        | symbols::BuiltinFunction::AsmReadFarEl1 => symbols::BuiltinTypeAtom::U64,
+        _ => return None,
+    };
+    let symbol = program
+        .symbols
+        .child_handles(program.symbols.root())?
+        .find(|candidate| program.symbols.builtin_type_atom(*candidate) == Some(atom))?;
+    program
+        .type_reference_table
+        .find_named_type_reference(symbol)
 }
 
 /// One result obligation vocabulary for the provisional publisher and its

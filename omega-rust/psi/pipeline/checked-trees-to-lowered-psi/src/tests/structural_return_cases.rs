@@ -449,6 +449,7 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
             machine.blocks[0].operations.as_slice(),
             [Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
     qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
                     id,

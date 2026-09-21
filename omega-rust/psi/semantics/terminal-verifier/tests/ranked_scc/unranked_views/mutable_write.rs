@@ -35,6 +35,7 @@ fn fixture() -> TerminalModule {
     structural_arguments[0].access = StructuralAccess::MutableBorrow;
     machine.blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::ByteSequenceWrite {
@@ -111,6 +112,7 @@ fn mutable_write_retains_equation_for_same_origin_incoming_edges() {
         target: *target,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: structural_arguments.clone(),
         trivial_affine_discards: Vec::new(),
     };
@@ -175,6 +177,7 @@ fn jump(edge: u64, target: u64, arguments: Vec<StructuralArgument>) -> Terminato
         target: id(target, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: arguments,
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
@@ -189,6 +192,7 @@ fn transferred_machine_view_cannot_be_observed_or_written_again() {
         let operation = if write {
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(50, OperationId::new),
                 result: OperationResult::Unit,
                 kind: OperationKind::ByteSequenceWrite {
@@ -264,6 +268,7 @@ fn reconverging_branch_does_not_resurrect_a_moved_machine_view() {
     machine.blocks[1].terminator = jump(51, 4, Vec::new());
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -272,6 +277,7 @@ fn reconverging_branch_does_not_resurrect_a_moved_machine_view() {
     });
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -283,6 +289,7 @@ fn reconverging_branch_does_not_resurrect_a_moved_machine_view() {
         target: id(target, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments,
         trivial_affine_discards: Vec::new(),
     };
@@ -346,6 +353,7 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
     helper.parameters.clear();
     helper.contract = MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(2, ContractId::new),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -362,6 +370,7 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
     }];
     helper.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(100, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -374,10 +383,12 @@ fn sequential_reborrows_work_but_transferred_machine_alias_cannot_call() {
     module.machines.push(helper);
     let call = |identity, place| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(identity, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: id(2, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![mutable_argument(place)],

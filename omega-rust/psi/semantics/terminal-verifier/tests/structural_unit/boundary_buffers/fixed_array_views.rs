@@ -208,6 +208,7 @@ fn fixed_byte_array_unit_view_rejects_qualified_and_claim_bearing_roots() {
                     structural_type_id(1)
                 };
                 module.structural_domains.push(StructuralDomainDeclaration {
+                    establishment_routes: Vec::new(),
                     id: domain_id(1),
                     semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
                     identity: "QualifiedBytes".into(),
@@ -382,4 +383,35 @@ fn fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence() {
             structural_type_id(3)
         ))
     );
+}
+
+#[test]
+fn fixed_byte_array_unit_view_admits_zero_length_scalar_leaf() {
+    let mut module = fixture(false);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    // With the byte (scalar-leaf) element kept, a zero length declares an
+    // empty scalar array: the type-table admission fence does not fire. The
+    // callee expects the declared array type itself rather than a byte view,
+    // so no presentation applies and the module verifies on both routes.
+    let StructuralTypeShape::FixedArray { length, .. } = &mut module.structural_types[2].shape
+    else {
+        unreachable!()
+    };
+    *length = 0;
+    module.machines[1].structural_parameters[0].structural_type = structural_type_id(3);
+    validate_module(&module).map(|_| ()).unwrap();
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    validate_module(&boundary_fixture(module))
+        .map(|_| ())
+        .unwrap();
 }

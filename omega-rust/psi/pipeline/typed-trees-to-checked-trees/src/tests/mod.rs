@@ -112,6 +112,7 @@ mod dynamic_conformances;
 mod float_entry_ranges;
 mod flow;
 mod generics;
+mod integer_entry_ranges;
 mod multiplicity;
 mod opaque_properties;
 mod operational_tail_calls;

@@ -18,25 +18,14 @@ pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleE
                     | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
                         callees.insert(*callee);
                     }
-                    OperationKind::CallDynamicScalar { .. } => {
-                        let realization = module
-                            .dynamic_dispatch
-                            .indirect_dispatches
-                            .iter()
-                            .find(|dispatch| {
-                                dispatch.owner == machine.id && dispatch.operation == operation.id
-                            })
-                            .map(|dispatch| dispatch.realization)
-                            .or_else(|| {
-                                module.dynamic_dispatch.stored_dispatches.iter().find_map(
-                                    |dispatch| {
-                                        (dispatch.owner == machine.id
-                                            && dispatch.operation == operation.id)
-                                            .then_some(dispatch.realization)
-                                    },
-                                )
-                            })
-                            .expect("validated dynamic call has one dispatch row");
+                    OperationKind::CallDynamicScalar { .. }
+                    | OperationKind::CallDynamicUnit { .. } => {
+                        let realization = super::dynamic_dispatch::dynamic_call_realization(
+                            module,
+                            machine.id,
+                            operation.id,
+                        )
+                        .expect("validated dynamic call has one dispatch row");
                         callees.insert(realization);
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {

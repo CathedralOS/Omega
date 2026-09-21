@@ -226,6 +226,81 @@ fn admitted_receipt_rejects_duplicate_exact_granted_plan_matches() {
 }
 
 #[test]
+fn admitted_receipt_for_a_shared_requirement_binds_the_owner_plan() {
+    let owner_symbol = symbols::SymbolHandle::from_arena_index(7);
+    let requirement_symbol = symbols::SymbolHandle::from_arena_index(10);
+    let mut checked = checked_trees::CheckedTrees::default();
+    let requirement_identity = push_boundary_requirement(
+        &mut checked,
+        owner_symbol,
+        "InterruptEntry",
+        requirement_symbol,
+        "enter",
+    );
+    let fact = append_admitted_fact(
+        &mut checked,
+        symbols::SymbolHandle::from_arena_index(8),
+        symbols::SymbolHandle::from_arena_index(9),
+        owner_symbol,
+        requirement_symbol,
+    );
+    let mut owner_plan = selection_plan("EntryProvider", &["enter"], &["enter"]);
+    set_exact_requirement(
+        &mut owner_plan,
+        "InterruptEntry",
+        "InterruptEntry",
+        &requirement_identity,
+    );
+    let mut fatal_plan = selection_plan("FatalProvider", &["enter"], &["enter"]);
+    set_exact_requirement(
+        &mut fatal_plan,
+        "FatalExceptionRoot",
+        "InterruptEntry",
+        &requirement_identity,
+    );
+    let mut timer_plan = selection_plan("TimerProvider", &["enter"], &["enter"]);
+    set_exact_requirement(
+        &mut timer_plan,
+        "TimerRoot",
+        "InterruptEntry",
+        &requirement_identity,
+    );
+    let candidates = vec![owner_plan.clone(), fatal_plan.clone(), timer_plan.clone()];
+    let selected_facts = effects::SelectedProviderPlanFacts::from_selection(
+        &candidates,
+        &candidates
+            .iter()
+            .map(|plan| plan.name.clone())
+            .collect::<Vec<_>>(),
+    )
+    .expect("three selected plans may share one requirement identity");
+
+    bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        &candidates,
+        selected_facts,
+        &[
+            "InterruptEntry".to_owned(),
+            "FatalExceptionRoot".to_owned(),
+            "TimerRoot".to_owned(),
+        ],
+    )
+    .expect("the owner trait's granted plan resolves the shared requirement's receipt");
+
+    assert_eq!(
+        checked
+            .facts
+            .semantic
+            .facts
+            .get(fact)
+            .evidence
+            .receipt_identity,
+        owner_plan.report_fingerprint(),
+        "the receipt binds the requirement owner's plan, not an inheriting root's",
+    );
+}
+
+#[test]
 fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
     let plans = vec![
         selection_plan("FirstProvider", &["first"], &["first"]),

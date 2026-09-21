@@ -58,11 +58,14 @@
 //! uses simply disappear — producers whose outputs nobody reads stay for
 //! the producer-elimination rules.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the function to equal the independently computed removal, and restores
-//! the complete source by content — every other instruction, register,
-//! roster row, call, and settlement included.
+//! Validation consumes the proposed program, requires the function to
+//! equal the independently computed removal, and restores the complete
+//! source by content — every other instruction, register, roster row,
+//! call, and settlement included. The dead and redundant families'
+//! validators re-derive the removal's preconditions on their own audits,
+//! never consulting the producer's `admission` routine; the equivalent
+//! family's validator still shares this module's admission predicates and
+//! settlement remap.
 
 mod admission;
 mod equivalent;

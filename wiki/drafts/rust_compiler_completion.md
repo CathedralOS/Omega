@@ -40,7 +40,7 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 | `RC-PORTABLE-PSI` | One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority. | `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary)'` |
 | `RC-BUILD-AND-PACKAGES` | Build declarations, immutable inputs, package identities, reviewed evidence, resolution, and compilation handoff agree without path/name inference or hidden ambient mutation. | The package/build command block below. |
 | `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | `mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast`, plus `RC-SOURCE-SEMANTICS`, on every required host in the platform table below. |
-| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment)'` and the negative cases included by `RC-SOURCE-SEMANTICS`. |
+| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment)'` and the negative cases included by `RC-SOURCE-SEMANTICS`. |
 | `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host. |
 
 `RC-REPOSITORY` is:
@@ -81,6 +81,57 @@ replace matching-host execution. A platform test may skip only when it is
 irrelevant to that runner. A missing runner, unavailable runtime dependency,
 unexpected ignored test, timeout, or resource exhaustion leaves the row open;
 it is not a pass.
+
+### Recorded platform runs
+
+#### linux_x86_64 — 2026-09-20 — row open
+
+- Commit: `a0b906db936ae64b24277225423fc460bfd7bba2` (previous record at
+  `9684ea54ff70d7318c5501a1e81bc1589f977997`).
+- Toolchain: `nightly-2026-09-04` (`rustc 1.100.0-nightly (a69a63265
+  2026-09-03)`, cargo `b2e9d5f9d`); cargo-nextest 0.9.144. `mbx` is not
+  present in this environment; `cargo` was used directly.
+- Host: Linux x86_64 (`x86_64-unknown-linux-gnu`).
+- Gate command (`mbx nextest run -p omega-native-differential-test
+  --all-targets --no-fail-fast`, cargo equivalent): **compiles and runs**
+  at this revision — the custody-fixture drift (`decision_custody.rs` 6↔7
+  `Optimization` roster, `ordinary_graph_controls.rs` `Crash` arm) recorded
+  at `9684ea54ff` is repaired. Result: **1006 passed (36 slow) / 116
+  failed / 1 skipped** of 1122 tests, wall-clock 25m34s (aggregate
+  1534s). Failure split by target: `coverage` ~65 (dominated by the
+  `Service<R>`-spelling fixture drift — bare `Console` trait in value
+  position, same family RC-REPOSITORY-CLOSURE records),
+  `recast_views` ~10, `real_fs` ~10, `pipeline_ownership` ~9,
+  `terminal_byte_views` ~8, `terminal_psi_record_returns` ~6,
+  `terminal_psi_runnable` ~4, `scalar_case_results` ~2,
+  `terminal_psi_calls` ~1, `gui_headless` ~1.
+- Direct-execution evidence on this host: `cargo nextest run -p compiler
+  --test canary_suite -E 'test(/_runs$/)' --no-fail-fast` — 913 selected run
+  tests each compile a canary for the host target and directly execute the
+  emitted ELF binary through `Command::new`, checking exit code and stdout.
+  Result: **143 passed / 770 failed / 0 skipped** (531 non-matching tests
+  excluded by the filter expression; every selected test is host-eligible, so
+  there are no expected skips). Wall-clock 110m19s (aggregate ~870m).
+- Passing executions include `runtime_i8/i16/i64_signed_arith`,
+  `runtime_contained_machine`, `runtime_gcd_euclid`,
+  `executable_domain_membership_*`, `checked_boundary_*_dispatch`, and
+  `runtime_const_array_length` — emitted ELF programs run directly and exit
+  with the expected status on this host.
+- Dominant failure families (all pre-execution or during emission except the
+  named exit mismatches): ~549 canaries fail at `selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities; expected one`;
+  `Lowering(Unsupported)` families (whole byte-view parameters, structural
+  call custody, wrapping/checked conversion policy realization, nested call
+  roots, primitive-projection carriers); default-domain `[u8]::Utf8`
+  field-requirement proofs; index-proof refusals; operational-envelope
+  acknowledgement mismatches. Genuine execution mismatches (binary emitted
+  and ran, wrong exit) — unchanged from the prior record:
+  `runtime_shift_signedness`, `runtime_shift_right_atwidth`,
+  `const_fold_unsigned_shift_right_arg`, `runtime_bitwise_high_ops`
+  (exit 71 where 70 expected).
+- Next acceptance: the dominant ProgramEntry-establishment family and the
+  `Service<R>` fixture drift in `coverage`; re-run both commands on a
+  matching host after those legs land.
 
 ## Closure rule
 

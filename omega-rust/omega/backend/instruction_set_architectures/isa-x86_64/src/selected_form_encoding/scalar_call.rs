@@ -10,10 +10,7 @@ use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 use crate::machine_effects::{X86_64SelectedAbi, x86_64_selected_abi};
-use crate::{
-    x86_64_physical_register_model, x86_64_register_constraint_catalog,
-    x86_64_system_v_register_call_keys,
-};
+use crate::{x86_64_register_constraint_catalog_for, x86_64_system_v_register_call_keys};
 
 pub const X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
 pub const X86_64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
@@ -147,7 +144,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
     // closed here rather than falling through an else arm into one family.
     let abi = x86_64_selected_abi(target)
         .map_err(|_| X86_64ScalarCallTemplateError::UnsupportedTarget)?;
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
     let callee = match kind {
@@ -212,7 +209,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
                     .collect::<Vec<_>>(),
             }
         };
-        let catalog = x86_64_register_constraint_catalog(physical);
+        let catalog = x86_64_register_constraint_catalog_for(physical);
         let row = catalog
             .constraints
             .iter()
@@ -327,7 +324,7 @@ fn expected_effects(
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> MachineEncodedEffects {
-    let catalog = x86_64_register_constraint_catalog(physical);
+    let catalog = x86_64_register_constraint_catalog_for(physical);
     let row = catalog
         .constraints
         .iter()
@@ -379,9 +376,10 @@ mod tests {
         NativeTarget, RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel,
         X86_64ScalarCallFixup, X86_64ScalarCallTemplateError, X86_64SelectedAbi, canonical_fixup,
         encode_x86_64_selected_scalar_call_template, expected_effects, expected_operand_views,
-        validate_x86_64_selected_scalar_call_template, x86_64_physical_register_model,
-        x86_64_selected_abi, x86_64_system_v_register_call_keys,
+        validate_x86_64_selected_scalar_call_template, x86_64_selected_abi,
+        x86_64_system_v_register_call_keys,
     };
+    use crate::x86_64_physical_register_model;
     mod mixed_aggregates;
     use register_model::validate_physical_register_model;
 

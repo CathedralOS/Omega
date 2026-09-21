@@ -20,7 +20,7 @@ cleanup responsibility.
 ## Property declarations
 
 Lowercase bracket properties attach to the data declaration or type parameter,
-as in `data Box<T [copy]> [copy]`. They are distinct from value-range constraints
+as in `data Box<T [copy]> [copy]`. They are distinct from domain qualifications
 and generate no callable behavior. `sized` and structural carry are derived
 judgments, not authored requests. Explicit `copy` and `linear` requests are
 checked at the declaration; failure rejects rather than weakening the request.

@@ -26,6 +26,7 @@ fn source_call(position: u32) -> LoweredSourceCallOccurrence {
 fn operation(position: u32) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(u64::from(position)).expect("nonzero operation"),
         result: OperationResult::Unit,
         kind: OperationKind::BooleanConstant { value: false },
