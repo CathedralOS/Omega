@@ -8526,47 +8526,81 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (LOWERED-UNIT-FAILURE-ATTRIBUTION ~01:17Z, BASELINE-CANARY-PASS-
   CLUSTER ~23:41Z, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION ~01:42Z), so
   this update stays on the board line and leaves the doc to them.
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (split-of:LOWERED-PSI-BASELINE-TAIL)
-  Own the one `checked-trees-to-lowered-psi` baseline member that
-  LOWERED-PSI-BASELINE-TAIL, LOOKUP-MAP-MEASUREMENT-AUDIT and
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION all route to a retired
-  PROOF-SEARCH-MEASUREMENT row: `nominal_affine_source::integer_comparison::
-  mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
-  (c2l `tests/nominal_affine_source/integer_comparison.rs`) never returns a
-  verdict — the tail records it SIGTERM'd at ~892s (6ef64f6dd6) and ~900s (c267df86acb), and
-  it is the `+ 1 SIGTERM` in every recorded reading of that crate. The
-  measurement substrate already landed (`proof/src/checker/measurement.rs`,
-  `OMEGA_PROOF_MEASUREMENTS`); what has no owner is the containment decision
-  for this obligation. Note before starting: that substrate cannot observe
-  this failure. `emit_if_requested` is called at `proof/src/checker.rs:178`,
-  after the obligation loop returns, so a run that never leaves the loop
-  prints nothing — setting the variable and rerunning the hang yields no
-  line. Getting a first measurement therefore needs per-obligation progress
-  output, a sampled stack, or a reduced input that still reproduces, not the
-  existing opt-in report.
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Remove the cubic lowering cost that
+  makes `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  never return. **The name is wrong and this row's earlier hypothesis is
+  refuted** — measured at `de5798c306`, it is not a proof search, nothing
+  diverges, and `proof/src/checker` is not involved.
 
-  The fixture's shape is readable without running it, and points at the
-  likely cause. `MIXED_NOMINAL_SHARED_INTEGER_COMPARISON_CONVERGENCE_SOURCE`
-  is a 183-line program whose one machine `Root::measure` takes 19
-  parameters and carries a single `requires` clause of 80 premises —
-  24 of them bounding `signed_arithmetic`, 18 bounding `small`, and 12 each
-  bounding `input` and `signed`. Many are mutually redundant on the same
-  variable (`input <= 255u64`, `<= 253u64`, `<= 252u64`, `<= 251u64`,
-  `<= 250u64`, `<= 127u64`, `<= 125u64`, `<= 124u64`, `<= 42u64`,
-  `<= 31u64`). A search that considers premise subsets, or that pairs
-  premises per obligation, faces a combinatorial blowup at exactly that
-  shape, and the fixture name says the machine converges on one shared
-  cleanup return, so every obligation meets the same premise pool. Confirm
-  that before bounding anything: a reduced copy that drops the redundant
-  bounds on one variable at a time should show where the cliff is, and gives
-  the terminating input the measurement report needs. Measure the leg, name the obligation whose search does
-  not converge, then either bound that search in `proof/src/checker` or refuse
-  it fail-closed with a diagnostic. A longer test timeout is not a repair.
+  What was measured, by bisecting the fixture on two axes with a scratch probe
+  timing `lower_typed_trees` and `lower_machine` separately:
+  - **The 80-premise `requires` pool is not the driver.** Dropping 48 of the
+    80 premises, including all ten redundant `input` upper bounds, changes
+    lowering cost by 1.5x (3251ms to 2191ms). No cliff, no sign of subset
+    enumeration.
+  - **The machine body carries the whole cliff.** Holding premises fixed and
+    varying the top-level `&&` conjuncts of `staged`: 24 conjuncts lowers in
+    3.1s, 72 in 37.5s, 73 in 37.3s, and **74 exceeds 400s**. It is a count
+    threshold, not one conjunct — omitting group 74 and taking six later ones
+    (79 conjuncts) also exceeds 240s. Below the cliff the curve is smooth and
+    polynomial, about n^2.5 to n^3.
+  - **Every obligation converges and succeeds.** Tracing producer calls over
+    200ms at the cliff: 192 calls, 99.6s total, **192 of 192 returned a
+    proof**; the relaxed fallback was never reached and the kernel's own
+    `StepCeiling` was never hit. There is no non-converging obligation to
+    contain.
+  - Terminating reduced input for future work: the first 73 body conjuncts
+    with all 80 premises, 45s total.
 
-  Acceptance: `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return)'`
-  terminates with a pass or an explicit refusal instead of being killed, and a
-  `--no-fail-fast` run of the crate reports no SIGTERM member.
+  The cost is four compounding centres, none in `proof/src/checker`:
+  - `proofs/scalar_block_invariants.rs:48` and
+    `proofs/scalar_block_invariants/cyclic_guarantees.rs:40` each call
+    `terminal_verifier::reconstruct_terminal_obligations` on the same
+    unchanged module, and each reconstruction is itself O(N^2) — about 47% of
+    lowering even when the candidate roster is empty and neither loop
+    iterates.
+  - `terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs:71-84`
+    clones **every** `Equal(Value, _)` axiom in the roster into a certificate
+    per condition fact, and `condition_fact` runs twice per conditional. A
+    chain of N short-circuiting `&&`s gives O(N) conditionals with O(N)
+    rosters — O(N^2) kernel work, and the source of ~20,000 certificate
+    acceptances.
+  - Per-certificate kernel cost is linear in chain length:
+    `mathematical_core::typing::infer_type` recurses past depth 260 on one
+    certificate from this program.
+  - Independently, in checking (16% of the run),
+    `typed-trees-to-checked-trees/src/authored_selections/operator_targets.rs:56`
+    scans per operator-by-fact pair and `member_targets.rs:369-381` tests
+    membership with a `Vec` linear scan.
+
+  Remaining work, in increasing risk: thread one reconstruction through
+  `retain_provable` rather than reconstructing twice (measured headroom ~2x);
+  fix the `expression_contains` visited set and hoist the per-operator scan
+  (most of the checking stage); and stop rebuilding the full equality roster
+  per condition fact, which is the actual O(N^2) and the only one that changes
+  the asymptotics — it alters what the kernel is shown, so it needs a careful
+  design pass, though not an owner decision.
+
+  **Do not bound the search.** 192 of 192 traced obligations are provable, so
+  any bound here abandons obligations the compiler demonstrably proves. The
+  other option this row used to offer — refusing fail-closed — is recorded as
+  **design-blocked** in OWNER_QUESTIONS.md question 4.
+
+  Also recorded, because several rows depend on it:
+  `OMEGA_PROOF_MEASUREMENTS` does not instrument this stage at all. On the
+  terminating reduction its whole report is `obligations=1 ...
+  decided_elsewhere=1`, with every other counter zero — the ~20,000 kernel
+  acceptances and 633 evidence rows this program costs are all produced
+  outside `check_proof_plan`. LOOKUP-MAP-MEASUREMENT-AUDIT and the other rows
+  routing cost questions here through the retired PROOF-SEARCH-MEASUREMENT are
+  pointing at the wrong substrate.
+
+  Acceptance: the unreduced fixture terminates with a verdict under an
+  ordinary test timeout, with no obligation abandoned — that is, the repair is
+  algorithmic and the traced producer calls still return their proofs — and a
+  `--no-fail-fast` run of `checked-trees-to-lowered-psi` reports no SIGTERM
+  member.
+
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
   (Zergling-181): the "typed-to-one-sorted encoding" bullet of the bounded
   comparison in `wiki/drafts/matching_logic.md`, drafted in
