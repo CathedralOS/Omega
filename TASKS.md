@@ -1177,6 +1177,23 @@ an implementation shortcut.
   as explicit inheritable handles). Executable admission, schema checks,
   and the refusal/close law are platform-neutral and landed.
 
+Checked-boundary-topology section refresh at `891eb5c584` (z117,
+NEW-CBT-BOARD-REFRESH): each epic's last recorded frontier re-verified
+against HEAD. Holds: `ExportSurface.identity` is still an opaque string
+(`component-description/src/component_description.rs:114`) and
+`verified_components.rs` still digests that string whole
+(`export_contract_identity`, "never parsed apart") — the demand/supply
+contract join stays a COMPONENT-SUBSTRATE description gap, unbound;
+`MissingVerifiedComponent`/`ExternalSubjectVerified`/`Substituted`
+rejection arms remain in `verified_components.rs`; the unix
+private-pipe leg is unchanged (`topology_installation/` still carries
+`frame.rs`, `local_supervisor.rs`, `mediation.rs`, `operation_schema.rs`,
+`pipe_adapter.rs` — no Windows/macOS provider modules exist), so the
+Windows/macOS legs stay unrun on this host. Drift found and corrected
+in-row: none. Fence map: the recorded row-level claims
+(TOPOLOGY-PLAN-VERIFICATION ~09:51Z, TOPOLOGY-PRIVATE-PIPE-INSTALLATION
+~09:52Z) have both drained; no live claim fences the topology sources.
+
 ## Process-exit contract
 
 Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
