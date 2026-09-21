@@ -726,3 +726,56 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
         root_count
     );
 }
+
+/// Declared path dependencies are load-bearing, not just spelled:
+/// `pass/proofs/kernel_theorem_equality_certificates` once declared six
+/// `../` segments where five reach the repository root, so its authored path
+/// pointed outside the repository entirely while only the declared location
+/// string was checked. Every declared `Path` dependency in the Omega case
+/// corpus must resolve inside the repository to a directory bearing its own
+/// `build.omg`.
+#[test]
+fn declared_path_dependencies_resolve_to_repository_package_roots() {
+    let repository = repository_root()
+        .canonicalize()
+        .expect("canonical repository root");
+    let cases = repository_root().join("tests/omega");
+    let mut roots = Vec::new();
+    collect_build_roots(&cases, &mut roots);
+    assert!(!roots.is_empty(), "Omega case corpus must not be empty");
+
+    let mut path_dependencies = 0;
+    for root in roots {
+        let Ok(projection) = extract_build_dependency_projection(&root) else {
+            continue;
+        };
+        for dependency in projection.product_dependencies() {
+            let DependencySourceRequest::Path { location, .. } = dependency else {
+                continue;
+            };
+            let resolved = root.join(location).canonicalize().unwrap_or_else(|error| {
+                panic!(
+                    "declared dependency path {location} in {} does not resolve: {error}",
+                    root.display()
+                )
+            });
+            assert!(
+                resolved.starts_with(&repository),
+                "declared dependency path {location} in {} resolves outside the repository to {}",
+                root.display(),
+                resolved.display()
+            );
+            assert!(
+                resolved.join("build.omg").is_file(),
+                "declared dependency path {location} in {} resolves to {} which is not a package root",
+                root.display(),
+                resolved.display()
+            );
+            path_dependencies += 1;
+        }
+    }
+    assert!(
+        path_dependencies > 0,
+        "the Omega case corpus must declare path dependencies"
+    );
+}
