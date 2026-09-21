@@ -524,6 +524,17 @@ Service<R> family). The current failure set attributes to six families:
   plan family below, stopping at `signature`-phase local construction; the
   shared-borrow negative control still pins that stop.
 
+- `native_wrapper_write_all_result_passes`
+  (`compiler --test native_filesystem_canaries`) — **new member recorded
+  2026-09-21 from a macOS arm64 run**, the first of any host for this canary.
+  Fails after 121 s with "selected ProgramEntry establishment rejoins 0 Terminal
+  attachment identities; expected one", the unit plan omitted at
+  `state graph: state signature: parameter signature: attached data shape`
+  (state 0). Producer site is `t2c/src/execution/unit/calls/signatures.rs`, the
+  attached-data-shape guard — a different phase from the record-literal store
+  guard repaired at `238ff31237c0c`, which is why that repair leaves this red.
+  Board row: CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.
+
 - Missing checked transitive machine plan (16 tests in this crate, but the
   cluster is wider than this section records — see the cross-suite note at the
   end of this entry).
