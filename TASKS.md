@@ -8333,7 +8333,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (Zergling-112, ~01:42Z), and BASELINE-PACKAGE-COMPILATION-INPUTS
   (Claude/fable-zac-goal3, ~20:19Z). The refresh belongs to whichever lane
   holds the file when those settle.
-- **KNOWN-BASELINE-FAILURES-REFRESH.** — mined candidate; verify scope then implement.
+- **KNOWN-BASELINE-FAILURES-REFRESH.** Mined candidate; one concrete row for
+  the sweep to carry. The workspace `--lib` cluster's failures are catalogued
+  on **RC-REPOSITORY-CLOSURE**, not in
+  `wiki/drafts/known_baseline_failures.md` — that row records
+  `nextest run --workspace --lib --no-fail-fast` as RED 13 of 16,169 with a
+  full per-crate attribution (package-manager 6, checked-trees-to-lowered-psi
+  2, and one each in compilation-report, compiler, external-roots,
+  native-realization and package-evidence). The doc's own header tells a
+  worker to cite it "instead of re-running a stash baseline", so a worker who
+  hits one of these searches the doc by test name, finds nothing, and
+  concludes the failure is unattributed. That row abbreviates each test name
+  with an ellipsis, so even a search of the board by exact name misses it.
+  Carry that cluster into the doc, by name, pointing at the owning row.
 - **LEARNED-COST-MODEL.** — verified 05416dd1a0: duplicate pointer to the
   live **LEARNED-OPTIMIZATION-COST-MODEL.** item (TASKS.md:5889), which
   already names this alias. Nothing to implement by design:
