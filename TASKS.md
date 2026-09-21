@@ -11078,6 +11078,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-WRITTEN-PRODUCT-COMPILER over `source/omega`+`source/psi`
   (~07:20Z), OMEGA-D-REQUEST-ADMISSION/records-env-request over
   `tools/bootstrap/omega`+`tests/bootstrap/omega-request` (~11:12Z).
+  Re-verified at `832c55e69b` on linux x86-64 (z153): tape inventory
+  unchanged — `bootstrap/` still carries only the beta/gamma tapes and
+  the `5_omega` epsilon sources, so still nothing to bind. Producing
+  rung still fenced: OMEGA-D over `bootstrap/5_omega` (~15:58Z),
+  OMEGA-D-REQUEST-{AND-ENTRY-ROUTE,V1-TABLES} (10:05Z / 11:19Z),
+  OMEGA-D-ENTRY-ADAPTER (~15:43Z), CHAIN-MANIFEST over
+  TASKS_BOOTSTRAP.md (~15:04Z) with OCREQ/GATE-PREFIX-BINDING siblings
+  (09:34Z / 09:54Z), OMEGA-C-SELF-HOST-EDGE (~10:07Z), and
+  BOOTSTRAP-CHAIN-NATIVE-EXECUTION (~14:55Z).
 - **OMEGA-D-COMPILER-REQUEST-TABLES.** Scope verified, fenced at
   `a0b906db93` — the stub re-mines the OMEGA-D OCREQ V1 request-table
   clause, whose named surface is already landed: per
