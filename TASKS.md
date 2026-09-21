@@ -8588,7 +8588,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   handoff.omg; REGISTERED-CALLBACK-LIFETIME's verifier fences live to
   ~14:37Z; CONSERVATION-CONTRACT has drained. Still no landable slice
   from this row.
-- **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; verify scope then implement.
+- **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; scope verified,
+  covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
+  surface adjudicated on the BACKEND-RUNTIME-STARTUP-MECHANICS row above
+  (~:8466, audit `be03555d17`, re-verified `7d03d489e3`): entry/exit
+  mechanics sit under one owner,
+  `omega-rust/omega/backend/runtime/external-roots/src/root_entry/`
+  (root_validation, root_admission, provider_execution,
+  progress_profile_installation, opaque_callback_replacement — plus
+  required_root_slots) and `platform_bringup`; free Unit entries emit
+  process adapters and ELF `e_entry` round-trips through final-image
+  validation. Re-verified at `ebd58a0544` on linux x86-64: the
+  `root_entry/` module layout is intact, `cargo check -p external-roots`
+  is clean, and the hosted_unit_entry suite is 7/7 green — note the crate
+  now lives at `omega-rust/omega/backend/images/image-emission/src/
+  hosted_unit_entry.rs` (moved under `images/` since the prior witness).
+  No independent slice exists here. Board hygiene: this item has three
+  same-name rows — this one, a bare stub at ~:8503, and a sibling
+  adjudication at ~:8580 (verified `138ed79a677`, same verdict from the
+  program-entry-lane angle); all reach "no independent slice".
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved as drained: the same-name row below carries the triage (57-failure census at bd6cddcb59, closed by attribution into `wiki/drafts/known_baseline_failures.md`); residual ledger refreshed at `e7c0099cb2b7` (2206 run / 2183 pass / 23 fail, member→family mapping current). Repairs stay with the owning lanes named there; no slice under this stub.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
   covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
