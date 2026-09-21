@@ -768,739 +768,237 @@ syntax and other terminal services are not prerequisites.
 
 ## P1 - Authority, roots, and entry
 
-Owners include
-`wiki/spec/resources/authority.md` and
-`wiki/spec/resources/storage.md`.
+- **ENTRY-CONTENT-ROOTS.** Finish intrinsic receiver activation/completion
+  under [entry roots](wiki/spec/build/entry_roots.md) and
+  [binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry).
+  Owners: target package assembly, `program-entry-plan`, Psi
+  `terminal-production`, Omega `compiler/native-realization`,
+  `image-emission` and `external-roots`. Existing `Service<R>` source names
+  migrate under **BINDING-CARRIER-NAME**; the old service-only `Bound` domain
+  is already retired and must not return.
 
-- **ENTRY-CONTENT-ROOTS.** Finish authored receiver entry under the
-  [entry contract](wiki/spec/build/entry_roots.md), principally the settled
-  [intrinsic binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry)
-  migration and activation/completion lifecycle. Owners: target package source
-  assembly, `program-entry-plan`, Psi `terminal-production`, Omega
-  `compiler/native-realization`, `backend/images/image-emission`, and
-  `backend/runtime/external-roots`. Targetless checks select no physical entry;
-  deployment cannot substitute a semantic continuation for the physical adapter.
-
-  - **The cut has landed** — verified at `0f75a052f0`, so do not start from its
-    old premise. This bullet used to open "`core/service.omg` still declares
-    `Bound`, and `typed-trees/src/typed_trees/calls/service.rs` requires it";
-    both are now false. `core/service.omg` declares only
-    `pub boundary data Service<R>;` and states that "no authored domain
-    qualification exists for it and any `Service<R> in <domain>` spelling is
-    rejected during source checking", while `calls/service.rs:7` refers to
-    "The retired `Bound` qualification". The only surviving `in Bound`
-    spellings in the tree are two fail fixtures that pin its rejection —
-    `fail/providers/service_bound_nonservice_rejected` and
-    `fail/providers/service_authored_lookalike_not_privileged` — which is what
-    should survive.
-
-    Retire that service-only domain and its acceptance paths, not general
-    domains. Carry exact requirement, occurrence and selected-plan custody
-    through checking, Terminal, erased Fused fields, native settlement and
-    independent replay. No default-domain feature, bare-trait alias or
-    fabricated establishment row is needed. Resume
-    evidence (w9, `swarm-w9-entry-content-roots`): the cut is implemented and
-    verified on the wave branch — `Bound` is deleted from `core/service.omg`, the
-    service classifier requires the exact closed `Service<R>` identity and rejects
-    any authored `in <domain>` qualification during source checking, the checked
-    carrier's `bound_domain` leg and every downstream plan/custody/test consumer
-    are retired, and all `in Bound` spellings are migrated out of library sources,
-    product sources, fixtures, samples and canaries. Frontier before landing: the
-    two fused-parameter rejoin gates in
-    `checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs` are part of
-    this cut but the path is claimed by TR3-TR8, so publication waits for that
-    claim (or a coordinator merge). Bare-field rejection and Squalr migration in
-    the next bullet are untouched.
-  - Migrate library, samples, canaries and Squalr from bare boundary-trait fields
-    and `Service<R> in Bound` to the intrinsic carrier; reject bare fields during
-    source checking rather than after native bridge planning. Preserve negative
-    controls. Epsilon's separately specified sealed Console is not this surface.
-    Resume evidence (w9, `swarm-w9-entry-content-roots-2`): the rejection is
-    implemented in `typed-trees-to-checked-trees`' `validate_typed_program`
-    (`checking/program_validation.rs`) — data fields, variant payloads, machine
-    parameters and returns, and trait signature parameters/returns that name a
-    bare boundary trait in value position reject as non-carriers at source
-    checking; the one admitted spelling left is a `satisfies` adapter's leading
-    self-forwarding receiver slot, which conformance slicing removes before
-    arity and which names the satisfied boundary trait itself. The corpus
-    (library, canaries, samples) is migrated to `Service<R>`; negative controls
-    in `tests/omega/fail` still reject, and fixtures whose signatures required
-    public slot contracts promote those declarations rather than weakening the
-    gate. Raw-pipeline unit fixtures (no package scope, so `Service` cannot
-    resolve) were migrated onto `&'s mut <boundary trait>` receivers instead;
-    where a test still exercises true carrier semantics (provider attachment,
-    `established by` results, `ensures`-bound out-params), the toolchain
-    `service.omg` is injected into the fixture's `SourceMap` so `Service<R>`
-    resolves against the real core decl. Residual for bullet 3: raw fixtures
-    whose checks need service-activation semantics — `ensures` witnesses on
-    boundary out-params, `established by` establishment routes, and direct
-    dynamic plans through an attached service field — still reject; the
-    intrinsic carrier contract does not yet expose those spellings
-    (`Service<R>` admits no authored `in <domain>` qualification and
-    `established by` expects the old return shape), so those tests stay red
-    until the receiver lifecycle leg lands. Squalr remains the
-    coordinator-scoped surface in the bullet above and is untouched here.
-  - Complete receiver nominal-cleanup and callback/signal occupancy through actual
-    activation/completion. Reuse `receiver_eligibility.rs`,
+  - Finish activation/result/out-parameter joins using exact closed requirement,
+    occurrence and selected-plan validity. Reconcile residual
+    `ensures`/`established by` fixtures with intrinsic binding semantics:
+    adjust an obsolete fixture rather than authorize a source-created binding.
+    Relevant consumers include `facts/qualification_evidence.rs`,
+    `checks/content/call_results.rs` and source domain-route construction.
+    Ordinary library authority domains remain separate; unused type declarations
+    alone demand no provider.
+  - Complete nominal receiver cleanup and callback/signal occupancy through
+    actual activation/completion. Reuse `receiver_eligibility.rs`,
     `image-emission/src/hosted_receiver.rs` and
-    `ProgramLocalRootInstallationLedger`, including installed aggregate extent
-    materialization. Do not recreate existing bridges: macOS ARM64, Linux x86-64,
-    Linux ARM64 and Windows x86-64 routes exist. Windows currently has storage-only
-    coverage; its exit-provider gap belongs to the process-exit task. Records,
-    arrays (including record arrays), IEEE leaves and zero-valid first sum cases
-    already have eligibility/bridge coverage; investigate a concrete rejected
-    receiver before adding another storage profile.
+    `ProgramLocalRootInstallationLedger`, including installed aggregate
+    extents. Four hosted bridges and aggregate eligibility already exist;
+    investigate concrete failures instead of adding storage profiles.
+    Windows process-exit realization belongs to the process-exit task.
+  - Carry exact requirement/occurrence/plan custody through source checking,
+    erased Fused fields, Terminal, native settlement and independent replay.
+    Finish remaining bare-carrier fixture/application migration without weakening
+    source rejection or exact application identity. Installation, not compilation,
+    owns actual occurrence custody.
 
-  Acceptance: `number_guess` with `console: Service<Console>` exits 70, and
-  `cli_mvp`/`generic_counters` retain behavior without service qualifications.
-  Run published processes with no test-supplied `self`, retaining host-gated
-  `entry_and_abi::hosted_receiver*` checks and explicit unavailable-host results.
-  Missing/incompatible supply, ordinary literal/zero-based service construction,
-  lookalikes, redirected continuations, non-ZII state, bad backing/alignment,
-  overlapping partitions and stale occurrence/epoch reject. Move/borrow/record
-  forwarding preserves distinct service applications and affine custody; unused
-  type declarations alone demand no provider.
+  Acceptance: published `number_guess`, `cli_mvp` and `generic_counters`
+  retain their documented behavior with no test-supplied `self` or service
+  qualifications. Keep `entry_and_abi::hosted_receiver*` controls.
+  Execute on matching hosts and report unavailable runtime legs explicitly.
+  Missing/incompatible supply, forged zero/literal construction, lookalikes,
+  redirected continuations, non-ZII receiver state, bad backing/alignment,
+  overlapping partitions and stale occurrence/epoch reject. Forwarding preserves
+  distinct applications and affine custody; erasure removes neither
+  initialization nor cleanup obligations.
+  Compose application, bridge, provider and callback stack demand—loader
+  stack-size metadata is not remaining-stack evidence. Targetless checks select
+  no physical entry, and deployment cannot substitute a semantic continuation
+  for its adapter. Descriptor-call customers keep their own dependency; Fused
+  migration does not require an Independent-installation project.
 
-  Missing/substituted service or receiver evidence must reject after erasure and
-  replay. Erased fields cannot erase initialization or cleanup obligations.
-  Compose application, bridge, provider and newly admitted callback stack demand;
-  loader stack-size metadata is not remaining-stack evidence. Preserve exact
-  target/source contracts and runtime storage/continuation joins; installation
-  owns actual occurrence custody, not compilation. Descriptor-call customers use
-  their separate descriptor dependency; do not expand into Independent service
-  installation merely to migrate Fused carriers.
+- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface
+  bootstrap under [UEFI adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
+  The target package owns firmware layouts, integrity checks, calling policies
+  and bootstrap machines; the compiler owns the necessary physical shell and
+  generic ABI/entry primitives.
 
-  Frontier (w9 z57 leg, origin/main 72125c7156, ~15:15Z): claim exited 2 —
-  a live same-item claim (linw2-entry-content-roots, expires 18:39Z) and
-  bullet-3's fence is triple-covered: `program-entry-plan` by
-  UEFI-OS-HANDOFF (20:00Z) and BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS
-  (22:09Z); `external-roots/src/program_local` — the
-  `ProgramLocalRootInstallationLedger` the bullet names — by
-  EPOCH-RESOURCE-SNAPSHOTS (22:31Z) and
-  FOREIGN-RETAINED-ARGUMENT-BACKING (21:42Z). Bullet-1's named blocker
-  `checked-trees-to-lowered-psi/src/unit` is also still fenced
-  (UEFI-OS-HANDOFF 20:00Z wholesale `src/unit`, WRITE-ONLY-BORROW
-  `attached_unit*` 20:07Z) independently of the TR3-TR8 note.
-  `terminal-production/.../receiver_eligibility.rs` and
-  `image-emission/src/hosted_receiver.rs` themselves were UNCLAIMED — a
-  retry whose leg touches only those two files can claim them alone.
+  Connect source bootstrap, semantic continuation and physical arrival through
+  `compiler/native-realization` and
+  `external-roots/src/platform_bringup/uefi_bootstrap/`.
+  System Table, Boot Services and Loaded Image layouts already replay
+  source-minted commitments from `targets/uefi_x86_64/tables.omg`;
+  physical calling-plan replay, production semantic-wrapper callers and a
+  provisioned mutable semantic receiver also exist. Do not restart those legs.
 
-  Wave leg (z132, origin/main 1f10f6fd40): registered the deliberately
-  checked-only `cli__device__device_extent_access` on
-  `sample_entry_exceptions_are_explicit_and_non_runnable`'s rootless pin
-  list — the sample's own contract declares no source-level entry adapter
-  exists (provider-issued opaque `DeviceLoan`, no build.omg), matching the
-  deliberate trap/proof/firmware members already pinned there.
-
-- **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface UEFI
-  bootstrap under [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
-  Keep physical firmware arrival distinct from the semantic program continuation;
-  the compiler emits only the necessary entry shell and generic target primitives.
-
-  - Replace `target/src/uefi_{system_table,boot_services,loaded_image}/`'s Rust
-    field catalogs with target-package declarations, evaluated layout policies,
-    constants and integrity checks. Migrate `backend/plans/program-entry-plan`
-    and `external-roots/src/platform_bringup/uefi_bootstrap/` consumers, then
-    delete the duplicate production catalogs. Loaded Image landed: the
-    `EfiLoadedImage` schema and evaluated `EfiLoadedImageLayout::plan` policy
-    in `targets/uefi_x86_64/tables.omg` own the 96-byte geometry;
-    `target::uefi_loaded_image` replays each evaluated `LayoutPlanReport`
-    against recorded schema/plan/native-layout commitments
-    (`replayed_uefi_x64_loaded_image_native_layout`), the bounded HandleProtocol
-    executor and occurrence validation consume that replay, and
-    `canary_suite/entry_and_abi/uefi_loaded_image_layout.rs` binds the authored
-    policy's live evaluation to the retained layout. System Table and Boot
-    Services catalogs remain duplicate production definitions.
-  - Replace `program_entry_physical/exact_uefi.rs`'s duplicated physical-policy
-    recipe with source-derived plan/evidence replay. Preserve exact accepted
-    package/contract identity and arrival assumptions; a source digest does not
-    establish plan correctness. Landed at `db3dfb4302`: consumers now replay
-    each retained plan through `replayed_uefi_x64_physical_calling_plan`
-    against `UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT` instead of re-deriving
-    the recipe; the recipe materialization remains only for contract fixtures
-    below the build layer and self-checks against that commitment.
-  - Connect the authored bootstrap, semantic child emission and physical shell
-    through `compiler/native-realization`. The
-    `optimized_semantic_wrapper_object/` staging entrance still has no callers;
-    additional isolated binder milestones do not advance this customer. Its
-    semantic-entry validator currently admits only a receiver-free Unit source,
-    whereas the retained storage-roots canary has a receiver: preserve the actual
-    selected source shape, not a test-authored substitute.
-
-  Resume from
-  `entry_and_abi::program_entries_and_image_validation::uefi_entry_machine_plan_produces_terminal_artifact`:
-  the claim-pinned cycle now publishes Terminal Psi. The semantic calling-plan
-  application identity check is also repaired; neither is a remaining blocker.
+  Resume the complete customer from
+  `entry_and_abi::program_entries_and_image_validation::uefi_entry_machine_plan_produces_terminal_artifact`
+  through emitted bootstrap execution on firmware or a controlled provider.
+  **UEFI-OS-HANDOFF** additionally needs native realization of its exact
+  termination/stack-transfer edges; source admission alone does not supply them.
 
   Acceptance: authored layouts feed actual firmware projections/calls and the
-  bootstrap reaches its continuation through emitted entry code with checked
-  stack, root custody and return behavior. Malformed geometry/header integrity,
+  emitted bootstrap reaches the selected continuation with checked stack,
+  roots, storage and return behavior. Malformed geometry/header integrity,
   foreign occurrence, wrong package/target and overlapping image/storage reject.
-  Preserve scoped firmware authority and independently replay the source/plan/
-  realization join. Layout helpers, source preflight and Rust-constructed contracts
-  do not close this task; missing general layout/call/custody support must be fixed
-  in its owner, not replaced with a firmware-specific intrinsic.
+  Retain scoped firmware authority and independent source/plan/realization replay.
+  Layout helpers, source preflight, source digests and Rust-constructed
+  contracts are not this execution witness. Repair missing general capability
+  in its owner, not with another firmware-protocol intrinsic.
 
-- **UEFI-OS-HANDOFF.** Implement the
+- **UEFI-OS-HANDOFF.** Execute the authored
   [Boot Services-to-OS handoff](wiki/spec/build/uefi_entry.md#returning-application-versus-os-handoff)
-  as ordinary target-package machines, replacing the bodyless whole-protocol
-  promise in `std/targets/uefi_x86_64/handoff.omg`. Reuse the behavior and
-  regression controls in
-  `external-roots/src/platform_bringup/uefi_bootstrap/{os_handoff_cycle.rs,get_memory_map/,exit_boot_services/}`;
-  the Rust cycle currently has test callers, not an emitted authored route.
-  Delete superseded production sequencing when the source route covers it.
-  The compiler owns entry/stack-transition mechanics, not a handoff-loop intrinsic.
+  in `std/targets/uefi_x86_64/handoff.omg`.
+  `UefiOsHandoffCycle::run` already expresses acquire/grow/adopt and bounded
+  stale-key retry; bodied boundary callees and its cyclic source route lower.
+  The pinned next refusal is
+  `native_uefi_os_handoff_invocation_reports_termination_catalog_frontier`:
+  `UefiOsHandoffTermination::transfer`/`firmware_return` have selected
+  compiler-intrinsic rows but no closed native catalog identity.
 
-  Depends on `UEFI-PHYSICAL-SEMANTIC-ENTRY` for source-derived layouts, the
-  shell and scoped firmware leaves; reuse `ENTRY-CONTENT-ROOTS`'s service-carrier
-  migration. Acquire/grow map storage, retain the freshest snapshot/key, retry
-  stale keys with a decreasing explicit bound, and transfer custody only on
-  successful exit. Preserve firmware lifetime, surviving-stack evidence, allocation
-  lineage and final-map obligations; exhaustion returns the target-defined error.
+  **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns those entry/stack-transition mechanics,
+  source layouts and scoped firmware leaves. Keep allocation, map acquisition,
+  status handling and retries in ordinary target-package code; delete
+  superseded Rust production sequencing when the authored route covers it.
+  Reuse controls in
+  `uefi_bootstrap/{os_handoff_cycle.rs,get_memory_map/,exit_boot_services/}`.
 
-  Resume evidence (w9, `swarm-w9--uefi-os-handoff`): the bodyless whole-protocol
-  promise is replaced by an authored route in `std/targets/uefi_x86_64/handoff.omg`
-  — `UefiOsHandoffLegs` boundary-machine legs own the four scalar-returning Boot
-  Services calls and land each status on the legs record; `UefiOsHandoffCycle::run`
-  owns the acquire/grow/adopt + stale-key-retry state graph with the explicit
-  `UEFI_OS_HANDOFF_ATTEMPT_BOUND` bound and `UEFI_OS_HANDOFF_EXHAUSTION_STATUS`
-  exhaustion answer; `UefiOsHandoffTermination` keeps entry/stack transfer and
-  firmware return compiler-owned. `build/uefi_os_handoff_invocation` binds
-  `Loader::run` and checks end-to-end
-  (`checked_uefi_os_handoff_invocation_retains_edge_binding`). Two refusing
-  stages are routed: provider derivation now admits a non-hosted target
-  package's bodyless `boundary machine` satisfies leaf as a `CompilerIntrinsic`
-  row on exact selected target-machine origin custody (hosted targets keep the
-  name-keyed catalog gate;
-  `selected_target_compiler_leaf_requires_nonhosted_origin_custody` pins it), so
-  both `UefiOsHandoffTermination` leaves derive plans and the provider record's
-  fused `Service` fields erase; and fused-Service custody rejoin now resolves
-  owners through every checked machine's attachment identity, covering records
-  attached only to boundary-supply machines which never produce unit plans
-  (`attached_data_shape_identity` in `selected-dispatch::service_custody`).
+  Acceptance: `build/uefi_os_handoff_invocation` runs through native emission
+  and a firmware/controlled-provider harness: grow then retry a stale key,
+  bounded exhaustion with the target error, malformed map geometry,
+  stale/foreign evidence, lost custody, forbidden Boot Services use after exit,
+  and nonreturning success to the exact selected OS entry. Preserve freshest
+  map/key, surviving-stack evidence, allocation lineage and final-map obligations.
+  Ledger tests, a selected bodyless provider, or a special multi-call leaf do not
+  establish authored execution; no destructor hides the fallible protocol.
 
-  Resume evidence (z148, `devin/z148-uefi-handoff`): bodied `boundary machine`s
-  now lower as ordinary Unit callees — the unit-plan candidate roster and the
-  omission ledger admit `Boundary`-supply machines with bodies, call sites
-  classify them as ordinary (`boundary` is the supply mode less the authored
-  body) on both the checked-operation and lowered authored-custody sides, and
-  `mutable_plain_nonlinear_referent` admits `&mut` referents of plain
-  non-Linear carriers as boundary out-parameters — so all four legs produce
-  ordinary plans, both `&mut` Boot Services requirements
-  (`get_memory_map`, `allocate_pages`) produce boundary plans, and every
-  caller survives closure into Terminal emission. The leg callsites pass
-  `&mut self.<field>` projections directly (borrowed locals are not
-  parameter-sourced). First refusing stage is now cyclic-machine custody in
-  the Terminal verifier (`unranked_cycles::eligible`): inside a cyclic
-  machine a `CallUnit` argument must be the bare persistent `&mut self`
-  receiver, so `self.legs.*`/`self.terminal.*`/`self.cycle` projected
-  receivers are refused, and pinned entry claims (`retain`'s granted
-  extents riding block parameters) fall outside the envelope as well
-  (`native_uefi_os_handoff_invocation_reports_cyclic_control_frontier` pins
-  the diagnostic). Next acceptance: widen cyclic-machine custody to admit
-  projected `&mut self.<field>` receivers and claim-carrying state
-  parameters (or restructure the authored cycle so legs live on the entry
-  carrier), then run the firmware/controlled-provider harness legs below.
-
-  P1 refresh at `b868b9ee8f270` (z75): the z148-recorded cyclic-custody stop
-  is crossed — `unranked_cycles::eligible` no longer the first refusal; the
-  authored cycle was restructured so leg calls ride record-local forwarders
-  and granted extents on `Loader::run`'s plain block parameters, and the pin
-  renamed to
-  `native_uefi_os_handoff_invocation_reports_termination_catalog_frontier`.
-  The new first refusal is native realization of the compiler-owned
-  termination edges: `UefiOsHandoffTermination::transfer`/`firmware_return`
-  settle as compiler-intrinsic provider rows but no closed native catalog
-  identity exists for them — per the pin's comment that leg belongs to the
-  UEFI physical-entry lane. (Same-item claim live: z19, exp ~10:19Z.)
-  (`attached_data_shape_identity` in `selected-dispatch::service_custody`). First
-  refusing emission stage remains attached-Unit closure — the legs' bodied
-  boundary machines carry no boundary plan for a unit caller, and
-  scalar-returning boundary calls (`BoundaryScalarCall`) have no state-graph
-  custody admission
-  (`native_uefi_os_handoff_invocation_reports_missing_boundary_plan` pins the
-  diagnostic). Next acceptance: lower bodied boundary machines as callees (or
-  admit boundary scalar results to unit edges), then emit the cycle and run the
-  firmware/controlled-provider harness legs below.
-  (`attached_data_shape_identity` in `selected-dispatch::service_custody`).
-
-  Resume evidence (z148, `devin/z148-uefi-handoff`): bodied `boundary machine`s
-  now lower as ordinary Unit callees — the unit-plan candidate roster and the
-  omission ledger admit `Boundary`-supply machines with bodies, call sites
-  classify them as ordinary (`boundary` is the supply mode less the authored
-  body) on both the checked-operation and lowered authored-custody sides, and
-  `mutable_plain_nonlinear_referent` admits `&mut` referents of plain
-  non-Linear carriers as boundary out-parameters — so all four legs produce
-  ordinary plans, both `&mut` Boot Services requirements
-  (`get_memory_map`, `allocate_pages`) produce boundary plans, and every
-  caller survives closure into Terminal emission. The leg callsites pass
-  `&mut self.<field>` projections directly (borrowed locals are not
-  parameter-sourced). First refusing stage is now cyclic-machine custody in
-  the Terminal verifier (`unranked_cycles::eligible`): inside a cyclic
-  machine a `CallUnit` argument must be the bare persistent `&mut self`
-  receiver, so `self.legs.*`/`self.terminal.*`/`self.cycle` projected
-  receivers are refused, and pinned entry claims (`retain`'s granted
-  extents riding block parameters) fall outside the envelope as well
-  (`native_uefi_os_handoff_invocation_reports_cyclic_control_frontier` pins
-  the diagnostic). Next acceptance: widen cyclic-machine custody to admit
-  projected `&mut self.<field>` receivers and claim-carrying state
-  parameters (or restructure the authored cycle so legs live on the entry
-  carrier), then run the firmware/controlled-provider harness legs below.
-
-  Acceptance: evolve `build/uefi_os_handoff_invocation` from binding-only coverage
-  into authored execution through native emission and a firmware or controlled
-  provider harness. Cover grow-then-stale-key retry, bounded exhaustion, malformed
-  map geometry, foreign/stale evidence, lost custody, forbidden Boot Services
-  use after exit, and successful nonreturning transfer to the exact selected OS
-  entry. Rust ledger tests and a selected bodyless provider are not execution
-  evidence; do not hide the protocol in a destructor or special multi-call leaf.
-
-- **AP-BRINGUP.** Execute Cathedral's secondary-processor startup under the
-  [startup contract](wiki/spec/build/external_roots.md#secondary-processor-startup).
+- **AP-BRINGUP.** Complete Cathedral's authored secondary-processor startup
+  under [external roots](wiki/spec/build/external_roots.md#secondary-processor-startup).
   Cathedral owns discovery, dispatch, acknowledgement, retry and cancellation;
-  selected hardware boundaries supply explicit premises. The compiler checks
-  installed entry, placement, resources and evidence, not an APIC/firmware driver.
+  selected hardware boundaries supply premises. The compiler checks installed
+  entry, placement, resource custody and evidence, not an APIC/firmware driver.
 
-  `external-roots/src/platform_bringup/secondary_processor.rs` carries the
-  three-way `SecondaryProcessorStartupVerdict` and the settlement leg:
-  `complete_secondary_processor_startup` returns pending custody only on
-  `DefiniteNondispatch`, keeps the account invoked and held on
-  `DispatchUnconfirmed` (neither withdrawable nor reissuable; the returned
-  carrier still answers a later definitive receipt), and marks started on
-  `ConfirmedArrival`. `settle_secondary_processor_startup` releases an
-  invoked, unconfirmed account only when a settlement receipt naming the
-  exact outstanding carrier attests both that no later arrival remains
-  possible and that nothing executes on its stack or state; either unmet
-  premise returns the carrier still outstanding, so a timeout cannot
-  release stack/state/code or erase an outstanding attempt. Completion and
-  settlement both bind the record's outstanding invocation, so a delayed
-  or replayed acknowledgement cannot resolve another attempt.
+  The `external-roots/src/platform_bringup/secondary_processor` ledger,
+  emitted x86-64 startup trampoline, source canary and
+  `compiler/tests/secondary_processor_startup.rs` integration already exist.
+  Remaining: real provider/hardware receipt ingress with **BOUNDARY-ISSUANCE**,
+  and matching platform/emulator execution evidence. Use the emitted trampoline
+  and exact installed entry, not test-authored replacement bytes or
+  Rust-constructed arrival receipts as the final witness.
 
-  `BOUNDARY-ISSUANCE` owns the general issuance review, not this ledger's
-  concrete repair. The authored Cathedral route now exists:
-  `tests/omega/pass/memory/secondary_processor_canary/` authors the
-  `StartupEnvelope` linear boundary data, its `Pending` domain established
-  by `SecondaryProcessorEntry::enter`, the `confirm` requirement gated on
-  `Pending`, two provider roots whose `Calling` policies grant distinct
-  dedicated stack classes, and a roster machine declaring both slots' stack
-  and state geometry plus the startup trampoline bytes, alignment, and
-  low-memory limit. `compiler/tests/secondary_processor_startup.rs`
-  evaluates that authored source, selects each provider plan, resolves its
-  `enter` reach to `MachineControl`, replays the validated boundary plan,
-  installs the authored trampoline bytes through the artifact → extent grant
-  → claim → materialize → freeze → validate → install ladder, binds the
-  authored profile to the installed code (`InstalledSecondaryProcessor
-  Trampoline` startup vector is the claimed base over the authored
-  alignment), and drives the ledger: reach the installed entry with
-  `binds_exact_materialized_entry_bytes` proving the placed bytes are the
-  authored ones; definite nondispatch withdraws while elapsed time does
-  not; dispatch-unconfirmed settles only on a two-premise receipt naming
-  the outstanding carrier; a late confirmed arrival still starts; receipts
-  replayed across re-admission or minted for another processor refuse;
-  overlapping state or shared stack class refuse admission; started
-  accounts retire only on a quiescence receipt bound to the started
-  record. The ledger surface inside
-  `external-roots/src/platform_bringup/secondary_processor` is complete:
-  bind, admission, invocation, nondispatch/unconfirmed/arrival verdicts,
-  two-premise settlement, replay/foreign/stale rejection, overlapping
-  resource refusal, and quiescence retirement are all witnessed in
-  `secondary_processor/tests.rs` (plus ledger-side adversarial rows).
-  Remaining before full acceptance: (1) native emission of the trampoline
-  and entry/exit stub bodies — the installed bytes are authored data, not
-  emitted code; this is a new emission lane, not a ledger edit, since
-  `secondary_processor.rs` deliberately owns custody only and
-  `calling-conventions`' `entry_exit_stub` derives the deriver contract
-  (push list, saved-area geometry, iretq exit, contract binding at
-  `identity`) without emitting bytes — the leg needs a byte emitter fed
-  by that deriver (or an ISA-crate encoding surface for the real-mode
-  trampoline) plus wiring so the test installs emitted bytes instead of
-  the authored `trampoline_bytes` array in
-  `tests/omega/pass/memory/secondary_processor_canary`. Leg (1) landed at
-  `d71c5ad8a6`: `machine-emission/src/startup_trampoline.rs` emits,
-  resolves and validates the x86-64 startup trampoline
-  (`emit/resolve/validate_x86_64_startup_trampoline`), and
-  `compiler/tests/secondary_processor_startup.rs` installs the emitted
-  bytes — re-verified green on linux_x86_64 at `0db54f596a` (all 4
-  `secondary_processor_startup` tests PASS, including
-  `authored_startup_contract_survives_terminal_and_native_production`).
-  Remaining: (2) real receipt ingress under BOUNDARY-ISSUANCE; (3) the
-  Windows/macOS/QEMU legs, which are host-unavailable here.
-  Re-verified at `faf902cea487` on linux x86-64: all 4
-  `secondary_processor_startup` tests PASS (43.7s). Both residual legs
-  stay non-executable on this host — (2) needs the hardware/provider
-  boundary path (the ledger-side ingress audit landed at `8973814b6a`,
-  246/246 external-roots; the source-issued frontier is
-  BOUNDARY-ISSUANCE's own row, and real AP arrival receipts need
-  firmware/APIC premises), and (3) is host-bound. The implementing
-  files are unfenced: no live claim covers `secondary_processor*`,
-  `compiler/tests/secondary_processor_startup.rs` or the canary
-  fixture (`uefi_bootstrap` stays fenced by UEFI-PHYSICAL-SEMANTIC-ENTRY).
-  Windows/macOS/QEMU legs, which are host-unavailable here. Re-witnessed at `f600f8400b` (swarm-w9-ffival, linux x86-64): `compiler --test secondary_processor_startup` 4/4 PASS (nondispatch-withdrawal+late-arrival, installed-entry reach, stale-evidence/resource-conflict rejection, terminal-and-native contract survival; 47.8s). The ledger dir itself stays fenced to UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z); the authored canary + startup test were claimed-and-released for this witness.
+  Preserve the lifecycle: definite nondispatch permits withdrawal;
+  dispatch-unconfirmed holds resources and permits a later exact arrival.
+  Cancellation releases only with exact outstanding-invocation evidence that
+  no later arrival is possible and nothing executes on the stack/state.
+  Started accounts retire through exact quiescence. Timeout alone grants none
+  of these facts. Bind each provider-declared profile and mechanism-specific
+  vector/low-memory geometry to its selected contract.
 
-  Reuse installed-code, per-processor stack/state and retirement joins. Bind the
-  provider-declared profile to its selected contract; low-memory/vector geometry
-  is mechanism-specific, not a universal startup model. Do not add a compiler
-  boot driver to support another provider.
+  Acceptance: authored startup reaches installed code on dedicated,
+  nonoverlapping stack/state. Exercise nondispatch, timeout then late arrival,
+  cancellation before confirmation, arrival/cancellation races, foreign/stale/
+  replayed evidence, resource conflicts and retirement. Keep resources while any
+  admitted attempt can reach them; report unavailable host/emulator legs
+  explicitly.
 
-  Acceptance: authored Cathedral startup reaches the installed entry with visible
-  placed bytes and dedicated nonoverlapping resources. Check definite nondispatch,
-  timeout then late arrival, cancellation before confirmation, arrival/cancellation
-  races, stale/foreign/replayed evidence, resource conflicts and retirement.
-  Resources remain held while any admitted attempt can reach them. An emitted
-  trampoline or a Rust test constructing receipts is not the customer witness.
-
-- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Execute a content-bearing
-  program through checked source, Terminal Psi, provider selection and native
-  realization under [content conservation](wiki/spec/resources/content_custody.md).
+- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Execute nonempty content
+  claims through source, Terminal, provider selection and native realization
+  under [content conservation](wiki/spec/resources/content_custody.md).
   Reuse `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
-  Terminal claim/frontier verification and Omega's
-  `terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`.
-  Normalized equations, identity reshuffles and partition-composition lowering
-  exist; do not restart those mechanisms.
+  Terminal frontier verification and
+  `terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
+  normalized equations and partition lowering already exist.
 
-  Replace declaration-only coverage with an invoked route: an established owned
-  input is forwarded/partitioned under an authored theorem, and a selected
-  boundary accepts the exact residual while the caller retains or returns the
-  rest. `core/content_conservation_contract` and
-  `core/content_retained_custody_round_trip` currently have empty entry bodies;
-  neither proves this integration. Use canonical core content identities, not
-  lookalike test-local algebra declarations.
+  Replace the empty entries in `core/content_conservation_contract` and
+  `core/content_retained_custody_round_trip` with an invoked route: an
+  established owned input is forwarded/partitioned under an authored theorem;
+  a selected boundary accepts the exact residual while the caller retains or
+  returns the rest. Use canonical core content identities, not lookalike
+  test algebra. Attachment production has changed since the old service-root
+  refusal; rerun this customer before naming its next compiler blocker.
 
-  Fenced deficiency (witnessed 2026-09-19): a ProgramEntry root data carrying a
-  fused `Service<T> in Bound` field fails selected establishment with
-  "rejoins 0 Terminal attachment identities" whenever trait `T` declares any
-  value-returning method, even `-> i32`; void-method traits pass. The missing
-  `attachment_type_identity` row is produced in t2c
-  `execution/unit/composed_control`.
+  Acceptance: source/native execution preserves exact subject/revision,
+  projection/algebra, geometry, lineage, route and installed occurrence through
+  independent replay. A partition theorem is usable only after its exact
+  successful invocation; provider custody acceptance is not residual arithmetic.
+  Reconstruct each introduction/admitted issuance and account for every
+  exit/residual. Overlap, gaps, wrong projection/unit/lineage, stale invocation,
+  substituted theorem/arguments and authority inferred from scalar totals or
+  fingerprints reject. Keep unrepresented runtime-indexed owned extraction
+  rejected. Existing-input conservation need not wait for every fresh-issuance
+  route under **BOUNDARY-ISSUANCE**.
 
-  Preserve exact subject/revision, projection/algebra, geometry, lineage, route
-  and installed occurrence through source-free replay. The caller may use the
-  callee's partition theorem only after its exact successful invocation.
-  Provider acceptance of custody does not establish the residual arithmetic.
-  `BOUNDARY-ISSUANCE` owns fresh supply and receipt ingress; existing-input
-  conservation can proceed without waiting for every fresh-issuance route.
-
-  Acceptance: actual source/native execution carries nonempty content claims;
-  every surviving claim has a reconstructed introduction or admitted issuance
-  and every exit/residual is accounted for. Reject overlap, gaps, wrong
-  projection/unit/lineage, stale invocation, substituted theorem/arguments,
-  and authority inferred solely from equal scalar totals or compact fingerprints.
-  Keep unrepresented runtime-indexed owned extraction rejected, not approximated
-  by an arbitrary element or a helper-only proof.
-
-  Wave fence audit (z105, `d32183a35c`): every implementing leg this row names
-  is under a live claim — `Devin / conservation-contract` holds the compound
-  row freeform through 21:50Z, fencing both invoked-route fixtures
-  (`tests/omega/pass/core/content_conservation_contract`,
-  `content_retained_custody_round_trip` — entry bodies still empty),
-  `canary_suite/content_text_and_carriers.rs` + roster,
-  `value_custody/content_conservation.rs` + dir,
-  `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`, and
-  `provider_installation/replay.rs`. The recorded fenced deficiency moved:
-  `attachment_type_identity` is now produced in t2c
-  `execution/unit/composed_control` (`assembly.rs`, `dynamic_join.rs`,
-  `dynamic_result.rs`) and ARCHITECTURE-CONTROL-GRAPH no longer appears in
-  live claims, so the 2026-09-19 witness (`Service<T> in Bound` root data
-  failing selected establishment on value-returning traits) needs
-  re-witnessing before assuming the fixtures still cannot check — but that
-  verification itself touches the sibling-fenced fixture roots.
-
-- **BOUNDARY-ISSUANCE.** Complete exact fresh-supply and receipt ingress under
+- **BOUNDARY-ISSUANCE.** Join source fresh-supply evidence to provider planning,
+  native settlement and the exact installed occurrence under
   [external roots and issuance](wiki/spec/resources/authority.md#external-roots-and-issuance).
-  This is distinct from conservation of existing accounts and from
-  `DOMAIN-ISSUER-ROUTES`'s source target selection; it need not wait for all
-  conservation integration to finish.
+  Source issuance/construction checks and runtime receipt ingress validation
+  already exist; they do not complete this cross-stage join.
 
-  Reuse Psi `checks/content/retained_custody.rs`, qualification evidence and
-  Terminal claims, then join provider planning/native settlement to the installed
-  occurrence. Derive geometry from exact parameters, callable-entry places and
-  result paths. Admit only the provider's backing custody/freshness premises;
-  never accept interval arithmetic as an opaque provider fact. Multiple results
-  need one separated supply relation, and transferred input is not fresh supply.
-  Preserve the existing rejection of construction that lacks an issuance witness.
-
-  Ingress audit of installation, retirement, startup, interrupt and callback
-  receipt edges in `backend/runtime/external-roots` completed at `8973814b6a`
-  on Linux x86-64 (`cargo nextest run -p external-roots --no-fail-fast`: 246/246
-  pass): every accepted record traces to checked execution or the exact selected
-  admitted provider contract — install/remove/teardown replay retained root
-  evidence, interrupt entry/turn/finish rejoins the admitted arrival context and
-  declared nesting, mask save/restore is LIFO-exact, table member admission,
-  descriptor replay and publication replay the sealed member set, callback
-  registration consumes linear `Arc`-provenance capacity, secondary-processor
-  lifecycle binds the verified trampoline and account custody, and program-local
-  cohort seals re-derive the enumerable set. No record traces to neither; the
-  `platform_bringup/uefi_bootstrap` subtree audited read-only under
-  `UEFI-PHYSICAL-SEMANTIC-ENTRY`'s claim. The open frontier is the source-issued
-  leg above. `AP-BRINGUP` owns its concrete arrival/cancellation state repair.
-
-  Source-side issuance gates verified at `a0591618c7ba`
-  (`cargo nextest run -p typed-trees-to-checked-trees checks::content`,
-  linux x86-64, 10/10): the authorized issuance routes in
-  `checks/content/call_results.rs` (bare-result `-> T in D` and case-payload
-  spellings), the transferred-input-is-not-fresh-supply rejection, the
-  duplicate-claim-identity and undeclared-result-field rejections all hold —
-  the checker's half of "reject forged source construction, foreign/replayed
-  receipts, substituted geometry and duplicate fresh supply" is already
-  exercised. The remaining frontier narrows to the provider-planning and
-  native-settlement join to the installed occurrence — fenced this wave to
-  `PROVIDER-ATTACHMENT-MACHINE-PLAN` (`execution/unit/providers.rs`, ~22:37Z),
-  `PLACED-ACCESS-NATIVE-OPS` (`execution/unit` neighbor surface, ~00:56Z) and
-  the external-roots subtree under `RC-REPOSITORY-BASELINE-GREEN` (~23:46Z)
-  and `AP-BRINGUP` (~01:40Z).
-
-  Re-verified at `3dac85e5cc` (z146, linux x86-64): the source-side gate
-  still holds after this wave's issuance landings (`851052b4f8` constrained-
-  result witness spelling, `15f93d0aa7` foreign-receipt rejection,
-  `aef80b5cf6` provider-backed field classification) — `cargo nextest run
-  -p typed-trees-to-checked-trees checks::content` is now 14/14 green, up
-  from the recorded 10/10 at `a0591618c7ba`. The open frontier is
-  unchanged: the provider-planning/native-settlement join to the installed
-  occurrence has not landed, and every implementing surface stays under a
-  live claim — `execution/unit/providers.rs` + `execution/unit/types`
-  under PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z), `external-roots`
-  subtrees under NEW-FRAB-FOREIGN-STORAGE-SPEC-ALIGNMENT (~16:08Z) and
-  EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), `platform_bringup/uefi_bootstrap`
-  under UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z), with the boundary-ABI lane
-  held by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). No independent slice
-  remains open inside this row.
-
-  Re-verified at `7d03d489e3d9` (z133, linux x86-64): both recorded gates
-  still hold — `cargo nextest run -p typed-trees-to-checked-trees
-  checks::content` 14/14 and the authored ledger end-to-end leg
-  `cargo nextest run -p compiler --test secondary_processor_startup` 4/4,
-  including `authored_startup_contract_survives_terminal_and_native_production`
-  installing the emitted trampoline bytes. No upstream edits on the
-  ledger, canary, startup-test or trampoline-emission surfaces since
-  `3dac85e5cc`. Fence map refreshed: `execution/unit/providers.rs` under
-  PROVIDER-ATTACHMENT-MACHINE-PLAN (z200, ~09:49Z), the
-  `platform_bringup/secondary_processor*` ledger under
-  NEW-APB-CANCELLATION-RACE-PINS (z11, ~12:52Z), `root_entry/
-  provider_execution.rs` under NEW-BI-INSTALLED-OCCURRENCE-REPLAY-PINS
-  (swarm-w9, ~10:26Z), `external-roots` `program_local` subtree under
-  EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), the host-leg recipe draft under
-  NEW-APB-HOST-LEG-RECIPE (~16:10Z), the UEFI handoff surface under
-  UEFI-OS-HANDOFF (z19, ~10:19Z), with the boundary-ABI lane still held
-  by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). The open frontier is
-  unchanged: the provider-planning/native-settlement join to the
-  installed occurrence. No independent slice remains open inside this
-  row.
-
-  Re-verified at `661a4d50c0af` (zergling-168, linux x86-64): the
-  source-side gate is still 14/14 green (`nextest -p
-  typed-trees-to-checked-trees checks::content` — fresh run, this chain).
-  The open frontier is unchanged — no fresh-supply/issuance join exists in
-  `execution/unit/providers.rs` or `execution/unit/types` (their latest
-  landing is the z146-recorded `aef80b5cf6` provider-backed field
-  classification). Fence refresh: `providers.rs`/`types` stay under
-  PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z), `external-roots` partials
-  under EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), the boundary-ABI lane under
-  OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z), and the repository-baseline
-  umbrella under RC-REPOSITORY-BASELINE (~15:39Z); `execution/unit`
-  neighbors NEW-BSR (borrowed_windows, ~16:41Z) and
-  PASS-CANARY-GUARDED-PAIR-FALLBACK (composed_control/topology, ~17:33Z)
-  are new since the last refresh. Drained since `3dac85e5cc`:
-  NEW-FRAB-FOREIGN-STORAGE-SPEC-ALIGNMENT, UEFI-PHYSICAL-SEMANTIC-ENTRY,
-  PLACED-ACCESS-NATIVE-OPS, AP-BRINGUP — but the join's producing surfaces
-  remain claimed, so no unfenced slice opened.
+  Reuse `checks/content/{retained_custody,call_results}.rs`, qualification
+  evidence, Terminal claims, selected provider plans and
+  `external-roots` settlement. Derive geometry from exact arguments,
+  callable-entry places and result paths; admit the provider's backing/freshness
+  premises, never interval arithmetic as an opaque provider fact. Multiple
+  results require separated supply; transferred input is not freshly minted
+  capacity. **DOMAIN-ISSUER-ROUTES** owns source route selection,
+  **AP-BRINGUP** its hardware arrival customer, and conservation of existing
+  accounts remains independent work.
 
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
-  route and exact occurrence through independent replay. Reject forged source
+  route and installed occurrence through independent replay. Forged source
   construction, foreign/replayed receipts, substituted geometry and duplicate
-  fresh supply, while legitimate provider issuance and identity-preserving
-  transfers succeed without re-minting capacity.
-
-P1 section refresh at `b868b9ee8f270` (z75, NEW-P1-BOARD-REFRESH): each
-epic's last recorded frontier re-verified against HEAD. Holds:
-`Bound` still absent from `core/service.omg` (ENTRY-CONTENT-ROOTS cut);
-`stage_validated_optimized_program_storage_semantic_wrapper_object` still
-has no production callers (UEFI-PHYSICAL-SEMANTIC-ENTRY);
-`secondary_processor` ledger + canary + startup test in place and the
-trampoline-emission lane still open (AP-BRINGUP); both conservation
-fixtures still end in empty `Main::main` bodies (CONSERVATION-CONTRACT);
-BOUNDARY-ISSUANCE's frontier still fences the provider-planning/
-native-settlement join (PROVIDER-ATTACHMENT-MACHINE-PLAN live). Drift
-found and corrected in-row: UEFI-OS-HANDOFF's z148 cyclic-custody stop
-moved to the termination-catalog fence (see that row's refresh note).
+  supply reject; legitimate issuance and identity-preserving transfers succeed
+  without re-minting capacity.
 
 ## P2 - Materialization and placed access
 
-- **PLAN-LAID-VIEWS.** Connect actual placed-view establishment, use and retirement
-  to executable and interpreter inputs under
-  [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
-  Existing `ArtifactSections` admission, codec replay and native-realization
-  optimization retain exact rosters; do not rebuild that evidence transport.
+- **PLAN-LAID-VIEWS.** Complete executable placed-view establishment, access
+  and retirement under [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement).
+  Direct-entry interpreter/native admission already joins exact roster rows to
+  provider-supplied referents, checks declaration consistency, aliasing and
+  qualifications, and carries loans into native entry settlement.
 
-  `TerminalExecution::start_verified_module` binds each direct-entry roster
-  row to one exact `TerminalPlacedViewEstablishment` — the provider's loan of
-  the qualified referent backing, recorded as a live occurrence and retired
-  when the entry invocation completes; missing, duplicated, stale or
-  undeclared supplies and overlapping exclusive referents reject at start.
-  The executable input boundary now owns the same ordinary route:
-  `AdmittedNativeArtifact::try_into_native_input_with_placed_view_establishments`
-  joins each direct-entry roster row to exactly one supply and carries the
-  bound set inside `VerifiedNativeArtifactInput`, while
-  `try_into_native_input` and `prepare_native_realization_input` keep
-  rejecting nonempty rosters because no provider establishment reaches the
-  image entry shim yet. The referent half of each supply now also rejoins the
-  module's own catalogs: the declared structural type must be a declared
-  carrier, the path must resolve through that shape graph to a real place,
-  and every domain qualification must be a domain the artifact declares over
-  that carrier — a supply whose backing, range, or qualifications fails the
-  rejoin is a stale or substituted establishment and rejects before access.
-  Both execution boundaries apply the same declaration-consistency relation in
-  `terminal-semantics/src/placed_view_referent.rs` before binding the loan.
-  The source-to-artifact regression rejects undeclared backing, invalid paths
-  and forged qualifications at interpretation as well as native admission;
-  interpreter controls retain valid nested paths, exact domain carriers,
-  alias rejection and retirement. This checks fresh runtime inputs against
-  the artifact; it does not supply provider authority or realize field access.
-  `placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap`
-  exercises the whole join on a multi-row roster: supplies bind each declared
-  row in roster order regardless of supply order, a partially answered roster
-  and a stale sibling supply reject, an exclusive referent overlapping another
-  established referent — equal path or prefix containment — rejects as
-  aliasing, and disjoint sub-paths or shared-borrow overlap admit. Rows on
-  non-entry machines still fail closed at both boundaries — call-bound
-  custody arrives through the caller, a route neither carries. The executable
-  boundary now carries the loans one step further:
-  `prepare_native_realization_input_with_placed_view_establishments` binds
-  the supply inside the reusable prepared input, `realize_image` reopens the
-  exact bound set, and `validate_executable_entry_receiver` attaches it to
-  the `ValidatedNativeProgramEntrySettlement` the object binder must satisfy —
-  while receiverless admissions (free entries and erased receivers) reject a
-  nonempty bound set rather than publish an entry whose custody was never
-  supplied. The emitted entry boundary does not lend yet:
-  `emit_optimized_fragments` fails closed on a settlement carrying bound
-  establishments until `bind_hosted_receiver` extends its shim to receive
-  each referent. Continue from `compiler/native-realization`'s
+  The next bridge is `compiler/native-realization`'s
   `native_realization/optimized_fragment_projection.rs` and
-  `hosted_receiver.rs`: teach the hosted bridge to lend each bound referent
-  for the invocation's duration, keeping unsupported consumers rejecting
-  until they carry it; a roster or a pointer is not this authority. Preserve
-  the verified native-input boundary enforced by architecture checks.
+  `image-emission/src/hosted_receiver.rs`: emission rejects a settlement with
+  bound establishments because the entry shim cannot lend each referent yet.
+  Carry each loan for the invocation's duration and retire it at completion.
+  Non-entry machines additionally need call-bound custody from the caller.
+  Keep unsupported routes rejected; a roster or pointer is not authority.
 
   Extend `compiler/tests/access_plans/source_access_policies.rs`'s
-  `direct_placed_view_input_survives_codec_and_native_replay` into a source
-  program that establishes a view, performs a checked access and retires it
-  through published native execution. The test now establishes and retires the
-  roster's view at interpretation, but its authored consumer is still empty:
-  `view.status.read()` lowers to a boundary call on the derived `PlacedField`
-  accessor, which has no boundary plan — a checked access needs the accessor
-  realization (a provider or compiler settlement) before source-level use and
-  retirement exist.
+  `direct_placed_view_input_survives_codec_and_native_replay` to actual source
+  access. Its consumer is empty: `view.status.read()` needs realization of the
+  derived `PlacedField` accessor, not just an admitted roster. Reuse the
+  existing `ArtifactSections`, codec, optimization and verified-native-input
+  boundary rather than rebuilding admission.
 
-  Acceptance: valid views retain the same semantics through codec, optimization,
-  interpretation and native execution. Stale/substituted plan, artifact, backing,
-  range, rights, occurrence or lifetime rejects before access; failed establishment
-  returns custody and retirement preserves the declared resident/vacant state.
-  Run each available supported host leg and explicitly report unavailable ones,
-  without treating cross-target emission as physical execution.
+  Acceptance: one source program establishes, accesses and retires a view
+  through interpretation and published native execution. Codec/optimization
+  preserve semantics; stale/substituted plan, artifact, backing, range, rights,
+  occurrence or lifetime reject before access. Failed establishment returns
+  custody and retirement preserves declared resident/vacant state. Preserve
+  multi-row order independence, exact type/path/domain rejoin, exclusive overlap
+  rejection and shared/disjoint admission. Run matching supported hosts or
+  explicitly retain unavailable runtime legs.
 
-- **SYMBOLIC-MATERIALIZATION.** Complete symbolic field/index materialization
-  and target-dependent realization as one
-  [derived consumer](wiki/spec/layouts/plans.md#derived-consumers) of a
-  normalized plan. Paths and bounds stay exact until assignment; physical
-  lowering chooses instruction bytes and context registers, not semantic slots.
-  Extend the existing recursive record/sum owner in
-  `omega-rust/omega/backend/layout/src/sum_materialization/mod.rs` and the
-  carrier preparation/walker in
-  `omega-rust/psi/foundation/layout-plans/src/symbolic_materialization.rs`.
-  One ordered `{ outer_layout, children }` report retains field/index hops
-  and sum/record interiors; do not add depth-specific implementations or
-  per-shape report channels.
+- **SYMBOLIC-MATERIALIZATION.** Obtain the missing matching-host Linux AArch64
+  execution evidence for the existing recursive
+  [derived consumer](wiki/spec/layouts/plans.md#derived-consumers).
+  Owners: `backend/layout/src/sum_materialization/`,
+  `psi/foundation/layout-plans/src/symbolic_materialization.rs` and
+  `compiler/tests/layout_plans/writer_lowering.rs`.
+  Both Linux ISA fragments already replay in the harness; recorded Linux
+  x86-64 and macOS AArch64 runs do not close Linux AArch64 runtime acceptance.
 
-   Settled: symbolic array lengths are a recorded design boundary, not
-   pending capacity. A `ConstParameter`/`ConstCall` length can only live
-   inside an unapplied template and `build_layout_plan` never lays a
-   template out, so no runtime layout a passed count could describe
-   exists; every concrete use arrives as a synthesized closed instance
-   whose substituted members already carry `Literal` lengths, and
-   runtime-bound `value` counts cannot determine a static layout at all
-   (`value_generic_runtime_static_length` pins that rejection). The
-   recursive owner pins both residual shapes —
-   `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
-   (unapplied template) and
-   `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
-   (member typed by a non-closed application). Closed literal/generic
-   zero-count arrays are not this gap; standalone rungs retain their
-   narrower single-hop and nonzero-length contracts.
+  On Linux AArch64 run
+  `mbx nextest run -p compiler --test layout_plans -E 'test(~writer_lowering)'`
+  and `mbx nextest run -p layout --lib -E 'test(~fenced)'`.
+  Acceptance: nested field/index writes match reference destination and guard
+  bytes, with the same normalized fragment identity/invocation across ISA-specific
+  bytes. Retain empty-array, sibling-write and nested/generic controls.
 
-   Remaining work:
-
-   - Obtain matching-host Linux AArch64 execution evidence — the sole
-     residual, and a host-availability gate rather than an engineering
-     one. The writer harness validates both Linux ISA fragments on every
-     host and natively executes only the host-matching one; macOS
-     execution does not close the Linux runtime row. Re-verified green at
-     `e5492eee179` on macOS AArch64: `cargo nextest run -p compiler --test
-     layout_plans -E 'test(~writer_lowering)'` 13/13 (each leg
-     replay-validating both Linux ISA fragments) and `cargo nextest run -p
-     layout --lib -E 'test(~fenced)'` 3/3. The Linux x86-64 leg was
-     verified at `340e2b5ca4` with native execution against the reference
-     image. Resume on Linux AArch64 with the same two filtered runs; the
-     harness's `cfg`-selected arm branch then executes the AArch64
-     fragment natively.
-  Remaining work:
-
-  - Array lengths still symbolic at layout time remain fenced, and that
-    fence is now a recorded design boundary rather than pending capacity:
-    a `ConstParameter`/`ConstCall` length can only live inside an unapplied
-    template, and `build_layout_plan` never lays a template out — there is
-    no runtime layout a passed count could describe, and no bindings
-    channel exists to name one. Every concrete use arrives as a synthesized
-    closed instance whose substituted members already carry `Literal`
-    lengths: `Log<const N>` reached through a member typed `Log<2>`
-    materializes under the const-evaluable closed-argument judgment
-    (`require_closed_generic_application`, mirrored backend-side in
-    `validate_closed_copy_record`), and
-    `generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
-    in `layout_plans/writer_lowering.rs` lowers instance record paths —
-    `Neighbor<two()>` beside `[Neighbor<1>; 2]` — on both Linux ISAs (native
-    execution on x86-64). Runtime-bound `value` counts cannot determine a
-    static layout at all (the `value_generic_runtime_static_length` fail
-    corpus pins the rejection), so the residual fence covers exactly the
-    shapes no closed checked identity can name: open templates and
-    non-closed applications. The recursive owner pins both shapes of that
-    boundary:
-    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
-    covers the unapplied template, and
-    `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
-    covers a member typed by a non-closed application (`Log<two()>`): it
-    joins the ordinary fields, keeps whole-field writes, and rejects
-    traversal below the boundary for want of a carrier. Closed
-    literal/generic zero-count arrays are no longer this gap.
-    Standalone rungs retain their narrower single-hop and nonzero-length
-    contracts.
-  - Obtain matching-host Linux AArch64 execution evidence — the sole
-    residual. The writer harness validates both Linux ISA fragments on every
-    host and executes the host-matching one on Linux x86-64/AArch64 or macOS
-    AArch64; macOS execution does not close the Linux runtime row. Linux
-    x86-64 leg re-verified at `340e2b5ca4`: `cargo nextest run -p compiler
-    --test layout_plans -E 'test(~writer_lowering)' — 13/13 green, each test
-    replay-validating both ISA fragments and natively executing the x86-64
-    writer against the reference image; fence pins
-    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
-    and
-    `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
-    green under `cargo nextest run -p layout --lib -E 'test(~fenced)'` (3/3).
-    Resume on Linux AArch64 with the same filtered run; the harness's
-    `cfg`-selected arm branch then executes the AArch64 fragment natively.
-    The empty-array regression in `layout_plans/writer_lowering.rs` also
-    pins direct/indexed-write rejection, live sibling writes and empty
-    nested/generic carriers. Re-verified at `93c472428e` (linux x86-64):
-    the earlier same-item swarm claim expired unworked and no live claim
-    touches the implementing surfaces — `backend/layout/src/sum_
-    materialization`, `layout-plans/src/symbolic_materialization.rs`,
-    and the `layout_plans` writer harness are all unfenced (nearest
-    adjacent fence: QUOTIENT-RUNTIME-REALIZATION on `backend/layout/src/
-    builder.rs`, ~07:12Z) — so the leg is workable in-tree but still
-    requires a linux_arm64 host for the matching-ISA execution row.
-
-  Acceptance: nested field/index canaries execute on both Linux ISAs and compare
-  destination bytes with the reference image, including guard bytes. Both ISAs
-  must retain the same normalized fragment fingerprint and writer invocation
-  while emitting their own bytes.
+  Open templates, non-closed member applications and runtime value counts in
+  static layout remain deliberate rejection boundaries—not missing symbolic
+  capacity. Closed generic applications already substitute literal lengths;
+  do not add depth-specific reports or turn a host-validation task into an
+  implementation project.
 
 ## P3 - Terminal Psi, PCC, and observation
 
@@ -8188,8 +7686,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MODEL's own concurrent-activation-controls leg, gated on TR3-TR8's
   execution route; no separable slice exists under this stub's name.
   Sibling stubs on the same surface: ATOMIC-MEMORY-MODEL.
-- **ATTACHED-UNIT-CLOSURE-PLAN.** — mined candidate; scope verified at
-  covered — re-mine of the UEFI-OS-HANDOFF recorded frontier; gaps belong to that row's handoff legs
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION.** Mined candidate; scope verified at
   `17fec446ef2` — the admission leg is landed, and what remains is gated
@@ -8251,25 +7747,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ASM-MEMORY-AND-TRANSFER-CONTRACTS; atomics, mode transitions and AArch64
   system ops stay unrecognized per the catalog axis paragraph. No
   independent slice remains under this name.
-- **ATTACHED-UNIT-CLOSURE-PLAN.** Mined candidate; scope verified at
-  `35e1b19198f3`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
-  (TASKS.md:1071 — "first refusing emission stage remains attached-Unit
-  closure"). Two concrete gaps: (a) a bodied `boundary machine` carries no
-  boundary plan when called by a unit caller, and (b) scalar-returning
-  `BoundaryScalarCall` has no state-graph custody admission, so the handoff
-  legs each own one firmware call and land the status on the legs record
-  instead of expressing it in the unit state graph. Witness:
-  `native_uefi_os_handoff_invocation_reports_missing_boundary_plan` still
-  passes (the refusal is pinned, not fixed) — it becomes the PE32+ emission
-  assertion once bodied boundary machines lower as callees, per its
-  comment. Next acceptance lives inside UEFI-OS-HANDOFF's lane ("lower
-  bodied boundary machines as callees, or admit boundary scalar results to
-  unit edges, then emit the cycle"); that item plus the adjacent boundary
-  surfaces are under live claims (UEFI-OS-HANDOFF until 10:19Z,
-  UEFI-PHYSICAL-SEMANTIC-ENTRY 08:44Z, OPAQUE-BY-VALUE-BOUNDARY-ABI
-  13:58Z; TV-BOUNDARY-SETTLEMENTS-REPLAY has since drained). No
-  independent slice is landable from this row.
-  covered — re-mine of the UEFI-OS-HANDOFF recorded frontier; gaps belong to that row's handoff legs
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
   surfaces are under live claims (UEFI-OS-HANDOFF until 20:00Z,
   UEFI-PHYSICAL-SEMANTIC-ENTRY 22:59Z, OPAQUE-BY-VALUE-BOUNDARY-ABI and
@@ -11540,49 +11017,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tracking the item. Stubs with no same-named row, and non-bare
   "mined candidate; scope verified" mini-rows, are untouched.
 
-- **NEW-ECR-ESTABLISHED-BY-RETURN-SHAPE.** Inserted row — scope verified at
-  `500878c473f4` (planner-scoped to `typed-trees/src/typed_trees/calls/
-  service.rs` + `typed-trees-to-checked-trees/src/checking/
-  program_validation.rs` and its dir). The item names the residual recorded
-  on the Service-carrier migration row (:1316): "`established by` expects
-  the old return shape". On inspection the return-shape judgment for
-  establishment routes lives entirely outside the assigned files:
-  `facts/qualification_evidence.rs::return_type_matches_domain_target`
-  (unwrapped `signature.return_type` vs `domain.target_type`, with the
-  nominal-head fallback) authorizes `BoundaryRequirement` routes, and
-  `checks/content/call_results.rs::{result_type_issuance_route,
-  case_payload_issuance_route}` own the `-> T in D` and case-payload
-  spellings; route construction is s2t `declarations/domain.rs`. Inside the
-  fence both halves are already coherent: `service.rs` exposes
-  `exact_bound_service_requirement` — the identity extraction a
-  `Service<R>`-returning establishment shape would match on — and the
-  classifier's `Constrained` rejection is a stated contract ("the carrier
-  is closed"), not a gap; `program_validation.rs`'s bare-boundary-trait
-  return gate admits `Service<R>` heads by construction (`Service` resolves
-  to a data definition, not a boundary trait, so no rejection fires). No
-  bounded slice exists inside the fence: admitting a service-carrier return
-  shape means changing what establishment-route consumers match, and those
-  consumers (`facts/qualification_evidence.rs`,
-  `checks/content/call_results.rs`, s2t route construction) are all
-  outside the assigned paths. The cross-file leg needs its own dispatch.
-- **NEW-ENTRY-RECEIVER-CLEANUP-OCCUPANCY-LEDGER.** Inserted row — scope
-  verified, owner-fenced. Re-mines the ENTRY-CONTENT-ROOTS bullet (its own
-  row at :1247): "Complete receiver nominal-cleanup and callback/signal
-  occupancy through actual activation/completion. Reuse
-  `receiver_eligibility.rs`, `image-emission/src/hosted_receiver.rs` and
-  `ProgramLocalRootInstallationLedger`, including installed aggregate
-  extent materialization" — recorded live-fenced to ENTRY-CONTENT-ROOTS by
-  the PHYSICAL-ENTRY-BRIDGES sibling row ("the epic's remaining bridge
-  legs — receiver nominal-cleanup/completion occupancy and the per-host
-  legs — stay with ENTRY-CONTENT-ROOTS"). The implementing surfaces sit
-  under current wave fences this session-verified: `hosted_receiver*`
-  under PLAN-LAID-VIEWS (~09:25Z), `external-roots` program_local roots
-  under EPOCH-RESOURCE-SNAPSHOTS (~11:32Z). Re-verified at `96bc0ef81043`
-  head fetch: the bullet is an owner-row open leg, not an unowned surface
-  — no independent slice exists under this name; a real slice needs the
-  ENTRY-CONTENT-ROOTS owner or a dispatch including hosted_receiver.rs.
-  Sibling aliases naming the same surface: PHYSICAL-ENTRY-BRIDGES,
-  ENTRY-CONTENT-ROOTS.
 - **NEW-GCE-CYCLIC-CONTROLS-SPEC-STATUS.** Inserted row, slice landed
   (planner-scoped to `wiki/spec/terminal-psi/verification.md`) — appended
   the cyclic-controls status paragraph to "General proof integration
@@ -12180,25 +11614,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
-- **PORTABLE-PROCESS-EXIT-OBSERVATION.** Mined candidate; scope verified at
-  9ff8673b31, re-verified at `94e764a6da6b` — re-mines sibling row
-  PROCESS-EXIT-PORTABLE-OBSERVATION
-  (verified at `b28abc01fe`, same surface word-for-word): the
-  portable-observation leg of the Process-exit contract parent — Terminal
-  observations must compare the exact semantic `i32` status and preserve
-  ordered preceding events. Residual primitives open as recorded there:
-  `psi/representations/terminal-psi/src/terminal_module/control_flow/
-  termination.rs` has no external-completion terminator (9 variants —
-  Jump, Conditional, StructuralCase, Return, ReturnUnit,
-  ReturnUnitPartialAffine, ReturnUnitNominalAffine, ReturnStructural,
-  Crash — exhaustive matches repo-wide), and the terminal-codec
-  deliberately writes/rejects the terminal-external group with count zero
-  until the source-to-verifier migration retains the terminal transfer
-  (per its README fence note). The slice is inherently the parent's
-  cross-stage terminator + codec + verifier + interpreter + realization
-  leg — no file-local slice exists; coordinate with the parent owner lane
-  (the parent row records live fences on source/library/std/process_exit.omg
-  and PLACED-ACCESS-NATIVE-OPS's claimed cross-stage intent).
 - **PRIME-COUNTER-BENCHMARK-ROW.** — mined candidate; verify scope then implement.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the same cross-package dynamic loan-origin cluster
@@ -12271,43 +11686,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   separate staleness); `PortRead` (`in`) has no terminal-Psi operation yet;
   the macos x86-64 `native_hosted_target()` cfg arm remains fenced here;
   sibling translation-validation row `TV-PRIVILEGED-PORT-EFFECTS` is distinct.
-- **PROCESS-EXIT-PORTABLE-OBSERVATION.** Mined candidate; scope verified at
-  `b28abc01fe`: names the portable-observation leg of the
-  [Process-exit contract](TASKS.md:~840) parent — "Terminal observations
-  compare the exact semantic `i32` status" and preserve ordered preceding
-  events (observations.md#process-exit-observations). The residual
-  primitives are open as recorded: `terminal-psi/terminal_module/
-  control_flow/termination.rs` has no external-completion terminator and the
-  trace codec admits only an empty terminal-external group. Currently
-  unworkable — the claim surfaced live fences on
-  `source/library/std/process_exit.omg` (MACOS-X64-HOST-PROFILE/
-  package-wiring, ~2026-09-21T00:50Z), and Devin's PLACED-ACCESS-NATIVE-OPS
-  (~00:56Z) nominally spans the whole cross-stage route (terminal-psi src,
-  terminal-interpreter, lowered→terminal and terminal→abstract pipelines,
-  native providers, backend layout) via a single space-joined path entry
-  that `conflicts()` does not match — treat that as claimed intent, not a
-  free window. The slice is inherently the parent's cross-stage terminator +
-  codec + verifier + interpreter + realization leg, not a file-local edit.
-  Coordinate with the parent item's owner lane before working it.
-  Re-verified at `b46b34a87f3` (Zergling-52): the direct `process_exit.omg`
-  package-wiring claim has expired, but the route stays fenced —
-  PLACED-ACCESS-NATIVE-OPS remains live (Jarod, 06:27Z, pathless
-  whole-route claim) and adjacent cross-stage legs are held by
-  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (terminal→abstract lowering, 04:33Z),
-  DOMAIN-ISSUER-ROUTES (terminal-codec module wire, 02:43Z), and
-  TERMINATION-RANKING-CHECKS (termination checks, 07:09Z). Substance
-  unchanged: no file-local slice exists.
-  Re-verified 2026-09-21 at `beaa8e1c1b` (Devin/z117): both residual
-  primitives are unchanged — `termination.rs` still carries exactly the nine
-  recorded `Terminator` variants with no external-completion form, and
-  `terminal-codec` still writes and rejects a nonzero terminal-external
-  group (`terminal_trace_v1_profile.rs:207-211`; README's "implementation
-  fence, not an assertion" note stands verbatim and still routes the work to
-  the Process-exit contract migration). Fence state has moved: the
-  MACOS-X64-HOST-PROFILE `process_exit.omg` claim has drained, while
-  PLACED-ACCESS-NATIVE-OPS remains live under Jarod/swarm-w9 (exp ~06:27Z,
-  paths []) — still claimed intent per this row's `conflicts()` caveat, so
-  the unworkable judgment is unchanged. Re-stamped at `bc772bf7cd` (swarm-w9-ffival): claim probe on termination.rs + terminal-codec returned exit 2 — terminal-codec is live-fenced to CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP (~08:46Z) and CUSTODY-MATRIX-HARNESS-MIGRATION (~09:19Z) on top of the nominal PLACED-ACCESS-NATIVE-OPS span.
 - **PRODUCER-CHECKER-BOUNDARY-AUDIT.** mined candidate — resolved: re-mine of the producer/checker seam family already bounded in `wiki/drafts/producer_checker_decision_sharing_audit.md` (verified `12dea522b2`; the ledger names this cluster explicitly — BOUNDARY-AUDIT, DECISION-SEPARATION, DECISION-SHARING-AUDIT, SHARING-AUDIT are the same seam). Every reachable surface is Re-derived or Bound: lock decisions are informational history bound to `changes.fingerprint()`, PCC claim fields are recomputed by `verify_pcc_claim_fields` under the receiver's policy, component descriptions are "trusted for nothing" (re-decode + consumer-supplied admission profile), placed-image evidence extents/digests/seals are re-derived from committed bytes. Re-witnessed at `54e321bdf0`: `derivation_cache.rs:154` still re-runs `candidate.verify()` through the admission kernel on every hit (rejected hits fall through to fresh derivation, counted in `rejected_candidates`), and `independent_components.rs:54` `verify_independent_component_descriptions` still re-verifies under the build's own admission profile. Open residual (exhaustive whole-tree verifier-callsite audit) is recorded on sibling PRODUCER-CHECKER-DECISION-SHARING-AUDIT, not here.
   unworkable — the originally recorded `source/library/std/process_exit.omg`
   package-wiring fence has expired, but the cross-stage route it would feed
@@ -14490,7 +13868,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   this name.
   covered — sibling re-mine settled on SELECTIVE-ARITHMETIC-EXPANSION; producer legs owned by MATCH-SELECTIVE-LOWERING
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
-- **SERVICE-ERA-REPLACEMENT-SUBSTRATE.** Mined candidate — scope verified, resolved — the `Bound` service-era replacement substrate is landed on `origin/main` at `6d00135b89`: `core/service.omg` declares `pub boundary data Service<R>` with the closed identity as the only carrier (`Bound` deleted; documented "any `Service<R> in <domain>` spelling is rejected during source checking"), `typed-trees-to-checked-trees/src/checking/program_validation.rs` rejects bare boundary traits in value position verbatim ("the intrinsic `Service<R>` carrier is the only service value spelling"), and no `in Bound` spelling survives in `source/`, `samples/cli/`, or non-fail `tests/omega/`. The wave evidence row on ENTRY-CONTENT-ROOTS records the landing; residual legs (fused-parameter rejoin gates, receiver lifecycle spellings) are named to their own owners there, not here. Re-verified on linux x86-64 at `12ecbe98f8`: `source/library/core/service.omg:13` still declares `pub boundary data Service<R>` with the `Bound`-deleted note, `program_validation.rs` still emits the "only service value spelling" rejection, and no `in Bound` spelling survives in `source/` or `samples/cli/`.
 - **SHARED-MAPPING-REVOCATION.** Mined candidate — resolved on
   `origin/main`: re-mines the shared-custody mapping revocation surface in
   `psi/foundation/extents/src/mapping/mod.rs`, landed at `12e35ef7fdc`
