@@ -4091,6 +4091,25 @@ moved to the termination-catalog fence (see that row's refresh note).
   `.gitkeep`. **VEC-NATIVE-GROWTH** owns the unfinished container delivery;
   assigning its dependencies does not complete either customer.
 
+  Re-verified at `c924529921dd` (z108): the premise is stale — the package
+  leg landed. `source/library/alloc/` now hosts the real strategy
+  (`bump.omg`, 359 lines) and the fixture reaches it through an authored
+  `builder.depend` row (`bump_allocator_canary_consumes_the_alloc_package_
+  through_the_depend_edge` PASS, 11.9s — `Split`/`Bump`/`Issued`/`Attempt`/
+  `BumpVec`/`Recomposed`/`Growth`/`RetiredSlot` arrive via package inputs).
+  Checked coverage now spans coexisting allocations with exact counted-
+  residual accounting, `Attempt` exhaustion preserving the strategy,
+  tail-ward release, full reset, `BumpVec` grow/`RetiredSlot`/in-place
+  `shrink`, and the concrete `ResidentContentTransfer<P,T>` resident
+  route (place/read/retire) over `Granted & Vacant`; the
+  `OMEGA_FAIL_CANARY_FILTER=bump_allocator` control lane is green.
+  Remaining open: `Main::main` stays empty (checked-only — no interpreter
+  or native-host leg), growth still carries no elements (content-preserving
+  movement waits on the placed element ops), `RetiredSlot` is the finite
+  slot, and `ResidentStorage` establishment is still a pinned custody
+  shape rather than a PLAN-LAID-VIEWS evaluated-layout route. Record:
+  `wiki/drafts/bump_allocator_canary.md`.
+
   Remaining work:
 
   - Replace fixture-local split/merge assertions through
@@ -14934,6 +14953,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the disposition question (relocate the pair to their owning
   representation stage or keep them beside the sequencer) is unchanged:
   still no cross-crate caller. No independent slice exists here.
+  Re-verified at `c924529921dd` (z108): the pair still sits unrelocated
+  under `native-realization/src/`; the importer census is unchanged
+  (only `optimized_fragment_projection.rs` same-crate, plus the lib.rs
+  re-export — `backend/plans/program-entry-plan`'s `optimized_semantic_
+  wrapper` is that crate's own local module, not this one); family
+  claims POC-NATIVE-WRAPPER-RELOCATION / SEMANTIC-WRAPPER-OWNER-RELOCATION
+  are pathless and BUILD-EXCLUSION-REALIZATION fences other
+  native-realization dirs. Record:
+  `wiki/drafts/pipeline_wrapper_object_orphan.md`.
 - **PKG-INPUTS-FLOAT-IDENTITY-LANDING.** Mined candidate — scope verified,
   resolved — landed at `742a2f1d84` ("psi: evaluate and independently replay
   floating constant declarations"): public floating module constants retain
