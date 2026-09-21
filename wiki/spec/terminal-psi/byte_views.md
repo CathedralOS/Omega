@@ -146,6 +146,28 @@ literal rules; explicit signed indices cannot silently become unsigned.
 Inclusive ranges, custom range operators, mutable subslices, and projections do
 not become supported merely by constructing an unchecked descriptor.
 
+## Element-typed slice views
+
+A slice view over a non-byte element collection retains its element type and
+exact element extent. Its descriptor is a distinct vocabulary from the raw
+octet views above and supplies no byte-level access to the same backing.
+Element width is settled by the structural type, never measured from contents.
+
+Each typed-slice operation requires the same custody shape as its byte-view
+counterpart, restated in elements: a length observation yields the element
+count of the identical view; a read or write carries a checked
+`index < length` leg against that count; a subslice carries ordered proof legs
+`start <= end` and `end <= length` in element units and retains the element
+type and access of its source. Replacing one element preserves the extent and
+the untouched elements; it grants no resize, no reinterpretation as bytes,
+and no derived element views.
+
+No `OperationKind` realizes these operations yet, so an unchecked typed
+descriptor — including one produced by scaling a byte view's extent by an
+element width — admits nothing. When realized, a native consumer retains the
+element type and width through addressing; byte-count arithmetic on the
+descriptor does not substitute for element-count bounds evidence.
+
 ## Fuel and native realization
 
 Each executed length, read, write, or subslice operation costs one logical operation
