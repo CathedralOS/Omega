@@ -223,6 +223,17 @@ fn pass_roster() -> Vec<&'static str> {
 
 /// Fail fixtures pinned outside a `fixture_rosters` module: this hub is the
 /// only registration surface their planner lane authorizes.
+///
+/// Field note (overlord-3, cc4c3e0db4..3b3ba5f7ac): fixture directories on
+/// disk with no roster row anywhere — the CompleteCorpus inventory tests
+/// reject them until registered under an executing owner or removed:
+///   fail/ownership/borrowed_storage_early_return_hole
+///   fail/ownership/borrowed_storage_missing_repair_on_branch
+///   fail/ownership/borrowed_storage_repeated_extraction
+///   fail/ownership/borrowed_storage_stale_read_in_hole
+///   fail/relevance/erased_case_payload_runtime_read
+///   fail/wire/preserve_unknown_demand_unsatisfiable
+///   pass/relevance/erased_case_payload_field_exit (pass roster, below)
 const HUB_PINNED_FAIL_CANARIES: &[&str] = &["arithmetic/trapping_shift_requires_realization"];
 
 fn file_expectation_fail_roster() -> Vec<&'static str> {
