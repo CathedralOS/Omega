@@ -11920,7 +11920,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `slice_executes_at_stage` admits only `SelectedLowering`, executor-less
   selections alone compose to identity, and alongside executed ones they
   fail `UnsupportedComposition`; the executed-partition conclusion is
-  unchanged.
+  unchanged. Re-verified at `832c55e69b` (z123, linux x86-64): the census
+  is unchanged — 38 `Orphaned` rows (35 EXACT-MACHINE-SIMPLIFICATIONS + 3
+  ALIAS-AWARE-MEMORY; DECLARATIVE-PEEPHOLES names none) and the stage
+  entrance still executes only `SelectedLowering`. The implementing files
+  are now fenced by the catalog-execution leg itself: REWRITE-CATALOG-
+  ADMISSION (z134) holds `module_catalog.rs`, `selected_optimization.rs`,
+  `optimization_output.rs` and `catalog_route_tests.rs` until ~14:31Z,
+  with PIPELINE-REWRITE-CATALOG-WIRING (z182) and
+  OPTIMIZATION-CATALOG-EXECUTION-ROUTE (z126) claimed pathless to
+  ~14:48Z/~09:00Z and `rewrites/arm_relocation` under
+  REWRITE-VALIDATOR-INDEPENDENCE (z50, ~10:33Z).
 - **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
   and fenced — "placement" is the move leg of the
   `optimized_semantic_wrapper_{encoding,object}` orphan-owner question,
