@@ -1,7 +1,8 @@
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableIndexedExpression, TableRangeExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression,
+    TableRangeExpression,
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -266,6 +267,43 @@ fn literal_only_integer_value(
     }
 }
 
+fn zero_offset_reduced_expression(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    // Carried facts are keyed on an expression's own spelling, so `x + 0`,
+    // `0 + x` and `x - 0` never match the `x` bound the caller established.
+    // The literal zero cannot change the value, so reduce through it.
+    let mut node = expression;
+    loop {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(node) else {
+            return node;
+        };
+        let left_is_zero = literal_only_integer_value(program, binary.left) == Some(0);
+        let right_is_zero = literal_only_integer_value(program, binary.right) == Some(0);
+        node = match (binary.operator, left_is_zero, right_is_zero) {
+            (BinaryOperator::Add, _, true) => binary.left,
+            (BinaryOperator::Add, true, _) => binary.right,
+            (BinaryOperator::Subtract, _, true) => binary.left,
+            _ => return node,
+        };
+    }
+}
+
+fn zero_offset_reduced_range(
+    program: &typed_trees::TypedTrees,
+    range: &TableRangeExpression,
+) -> TableRangeExpression {
+    let mut reduced = *range;
+    if reduced.start.is_valid() {
+        reduced.start = zero_offset_reduced_expression(program, range.start);
+    }
+    if reduced.end.is_valid() {
+        reduced.end = zero_offset_reduced_expression(program, range.end);
+    }
+    reduced
+}
+
 fn index_is_computed(program: &typed_trees::TypedTrees, index: ExpressionHandle) -> bool {
     let mut node = index;
     loop {
@@ -443,7 +481,10 @@ fn check_unknown_length_slice_index(
 ) -> bool {
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => {
-            if unknown_length_range_is_proven(program, machine, state, facts, collection, range) {
+            let reduced = zero_offset_reduced_range(program, range);
+            if unknown_length_range_is_proven(
+                program, machine, state, facts, collection, &reduced,
+            ) {
                 return true;
             }
             let failure =
@@ -488,8 +529,9 @@ fn check_symbolic_extent_index(
 ) -> bool {
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => {
+            let reduced = zero_offset_reduced_range(program, range);
             if symbolic_extent_range_is_proven(
-                program, machine, state, facts, collection, range, &extent,
+                program, machine, state, facts, collection, &reduced, &extent,
             ) {
                 return true;
             }
@@ -558,20 +600,21 @@ fn check_known_length_range_index(
     attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let Some((start, end)) = provable_range_bounds(program, facts, range) else {
+    let reduced = zero_offset_reduced_range(program, range);
+    let Some((start, end)) = provable_range_bounds(program, facts, &reduced) else {
         // The bounds do not fold to constants, but a symbolic bound may still
         // be a carried fact (e.g. a `requires self.length <= self.items.len`
         // window over a fixed array). The unknown-length fact lane proves
         // exactly that vocabulary (range bounds / index facts are recorded
         // independent of the collection's concrete extent), so fall back to it
         // before reporting a failure.
-        if unknown_length_range_is_proven(program, machine, state, facts, collection, range) {
+        if unknown_length_range_is_proven(program, machine, state, facts, collection, &reduced) {
             return true;
         }
         // Numeric index bounds also establish a runtime start, end, or tail
         // against a known extent. Ordering and endpoint non-negativity remain
         // separate obligations; sharing an upper limit alone is not enough.
-        if known_ranges::prove(program, machine, state, facts, range, length) {
+        if known_ranges::prove(program, machine, state, facts, &reduced, length) {
             return true;
         }
         let failure = known_length_range_value_failure(program, facts, range);
