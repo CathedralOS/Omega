@@ -397,7 +397,7 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 103 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 104 + `u16` vocabulary
 marker 107 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
@@ -1470,7 +1470,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 103 | yes |
+| semantic module | `PSITERM\0` | 104 | yes |
 | proof bundle | `PSIPRF\0\0` | 33 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

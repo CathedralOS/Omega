@@ -88,25 +88,42 @@ pub enum AsmCacheOperationKind {
     /// serializes the instruction stream. Ring-0 privileged; it carries no
     /// operand because its subject is the cache hierarchy, not a place.
     WriteBackInvalidate,
+    /// x86_64 `invd`: invalidates all internal caches WITHOUT writing back
+    /// modified lines — cached writes are dropped rather than committed.
+    /// Serializing and ring-0 privileged; zero operands for the same reason
+    /// `wbinvd` carries none.
+    Invalidate,
+    /// x86_64 `wbnoinvd`: writes back modified lines to memory but leaves
+    /// them valid in the caches. Serializing and ring-0 privileged, zero
+    /// operands.
+    WriteBackNoInvalidate,
 }
 
 impl AsmCacheOperationKind {
     pub const fn mnemonic(self) -> &'static str {
         match self {
             Self::WriteBackInvalidate => "wbinvd",
+            Self::Invalidate => "invd",
+            Self::WriteBackNoInvalidate => "wbnoinvd",
         }
     }
 
     pub const fn intrinsic_name(self) -> &'static str {
         match self {
             Self::WriteBackInvalidate => "asm#wbinvd",
+            Self::Invalidate => "asm#invd",
+            Self::WriteBackNoInvalidate => "asm#wbnoinvd",
         }
     }
 
     pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::WriteBackInvalidate]
-            .into_iter()
-            .find(|kind| kind.intrinsic_name() == name)
+        [
+            Self::WriteBackInvalidate,
+            Self::Invalidate,
+            Self::WriteBackNoInvalidate,
+        ]
+        .into_iter()
+        .find(|kind| kind.intrinsic_name() == name)
     }
 }
 
@@ -117,6 +134,10 @@ pub enum AsmSchedulingHintKind {
     SpinPause,
     /// AArch64 `yield`: scheduling hint; the core may deschedule this thread.
     Yield,
+    /// `nop` on both supported ISAs: a pipeline no-op the core may elide; it
+    /// occupies an instruction slot without changing program semantics or
+    /// machine-state obligations.
+    Nop,
 }
 
 impl AsmSchedulingHintKind {
@@ -124,6 +145,7 @@ impl AsmSchedulingHintKind {
         match self {
             Self::SpinPause => "pause",
             Self::Yield => "yield",
+            Self::Nop => "nop",
         }
     }
 
@@ -131,11 +153,12 @@ impl AsmSchedulingHintKind {
         match self {
             Self::SpinPause => "asm#pause",
             Self::Yield => "asm#yield",
+            Self::Nop => "asm#nop",
         }
     }
 
     pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::SpinPause, Self::Yield]
+        [Self::SpinPause, Self::Yield, Self::Nop]
             .into_iter()
             .find(|kind| kind.intrinsic_name() == name)
     }
@@ -536,7 +559,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         RestoreFromOperand as RestoreInterruptFlag,
     };
     use AsmMemoryOrdering::{Fence, None as NoOrdering};
-    use AsmSchedulingHintKind::{SpinPause, Yield};
+    use AsmSchedulingHintKind::{Nop, SpinPause, Yield};
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
 
     if let Some(register) = AsmControlRegister::from_read_mnemonic(mnemonic) {
@@ -772,12 +795,46 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
-        // Cache maintenance writes back and invalidates the machine's caches
-        // rather than touching a modeled place: a serializing, machine-owner
-        // operation whose operand list and clobber list are both empty.
+        "nop" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(Nop),
+            target: Any,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        // Cache maintenance acts on the machine's own caches rather than a
+        // modeled place: serializing, machine-owner operations whose operand
+        // list and clobber list are both empty. `invd` drops modified lines
+        // without writeback; `wbnoinvd` writes back without invalidating.
         "wbinvd" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: CacheOperation(AsmCacheOperationKind::WriteBackInvalidate),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "invd" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: CacheOperation(AsmCacheOperationKind::Invalidate),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "wbnoinvd" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: CacheOperation(AsmCacheOperationKind::WriteBackNoInvalidate),
             target: X86_64,
             required_authority: MachineOwner,
             operands: NO_OPERANDS,

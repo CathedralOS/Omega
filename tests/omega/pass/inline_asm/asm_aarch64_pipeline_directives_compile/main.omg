@@ -1,12 +1,13 @@
-// COMPILE CANARY: the AArch64 pipeline-directive pair isb/yield carries the
-// same zero-operand, authority-free contract shape as its x86 counterparts;
-// target applicability remains catalog metadata while the check surface is
-// targetless.
+// COMPILE CANARY: the AArch64 pipeline-directive pair isb/yield plus the
+// ISA-neutral nop carry the same zero-operand, authority-free contract shape
+// as the x86 counterparts; target applicability remains catalog metadata
+// while the check surface is targetless.
 data Main {}
 
 machine Main::main(&mut self) {
     asm where clobbers none {
         isb;
-        yield
+        yield;
+        nop
     }
 }

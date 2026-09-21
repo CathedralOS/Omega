@@ -60,6 +60,25 @@ reaps it automatically. Recovery removes someone else's claim early and
 requires a reason after checking with its owner; owner labels identify peers
 but are not authentication.
 
+## Evidence notes
+
+```text
+python tools/claims.py note --ticket <ticket> --text "<finding>"
+python tools/claims.py notes
+python tools/claims.py sweep
+```
+
+Workers attach durable evidence to a live claim instead of committing board
+files: `note` records `text` (1–2000 characters) under the claim's ticket,
+item, and owner, and requires a live claim. Notes survive claim release, so a
+finding like "already resolved upstream, verified at `<sha>`" reaches the
+coordinator without a board-only commit on `main`. `notes` lists pending
+(unswept) entries; `status` reports their count as `notes_pending`. The
+coordinator reads them at drain, writes the board updates they justify in its
+own sweep commit, then marks them consumed with `sweep`. Swept notes stay in
+the record for audit, bounded to the most recent hundred; the ledger is not a
+second task board — it carries findings, not assignments.
+
 ## Consistency model
 
 Every mutation commits the whole document as an empty-tree commit child and

@@ -414,6 +414,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
             scalar_evidence_is_crash_lane_lowerable(operand)
         }
@@ -435,7 +436,8 @@ fn boolean_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedBooleanExpression;
     match expression {
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_evidence_is_crash_lane_lowerable(left)
                 && scalar_evidence_is_crash_lane_lowerable(right)
         }
@@ -624,6 +626,17 @@ pub(crate) fn substitute_checked_boolean_expression(
                 )?),
             }
         }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            CheckedBooleanExpression::ScalarIeeeFloatComparison {
+                kind: *kind,
+                left: Box::new(substitute_checked_scalar_expression(
+                    left, arguments, fields,
+                )?),
+                right: Box::new(substitute_checked_scalar_expression(
+                    right, arguments, fields,
+                )?),
+            }
+        }
         CheckedBooleanExpression::And { left, right } => CheckedBooleanExpression::And {
             left: Box::new(substitute_checked_boolean_expression(
                 left, arguments, fields,
@@ -684,6 +697,7 @@ fn substitute_checked_scalar_expression(
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         // A standalone integer field leaf is the same frozen structural leaf
         // the Boolean channel carries: the callee position binds the actual's

@@ -62,6 +62,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `stage_validated_optimized_program_storage_semantic_wrapper_object` have no
     caller outside their own tests. Move the live part to its backend or
     representation owner, or delete it.
+    Disposition verified at `25709a6870`: the two modules are one coupled
+    chain — the encode stage's product is a typed parameter of the object
+    stage's entrance (`stage_..._object(settlement, object, encoding)`) and
+    its only non-test consumer — so the encoding leg cannot be deleted or
+    moved independently. Neither end of the chain is wired:
+    `plan_optimized_program_storage_semantic_wrapper` has no production
+    caller and `StagedValidatedOptimizedProgramStorageSemanticWrapperObject`
+    has no emission or installation consumer (`native_pipeline/report.rs`
+    still reports "wrapper bytes: unavailable"). The coupled disposition —
+    wiring the chain into the entry-realization route or joint removal —
+    is claimed this wave under OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION;
+    the surface stays off the locally-schedulable list until it settles.
   - Audit the remaining stage and coordinator crates the same way: a public
     stage entrance that no coordinator or successor stage calls is an orphan
     output.
@@ -76,6 +88,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   a logical plan without using it for the physical transformation is also an
   unfinished join. Reuse the stage ownership and catalogs described in
   [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay).
+
+  Wave ownership at `54e321bdf0` (re-check `tools/claims.py status` before
+  scheduling a leg): rewrites under PIPELINE-REWRITE-CATALOG-WIRING +
+  SELECTED-REWRITE-CATALOG-ROUTE/-WIRING (allocation_recovery slice under
+  DURABLE-CODEC-EXTRACTION); `unsequenced_spill_stages/` under
+  POC-SPILL-FAMILY-SEQUENCING with UNSEQUENCED-SPILL-STAGE-TRIAGE and
+  UNSEQUENCED-SPILL-DISPOSITION; the wrapper disposition under
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION / SEMANTIC-WRAPPER-OWNER-RESOLUTION
+  (`native-realization` additionally under OPAQUE-BY-VALUE-BOUNDARY-ABI);
+  the audit bullet is executed — STAGE-ENTRANCE-ORPHAN-AUDIT's sweep landed
+  `280c4a83b6` and its findings route to the legs above.
 
 - **REPRESENTATION-OWNERSHIP.** Finish
   `omega-rust/{omega,psi}/representations/` under
@@ -196,23 +219,37 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `IntegerLessThan`, `IntegerLessOrEqual`), whose instruction-only
     operations take `DirectInstructionBytes` over their
     provenance-attributed byte interval when the realization carries a
-    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
-    descriptor or parameter ordinals rather than a static callee, and
-    the remaining intrinsic kinds have no span arm. Verified
-    (w9, `fcef01c59a`): those operations do not produce coverage
-    occurrences at all yet — the checked boundary-operator replay
-    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
-    admits only IEEE FMA, structural returns, and float/integer
-    comparisons — so the first work is a new occurrence replay family
-    with demand/realization companions; only then do span arms join the
-    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
-    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
-    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
-    Descriptor-materializing records additionally need relocation custody
-    beyond the single window `derive_span` models (AArch64 table
-    addressing emits two windows) plus a conformance-table symbol join;
-    parameter-routed calls are register-indirect. `physical/` is fenced
-    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Regressions:
+    `PrimitiveIntegerComparison` execution. Landed (w9, `95019d341a9`):
+    `CallDynamic*` kinds now carry occurrences and children — physical
+    derivation enumerates every surviving `CallDynamicScalar`,
+    `CallDynamicParameterScalar`, `CallDynamicUnit`, and
+    `CallDynamicParameterUnit` Terminal operation as a `DynamicCall`
+    occurrence, each binding exactly one child under
+    `PhysicalChildParent::DynamicCallDispatch` (the exact dispatch catalog
+    row the operation names), and `derive_dynamic_call_span` joins all
+    five emitted record families — `dynamic_calls`,
+    `stored_dynamic_calls`, and `dynamic_parameter_calls` take
+    `DirectInstructionBytes` over the register-indirect interval
+    (rejecting empty or relocated spans) while
+    `forwarded_dynamic_parameter_calls` and
+    `forwarded_dynamic_descriptor_calls` require exactly one Text
+    relocation plus an exact callee join for `ResolvedInternalCall`.
+    Witness `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`.
+    Remaining intrinsic kinds still produce no occurrences, so their
+    span arms have no demand side — the occurrence replay for them is
+    TV-OPERATOR-APPLICATIONS-REPLAY's scope. Descriptor-materializing
+    records additionally need relocation custody beyond the single
+    window `derive_span` models (AArch64 table addressing emits two
+    windows) plus a conformance-table symbol join; that surface in
+    `physical/` is fenced by PHYSICAL-ACCESS-PROFILES this wave.
+    Measured (w9, `577d6ac2ba`): no end-to-end `physical_child_replay`
+    leg for the dynamic family is reachable yet — dynamic-call programs
+    are red before the physical stage on this host
+    (`runtime_local_named_dyn_unit_multi_hop_return` rejects
+    `CallUnitWithDynamicArguments` under Selection/Legalization; the
+    rebound and stored shapes hit the `ProgramEntry establishment
+    rejoins 0 Terminal attachment identities` family), so the family's
+    e2e replay leg waits on those upstream gaps. Regressions:
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection;
@@ -456,9 +493,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
     existing slot only for the zero-offset `Store64` or
     `FrameAddress`-plus-`Load64` idiom when a last-writer replay proves the
-    windows cannot interleave. Interval-based coloring exists only as
-    `unsequenced_spill_stages/stack_slot_coloring`, which
-    `stage_register_allocation` never calls.
+    windows cannot interleave. Interval-based coloring is sequenced as
+    `assignment/stack_slot_coloring`: `stage_register_allocation`'s
+    runtime-spill recovery colors its retained logical-operation plan and
+    replays the coloring, but emission still consumes only the per-step
+    `LocalStorageSlotId` homes — the colored plan is validated evidence, not
+    yet a physical input.
   - Composition (`src/register_allocation.rs`). A completed selected-lowering
     run takes `assignment::transformed` homes and surfaces pressure as
     `TransformedHomes`; it never enters `assignment::runtime_spill`. A
@@ -492,10 +532,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Flag: the remaining `unsequenced_spill_stages/` families have test,
   architecture and non-authoritative frame-planning consumers, not an
   executable allocation route. Logical planning has moved out but still needs
-  the physical join above. Slot reuse still has two owners:
-  `unsequenced_spill_stages/stack_slot_coloring` and `runtime_spill/slot.rs`.
-  Follow consumers when sequencing a needed family or deleting a superseded
-  one with its exports and tests; do not extend both implementations.
+  the physical join above. Slot reuse still has two producers:
+  `assignment/stack_slot_coloring` (sequenced, retained evidence) and
+  `runtime_spill/slot.rs` (drives the emitted slot sharing). Follow consumers
+  when sequencing a needed family or deleting a superseded one with its
+  exports and tests; do not extend both implementations.
 
 - **ALLOCATION-REFINEMENT.** Add general live-range splitting to
   [register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)

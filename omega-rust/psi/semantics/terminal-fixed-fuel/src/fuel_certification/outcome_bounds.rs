@@ -1,6 +1,6 @@
 //! Outcome-sensitive machine and control-flow composition.
 
-use crate::FixedFuelError;
+use crate::{FixedFuelError, UnboundedCycleCause};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, IntegerValue, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
@@ -546,6 +546,27 @@ pub(super) fn block_visit_units(
     Ok(units)
 }
 
+/// Directed absence-of-bound report for the cyclic component an acyclic
+/// traversal re-entered: the verifier-derived component containing `hit`,
+/// identified by its internal edge topology, with `Unranked` as the cause —
+/// a ranked component bounds through the condensed graph and never reaches
+/// this report. A machine whose graph fails basic verification has no
+/// component derivation to cite and keeps the plain traversal marker.
+pub(super) fn unbounded_cycle_report(machine: &TerminalMachine, hit: BlockId) -> FixedFuelError {
+    terminal_verifier::control_cycle_members(machine)
+        .ok()
+        .and_then(|components| {
+            components
+                .into_iter()
+                .find(|members| members.contains(&hit))
+        })
+        .map(|members| FixedFuelError::UnboundedCycleComponent {
+            component: terminal_verifier::cyclic_component_identity(machine, &members),
+            cause: UnboundedCycleCause::Unranked,
+        })
+        .unwrap_or(FixedFuelError::ControlCycle(hit))
+}
+
 pub(super) fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
     match terminator {
         Terminator::Jump { target, .. } => vec![*target],
@@ -607,7 +628,11 @@ fn outcome_bounds_from(
         return Ok(*bounds);
     }
     if !active.insert(current) {
-        return Err(FixedFuelError::ControlCycle(current));
+        return Err(machines
+            .get(&machine)
+            .copied()
+            .map(|semantics| unbounded_cycle_report(semantics, current))
+            .unwrap_or(FixedFuelError::ControlCycle(current)));
     }
     let block = blocks
         .get(&current)

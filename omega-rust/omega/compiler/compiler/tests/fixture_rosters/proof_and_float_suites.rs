@@ -161,6 +161,8 @@ pub const FLOAT_FLOAT_TRAPPING_PROPAGATED_INFINITY_TRAPS: &str =
 pub const FLOAT_EXCLUSIVE_RANGE_BELOW_ENDPOINT: &str = "float/exclusive_float_range_below_endpoint";
 pub const FLOAT_EXCLUSIVE_RANGE_ENDPOINT_REJECTED: &str =
     "float/exclusive_float_range_endpoint_rejected";
+pub const PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED: &str =
+    "proofs/quotient_lift_unproved_termination_rejected";
 
 pub const PASS_CANARIES: &[&str] = &[
     WIRE_DECODE_REQUIREMENT_SURFACE,
@@ -205,6 +207,7 @@ pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     PROOFS_ACCUMULATOR_GUARANTEE_WRONG_STEP_TWIN,
     PROOFS_ACCUMULATOR_GUARANTEE_UNESTABLISHED_TWIN,
     PROOFS_ACCUMULATOR_GUARANTEE_UNBOUNDED_FORMALS,
+    PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED,
 ];
 
 pub const FAIL_CANARIES: &[&str] = &[
@@ -323,4 +326,28 @@ pub const FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES: &[&str] = &[
     FLOAT_FLOAT_TRAPPING_INVALID_TRAPS,
     FLOAT_FLOAT_TRAPPING_PROPAGATED_NAN_TRAPS,
     FLOAT_FLOAT_TRAPPING_PROPAGATED_INFINITY_TRAPS,
+];
+
+/// Fail canaries whose refusal lives in the production stages behind checked
+/// semantics (`checked-trees-to-lowered-psi` and its consumers). They need
+/// the Terminal-artifact route -- a `Check` stop never reaches the lowering
+/// wall, and Terminal production exercises the fence without entering native
+/// realization -- but bind a non-native `ProgramEntry`, so they carry an
+/// explicit target like `CROSS_TARGET_FAIL_CANARIES`.
+pub const CROSS_TARGET_PRODUCTION_FAIL_CANARIES: &[(&str, &str)] = &[
+    // Checked `let`/`boundary let` declarations reach the lowering consumer;
+    // production refuses because no Terminal evidence encoding carries them
+    // yet. The fixture binds only `linux_x86_64::ProgramEntry`.
+    (
+        "proofs/mathematical_declaration_lowering_rejected",
+        "linux_x86_64",
+    ),
+    // Checked semantics admits the conditional claim join as evidence;
+    // `checked-trees-to-lowered-psi` refuses it pending Terminal
+    // exit-alternative correspondence. The fixture binds only
+    // `linux_x86_64::ProgramEntry`.
+    (
+        "ownership/linear_ambiguous_state_result_mapping",
+        "linux_x86_64",
+    ),
 ];

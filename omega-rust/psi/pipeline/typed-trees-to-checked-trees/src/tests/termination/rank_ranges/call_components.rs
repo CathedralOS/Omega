@@ -315,7 +315,10 @@ fn endpoint_mutation_invalidates_range_premises_but_disjoint_stores_do_not() {
 fn prefix_let_call_bindings_keep_the_call_frame_bar() {
     // A `let` bound to a checked-body call keeps the statement-call bar: the
     // fresh local cannot name a premise carrier, so the initializer's
-    // complete write frame must still miss every protected carrier.
+    // complete write frame must still miss every protected carrier. The bar
+    // covers the whole initializer tree -- a nested call argument and a
+    // builtin-composed initializer each name only checked-body callees with
+    // pure subterms, so the aggregate frame still sees every call's writes.
     let helpers = "machine Main::recall(&self, value: u64) -> u64 {
     transition { _ -> value }
 }
@@ -329,13 +332,21 @@ machine Main::bump(&mut self, slot: &mut u64) -> u64 {
         "    transition remaining > floor",
         "    let seen: u64 = self.recall(remaining);\n    transition remaining > floor",
     ));
-    reject(&bound.replace(
+    prove(&bound.replace(
         "    transition remaining > floor",
         "    let seen: u64 = self.recall(self.recall(remaining));\n    transition remaining > floor",
     ));
-    reject(&bound.replace(
+    prove(&bound.replace(
         "    transition remaining > floor",
         "    let seen: u64 = self.recall(remaining) + 0;\n    transition remaining > floor",
+    ));
+    // A bodyless boundary callee still refuses: its signature state has an
+    // empty body summary that would claim an exclusive argument write never
+    // happened.
+    let boundary = format!("boundary machine observe(value: u64) -> u64;\n{helpers}{PAIR}");
+    reject(&boundary.replace(
+        "    transition remaining > floor",
+        "    let seen: u64 = observe(remaining);\n    transition remaining > floor",
     ));
     reject(
         &bound

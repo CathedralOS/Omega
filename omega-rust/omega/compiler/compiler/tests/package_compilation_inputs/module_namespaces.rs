@@ -730,3 +730,36 @@ fn selected_program_entry_dispatches_by_exact_symbol_not_spelling() {
         "the bound dependency machine runs, not its same-named root twin"
     );
 }
+
+// The bundled toolchain claims the `omega::language::core` namespace: a
+// requester-local source at the same path can never be reached by the
+// import, so the package-reconciled route names the collision instead of
+// silently shadowing it. The standalone-tree arm of this rule is pinned by
+// the `modules/bundled_core_name_collision_rejected` corpus canary.
+#[test]
+fn bundled_core_import_colliding_with_requester_source_rejects() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        "use omega::language::core::marker; machine score() -> u64 { 7 }",
+    );
+    let colliding_module_dir = root.join("omega/language/core");
+    std::fs::create_dir_all(&colliding_module_dir)
+        .expect("create requester-local bundled-core module directory");
+    TempTree::write(colliding_module_dir.join("marker.omg"), "data Marker {}");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a requester-local source must not shadow the bundled core namespace");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("collides with a requester-local source below"),
+        "missing bundled-core collision diagnostic:\n{combined}"
+    );
+}

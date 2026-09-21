@@ -39,6 +39,18 @@ boundary trait Writer {
         result in Buffer::Owned;
 }
 
+machine round_trip(
+    writer: &Writer,
+    buffer: Buffer in Buffer::Owned
+) -> Buffer
+reaches Writer
+ensures
+    result in Buffer::Owned
+{
+    let pending: PendingWrite in PendingWrite::Retained = writer.submit(buffer);
+    writer.complete(pending)
+}
+
 data Main {}
 
 machine Main::main(&mut self) {}

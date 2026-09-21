@@ -1238,7 +1238,7 @@ fn selected_case_is(
         return None;
     }
     let mut subject = place.clone();
-    subject.extend_segments(&segments.to_vec());
+    subject.extend_segments(segments);
     Some(crate::flow::place_case_has_value(
         program,
         &facts.semantic,

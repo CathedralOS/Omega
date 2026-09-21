@@ -184,7 +184,12 @@ drain handles. Cloud-sibling sessions are different: archive finished ones via
 `devin_session_interact archive` (see the cloud-swarm skill).
 
 When the user says wrap up: stop backfilling, let running agents finish, then
-sweep — release remaining claim tickets, WIP-commit any dirty worktree worth
+sweep — collect pending worker evidence first (`python3 tools/claims.py
+notes`; workers attach findings to their claim tickets instead of committing
+board files, and `landing.py` refuses their board-only or empty publishes),
+fold what the notes justify into one board sweep commit landed with
+`--board-update`, then `python3 tools/claims.py sweep` marks them consumed —
+release remaining claim tickets, WIP-commit any dirty worktree worth
 keeping (never delete one with uncommitted work), record each parked WIP
 branch and its covered slice as a compact resume line in the item's board
 evidence when the item stays open (replacing the frontier it supersedes, not

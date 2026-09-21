@@ -1,14 +1,14 @@
 //! Structural type, shape, claim, and return-custody helpers.
 use super::{
-    BTreeMap, BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner, DataMember,
-    DataShapeKind, ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, PrimitiveType, ProofFact, SemanticDomainId,
-    SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
+    BTreeMap, BTreeSet, CheckFacts, CheckedBoundaryMachineResultPlan, CheckedStructuralAccess,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    PrimitiveType, ProofFact, SemanticDomainId, SignatureContractKind, StateParameter,
+    SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 use checked_trees::{
     CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
@@ -102,6 +102,8 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
@@ -299,11 +301,16 @@ pub(super) fn checked_structural_signature_contract_supported(
 }
 
 /// A static boundary requirement may carry the implicit membership contracts
-/// induced by qualified parameter types, but no independently authored proof
-/// contract in this Terminal slice. Reconstruct the exact pair set from both
-/// surfaces so an omitted or extra membership cannot be hidden by lowering.
+/// induced by qualified parameter types, plus authored `ensures result in
+/// <domain>` clauses whose every fact carries the established qualification
+/// authorization (`boundary_qualification_authorization` — a domain
+/// BoundaryRequirement route or carry permission pinned to this signature),
+/// but no other independently authored proof contract in this Terminal slice.
+/// Reconstruct the exact pair set from both surfaces so an omitted or extra
+/// membership cannot be hidden by lowering.
 pub(super) fn signature_contracts_are_exact_parameter_qualifications(
     program: &TypedTrees,
+    owner_symbol: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
 ) -> bool {
     let parameters = program.state_signature_parameters(signature);
@@ -375,6 +382,36 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
             continue;
         }
         if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
+            // The one independently authored clause this slice admits is
+            // `ensures result in <domain>`: the domain must already
+            // authorize this signature through a BoundaryRequirement
+            // establishment route or a carry permission, which is exactly
+            // what the qualification-authorization evidence on the checked
+            // fact replays.
+            let authorized_ensures = contract.kind == SignatureContractKind::Ensures
+                && contract.facts.count() > 0
+                && (0..contract.facts.count()).all(|offset| {
+                    let fact = arena::Handle::from_parts(
+                        contract
+                            .facts
+                            .start()
+                            .arena_index()
+                            .checked_add(offset)
+                            .expect("proof fact handle index overflow"),
+                        contract.facts.start().generation(),
+                    );
+                    crate::facts::qualification_evidence::boundary_qualification_authorization(
+                        program,
+                        owner_symbol,
+                        signature,
+                        contract.kind.clone(),
+                        fact,
+                    )
+                    .is_some()
+                });
+            if authorized_ensures {
+                continue;
+            }
             return false;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -557,6 +594,88 @@ pub(super) fn parameter_qualifications(
     output.sort_by_key(|domain| domain.0);
     output.dedup();
     Some(output)
+}
+
+/// Fold the domains an authorized `ensures result in <domain>` clause pins on
+/// a boundary requirement into the result's structural qualifications. The
+/// clause only counts when its fact replays the established qualification
+/// authorization (a `BoundaryRequirement` establishment route or carry
+/// permission naming this requirement); anything else was already refused by
+/// the exact-qualification gate above. A scalar or unit result cannot carry a
+/// structural domain qualification, so folding onto one refuses the plan
+/// rather than silently dropping the authored custody.
+pub(super) fn fold_authorized_result_domains(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    owner_symbol: SymbolHandle,
+    signature: &typed_trees::signature::StateSignature,
+    result_type: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    result: CheckedBoundaryMachineResultPlan,
+) -> Option<CheckedBoundaryMachineResultPlan> {
+    let mut authorized = Vec::new();
+    for contract in program.state_signature_contracts(signature) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for offset in 0..contract.facts.count() {
+            let fact = arena::Handle::from_parts(
+                contract
+                    .facts
+                    .start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("proof fact handle index overflow"),
+                contract.facts.start().generation(),
+            );
+            if crate::facts::qualification_evidence::boundary_qualification_authorization(
+                program,
+                owner_symbol,
+                signature,
+                contract.kind.clone(),
+                fact,
+            )
+            .is_none()
+            {
+                continue;
+            }
+            let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
+                continue;
+            };
+            let Some(domain) = crate::facts::qualification_evidence::domain_definition(
+                program,
+                membership.domain_symbol,
+            ) else {
+                continue;
+            };
+            authorized.push(domain.semantic_id);
+        }
+    }
+    authorized.sort_by_key(|domain| domain.0);
+    authorized.dedup();
+    if authorized.is_empty() {
+        return Some(result);
+    }
+    let CheckedBoundaryMachineResultPlan::Structural {
+        type_identity,
+        multiplicity,
+        mut qualifications,
+    } = result
+    else {
+        return None;
+    };
+    for domain in authorized {
+        shapes.add_domain(domain, result_type, binders)?;
+        if !qualifications.contains(&domain) {
+            qualifications.push(domain);
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    Some(CheckedBoundaryMachineResultPlan::Structural {
+        type_identity,
+        multiplicity,
+        qualifications,
+    })
 }
 
 /// Collect domain constraints below a structural root without treating them
@@ -888,6 +1007,27 @@ pub(super) fn shared_plain_affine_referent(
         return None;
     };
     (program.type_multiplicity(*referee) == Multiplicity::Affine
+        && has_plain_owned_contents(program, *referee))
+    .then_some(*referee)
+}
+
+/// Exclusive references to this existing whole non-linear carrier do not own
+/// or qualify the referent either: the boundary writes back through them as an
+/// out-parameter, and custody of the referent stays with the caller. Linear
+/// referents, nested references, and constrained carriers stay out.
+pub(super) fn mutable_plain_nonlinear_referent(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Mutable,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) != Multiplicity::Linear
         && has_plain_owned_contents(program, *referee))
     .then_some(*referee)
 }

@@ -3,8 +3,9 @@ use crate::{
     ACTIVE_FAIL_CANARIES, CANARY_UMBRELLA_LOCK, CHECKED_ONLY_FAIL_CANARIES,
     CROSS_TARGET_FAIL_CANARIES, Command, check_canary, compile_canary_without_output,
     compile_canary_without_output_for_target, compile_native_canary_without_output,
-    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, executable_name,
-    fail_canary, fs, pass_canary, run_bounded_canary_jobs,
+    compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_terminal_canary_without_output_for_target, executable_name, fail_canary, fs,
+    pass_canary, run_bounded_canary_jobs,
 };
 use compiler::CheckedCompileRequest;
 
@@ -105,12 +106,22 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
         let result = if checked_only {
             check_canary(&canary).map(|()| "checked semantics".to_owned())
         } else {
+            // Production-route entries refuse behind checked semantics, so a
+            // Check stop would admit them; they take the Terminal-artifact
+            // route at their bound target first, which reaches the lowering
+            // wall without entering native realization.
+            let production_cross_target = fixture_roster::CROSS_TARGET_PRODUCTION_FAIL_CANARIES
+                .iter()
+                .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
             let cross_target = CROSS_TARGET_FAIL_CANARIES
                 .iter()
                 .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
-            match cross_target {
-                Some(target) => compile_canary_without_output_for_target(&canary, target),
-                None => compile_native_canary_without_output(&canary),
+            match (production_cross_target, cross_target) {
+                (Some(target), _) => {
+                    compile_terminal_canary_without_output_for_target(&canary, target)
+                }
+                (None, Some(target)) => compile_canary_without_output_for_target(&canary, target),
+                (None, None) => compile_native_canary_without_output(&canary),
             }
             .map(|report| report.summary())
         };
@@ -656,4 +667,31 @@ fn dependent_embed_self_field_view_canary() {
                 .join("\n")
         )
     });
+}
+
+#[test]
+fn quotient_lift_rejects_a_representative_with_progress_conditional_termination() {
+    // Managed quotient admission asks the checked termination oracle for an
+    // unconditional answer on the representative and every selected theorem.
+    // The representative here stays pure but terminates only under the
+    // `Fuel::Rank` progress premise its callers must supply, so the proof-only
+    // bridge refuses the batch at the termination fence rather than admitting
+    // an executable lift.
+    let canary = fail_canary(fixture_roster::PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED);
+    let expected = fs::read_to_string(canary.join("expected.txt"))
+        .expect("quotient lift rejection pin should carry expected.txt");
+    let diagnostics = check_canary(&canary)
+        .expect_err("a progress-conditional representative must not be lifted");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "{} missing expected fragment {:?}:\n{}",
+        canary.display(),
+        expected.trim(),
+        combined
+    );
 }

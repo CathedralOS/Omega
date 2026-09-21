@@ -1230,13 +1230,12 @@ mod tests {
     }
 
     /// The guide canary's body (`pass/ownership/move_keyword_field_assignment`)
-    /// checks but reaches no plan family: the checked stage omits it at local
-    /// construction and records no structural value root for the move, so
-    /// nothing routes to the emitter above. This pins that frontier; when a
-    /// checked Unit plan row for the move-out/restore pair lands, this test
-    /// flips and the plan consumer must call `BorrowedWindowLedger`.
+    /// plans as a borrowed-window pair: the checked move-out/restore rows route
+    /// through `BorrowedWindowLedger`, the emitted machine carries the Move and
+    /// Store operation pair, and independent module verification accepts the
+    /// closure.
     #[test]
-    fn the_guide_canary_body_has_no_checked_unit_plan_to_route_here_yet() {
+    fn the_guide_canary_body_routes_move_out_and_restore_through_the_ledger() {
         let source = r#"
             data Inventory {
                 slots: i32;
@@ -1268,31 +1267,43 @@ mod tests {
             .iter()
             .find(|machine| machine.name.as_str().ends_with("main"))
             .expect("Main::main");
-        let state = checked
-            .machine_states(machine)
-            .first()
-            .expect("state")
-            .symbol;
         let plans = &checked.facts.flow.terminal_unit_effects;
-        assert!(plans.for_machine(machine.symbol).is_none());
-        assert!(plans.composed_for_machine(machine.symbol).is_none());
-        assert!(matches!(
-            plans
-                .omission_for_machine(machine.symbol)
-                .map(|row| row.stage),
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { .. })
-        ));
+        let plan = plans
+            .for_machine(machine.symbol)
+            .expect("the move-out/restore pair plans");
+        assert!(plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            )
+        }));
+        assert!(plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            )
+        }));
+        let lowered =
+            crate::lower_machine(&checked, "Main::main").expect("lowers through the ledger");
+        let emitted_kinds: Vec<&OperationKind> = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|terminal| &terminal.blocks)
+            .flat_map(|block| &block.operations)
+            .map(|operation| &operation.kind)
+            .collect();
         assert!(
-            checked
-                .facts
-                .values
-                .structural_values
-                .root_at(state, 0)
-                .is_none()
+            emitted_kinds
+                .iter()
+                .any(|kind| { matches!(kind, OperationKind::MoveStructuralField { .. }) })
         );
-        assert!(matches!(
-            crate::lower_machine(&checked, "Main::main").unwrap_err(),
-            LoweringError::InvalidUnitMachinePlan { .. }
-        ));
+        assert!(
+            emitted_kinds
+                .iter()
+                .any(|kind| { matches!(kind, OperationKind::StoreStructuralField { .. }) })
+        );
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("the emitted module verifies");
     }
 }
