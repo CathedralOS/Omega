@@ -4634,6 +4634,20 @@ moved to the termination-catalog fence (see that row's refresh note).
   Trait conformance selection, target-default or overridden float provider
   execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
   evaluation keep their separate supply routes.
+- **NEW-ENTRY-RECEIVER-ELIGIBILITY-REJECTION-WITNESS.** Resolved —
+  minted name for a rejection-witness pin over `terminal-production`'s
+  `receiver_eligibility::derive`; the surface already carries it.
+  Verified at `90df29812c` on linux x86-64: the module's 16-test
+  `#[cfg(test)] mod tests` (:527) witnesses every rejection family —
+  free entry with no `self` receiver, `&self`/by-value non-exclusive
+  accesses, domain-predicate and zero-validity failures across
+  record/array/sum/byte carriers, retained-vs-erased projection
+  corruption, entry attachment cleared, structural-identity mismatch,
+  duplicate structural-type declarations, erased fields with
+  fused-service establishment, nominal cleanup and nonzero gates, and
+  unrelated-cleanup non-binding — via module corruptions asserting
+  `derive(...) == None` or `receiver_eligibility() == None`. No
+  unwitnessed branch remains under this name.
 - **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
   scope verified, slice landed 2026-09-21 (z181): the inventory of
   the `operator` introducer's retirement surface is committed at
