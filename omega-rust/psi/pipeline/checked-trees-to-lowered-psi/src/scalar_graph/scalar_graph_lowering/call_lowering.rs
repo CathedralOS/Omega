@@ -327,7 +327,11 @@ pub(crate) fn lower_scalar_graph_successor(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let target = structural_values::exit_target(
+    // `exit_target` answers a lowered branch-state index: the edge lands on
+    // the cleanup wrapper it may have pushed, not on the checked target's
+    // position in `states`. Keep the two index spaces apart — the erased
+    // proof roster below still reads `states[target]` by checked position.
+    let lowered_target = structural_values::exit_target(
         checked,
         source_state,
         scalar_bindings,
@@ -343,7 +347,7 @@ pub(crate) fn lower_scalar_graph_successor(
         successor,
         scalar_bindings,
         source_value_types,
-        target,
+        lowered_target,
         &target_parameter_types,
         &structural_arguments,
     )? {
@@ -429,5 +433,13 @@ pub(crate) fn lower_scalar_graph_successor(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    Ok((target, arguments, erased_arguments, erased_proof_arguments))
+    // The edge lands on the lowered successor frontier `exit_target` chose —
+    // the affine-cleanup wrapper when owners had to be rebound — never on the
+    // checked-state position still held by `target`.
+    Ok((
+        lowered_target,
+        arguments,
+        erased_arguments,
+        erased_proof_arguments,
+    ))
 }
