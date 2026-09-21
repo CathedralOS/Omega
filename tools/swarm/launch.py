@@ -387,6 +387,12 @@ def route_check(sessions, freshness_by_name):
 
 DEPENDENCY_LANGUAGE = ("depends on", "join", "joins", "preceding task",
                        "blocks on", "after the")
+RESOLUTION_LANGUAGE = ("resolved —", "resolved -", "row consumed",
+                       "already landed", "already resolved", "re-mine of",
+                       "no unclaimed", "no independent slice remains",
+                       "swept-resolved", "stale ledger entry")
+COORDINATION_PATH = re.compile(
+    r"^(?:TASKS[^/]*\.md|OWNER_QUESTIONS\.md|tools/swarm/waves/.+)$")
 ITEM_TOKEN = re.compile(r"`?([A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+)`?")
 PATH_TOKEN = re.compile(r"`?([A-Za-z_][\w.-]*/[\w.-]+(?:/[\w.-]+)*)`?")
 SCALE_CRATE_LIMIT = 4
@@ -436,6 +442,9 @@ def partition_hints(repository, session, sessions, crates):
       ground (the product-references drift pattern).
     - named_crate_count / scale_hint: how many crates the text spans; large
       items are multi-layer decompositions, not slices.
+    - resolution_language: board-sweep vocabulary ("Resolved —", "Row
+      consumed", "already landed") suggesting the item was already resolved
+      upstream — assigning it just burns a session re-discovering that.
     """
     hints = {}
     text = item_section(repository, session["board"], session["item"])
@@ -446,6 +455,12 @@ def partition_hints(repository, session, sessions, crates):
                 if re.search(r"(?<![\w-])" + re.escape(phrase) + r"\b", lowered)]
     if language:
         hints["dependency_language"] = language
+    resolution = [phrase for phrase in RESOLUTION_LANGUAGE if phrase in lowered]
+    if resolution:
+        hints["resolution_language"] = (
+            f"item text carries resolution markers {resolution}; the item may "
+            "already be resolved upstream — verify it still names unfinished "
+            "work before assigning a session to it")
     known_items = board_item_names(repository)
     referenced = sorted(token for token in set(ITEM_TOKEN.findall(text))
                         if token in known_items and token != session["item"])
@@ -981,7 +996,33 @@ def item_closed(repository, assignment):
                                               errors="replace")
 
 
-def report_summary(rows):
+def commit_signal(repository, rows):
+    """Signal accounting over landed commits: which carried content versus
+    only coordination bookkeeping, or nothing at all. Commit rate alone is a
+    noise metric — board_only/empty are the parts to drive toward zero."""
+    signal = {"commits": 0, "board_only": 0, "empty": 0, "unresolved_refs": 0}
+    seen = set()
+    for row in rows:
+        for entry in row.get("commits") or []:
+            sha = str(entry).split(" ", 1)[0]
+            if not sha or sha in seen:
+                continue
+            seen.add(sha)
+            try:
+                names = git(repository, "show", "--format=", "--name-only", sha)
+            except SwarmError:
+                signal["unresolved_refs"] += 1
+                continue
+            files = [line for line in names.splitlines() if line.strip()]
+            signal["commits"] += 1
+            if not files:
+                signal["empty"] += 1
+            elif all(COORDINATION_PATH.match(path) for path in files):
+                signal["board_only"] += 1
+    return signal
+
+
+def report_summary(repository, rows):
     results = {}
     for row in rows:
         key = str(row.get("result"))
@@ -991,7 +1032,8 @@ def report_summary(rows):
                                 if row.get("item_closed") is True),
             "acus_consumed": sum(row["acus_consumed"] for row in rows
                                  if isinstance(row.get("acus_consumed"),
-                                               (int, float)))}
+                                               (int, float))),
+            "commit_signal": commit_signal(repository, rows)}
 
 
 def save_outcomes(repository, wave, rows, summary):
@@ -1072,7 +1114,7 @@ def command_report(arguments, repository):
     report_path = wave_directory / "report.md"
     with open(report_path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(lines))
-    summary = report_summary(rows)
+    summary = report_summary(repository, rows)
     record = {"command": "report", "wave": arguments.wave,
               "report": str(report_path.relative_to(repository)),
               "sessions_without_structured_output": missing,

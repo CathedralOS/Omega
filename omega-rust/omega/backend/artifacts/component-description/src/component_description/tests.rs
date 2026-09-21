@@ -10,7 +10,18 @@
 //! non-admitted tag would show up as a missing rejection rather than as a
 //! wrong position.
 
-use super::*;
+use std::collections::BTreeSet;
+
+use semantic_vocabulary::ServiceId;
+
+use super::{
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentEntry, ComponentEntryKind,
+    CustodyConstraint, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
+    DescriptionFrontier, EntryEvidence, ImportSlot, InstallationObligation,
+    InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES, ObligationKind, OutgoingAuthority,
+    OutgoingAuthorityClass, OutgoingEvidence, decode_component_description,
+    encode_component_description,
+};
 
 /// A description whose populated rosters place every closed vocabulary on the
 /// wire: each tag byte is present, so a non-admitted value must name the
@@ -47,18 +58,42 @@ fn complete_roster_description() -> ComponentDescription {
             requirement_identity: "bound:mask".into(),
             bound: vec![ServiceId::new(1).expect("service identity")],
         }],
-        custody: vec![CustodyConstraint {
-            kind: CustodyKind::CompletionReceipt,
-            identity: "custody:receipt".into(),
-            evidence: CustodyEvidence::ModuleDerived,
-        }],
+        custody: vec![
+            CustodyConstraint {
+                kind: CustodyKind::CompletionReceipt,
+                identity: "custody:receipt".into(),
+                evidence: CustodyEvidence::ModuleDerived,
+            },
+            CustodyConstraint {
+                kind: CustodyKind::Mapping,
+                identity: "custody:mapping".into(),
+                evidence: CustodyEvidence::ModuleDerived,
+            },
+            CustodyConstraint {
+                kind: CustodyKind::Lease,
+                identity: "custody:lease".into(),
+                evidence: CustodyEvidence::ModuleDerived,
+            },
+        ],
         providers: Vec::new(),
         provider_closure_digest: [6; 32],
-        obligations: vec![InstallationObligation {
-            kind: ObligationKind::ImportBinding,
-            identity: "obligation:import".into(),
-            detail: "install binds".into(),
-        }],
+        obligations: vec![
+            InstallationObligation {
+                kind: ObligationKind::ImportBinding,
+                identity: "obligation:import".into(),
+                detail: "install binds".into(),
+            },
+            InstallationObligation {
+                kind: ObligationKind::Mapping,
+                identity: "obligation:mapping".into(),
+                detail: "install binds the composition's mapping".into(),
+            },
+            InstallationObligation {
+                kind: ObligationKind::Lease,
+                identity: "obligation:lease".into(),
+                detail: "install admits the component's lease".into(),
+            },
+        ],
         assumptions: vec![[9; 32]],
         realization_identity: Some([7; 32]),
     }

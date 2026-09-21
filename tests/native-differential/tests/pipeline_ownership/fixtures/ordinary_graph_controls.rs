@@ -62,6 +62,14 @@ pub(crate) fn assert_ordinary_graph_custody(staged: &StagedOptimizedSelectedInst
                 } => {
                     std::mem::swap(when_true, when_false);
                 }
+                legalized_operations::LegalizedScalarTerminator::Crash { fuel, .. } => {
+                    // A crash terminator settles its own edge; an extra
+                    // settlement names fuel the edge never owed.
+                    fuel.push(FuelSettlement {
+                        site: PsiProvenance::Edge(semantic_vocabulary::EdgeId::new(999).unwrap()),
+                        units: 999,
+                    });
+                }
             }
             assert!(validate(raw).is_err());
             for (node_index, node) in block.instructions.iter().enumerate() {

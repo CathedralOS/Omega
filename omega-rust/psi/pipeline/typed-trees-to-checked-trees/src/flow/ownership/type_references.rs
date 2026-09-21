@@ -146,11 +146,7 @@ pub(super) fn intrinsic_enum_equality(
         _ => return false,
     };
     let machine_symbol = program.symbols.get(state).parent;
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return false;
     };
     let Some(state) = program

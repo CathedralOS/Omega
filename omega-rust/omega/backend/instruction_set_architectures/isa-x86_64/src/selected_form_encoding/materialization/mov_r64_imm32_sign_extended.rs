@@ -4,8 +4,6 @@ use register_model::{
 use selected_instructions::MachineEncodedEffects;
 use semantic_vocabulary::IntegerValue;
 
-use crate::x86_64_physical_register_model;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64MovR64Imm32SignExtendedI64MaterializationFootprint {
     pub register_reads: Vec<RegisterViewId>,
@@ -211,7 +209,7 @@ fn register_number(
 fn require_canonical_model(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), X86_64MovR64Imm32SignExtendedI64MaterializationError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(
             X86_64MovR64Imm32SignExtendedI64MaterializationError::NonCanonicalPhysicalModel,
         );
@@ -251,8 +249,8 @@ mod tests {
         decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
         encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
         validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
-        x86_64_physical_register_model,
     };
+    use crate::x86_64_physical_register_model;
     use register_model::{RegisterViewId, validate_physical_register_model};
 
     #[test]

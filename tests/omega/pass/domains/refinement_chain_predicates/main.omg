@@ -1,0 +1,32 @@
+// A refinement chain declares a child domain whose requirements include the
+// parent's: `domain Player::Alive::Critical` desugars to `requires self in
+// Player::Alive` plus the child's own facts. Establishing the child discharges
+// the parent predicate first, then the child's, and the member-relative
+// spelling `Player in Alive::Critical` names `Player::Alive::Critical`.
+
+data Player {
+    health: i32;
+}
+
+domain Player::Alive
+requires
+    self.health > 0;
+
+domain Player::Alive::Critical
+requires
+    self.health <= 5;
+
+machine Player::spawn() -> Player in Alive::Critical {
+    Player { health: 3 }
+}
+
+data Main {
+}
+
+machine Main::consume(&self, player: Player in Alive::Critical) {
+}
+
+machine Main::main(&mut self) {
+    let player: Player in Alive::Critical = Player::spawn();
+    self.consume(player);
+}

@@ -5,7 +5,7 @@ package/module-scoped or genuinely type-scoped, outside a `data` body:
 
 ```omega
 pub const PAGE_SIZE: u64 = 4096;
-const EfiStatus::SUCCESS = EfiStatus { code: 0 };
+const EfiStatus::SUCCESS: EfiStatus = EfiStatus { code: 0 };
 ```
 
 Symbolic mathematical definitions instead use

@@ -8,7 +8,7 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use super::{
     AdmissionProfile, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, Terminator, ValueDeclaration, ValueId,
-    compiler_baseline_request_v1, optimize_artifact_sections, reseal_proof,
+    compiler_baseline_request_v1, encode_fixture_sections, optimize_artifact_sections,
     stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
     stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
@@ -16,8 +16,7 @@ use super::{
     validate_optimized_relocation_free_object_container,
 };
 fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = super::control_flow::branch_call_artifact(equal);
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = super::control_flow::branch_call_artifact_parts(equal);
     let middle = &mut module.machines[1];
     let scalar_type = middle.parameters[0].scalar_type;
     middle.blocks.truncate(3);
@@ -41,6 +40,7 @@ fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8
         let identity = 29_000 + u64::from(padding_index);
         middle.blocks[1].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(identity).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -52,10 +52,7 @@ fn padded_returning_call_artifact(equal: bool, padding: u32) -> (Vec<u8>, Vec<u8
             },
         });
     }
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    encode_fixture_sections(&module, &proof)
 }
 
 fn framed(equal: bool, padding: u32) -> (bool, StagedFunctionFragmentFrameApplication) {

@@ -18,6 +18,7 @@ fn byte_count_type() -> ScalarType {
 fn length_operation(ordinal: u64, source: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -269,6 +270,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
     root.blocks[0].operations.truncate(1);
     root.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -281,6 +283,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         call.result = OperationResult::Unit;
         call.kind = OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(2),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -307,6 +310,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         if ordinal == 2 {
             helper.blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -324,6 +328,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
             helper.result = TerminalMachineResult::Unit;
             helper.blocks[0].operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(21),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {

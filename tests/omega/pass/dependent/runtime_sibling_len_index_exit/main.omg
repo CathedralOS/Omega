@@ -1,6 +1,6 @@
 // RUN CANARY (exit 7) + interpreter differential. Chapter 12's headline
-// Buffer::get shape: `state read(&mut self, items: &[u8], index: u64
-// [0..items.len])` -- the bound names a SIBLING parameter's slice length.
+// Buffer::get shape: `state read(&mut self, items: &[u8], index: u64)
+// requires index < items.len` -- the bound names a SIBLING parameter's slice length.
 // The caller proves each entry on its arm (`self.j < view.len`; the
 // sibling-length proof atom resolves the sibling's ARGUMENT at plan-build
 // time and the guard route matches `<arg> < <sibling-arg>.len` by display
@@ -17,7 +17,9 @@ machine Main::main(&mut self) reaches Console {
     self.j = 5;
     let view: &[u8] = self.buf.as_slice();
     transition self.j < view.len { true -> read(view, self.j) _ -> bad() }
-    state read(&mut self, items: &[u8], index: u64 [0..items.len]) {
+    state read(&mut self, items: &[u8], index: u64)
+        requires index < items.len
+    {
         self.out = items[index] as i32;
         self.console.exit_process(self.out);
     }

@@ -167,9 +167,22 @@ prerequisite to every lower-rung milestone.
     `tests/gamma/beta-encoding-check/run.sh` emits the theory through the
     selected evaluator, reproduces the pinned 135,485,028-byte request, and
     requires the `Checked` observation with row count 3,182,974 and work
-    inside the 2^26 provision, on the native hosts only. Remaining: execute
-    it on macOS arm64 or Windows x64 and record measured work and time, then
-    run the mutation legs the acceptance document lists.
+    inside the 2^26 provision. Measured on linux x86-64 (this leg formerly
+    crashed before executing: `check.py` bound `derivation-layout` ahead of
+    `beta-encoding-theory` on `sys.path`, so its `import gate` resolved the
+    wrong module): the evaluator emits the pinned 116,900-byte theory
+    (2.3 s), the host stepper reproduces the pinned request
+    (35.2 s), and the checker runs. The extents.gamma re-pin has since
+    landed at `a31bdf79e5129` ("land the 130 MiB derivation-checker request
+    extent") — `implementation/admission/extents.gamma` now compiles in the
+    selected 136,314,880-byte bound with the checker manifest, packed and
+    diagnostic source identities, and admission-boundary vectors re-pinned
+    across the derivation gates. On linux x86-64 the evaluator now admits
+    the framed request past admission (the recorded `admission_incomplete`
+    code-1 refusal at the pre-selection 8,388,608-byte extent is gone) and
+    enters the long `Checked`-observation run. Remaining: complete that
+    evaluator run on macOS arm64 or Windows x64 and record measured work
+    and time, then run the mutation legs the acceptance document lists.
   - Show that each retained checker rule and encoding helper has a role in
     that certificate, and remove the rest. The audit is resolved: every
     rule except symmetry appears (symmetry stays as one of the five
@@ -200,92 +213,7 @@ prerequisite to every lower-rung milestone.
   implements Gamma; that trust assumption stays explicit. No proof search,
   producer-selected root, trusted assembler primitive, or general-purpose
   extension.
-
-## P2 - Gamma to Delta
-
-- **DELTA-COMPILER.** Finish the Gamma closure rooted at
-  `bootstrap/3_delta/delta_compiler.gamma` against the
-  [Delta contract](bootstrap/3_delta/LANGUAGE.md). Preserve full ordinary
-  source semantics, checked arithmetic, exhaustive matching, proper-tail
-  lowering, and canonical Gamma emission. The customer is the Epsilon
-  evaluator closure, which already compiles with a diagnostic entry; further
-  optimization needs measured customer or conformance pressure, not a
-  standing mandate to improve general transformation costs.
-
-  Compiler-execution resource containment is closed. Generated-profile
-  admission is argued end to end: the 16,777,212-byte receipt extent bounds
-  the request and, at no less than eight bytes per completed declaration, the
-  function census (at most 2,097,151 of 2,097,152 rows); normalization
-  carries the 255-list body bound and the 68,608-binding generated
-  environment bound. The compiler-owned resource/internal DCOUT outcomes are
-  the contract's enumerated tables — zero-use resources acquire no invented
-  refusals and internal code 3 has no producer in this representation — and
-  evaluator failures never substitute for them. The
-  [execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
-  bounds the compiler's call contexts, lexical rows, and temporary values, and
-  every producer phase now has a closed per-occurrence pair charge. Cumulative
-  pair containment is now measured, not merely enveloped: the
-  [worst-shape study](tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
-  counts the canonical closure's whole-producer immutable-pair allocation per
-  admitted extent axis under an instrumented reference interpreter and
-  projects 417,063,339 pairs at full extents — 8.2× under the selected
-  evaluator's 3,422,453,760-pair arena — so an admitted source does not end
-  in a raw Gamma heap failure. (The closed envelope alone still exceeds the
-  arena from `N = 238`; measurement, not the envelope, is the containment
-  evidence.)
-
-  Remaining work:
-
-  - Whole-producer pair containment under the selected profile is settled by
-    the measured worst-shape study (sibling row above). Further sharpening of
-    the closed envelope below the arena is not needed; keep cumulative
-    compiler allocation distinct from receipt size and from
-    generated-application runtime exhaustion, which is not a compiler outcome.
-  - For a witnessed evaluator exhaustion during compilation, trace its
-    allocation owner and observation contract first. A Gamma-owned failure is
-    not DCOUT, and the
-    [arithmetic probe](bootstrap/3_delta/implementation/boundary/README.md#arithmetic-allocation-probe)
-    rules out inventing a general DCOUT heap code.
-  - Follow the
-    [selected producer's resource ownership](bootstrap/3_delta/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
-    local-slot, label, and fixup resources have zero use here and acquire no
-    invented refusals, match coverage is bounded by admitted constructors, and
-    corrupt private metadata is not an admitted-source refusal case.
-  - Keep the existing controls instead of rediscovering them or scaling source
-    arbitrarily: `sh tests/delta/normalization/run.sh`, the
-    `tests/delta/resource-boundary/run.sh` selections, and the Epsilon
-    checking receipt under `sh tests/epsilon/checking/run.sh`. Both measured
-    stress families refuse in existing rows before post-frontend allocation
-    is stressed: the
-    [full-width reconstruction](bootstrap/3_delta/implementation/normalization/README.md#full-width-payload-refusal)
-    at resource 12 after 4,856 seconds and the
-    [wide constructor](bootstrap/3_delta/implementation/boundary/README.md#wide-constructor-allocation-probe)
-    at resource 7 after 651 seconds. Neither exercises the open question.
-
-  Retain original binding atoms, immutable scopes, and matched
-  parameter/argument order. No renaming maps, additional lookup subsystem,
-  allocator, or provision increase is justified so far.
-
-  Acceptance: Delta conformance and malformed-source gates pass, the exact
-  Epsilon evaluator closure compiles through the selected route, and its
-  available entries execute with measured resources and unchanged semantics.
-  Complete D execution belongs to P4; its absence does not justify extra
-  Delta mechanisms after these obligations close. These obligations do not
-  block independent bootstrap work.
-
-  Flag: starting at `8a49b3e011`, the containment work was seven consecutive
-  accounting slices with no change in the customer's result. Two of them
-  changed compiler algorithms to lower a bound coefficient (name-trie prepend
-  `0ed76ef37c`, pairwise capture merge `116758c61f`) while every receipt
-  stayed byte-identical. The cost review records the Epsilon subject's
-  cumulative allocation at 2,242,373 pairs, 0.07% of the current
-  3,422,453,760-pair arena, while the closed envelope is vacuous against it
-  from `N = 238`, so per-phase sharpening has no demonstrated end. The
-  [scope checkpoint](AGENTS.md#scope-checkpoints) resolved on its first
-  branch: the measured worst-shape study settles containment (projected
-  417,063,339 pairs at admitted extents, 8.2× under the arena), so no
-  owner-escalation for a fail-closed private profile is owed.
-
+  Fence stamp `836bb681a265` (swarm-w9-ffival): the residual leg's surfaces are live-fenced — claim probe exit 2, both `tests/gamma/beta-encoding-check` and `bootstrap/proofs/checker` held by GAMMA-CERTIFICATE-NATIVE-EXECUTION (zergling/z78, exp ~12:58Z); GAMMA-CERTIFICATE-CHECK (zergling-182) also carries an open claim by name. The pending evaluator `Checked` run and mutation legs belong to those lanes; nothing unfenced remains to drive here.
 ## P4 - Epsilon to Omega and self-hosting
 
 - **OMEGA-D.** Complete the Epsilon closure selected by
@@ -337,17 +265,36 @@ prerequisite to every lower-rung milestone.
 
   Remaining work:
 
-  - D's OCREQ request entry binds in
-    `tools/bootstrap/omega/compiler_env.sh` (`require_omega_ocreq_entry_identity`,
-    recorded in `tools/bootstrap/README.md`): `program.omg`, the canonical
-    Omega source the executable gate feeds the bound customer as sealed
-    input. Still open: the gate's own README record, its `run.sh` wiring,
-    and `tests/bootstrap/omega-identity.sh` coverage.
-  - The gate-local prefixes packed on top of bound member bytes: every
-    gate-local driver except the shared Epsilon slice driver. D's gate-local
-    customer entries bind in `tools/bootstrap/omega/compiler_env.sh`, recorded
-    in each omega-* gate README; `tests/bootstrap/omega-identity.sh` checks
-    them and the packed compiler-plus-entry customer bytes on Linux.
+  - ~~D's OCREQ request entry, still framed per gate rather than bound.~~
+    Bound in `tools/bootstrap/omega/compiler_env.sh` at 4,115 bytes
+    (`OMEGA_REQUEST_ENTRY_*` pins) alongside its canonical sealed request
+    fixture (`OMEGA_REQUEST_FIXTURE_*`, 132 bytes), both recorded in
+    `tests/bootstrap/omega-request/README.md` and refused by
+    `tests/bootstrap/omega-identity.sh`; the `tests/bootstrap/omega-request`
+    gate serves it through the selected chain on macOS arm64/Windows x64.
+    New request-level provisions 25 (`coverage_request_semantics`) and 26
+    (`request_staging_bytes`) were added to the outcome tables in
+    `bootstrap/5_omega/outcome.epsilon` and
+    `wiki/spec/build/compiler_request.md`, rebinding the D closure records.
+  - ~~The gate-local prefixes packed on top of bound member bytes: every
+    gate-local driver except the shared Epsilon slice driver.~~ All
+    gate-local drivers are bound. Delta and Epsilon edges bind in
+    `tools/bootstrap/{delta/compiler,epsilon/evaluator}_env.sh`: the
+    lowering-plan and normalization Delta-edge driver entries plus the
+    internal-boundary and emission gate-owned controls closures (each binds
+    its manifest and the packed bytes it repacks to), and the checking and
+    array-storage Epsilon-edge drivers plus the checking-invariants,
+    runtime-invariants, runtime-references, and source-views controls
+    closures; `tests/bootstrap/{delta,epsilon}-identity.sh` pass the bound
+    identities and refuse corrupted or truncated drivers, manifests, and
+    controls members on Linux. D's gate-local customer entries bind in
+    `tools/bootstrap/omega/compiler_env.sh`, recorded in each omega-* gate
+    README; `tests/bootstrap/omega-identity.sh` checks them and the packed
+    compiler-plus-entry customer bytes on Linux. The shared Epsilon slice
+    driver bound at e1fba5f523 as `EPSILON_EXECUTION_DRIVER_*` pins in
+    `tools/bootstrap/epsilon/evaluator_env.sh` with
+    `require_epsilon_execution_driver_identity` gating every cross-rung
+    consumer.
   - The `omega0` and `omega` compiler tapes, which **OMEGA-C** has yet to
     produce.
   - The certificates and disclosed admission records, as the edges producing
@@ -374,10 +321,23 @@ prerequisite to every lower-rung milestone.
   `*-identity.sh` gates, `source-closure.sh`, and `chain-hygiene.sh` — and
   `alpha-beta-edge.sh` now reports its seed-execution legs UNAVAILABLE
   (exit 2) rather than FAILED where no audited Alpha container runs.
-  Still requiring macOS arm64 or Windows x64: Alpha conformance, Beta
-  self-reconstruction, the shared word prefix, and the
-  omega-parser/outcome/executable chain runs (the parser gate's Windows
-  route is itself unvalidated). The D→omega0 and omega0→omega tapes are not
+  Update (z124, linux x86-64 at `d2fe213ff6`): with `alpha_x64_linux`
+  bound as a seed-execution host, the previously macOS/Windows-only legs
+  now run here — `tests/alpha/conformance.sh` 34/34 + native bounds 78/78,
+  `tests/alpha/parity.sh` seed parity 33/33, `tests/beta/compiler/
+  reconstruction.sh` PASS (Beta reconstructs its direct Alpha tape
+  byte-identically), `tests/beta/compiler/word-prefix.sh` 736/736
+  controls, `tests/beta/compiler/compiler-diamond.sh` 6/6, and
+  `alpha-beta-edge.sh --edge` VERIFIED. Alpha conformance, Beta
+  self-reconstruction, and the shared word prefix no longer require
+  macOS arm64 or Windows x64; the remaining host-gated leg is the literal
+  Windows Git Bash route below. The
+  omega-parser/outcome/executable chain now runs on Linux x86-64
+  (`alpha_x64_linux` is bound; the parser gate is fully green there),
+  and the parser gate's Windows PE seed ran both legs byte-exactly under
+  wine — receipt and all twelve customer invocations; only the literal
+  Git Bash route on a real Windows host remains unvalidated. The
+  D→omega0 and omega0→omega tapes are not
   yet produced (OMEGA-C), so whole-chain reconstruction currently ends at
   interpreted D. Every Beta compiler-exec entrypoint — reconstruction,
   the compiler diamond, and `tools/bootstrap/beta/build.sh` — now refuses

@@ -5,6 +5,7 @@
 pub(crate) mod atomic_resident_views;
 pub(crate) mod borrowed_view;
 pub(crate) mod owned_atomic_resident_custody;
+pub(crate) mod owned_external_correspondence;
 pub(crate) mod owned_placement_lifecycle;
 pub(crate) mod owned_resident_custody;
 pub(crate) mod placement_admission;

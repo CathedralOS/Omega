@@ -248,31 +248,31 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
             r#"
                 domain<T, const I: u64> T::Indexed<I>;
 
-                trait IndexAdd {{
-                    machine add(a: Self, b: Self) -> Self;
-                    machine add_comm(a: Self, b: Self) -> Self
+                trait {operator_namespace}<Operand> {{
+                    operator + add(a: Operand, b: Operand) -> Operand;
+                    machine add_comm(a: Operand, b: Operand)
                     ensures add(a, b) == add(b, a);
-                    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+                    machine add_assoc(a: Operand, b: Operand, c: Operand)
                     ensures add(add(a, b), c) == add(a, add(b, c));
                 }}
 
-                operator + {operator_namespace}::plus(left: u64, right: u64) -> u64;
-
                 machine plus_index(a: u64, b: u64) -> u64
-                satisfies {operator_namespace}::plus, IndexAdd::add as Canonical
+                satisfies {operator_namespace}<u64>::add as Canonical
                 {{ 0 }}
 
                 machine plus_index_comm(a: u64, b: u64) -> u64
-                satisfies IndexAdd::add_comm as Canonical
+                satisfies {operator_namespace}<u64>::add_comm as Canonical
+                requires plus_index(a, b) == plus_index(b, a)
                 ensures plus_index(a, b) == plus_index(b, a)
                 {{ 0 }}
 
                 machine plus_index_assoc(a: u64, b: u64, c: u64) -> u64
-                satisfies IndexAdd::add_assoc as Canonical
+                satisfies {operator_namespace}<u64>::add_assoc as Canonical
+                requires plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
                 ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
                 {{ 0 }}
 
-                boundary machine admitted<const A: u64, const B: u64>()
+                boundary machine admitted<T, const A: u64, const B: u64, Canonical: T satisfies {operator_namespace}<u64>>()
                     -> i64 in Indexed<A + B>;
             "#
         );

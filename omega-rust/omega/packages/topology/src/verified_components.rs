@@ -37,6 +37,7 @@
 
 use component_description::{ComponentVerificationRequest, VerifiedComponent};
 use sha2::{Digest, Sha256};
+use std::borrow::Borrow;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::deployment_plan::{
@@ -58,6 +59,13 @@ const EXPORT_CONTRACT_DOMAIN: &[u8] = b"omega-topology-export-contract-v1";
 /// `component_description::verify_component`, so the pair is evidence: the
 /// description verified under exactly `request`, and it is `request` whose
 /// `profile_identity()` the plan's `verification_profile` must name.
+///
+/// The admission is shared evidence: the same verification result can back
+/// a plan roster entry and the installation-side artifact record. Plan and
+/// composition entry points take the admission roster through `Borrow`, so
+/// owners may keep plain `AdmittedComponent` values or `Arc`-shared ones —
+/// installation's artifact record needs the `Arc` form because a verified
+/// description is deliberately not `Clone`.
 #[derive(Debug)]
 pub struct AdmittedComponent {
     /// The admission request the description verified under.
@@ -96,8 +104,9 @@ fn export_contract_identity(export_identity: &str) -> Identity {
 /// roster's canonical positions — the description codec already orders
 /// export surfaces by identity.
 pub fn verified_instance_facts(
-    admission: &AdmittedComponent,
+    admission: &impl Borrow<AdmittedComponent>,
 ) -> (ComponentDescription, Vec<Endpoint>) {
+    let admission = admission.borrow();
     let component = ComponentDescription {
         subject: component_subject_identity(&admission.component.subject()),
         verification_profile: admission.request.profile_identity(),
@@ -128,7 +137,10 @@ pub fn verified_instance_facts(
 /// A roster instance whose component record and endpoint inventory are
 /// reconstructed entirely from an admitted description. The producer
 /// chooses only the instance name; the role is `Component`.
-pub fn verified_instance(name: InstanceName, admission: &AdmittedComponent) -> PlanInstance {
+pub fn verified_instance(
+    name: InstanceName,
+    admission: &impl Borrow<AdmittedComponent>,
+) -> PlanInstance {
     let (component, endpoints) = verified_instance_facts(admission);
     PlanInstance {
         name,
@@ -182,10 +194,11 @@ impl std::error::Error for ComponentBindingFailure {}
 /// field, keeping the rejection deterministic in slice order.
 pub(crate) fn check_instance_binding(
     instance: &PlanInstance,
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
 ) -> Result<(), ComponentBindingFailure> {
     let matching: Vec<&AdmittedComponent> = components
         .iter()
+        .map(Borrow::borrow)
         .filter(|admission| {
             component_subject_identity(&admission.component.subject()) == instance.component.subject
         })

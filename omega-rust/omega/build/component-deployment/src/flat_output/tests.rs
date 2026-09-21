@@ -71,3 +71,44 @@ fn output_replay_rejects_executable_mode_drift() {
             .contains("mode 0755")
     );
 }
+
+#[test]
+fn republication_replaces_the_prior_executable_atomically() {
+    let scratch = ScratchDirectory::new();
+    let path = scratch.0.join("program.bin");
+    std::fs::write(&path, b"stale").unwrap();
+    write_atomic_executable(&path, &[0x90, 0xc3]).expect("replace prior publication");
+    validate_published_executable(&path, &[0x90, 0xc3]).expect("replay replaced bytes and mode");
+    assert_eq!(std::fs::read(&path).unwrap(), [0x90, 0xc3]);
+    assert_eq!(std::fs::read_dir(&scratch.0).unwrap().count(), 1);
+}
+
+#[test]
+fn destination_inside_an_existing_file_rejects_before_staging() {
+    let scratch = ScratchDirectory::new();
+    let blocker = scratch.0.join("blocker");
+    std::fs::write(&blocker, b"file").unwrap();
+    let destination = blocker.join("program.bin");
+    let error = write_atomic_executable(&destination, &[0xc3]).unwrap_err();
+    assert!(error.contains("failed to create terminal output directory"));
+    assert_eq!(std::fs::read(&blocker).unwrap(), b"file");
+}
+
+#[test]
+fn replay_against_a_missing_destination_rejects() {
+    let scratch = ScratchDirectory::new();
+    let absent = scratch.0.join("never-published.bin");
+    let error = validate_published_executable(&absent, &[0xc3]).unwrap_err();
+    assert!(error.contains("failed to replay terminal output"));
+}
+
+#[cfg(unix)]
+#[test]
+fn non_utf8_executable_filename_rejects_without_staging() {
+    use std::os::unix::ffi::OsStrExt;
+    let scratch = ScratchDirectory::new();
+    let destination = scratch.0.join(std::ffi::OsStr::from_bytes(b"prog\xff.bin"));
+    let error = write_atomic_executable(&destination, &[0xc3]).unwrap_err();
+    assert!(error.contains("no UTF-8 executable filename"));
+    assert_eq!(std::fs::read_dir(&scratch.0).unwrap().count(), 0);
+}

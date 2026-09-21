@@ -72,13 +72,15 @@ pub(crate) fn validate_scalar_source(
             )?;
         }
     }
-    // Ordered bodies keep no floating range roster: the structural runtime
-    // requirement capsule already fails closed when an authored range cannot
-    // be retained, so no authored floating range can reach this call.
+    // Ordered bodies keep no floating or integer range roster: the
+    // structural runtime requirement capsule already fails closed when an
+    // authored range cannot be retained, so no authored floating range can
+    // reach this call, and integer bounds ride their predicate clauses.
     validate_parameter_ranges(
         checked,
         state,
         retained.map(|predicate| Some(RetainedClause::Predicate(predicate))),
+        None,
         None,
     )
 }
@@ -140,6 +142,7 @@ pub(crate) fn validate_graph_parameter_ranges(
             _ => None,
         }),
         plan.float_entry_ranges().map(<[_]>::iter),
+        plan.integer_entry_ranges().map(<[_]>::iter),
     )
 }
 
@@ -148,6 +151,7 @@ fn validate_parameter_ranges<'clause>(
     state: &checked_trees::state::State,
     mut retained: impl Iterator<Item = Option<RetainedClause<'clause>>>,
     mut float_ranges: Option<std::slice::Iter<'_, checked_trees::ClosedFloatRangeRequirement>>,
+    mut integer_ranges: Option<std::slice::Iter<'_, checked_trees::ClosedIntegerRangeRequirement>>,
 ) -> Result<(), LoweringError> {
     let mut scalar_position = 0;
     for parameter in checked.state_parameters(state) {
@@ -283,6 +287,7 @@ fn validate_parameter_ranges<'clause>(
                         // Recompute the interval from the authored endpoints.
                         // These literals represent normalized bounds, not raw
                         // endpoint reads or executable predecessor expressions.
+                        let mut expected_endpoints = Vec::with_capacity(2);
                         for (retained, expected) in [
                             (low.as_ref(), minimum_value),
                             (high.as_ref(), maximum_value),
@@ -302,6 +307,30 @@ fn validate_parameter_ranges<'clause>(
                                     "scalar entry range changes its normalized bound or carrier",
                                 );
                             }
+                            expected_endpoints.push(expected);
+                        }
+                        // The retained integer roster delivers this exact
+                        // interval; an absent or drifted evidence row fails
+                        // closed. `IntegerLiteral` equality is text-only, so
+                        // the landing rides the comparison explicitly.
+                        if let Some(roster) = integer_ranges.as_mut() {
+                            let [minimum, maximum] = expected_endpoints.as_slice() else {
+                                unreachable!("two normalized endpoints were checked above")
+                            };
+                            let evidence = roster.next().ok_or(LoweringError::Unsupported(
+                                "scalar integer entry range lost its retained endpoint evidence",
+                            ))?;
+                            if evidence.position != position
+                                || evidence.primitive_type != primitive
+                                || evidence.minimum != *minimum
+                                || evidence.minimum.landing() != minimum.landing()
+                                || evidence.maximum != *maximum
+                                || evidence.maximum.landing() != maximum.landing()
+                            {
+                                return unsupported(
+                                    "scalar integer entry range differs from its retained evidence",
+                                );
+                            }
                         }
                     }
                     reference = *base_type;
@@ -315,6 +344,12 @@ fn validate_parameter_ranges<'clause>(
     }
     if float_ranges.and_then(|mut ranges| ranges.next()).is_some() {
         return unsupported("scalar contract retains an unauthored floating entry range");
+    }
+    if integer_ranges
+        .and_then(|mut ranges| ranges.next())
+        .is_some()
+    {
+        return unsupported("scalar contract retains an unauthored integer entry range");
     }
     Ok(())
 }

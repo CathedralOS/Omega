@@ -8,8 +8,8 @@ pub(crate) use identity::{nominal_identity, nominal_identity_from_symbols};
 #[cfg(test)]
 pub(crate) use ownership::nominal_owner_from_symbols;
 pub(crate) use ownership::{
-    is_canonical_virtual_toolchain_path, nominal_owner, reviewed_package_owns,
-    toolchain_source_identity,
+    is_canonical_virtual_toolchain_path, is_product_scope_instance, nominal_owner,
+    reviewed_package_owns, toolchain_source_identity,
 };
 pub(crate) use policy_requirements::policy_provider_requirement_identity;
 pub(crate) use provider_schema::provider_requirement_schema;

@@ -513,10 +513,7 @@ fn replay_machine_specialization_identity(
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
 ) -> Result<ReplayedMachineSpecializationIdentity, Diagnostic> {
-    let template = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == specialization.template)
+    let template = crate::lookup::machine_by_symbol(program, specialization.template)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its template machine"))?;
     match (
         template.supply_mode,
@@ -565,10 +562,7 @@ fn replay_machine_specialization_identity(
             "generic specialization is missing its normalized template identity",
         ));
     }
-    let instance = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == specialization.instance)
+    let instance = crate::lookup::machine_by_symbol(program, specialization.instance)
         .ok_or_else(|| Diagnostic::error("generic specialization lost its concrete instance"))?;
     let instance_identity = normalized_machine_identity(program, instance).ok_or_else(|| {
         Diagnostic::error("generic specialization instance has no normalized callable identity")

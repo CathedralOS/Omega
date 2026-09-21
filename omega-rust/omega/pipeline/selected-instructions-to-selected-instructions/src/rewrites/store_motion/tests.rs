@@ -2,6 +2,7 @@
 //! settlements and the block fixtures.
 
 mod cross_block_motion;
+mod independence_tests;
 mod same_block_motion;
 
 use crate::rewrites::store_motion::{

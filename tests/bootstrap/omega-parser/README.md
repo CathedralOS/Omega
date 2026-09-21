@@ -7,17 +7,60 @@ execution diagnostic through the selected Gamma-authored Delta compiler, then
 uses that receipt to check the customer and call D's real `OmegaParser::parse_view`.
 No parser states are extracted, translated, or substituted by the host.
 
-Run from the repository root on macOS arm64, or Windows x64 in Git Bash:
+Run from the repository root on macOS arm64, Linux x86-64, or Windows x64 in
+Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-parser/run.sh
 ```
 
-Both routes require `python3`, Git's Unix tools on Windows, and the corresponding
-checked-in Alpha seed. macOS also requires `codesign`. The shell wrapper uses
-the shared bootstrap paths and evaluator-stamping helpers; Python owns the
-same framing, invocation, and comparison logic on both hosts. No PowerShell
-installation is required. Windows execution has not yet been validated.
+Every route requires `python3`, Git's Unix tools on Windows, and the
+corresponding checked-in Alpha seed. macOS also requires `codesign`. The shell
+wrapper uses the shared bootstrap paths and evaluator-stamping helpers;
+Python owns the same framing, invocation, and comparison logic on every host.
+No PowerShell installation is required. On the Windows route `python3`
+resolves to a Windows interpreter, which cannot open MSYS virtual paths; the
+wrapper translates the gate script, scratch directory, and execution-driver
+paths to Windows form via `cygpath` before invoking it, and the sourced
+materializers require the interpreter under its `python3` name.
+
+The Windows PE seed reserves a 128 GiB extent through one startup
+`VirtualAlloc(NULL, 0x2000000000, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE)` and
+traps when the call is refused (`bootstrap/0_alpha/README.md`). Because this
+is a committed allocation rather than a reservation, a Windows host needs
+commit headroom — RAM plus pagefile — above that extent, or the evaluator
+fails before any tape byte is read.
+
+The Windows PE seed's complete execution is validated without a Windows
+host. Under wine-10 on Linux x86-64 (with `vm.overcommit_memory=1` standing
+in for the commit headroom), the stamped PE ran both gate legs byte-exactly:
+it reconstructed the pinned Epsilon execution receipt — 721,484 bytes,
+SHA-256 `71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082`,
+identical to the Linux x86-64 ELF seed's receipt on the same input — then
+completed all twelve customer invocations, returning the exact `000000000041`
+observation (Exit(0), stdout `A`) with status 0. Malformed stdin is refused
+with status 1, same as the ELF seed. The wrapper's `cygpath` translation and
+`python3` PATH shim were also exercised end-to-end under a simulated Windows
+interpreter that rejects MSYS-virtual paths, with the `--identity` leg green.
+Still unvalidated: only the literal `sh run.sh` under Git Bash on a real
+Windows x64 host — genuine `cygpath` and a native `python3` — since the PE
+artifact itself is proven byte-exact end-to-end.
+
+The host-free identity leg validates everything except the two evaluator
+executions — the bound materializers, every pinned member/entry/customer
+identity, the DCREQ request framing, and the expected fixture — on any
+Python-3 host, including Linux or a Windows host before the multi-hour run:
+
+```sh
+sh tests/bootstrap/omega-parser/run.sh --identity
+```
+
+Verified green on Linux x86-64: the identity leg, and the full execution —
+receipt reconstruction in 262 s and the complete customer in 6,551 s,
+returning `000000000041` with status 0 and empty stderr — now that
+`alpha_x64_linux` is bound. The remaining leg is the literal Windows x64 Git
+Bash execution; the PE artifact is proven byte-exact under wine but the
+MINGW/MSYS shell route itself has not run on Windows hardware.
 
 The customer reuses one parser across twelve invocations. Three complete
 inputs cover decimal expressions and transition guards, a named struct literal,
@@ -38,7 +81,7 @@ The host validates source manifests, concatenates whole sources, reconstructs
 the receipt, prints the exact customer identity, and compares observations.
 
 The default host observation allowance is 14,400 seconds for this complete-D
-customer and 300 seconds for receipt reconstruction. It is a watchdog, not a
+customer and 1,800 seconds for receipt reconstruction. It is a watchdog, not a
 language limit or a successful resource-refusal judgment. For a slower host,
 the same invocation can request more observation time:
 
@@ -151,8 +194,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 The [customer](main.epsilon) entry is bound at 4,583 bytes, SHA-256
 `61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618`, and packs
-on top of the bound member closure to 562,648 bytes, SHA-256
-`a47e7628d0b2a59f7a83c5b68dd3f367eb8a910e1bf4926c7f66be01489810de`.
+on top of the bound member closure to 566,377 bytes, SHA-256
+`ed3cd51c8bbfff315eeeada926cd131d419179fa090f4a80fafda7d782512693`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

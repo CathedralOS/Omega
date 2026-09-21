@@ -7,7 +7,7 @@ use crate::input::token_cursor::{Input, ParseResult};
 use arena::{Handle, HandleSpan};
 use language_core::inline_assembly::{
     AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
-    asm_catalog_entry,
+    AsmMemoryTransferKind, asm_catalog_entry,
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -35,8 +35,19 @@ use tokens::PunctuationKind;
 ///   (reaches `PortIo`)
 /// - `asm { in <dest>, <port> }`-> `<dest> = asm#port_in(port)` -- the
 ///   Intel dest-first operand order (reaches `PortIo`)
+/// - `asm { mov <dest>, <src> }` -> the ordinary checked assignment
+///   `<dest> = <src>`; `mov`/`movq` accept place/value operands only, so a
+///   bracketed `[address]` operand keeps refusing as unmodeled memory access
+///   and view-addressed data spells its authorized index expression
+/// - `asm { ldr <dest>, <place> }` -> `<dest> = <place>`; `asm { str <value>,
+///   <place> }` -> `<place> = <value>`: the AArch64 unordered transfers whose
+///   memory operand is a typed Omega place — the place's own provenance,
+///   permission and exact-type contract is the memory contract
 /// - x86 fences and `cli`/`sti` -> zero-operand unnameable intrinsics carrying
 ///   their catalog ordering/state/effect contracts
+/// - `serialize`/`isb`/`pause`/`yield` -> zero-operand pipeline directives:
+///   instruction-stream serialization or scheduling hints with no modeled
+///   machine-state effect (no authority, no operands, no clobbers)
 /// - `pushfq <dest>`            -> `<dest> = asm#pushfq()`; the backend emits
 ///   a balanced snapshot sequence
 /// - `popfq <source>`           -> `asm#popfq(source)`; the backend emits a
@@ -315,6 +326,50 @@ struct ParsedAsmInstruction {
     contract: language_core::inline_assembly::AsmInstructionContract,
 }
 
+/// A `[address]` operand spells raw memory addressing, not an Omega place:
+/// the catalog's unmodeled-memory refusal applies to the operand rather than
+/// to the instruction spelling. Authorized memory data still moves through an
+/// ordinary typed view such as `self.buffer[index]`.
+fn reject_bracketed_asm_operand(
+    syntax_trees: &SyntaxTrees,
+    mnemonic_site: Input<'_, '_>,
+    mnemonic: &str,
+    operand: ExpressionHandle,
+) -> Result<(), ParseError> {
+    if matches!(
+        syntax_trees.expressions.expression(operand),
+        ExpressionNode::ArrayLiteral(_)
+    ) {
+        return Err(mnemonic_site.error_here(format!(
+            "asm instruction `{mnemonic}` operand uses bracketed `[...]` memory \
+             addressing: spell authorized access as a typed Omega place such as \
+             `self.buffer[index]` — the place carries the provenance/permission \
+             contract raw addresses cannot express"
+        )));
+    }
+    Ok(())
+}
+
+fn zero_operand_asm_intrinsic_call(
+    syntax_trees: &mut SyntaxTrees,
+    mnemonic: &Identifier,
+    intrinsic_name: &'static str,
+) -> StatementHandle {
+    syntax_trees
+        .statements
+        .insert(StatementNode::Call(TableCall {
+            target_is_static: false,
+            receiver: HandleSpan::empty(),
+            receiver_starts_at_self: false,
+            target: Identifier::new(intrinsic_name, mnemonic.source_span()),
+            machine_arguments: Box::default(),
+            arguments: HandleSpan::empty(),
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: Default::default(),
+            discards_result: false,
+        }))
+}
+
 fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -325,9 +380,11 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     let Some(entry) = asm_catalog_entry(mnemonic.as_str()) else {
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
-             (`hlt`, `in`, `out`, `jmp`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
-             `pushfq`, `popfq`, `rdmsr`, `wrmsr`, structured `read_crN`/`write_crN`); opaque forms \
-             (`db`, raw bytes) are rejected",
+             (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
+             `serialize`, `isb`, `pause`, `yield`, `wfe`, `wfi`, `sev`, `sevl`, `nop`, `pushfq`, `popfq`, \
+             `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
+             `ldr`, `str`, structured `read_crN`/`write_crN`); opaque forms (`db`, raw \
+             bytes) are rejected",
             mnemonic.as_str()
         )));
     };
@@ -358,6 +415,54 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     }
 
     match contract.shape {
+        AsmInstructionShape::RegisterMove => {
+            let (destination, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (source, input) = parse_expression_handle(syntax_trees, input)?;
+            reject_bracketed_asm_operand(
+                syntax_trees,
+                mnemonic_site,
+                mnemonic.as_str(),
+                destination,
+            )?;
+            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), source)?;
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
+                        TableAssignment {
+                            target: destination,
+                            value: source,
+                        },
+                    )),
+                    contract,
+                },
+                input,
+            ))
+        }
+        AsmInstructionShape::MemoryTransfer(kind) => {
+            let (first, input) = parse_expression_handle(syntax_trees, input)?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (second, input) = parse_expression_handle(syntax_trees, input)?;
+            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), first)?;
+            reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), second)?;
+            // The place operand is the structured memory contract: a load
+            // reads the place into the destination, a store writes the value
+            // into the place — each the checked place access an ordinary
+            // assignment performs.
+            let (target, value) = match kind {
+                AsmMemoryTransferKind::Load => (first, second),
+                AsmMemoryTransferKind::Store => (second, first),
+            };
+            Ok((
+                ParsedAsmInstruction {
+                    statement: syntax_trees
+                        .statements
+                        .insert(StatementNode::Assignment(TableAssignment { target, value })),
+                    contract,
+                },
+                input,
+            ))
+        }
         AsmInstructionShape::JumpState => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
             Ok((
@@ -492,6 +597,39 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         operational_acknowledgement: Default::default(),
                         discards_result: false,
                     })),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::InstructionSerialization(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::SchedulingHint(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::CacheOperation(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
                 contract,
             },
             input,

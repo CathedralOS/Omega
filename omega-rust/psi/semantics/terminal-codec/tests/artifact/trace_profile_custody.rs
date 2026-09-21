@@ -538,6 +538,7 @@ fn custody_module() -> TerminalModule {
             },
         ],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: DomainSemanticId::new(1).expect("nonzero domain semantic identity"),
             identity: "Omega::Region".into(),
@@ -696,12 +697,14 @@ fn custody_module() -> TerminalModule {
                 entry: block,
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: OperationResult::Unit,
                             kind: OperationKind::PortWrite {
@@ -712,8 +715,10 @@ fn custody_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: OperationResult::Structural(StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
                                 place: result_place,
                                 structural_type: first_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -741,6 +746,7 @@ fn custody_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(3),
                             result: OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
@@ -760,6 +766,7 @@ fn custody_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(13),
                     crash_routes: caller_routes,
                     requires: Vec::new(),
@@ -785,6 +792,7 @@ fn custody_module() -> TerminalModule {
                 entry: crash_block,
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: crash_block,
                     parameters: Vec::new(),
@@ -798,6 +806,7 @@ fn custody_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(23),
                     crash_routes: vec![CrashRouteBucket {
                         cause: CrashCause::Trap,
@@ -826,6 +835,7 @@ fn custody_module() -> TerminalModule {
                 entry: block_id(32),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(32),
                     parameters: Vec::new(),
@@ -839,6 +849,7 @@ fn custody_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(33),
                     crash_routes: vec![CrashRouteBucket {
                         cause: CrashCause::Abort,

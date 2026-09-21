@@ -1,8 +1,7 @@
-//! Mach-O arm64 fixed geometry: the four-gigabyte load base, the 16 KiB page and
-//! its log2 twin, and every load command's byte size.
+//! Mach-O fixed geometry: the shared four-gigabyte load base and every load
+//! command's byte size. Per-ISA page sizes and CPU fields live in `crate::isa`.
 
 pub(crate) const MACHO_EXECUTABLE_BASE: u64 = 0x1_0000_0000;
-pub(crate) const MACHO_ARM64_PAGE_SIZE: usize = 0x4000;
 pub(super) const MACHO_HEADER_SIZE: usize = 32;
 pub(crate) const MACHO_SEGMENT_COMMAND_SIZE: usize = 72;
 pub(crate) const MACHO_SECTION_SIZE: usize = 80;
@@ -20,5 +19,3 @@ pub(crate) const MACHO_HEADER_FLAGS_NOUNDEFS: u32 = 0x1;
 pub(crate) const MACHO_HEADER_FLAGS_DYLDLINK: u32 = 0x4;
 pub(crate) const MACHO_HEADER_FLAGS_TWOLEVEL: u32 = 0x80;
 pub(crate) const MACHO_HEADER_FLAGS_PIE: u32 = 0x20_0000;
-pub(crate) const CODE_SIGNATURE_PAGE_SIZE: usize = MACHO_ARM64_PAGE_SIZE;
-pub(crate) const CODE_SIGNATURE_PAGE_SIZE_POWER: u8 = 14;

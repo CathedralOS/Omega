@@ -1,6 +1,6 @@
 // TRANSITIVE field-vs-field reader hypotheses: count <= mid and
-// mid <= capacity[0..=100] CHAIN through the unranged middle field, so a
-// read of count fits u32 [0..=100] (bound_source_interval falls back to
+// mid <= capacity and capacity <= 100 CHAIN through the unranged middle field, so a
+// read of count fits u32 (requires 0 <= it <= 100) (bound_source_interval falls back to
 // the co-field's own where-fact interval, depth-capped). RUNS exit 70.
 use omega_language_std::console;
 use omega::language::core::service;
@@ -8,14 +8,16 @@ data Tally
 where
     count <= mid,
     mid <= capacity,
+    capacity <= 100,
 {
     count: u32;
     mid: u32;
-    capacity: u32 [0..=100];
+    capacity: u32;
 }
 data Main { console: Service<Console>; }
+machine Main::record(&mut self, v: u32) requires v <= 100 { }
 machine Main::main(&mut self) reaches Console {
     let t: Tally = Tally { count: 5, mid: 20, capacity: 50 };
-    let bounded: u32 [0..=100] = t.count;
+    self.record(t.count);
     self.console.exit_process(70);
 }

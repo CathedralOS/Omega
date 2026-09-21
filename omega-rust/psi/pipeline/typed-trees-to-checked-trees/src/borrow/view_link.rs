@@ -15,17 +15,18 @@
 //! - a `&self`/`&mut self` parameter links the output to self (elision rule 3),
 //!   regardless of other ref inputs;
 //! - an EXPLICIT output lifetime (`-> &'buf T` or `-> Message<'buf>`) links the
-//!   output to the input carrying the same lifetime name (stage 2); it must
-//!   match exactly one input;
+//!   output to every input carrying the same lifetime name (stage 2); the
+//!   returned view's sources form the union of those inputs' matching leaves;
 //! - otherwise (an ELIDED output) exactly one ref input is the source (elision
 //!   rule 1); zero ref inputs leaves the output unlinked (historical behavior);
 //!   two or more are ambiguous and must be disambiguated with a lifetime.
 //!
 //! For aggregate results or owned inputs carrying references, input references
 //! include structurally carried leaves even when the output is a direct reference.
-//! Explicit lifetimes select one input parameter and every leaf carrying that
-//! lifetime within it; each must supply the result's access. Elision requires
-//! one contained source, not one parameter containing several unnamed sources.
+//! Explicit lifetimes select every leaf carrying that lifetime across all input
+//! parameters; each candidate must supply the result's access, and the tracked
+//! loan follows the candidate union. Elision requires one contained source, not
+//! one parameter containing several unnamed sources.
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -75,12 +76,6 @@ pub(crate) enum ViewReturnAmbiguity {
     ElidedMultipleInputs { candidates: Vec<String> },
     /// An explicit output lifetime that matches no input.
     LifetimeMatchesNoInput { lifetime: String },
-    /// An explicit output lifetime shared by two or more inputs (their names);
-    /// a single returned view borrowing several inputs is not modelled yet.
-    LifetimeMatchesMultipleInputs {
-        lifetime: String,
-        candidates: Vec<String>,
-    },
 }
 
 /// Resolve the source of a state's returned view from its signature alone.
@@ -152,15 +147,11 @@ pub(crate) fn resolve_signature_view_return_source(
                 [single] => ViewReturnSource::Parameter {
                     non_self_index: single.0,
                 },
-                _ => ViewReturnSource::Ambiguous(
-                    ViewReturnAmbiguity::LifetimeMatchesMultipleInputs {
-                        lifetime: output_lifetime.to_owned(),
-                        candidates: matching
-                            .iter()
-                            .map(|(_, name, _)| (*name).to_owned())
-                            .collect(),
-                    },
-                ),
+                // Several inputs carry the selected lifetime: each
+                // contributes its reference as a candidate source and the
+                // returned loan tracks the union — the same structural
+                // matching the aggregate path applies.
+                _ => structural_view_return_source(program, parameters, return_type),
             }
         }
         None => match ref_parameters.as_slice() {
@@ -263,21 +254,9 @@ fn structural_view_return_source(
                     .collect(),
             });
         }
-        if matching.iter().any(|(index, _, _)| *index != first.0) {
-            let mut candidates = Vec::new();
-            for (_, parameter, _) in &matching {
-                let name = parameter.name.as_str().to_owned();
-                if !candidates.contains(&name) {
-                    candidates.push(name);
-                }
-            }
-            return ViewReturnSource::Ambiguous(
-                ViewReturnAmbiguity::LifetimeMatchesMultipleInputs {
-                    lifetime: output.lifetime.unwrap_or_else(|| "elided".to_owned()),
-                    candidates,
-                },
-            );
-        }
+        // Every input parameter carrying the selected lifetime contributes
+        // its matching leaves as candidate sources; each must still supply
+        // the result's access.
         if matching.iter().any(|(_, _, input)| {
             use language_semantics::ReferenceAccess;
             input.access != output.access && input.access != ReferenceAccess::Mutable

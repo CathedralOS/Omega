@@ -106,7 +106,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    43;
+    44;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -322,6 +322,11 @@ optimization_vocabulary! {
         counter: "state_specialization",
         phase: Psi
     },
+    RepresentationSpecialization = 44 => {
+        case: "RepresentationSpecialization",
+        counter: "representation_specialization",
+        phase: Psi
+    },
 }
 
 impl Optimization {
@@ -341,6 +346,9 @@ impl Optimization {
             Self::DeadPureScalarElimination => Some(PsiOptimization::DeadPureScalarElimination),
             Self::ProofCheckElision => Some(PsiOptimization::ProofCheckElision),
             Self::StateSpecialization => Some(PsiOptimization::StateSpecialization),
+            Self::RepresentationSpecialization => {
+                Some(PsiOptimization::RepresentationSpecialization)
+            }
             Self::SelectedIncomingU12ExactAddImmediate
             | Self::X86RelaxConditionalBranchesToRel8V1
             | Self::SelectedIncomingU12ExactSubtractImmediate
@@ -397,6 +405,7 @@ impl From<optimization::PsiOptimization> for Optimization {
             PsiOptimization::DeadPureScalarElimination => Self::DeadPureScalarElimination,
             PsiOptimization::ProofCheckElision => Self::ProofCheckElision,
             PsiOptimization::StateSpecialization => Self::StateSpecialization,
+            PsiOptimization::RepresentationSpecialization => Self::RepresentationSpecialization,
         }
     }
 }
