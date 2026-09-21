@@ -248,6 +248,9 @@ pub(crate) fn validate_structural_path(
             (_, StructuralTypeShape::ByteSequence(_)) => {
                 return malformed("byte-sequence structural type has no projected children");
             }
+            (_, StructuralTypeShape::ElementView { .. }) => {
+                return malformed("element-view structural type has no projected children");
+            }
         };
     }
     Ok(structural_type)
@@ -919,7 +922,8 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             // existence was checked above; following it here invents a by-value cycle.
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::ByteSequence(_) => {}
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. } => {}
             StructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let StructuralFieldType::Structural(target) = &field.field_type {

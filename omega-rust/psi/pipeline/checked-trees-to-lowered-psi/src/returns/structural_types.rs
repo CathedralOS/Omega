@@ -243,6 +243,7 @@ pub(crate) fn retain_additional_structural_types(
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::FixedArray { .. } => Vec::new(),
         })
         .map(|field| field.id.get())
@@ -261,6 +262,7 @@ pub(crate) fn retain_additional_structural_types(
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::Record { .. }
             | StructuralTypeShape::FixedArray { .. } => &[],
         })
