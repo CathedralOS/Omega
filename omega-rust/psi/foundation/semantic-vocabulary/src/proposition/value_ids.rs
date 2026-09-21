@@ -41,7 +41,8 @@ fn walk(proposition: &Proposition, mut visit: impl FnMut(ValueId) -> bool) -> (b
                 | Proposition::ContentConservation(_) => complete = false,
                 Proposition::Equal(left, right)
                 | Proposition::LessThan(left, right)
-                | Proposition::LessOrEqual(left, right) => {
+                | Proposition::LessOrEqual(left, right)
+                | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                     pending.push(Pending::Scalar(right));
                     pending.push(Pending::Scalar(left));
                 }

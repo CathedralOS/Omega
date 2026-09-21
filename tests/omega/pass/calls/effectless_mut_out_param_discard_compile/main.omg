@@ -2,7 +2,9 @@
 // has NO effects but takes a `&mut` out-parameter is NOT dead code (the
 // out-parameter write is observable after the call) and must stay legal.
 data Tally {
-    calls: u64;
+    // Defined-overflow domain: the `&mut` out-parameter increment is wrapping,
+    // not exact arithmetic, so no operand range premise is needed.
+    calls: u64 in Wrapping;
 }
 
 data Main {

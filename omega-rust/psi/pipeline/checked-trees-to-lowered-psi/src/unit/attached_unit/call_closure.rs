@@ -366,6 +366,12 @@ pub(super) fn validate_unit_operation_sequence(
                 }
                 *coordinate
             }
+            CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                 statement_index, ..
             }
@@ -375,6 +381,9 @@ pub(super) fn validate_unit_operation_sequence(
             | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
                 statement_index,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::StoreStructuralField {
+                statement_index, ..
             } => checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,
                 call_ordinal: 0,
@@ -509,6 +518,7 @@ pub(super) fn validate_unit_operation_sequence(
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+        | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
         {
             if result.binding_ordinal != next_structural_binding {

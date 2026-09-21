@@ -15,6 +15,7 @@ fn scalar_qualification_catalog_round_trips_and_commits_semantic_identity() {
             semantic_domain: DomainSemanticId::new(7).unwrap(),
             identity: "bool::Tag<7>".into(),
             carrier: ScalarType::Boolean,
+            establishment_routes: Vec::new(),
         });
     module
         .scalar_qualifications
@@ -95,6 +96,7 @@ fn explicit_scalar_erasure_round_trips_and_commits_its_exact_edge() {
             semantic_domain: DomainSemanticId::new(7).unwrap(),
             identity: "bool::Tag<7>".into(),
             carrier: ScalarType::Boolean,
+            establishment_routes: Vec::new(),
         });
     module
         .scalar_qualifications

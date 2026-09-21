@@ -492,14 +492,44 @@ mod machine_bounds {
         );
     }
 
+    /// An unranked cycle reports the verifier-derived component identity and
+    /// the `Unranked` cause — not whichever block the traversal revisited —
+    /// and the topology-derived name equals the identity a producer ranking
+    /// row for that same component would carry.
     #[test]
-    fn unranked_cycle_still_reports_control_cycle() {
+    fn unranked_cycle_reports_component_identity_and_cause() {
         let mut walk = cyclic_machine(32, Vec::new());
         walk.ranked_scc = None;
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
         let module = module(1, vec![walk]);
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Err(FixedFuelError::ControlCycle(id(2)))
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
+        );
+    }
+
+    /// The topology-derived identity is the canonical name: on a ranked
+    /// machine it equals the producer row's `control_cycle_identity`, so an
+    /// unranked component's report already names what ranking it would join.
+    #[test]
+    fn topology_derived_identity_matches_producer_identity() {
+        let walk = cyclic_machine(32, Vec::new());
+        let Some(TerminalRankedScc::Natural(components)) = &walk.ranked_scc else {
+            panic!("cyclic machine is Natural-ranked");
+        };
+        let members: Vec<BlockId> = components
+            .first()
+            .expect("one component")
+            .ranks
+            .iter()
+            .map(|rank| rank.block)
+            .collect();
+        assert_eq!(
+            terminal_verifier::cyclic_component_identity(&walk, &members),
+            terminal_verifier::control_cycle_identity(&walk, components.first().expect("one")),
         );
     }
 
@@ -989,12 +1019,16 @@ mod machine_bounds {
             ],
             None,
         );
+        let component = terminal_verifier::cyclic_component_identity(&walker, &[id(1), id(2)]);
         let module = module(1, vec![walker]);
         let subject = PreparedFuelModule::new(&module);
         let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
         assert_eq!(
             prepared.segment_certificate(id(1), id(40), &mut BTreeMap::new()),
-            Err(FixedFuelError::ControlCycle(id(1)))
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
         );
     }
 
@@ -1101,5 +1135,141 @@ mod machine_bounds {
         // members: 2 (cond 1), 3 (1 op + case 1), 8 (jump 1) = 1+2+1 = 4
         // component = 4 * 256 = 1024; bound = 1 + 1024 + 1 = 1026.
         assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(1026));
+    }
+
+    /// A codec-valid `Natural` countdown: entry 1 passes machine parameter
+    /// `initial` into header 2's rank parameter `rank`; 2 conditionally enters
+    /// work 3 (preserving) or exits to return block 4; 3 passes the measured
+    /// `next` value back to 2 (strict descent). Rank values are real
+    /// declarations so the semantic identity validation admits the module.
+    fn ranked_countdown_machine(rank_bits: u16) -> TerminalMachine {
+        let rank_type =
+            IntegerType::new(IntegerSign::Unsigned, rank_bits).expect("fixed unsigned rank");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64, value: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(u128::from(value)),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300, 0)],
+                    jump_with(4, 2, vec![id(300)]),
+                ),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic
+    }
+
+    /// A safe-point row whose endpoint rides the start block's own terminator
+    /// is one traversal of that block: a covered backedge or loop exit is an
+    /// ordinary per-traversal row, not authority to charge the
+    /// rank-multiplied component bound that whole-entry composition uses.
+    /// Uses the internal surface because the verifier requires discharged
+    /// rank obligations that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_safe_point_catalog_charges_single_edge_traversals() {
+        // Per-traversal charges: 1 = jump, 2 = bconst + conditional,
+        // 3 = iconst + jump, 4 = return. The u32 rank amplifies whole-entry
+        // composition only — the catalog rows stay at each block's own visit.
+        let module = module(1, vec![ranked_countdown_machine(32)]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        let rows = prepared.derive_catalog().expect("catalog derives");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.start_block, row.end_edge, row.ceiling_units))
+                .collect::<Vec<_>>(),
+            vec![
+                (id(1), id(1), 1),
+                (id(2), id(2), 2),
+                (id(2), id(3), 2),
+                (id(3), id(4), 2),
+                (id(4), id(5), 1),
+            ]
+        );
+    }
+
+    /// A u64 rank bound overflows the whole-entry certificate but cannot
+    /// overflow a per-traversal row: the catalog still derives and every
+    /// ceiling stays at the single-block traversal charge.
+    #[test]
+    fn natural_cycle_u64_catalog_stays_per_traversal_when_entry_overflows() {
+        let module = module(1, vec![ranked_countdown_machine(64)]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::BoundOverflow)
+        );
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        let rows = prepared
+            .derive_catalog()
+            .expect("per-edge segments stay within the u64 schedule");
+        assert_eq!(
+            rows.iter().map(|row| row.ceiling_units).collect::<Vec<_>>(),
+            vec![1, 2, 2, 2, 1]
+        );
     }
 }

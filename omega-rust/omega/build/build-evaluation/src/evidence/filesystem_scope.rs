@@ -143,8 +143,28 @@ impl CapturedSnapshotRelease {
     /// An already-absent backing is not an error, so the release may run on
     /// the settlement path and again on the occurrence's final exit.
     pub(crate) fn release(&self) {
+        let mut parents = Vec::new();
         for snapshot_dir in &self.snapshot_dirs {
             let _ = discard_materialized_snapshot(snapshot_dir);
+            if let Some(parent) = snapshot_dir.parent()
+                && !parents.iter().any(|known| *known == parent)
+            {
+                parents.push(parent.to_path_buf());
+            }
+        }
+        // The create-exclusive `omega-captured-source-session-*` parent is
+        // this occurrence's own private staging root: once every backing it
+        // held is discarded, an empty parent is removable. `remove_dir` only
+        // succeeds on an empty directory, so a parent still holding anything
+        // is left for the host's temp reaper instead of being forced.
+        for parent in parents {
+            let owned_session = parent.file_name().is_some_and(|name| {
+                name.to_string_lossy()
+                    .starts_with("omega-captured-source-session-")
+            });
+            if owned_session {
+                let _ = std::fs::remove_dir(parent);
+            }
         }
     }
 }
@@ -1478,6 +1498,51 @@ mod tests {
         .ensure_write_roots()
         .expect_err("a write root spelled through a link is not the directory admission checked");
         assert!(diagnostics[0].to_string().contains("symbolic link"));
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn captured_source_snapshot_rejects_a_host_alias_at_its_backing() {
+        let session_root = temporary_staging_root("snapshot-backing-alias");
+        fs::create_dir(&session_root).expect("create session root");
+        let backing = session_root.join("captured-source");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        std::os::unix::fs::symlink(&redirect_target, &backing)
+            .expect("plant the host alias at the snapshot backing");
+
+        let diagnostics = BuildMachineFilesystemScope::materialize_snapshot(
+            &captured_input(),
+            &backing,
+        )
+        .expect_err(
+            "a symlinked snapshot backing redirects captured-source writes outside its custody",
+        );
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory")
+        );
+        assert_eq!(
+            fs::read_link(&backing).expect("the host alias is host-owned, not ours to remove"),
+            redirect_target
+        );
+
+        // An ordinary non-directory resident at the backing names the same
+        // rejection: the snapshot materializes only into a fresh directory
+        // it owns, never over host content.
+        fs::remove_file(&backing).expect("remove the planted alias");
+        fs::write(&backing, b"occupied").expect("plant a regular file at the snapshot backing");
+        let diagnostics =
+            BuildMachineFilesystemScope::materialize_snapshot(&captured_input(), &backing)
+                .expect_err("a regular file at the snapshot backing is not its directory custody");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory")
+        );
 
         fs::remove_dir_all(session_root).expect("remove session root");
     }

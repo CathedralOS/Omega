@@ -541,3 +541,34 @@ fn computed_call_arguments_preserve_every_write_and_reject_hostile_siblings() {
         }
     }
 }
+
+#[test]
+fn member_projection_off_aggregate_call_result_lends_the_leaf_referents() {
+    let source = r#"
+    data Holder { slot: &mut u64; }
+    data Main { audit: u64; other: u64; value: u64; }
+    machine make_holder(v: &mut u64) -> Holder { Holder { slot: v } }
+    machine consume(v: &mut u64) { v = 9; }
+    machine Main::run(&mut self) {
+        consume(make_holder(&mut self.audit).slot);
+        consume(&mut self.other);
+    }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("lower typed trees");
+    let resolver = validation::CallFrameResolver::new(&typed).expect("symbol cache");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::run")
+        .expect("caller");
+    let state = typed.machine_states(machine).first().expect("entry");
+    let frame = resolver.inferred_state_write_frame(machine, state);
+    assert_eq!(
+        frame.complete_paths().as_deref(),
+        Some(["self.audit".to_owned(), "self.other".to_owned()].as_slice()),
+        "a &mut leaf projected off a transparent aggregate call result must lend the leaf's proven referents"
+    );
+}

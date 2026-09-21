@@ -153,6 +153,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod borrowed_windows;
 pub(crate) mod calls;
 mod candidate_closure;
 mod cleanup;
@@ -463,7 +464,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     for machine in program
         .machines()
         .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        // A bodied `boundary machine` is a checked adapter: its body is
+        // authored in-package, so it competes as an ordinary Unit candidate.
+        .filter(|machine| {
+            machine.supply_mode == MachineSupplyMode::CheckedBody
+                || (machine.supply_mode == MachineSupplyMode::Boundary && machine.body_is_present)
+        })
     {
         let trace = LocalConstructionTrace::default();
         match build_checked_machine_traced(
@@ -902,7 +908,14 @@ impl OmissionLedger {
         let unplanned = program
             .machines()
             .iter()
-            .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+            // Same roster as the candidate scan above: a bodied `boundary
+            // machine` adapter competes as an ordinary candidate, so its
+            // local-construction failure must name a row too.
+            .filter(|machine| {
+                machine.supply_mode == MachineSupplyMode::CheckedBody
+                    || (machine.supply_mode == MachineSupplyMode::Boundary
+                        && machine.body_is_present)
+            })
             .filter(|machine| !ledger.admitted.contains(&omission_key(machine.symbol)))
             .map(|machine| machine.symbol)
             .collect::<Vec<_>>();

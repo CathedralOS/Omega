@@ -1,12 +1,19 @@
-// COMPILE CANARY: x86 `wbinvd` is the cache-maintenance family's checked
-// zero-operand member — MachineOwner authority, no operands and no register
-// clobbers, so `clobbers none` exactly matches the catalog contract.
+// COMPILE CANARY: the x86 cache-maintenance family (wbinvd/invd/wbnoinvd) is
+// checked as zero-operand MachineOwner intrinsics — no operands and no
+// register clobbers, so `clobbers none` exactly matches each catalog
+// contract.
 use omega::language::core::assembly;
 
 data Main {}
 
 machine Main::main(&mut self) reaches MachineControl {
     asm where clobbers none {
-        wbinvd
+        wbinvd;
+        invd;
+        wbnoinvd
     }
+}
+machine build(builder: &mut Build) {
+    builder.application("asm-cache-maintenance-compile");
+    builder.freestanding = true;
 }

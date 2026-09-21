@@ -17,7 +17,7 @@ use super::filesystem::{io_error, open_canonical_source_root, require_unchanged_
 use super::identity::SourceIdentityHasher;
 use crate::SourceResolveError;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
-use traversal::visit_directory;
+use traversal::{CapturedTreeObservations, verify_captured_tree, visit_directory};
 
 #[cfg(test)]
 pub(crate) fn resolve_materialized_source(
@@ -56,6 +56,7 @@ pub(crate) fn capture_local_source_from_open_root(
     // moves on. Compare the canonical path's observation before and after the
     // traversal so that swap rejects instead of publishing a stale capture.
     let opening_root = std::fs::symlink_metadata(&root).map_err(|error| io_error(&root, error))?;
+    let mut tree_observations = CapturedTreeObservations::default();
     visit_directory(
         &root_directory,
         &root_directory,
@@ -67,7 +68,12 @@ pub(crate) fn capture_local_source_from_open_root(
         policy,
         &mut captured_file_bytes,
         &mut source_entries,
+        &mut tree_observations,
     )?;
+    // The per-directory close covers drift while its own visit ran; this
+    // sweep re-observes the whole recorded tree once more so a mutation that
+    // landed in an already-closed subtree still rejects at capture time.
+    verify_captured_tree(&root_directory, &root, &tree_observations)?;
     let closing_root = std::fs::symlink_metadata(&root).map_err(|error| io_error(&root, error))?;
     require_unchanged_entry(
         &cap_std::fs::Metadata::from_just_metadata(opening_root),

@@ -38,6 +38,16 @@ pub enum Proposition {
         left: IeeeFloatStructuralField,
         right: IeeeFloatStructuralField,
     },
+    /// IEEE `==` or `!=` over two scalar terms of the same IEEE format. Like
+    /// the structural-field form this stays atomic: NaN is non-reflexive and
+    /// signed zeroes compare equal under `==` and unequal under `!=`, so the
+    /// comparison is not mathematical equality.
+    ScalarIeeeFloatComparison {
+        kind: IeeeFloatComparisonKind,
+        format: IeeeFloatFormat,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    },
     /// Content equality over two exact byte-sequence structural leaves.
     ByteSequenceEqual {
         left: ByteSequenceStructuralField,
@@ -87,6 +97,18 @@ impl Proposition {
                 }
                 if left > right {
                     return Err(PropositionError::NonCanonicalIeeeFloatComparisonOperands);
+                }
+                Ok(())
+            }
+            Self::ScalarIeeeFloatComparison {
+                format,
+                left,
+                right,
+                ..
+            } => {
+                require_ieee_float_operands(*format, left, right)?;
+                if left > right {
+                    return Err(PropositionError::NonCanonicalScalarIeeeFloatComparisonOperands);
                 }
                 Ok(())
             }
@@ -210,6 +232,10 @@ impl PropositionContext {
                     }
                 }
                 Ok(())
+            }
+            Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+                self.validate_term(left)?;
+                self.validate_term(right)
             }
             Proposition::ByteSequenceEqual { left, right } => {
                 for field in [left, right] {
@@ -417,6 +443,24 @@ pub(crate) fn validate_integer_shift_operands(
     Ok(())
 }
 
+fn require_ieee_float_operands(
+    format: IeeeFloatFormat,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    left.validate()?;
+    right.validate()?;
+    let expected = ScalarType::IeeeFloat(format);
+    if left.scalar_type() != expected || right.scalar_type() != expected {
+        return Err(PropositionError::ScalarIeeeFloatOperandTypeMismatch {
+            expected,
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    Ok(())
+}
+
 fn require_same_integer_type(
     left: &ScalarTerm,
     right: &ScalarTerm,
@@ -515,6 +559,12 @@ pub enum PropositionError {
         right: ScalarType,
     },
     OrderedComparisonRequiresIntegers(ScalarType),
+    ScalarIeeeFloatOperandTypeMismatch {
+        expected: ScalarType,
+        left: ScalarType,
+        right: ScalarType,
+    },
+    NonCanonicalScalarIeeeFloatComparisonOperands,
     NonCanonicalConjunctionArity(usize),
     NonCanonicalDisjunctionArity(usize),
     EmptyIeeeFloatStructuralFieldPath,

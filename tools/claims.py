@@ -34,6 +34,8 @@ BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
 DEFAULT_LEASE_MINUTES = 480
 MIN_LEASE_MINUTES = 15
 MAX_LEASE_MINUTES = 1440
+NOTE_TEXT_LIMIT = 2000
+SWEPT_NOTE_RETENTION = 100
 ITEM_MARKER = re.compile(r"\*\*([A-Za-z0-9][A-Za-z0-9_-]*)\.\*\*")
 
 ClaimsError = coordination.CoordinationError
@@ -101,6 +103,38 @@ def validate_claim(claim):
     utc(claim["expires_utc"])
 
 
+def validate_note(note):
+    ticket_id(note["ticket"])
+    if not isinstance(note["item"], str) or not note["item"].strip():
+        raise ValueError("invalid note item")
+    if not isinstance(note["owner"], str) or not note["owner"].strip():
+        raise ValueError("invalid note owner")
+    if (not isinstance(note["text"], str) or not note["text"].strip()
+            or len(note["text"]) > NOTE_TEXT_LIMIT):
+        raise ValueError("invalid note text")
+    utc(note["created_utc"])
+    if note.get("swept_utc") is not None:
+        utc(note["swept_utc"])
+
+
+def trim_notes(record):
+    """Bound the ledger: pending notes always stay; only swept history trims."""
+    swept_seen = 0
+    kept = []
+    for note in reversed(record["notes"]):
+        if note.get("swept_utc") is not None:
+            swept_seen += 1
+            if swept_seen > SWEPT_NOTE_RETENTION:
+                continue
+        kept.append(note)
+    record["notes"] = list(reversed(kept))
+
+
+def pending_notes(record):
+    return [note for note in record.get("notes", [])
+            if note.get("swept_utc") is None]
+
+
 class Claims:
     def __init__(self, repository, remote):
         self.repository = Path(repository).resolve()
@@ -113,7 +147,7 @@ class Claims:
     def snapshot(self):
         references = coordination.remote_refs(self.repository, self.push_url, CLAIMS_REF)
         version = references.get(CLAIMS_REF, "")
-        record = {"protocol": PROTOCOL, "claims": []}
+        record = {"protocol": PROTOCOL, "claims": [], "notes": []}
         if version:
             coordination.fetch_object(self.repository, self.push_url, version)
             try:
@@ -124,6 +158,11 @@ class Claims:
                     raise ValueError("invalid claims")
                 for claim in record["claims"]:
                     validate_claim(claim)
+                notes = record.setdefault("notes", [])
+                if not isinstance(notes, list):
+                    raise ValueError("invalid notes")
+                for note in notes:
+                    validate_note(note)
             except (ValueError, KeyError, TypeError) as error:
                 raise ClaimsError("Unknown or invalid claims format; do not replace it.") from error
         return {"version": version, "record": record}
@@ -170,7 +209,7 @@ class Claims:
         while True:
             snapshot = self.snapshot()
             record = snapshot["record"]
-            if options.command in ("status", "available"):
+            if options.command in ("status", "available", "notes"):
                 return self.observe(options, snapshot)
             if self.maintenance(snapshot):
                 maintenance_attempts += 1
@@ -184,11 +223,29 @@ class Claims:
                     emit(prepared["record"])
                     return prepared["code"]
                 result = prepared["record"]
+            elif options.command == "sweep":
+                pending = pending_notes(record)
+                stamp = now()
+                for note in pending:
+                    note["swept_utc"] = stamp
+                trim_notes(record)
+                result = {"state": "swept", "swept": len(pending)}
             else:
                 ticket_id(options.ticket)
                 claim = next((entry for entry in claims
                               if entry["ticket"] == options.ticket), None)
-                if options.command == "renew":
+                if options.command == "note":
+                    if claim is None:
+                        raise ClaimsError("No live claim holds this ticket. "
+                                          "Notes attach to a live claim.")
+                    record["notes"].append(
+                        {"ticket": claim["ticket"], "item": claim["item"],
+                         "owner": claim["owner"], "text": options.text.strip(),
+                         "created_utc": now(), "swept_utc": None})
+                    trim_notes(record)
+                    result = {"state": "noted", "ticket": claim["ticket"],
+                              "item": claim["item"]}
+                elif options.command == "renew":
                     if claim is None:
                         raise ClaimsError("No live claim holds this ticket. Claim again.")
                     lease = options.lease_minutes or claim["lease_minutes"]
@@ -210,8 +267,9 @@ class Claims:
                         raise ClaimsError("No claim holds this ticket. Nothing was changed.")
                     result = {"state": "recovered", "ticket": options.ticket,
                               "item": claim["item"], "reason": options.reason}
-                record["claims"] = [entry for entry in record["claims"]
-                                    if entry["ticket"] != options.ticket]
+                if options.command in ("renew", "release", "recover"):
+                    record["claims"] = [entry for entry in record["claims"]
+                                        if entry["ticket"] != options.ticket]
                 if options.command == "renew":
                     record["claims"].append(claim)
 
@@ -322,7 +380,12 @@ class Claims:
         live, expired = live_claims(record), expired_claims(record)
         if options.command == "status":
             emit({"state": "claimed" if live else "available", "claims": live,
-                  "expired": expired, "version": snapshot["version"]})
+                  "expired": expired, "notes_pending": len(pending_notes(record)),
+                  "version": snapshot["version"]})
+            return 0
+        if options.command == "notes":
+            pending = pending_notes(record)
+            emit({"state": "notes", "notes": pending, "count": len(pending)})
             return 0
         items = board_items(self.repository, options.board)
         claimed_items = {claim["item"] for claim in live}
@@ -363,6 +426,11 @@ def main(argv=None):
     recover.add_argument("--reason", required=True)
     available = subparsers.add_parser("available")
     available.add_argument("--board", required=True, choices=BOARDS)
+    note = subparsers.add_parser("note")
+    note.add_argument("--ticket", required=True)
+    note.add_argument("--text", required=True)
+    subparsers.add_parser("notes")
+    subparsers.add_parser("sweep")
     audit = subparsers.add_parser("audit")
     audit.add_argument("--worktree", required=True)
     audit.add_argument("--owner", required=True)
@@ -387,6 +455,11 @@ def main(argv=None):
                                   "(no **<item>.** marker).")
         if options.command == "recover" and not options.reason.strip():
             raise ClaimsError("Recovery requires --reason after checking with the owner.")
+        if options.command == "note":
+            if not options.text.strip():
+                raise ClaimsError("Note requires nonempty --text.")
+            if len(options.text) > NOTE_TEXT_LIMIT:
+                raise ClaimsError(f"Note text must be at most {NOTE_TEXT_LIMIT} characters.")
         if options.command == "audit":
             return Claims(options.repository, options.remote).audit(options)
         return Claims(options.repository, options.remote).coordinate(options)

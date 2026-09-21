@@ -133,6 +133,12 @@ pub use assignment::logical_spill_operations::{
     logical_spill_operation_identity, plan_logical_spill_operations,
     validate_logical_spill_operations,
 };
+pub use assignment::stack_slot_coloring::{
+    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
+    StackSlotColoringError, StackSlotColoringIdentity, StackSlotColoringPlan,
+    StackSlotColoringPolicy, StackSlotColoringValidationReceipt, ValidatedStackSlotColoring,
+    color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
+};
 pub use unsequenced_spill_stages::abstract_spill_access_constraints::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessConstraintPlan,
     AbstractSpillAccessConstraintPlanIdentity, AbstractSpillAccessConstraintPolicy,
@@ -256,12 +262,6 @@ pub use unsequenced_spill_stages::spill_recovery_worklist::{
     SpillRecoveryWorklistIdentity, SpillRecoveryWorklistPlan, SpillRecoveryWorklistPolicy,
     SpillRecoveryWorklistReceipt, ValidatedSpillRecoveryWorklist, seed_spill_recovery_worklist,
     spill_recovery_worklist_identity, validate_spill_recovery_worklist,
-};
-pub use unsequenced_spill_stages::stack_slot_coloring::{
-    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
-    StackSlotColoringError, StackSlotColoringIdentity, StackSlotColoringPlan,
-    StackSlotColoringPolicy, StackSlotColoringValidationReceipt, ValidatedStackSlotColoring,
-    color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
 };
 pub use unsequenced_spill_stages::synthetic_reload_values::{
     FunctionSyntheticReloadValues, SyntheticReloadValueBinding, SyntheticReloadValueError,
