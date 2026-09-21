@@ -473,7 +473,7 @@ Finite inputs alone therefore do not justify this result:
 
 ```omega
 machine divide(a: f32 in Finite, b: f32 in Finite) -> f32 in Finite {
-    return a / b;
+    a / b
 }
 ```
 

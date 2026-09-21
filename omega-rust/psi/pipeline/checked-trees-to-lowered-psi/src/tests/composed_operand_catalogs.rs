@@ -1,5 +1,5 @@
 //! Operand helpers coexist with dynamic realizations and closed-sum payloads.
-use super::{CheckedTrees, checked_source, lower_machine};
+use super::{CheckedTrees, checked_source_with_core_service, lower_machine};
 use lowered_psi::LoweredPsi;
 use terminal_psi::{OperationKind, Terminator};
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
@@ -160,7 +160,7 @@ fn assert_trailing_provider_field_custody(checked: &CheckedTrees) {
 }
 
 const DYNAMIC_CONTINUATION_SOURCE: &str = r#"
-        boundary trait Console {
+        pub boundary trait Console {
             machine exit_process(return_code: i32) reaches Console;
         }
         trait Measure { machine measure(&self) -> i32; }
@@ -168,7 +168,7 @@ const DYNAMIC_CONTINUATION_SOURCE: &str = r#"
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 { transition { _ -> self.value } }
         }
-        data Main { console: Console; selected: Item; }
+        data Main { console: Service<Console>; selected: Item; }
         machine Main::main(&mut self) reaches Console {
             let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
             let result: i32 = forward(erased);
@@ -206,7 +206,7 @@ fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
                 "exit_process(helper(71i32))",
             ),
     ] {
-        let checked = checked_source(&source);
+        let checked = checked_source_with_core_service(&source);
         let [plan] = checked
             .facts
             .flow
@@ -268,7 +268,7 @@ fn dynamic_result_continuation_calls_an_observable_ordinary_unit_body() {
             "self.console.exit_process(helper(70i32));",
             "consume(helper(70i32));",
         );
-    let checked = checked_source(&source);
+    let checked = checked_source_with_core_service(&source);
     let lowered = roundtrip(&checked);
     assert!(
         lowered.semantic_module.machines.iter().any(|machine| {
@@ -287,13 +287,13 @@ fn dynamic_result_continuation_calls_an_observable_ordinary_unit_body() {
 fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
     let source = r#"
         machine identity(value: i32) -> i32 { value }
-        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
-        boundary trait Console {
+        pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
             machine write_byte(value: i32) reaches Console;
             machine exit_process(value: i32) reaches Console;
         }
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
@@ -313,7 +313,7 @@ fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
             .replace("exit_process(value);", "exit_process(value)")
             .replace("exit_process(70);", "exit_process(70)"),
     ] {
-        let checked = checked_source(&source);
+        let checked = checked_source_with_core_service(&source);
         // StructuralCase payload execution is not implemented by the interpreter;
         // codec roundtrips and independent verification cover this representation.
         let lowered = roundtrip(&checked);
@@ -370,8 +370,8 @@ fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
 
 const CLOSED_SUM_UNIT_SOURCE: &str = r#"
         machine identity(value: i32) -> i32 { value }
-        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
-        boundary trait Console {
+        pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
             machine write_byte(value: i32) reaches Console;
             machine exit_process(value: i32) reaches Console;
@@ -379,7 +379,7 @@ const CLOSED_SUM_UNIT_SOURCE: &str = r#"
         machine consume(value: i32) reaches Console {
             Console::write_byte(value);
         }
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
@@ -402,7 +402,7 @@ fn closed_sum_calls_share_the_ordinary_structural_result_namespace() {
             "self.console.exit_process(value);",
             "let scratch: Scratch = Scratch { value: 7 }; let second: ByteRead = self.console.read_byte(); self.console.exit_process(value);",
         );
-    let checked = checked_source(&source);
+    let checked = checked_source_with_core_service(&source);
     let lowered = roundtrip(&checked);
     let entry = lowered
         .semantic_module
@@ -438,7 +438,9 @@ fn closed_sum_graph_keeps_shared_and_mutable_receiver_custody() {
             terminal_psi::StructuralAccess::MutableBorrow,
         ),
     ] {
-        let checked = checked_source(&CLOSED_SUM_UNIT_SOURCE.replace("&mut self", receiver));
+        let checked = checked_source_with_core_service(
+            &CLOSED_SUM_UNIT_SOURCE.replace("&mut self", receiver),
+        );
         let plan_index = checked
             .facts
             .flow
@@ -499,7 +501,7 @@ fn closed_sum_graph_keeps_shared_and_mutable_receiver_custody() {
 
 #[test]
 fn closed_sum_payload_calls_an_observable_ordinary_unit_body() {
-    let checked = checked_source(CLOSED_SUM_UNIT_SOURCE);
+    let checked = checked_source_with_core_service(CLOSED_SUM_UNIT_SOURCE);
     let lowered = roundtrip(&checked);
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     assert!(lowered.semantic_module.machines.iter().any(|machine| {
@@ -528,7 +530,7 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
             "self.console.exit_process(70);",
             "let second: ByteRead = self.console.read_byte();",
         );
-    let checked = checked_source(&source);
+    let checked = checked_source_with_core_service(&source);
     let lowered = roundtrip(&checked);
     let machine = lowered
         .semantic_module
@@ -683,14 +685,14 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
 
 #[test]
 fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
-    let checked = checked_source(
+    let checked = checked_source_with_core_service(
         r#"
-        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
-        boundary trait Console {
+        pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        pub boundary trait Console {
             machine read_byte() -> ByteRead reaches Console;
             machine exit_process(value: i32) reaches Console;
         }
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             let observed: ByteRead = self.console.read_byte();
             transition observed {
@@ -757,7 +759,7 @@ fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
         "even an unused binding must name its declared payload"
     );
 
-    let mut changed = checked_source(CLOSED_SUM_UNIT_SOURCE);
+    let mut changed = checked_source_with_core_service(CLOSED_SUM_UNIT_SOURCE);
     let cases = changed
         .facts
         .flow
@@ -837,7 +839,7 @@ fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
             } else {
                 source
             };
-            let checked = checked_source(&source);
+            let checked = checked_source_with_core_service(&source);
             let lowered = roundtrip(&checked);
             assert_eq!(lowered.semantic_module.machines.len(), 4);
             assert_closed_sum_unit_catalog(&checked, &lowered);

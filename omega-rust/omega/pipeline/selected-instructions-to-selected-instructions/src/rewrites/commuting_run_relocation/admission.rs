@@ -9,7 +9,7 @@
 //! span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId};
+use selected_instructions::SelectedInstructionId;
 
 use super::CommutingRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -17,8 +17,7 @@ use crate::rewrites::commuting_accesses as accesses;
 use crate::rewrites::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     pub block_index: usize,
     /// The run's first member index in the block body.
     pub first_index: usize,
@@ -31,15 +30,15 @@ pub(super) struct Admission<'source> {
     pub destination_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,
     last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, CommutingRunRelocationError> {
+) -> Result<Admission, CommutingRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(CommutingRunRelocationError::SourceMismatch);
@@ -184,7 +183,6 @@ pub(super) fn admit<'source>(
         return Err(CommutingRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,

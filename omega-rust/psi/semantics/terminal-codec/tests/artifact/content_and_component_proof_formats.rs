@@ -7,8 +7,8 @@ use proof_admission::{
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
-    IntegerSign, IntegerType, IntegerValue, PlaceId, Proposition, PropositionContext, ScalarTerm,
-    StructuralPlaceKind,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, PlaceId, Proposition,
+    PropositionContext, ScalarTerm, StructuralPlaceKind,
 };
 use terminal_codec::{
     ArtifactManifestError, ProofCodecError, build_artifact_manifest,
@@ -540,5 +540,96 @@ fn proof_replacement_and_attached_sections_change_only_their_identities() {
             first,
         ),
         Err(ArtifactManifestError::ManifestMismatch)
+    );
+}
+
+fn bundle_with_proof(proof: ProofNode) -> ProofBundle {
+    ProofBundle {
+        recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(1),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            }),
+        }],
+    }
+}
+
+#[test]
+fn proof_proposition_nesting_has_a_total_bound() {
+    let mut proposition = Proposition::Truth;
+    for _ in 0..257 {
+        proposition = Proposition::Implication {
+            premise: Box::new(proposition),
+            conclusion: Box::new(Proposition::Truth),
+        };
+    }
+    let bundle = bundle_with_proof(ProofNode {
+        conclusion: proposition,
+        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+    });
+
+    assert_eq!(
+        encode_proof_bundle(&bundle),
+        Err(ProofCodecError::PropositionNestingTooDeep)
+    );
+}
+
+#[test]
+fn proof_content_term_nesting_has_a_total_bound() {
+    let leaf = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(70).expect("domain"),
+            projection_report_fingerprint: 0x7071,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: PlaceId::new(71).expect("place"),
+            segments: Vec::new(),
+        },
+    };
+    // Direct `Separate` construction keeps nested separations reachable for the
+    // guard, unlike the canonicalizing `ContentTerm::separate` constructor.
+    let mut term = leaf.clone();
+    for _ in 0..257 {
+        term = ContentTerm::Separate(vec![term, leaf.clone()]);
+    }
+    let bundle = bundle_with_proof(ProofNode {
+        conclusion: Proposition::ContentConservation(ContentConservation::new(
+            ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Byte".to_owned(),
+            },
+            leaf,
+            term,
+        )),
+        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+    });
+
+    assert_eq!(
+        encode_proof_bundle(&bundle),
+        Err(ProofCodecError::ContentTermNestingTooDeep)
+    );
+}
+
+#[test]
+fn proof_integer_math_term_nesting_has_a_total_bound() {
+    let literal = || IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+    let mut term = literal();
+    for _ in 0..257 {
+        term = IntegerMathTerm::Add(Box::new(term), Box::new(literal()));
+    }
+    let bundle = bundle_with_proof(ProofNode {
+        conclusion: Proposition::IntegerMathEqual(term, literal()),
+        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+    });
+
+    assert_eq!(
+        encode_proof_bundle(&bundle),
+        Err(ProofCodecError::ScalarTermNestingTooDeep)
     );
 }

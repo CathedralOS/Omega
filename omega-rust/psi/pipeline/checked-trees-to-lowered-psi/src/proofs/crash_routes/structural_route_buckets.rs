@@ -497,6 +497,9 @@ pub(crate) fn lower_structural_crash_route_buckets(
             CheckedBooleanExpression::IeeeFloatComparison { .. } => {
                 unsupported("IEEE equality lowers as an atomic proposition")
             }
+            CheckedBooleanExpression::ScalarIeeeFloatComparison { .. } => {
+                unsupported("scalar IEEE equality lowers as an atomic proposition")
+            }
             CheckedBooleanExpression::ByteSequenceEqual { .. } => {
                 unsupported("byte-sequence equality lowers as an atomic proposition")
             }
@@ -518,6 +521,7 @@ pub(crate) fn lower_structural_crash_route_buckets(
     fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression) -> bool {
         match expression {
             CheckedBooleanExpression::IeeeFloatComparison { .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
             | CheckedBooleanExpression::ByteSequenceEqual { .. }
             | CheckedBooleanExpression::PayloadlessSumEqual { .. }
             | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,

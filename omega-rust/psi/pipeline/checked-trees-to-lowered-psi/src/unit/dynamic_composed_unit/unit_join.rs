@@ -279,6 +279,7 @@ pub(super) fn lower(
                 id: block_id(1),
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Conditional {
                     condition: value_id(1),
@@ -288,6 +289,7 @@ pub(super) fn lower(
                         target: block_id(2),
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: terminal_psi::SuccessorEdge {
@@ -296,6 +298,7 @@ pub(super) fn lower(
                         target: block_id(3),
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -480,14 +483,17 @@ fn branch_block(
         id: block,
         parameters: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 callee,
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),

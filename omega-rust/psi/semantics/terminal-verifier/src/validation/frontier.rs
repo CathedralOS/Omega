@@ -855,10 +855,12 @@ fn valid_scalar_nominal_cleanup(
         && target.attachment == Some(cleanup.structural_type)
         && target.result == TerminalMachineResult::Unit
         && target.parameters.is_empty()
-        && target.structural_parameters.is_empty()
-        && target.entry_claims.is_empty()
-        && target.content_entry_claims.is_empty()
-        && target.contract.ensures.is_empty()
+        && target.structural_parameters.len() <= 1
+        && target.structural_parameters.iter().all(|parameter| {
+            parameter.is_self
+                && parameter.structural_type == cleanup.structural_type
+                && parameter.access != StructuralAccess::Owned
+        })
         && target.contract.crash_routes.is_empty()
         && cleanup.requirement_obligations.len() == target.contract.requires.len()
         && valid_nominal_cleanup_requirements(module, target, cleanup)

@@ -255,6 +255,7 @@ fn scalar_block_invariant_checks_every_conditional_arrival() {
             target: id(2, BlockId::new),
             arguments: vec![id(2, ValueId::new)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -263,6 +264,7 @@ fn scalar_block_invariant_checks_every_conditional_arrival() {
             target: id(2, BlockId::new),
             arguments: vec![id(2, ValueId::new)],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -291,6 +293,7 @@ fn scalar_block_invariant_checks_every_conditional_arrival() {
     let mut invalid = module.clone();
     invalid.machines[0].blocks[2].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(30, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -368,6 +371,7 @@ fn acyclic_module() -> TerminalModule {
         target: id(2, BlockId::new),
         arguments: vec![id(1, ValueId::new)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -431,6 +435,7 @@ fn empty_fact_arrival_cannot_assume_its_destination_predicate() {
         target: id(2, BlockId::new),
         arguments: vec![id(1, ValueId::new)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),

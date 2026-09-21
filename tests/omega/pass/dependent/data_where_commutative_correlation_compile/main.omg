@@ -11,9 +11,11 @@ where
 
 machine SumTriple::set(
     &mut self,
-    first: u32 [0..=100],
-    second: u32 [0..=100]
-) {
+    first: u32,
+    second: u32
+)
+requires first <= 100, second <= 100
+{
     self.left = first;
     self.right = second;
     self.total = second + first;

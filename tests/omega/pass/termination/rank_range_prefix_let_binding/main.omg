@@ -1,0 +1,32 @@
+// PASS CANARY. `walk` binds a machine call in its ranked body
+// (`let seen: u32 = self.level(remaining);`). The bound local is fresh
+// storage no premise carrier can name, so `preserves_rank` admits the
+// `let` under the same bar as a statement-position call: `level` is a
+// checked-body callee, `self` and `remaining` are inert, and the
+// initializer's complete write frame misses every premise carrier.
+//
+// This is `rank_range_prefix_call` with the prefix result bound instead of
+// issued as a bare statement. The matching refusals live in
+// `fail/termination/rank_range_prefix_nested_call_argument` (a nested call
+// in an argument) and `fail/termination/rank_range_call_copied_input_write`
+// (a write into a slot sharing an entry role).
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::level(&self, value: u32) -> u32 {
+    transition { _ -> value }
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    let seen: u32 = self.level(remaining);
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}

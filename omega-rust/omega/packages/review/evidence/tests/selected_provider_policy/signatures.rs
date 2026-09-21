@@ -92,9 +92,9 @@ fn empty_static_service_rejects_changed_authored_lifetime_binders() {
     )
     .expect_err("changed authored lifetime binders must reject");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("build selection differs from its current authored declaration")),
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("static-telescope arity")),
         "{diagnostics:#?}"
     );
 }

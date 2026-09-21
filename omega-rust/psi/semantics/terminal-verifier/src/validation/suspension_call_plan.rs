@@ -27,6 +27,7 @@ pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<
     let frontiers = reconstruct_validated_structural_ownership_frontiers(module)?;
     let mut operations = BTreeSet::new();
     let mut crossings = BTreeSet::new();
+    let mut plan_keys = BTreeSet::new();
     let mut previous = None;
     for plan in &module.suspension_call_plans {
         let key = (plan.operation, plan.crossing);
@@ -34,6 +35,7 @@ pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<
             return invalid(Some(plan.operation), SuspensionCallPlanError::NonCanonical);
         }
         previous = Some(key);
+        plan_keys.insert(key);
         if !operations.insert(plan.operation) {
             return invalid(
                 Some(plan.operation),
@@ -58,6 +60,15 @@ pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<
             return invalid(
                 Some(plan.operation),
                 SuspensionCallPlanError::RedirectedToNonCall,
+            );
+        }
+        // The site/plan pair is evidence for the operation's own call-side
+        // demand marker, not its source: a pair naming an operation that
+        // does not declare the crossing is rewritten evidence.
+        if operation.suspension_crossing != Some(plan.crossing) {
+            return invalid(
+                Some(plan.operation),
+                SuspensionCallPlanError::UnmarkedCallSide,
             );
         }
         if usize::try_from(plan.live_value_count).ok() != Some(plan.live_values.len()) {
@@ -177,6 +188,30 @@ pub(super) fn validate_suspension_call_plans(module: &TerminalModule) -> Result<
                 }
                 _ => {
                     return invalid(Some(plan.operation), SuspensionCallPlanError::TypeMismatch);
+                }
+            }
+        }
+    }
+    // Demand completeness: every possibly-suspending call marker must be
+    // covered by a retained site/plan pair, so deleting both rows leaves the
+    // marker dangling instead of erasing the required crossing.
+    for machine in &module.machines {
+        for block in &machine.blocks {
+            for operation in &block.operations {
+                let Some(crossing) = operation.suspension_crossing else {
+                    continue;
+                };
+                if terminal_call_target(&operation.kind).is_none() {
+                    return invalid(
+                        Some(operation.id),
+                        SuspensionCallPlanError::RedirectedToNonCall,
+                    );
+                }
+                if !plan_keys.contains(&(operation.id, crossing)) {
+                    return invalid(
+                        Some(operation.id),
+                        SuspensionCallPlanError::MissingCallSidePlan,
+                    );
                 }
             }
         }

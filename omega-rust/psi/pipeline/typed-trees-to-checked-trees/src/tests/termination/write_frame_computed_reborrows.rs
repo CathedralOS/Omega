@@ -111,14 +111,15 @@ fn computed_reborrows_publish_proven_referents_and_fail_closed() {
             "",
             None,
         ),
-        // A reference leaf projected out of an owned result is not a caller
-        // place the reborrow can spell.
+        // A reference leaf projected out of an owned result has no spellable
+        // carrier place, but the leaf relation still names its proven
+        // referent exactly.
         (
             "member_of_owned_result",
             "consume(&mut owned(&mut self.value).slot);",
             "",
             "",
-            None,
+            Some(vec!["self.value"]),
         ),
     ];
     for (name, statement, parameters, prefix, expected) in cases {

@@ -57,6 +57,7 @@ fn self_consumer_machine() -> TerminalMachine {
         entry: block_id(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -250,6 +251,7 @@ fn an_owned_self_receiver_claim_retires_at_scalar_return() {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

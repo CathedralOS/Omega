@@ -3,12 +3,27 @@
 // teardown obligation; when a `Guard` local stops being live the compiler is
 // responsible for the structural cleanup. Defining the drop machine and letting
 // an owned local die at end of state type-checks cleanly.
+//
+// A non-empty `drop` body is an ordinary Unit machine body: a source-ordered
+// list of ordinary calls to attached helpers runs at the cleanup edge.
 
 data Guard {
     handle: i32;
 }
 
+// Marker carrier for the ordered teardown helpers.
+data Teardown {
+}
+
+machine Teardown::unlock() {
+}
+
+machine Teardown::flush() {
+}
+
 machine Guard::drop(&mut self) {
+    Teardown::unlock();
+    Teardown::flush();
 }
 
 data Main {

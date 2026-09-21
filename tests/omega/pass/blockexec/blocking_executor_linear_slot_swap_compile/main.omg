@@ -1,0 +1,83 @@
+// BLOCKEXEC — concrete pin for the linear slot-empty channel that
+// `BoundedQueue<T, N>`'s contract surface records
+// (source/library/blocking-executor/queue.omg): a bounded ring whose
+// occupied slots each own a linear completion claim.
+//
+// The row's recorded premise — a concrete ring over linear payloads has no
+// slot-empty fact channel — is stale: a sum-typed slot gives the channel
+// (`Empty` / `Held`), and the whole-slot take/restore idiom checks.
+// `take` moves the `Held` slot out of the borrowed array as a whole —
+// moving only the payload out would leave the linear slot shell live —
+// writes `Empty` back, and hands the claim to its caller; `put` writes a
+// fresh `Held` over a vacated slot. This is the custody shape the
+// package's `BoundedQueue::pop`/`push` boundary operators promise: a
+// `pop` yields the claim the executor will `settle`, a `push` parks a
+// claim the queue now owns.
+//
+// Frontier, recorded for the row: the slot index stays literal because
+// `self.head`-indexed access needs the contract/range fold to prove
+// `head < capacity`, and that fold lane is an in-flight dependency. The
+// value here is the linear-slot custody protocol itself, not the head
+// arithmetic.
+
+data Ticket [linear] {
+    slot: u64;
+}
+
+// The slot-empty channel: a per-slot sum where `Empty` is provably
+// claim-free and `Held` owns the claim.
+data Slot {
+    case Empty;
+    case Held(claim: Ticket);
+}
+
+machine Ticket::release(self) { }
+
+data Ring {
+    slots: [Slot; 4];
+    // The ledger counts in the defined-overflow domain — exact `length ± 1`
+    // is a proof obligation this contract-free pin does not carry.
+    length: u64 in Wrapping;
+}
+
+// Deposit a claim into the ring: the vacated slot takes the whole `Held`
+// sum by value — the write restores the slot as a whole, never parks a
+// half-moved linear payload.
+machine Ring::put(&mut self, claim: Ticket) {
+    let view: &mut [Slot] = self.slots.as_mut_slice();
+    view[0] = Slot::Held { claim: claim };
+    self.length = self.length + 1;
+}
+
+// Remove the head claim: move the slot out whole, write `Empty` back to
+// restore the slot invariant, then destructure the taken sum so the claim
+// reaches the caller exactly once.
+machine Ring::take(&mut self) -> Ticket {
+    let view: &mut [Slot] = self.slots.as_mut_slice();
+    let taken: Slot = view[0];
+    view[0] = Slot::Empty;
+    self.length = self.length - 1;
+    let claim: Ticket = taken.claim;
+    claim
+}
+
+// Terminal consumption of the ring.
+machine Ring::close(self) { }
+
+data Main { }
+
+machine Main::probe(&mut self) {
+    let mut ring: Ring = Ring {
+        slots: [Slot::Empty, Slot::Empty, Slot::Empty, Slot::Empty],
+        length: 0,
+    };
+    // The BoundedQueue promise at concrete shape: put parks a claim in the
+    // ring, take hands it back out, and the claim discharges exactly once.
+    let first: Ticket = Ticket { slot: 0 };
+    ring.put(first);
+    let removed: Ticket = ring.take();
+    Ticket::release(removed);
+    ring.close();
+}
+
+machine Main::main(&mut self) { }

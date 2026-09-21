@@ -12,6 +12,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Delta lowering plan"
+
 LOWERING_PLAN_TMP=$(mktemp -d)
 trap 'rm -rf -- "$LOWERING_PLAN_TMP"' EXIT HUP INT TERM
 # The bound member closure is checked against its audited record; the gate's

@@ -46,7 +46,11 @@ pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
 
 pub(super) fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
     bytes.extend_from_slice(&row.binder.get().to_le_bytes());
-    match &row.destination {
+    encode_native_place(bytes, &row.destination);
+}
+
+pub(super) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
+    match destination {
         NativePlace::Parameter(parameter) => {
             bytes.push(1);
             bytes.extend_from_slice(&parameter.get().to_le_bytes());

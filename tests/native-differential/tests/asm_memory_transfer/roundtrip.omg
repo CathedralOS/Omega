@@ -1,0 +1,8 @@
+machine transfer(seed: u64, cell: &mut u64) -> u64 {
+    let mut staged: u64 = 0;
+    asm {
+        str seed, staged;
+        ldr cell, staged
+    }
+    staged
+}

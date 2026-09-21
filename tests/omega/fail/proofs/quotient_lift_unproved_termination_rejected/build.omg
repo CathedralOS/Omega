@@ -1,0 +1,10 @@
+// Fail canary: package provenance so the rejection is the quotient
+// admission's termination fence itself, not the standalone non-hermetic
+// identity refusal.
+
+machine build(builder: &mut Build) {
+    builder.application("quotient-lift-unproved-termination-rejected");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}

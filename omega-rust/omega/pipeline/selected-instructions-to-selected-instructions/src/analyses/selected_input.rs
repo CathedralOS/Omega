@@ -15,8 +15,8 @@ use crate::{
     ValidatedDiamondRunRelocation, ValidatedEdgeRelocation, ValidatedEdgeRunRelocation,
     ValidatedEquivalentCompare, ValidatedFixedViewCopies, ValidatedForkRelocation,
     ValidatedForkRunRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
-    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
-    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
+    ValidatedLiteralFold, ValidatedLocalRelocation, ValidatedLocalSchedule,
+    ValidatedMemberRunInterchange, ValidatedMemberRunRelocation, ValidatedPredecessorRelocation,
     ValidatedPredecessorRunRelocation, ValidatedPressureRematerialization,
     ValidatedProjectedAccess, ValidatedRedundantCompare, ValidatedRedundantExtension,
     ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
@@ -648,26 +648,6 @@ impl ValidatedSelectedAnalysis for ValidatedJoinRelocation {
     }
 }
 
-impl sealed::Sealed for ValidatedLiteralMinuend {}
-
-impl ValidatedSelectedAnalysis for ValidatedLiteralMinuend {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
 impl sealed::Sealed for ValidatedLocalRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedLocalRelocation {
@@ -711,6 +691,26 @@ impl ValidatedSelectedAnalysis for ValidatedLocalSchedule {
 impl sealed::Sealed for ValidatedMemberRunInterchange {}
 
 impl ValidatedSelectedAnalysis for ValidatedMemberRunInterchange {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedMemberRunRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedMemberRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
