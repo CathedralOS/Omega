@@ -10,12 +10,18 @@ generic accepted-boundary protocol for arbitrary nominal carriers.
 | Console exit | Exact package, boundary declaration, normalized service schema, and complete selected-plan digest. Only the joined symbol receives Process classification. Physical `HostedExitProcessI32` realization remains a separate Linux x86-64/AArch64 and macOS AArch64 catalog route; catalog admission does not establish selected-instruction support. |
 | `ProcessExit` exit | Exact package, normalized service schema, and complete selected-plan digest for the canonical core `ProcessExit` boundary requirement. The toolchain-owned trait and requirement carry no package identity; the binding commits only the package-owned provider nominal and its plan. Shares the `HostedExitProcessI32` physical realization route. |
 | `FilesystemHostService` | Exact package, boundary declaration, and complete schema; no plan digest or provider synthesis. Candidate review may nominate a reached same-named declaration and expose its checked schema as inert policy-authoring input. Final checking consumes the exact accepted binding. |
-| Physical program entries | Exact package, the target's application declaration, and schema for that target's physical-entry consumer — one role per contract package: `UefiX64ProgramEntry`, `MacosArm64ProgramEntry`, `MacosX64ProgramEntry`, `LinuxX86_64ProgramEntry`, `LinuxArm64ProgramEntry`, `WindowsX64ProgramEntry`. Each key omits the two target-evaluated calling-plan fields because the target independently replays the semantic and physical plans; no second ABI authority is introduced. A role binds only its own contract package; cross-target use rejects. |
+| Physical program entries | Exact package, the target's application declaration, and schema for that target's physical-entry consumer — one role per contract package: `UefiX64ProgramEntry`, `MacosArm64ProgramEntry`, `MacosX64ProgramEntry`, `LinuxX86_64ProgramEntry`, `LinuxArm64ProgramEntry`, `WindowsX64ProgramEntry`. Each key omits the two target-evaluated calling-plan fields (`calling_plan_report_fingerprint` and `calling_plan_commitment`) because the target independently replays the semantic and physical plans; no second ABI authority is introduced. A role binds only its own contract package; cross-target use rejects. |
 
-The filesystem permission-authoring control partitions the current 50-method
-schema: 36 explicit dispositions and 14 lifecycle/control entries whose
-implementation remains governed by the
-[filesystem policy](../../../../wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
+The two process-exit roles bind through `new` with a selected provider plan
+digest; the filesystem service and six program-entry roles bind through
+`new_service` with no plan digest and synthesize no provider.
+
+The filesystem permission-authoring control authors permissions against the
+current 50-method schema through the six portable filesystem facets —
+`ContentRead`, `ContentWrite`, `MetadataQuery`, `DirectoryEnumeration`,
+`NamespaceMutation`, `MetadataMutation` — drawn from the fourteen-class
+terminal-authority vocabulary, with mechanism-level dispositions governed by
+the [filesystem policy](../../../../wiki/spec/build/permissions.md#portable-filesystem-control-and-lifecycle-authority).
 Missing entries are not empty grants. Classification retains exact requirement
 and mechanism identities; ordinary release narrowing needs checked occurrence
 flow and a release contract. A known class set outside policy fails containment;
