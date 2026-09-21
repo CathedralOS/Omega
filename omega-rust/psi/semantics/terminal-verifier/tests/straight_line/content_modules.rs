@@ -154,6 +154,7 @@ pub(super) fn identity_reshuffle_module() -> (TerminalModule, Proposition, Oblig
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             }],
             structural_domains: vec![StructuralDomainDeclaration {
+                establishment_routes: Vec::new(),
                 id: semantic_vocabulary::StructuralDomainId::new(90).expect("structural domain"),
                 semantic_domain: semantic_vocabulary::DomainSemanticId::new(90)
                     .expect("semantic domain"),
@@ -279,6 +280,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
                 static_reach_binding: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: call_result,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Linear,
@@ -743,6 +745,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
                     algebra,
                     expression,
                 }),
+                establishment_routes: Vec::new(),
             }],
             services: Vec::new(),
             root_service_reach: Default::default(),

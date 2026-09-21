@@ -95,6 +95,7 @@ fn case_membership_rejects_non_boolean_results() {
             qualifications: Default::default(),
         }),
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(5).unwrap(),
             structural_type: StructuralTypeId::new(6).unwrap(),
             multiplicity: StructuralMultiplicity::Unrestricted,

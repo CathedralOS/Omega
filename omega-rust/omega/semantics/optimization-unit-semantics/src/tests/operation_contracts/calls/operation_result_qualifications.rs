@@ -42,6 +42,7 @@ fn structural_call_and_return_retain_the_exact_projected_result_roster() {
     ]
     .into();
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: id(4_693, semantic_vocabulary::DomainSemanticId::new),
         identity: "validation::projected-result-domain".into(),
@@ -123,6 +124,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
         .into_iter()
         .enumerate()
         .map(|(index, id)| terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(4_700 + index as u64)
                 .expect("nonzero semantic domain"),
@@ -249,6 +251,7 @@ fn qualified_boundary_consumer() -> (PsiOptimizationUnit, StructuralDomainId, St
         .into_iter()
         .enumerate()
         .map(|(index, id)| terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(4_710 + index as u64)
                 .expect("nonzero semantic domain"),

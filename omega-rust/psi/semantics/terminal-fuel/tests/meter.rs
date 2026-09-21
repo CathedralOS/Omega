@@ -246,6 +246,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
         id: operation_id(31),
         result: terminal_psi::OperationResult::Structural(
             terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(23),
                 structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

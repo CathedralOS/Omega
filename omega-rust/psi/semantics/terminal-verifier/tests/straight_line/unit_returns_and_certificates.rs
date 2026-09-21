@@ -361,6 +361,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

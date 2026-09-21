@@ -39,6 +39,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: structural_domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain identity"),

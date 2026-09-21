@@ -107,6 +107,7 @@ fn window_module() -> TerminalModule {
     ];
     let structural_result = |place: u64| {
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(place),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Unrestricted,

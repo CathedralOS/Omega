@@ -479,6 +479,7 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         .begin_structural_result_call(
             callee_id,
             StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place(5),
                 structural_type: token_type,
                 multiplicity: StructuralMultiplicity::Affine,

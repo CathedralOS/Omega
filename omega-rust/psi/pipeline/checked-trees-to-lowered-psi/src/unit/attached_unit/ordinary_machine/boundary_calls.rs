@@ -406,7 +406,17 @@ impl MachineEmission<'_> {
             id,
             *target_machine,
         )?;
+        let qualification_establishments =
+            super::super::catalog::call_result_qualification_establishments(
+                checked,
+                plan.state,
+                *coordinate,
+                *target_machine,
+                qualifications,
+                self.domain_ids,
+            )?;
         let returned = StructuralOperationResult {
+            qualification_establishments,
             place: result_place,
             structural_type,
             multiplicity: match multiplicity {

@@ -155,6 +155,7 @@ pub(crate) fn emit(
             static_reach_binding: None,
             id,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: effect.place,
                 structural_type: effect.structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

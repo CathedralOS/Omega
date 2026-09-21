@@ -51,6 +51,7 @@ fn module_with_array(
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type: array_type,
             multiplicity,

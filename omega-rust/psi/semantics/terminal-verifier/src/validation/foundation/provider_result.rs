@@ -51,6 +51,10 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
             // caller at resume, and the candidate's matching declared
             // qualifications introduce the domains its return produces.
             required.structural_type == actual.structural_type
+                // A boundary route mints caller claims only at Linear custody
+                // (the boundary-call admissibility rule); Affine stays the
+                // claim-free provider result. Unrestricted stays out of the
+                // installed lane until its non-affine custody is modeled.
                 && matches!(
                     required.multiplicity,
                     StructuralMultiplicity::Affine | StructuralMultiplicity::Linear

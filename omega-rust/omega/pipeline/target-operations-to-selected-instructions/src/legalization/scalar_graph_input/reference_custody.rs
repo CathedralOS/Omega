@@ -1056,6 +1056,7 @@ fn entry(
                     parent: None,
                     operation: None,
                     result: StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity: parameter.multiplicity,

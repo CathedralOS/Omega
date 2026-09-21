@@ -88,6 +88,7 @@ fn module(placed_view_inputs: Vec<TerminalPlacedViewInput>) -> TerminalModule {
             shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![terminal_psi::StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: StructuralDomainId::new(7).unwrap(),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(7).unwrap(),
             identity: "Backing::Granted".to_owned(),

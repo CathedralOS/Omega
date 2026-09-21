@@ -143,6 +143,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         });
         machine.blocks[0].operations[0].result =
             OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(3),
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -281,6 +282,7 @@ fn validate_retained_subslice(semantic: &[u8], proof: &[u8]) {
         &AbstractOperation::ByteSequenceSubslice {
             psi_operation: operation_id(3),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(3),
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,

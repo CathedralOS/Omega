@@ -50,6 +50,7 @@ pub(super) fn reference_release_module() -> TerminalModule {
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             }),
             kind: OperationKind::EstablishReference {
@@ -343,6 +344,7 @@ pub(super) fn structural_boundary_effect_module() -> TerminalModule {
         });
     module.machines[0].blocks[0].operations[2].result =
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -377,6 +379,7 @@ pub(super) fn effect_module() -> TerminalModule {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain identity"),
@@ -603,6 +606,7 @@ pub(super) fn payloadless_case_module() -> TerminalModule {
         static_reach_binding: None,
         id: operation_id(1),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: operation_place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -687,6 +691,7 @@ pub(super) fn payloadless_call_module() -> TerminalModule {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
                     claims: Vec::new(),
                 }),
                 kind: OperationKind::CallStructural {

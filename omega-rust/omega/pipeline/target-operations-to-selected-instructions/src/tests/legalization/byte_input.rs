@@ -83,6 +83,7 @@ pub(crate) fn fixture(
             psi_operation: OperationId::new(1).unwrap(),
             boundary,
             result: AbstractBoundaryResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Affine,

@@ -301,6 +301,7 @@ fn affine_scalar_record() -> UnitAffineScalarRecordEstablishmentRecord {
     UnitAffineScalarRecordEstablishmentRecord {
         psi_operation: operation_id(9),
         result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(9),
             structural_type: structural_type(9),
             multiplicity: StructuralMultiplicity::Affine,
@@ -448,6 +449,7 @@ fn affine_scalar_record_custody_plan() -> MachineCodePlan {
     )
     .expect("affine scalar call plan");
     let result = |place: u64, kind: u64| terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(place),
         structural_type: structural_type(kind),
         multiplicity: StructuralMultiplicity::Affine,
@@ -3915,6 +3917,7 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
     };
     let structural_result = machine_code::InternalStructuralCallResult {
         operation_result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(31),
             structural_type: structural_type(31),
             multiplicity: StructuralMultiplicity::Affine,
@@ -3976,6 +3979,7 @@ fn installation_function_affine_scalar_records_reject_every_one_field_substituti
                     .push(UnitAffineScalarRecordEstablishmentRecord {
                         psi_operation: operation_id(9),
                         result: terminal_psi::StructuralOperationResult {
+                            qualification_establishments: Vec::new(),
                             place: place_id(9),
                             structural_type: structural_type(9),
                             multiplicity: StructuralMultiplicity::Affine,

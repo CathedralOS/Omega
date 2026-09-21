@@ -315,6 +315,7 @@ pub(super) fn verified_byte_operation(
     ];
     if subslice {
         let result = terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(3, PlaceId::new),
             structural_type: byte_type,
             multiplicity: StructuralMultiplicity::Unrestricted,

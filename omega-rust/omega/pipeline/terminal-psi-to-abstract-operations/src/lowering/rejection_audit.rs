@@ -92,6 +92,7 @@ fn op(id: u64, result: OperationResult, kind: OperationKind) -> Operation {
 
 fn structural_result(id: u64) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: PlaceId::new(id).unwrap(),
         structural_type: StructuralTypeId::new(1).unwrap(),
         multiplicity: StructuralMultiplicity::Unrestricted,

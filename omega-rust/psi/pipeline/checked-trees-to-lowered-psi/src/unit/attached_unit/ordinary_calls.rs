@@ -344,6 +344,7 @@ pub(super) fn emit_structural(
         *target_state,
     )?;
     let returned = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type,
         multiplicity: match result.multiplicity {

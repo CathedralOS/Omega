@@ -954,6 +954,7 @@ mod tests {
                 static_reach_binding: None,
                 id: id::<OperationId>(1),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id::<PlaceId>(2),
                     structural_type: id::<StructuralTypeId>(3),
                     multiplicity: StructuralMultiplicity::Linear,
@@ -1220,6 +1221,7 @@ mod tests {
                 static_reach_binding: None,
                 id: id::<OperationId>(31),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id(23),
                     structural_type: id(7),
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -1244,10 +1246,12 @@ mod tests {
             },
         ];
         // Empty block rosters precede the operation ID, absent static reach
-        // marker, and typed result.
+        // marker, and typed result; the structural result's four empty rosters
+        // (memberships, projections, establishments, claims) push its kind tag
+        // four bytes later than the scalar result's.
         for (operation, (tag, tag_offset, operand)) in operations
             .into_iter()
-            .zip([(61, 63, 11_u64), (62, 51, 23_u64)])
+            .zip([(61, 67, 11_u64), (62, 51, 23_u64)])
         {
             let block = Block {
                 erased_scalar_formals: Vec::new(),
@@ -1460,6 +1464,7 @@ mod tests {
                 static_reach_binding: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: id::<PlaceId>(9),
                     structural_type: id::<StructuralTypeId>(10),
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1742,9 +1747,10 @@ mod tests {
         // operation id + absent static reach marker.
         assert_eq!(bytes[32], 0, "absent static reach binder marker");
         assert_eq!(bytes[33], 2, "structural OperationResult wire tag");
-        // The fixture has no qualifications and one whole-root claim, so the
-        // operation-kind tag follows its fixed-width result metadata here.
-        assert_eq!(bytes[75], 41, "CallStructural wire tag");
+        // The fixture has no qualifications, no establishment bindings, and one
+        // whole-root claim, so the operation-kind tag follows its fixed-width
+        // result metadata plus the empty establishments length field here.
+        assert_eq!(bytes[79], 41, "CallStructural wire tag");
 
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
@@ -1758,7 +1764,7 @@ mod tests {
         );
 
         let mut invalid_call = bytes;
-        invalid_call[75] = 255;
+        invalid_call[79] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_call)),
             Err(CodecError::InvalidTag("OperationKind", 255))
@@ -1843,19 +1849,20 @@ mod tests {
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).unwrap();
         let bytes = writer.finish();
-        // Claim-free structural result metadata ends after its three empty rosters.
-        assert_eq!(bytes[63], 68);
+        // Claim-free structural result metadata ends after its four empty
+        // rosters (memberships, projections, establishments, claims).
+        assert_eq!(bytes[67], 68);
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
         for retired in [51, 67] {
             let mut changed = bytes.clone();
-            changed[63] = retired;
+            changed[67] = retired;
             assert_eq!(
                 decode_block(&mut Reader::new(&changed)),
                 Err(CodecError::InvalidTag("OperationKind", retired))
             );
         }
         let mut changed = bytes.clone();
-        changed[76] = 255;
+        changed[80] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&changed)),
             Err(CodecError::InvalidTag("RecordFieldValue", 255))

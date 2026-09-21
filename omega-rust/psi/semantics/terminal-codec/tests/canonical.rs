@@ -612,6 +612,7 @@ fn structural_effect_fixture() -> TerminalModule {
             },
         ],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "example::Occurrence::Pending".to_owned(),
@@ -853,6 +854,7 @@ fn structural_call_fixture() -> TerminalModule {
     ]);
     caller.blocks[0].operations[0].result =
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(11),
             structural_type: result_type,
             multiplicity: StructuralMultiplicity::Linear,

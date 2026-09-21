@@ -793,6 +793,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                 static_reach_binding: None,
                 id: operation_id(1),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: operation_result,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Linear,
@@ -945,6 +946,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)
                 .expect("semantic domain identity"),

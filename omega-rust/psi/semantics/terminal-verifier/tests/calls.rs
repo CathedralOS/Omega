@@ -13,6 +13,8 @@ mod declared_service_reach;
 mod erased_arguments;
 #[path = "calls/provider_results.rs"]
 mod provider_results;
+#[path = "calls/qualification_establishments.rs"]
+mod qualification_establishments;
 #[path = "calls/scalar_and_structural_call_reconstruction.rs"]
 mod scalar_and_structural_call_reconstruction;
 #[path = "calls/scalar_array_arguments.rs"]
@@ -464,6 +466,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                         static_reach_binding: None,
                         id: call_operation,
                         result: OperationResult::Structural(StructuralOperationResult {
+                            qualification_establishments: Vec::new(),
                             place: place_id(1),
                             structural_type: result_type,
                             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -546,6 +549,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                         static_reach_binding: None,
                         id: constructor_operation,
                         result: OperationResult::Structural(StructuralOperationResult {
+                            qualification_establishments: Vec::new(),
                             place: place_id(3),
                             structural_type: result_type,
                             multiplicity: StructuralMultiplicity::Unrestricted,

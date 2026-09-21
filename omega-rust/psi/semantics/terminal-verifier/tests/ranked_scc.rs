@@ -667,6 +667,7 @@ fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
             static_reach_binding: None,
             id: id(6, OperationId::new),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: destination,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

@@ -266,6 +266,7 @@ pub(super) fn payloadless_guard_module()
         static_reach_binding: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: operation_place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -389,6 +390,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
             static_reach_binding: None,
             id: operation,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

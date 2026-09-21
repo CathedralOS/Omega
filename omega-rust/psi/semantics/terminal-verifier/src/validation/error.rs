@@ -436,6 +436,7 @@ pub enum ModuleError {
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     DuplicateStructuralDomain(StructuralDomainId),
+    NonCanonicalStructuralEstablishmentRoutes(StructuralDomainId),
     InvalidStructuralDomainIdentity(StructuralDomainId),
     InvalidStructuralDomainContentProjection(StructuralDomainId),
     UnknownStructuralDomain(StructuralDomainId),
@@ -492,6 +493,13 @@ pub enum ModuleError {
         domain: StructuralDomainId,
     },
     NonCanonicalStructuralQualifications(PlaceId),
+    /// An establishment binding on a structural result is malformed: the
+    /// roster is unordered, names no member qualification of the result, or
+    /// its operation is not an occurrence the authorized route can establish.
+    MalformedQualificationEstablishment {
+        operation: OperationId,
+        domain: Option<StructuralDomainId>,
+    },
     InvalidProjectedStructuralQualificationPath {
         place: PlaceId,
         path: Vec<StructuralPathSegment>,

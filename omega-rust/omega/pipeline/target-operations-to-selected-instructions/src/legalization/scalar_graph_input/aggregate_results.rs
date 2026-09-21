@@ -299,6 +299,7 @@ pub(super) fn header(
             }) {
                 home_layout(
                     &StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: result.place,
                         structural_type: result.structural_type,
                         multiplicity: result.multiplicity,
@@ -452,6 +453,7 @@ pub(in crate::legalization) fn block_home_layout(
     }
     home_layout(
         &StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
