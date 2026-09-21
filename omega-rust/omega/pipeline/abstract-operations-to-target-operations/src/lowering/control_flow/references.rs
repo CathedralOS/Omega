@@ -76,7 +76,8 @@ pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: Structu
                     push_fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
         }
     }
