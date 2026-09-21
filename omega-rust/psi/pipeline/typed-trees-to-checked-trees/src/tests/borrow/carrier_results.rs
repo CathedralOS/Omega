@@ -243,17 +243,21 @@ fn carrier_result_same_lifetime_leaves_are_unioned_within_one_input() {
 }
 
 #[test]
+fn carrier_result_accepts_inputs_sharing_the_result_lifetime() {
+    // Two carriers with the same explicit lifetime as the result are both
+    // candidate sources; the returned view's loan tracks the union.
+    let source = r#"
+        data View<'source> { body: &'source mut i32; }
+        machine choose<'source>(first: View<'source>, second: View<'source>) -> View<'source> {
+            first
+        }
+    "#;
+    check_program(source).expect("a shared explicit lifetime names the candidate source union");
+}
+
+#[test]
 fn carrier_result_ambiguous_inputs_and_access_escalation_reject() {
     let cases = [
-        (
-            r#"
-            data View<'source> { body: &'source mut i32; }
-            machine choose<'source>(first: View<'source>, second: View<'source>) -> View<'source> {
-                first
-            }
-        "#,
-            "shared by multiple inputs",
-        ),
         (
             r#"
             data Pair { left: &mut i32; right: &mut i32; }

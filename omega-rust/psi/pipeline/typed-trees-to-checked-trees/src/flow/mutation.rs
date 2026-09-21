@@ -81,10 +81,11 @@ pub(crate) fn call_mutated_places(
         call_frames,
     )
     .or_else(|| {
-        ceiling::signature_ceiling_places(
+        ceiling::signature_ceiling_places_with_loans(
             program,
             caller_machine_symbol,
             caller_state_symbol,
+            borrow,
             borrow_call,
             call_frames,
         )

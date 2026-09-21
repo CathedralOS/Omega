@@ -457,6 +457,7 @@ fn initial_control_vocabulary_rejects_unreachable_semantic_axioms() {
     let mut fixture = Fixture::new();
     fixture.module.machines[0].blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: BlockId::new(3).expect("unreachable block"),
         parameters: Vec::new(),

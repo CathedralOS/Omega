@@ -462,7 +462,10 @@ fn registered_fail_canaries_have_source_and_their_owned_expectations() {
         true,
         InventoryScope::RegisteredFixtures,
     );
-    for (canary, _) in CROSS_TARGET_FAIL_CANARIES {
+    for (canary, _) in CROSS_TARGET_FAIL_CANARIES
+        .iter()
+        .chain(proof_and_float_suites::CROSS_TARGET_PRODUCTION_FAIL_CANARIES)
+    {
         assert!(
             ACTIVE_FAIL_CANARIES.contains(canary),
             "cross-target failure annotation has no executing roster entry: {canary}"

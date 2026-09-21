@@ -1,0 +1,47 @@
+// A chain child of a routed domain keeps the parent's provenance requirement:
+// `Token in Issued::Fresh` membership is only established by a machine that
+// already holds `Token in Issued` evidence and promises the child through its
+// `ensures`. Nesting never turns routed provenance into predicate-only
+// membership.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued
+established by TokenIssuer::issue;
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
+
+machine Token::issue(value: u64) -> Token
+satisfies TokenIssuer::issue
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+domain Token::Issued::Fresh;
+
+machine Token::refresh(token: Token in Issued) -> Token in Issued
+ensures
+    result in Token::Issued::Fresh
+{
+    token
+}
+
+data Main {
+}
+
+machine Main::consume(&self, token: Token in Issued::Fresh) {
+}
+
+machine Main::main(&mut self) {
+    let token: Token in Issued = Token::issue(7);
+    let fresh: Token in Issued = Token::refresh(token);
+    self.consume(fresh);
+}

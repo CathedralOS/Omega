@@ -144,6 +144,15 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         maximum_bytes: usize,
     },
+    /// A consuming compile's restricted-request checkpoint found projected
+    /// request meaning the accepted target never granted for this exact
+    /// checked context. The ungranted meanings stay attached so the review
+    /// can present pending consent with incomplete audit state rather than
+    /// losing what the rejected occurrence asked of the host.
+    UngrantedRestrictedBuildRequests {
+        package: PackageKey,
+        ungranted: Vec<crate::review::UngrantedRestrictedBuildRequest>,
+    },
 }
 
 impl fmt::Display for CompileResolvedPackageReviewsError {
@@ -352,6 +361,18 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "normalized package policies exceeded the {maximum_bytes}-byte aggregate canonical encoding ceiling while compiling package `{}`",
                 package.name().as_str()
             ),
+            Self::UngrantedRestrictedBuildRequests { package, ungranted } => {
+                write!(
+                    formatter,
+                    "package `{}` projected {} restricted build request(s) the accepted policy does not grant for this checked context",
+                    package.name().as_str(),
+                    ungranted.len()
+                )?;
+                for gap in ungranted {
+                    write!(formatter, ": {gap}")?;
+                }
+                Ok(())
+            }
         }
     }
 }

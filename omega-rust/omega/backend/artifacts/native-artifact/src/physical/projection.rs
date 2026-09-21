@@ -106,6 +106,7 @@ fn derive_optimized_scope(
 
     let mut operator_occurrences = Vec::new();
     let mut boundary_occurrences = Vec::new();
+    let mut dynamic_call_occurrences = Vec::new();
     for function in &final_plan.functions {
         for (operation_ordinal, operation) in function.operations.iter().enumerate() {
             let Some(psi_operation) = abstract_operation_psi_operation(operation) else {
@@ -119,6 +120,31 @@ fn derive_optimized_scope(
                     operation_ordinal,
                 );
                 operator_occurrences.push(optimized_operator_occurrence(
+                    authority.terminal,
+                    function.machine,
+                    psi_operation,
+                    operation_ordinal,
+                    identity,
+                ));
+            }
+            // Dynamic calls are real surviving occurrences too: the emitted
+            // dispatch row joins them by operation and ordinal even though no
+            // static callee or D29 coverage reference exists.
+            if matches!(
+                operation,
+                AbstractOperation::CallDynamicScalar { .. }
+                    | AbstractOperation::CallStoredDynamicScalar { .. }
+                    | AbstractOperation::CallDynamicParameterScalar { .. }
+                    | AbstractOperation::CallDynamicUnit { .. }
+                    | AbstractOperation::CallDynamicParameterUnit { .. }
+            ) {
+                let identity = optimized_operator_occurrence_identity(
+                    authority,
+                    function.machine,
+                    psi_operation,
+                    operation_ordinal,
+                );
+                dynamic_call_occurrences.push(optimized_operator_occurrence(
                     authority.terminal,
                     function.machine,
                     psi_operation,
@@ -156,11 +182,13 @@ fn derive_optimized_scope(
         boundary_application_coverage_identity,
         &operator_occurrences,
         &boundary_occurrences,
+        &dynamic_call_occurrences,
     );
     let projection = native_optimization_projection(
         authority.terminal,
         operator_occurrences,
         boundary_occurrences,
+        dynamic_call_occurrences,
         projection_identity,
     );
     let scope_identity = optimized_scope_identity(
@@ -182,6 +210,7 @@ fn optimized_projection_identity(
     boundary_application_coverage: [u8; 32],
     operator_occurrences: &[super::model::OptimizedOperatorOccurrence],
     boundary_occurrences: &[super::model::OptimizedBoundaryOccurrence],
+    dynamic_call_occurrences: &[super::model::OptimizedOperatorOccurrence],
 ) -> NativeOptimizationProjectionIdentity {
     let mut canonical = validated_authority_bytes(authority);
     canonical.extend_from_slice(&boundary_application_coverage);
@@ -193,6 +222,11 @@ fn optimized_projection_identity(
     canonical.push(2);
     canonical.extend_from_slice(&canonical_usize(boundary_occurrences.len()));
     for occurrence in boundary_occurrences {
+        canonical.extend_from_slice(&occurrence.identity().bytes());
+    }
+    canonical.push(3);
+    canonical.extend_from_slice(&canonical_usize(dynamic_call_occurrences.len()));
+    for occurrence in dynamic_call_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
     NativeOptimizationProjectionIdentity::from_canonical_bytes(&canonical)
@@ -250,6 +284,7 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<OperationId> {
     match operation {
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
+        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
         | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }

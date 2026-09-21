@@ -500,6 +500,37 @@ fn wire_compatibility_complete_migration_demand_needs_bound_lineage_route() {
 }
 
 #[test]
+fn wire_compatibility_complete_migration_demand_needs_uniquely_bound_edges() {
+    // Two machines bound to the same `FormatMigration` edge would make the
+    // certified checked conversion declaration-order dependent: the route
+    // could only name whichever binding the search reached first. The demand
+    // must reject the edge as ambiguous instead of selecting either body.
+    let diagnostics = check_canary(&fail_canary(
+        "wire/wire_compatibility_migration_edge_ambiguous",
+    ))
+    .expect_err("a lineage edge bound by two machines must not certify a migration route");
+    let joined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        joined.contains(
+            "wire compatibility demand `ArchiveStore` is unsatisfied for local schema \
+             `Counter` and peer schema `CounterV1`: migration coverage"
+        ),
+        "ambiguous edge diagnostic should fail the demand's migration coverage:\n{joined}"
+    );
+    assert!(
+        joined.contains(
+            "edge `CounterV1` -> `Counter` is bound by `Counter::from_v1`, \
+             `Counter::from_v1_legacy`"
+        ),
+        "ambiguous edge diagnostic should name the edge and both bound machines:\n{joined}"
+    );
+}
+
+#[test]
 fn wire_compatibility_era_dispatch_is_policy_selected_not_declaration_order() {
     // The policy's authored era paths select the declarations; neither leaf
     // names nor declaration order dispatch. The out-of-order canary declares

@@ -119,6 +119,7 @@ fn constructed_case_call_module(
         (
             OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 structural_arguments: arguments,
@@ -140,6 +141,7 @@ fn constructed_case_call_module(
         (
             OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee.id,
                 arguments: Vec::new(),
                 structural_arguments: arguments,
@@ -333,6 +335,7 @@ fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
             target: BlockId::new(10).unwrap(),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -341,6 +344,7 @@ fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
             target: BlockId::new(11).unwrap(),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -348,6 +352,7 @@ fn constructed_case_sibling_establishment_cannot_authorize_owned_call() {
     for (identity, operation) in [(10, construction), (11, call)] {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(identity).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -536,6 +541,7 @@ pub(super) fn dispatch_module(access: StructuralAccess) -> TerminalModule {
     for position in 0..2 {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(10 + position).expect("case block"),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

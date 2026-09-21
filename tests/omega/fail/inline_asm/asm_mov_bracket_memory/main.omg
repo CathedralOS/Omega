@@ -1,0 +1,14 @@
+// The accepted `mov` form carries place/value operands only: a bracketed
+// `[address]` operand is raw memory addressing, which has no modeled
+// provenance/permission contract (wiki/spec/language/assembly.md "Hardware
+// memory"). Authorized memory data spells its access as a typed Omega view.
+
+data Main {
+    value: u64;
+}
+
+machine Main::main(&mut self) {
+    asm {
+        mov self.value, [self.value]
+    }
+}

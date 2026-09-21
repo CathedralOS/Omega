@@ -690,6 +690,8 @@ pub(crate) fn build_structural_scalar_return_machine(
     }
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -697,6 +699,7 @@ pub(crate) fn build_structural_scalar_return_machine(
         structural_parameters,
         scalar_parameters,
         erased_scalar_parameters,
+        erased_proof_parameters,
         bindings,
         effects,
         result_type,
@@ -751,6 +754,7 @@ pub(crate) fn is_bounded_scalar_nominal_cleanup_target(
             service_reach,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
         } = operation
@@ -766,6 +770,7 @@ pub(crate) fn is_bounded_scalar_nominal_cleanup_target(
             || !service_reach_is_empty(facts, *service_reach)
             || !scalar_arguments.is_empty()
             || !erased_scalar_arguments.is_empty()
+            || !erased_proof_arguments.is_empty()
             || !structural_arguments.is_empty()
             || !claim_transfers.is_empty()
         {

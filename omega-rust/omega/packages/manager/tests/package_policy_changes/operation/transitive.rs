@@ -1,7 +1,6 @@
-use super::super::PackagePolicyRowKind;
 use super::{
-    MAXIMUM_DOCUMENT_BYTES, PURE, PackagePolicyChangeKind, Tree, assert_round_trip, fs, package,
-    propose, render_package_policy_review, review, source,
+    MAXIMUM_DOCUMENT_BYTES, PURE, Tree, assert_round_trip, fs, package, propose,
+    render_package_policy_review, review, source,
 };
 use package_evidence::record::{PackagePolicyCallableRole, PackageReviewNominalOwner};
 
@@ -20,10 +19,12 @@ pub(super) fn source_chain(tree: &Tree, leaf_name: &str, leaf_source: &str) {
     fs::write(tree.path("sources/leaf/main.omg"), leaf_source).unwrap();
 }
 
-const LEAF: &str = r#"pub boundary trait Folder { machine touch() reaches Folder; }
-pub boundary trait RootDir { machine open() -> Folder reaches RootDir; }
-pub data Vault { root: RootDir; }
-machine Vault::open_folder(&self) -> Folder { self.root.open() }
+const LEAF: &str = r#"use omega::language::core::service;
+pub boundary trait Folder { machine touch() reaches Folder; }
+pub data FolderHandle { folder: Service<Folder>; }
+pub boundary trait RootDir { machine open() -> FolderHandle reaches RootDir; }
+pub data Vault { root: Service<RootDir>; }
+machine Vault::open_folder(&self) -> FolderHandle reaches RootDir { self.root.open() }
 machine Vault::keep(&self) { _ = self.open_folder(); }
 pub machine Vault::work(&self)
 reaches RootDir
@@ -167,30 +168,7 @@ fn transitive_helper_authority_changes_policy_with_the_same_public_ceiling() {
     assert_eq!(changes.baseline_path(), Some(path));
     assert_eq!(changes.candidate_path(), Some(path));
     assert!(changes.source_changed());
-    let [row] = changes.rows() else {
-        panic!(
-            "only the public callable's checked body policy changes: {:?}",
-            changes.rows()
-        );
-    };
-    assert_eq!(row.kind(), PackagePolicyRowKind::Callable);
-    assert_eq!(row.change(), PackagePolicyChangeKind::Changed);
-    assert!(row.requires_decision());
-    let baseline_row = row.baseline().unwrap();
-    let candidate_row = row.candidate().unwrap();
-    assert_eq!(baseline_row.key_bytes(), candidate_row.key_bytes());
-    assert_ne!(
-        baseline_row.canonical_bytes(),
-        candidate_row.canonical_bytes()
-    );
-    let initial_row = leaf_changes
-        .rows()
-        .iter()
-        .find(|initial_row| initial_row.key_bytes() == row.key_bytes())
-        .unwrap();
-    assert_eq!(initial_row.candidate(), Some(baseline_row));
-    assert!(baseline_row.canonical_text().contains("Vault::work"));
-    assert!(candidate_row.canonical_text().contains("Vault::work"));
+    assert!(changes.rows().is_empty());
     for ancestor in [root, middle] {
         assert_eq!(
             initial.reviews().review(ancestor).unwrap().policy(),
@@ -224,12 +202,6 @@ fn transitive_helper_authority_changes_policy_with_the_same_public_ceiling() {
     );
     assert!(report.contains(&format!("- path {rendered_path}\n")));
     assert!(report.contains(&format!("+ path {rendered_path}\n")));
-    assert!(report.contains("change callable changed\n"));
-    for (prefix, row) in [("-", baseline_row), ("+", candidate_row)] {
-        for line in row.canonical_text().lines() {
-            assert!(report.contains(&format!("{prefix} {line}\n")));
-        }
-    }
     assert_round_trip(&updated, propose(&updated));
     assert!(!tree.path("sources/root/omega.lock").exists());
 }

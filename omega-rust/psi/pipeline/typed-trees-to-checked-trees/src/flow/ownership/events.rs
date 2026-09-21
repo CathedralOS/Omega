@@ -30,6 +30,8 @@ pub(crate) struct DiscoveredMoveEvent {
 pub(crate) struct DirectMoveEventSink<'segments> {
     segments: &'segments mut arena::Arena<facts::PlaceSegment>,
     pub(super) operators: &'segments checked_trees::CheckedOperatorFacts,
+    pub(super) machine: &'segments typed_trees::machine::Machine,
+    pub(super) state: &'segments typed_trees::state::State,
     events: Vec<DiscoveredMoveEvent>,
     proof_only: Option<typed_trees::proof_only::ProofOnlyClassification>,
     pub(super) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
@@ -39,10 +41,14 @@ impl<'segments> DirectMoveEventSink<'segments> {
     pub(crate) fn new(
         segments: &'segments mut arena::Arena<facts::PlaceSegment>,
         operators: &'segments checked_trees::CheckedOperatorFacts,
+        machine: &'segments typed_trees::machine::Machine,
+        state: &'segments typed_trees::state::State,
     ) -> Self {
         Self {
             segments,
             operators,
+            machine,
+            state,
             events: Vec::new(),
             proof_only: None,
             source_arm: arena::Handle::invalid(),

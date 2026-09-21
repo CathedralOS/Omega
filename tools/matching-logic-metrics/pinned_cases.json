@@ -1,0 +1,190 @@
+{
+  "schema": "omega-matching-logic-pinned-cases/1",
+  "note": "Identical-subject positive/negative pairs for the bounded-comparison metrics record in wiki/drafts/matching_logic.md. Paths are repository-relative case directories containing main.omg. Every pair is capsule-clean under `omega --check --offline`: the positive accepts, every negative rejects.",
+  "pairs": [
+    {
+      "id": "inductive_climbing_sum",
+      "subject": "induction over the climbing sum",
+      "positive": "tests/omega/pass/proofs/proof_inductive_climbing_sum",
+      "negative": [
+        "tests/omega/fail/proofs/inductive_climbing_sum_unbounded_accumulator",
+        "tests/omega/fail/proofs/inductive_climbing_sum_step_false_twin"
+      ]
+    },
+    {
+      "id": "inductive_gauss_sum",
+      "subject": "induction over the Gauss sum",
+      "positive": "tests/omega/pass/proofs/proof_inductive_gauss_sum",
+      "negative": [
+        "tests/omega/fail/proofs/inductive_gauss_sum_false_twin",
+        "tests/omega/fail/proofs/inductive_gauss_sum_step_false_twin"
+      ]
+    },
+    {
+      "id": "addition_commutativity",
+      "subject": "commutativity of Nat addition",
+      "positive": "tests/omega/pass/proofs/proof_addition_commutativity",
+      "negative": [
+        "tests/omega/fail/proofs/addition_commutativity_false_twin"
+      ]
+    },
+    {
+      "id": "congruence_add_constant",
+      "subject": "congruence under adding a constant",
+      "positive": "tests/omega/pass/proofs/proof_congruence_add_constant",
+      "negative": [
+        "tests/omega/fail/proofs/congruence_false_twin"
+      ]
+    },
+    {
+      "id": "linear_range_sum",
+      "subject": "linear range sum bound",
+      "positive": "tests/omega/pass/proofs/proof_linear_range_sum",
+      "negative": [
+        "tests/omega/fail/proofs/linear_range_sum_false_twin"
+      ]
+    },
+    {
+      "id": "order_antisymmetry",
+      "subject": "antisymmetry of integer order",
+      "positive": "tests/omega/pass/proofs/proof_order_antisymmetry",
+      "negative": [
+        "tests/omega/fail/proofs/order_antisymmetry_false_twin"
+      ]
+    },
+    {
+      "id": "order_transitivity",
+      "subject": "transitivity of integer order",
+      "positive": "tests/omega/pass/proofs/proof_order_transitivity",
+      "negative": [
+        "tests/omega/fail/proofs/order_transitivity_false_twin"
+      ]
+    },
+    {
+      "id": "remainder_range",
+      "subject": "remainder range bound",
+      "positive": "tests/omega/pass/proofs/proof_remainder_range",
+      "negative": [
+        "tests/omega/fail/proofs/remainder_range_false_twin"
+      ]
+    },
+    {
+      "id": "nonlinear_square_range",
+      "subject": "nonlinear square range bound",
+      "positive": "tests/omega/pass/proofs/proof_nonlinear_square_range",
+      "negative": [
+        "tests/omega/fail/proofs/nonlinear_square_range_false_twin"
+      ]
+    },
+    {
+      "id": "integer_quotient",
+      "subject": "integer quotient/remainder bounds",
+      "positive": "tests/omega/pass/proofs/proof_integer_quotient_remainder",
+      "negative": [
+        "tests/omega/fail/proofs/proof_integer_quotient_false_twin",
+        "tests/omega/fail/proofs/proof_integer_quotient_bound_false_twin"
+      ]
+    },
+    {
+      "id": "bignum_constant_fold",
+      "subject": "big-integer constant folding",
+      "positive": "tests/omega/pass/proofs/proof_bignum_constant_fold",
+      "negative": [
+        "tests/omega/fail/proofs/proof_bignum_constant_false"
+      ]
+    },
+    {
+      "id": "integer_embedding",
+      "subject": "integer embedding into the proposition language",
+      "positive": "tests/omega/pass/proofs/proof_integer_embedding",
+      "negative": [
+        "tests/omega/fail/proofs/proof_integer_embedding_boolean",
+        "tests/omega/fail/proofs/proof_integer_embedding_runtime"
+      ]
+    },
+    {
+      "id": "nat_metric_triangle",
+      "subject": "Nat metric triangle inequality",
+      "positive": "tests/omega/pass/proofs/nat_metric_triangle_compile",
+      "negative": [
+        "tests/omega/fail/proofs/nat_metric_false_gap_zero"
+      ]
+    },
+    {
+      "id": "nat_exact_subtraction",
+      "subject": "exact subtraction requiring the order premise",
+      "positive": "tests/omega/pass/proofs/nat_exact_subtraction_compile",
+      "negative": [
+        "tests/omega/fail/proofs/nat_exact_subtraction_requires_order"
+      ]
+    },
+    {
+      "id": "constant_arithmetic_identity",
+      "subject": "constant arithmetic identity",
+      "positive": "tests/omega/pass/proofs/proof_constant_arithmetic_identity",
+      "negative": [
+        "tests/omega/fail/proofs/constant_equation_refuted"
+      ]
+    },
+    {
+      "id": "quotient_equivalence",
+      "subject": "quotient type equivalence relation",
+      "positive": "tests/omega/pass/proofs/quotient_equivalence_compile",
+      "negative": [
+        "tests/omega/fail/proofs/quotient_missing_symmetry"
+      ]
+    },
+    {
+      "id": "proposition_relation_hierarchy",
+      "subject": "proposition relation hierarchy",
+      "positive": "tests/omega/pass/proofs/proposition_relation_hierarchy_compile",
+      "negative": [
+        "tests/omega/fail/proofs/proposition_relation_inherited_law_rejected"
+      ]
+    },
+    {
+      "id": "kernel_integer_discreteness",
+      "subject": "integer discreteness kernel judgment",
+      "positive": "tests/omega/pass/proofs/kernel_integer_discreteness",
+      "negative": [
+        "tests/omega/fail/proofs/kernel_integer_discreteness_false_twin"
+      ]
+    },
+    {
+      "id": "kernel_integer_subtract_bound",
+      "subject": "subtraction bound kernel judgment",
+      "positive": "tests/omega/pass/proofs/kernel_integer_subtract_bound",
+      "negative": [
+        "tests/omega/fail/proofs/kernel_integer_subtract_bound_false_twin"
+      ]
+    },
+    {
+      "id": "kernel_integer_subtract_order",
+      "subject": "subtraction order kernel judgment",
+      "positive": "tests/omega/pass/proofs/kernel_integer_subtract_order",
+      "negative": [
+        "tests/omega/fail/proofs/kernel_integer_subtract_order_false_twin"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "id": "bag_view_reflexivity",
+      "positive": "tests/omega/pass/proofs/proof_bag_view_reflexivity",
+      "negative": ["tests/omega/fail/proofs/bag_view_false_twin"],
+      "reason": "positive only accepts through the canary suite's reviewed repository package inputs (semantic bindings); bare `omega --check --offline` rejects it with an unresolved authored Call declaration selection"
+    },
+    {
+      "id": "kernel_theorem_equality",
+      "positive": "tests/omega/pass/proofs/kernel_theorem_equality_certificates",
+      "negative": ["tests/omega/fail/proofs/kernel_theorem_equality_false_twin"],
+      "reason": "positive declares an omega_language_std package dependency in build.omg that the check-only capsule does not resolve; its negative twin remains a valid reject case"
+    },
+    {
+      "id": "polynomial_expand_core_nat",
+      "positive": "tests/omega/pass/proofs/polynomial_expand_core_nat",
+      "negative": ["tests/omega/fail/proofs/polynomial_false_expand"],
+      "reason": "positive exceeds 6 minutes under --check on a dev host — too heavy for a pinned measurement case"
+    }
+  ]
+}

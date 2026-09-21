@@ -1,8 +1,8 @@
 # Authority values and qualification evidence
 
 Library-issued authority uses the domain and provenance rules below.
-Compiler-known [service bindings](../build/component_publication.md#service-bindings-and-era-entry)
-instead carry establishment intrinsically: a usable `Service<R>` already has an
+Compiler-known [service bindings](../build/component_publication.md#bindings-and-era-entry)
+instead carry establishment intrinsically: a usable `Binding<R>` already has an
 authorized binding. There is no separate service `Bound` qualification. Its
 toolchain-known core declaration does not permit package-authored minting, and
 build provider selection alone does not establish arbitrary service values.

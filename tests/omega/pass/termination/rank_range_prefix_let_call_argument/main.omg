@@ -1,0 +1,34 @@
+// PASS CANARY. `walk` binds a machine call whose argument is itself a
+// machine call (`let seen: u32 = self.level(self.level(remaining));`). The
+// bound local is fresh storage no premise carrier can name, so
+// `preserves_rank` admits the `let` under the same bar as a
+// statement-position call applied at every value position: both `level`
+// calls name a checked-body callee, every non-call subterm is inert, and
+// the initializer's aggregate write frame covers every nested call and
+// misses every premise carrier.
+//
+// This is `rank_range_prefix_let_binding` with a nested call argument. The
+// statement-call twin still refuses nested arguments --
+// `fail/termination/rank_range_prefix_nested_call_argument` -- because a
+// bare statement call is the prefix's last value position: no fresh local
+// shields it, so its arguments keep the inert-only bar.
+data Main {}
+
+machine Main::main(&mut self) -> u32 {
+    transition { _ -> self.walk(4, 9) }
+}
+
+machine Main::level(&self, value: u32) -> u32 {
+    transition { _ -> value }
+}
+
+machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
+requires remaining <= ceiling;
+terminates by remaining in 0..=ceiling;
+-> u32 {
+    let seen: u32 = self.level(self.level(remaining));
+    transition remaining > 0 {
+        true -> walk(remaining - 1, ceiling)
+        false -> remaining
+    }
+}

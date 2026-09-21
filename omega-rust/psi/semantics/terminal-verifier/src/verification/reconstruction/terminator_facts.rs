@@ -13,7 +13,7 @@ use terminal_psi::{Block, TerminalMachine, Terminator};
 use super::super::substitution::substitute_proposition_places;
 use super::{
     ReconstructedCrashSiteFacts, ReconstructedOperationObligation,
-    ReconstructedTerminalObligationOwner, path_facts,
+    ReconstructedTerminalObligationOwner, operation_facts, path_facts,
 };
 
 pub(super) fn append_terminator(
@@ -147,18 +147,15 @@ pub(super) fn append_terminator(
                         selected_payload_bound(module, machine, *source, successor.case, *field)
                     {
                         let payload = value_term(parameter.id);
-                        let lower = ScalarTerm::Integer {
-                            scalar_type: bounded.integer_type(),
-                            value: bounded.minimum(),
-                        };
-                        let upper = ScalarTerm::Integer {
-                            scalar_type: bounded.integer_type(),
-                            value: bounded.maximum(),
-                        };
                         // The copied SSA payload keeps its declared range even
                         // after its former storage root is mutated or consumed.
-                        arm_axioms.push(Proposition::LessOrEqual(lower, payload.clone()));
-                        arm_axioms.push(Proposition::LessOrEqual(payload, upper));
+                        for fact in operation_facts::declared_carrier_bounds(
+                            proposition_context,
+                            bounded,
+                            payload,
+                        ) {
+                            arm_axioms.push(fact.proposition);
+                        }
                     }
                     // These are current-storage observations. The ordinary root
                     // mutation invalidation and iteration cuts govern their lifetime.

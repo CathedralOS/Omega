@@ -81,25 +81,50 @@ fn validate_terminal_image_with_import_count(
         // Function observations do not describe what the loader maps. Rejoin
         // every supported segment and the on-disk payload before accepting
         // instruction, relocation, or receiver-specific evidence.
-        image_macho::validate_macho_aarch64_loader_mapping(
-            &output.bytes,
-            output.final_image_layout,
-            &output.final_text_bytes,
-            &output.final_data_bytes,
-            output.bss_bytes,
-        )?;
-        image_macho::validate_macho_aarch64_object_fixups(
-            object,
-            relocations,
-            text_bytes.len(),
-            artifact.data_bytes().len(),
-            output,
-        )?;
-        image_macho::validate_macho_aarch64_import_binding_pairing(
-            &output.final_text_bytes,
-            &output.executable_regions,
-            &output.data_regions,
-        )?;
+        match artifact.target().architecture {
+            target::Architecture::Aarch64 => {
+                image_macho::validate_macho_aarch64_loader_mapping(
+                    &output.bytes,
+                    output.final_image_layout,
+                    &output.final_text_bytes,
+                    &output.final_data_bytes,
+                    output.bss_bytes,
+                )?;
+                image_macho::validate_macho_aarch64_object_fixups(
+                    object,
+                    relocations,
+                    text_bytes.len(),
+                    artifact.data_bytes().len(),
+                    output,
+                )?;
+                image_macho::validate_macho_aarch64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )?;
+            }
+            target::Architecture::X86_64 => {
+                image_macho::validate_macho_x86_64_loader_mapping(
+                    &output.bytes,
+                    output.final_image_layout,
+                    &output.final_text_bytes,
+                    &output.final_data_bytes,
+                    output.bss_bytes,
+                )?;
+                image_macho::validate_macho_x86_64_object_fixups(
+                    object,
+                    relocations,
+                    text_bytes.len(),
+                    artifact.data_bytes().len(),
+                    output,
+                )?;
+                image_macho::validate_macho_x86_64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )?;
+            }
+        }
     }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(
@@ -987,4 +1012,256 @@ fn validate_linux_x86_scalar_exit_shim(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_aarch64_page_target, decode_x86_relative_target};
+    use crate::object_artifact::same_dynamic_table_application;
+    use image::{
+        EmittedImageOutput, FinalExecutableTextDigest, FinalImageLayout, ImageOutputKind,
+        PlacedDataRegionInventory, PlacedExecutableRegionInventory,
+        PlacedExecutableRegionInventoryDigest,
+    };
+    use terminal_psi::{
+        ClosedConformanceApplication, ClosedConformanceParameterBinding,
+        ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    };
+
+    fn emitted_output(final_text_bytes: Vec<u8>, text_address: u64) -> EmittedImageOutput {
+        EmittedImageOutput {
+            bytes: Vec::new(),
+            final_image_layout: FinalImageLayout {
+                text_address,
+                data_address: 0,
+                bss_address: 0,
+            },
+            final_text_bytes,
+            final_data_bytes: Vec::new(),
+            final_import_data_bytes: Vec::new(),
+            callback_placement_identity_report_fingerprint: 0,
+            file_name: String::new(),
+            format: String::new(),
+            kind: ImageOutputKind::DirectExecutable,
+            text_bytes: 0,
+            data_bytes: 0,
+            bss_bytes: 0,
+            symbols: 0,
+            relocations: 0,
+            final_image_symbols: 0,
+            final_image_imports: 0,
+            final_image_relocations: 0,
+            executable_regions: PlacedExecutableRegionInventory {
+                text_address,
+                text_byte_count: 0,
+                text_digest: FinalExecutableTextDigest::from_digest([0x11; 32]),
+                text_report_fingerprint: 0,
+                inventory_digest: PlacedExecutableRegionInventoryDigest::from_digest([0x22; 32]),
+                inventory_report_fingerprint: 0,
+                regions: Vec::new(),
+                unclassified_gaps: Vec::new(),
+            },
+            data_regions: PlacedDataRegionInventory::empty(),
+            import_data_regions: PlacedDataRegionInventory::empty(),
+            compiler_text_validation: None,
+            compiler_function_validation: None,
+            compiler_entry_region_binding: None,
+            compiler_entry_footprint_binding: None,
+        }
+    }
+
+    #[test]
+    fn x86_relative_target_resolves_forward_displacement() {
+        let mut text = vec![0u8; 16];
+        text[4..8].copy_from_slice(&0x40i32.to_le_bytes());
+        let output = emitted_output(text, 0x1000);
+
+        assert_eq!(decode_x86_relative_target(&output, 4).unwrap(), 0x1048);
+    }
+
+    #[test]
+    fn x86_relative_target_resolves_backward_displacement() {
+        let mut text = vec![0u8; 16];
+        text[4..8].copy_from_slice(&(-8i32).to_le_bytes());
+        let output = emitted_output(text, 0x1000);
+
+        assert_eq!(decode_x86_relative_target(&output, 4).unwrap(), 0x1000);
+    }
+
+    #[test]
+    fn x86_relative_target_rejects_truncated_fields() {
+        let output = emitted_output(vec![0u8; 6], 0x1000);
+
+        assert!(decode_x86_relative_target(&output, 4).is_err());
+        assert!(decode_x86_relative_target(&output, 16).is_err());
+    }
+
+    #[test]
+    fn x86_relative_target_rejects_address_overflow() {
+        let mut text = vec![0u8; 8];
+        text[0..4].copy_from_slice(&i32::MAX.to_le_bytes());
+        let output = emitted_output(text, u64::MAX - 3);
+
+        assert!(decode_x86_relative_target(&output, 0).is_err());
+    }
+
+    fn adrp_word(page_delta: i64) -> u32 {
+        let value = page_delta as u32 & 0x1f_ffff;
+        ((value >> 2) << 5) | ((value & 0b11) << 29)
+    }
+
+    fn add_imm_word(page_offset: u32) -> u32 {
+        page_offset << 10
+    }
+
+    #[test]
+    fn aarch64_page_target_resolves_forward_page_and_offset() {
+        let mut text = vec![0u8; 0x20];
+        text[0x10..0x14].copy_from_slice(&adrp_word(3).to_le_bytes());
+        text[0x14..0x18].copy_from_slice(&add_imm_word(0x234).to_le_bytes());
+        let output = emitted_output(text, 0x4000);
+
+        assert_eq!(
+            decode_aarch64_page_target(&output, 0x10, 0x14).unwrap(),
+            0x7234
+        );
+    }
+
+    #[test]
+    fn aarch64_page_target_sign_extends_negative_page_delta() {
+        let mut text = vec![0u8; 0x20];
+        text[0x10..0x14].copy_from_slice(&adrp_word(-2).to_le_bytes());
+        text[0x14..0x18].copy_from_slice(&add_imm_word(0x10).to_le_bytes());
+        let output = emitted_output(text, 0x4000);
+
+        assert_eq!(
+            decode_aarch64_page_target(&output, 0x10, 0x14).unwrap(),
+            0x2010
+        );
+    }
+
+    #[test]
+    fn aarch64_page_target_uses_the_instruction_page_base() {
+        let mut text = vec![0u8; 0x20];
+        text[0x14..0x18].copy_from_slice(&adrp_word(0).to_le_bytes());
+        text[0x18..0x1c].copy_from_slice(&add_imm_word(0x8).to_le_bytes());
+        let output = emitted_output(text, 0x4000);
+
+        // The ADRP sits at unaligned offset 0x14; its decode base is the
+        // containing page (0x4014 & !0xfff), not the instruction address.
+        assert_eq!(
+            decode_aarch64_page_target(&output, 0x14, 0x18).unwrap(),
+            0x4008
+        );
+    }
+
+    #[test]
+    fn aarch64_page_target_rejects_truncated_fields() {
+        let output = emitted_output(vec![0u8; 0x14], 0x4000);
+
+        assert!(decode_aarch64_page_target(&output, 0x10, 0x14).is_err());
+        assert!(decode_aarch64_page_target(&output, 0x10, 0x20).is_err());
+    }
+
+    fn conformance_application() -> ClosedConformanceApplication {
+        ClosedConformanceApplication {
+            owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+            declaration_identity: "app::CarrierImplementsScanner".to_owned(),
+            telescope: vec![ClosedConformanceParameterBinding {
+                parameter: "T".to_owned(),
+                kind: ClosedConformanceParameterKind::Type,
+                argument: "i32".to_owned(),
+            }],
+            subject_identity: Some("app::Carrier".to_owned()),
+            trait_identity: "app::Scanner".to_owned(),
+            trait_lifetime_arguments: vec!["'static".to_owned()],
+            trait_arguments: vec!["i32".to_owned()],
+            realization_callables: vec![ClosedConformanceRealizationCallable {
+                source_callable_identity: "app::Carrier::scan".to_owned(),
+                machine: semantic_vocabulary::MachineId::new(9).unwrap(),
+                result: terminal_psi::ClosedConformanceCallableResult::I32,
+            }],
+            rows: vec![ClosedConformanceRow {
+                declaring_trait_identity: "app::Scanner".to_owned(),
+                public_requirement_identity: "app::Scanner::scan()".to_owned(),
+                family_tuple: Vec::new(),
+                requirement_identity: "app::Scanner::scan".to_owned(),
+                realization_identity: "app::Carrier::scan".to_owned(),
+                realization_callable_identity: Some("app::Carrier::scan::callable".to_owned()),
+            }],
+            report_fingerprint: 7,
+            commitment: terminal_psi::ClosedConformanceApplicationCommitment::from_digest(
+                [0x5a; 32],
+            ),
+        }
+    }
+
+    #[test]
+    fn dynamic_table_application_join_matches_the_complete_coordinate() {
+        let application = conformance_application();
+
+        assert!(same_dynamic_table_application(
+            &application,
+            &application.clone()
+        ));
+    }
+
+    #[test]
+    fn dynamic_table_application_join_ignores_artifact_local_owner() {
+        let application = conformance_application();
+        let mut other = application.clone();
+        other.owner = semantic_vocabulary::MachineId::new(77).unwrap();
+
+        assert!(same_dynamic_table_application(&application, &other));
+    }
+
+    #[test]
+    fn dynamic_table_application_join_rejects_each_drifting_field() {
+        let application = conformance_application();
+
+        let mut commitment = application.clone();
+        commitment.commitment =
+            terminal_psi::ClosedConformanceApplicationCommitment::from_digest([0xa5; 32]);
+        assert!(!same_dynamic_table_application(&application, &commitment));
+
+        let mut declaration = application.clone();
+        declaration.declaration_identity = "app::OtherImplementsScanner".to_owned();
+        assert!(!same_dynamic_table_application(&application, &declaration));
+
+        let mut telescope = application.clone();
+        telescope.telescope[0].argument = "i64".to_owned();
+        assert!(!same_dynamic_table_application(&application, &telescope));
+
+        let mut subject = application.clone();
+        subject.subject_identity = None;
+        assert!(!same_dynamic_table_application(&application, &subject));
+
+        let mut trait_identity = application.clone();
+        trait_identity.trait_identity = "app::OtherTrait".to_owned();
+        assert!(!same_dynamic_table_application(
+            &application,
+            &trait_identity
+        ));
+
+        let mut lifetimes = application.clone();
+        lifetimes.trait_lifetime_arguments = vec!["'a".to_owned()];
+        assert!(!same_dynamic_table_application(&application, &lifetimes));
+
+        let mut arguments = application.clone();
+        arguments.trait_arguments = vec!["u8".to_owned()];
+        assert!(!same_dynamic_table_application(&application, &arguments));
+
+        let mut callables = application.clone();
+        callables.realization_callables[0].source_callable_identity =
+            "app::Carrier::other".to_owned();
+        assert!(!same_dynamic_table_application(&application, &callables));
+
+        let mut rows = application.clone();
+        rows.rows[0].realization_identity = "app::Carrier::other".to_owned();
+        assert!(!same_dynamic_table_application(&application, &rows));
+
+        let mut fingerprint = application.clone();
+        fingerprint.report_fingerprint = 8;
+        assert!(!same_dynamic_table_application(&application, &fingerprint));
+    }
 }

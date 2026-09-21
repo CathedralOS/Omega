@@ -14,18 +14,28 @@
 //! the diagnostic every operation reports. `identities` holds the normalized
 //! identities and rights, `roots` the two ways a fresh root enters,
 //! `loans` the borrow-carrying subranges, `external_loans` lending to
-//! borrowers the checker cannot see, `mapping` translation activation and
-//! release.
+//! borrowers the checker cannot see, `ordering_events` the role-bound
+//! ordering records a device boundary exchanges, `mapping` translation
+//! activation and release, `activation_claims` runtime-sized bounds an
+//! activation claims inside its own provisioned storage.
 
+mod activation_claims;
 mod extent;
 mod external_loans;
 mod identities;
 mod loans;
 mod mapping;
+mod ordering_events;
 mod roots;
 #[cfg(test)]
 mod tests;
 
+pub use activation_claims::{
+    ActivationClaim, ActivationClaimBranch, ActivationClaimId, ActivationClaimLedger,
+    ActivationClaimProvenance, ActivationClaimRequest, ActivationClaimSiteId, ClaimBoundRow,
+    ClaimDrainError, ClaimEstablishmentError, compose_claim_bounds,
+    validate_committed_within_bound,
+};
 pub use extent::diagnostic::ExtentDiagnostic;
 pub use extent::{
     AttenuationError, Extent, ExtentSharingMode, MergeError, OwnedExtentPartition,
@@ -50,10 +60,18 @@ pub use loans::{ExtentLoan, LoanPolarity};
 pub use mapping::{
     BorrowedMappingError, MapActivationError, MappedExtent, MappedRangeReceiptContext,
     MappingGrant, MappingGrantId, MappingId, MappingReceiptContext, MappingSourceMode,
-    OwnedMappingError, PendingMap, PendingUnmap, TranslationActivationFactId,
+    OwnedMappingError, PeerWriteRevocationError, PeerWriteRevocationFactId,
+    PeerWriteRevocationObligations, PeerWriteRevocationReceipt, PeerWriteRevocationStartError,
+    PendingMap, PendingPeerWriteRevocation, PendingUnmap, TranslationActivationFactId,
     TranslationActivationReceipt, TranslationCompletionFactId, TranslationInstallObligations,
     TranslationReleaseObligations, TranslationReleaseReceipt, UnmapCompletionError,
     UnmappedExtents, map_borrowed, map_owned,
+};
+pub use ordering_events::{
+    DeviceInstanceId, DeviceOrderingRole, OrderingAuthority, OrderingCoordinateKind,
+    OrderingCoverageAdmission, OrderingCoverageRejection, OrderingCoverageRequirement,
+    OrderingEvent, OrderingEventId, OrderingRange, RuntimeScopeId,
+    admit_acquisition_after_completion, admit_role_coverage,
 };
 pub use roots::root_grants::{
     ExistingContentMintError, ExtentRootGrant, MintError, ProviderExistingContentGrant,

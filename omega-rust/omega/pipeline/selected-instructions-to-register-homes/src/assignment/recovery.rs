@@ -6,7 +6,6 @@ use crate::{
 use crate::{
     RetainedAllocation, StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
     stage_optimized_active_resident_rematerialization_pressure,
-    stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     stage_optimized_selected_reanalysis,
@@ -103,22 +102,10 @@ fn fixed_view_allocation(
     }
 }
 
-pub fn stage_fixed_view_register_allocation(
-    ranges: StagedOptimizedLiveRanges,
-) -> Result<crate::StagedOptimizedRegisterHomesAfterFixedViewCopies, RegisterAllocationError> {
-    let legality =
-        stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
-    fixed_view_homes(
-        legality,
-        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
-    )
-}
-
 /// The declared-rule composing form over an already-staged legality chain, so
-/// a pressured source exercises the same sequence
-/// `stage_fixed_view_register_allocation` runs after legality staging —
-/// including the runtime-spill composition a residual `NoCompatibleHome`
-/// admits.
+/// a pressured source exercises the same fixed-view sequence after legality
+/// staging — including the runtime-spill composition a residual
+/// `NoCompatibleHome` admits.
 pub fn stage_shared_entry_fixed_view_register_allocation(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {

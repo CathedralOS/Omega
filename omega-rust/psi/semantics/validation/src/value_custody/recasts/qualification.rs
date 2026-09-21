@@ -49,11 +49,12 @@ pub(super) fn judge_qualification_cast(
                 }
                 return;
             }
-            let mut judgment = literal_mint_discharges(program, domain, cast.value);
+            let indices = cast_domain_index_bindings(program, domain, cast);
+            let mut judgment = literal_mint_discharges(program, domain, cast.value, &indices);
             if matches!(judgment, MintJudgment::NotLiteral)
                 && let Some((machine, state)) = context
                 && let Some(judged) =
-                    range_mint_discharges(program, machine, state, domain, cast.value)
+                    range_mint_discharges(program, machine, state, domain, cast.value, &indices)
             {
                 judgment = judged;
             }
@@ -64,7 +65,8 @@ pub(super) fn judge_qualification_cast(
             // `machine use(..) requires raw >= 0` mints inside `use`.
             if matches!(judgment, MintJudgment::NotLiteral)
                 && let Some((machine, _)) = context
-                && let Some(judged) = requires_mint_discharges(program, machine, domain, cast.value)
+                && let Some(judged) =
+                    requires_mint_discharges(program, machine, domain, cast.value, &indices)
             {
                 judgment = judged;
             }
@@ -110,6 +112,56 @@ pub(super) fn judge_qualification_cast(
     }
 }
 
+/// The cast instance's closed index bindings: `domain<const Bound: u64>
+/// u64::AtMost<Bound>` minted as `... in AtMost<256>` pairs `Bound`'s
+/// parameter symbol with 256, so facts declared as `self <= Bound` judge
+/// against the instance's argument rather than the parameter name.
+fn cast_domain_index_bindings(
+    program: &TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+    cast: &TableCastExpression,
+) -> Vec<(SymbolHandle, i128)> {
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(cast.semantic_domain_arguments);
+    typed_trees::domain::index_parameters(program, domain)
+        .iter()
+        .zip(arguments)
+        .filter_map(|(parameter, argument)| {
+            let typed_trees::types::TypeReferenceNode::Named { name, .. } =
+                program.type_reference_table.type_reference(*argument)
+            else {
+                return None;
+            };
+            let value = if let Some(canonical) =
+                language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            {
+                match canonical.decode_encoding() {
+                    Some(
+                        language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                            value,
+                            ..
+                        },
+                    ) => value,
+                    _ => return None,
+                }
+            } else {
+                name.as_str().parse::<i128>().ok()?
+            };
+            Some((parameter.symbol, value))
+        })
+        .collect()
+}
+
+/// A fact leaf naming one of the minted instance's index parameters reads as
+/// the closed argument's value.
+fn index_literal(indices: &[(SymbolHandle, i128)], symbol: SymbolHandle) -> Option<i128> {
+    indices
+        .iter()
+        .find(|(candidate, _)| *candidate == symbol)
+        .map(|(_, value)| *value)
+}
+
 fn domain_is_vacuous(
     program: &TypedTrees,
     domain_symbol: SymbolHandle,
@@ -151,6 +203,7 @@ fn range_mint_discharges(
     state: &typed_trees::state::State,
     domain: &typed_trees::domain::DomainDefinition,
     value: ExpressionHandle,
+    indices: &[(SymbolHandle, i128)],
 ) -> Option<MintJudgment> {
     // The RAW declared type keeps the Constrained shell the range lives in
     // (declared_place_type strips it -- the R2 slice-9 gotcha).
@@ -185,6 +238,9 @@ fn range_mint_discharges(
         let literal_of = |handle: ExpressionHandle| -> Option<i64> {
             match program.expression_table.expression(handle) {
                 ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                ExpressionNode::Name(path) => {
+                    index_literal(indices, path.symbol).and_then(|value| i64::try_from(value).ok())
+                }
                 _ => None,
             }
         };
@@ -383,6 +439,7 @@ fn literal_mint_discharges(
     program: &TypedTrees,
     domain: &typed_trees::domain::DomainDefinition,
     value: ExpressionHandle,
+    indices: &[(SymbolHandle, i128)],
 ) -> MintJudgment {
     let ExpressionNode::Integer(literal) = program.expression_table.expression(value) else {
         return MintJudgment::NotLiteral;
@@ -408,6 +465,7 @@ fn literal_mint_discharges(
                 {
                     Some(minted)
                 }
+                ExpressionNode::Name(path) => index_literal(indices, path.symbol),
                 ExpressionNode::Integer(value) => value.text().parse::<i128>().ok(),
                 _ => None,
             }
@@ -441,6 +499,7 @@ fn requires_mint_discharges(
     machine: &typed_trees::machine::Machine,
     domain: &typed_trees::domain::DomainDefinition,
     value: ExpressionHandle,
+    indices: &[(SymbolHandle, i128)],
 ) -> Option<MintJudgment> {
     use typed_trees::expression::BinaryOperator;
     use typed_trees::signature::SignatureContractKind;
@@ -480,6 +539,8 @@ fn requires_mint_discharges(
             let literal_of = |handle: ExpressionHandle| -> Option<i64> {
                 match program.expression_table.expression(handle) {
                     ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                    ExpressionNode::Name(path) => index_literal(indices, path.symbol)
+                        .and_then(|value| i64::try_from(value).ok()),
                     _ => None,
                 }
             };
@@ -548,6 +609,8 @@ fn requires_mint_discharges(
         let literal_of = |handle: ExpressionHandle| -> Option<i64> {
             match program.expression_table.expression(handle) {
                 ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+                ExpressionNode::Name(fact_path) => index_literal(indices, fact_path.symbol)
+                    .and_then(|value| i64::try_from(value).ok()),
                 _ => None,
             }
         };

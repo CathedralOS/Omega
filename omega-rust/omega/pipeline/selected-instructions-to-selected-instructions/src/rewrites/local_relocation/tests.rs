@@ -1678,3 +1678,118 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
         LocalRelocationError::WorkBudgetExceeded
     );
 }
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_local_relocation` directly, so
+/// every rejection comes from the validator's own window audit.
+mod independence_tests {
+    use super::{
+        LocalRelocationError, MAT_A, MAT_B, NativeTarget, SUM, SelectedInstructionPlan,
+        ValidatedLocalRelocation, baseline_target_register_environment, budget, fixture,
+        validate_local_relocation,
+    };
+
+    /// Move the member at `member_index` onto `destination_index` inside a
+    /// source fixture's plan — the edit a producer emitting that
+    /// relocation would publish — without asking admission whether the
+    /// window is legal.
+    fn forged(
+        source: &ValidatedLocalRelocation,
+        member_index: usize,
+        destination_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let moved = instructions.remove(member_index);
+        instructions.insert(destination_index, moved);
+        proposed
+    }
+
+    /// A forged rotation of a window the validator's own audit admits
+    /// validates: the adjacent materializations carry no hazards, no
+    /// roster rows, and no barriers, so the audit derives the move and
+    /// the content comparison accepts it.
+    #[test]
+    fn forged_rotation_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_local_relocation(
+            &source,
+            0,
+            MAT_A,
+            MAT_B,
+            &environment,
+            budget(),
+            forged(&source, 0, 1),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the sum moved ahead of the `MAT_B` materialization that
+    /// defines its operand — the validator's own legality audit refuses
+    /// with `UnsupportedPair`, not a replay mismatch, because it
+    /// reconstructs the window's hazards instead of trusting the
+    /// producer's admission record.
+    #[test]
+    fn forged_move_past_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_local_relocation(
+                &source,
+                0,
+                SUM,
+                MAT_B,
+                &environment,
+                budget(),
+                forged(&source, 2, 1),
+            )
+            .unwrap_err(),
+            LocalRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that landed the member somewhere other than the named
+    /// destination's index publishes a window whose content is not the
+    /// admitted rotation: the member two slots down instead of adjacent
+    /// fails the content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_member_off_the_derived_position_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_local_relocation(
+                &source,
+                0,
+                MAT_A,
+                MAT_B,
+                &environment,
+                budget(),
+                forged(&source, 0, 2),
+            )
+            .unwrap_err(),
+            LocalRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged proposal that leaves the named pair unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the member at
+    /// the destination's index with the destination adjacent, so the
+    /// window content comparison rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let proposed = source.transformed().clone();
+        assert_eq!(
+            validate_local_relocation(&source, 0, MAT_A, MAT_B, &environment, budget(), proposed,)
+                .unwrap_err(),
+            LocalRelocationError::ReplayMismatch
+        );
+    }
+}

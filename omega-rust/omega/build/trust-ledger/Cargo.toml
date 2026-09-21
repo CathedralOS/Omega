@@ -16,3 +16,4 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 provider-planning = { path = "../provider-planning" }
 compiler = { path = "../../compiler/compiler" }
 effects = { path = "../../representations/effects" }
+optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }

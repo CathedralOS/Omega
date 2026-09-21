@@ -1,7 +1,7 @@
 # Checked Boundary Topology Plan
 
 This crate is the Rust reference owner of the package-defined deployment plan
-described by the [topology contract](../../../../../wiki/spec/packages/topology.md).
+described by the [topology contract](../../../../wiki/spec/packages/topology.md).
 It is not a compiler pipeline stage: nothing in the compiler calls it, and its
 existence grants no routing authority. The eventual build-only Omega package
 produces plans under this same versioned schema; this crate owns the wire
