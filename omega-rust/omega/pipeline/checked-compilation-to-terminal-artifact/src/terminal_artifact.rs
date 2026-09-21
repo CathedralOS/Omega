@@ -432,7 +432,7 @@ pub fn produce_program_entry_terminal_artifact(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::merge_terminal_production_timings;
     use artifacts::compile_timings::CompileTimings;
     use terminal_production::{TerminalProductionStage, TerminalProductionTimings};
 
