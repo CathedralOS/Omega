@@ -10504,8 +10504,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   with an ellipsis, so even a search of the board by exact name misses it.
   Carry that cluster into the doc, by name, pointing at the owning row.
 - **LEARNED-COST-MODEL.** — verified 05416dd1a0: duplicate pointer to the
-  live **LEARNED-OPTIMIZATION-COST-MODEL.** item (TASKS.md:5889), which
-  already names this alias. Nothing to implement by design:
+  **LEARNED-OPTIMIZATION-COST-MODEL.** item (deleted from the board by
+  sweep A, `091f5ba75c2`), which already names this alias. Nothing to
+  implement by design:
   `wiki/spec/build/optimizations.md` forbids a trainer, training corpus,
   model evaluator or inference path in the Rust reference compiler, the
   premature trainer was removed at 55ba7f6ab3, and
@@ -10513,7 +10514,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   implementation — the gated residual (versioned workload corpus plus
   measured comparison against `predicted_cost_delta`) waits on
   WORKLOAD-CORPUS-AND-MULTIVERSIONING and the product compiler. Row
-  consumed — the canonical item carries the frontier.
+  consumed. Canonical row deleted by board sweep A (`091f5ba75c2`;
+  entry: 50425f1c70, 55ba7f6ab3, 8a37f82686); gate re-verified at
+  `62a52db5ffd` and again at `94e764a6da` — optimizations.md:206-211
+  still forbids trainer/corpus/model/inference in the Rust reference
+  compiler, learned_optimization_policy.md:6 still authorizes no
+  implementation, `predicted_cost_delta` stays the deterministic
+  baseline, WORKLOAD-CORPUS-AND-MULTIVERSIONING stays resolved-gated on
+  OMEGA-PRODUCT-COMPILER-SOURCE. Record:
+  `wiki/drafts/learned_optimization_cost_model.md`.
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** — mined candidate; scope verified,
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
   two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
@@ -14082,6 +14091,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   submodule gitlink now pins `5b0307c352` (was `4b1f7a6` at the sibling
   audit), so the Windows leg must additionally re-run against the moved
   pin; the host gate is unchanged — still no Windows host in this lane.
+  Re-verified at `94e764a6da` (Zergling-108): gitlink still `5b0307c352`;
+  the previously-recorded wholesale dir fences on `samples/apps/squalr`
+  (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS,
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION, SNAPSHOT-STORAGE) have all expired —
+  the submodule is unfenced at this check — but the operative blocker is
+  unchanged: acceptance is a Windows-host `tools/verify.py native` run and
+  no Windows host exists in this lane. Record:
+  `wiki/drafts/squalr_geometry_windows_validation.md`.
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
   Retire or wire the public stage entrances the executed stage-entrance orphan
   sweep named. **Re-verified at `a9286683d0` against the whole repository, and
