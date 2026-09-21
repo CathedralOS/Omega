@@ -198,3 +198,5 @@ a level or bundle. Comparing rows across `source_revision`s is a
 compiler change plus everything else the revision carried; within one
 revision, two rows differing only in the selection key isolate that
 selection's cost on the subject.
+
+> Field note (201c249ceee5..832c55e69b76 review): committed records are overwritten in place on re-measurement (structural_proofs linux_x86_64 default was re-recorded by z125 with a lane-narrating `note`); keep record `note` fields descriptive of the measurement (subject/leg/host), not of the lane that ran it, and treat a re-measure of an existing cell as a refresh row on BENCHMARK-ROW-RESUMPTION rather than an independent item.
