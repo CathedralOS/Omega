@@ -4221,6 +4221,17 @@ Owners include
   has that same independent storage owner. Neither migration may delete the
   backing storage or introduce generic-specific plans to make the probe pass.
 
+  Dispatch note (`8fc2b84a17`): every leg of this item edits the shared
+  structural matcher `preparation/type_equations.rs` (plus
+  `machine_equations.rs`), and that surface is claimed this wave —
+  **STRUCTURAL-GENERIC-INFERENCE** (Zergling-136, ~09:58Z) — so no slice
+  is independently landable while it holds. The named cross-item
+  dependencies also stand: WRITE-ONLY-BORROW on write-only type
+  arguments, ARITHMETIC-POLICY-REALIZATION on trapping-call exclusion,
+  RUNTIME-VALUE-GENERICS on runtime binder equations, and
+  STATE-LOCAL-VALUE-FRONTIER (~02:17Z) on the migration's storage legs.
+  Coordinate with the structural-inference lane before picking this up.
+
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
   and [dynamic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
