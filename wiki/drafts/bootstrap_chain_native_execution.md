@@ -1,37 +1,51 @@
 # BOOTSTRAP-CHAIN-NATIVE-EXECUTION — re-verification ledger
 
-Re-verified on Linux x86-64 at `138ed79a677b` (board tip at claim time) by
-Zergling-165 under claim ticket `4a7a56e6`. The item is a covered-alias of
-BOOTSTRAP-HOST-COVERAGE's recorded native-execution evidence — every
-host-feasible seed-execution leg is already green on this host class.
+Re-verified on Linux x86-64 at `75650d2e94` (board tip at claim time) by
+w10-04-bootstrap-chain-native (zergling Z3) under claim ticket `6197be6d`.
+The item is a covered-alias of BOOTSTRAP-HOST-COVERAGE's recorded
+native-execution evidence — every host-feasible seed-execution leg re-ran
+green on this host class.
 
 ## Re-run on this host
 
 ```text
 $ sh tools/bootstrap/check-chain-hygiene.sh
-bootstrap chain topology and path hygiene OK
+bootstrap chain topology and path hygiene OK        (exit 0)
+
+$ sh tests/bootstrap/alpha-beta-edge.sh --edge
+alpha conformance (alpha_x64_linux): 34 passed, 0 failed
+Alpha bounds (native): 78 passed, 0 failed
+reconstruction — Beta reconstructs its direct Alpha tape byte-identically
+Beta root audit: 12,536-byte source -> 52 assertions + 273 emitting items
+  -> 253 reachable Alpha instructions + 160 table bytes -> 1,773-byte tape
+Beta word prefix: 736 exact status/stdout/stderr controls passed
+Alpha-to-Beta edge VERIFIED                          (exit 0, 4m36s)
+
+$ sh tests/alpha/parity.sh
+seed parity (alpha_x64_linux agrees with alpha_ref.py): 33 ok, 0 failed
+
+$ sh tests/beta/compiler/compiler-diamond.sh
+compiler diamond (beta_ref.py assembles byte-identically): 6 ok, 0 failed
 ```
 
-## Recorded green legs (host-feasible, linux x86-64)
+## Host-free gates (all exit 0)
 
-- `tests/alpha/conformance.sh` — 34/34 (prior ledger this wave:
-  SEED-PARITY-ASSERTIONS re-ran `tests/alpha/parity.sh` → 33 ok / 0 failed
-  at `4c4420286585`; native bounds 78/78; seed parity 33/33).
-- Beta reconstruction byte-identical; word-prefix 736/736;
-  compiler-diamond 6/6; `alpha-beta-edge.sh --edge` VERIFIED on the audited
-  `alpha_x64_linux` seed.
-- `tests/bootstrap/*-identity.sh` + `source-closure.sh` — host-free.
-- The omega-outcome gate (`tests/bootstrap/omega-outcome`) ran green
-  natively on linux x86-64 this wave — 266s receipt reconstruction +
-  3443s observation, "OCOUT tables, frame encodings, refusals, bounded
-  arithmetic, and recorded outcome tuples match the request contract"
-  (ledger `omega_d_request_v1_tables.md`).
+- `tests/bootstrap/{alpha,beta,gamma,delta,epsilon,omega,proofs}-identity.sh`
+  — each bound subject stamps exactly and refuses corrupted/truncated
+  inputs.
+- `tests/bootstrap/source-closure.sh` — 4/4.
+- `tests/bootstrap/ocreq-tables.sh` — 224 contract/embedded records agree.
+- `tests/bootstrap/chain-hygiene.sh` — 23 inventory cases pass.
 
 ## Residual legs are host-gated to owning items
 
 - Literal Windows Git Bash route + macOS/Windows seed hosts →
   ALPHA-WINDOWS-CONFORMANCE, GAMMA-DERIVATION-CHECKER native acceptance.
-- D→omega0/omega tapes → OMEGA-C.
+  Windows, macOS, and QEMU acceptance is unavailable on this host.
+- D→omega0/omega tapes → OMEGA-C (no omega0/omega tape exists under
+  `bootstrap/`; the producing rung is still under construction).
+- The omega-outcome/omega-request/omega-parser/omega-executable gates are
+  explicit slow gates and were not re-run this cycle.
 
 ## Verdict
 
