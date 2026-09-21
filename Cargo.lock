@@ -1062,6 +1062,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "calling-conventions",
+ "function-identity",
  "optimization-core",
  "optimization-unit",
  "semantic-vocabulary",
@@ -1781,6 +1782,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "calling-conventions",
+ "function-identity",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -1788,6 +1790,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "symbols",
  "target",
  "target-operations",
  "task-plans",

@@ -7,6 +7,7 @@ version.workspace = true
 [dependencies]
 abstract-operations = { path = "../abstract-operations" }
 calling-conventions = { path = "../calling-conventions" }
+function-identity = { path = "../function-identity" }
 legalized-operations = { path = "../legalized-operations" }
 optimization-core = { path = "../optimization-core" }
 optimization-unit = { path = "../optimization-unit" }
@@ -16,6 +17,7 @@ selected-instructions = { path = "../selected-instructions" }
 target-operations = { path = "../target-operations" }
 task-plans = { path = "../task-plans" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+symbols = { path = "../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
