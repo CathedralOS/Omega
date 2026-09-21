@@ -8582,6 +8582,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   write, and establishment refuses rather than writing through it; the existing
   whole-root and resolution-drift rejections stay green
   (`cargo nextest run -p build-evaluation --lib`).
+
+  Resolved — the stated escape does not exist: `overlap_key` resolves the
+  longest existing prefix through `std::fs::canonicalize`, so a symlinked
+  ancestor changes the recomputed key regardless of the leaf being a real
+  directory, and `ensure_established_write_root`'s key comparison already
+  refuses it ("resolves to a different directory than admission checked").
+  What was missing is the witness: `write_root_establishment_rejects_a_
+  host_alias_on_an_ancestor` plants the alias on a not-yet-created ancestor
+  component between the admission-time key computation and establishment,
+  materializes the leaf through it, and observes the refusal. Witnessed green
+  at `0f75a052f09` on linux x86-64: `cargo nextest run -p build-evaluation
+  --lib` → 94/94 PASS including the new pin and the existing whole-root and
+  resolution-drift rejections. The remaining "request/options admission
+  slice" residual stays described under this item name — CLI-level
+  `--build-dir` spellings are admitted at request time on the same
+  `overlap_key` machinery and reach no earlier write before
+  `ensure_write_roots`, so no separate window exists to close there either;
+  a concrete admission-phase surface would need a new finding.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY.** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
   span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
