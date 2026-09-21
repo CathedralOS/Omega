@@ -199,6 +199,12 @@ class SourceClosure(unittest.TestCase):
             (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES"]), 2998,
              "cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255",
              None),
+            (Path(os.environ["OMEGA_PATH_DERIVATION_CHECKER_SOURCES"]), 62357,
+             "382531b910429c7111c2bc9e7dcce7e96394c45fa0a89b624debd061b69422b2",
+             None),
+            (Path(os.environ["OMEGA_PATH_BETA_ENCODING_SOURCES"]), 130363,
+             "632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25be08840b41ddf",
+             None),
         ]
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
