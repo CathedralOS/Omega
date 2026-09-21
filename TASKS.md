@@ -7827,6 +7827,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   default-selection row). Record production needs `tools/benchmark`
   (fenced by BENCHMARK-ROW-RESUMPTION ~03:42Z) plus the matrix doc/test
   pair — every slice is claimed elsewhere this wave. No independent
+- **BENCHMARK-ROW-RESUMPTION.** — mined candidate; scope verified at
+  `e927421a8b` on linux x86-64 (z181): re-mines the benchmark-row
+  production lane — resume committing measured `tools/benchmark/
+  records/` rows plus `wiki/drafts/benchmarks.md` matrix entries as
+  host/subject coverage becomes producible. The linux_x86_64
+  `wrapping_square_sum` default row landed (z177 lane, measured
+  `e7c0099cb2`), and the three cross-target compile legs are
+  committed at `52ceeeabb7` (all `--no-run` from a linux x86_64
+  host). Every remaining row is host-gated: `linux_arm64` needs an
+  arm64 runner, `macos_arm64`/`windows_x86_64` need their own hosts
+  (windows peak-RSS stays `unavailable`), `uefi_x86_64` needs
+  QEMU/hardware. The host-producible record surfaces
+  (`tools/benchmark/records` + `wiki/drafts/benchmarks.md`) are
+  claim-fenced this wave to BENCHMARK-PROOF-SUBJECT-SELECTION
+  (~14:19Z). No unfenced slice exists on this host.
+
   slice remains under this name.
 - **BENCHMARK-SELECTION-ISOLATION-ROWS.** Resolved — the per-selection row
   isolation the name asks for is the record contract itself and is already
