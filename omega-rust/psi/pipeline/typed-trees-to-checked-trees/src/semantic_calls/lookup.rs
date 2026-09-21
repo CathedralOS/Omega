@@ -36,17 +36,41 @@ pub(crate) fn find_state(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
+    find_state_with_machine(program, state_symbol).map(|(_, state)| state)
+}
+
+/// The machine whose state list actually stores `state_symbol`, together with
+/// the state. The retained symbol parent names the owner directly when it
+/// agrees with storage; the whole-program scan still runs when it does not,
+/// so both tiers agree with `find_state`. Callers that need the owning
+/// machine and the state — write-origin rebasing, reference-result
+/// candidates, mutation summaries — take this pair instead of resolving the
+/// state and then rescanning every machine for the container.
+pub(crate) fn find_state_with_machine(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     if !state_symbol.is_valid() {
         return None;
     }
     let machine_symbol = program.symbols.get(state_symbol).parent;
-    find_state_in_machine(program, machine_symbol, state_symbol).or_else(|| {
-        program.machines().iter().find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)
-        })
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        && let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+    {
+        return Some((machine, state));
+    }
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+            .map(|state| (machine, state))
     })
 }
 
