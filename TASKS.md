@@ -12638,6 +12638,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `flow/{reference_places,transfers}` (20:36Z), and
   DOMAIN-REFINEMENT-CHAINS-EXTRA holds `facts/field_domain.rs` (22:36Z).
   Sibling re-mine names: BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.
+
+  Re-verified at `3dac85e5cc` (z146, linux x86-64): the frontier trace is
+  unchanged — `structural_scalar_store/mod.rs:1200` still emits the
+  `structural field store: scalar field type` phase (moved from :1182),
+  and the structural-store closure has not landed. The recorded fence map
+  has partially drained: `structural_scalar_store` + `primitive_store.rs`,
+  `execution/unit/{state_graph,composed_control}`, `values`, and
+  `facts/field_domain.rs` are currently unclaimed, but the closure's
+  borrowed-case-observation and store-planning legs still sit under live
+  claims — `flow/{mutation,transfers}` under NOMINAL-FIELD-FLOW (~08:38Z),
+  `control/checked_machine.rs` under CLEANUP-HOOK-SELECTION-AND-ERASED-
+  OWNERSHIP (~08:46Z), `providers.rs` + `types` under
+  PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z), and the parent
+  STATE-LOCAL-VALUE-FRONTIER draft itself is claimed (~15:45Z). No
+  bounded slice lands green while the flow/checked_machine members stay
+  fenced; the item remains closure-sized.
 - **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY.** — mined candidate; verify scope then implement.
 - **QUOTIENT-RUNTIME-REALIZATION.** — mined candidate; scope verified at
   `d74f2145b9`. Re-mines the "executable quotient lowering" leg that
