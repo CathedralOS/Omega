@@ -1,6 +1,6 @@
 ---
 name: typesafe-experiments
-description: Tune and evaluate TypeSafe/Jev judgments in Omega agent workflows, or continue the context-selection and evidence-navigation experiments. Use for model experiments, not routine compiler development or proof approval.
+description: Tune and evaluate TypeSafe/Jev judgments in Omega agent workflows, or continue the context-selection, evidence-navigation, and architecture-binding experiments. Use for model experiments, not routine compiler development or proof approval.
 ---
 
 # TypeSafe experiments in Omega
@@ -67,6 +67,54 @@ infrastructure retries need explicit accounting and a bounded stopping condition
 Use end-to-end improvements to justify integration. A promising retrieval score
 earns a worker trial, not an automatic approval gate. No observed speedup authorizes
 publication, automatic retry cancellation, or suppressing required checks.
+
+## Bind generated architectures to requirements
+
+Jev cannot author Omega source (typed judgments only, no synthesized text),
+but it binds candidate architecture to stated requirements: a generator
+proposes elements, Jev judges each against the spec, code assembles and
+`omega --check` arbitrates. Measured pipeline lives in
+`build/experiments/arch-bind`, `arch-live`, `arch-corpus` (2026-09-19).
+
+Question vocabulary that measured well: `bind::<element>` Choice over
+requirements plus an explicit `none` criterion; `type::<element>` Choice
+over code-supplied options (include the declared type, plausible
+distractors, and bound/domain variants); `covers_data::<req>` and
+`covers_prog::<req>` nouls; `copyable::<block>` noul. `covers_prog` reads
+`program_source` and is the sleeper instrument: on damaged variants it
+flagged the correct requirement every time, including order damage no
+exit code could expose. Keep data-side and whole-program coverage as
+separate questions — asking a data-side judgment about behavioral
+requirements was the arch-bind v1 gate bug.
+
+Interpret `none` verdicts as "unconstrained by the stated contract," not
+"wrong to exist." Corpus programs legitimately carry fields no clause
+names (utility carriers, slack); whether a `none` means orphan or merely
+unconstrained depends on requirement-set completeness, which code must
+judge — Jev does not see the completeness question. Drop only elements
+that are both `none` AND code-unreferenced; used-but-unjustified elements
+are review flags, never auto-drops. Scratch temporaries (`idx`, `tmp`,
+anonymous accumulators) are the unstable element class — bound in one
+experiment, dropped in another — so treat their verdicts as advisory.
+
+Requirement sources, cheapest first: mechanically extracted corpus
+clauses (`domain X requires pred`, `ensures`, `requires`, `[lo..=hi]`
+bounds, `in Domain`, `[copy]` — free and gold-labeled); hand-authored
+atomic requirements; generator-emitted requirements (trusting the
+generator's decomposition is the risk). Type recovery is the strongest
+measured value: propose stripped/plain types and Jev restored exact
+constrained types from clause text alone — proof-relevant information the
+generator did not emit.
+
+Infrastructure: `omega run` on a fresh package requires the interactive
+package-review ceremony (`update` emits pending decision rows; each run
+regenerates them) — no headless execution path was found, so behavioral
+ground truth came from `--check` plus construction arguments.
+`omega_language_std` imports need a sibling `build.omg` package edge;
+`omega::language::std` is the bundled single-file form. The local
+`devin` CLI rejected headless dispatch despite completed OAuth login
+(stored credentials in a format its dispatcher refuses) — subagent
+workers are the proven fallback, with provenance noted.
 
 ## Claim-first citation experiments
 
