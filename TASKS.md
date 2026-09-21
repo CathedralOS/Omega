@@ -12326,6 +12326,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux x86-64. No drift since the last record, so no entry needed
   revalidation or re-recording this pass.
 
+  Duty pass at `39317a770b` (assigned row TRUSTED-SURFACE-DIGEST-RE-RECORD):
+  the ledger had drifted — 24 stale digests traced to four commits
+  (`e272856962` erased proof-only formals through call plans, 20 files;
+  `d482fc2ebb` IntegerCastBound via fixed cast-identity laws, 4 files;
+  `5d182b8075` machine-bound issuer identities; merge `bc0ed1f0f5` of
+  `d3d3193d59` produce/check split for crash certificates). Every citing
+  entry's justification revalidated: all four diffs add checks or keep a
+  checked fallback — none relaxes — so all 24 re-recorded. Two new bound
+  files registered (`bounded_denotation/casts.rs` under
+  formation:mathematical-core, `casts/tests.rs` test-only). Verified:
+  `python3 tools/trusted_surface_digests.py` exits 0 and
+  `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
+  is 15/15 PASS on linux x86-64.
+
 - **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS.** — verified 14e6f8f72e: the span-arm surface
   for every intrinsic family that produces coverage occurrences is
