@@ -466,16 +466,24 @@ fn unknown_expression_tags_enum_values_and_builtin_ordinals_reject() {
         vec![19, 2],
         vec![20, 3],
         vec![21, 3],
-        vec![11, 0, 4],
+        vec![11, 0, 5],
         vec![11, 0, 1, 4],
         vec![11, 0, 3, 4],
         vec![11, 0, 2, 255, 255],
     ] {
-        assert_eq!(recovered_expression(&bytes), Err(Error::InvalidTag));
+        assert_eq!(
+            recovered_expression(&bytes),
+            Err(Error::InvalidTag),
+            "input {bytes:?}"
+        );
     }
     assert_eq!(recovered_expression(&[11, 2]), Err(Error::InvalidTag));
     for bytes in [vec![10], vec![255], vec![7, 2]] {
-        assert_eq!(recovered_static(&bytes), Err(Error::InvalidTag));
+        assert_eq!(
+            recovered_static(&bytes),
+            Err(Error::InvalidTag),
+            "input {bytes:?}"
+        );
     }
 }
 
