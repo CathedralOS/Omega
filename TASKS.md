@@ -14019,6 +14019,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   coordinator route with a test driving it; `cargo check --workspace
   --all-targets` stays clean.
 
+- **STAGE-ENTRANCE-ORPHAN-AUDIT.** Resolved — the audit leg itself
+  landed: the executed stage-entrance orphan sweep ran at `280c4a83b6`
+  and its residue is adjudicated on the split-of row directly above
+  (PIPELINE-ORPHAN-ENTRANCE-RESIDUE). Outcomes re-verified at
+  `b868b9ee8f2`:
+  `checked-trees-to-lowered-psi::produce_checked_canonical_integer_proof`
+  is NOT an orphan (four external callers under
+  `tests/native-differential/`, matching its `lib.rs:51` comment);
+  `selected-instructions-to-register-homes::stage_fixed_view_register_allocation`
+  was retired (demoted `f44a1177ed`, body deleted `504679f2a0a`, name
+  absent crate-wide at `3a1304c93e`);
+  `abstract-operations-to-target-operations::lower_to_target_operations_and_native_callbacks`
+  survives as the one competing public entrance — its delete/demote/wire
+  decision stays on the residue row. Audit caveat now recorded on that
+  row: sweeps must search `tests/` too, not just `omega-rust/`. No
+  independent slice remains under this name.
+
 - **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) — the optimized program
   storage semantic wrapper encoding lane has no AArch64 implementation.
   `select_optimized_program_storage_semantic_wrapper_encoding`
