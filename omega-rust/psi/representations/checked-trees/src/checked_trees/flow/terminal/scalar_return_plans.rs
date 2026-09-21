@@ -137,18 +137,23 @@ pub struct CheckedStructuralScalarReturnMachinePlan {
     pub return_statement_ordinal: u32,
     /// One bounded actual CFG convergence: a single finite `!`/`&&`/`||`
     /// binding over a finite nonempty set of runtime Boolean inputs has typed
-    /// value leaves entering one shared direct return/cleanup block. Boolean
-    /// equality with a constant is normalized to identity/negation. One direct
-    /// relevant Boolean field identity on one nominal-cleanup root is also
-    /// admitted. Integer-comparison leaves separately accept scalar parameters
-    /// and landed constants beneath up to two total binary, bitwise-not, or
-    /// integer-widening shells, or one proof-bearing exact-cast, exact-add,
-    /// exact-subtract, exact-multiply, exact shift, exact-divide, or
-    /// exact-remainder computation shell. Proof-bearing parameter bounds remain
-    /// explicit.
-    /// Nested or multiple field identities, member/comparison mixtures, wider
-    /// integer computations, and richer leaves retain the source-distributed
-    /// fallback and publish `None`.
+    /// value leaves entering one shared direct return/cleanup block; the
+    /// authored return must read that binding directly. Boolean equality with
+    /// a constant is normalized to identity/negation. Direct relevant Boolean
+    /// field identities are also admitted when every member field's source
+    /// parameter carries a nominal cleanup action and at least one runtime
+    /// Boolean scalar input remains. Integer-comparison leaves separately
+    /// accept scalar parameters and landed constants under the admitted
+    /// fixed-width operations — bitwise and/or/xor, wrapping and saturating
+    /// add/subtract/multiply, wrapping shifts, and the proof-bearing exact
+    /// add, subtract, multiply, divide, remainder, and shift forms — plus
+    /// bitwise-not, exact casts, and total widening, composed to any depth.
+    /// Proof-bearing parameter bounds remain explicit.
+    /// Nested member paths, member/comparison mixtures, integer leaves
+    /// outside the admitted operations, and richer leaf kinds retain the
+    /// source-distributed fallback and publish `None`. Under nominal cleanup
+    /// a member/integer mixture cannot fall back and publishes no plan at
+    /// all.
     pub shared_boolean_convergence: Option<CheckedStructuralBooleanConvergencePlan>,
     /// Complete canonical direct-Boolean caller facts preserved at the closed
     /// scalar return edge. Nominal cleanup actions select root-local subsets
@@ -199,6 +204,11 @@ pub enum CheckedStructuralScalarIntegerBoundKind {
     Upper,
 }
 
+/// Admission marker for the shared Boolean convergence. `binding_ordinal`
+/// indexes `CheckedStructuralScalarReturnMachinePlan::bindings`; lowering
+/// re-lowers that binding's checked initializer as the decision tree and
+/// re-derives its leaf custody, so the plan records only which binding
+/// converged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedStructuralBooleanConvergencePlan {
     pub binding_ordinal: u32,
