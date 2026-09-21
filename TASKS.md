@@ -12471,7 +12471,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   signed zero/subnormal/infinity and forged-root drift rejection covered.
   Witness green at `cdee121ee9`:
   `public_float_constants_retain_landed_identity_and_exact_import_owner`
-  (package_compilation_inputs). Sibling stubs on this surface:
+  (package_compilation_inputs). Re-verified at `4946c28bd44` (z148): the
+  same witness is green. Sibling stubs on this surface:
   PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, COMPUTED-CONSTANT-LEAF-CARRIER,
   PACKAGE-INPUTS-PSI-FAILURES.
 - **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
