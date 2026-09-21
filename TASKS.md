@@ -14725,6 +14725,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `trusted_surface` suite is 15/15 PASS on linux x86-64. No drift since the
   `39317a770b` re-record, so no entry needed revalidation this pass.
 
+  Duty pass at `a5d958d724f1` (assigned row TRUSTED-SURFACE-DIGEST-
+  RE-RECORD): the ledger is current — `tools/trusted_surface_digests.py`
+  reports "all recorded digests match the working tree" and the 15-test
+  `trusted_surface` suite is 15/15 PASS on linux x86-64. No drift since
+  the `39317a770b` re-record, so no entry needed revalidation or
+  re-recording this pass.
+
 - **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS.** — verified 14e6f8f72e: the span-arm surface
   Sibling re-mine names reaching this duty: TRUSTED-SURFACE-DIGEST-REFRESH,
