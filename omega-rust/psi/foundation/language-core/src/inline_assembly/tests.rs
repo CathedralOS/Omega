@@ -4,8 +4,8 @@ use super::{
     AsmAuthorityRequirement, AsmCacheOperationKind, AsmCatalogEntry, AsmControlRegister,
     AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
     AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptFlagEffect,
-    AsmMemoryOrdering, AsmOperandAccess, AsmSchedulingHintKind, AsmTargetApplicability,
-    asm_catalog_entry,
+    AsmMemoryOrdering, AsmMemoryTransferKind, AsmOperandAccess, AsmSchedulingHintKind,
+    AsmTargetApplicability, asm_catalog_entry,
 };
 
 #[test]
@@ -241,8 +241,6 @@ fn catalog_names_semantic_refusal_classes() {
         );
     }
     for mnemonic in [
-        "ldr",
-        "str",
         "ldp",
         "stp",
         "push",
@@ -302,6 +300,47 @@ fn catalog_names_semantic_refusal_classes() {
             asm_catalog_entry(mnemonic),
             None,
             "{mnemonic} stays an unknown mnemonic"
+        );
+    }
+}
+
+#[test]
+fn memory_transfer_contracts_pin_place_operands_and_operand_order() {
+    // The canonical unordered transfers carry the modeled memory contract:
+    // the operand is a typed Omega place, so provenance, permission and
+    // exact-type checking are the place's own, and no authority, ordering
+    // obligation or realized clobber is invented.
+    for (mnemonic, kind) in [
+        ("ldr", AsmMemoryTransferKind::Load),
+        ("str", AsmMemoryTransferKind::Store),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("memory-transfer contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::MemoryTransfer(kind));
+        assert_eq!(contract.target, AsmTargetApplicability::Aarch64);
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+    // Width-suffixed, offset/unscaled, ordered and multi-register spellings
+    // are each a different contract and stay refused.
+    for mnemonic in [
+        "ldrb", "ldrsw", "strh", "ldur", "sturh", "ldxr", "stxrh", "ldar",
+    ] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::UnmodeledMemoryAccess
+            )),
+            "{mnemonic} stays an unmodeled-memory refusal"
         );
     }
 }

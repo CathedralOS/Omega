@@ -228,6 +228,9 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     // Register moves desugar to a target-neutral checked assignment, so the
     // contract accepts them on a non-x86 target too.
     ("inline_asm/asm_register_move_compile", "linux_arm64"),
+    // The unordered AArch64 memory transfers are contracted: the place operand
+    // carries the memory contract, so they compile for their own target.
+    ("inline_asm/asm_memory_transfer_compile", "linux_arm64"),
     (
         "inline_asm/asm_multi_instruction_block_compile",
         "uefi_x86_64",
