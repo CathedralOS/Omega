@@ -30,3 +30,8 @@ full-chain interpretation, not a code change.
 Sibling stubs on the same bound surface: OCREQ-ENTRY-BINDING,
 OCREQ-REQUEST-BINDING, CHAIN-MANIFEST-OCREQ-BINDING,
 D-OCREQ-ENTRY-BINDING.
+
+Field note (review ad738b905c49..771d0469a1c4): this record duplicates
+the TASKS.md row verbatim — ledger-only. Fold the four sibling stubs
+above into OCREQ-REQUEST-ENTRY-BINDING in one edit and delete this file
+rather than stamping each stub with the same `--identity` witness.
