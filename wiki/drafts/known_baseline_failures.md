@@ -1120,7 +1120,13 @@ diff:
   `pcc::native_evidence::tests::section_round_trips_canonically`.
 - `compiler` 1 — green at `42759dd5295`:
   `compiler::tests::native_publication_writes_only_declared_products`.
-- `external-roots` 1:
+- `external-roots` 1 — still red at `55f2c09f15699` (2026-09-21, linux
+  x86-64, direct re-run); current signature is the ranked component-scale
+  segment-bound family (per-edge segments read `3 << 33` instead of `3`,
+  `[1, 25769803776, 25769803776, 25769803776, 1]` vs expected
+  `[1, 3, 3, 3, 1]`), the same family the
+  CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET bisect pinned to first-bad
+  `7591b2607c77` — owned by the ranked-cycle/fuel lane:
   `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`.
 - `native-realization` 1:
   `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`.
@@ -1147,4 +1153,6 @@ marked green above — the `package-manager` 6 plus the `external-roots`,
 signatures on this host are `Service<R>`-spelling stale fixtures
 (`0e1977994b9`'s bare-boundary-trait rejection), the unqualified
 `select_provider` operand spelling (`4406917695b`), a quotient-capture
-refusal, and a fixed-fuel catalog arity mismatch — no unexplained failures.
+refusal, and the ranked component-scale segment-bound family
+(`7591b2607c77`'s component-scale charging; the external-roots member now
+exhibits it — re-run at `55f2c09f15699`) — no unexplained failures.
