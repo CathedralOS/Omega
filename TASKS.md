@@ -8700,6 +8700,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `6e8dd6fa33`), -NATIVE-CONTAINER-ACCEPTANCE,
   GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE; BETA-ENCODING-MUTATION-
   REJECTION is the active controls row.
+  Re-verified at `3dac85e5ccc`: the upstream block is unchanged —
+  PROFILE.md:173-183 still records the selected checker cannot admit
+  the request (the coupled 136,314,880-byte request extent /
+  137,363,456-byte evaluator frame / 67,108,864-unit work counter /
+  3,387,293,850-pair arena stay "pending the Alpha extent-supply leg",
+  admission settled by owner decision
+  `beta-encoding-certificate-admission`). Implementing surfaces remain
+  fenced this wave: `tests/gamma/beta-encoding-check` +
+  `bootstrap/proofs/checker` under GAMMA-CERTIFICATE-CHECK-UNDER-
+  PROFILE (Zergling-165 ~08:53Z), `tools/bootstrap/proofs` under
+  CHAIN-CERTIFICATE-ADMISSION-BINDING (z28 ~15:51Z),
+  GAMMA-CERTIFICATE-CHECK item-level (zergling-182 ~15:24Z), and
+  `TASKS_BOOTSTRAP.md` under CHAIN-MANIFEST (z132 ~15:04Z). Host legs
+  still gate on macOS arm64 / Windows x64 by design. No unfenced slice.
 - **BETA-NATIVE-SELF-RECONSTRUCTION.** Mined candidate — resolved: the name
   re-mines the Beta self-reconstruction leg of the Alpha→Beta edge, listed in
   TASKS_BOOTSTRAP.md's OFFLINE-REBUILD frontier among the legs "still
