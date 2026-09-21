@@ -60,14 +60,24 @@ fn slice_executes_at_stage(rows: SelectedStageRuleRows) -> bool {
     matches!(rows, SelectedStageRuleRows::SelectedLowering(_))
 }
 
+/// The catalog phases this entrance executes, in catalog order. This is the
+/// stage's one admission decision: `optimize_analyzed_selected_instructions`
+/// composes and rejects through it, and identity replay in
+/// `optimization_output` reads the same set, so a family that gains a
+/// `SelectedStageRuleRows` arm also gains its missing-execution rejection
+/// without a second site to edit.
+pub(crate) fn executed_slice_phases() -> impl Iterator<Item = OptimizationExecutionPhase> {
+    SELECTED_STAGE_RULE_CATALOG
+        .iter()
+        .filter(|slice| slice_executes_at_stage(slice.rows()))
+        .map(|slice| slice.phase())
+}
+
 /// Whether any slice with a stage executor has selections in flight.
 /// Declared-but-unexecuted slices alone compose to a no-op identity: the
 /// rule is admitted but no stage runs it yet.
 fn has_executed_selections(selections: &OptimizationSelections) -> bool {
-    SELECTED_STAGE_RULE_CATALOG
-        .iter()
-        .filter(|slice| slice_executes_at_stage(slice.rows()))
-        .any(|slice| !selections.for_phase(slice.phase()).is_empty())
+    executed_slice_phases().any(|phase| !selections.for_phase(phase).is_empty())
 }
 
 /// With an executed composition in flight, the first other phase the stage
@@ -90,8 +100,30 @@ fn unexecutable_catalog_composition(
 
 #[cfg(test)]
 mod admission_tests {
-    use super::unexecutable_catalog_composition;
+    use super::{executed_slice_phases, unexecutable_catalog_composition};
     use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+
+    /// Composition and identity replay read the same admission set: every
+    /// phase the entrance executes appears exactly once, in catalog order —
+    /// today the selected-lowering slice alone.
+    #[test]
+    fn executed_phases_come_from_the_stage_catalog() {
+        assert_eq!(
+            executed_slice_phases().collect::<Vec<_>>(),
+            [OptimizationExecutionPhase::SelectedLowering]
+        );
+    }
+
+    /// An executor-less catalog slice's selections are in flight but never
+    /// rejected as missing execution by identity replay — the admission set
+    /// (not a phase literal) bounds what an identity output may absorb.
+    #[test]
+    fn executor_less_phases_stay_outside_the_executed_set() {
+        assert!(
+            !executed_slice_phases()
+                .any(|phase| phase == OptimizationExecutionPhase::AllocationRecovery)
+        );
+    }
 
     /// A selection mixing selected-lowering rules with rules under a
     /// carried but executor-less catalog phase rejects — the gate reads
