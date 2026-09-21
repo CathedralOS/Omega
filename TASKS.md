@@ -8914,6 +8914,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
   identities verified (622,933-byte receipt request, 565,909-byte
   customer, 45-byte expected observation).
+  OCREQ-REQUEST-BINDING.
+- **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved, re-mines the
+  bound OCREQ request-entry surface (sibling resolutions above).
+  Re-verified at `94e764a6da` (linux x86-64):
+  `sh tests/bootstrap/omega-request/run.sh --identity` PASSes — all bound
+  identities verified, both byte streams assembled (622,933-byte receipt
+  request, 565,909-byte customer — drifted from 163670cf6d's 563,268
+  because the stream follows the moving source closure; the pinned entry
+  identities are unchanged). Executing half stays seed-host-gated;
+  linux x86-64 is an admitted audited host so that leg is duration, not
+  code. Record: `wiki/drafts/chain_ocreq_entry_binding.md`.
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
   completed — the attribution ledger
   `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
