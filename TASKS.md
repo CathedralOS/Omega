@@ -8090,7 +8090,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   UEFI-OS-HANDOFF — the source-authored two-surface entry and the
   handoff that make an EFI host row possible at all). No implementable
   slice exists inside the current matrix fence; the promotion decision is
-  a milestone statement, not a lane task.
+  a milestone statement, not a lane task. Re-verified at `94e764a6da`:
+  the gate text is unchanged (rust_compiler_completion.md:21), the UEFI
+  legs remain open on their own claims (UEFI-PHYSICAL-SEMANTIC-ENTRY is
+  mid-port — Loaded Image's evaluated schema/plan landed in
+  targets/uefi_x86_64/tables.omg while System Table + Boot Services stay
+  duplicate production catalogs; UEFI-OS-HANDOFF untouched), so there is
+  no EFI row to promote and no lane slice. Record:
+  `wiki/drafts/efi_matrix_promotion.md`.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
   the extension point is concrete and bounded —
   `bootstrap/5_omega/scalar_compilation.epsilon` `fold_operator` admits 10 of
