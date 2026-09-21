@@ -738,7 +738,6 @@ pub(super) fn rebind_structural_result_claims(
     result: &StructuralOperationResult,
     transfers: &[StructuralResultClaimTransfer],
     returned_claims: &[ClaimId],
-    minted: bool,
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
     let mut bindings = BTreeMap::new();
     for binding in &result.claims {
@@ -748,37 +747,6 @@ pub(super) fn rebind_structural_result_claims(
         {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
-    }
-    if minted {
-        // A boundary route mints the caller's claims by establishment
-        // authority: every binding installs at the result place itself, and
-        // no callee claim corresponds. The callee's own returned claims
-        // still retire at the return above; only the transfer roster has
-        // no channel on a boundary call.
-        if !transfers.is_empty() {
-            return Err(TerminalInterpretError::ClaimTransferMismatch);
-        }
-        let mut rebound = caller_claims.clone();
-        for binding in &result.claims {
-            if rebound
-                .insert(
-                    binding.claim,
-                    LiveClaim {
-                        place: Some(result.place),
-                        path: binding.path.clone(),
-                        multiplicity: Some(if binding.path.is_empty() {
-                            result.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
-                )
-                .is_some()
-            {
-                return Err(TerminalInterpretError::ClaimTransferMismatch);
-            }
-        }
-        return Ok(rebound);
     }
     if bindings.len() != transfers.len() || returned_claims.len() != transfers.len() {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
