@@ -638,10 +638,9 @@ fn installed_registered_provider_mints_and_settles_the_live_claim() {
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: next_block,
-        // FIELD NOTE (review 23338b3d093c..58b08fc20f2f): this hand-built
-        // provider omits `erased_proof_formals` on `Block` and
-        // `MachineContract` (added by e272856962), so the whole c2l `suite`
-        // test target fails to compile on main. Add the field in both.
+        // Hand-built terminal_psi fixture: every new `Block`/`MachineContract`
+        // field must be added here or the whole c2l `suite` target stops
+        // compiling (last drift: `erased_proof_formals`, e272856962).
         blocks: vec![terminal_psi::Block {
             erased_proof_formals: Vec::new(),
             id: next_block,
