@@ -23,9 +23,7 @@ use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
 };
 use terminal_verifier::ProofBundle;
-use tokens_to_syntax_trees::{
-    parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
-};
+use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn straight_line_console_source(write_count: usize, exit_status: i32) -> String {

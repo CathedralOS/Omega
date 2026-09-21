@@ -173,7 +173,13 @@ pub fn compile_resolved_package_candidate_for_production(
     bindings: SemanticBindingReview<'_>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
-    production_candidate(target_closure, build_root, bindings, root_build_snapshot, None)
+    production_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        root_build_snapshot,
+        None,
+    )
 }
 
 /// The production route armed by the accepted target's restricted-request
