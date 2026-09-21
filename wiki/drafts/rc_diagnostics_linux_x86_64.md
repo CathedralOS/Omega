@@ -2,7 +2,8 @@
 
 Witnessed row of the `RC-DIAGNOSTICS` release gate on the Linux x86-64
 host. Recorded at revision `e76d715c8e`, refreshed at `1edade1a480`
-(2026-09-20), host `x86_64-unknown-linux-gnu`, cargo-nextest (mbx
+(2026-09-20), re-witnessed green at `72fc66d6c326` (2026-09-21), host
+`x86_64-unknown-linux-gnu`, cargo-nextest (mbx
 unavailable). The gate
 command from `wiki/drafts/rust_compiler_completion.md` names
 `proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment`;
@@ -10,11 +11,20 @@ on this revision the test lives one module deeper at
 `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
 and was run with the corrected filter.
 
-Verdict: **red** — the suite ran 124.6s at `1edade1a480` and reported 11
-drifted fail canaries (was 10 at `e76d715c8e`). 9 still reject but with
-diagnostic text that no longer contains the pinned fragment (wording
-drift); 2 compiled successfully where a rejection was pinned (admission
-drift).
+Verdict: **green** — `cargo nextest run -p compiler --test canary_suite
+proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+PASSes in 109.3s at `72fc66d6c326`, zero drift across the full fail
+corpus. The recorded 11-fixture set is closed:
+`domains/boundary_operator_mutation_invalidates_domain` was respelled by
+the RC-DIAGNOSTICS-STABILITY sibling run (`d74f2145b9`, forwarding the
+stored `&mut` field so the fixture re-reaches the pinned contract
+rejection), and the remaining stale `expected.txt` fragments and the two
+silent acceptances (`ownership/linear_ambiguous_state_result_mapping`,
+`calls/guarded_value_call_terminal_rejected`) were repaired by
+intermediate main commits — every drifted fixture now rejects with its
+pinned fragment, including the `comptime/fuel_exhausted_const_array_length`
+fixture that had drifted to `step budget exceeded`. The earlier red
+measurement below is retained as the pre-repair record.
 
 ## Drifted canaries
 
@@ -45,13 +55,11 @@ rows are real silent-acceptance regressions needing implementation legs:
 - `calls/guarded_value_call_terminal_rejected` — the guarded
   value-call terminal rejection no longer fires.
 
-At refresh time (`1edade1a480`) the same 9 fixture directories remain
-fenced to `Jarod / swarm-w9-rc-diagnostics-gate` (lease expiry
-2026-09-20T22:41Z), which owns the respell/admission work; the unfenced
-fixtures are `domains/boundary_operator_mutation_invalidates_domain` and
-the newly drifted `comptime/fuel_exhausted_const_array_length`. This row
-is a measurement record only — no fixture files were modified by this
-leg.
+The dispositions above describe the `1edade1a480` red record. Both
+admission legs have since been repaired on main and the fixture fence
+expired; at `72fc66d6c326` every fixture in the set rejects with its
+pinned fragment (re-witness above). This row is a measurement record
+only — no fixture files were modified by this leg.
 
 The gate is a matrix row, not a standalone completion: the release
 contract still requires all eight gates on one clean commit across the
