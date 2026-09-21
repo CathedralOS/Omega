@@ -334,11 +334,11 @@ fn constrained_referee_forgets_qualification(
         constrained = true;
         actual = *base_type;
     }
-    return constrained
+    constrained
         && program.type_identity(TypeIdentityRequest {
             substitutions,
             ..TypeIdentityRequest::ordinary(actual)
-        }) == program.normalized_type_identity(required);
+        }) == program.normalized_type_identity(required)
 }
 
 fn substituted_reference(
