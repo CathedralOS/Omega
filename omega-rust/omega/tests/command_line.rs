@@ -270,10 +270,23 @@ fn package_command_words_do_not_reserve_ordinary_source_filenames() {
 }
 
 #[cfg(unix)]
+fn create_test_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn create_test_symlink(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_file(target, link)
+}
+
+/// The escaping-source rejection is host-independent, so every host that can
+/// spell a symlink exercises it. Creating one on Windows needs
+/// SeCreateSymbolicLinkPrivilege (or Developer Mode); a host that cannot set up
+/// the escape reports the missing runtime leg instead of failing the custody
+/// check with an unrelated privilege error.
+#[cfg(any(unix, windows))]
 #[test]
 fn dependency_free_build_project_still_enters_reconciled_source_custody() {
-    use std::os::unix::fs::symlink;
-
     let project = temp_path("zero-dependency-project");
     let outside = temp_path("zero-dependency-outside.omg");
     std::fs::create_dir(&project).expect("create dependency-free project");
@@ -284,7 +297,15 @@ fn dependency_free_build_project_still_enters_reconciled_source_custody() {
     .expect("write project build root");
     std::fs::write(project.join("main.omg"), b"machine main() {}\n").expect("write project entry");
     std::fs::write(&outside, b"machine escaped() {}\n").expect("write outside source");
-    symlink(&outside, project.join("escaped.omg")).expect("create escaping source link");
+    if let Err(error) = create_test_symlink(&outside, &project.join("escaped.omg")) {
+        eprintln!(
+            "skipping dependency_free_build_project_still_enters_reconciled_source_custody: \
+             this host cannot create a symlink ({error})"
+        );
+        let _ = std::fs::remove_dir_all(&project);
+        let _ = std::fs::remove_file(&outside);
+        return;
+    }
 
     let mut arguments = vec!["main.omg", "--check"];
     arguments.extend(declared_target_when_host_is_unprofiled());
