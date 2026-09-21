@@ -10,26 +10,26 @@
 //!   binder. Ordinary machines named `drop` (free, or non-`drop` attached) stay
 //!   callable. All four authored spellings are FRONTEND-REJECTED with
 //!   `reserved cleanup machine` / `does not refine` diagnostics.
-//! - Drop bodies are admitted only in the "executable cleanup slice": empty, or a
-//!   finite source-ordered list of ordinary zero-argument calls to mutually
-//!   distinct exact-empty attached helpers. Repetition, arguments, and helpers that
-//!   themselves have bodies are all FRONTEND-REJECTED.
+//! - Drop bodies are ordinary Unit machine bodies: field stores on the borrowed
+//!   `self` receiver, repeated calls, argumented calls, and helpers that
+//!   themselves have bodies are all admitted and lowered as the edge's cleanup
+//!   action. (The retired "executable cleanup slice" recognizer previously
+//!   admitted only empty bodies or zero-argument calls to mutually distinct
+//!   exact-empty helpers.)
 //! - `drop` `ensures` is a PROVED exit contract like any other machine's: on an
 //!   empty body only trivially provable facts (`ensures true`) are admitted;
 //!   `ensures self in <Domain>` and the member state-predicate form
 //!   `ensures self.<field> <state>` both reject with `cannot prove ensures
 //!   contract for exit from ...::drop` when the empty body cannot establish
-//!   them, and any ensures on a non-empty body is additionally rejected by the
-//!   executable-slice fence.
+//!   them.
 //! - `omega::language::core::drop`'s explicit `drop(value)` consume is admitted
 //!   and interprets. A later read of a scalar field out of the consumed local is
 //!   still ADMITTED by the frontend today and the interpreter answers with the
 //!   pre-consume value — pinned below so a future move-violation tightening is
 //!   a deliberate expectation change.
-//! - The reference interpreter currently runs no observable cleanup work: every
-//!   admitted drop shape interprets to the same outcome as the drop-free
-//!   equivalent (admitted helper calls are exact-empty), so these probes pin
-//!   compile-time behavior plus ordinary interpretation only.
+//! - The checked-tree interpreter route these probes use does not surface
+//!   hook-body effects as observable outcomes, so these probes pin compile-time
+//!   behavior plus ordinary interpretation only.
 
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::{InterpretOutcome, interpret_entry};
@@ -111,10 +111,10 @@ machine Main::main(&mut self) reaches Console {
     assert_eq!(outcome.exit_code, 70);
 }
 
-/// The executable slice's admitted non-empty body: a source-ordered list of
-/// ordinary zero-argument calls to mutually distinct exact-empty attached helpers.
+/// An ordinary non-empty body: a source-ordered list of zero-argument calls to
+/// attached helpers.
 #[test]
-fn executable_slice_helper_list_compiles_and_interprets() {
+fn drop_body_helper_list_compiles_and_interprets() {
     let checked = compile(
         "drop-slice-helpers",
         r#"
@@ -152,7 +152,7 @@ machine Main::main(&mut self) reaches Console {
     let outcome = interpret(&checked, b"");
     assert!(
         !outcome.is_error(),
-        "slice-admitted drop helpers must interpret: {:?}",
+        "drop helpers must interpret: {:?}",
         outcome.error
     );
     assert_eq!(outcome.exit_code, 70);
@@ -402,10 +402,10 @@ machine Main::main(&mut self) {
     );
 }
 
-/// Arbitrary statements are outside the executable cleanup slice.
+/// An arbitrary statement body is an ordinary hook body and is admitted.
 #[test]
-fn drop_body_with_assignment_is_frontend_rejected() {
-    frontend_rejects(
+fn drop_body_with_assignment_compiles_and_interprets() {
+    let checked = compile(
         "drop-body-assignment",
         r#"
 data Lock {
@@ -423,13 +423,18 @@ machine Main::main(&mut self) {
 }
 "#,
     );
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "assignment drop body must interpret: {:?}",
+        outcome.error
+    );
 }
 
-/// Repeating the same helper in a drop body leaves the slice (each admitted helper
-/// must be mutually distinct).
+/// Repeating the same helper in a drop body is an ordinary repeated call.
 #[test]
-fn drop_body_repeated_helper_is_frontend_rejected() {
-    frontend_rejects(
+fn drop_body_repeated_helper_compiles() {
+    compile(
         "drop-repeated-helper",
         r#"
 data Helper {
@@ -455,10 +460,10 @@ machine Main::main(&mut self) {
     );
 }
 
-/// Helper calls carrying arguments are outside the slice.
+/// Helper calls in a drop body may carry ordinary arguments.
 #[test]
-fn drop_body_argumented_helper_is_frontend_rejected() {
-    frontend_rejects(
+fn drop_body_argumented_helper_compiles() {
+    compile(
         "drop-argumented-helper",
         r#"
 data Helper {
@@ -483,11 +488,10 @@ machine Main::main(&mut self) {
     );
 }
 
-/// Helpers that themselves have bodies leave the slice (helpers must be
-/// exact-empty).
+/// Helpers called from a drop body may themselves have bodies.
 #[test]
-fn drop_body_nonempty_helper_is_frontend_rejected() {
-    frontend_rejects(
+fn drop_body_nonempty_helper_compiles() {
+    compile(
         "drop-nonempty-helper",
         r#"
 data Leaf {
@@ -585,11 +589,12 @@ machine Main::main(&mut self) {
     );
 }
 
-/// An `ensures` on a non-empty body is the sharpest expectation the fence has to
-/// hold: the body never runs, so it must not contribute a cleanup fact.
+/// An `ensures` on a non-empty body is proved against the hook body like any
+/// other machine's exit contract: a body that establishes the predicate is
+/// admitted.
 #[test]
-fn drop_ensures_with_nonempty_body_is_frontend_rejected() {
-    frontend_rejects(
+fn drop_ensures_with_nonempty_body_compiles() {
+    compile(
         "drop-ensures-nonempty-body",
         r#"
 data Lock {
@@ -934,9 +939,9 @@ machine Main::main(&mut self) reaches Console {
     assert_eq!(outcome.exit_code, 70);
 }
 
-/// The executable slice's helper list runs in authored order, not the helpers'
-/// declaration order: `Second::touch` before `First::touch` is admitted even
-/// though `First` is declared first.
+/// A helper list runs in authored order, not the helpers' declaration order:
+/// `Second::touch` before `First::touch` is admitted even though `First` is
+/// declared first.
 #[test]
 fn helper_calls_run_in_authored_order_compile_and_interpret() {
     let checked = compile(
@@ -984,8 +989,8 @@ machine Main::main(&mut self) reaches Console {
 
 /// When several drop fences apply at once the diagnostics arrive in a fixed
 /// precedence order: a reserved-spelling use inside a drop body reports FIRST
-/// (and is the only one of these carrying a source span), then the executable
-/// slice fence, then the callee signature check.
+/// (and is the only one of these carrying a source span), then the callee
+/// signature check.
 #[test]
 fn nested_consume_inside_drop_body_orders_its_diagnostics() {
     let diagnostics = frontend_diagnostics(
@@ -1023,7 +1028,6 @@ machine Main::main(&mut self) reaches Console {
         &diagnostics,
         &[
             "reserved cleanup machine `Guard::drop`",
-            "non-empty `drop` body outside the executable cleanup slice",
             "expects 0 argument(s), got 1",
         ],
     );
@@ -1038,12 +1042,12 @@ machine Main::main(&mut self) reaches Console {
     );
 }
 
-/// Inside one doubly-violating drop body the slice fence reports first and the
-/// per-statement signature diagnostics follow in authored order.
+/// Inside one doubly-violating drop body the per-statement signature
+/// diagnostics arrive in authored order.
 #[test]
-fn slice_fence_diagnostic_precedes_helper_statement_diagnostics() {
+fn drop_body_statement_diagnostics_follow_authored_order() {
     let diagnostics = frontend_diagnostics(
-        "drop-order-slice-then-statements",
+        "drop-order-statement-diagnostics",
         r#"
 use omega::language::core::service;
 use omega::language::std::console;
@@ -1072,10 +1076,9 @@ machine Main::main(&mut self) reaches Console {
 "#,
     );
     assert_diagnostic_order(
-        "drop-order-slice-then-statements",
+        "drop-order-statement-diagnostics",
         &diagnostics,
         &[
-            "non-empty `drop` body outside the executable cleanup slice",
             "expects `&mut Self`, got `named value`",
             "expects `&mut Self`, got `named value`",
         ],

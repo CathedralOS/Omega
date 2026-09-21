@@ -4,8 +4,9 @@
 //! local array/record. Constructor evaluation and sibling crash obligations
 //! remain in ordinary checking; this only identifies the selected value. Each
 //! local hop moves back to its declaration prefix and requires stable contents
-//! and pristine storage. We conservatively version the whole local, not an
-//! individual element. The syntax-only entrance accepts literal selectors;
+//! and a pristine read projection — a disjoint sibling or element write does
+//! not dirty the selected leaf, while a write the read covers still ends
+//! provenance. The syntax-only entrance accepts literal selectors;
 //! checked_projection supplies point-specific scalar evidence for computed
 //! selectors. Authored indexing and unknown selectors never become builtin
 //! constructor substitutions.
@@ -171,6 +172,15 @@ fn projected_entry_value(
                         }
                         _ => None,
                     })?;
+            // A mutable local transports the bound value only where the read
+            // projection is still pristine between its initializer and this
+            // read — a disjoint element or sibling write keeps the selected
+            // leaf's snapshot; a read covering the whole local still observes
+            // every rooted write.
+            let read_path: Vec<PlaceSegment> = segments
+                .iter()
+                .map(|segment| super::mutable::canonical_place_segment(program, segment))
+                .collect();
             if !validation::has_stable_observable_contents(program, local.type_reference)
                 || (local.is_mutable
                     && !super::storage_holds_bound_value(
@@ -180,7 +190,7 @@ fn projected_entry_value(
                         ordinal + 1,
                         before_statement.saturating_add(1),
                         local.symbol,
-                        &[],
+                        &read_path,
                     ))
             {
                 return None;

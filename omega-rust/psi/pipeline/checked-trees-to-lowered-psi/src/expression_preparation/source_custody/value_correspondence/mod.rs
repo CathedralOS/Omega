@@ -14,7 +14,7 @@ use crate::lowering_error::LoweringError;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
-    CheckedBooleanExpression as Boolean, CheckedCallScalarArgument,
+    CheckedBooleanExpression as Boolean, CheckedCallScalarArgument, CheckedIeeeFloatComparisonKind,
     CheckedIntegerBinaryKind as IntegerBinary, CheckedIntegerComparisonKind,
     CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation,
     CheckedScalarExpression as Scalar, CheckedTrees,
@@ -410,6 +410,7 @@ impl Context<'_> {
                 Scalar::IntegerWiden { .. }
                     | Scalar::IntegerExactCast { .. }
                     | Scalar::IntegerWrappingCast { .. }
+                    | Scalar::IntegerSaturatingCast { .. }
                     | Scalar::IntegerTrappingCast { .. }
             )
             && self.checked.primitive_type_reference(cast.target_type) == value.primitive_type()
@@ -492,6 +493,10 @@ impl Context<'_> {
                 operand,
                 primitive_type,
             }
+            | Scalar::IntegerSaturatingCast {
+                operand,
+                primitive_type,
+            }
             | Scalar::IntegerTrappingCast {
                 operand,
                 primitive_type,
@@ -502,6 +507,9 @@ impl Context<'_> {
                 let policy = match value {
                     Scalar::IntegerWrappingCast { .. } => cast.domain == ArithmeticDomain::Wrapping,
                     Scalar::IntegerTrappingCast { .. } => cast.domain == ArithmeticDomain::Trapping,
+                    Scalar::IntegerSaturatingCast { .. } => {
+                        cast.domain == ArithmeticDomain::Saturating
+                    }
                     // The range payload is not authority at this boundary:
                     // scalar_graph_lowering discards it and emits a fresh
                     // Terminal exact-cast obligation for the actual operand.
@@ -620,7 +628,9 @@ impl Context<'_> {
                 }
                 _ => false,
             },
-            Boolean::Equal { .. } | Boolean::IntegerComparison { .. } => {
+            Boolean::Equal { .. }
+            | Boolean::IntegerComparison { .. }
+            | Boolean::ScalarIeeeFloatComparison { .. } => {
                 let ExpressionNode::Binary(binary) = node else {
                     return false;
                 };
@@ -737,6 +747,16 @@ impl Context<'_> {
                 ) {
                     std::mem::swap(&mut left_source, &mut right_source);
                 }
+                *kind == expected
+                    && self.scalar(left_source, left, operands, depth + 1)
+                    && self.scalar(right_source, right, operands, depth + 1)
+            }
+            Boolean::ScalarIeeeFloatComparison { kind, left, right } => {
+                let expected = match binary.operator {
+                    BinaryOperator::Equal => CheckedIeeeFloatComparisonKind::Equal,
+                    BinaryOperator::NotEqual => CheckedIeeeFloatComparisonKind::NotEqual,
+                    _ => return false,
+                };
                 *kind == expected
                     && self.scalar(left_source, left, operands, depth + 1)
                     && self.scalar(right_source, right, operands, depth + 1)

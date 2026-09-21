@@ -174,10 +174,20 @@ pub(crate) fn typed_trees_to_checked_trees(
                 settlement.selected_build_machine,
                 settlement.opaque_representation_selections,
             )?;
+        // A selected declaration may have been lowered under both the
+        // product and the build dependency scope. Property validation runs
+        // on every checked instance, so one selected declaration admits one
+        // receipt per instance.
         let opaque_property_receipts = rederived_opaque_representation_selections
             .iter()
             .filter(|&selection| selection.copy_disposition()
-                    == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy ).map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
+                    == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy )
+            .flat_map(|selection| {
+                checked_scope_instances(&typed, selection.opaque())
+                    .into_iter()
+                    .map(validation::OpaqueDataPropertyReceipt::copy)
+                    .collect::<Vec<_>>()
+            })
             .collect::<Vec<_>>();
         typed_trees_to_checked_trees::validate_asm_discharge(
             &typed,
@@ -407,4 +417,46 @@ pub(crate) fn typed_trees_to_preliminary_checked_trees(
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))
     })
+}
+
+/// Every checked instance of the same authored data declaration across
+/// dependency scopes. A source imported on both the product and the build
+/// scope is lowered once per scope; the two instances share the file's path
+/// and bytes, so identity is (path, package, byte span).
+fn checked_scope_instances(
+    typed: &typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    let Some(declaration) = typed.symbols.symbol_provenance_source_span(symbol) else {
+        return vec![symbol];
+    };
+    let Some(file) = typed.symbols.source_file(declaration) else {
+        return vec![symbol];
+    };
+    let instances: Vec<symbols::SymbolHandle> = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            typed
+                .symbols
+                .symbol_provenance_source_span(definition.symbol)
+                .and_then(|span| {
+                    typed
+                        .symbols
+                        .source_file(span)
+                        .map(|candidate_file| (span, candidate_file))
+                })
+                .is_some_and(|(span, candidate_file)| {
+                    candidate_file.path == file.path
+                        && candidate_file.package_identity == file.package_identity
+                        && span.span == declaration.span
+                })
+        })
+        .map(|definition| definition.symbol)
+        .collect();
+    if instances.is_empty() {
+        vec![symbol]
+    } else {
+        instances
+    }
 }

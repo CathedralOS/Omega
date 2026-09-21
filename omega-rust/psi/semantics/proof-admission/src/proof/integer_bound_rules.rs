@@ -13,10 +13,11 @@ use std::collections::BTreeSet;
 use super::integer_math_normalization::lower_integer_math_relation;
 use super::{AcceptanceBuilder, AcceptedProofRule, ProofError, RuleScope};
 use crate::{
-    IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerCastBoundConversionError,
-    IntegerCorrelatedForbiddenRootWitness, check_integer_affine_bound_conversion,
-    check_integer_affine_witness, check_integer_cast_bound_conversion,
-    check_integer_cast_chain_witness, check_integer_correlated_forbidden_root_conversion,
+    CheckedIntegerCastChain, IntegerAffineBoundConversionError, IntegerAffineWitness,
+    IntegerCastBoundConversionError, IntegerCorrelatedForbiddenRootWitness,
+    check_integer_affine_bound_conversion, check_integer_affine_witness,
+    check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
+    check_integer_correlated_forbidden_root_conversion,
     check_integer_correlated_forbidden_root_witness, integer_affine_truth_bounds,
     integer_cast_truth_bounds, map_integer_affine_bound,
 };
@@ -241,7 +242,7 @@ pub(crate) fn cast_bound_relation(
     root_bound: &Proposition,
     witness: &crate::IntegerCastChainWitness,
     conclusion: &Proposition,
-) -> Result<(), ProofError> {
+) -> Result<CheckedIntegerCastChain, ProofError> {
     let chain = check_integer_cast_chain_witness(context, semantic_axioms, witness)
         .map_err(ProofError::IntegerCastChainWitness)?;
     let normalized_conclusion =
@@ -263,7 +264,7 @@ pub(crate) fn cast_bound_relation(
             return Err(ProofError::UnknownSemanticAxiom(index));
         }
     }
-    Ok(())
+    Ok(chain)
 }
 
 pub(super) fn check_integer_cast_bound(

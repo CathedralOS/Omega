@@ -10,7 +10,8 @@ use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees
 use typed_trees::TypedTrees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
-use super::super::{LoweringError, install_non_executable_quotient_correspondences, lower_machine};
+use super::super::{LoweringError, lower_machine};
+use crate::proofs::quotient_correspondence::install_non_executable_quotient_correspondences;
 
 const TOTAL_DIRECT_DEFINE: &str = r#"
 use omega::language::core::relation;

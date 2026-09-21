@@ -10,10 +10,9 @@ use crate::interrupts::interrupt_table::{
     InstalledCodeId, InstalledExternalRoot, InstalledRootLedger, InterruptTableDescriptorOperand,
     InterruptTableEstablishedMember, InterruptTableGateDescriptor, InterruptTableLedger,
     InterruptTableMemberAdmission, InterruptTableMemberFacts, InterruptTableMemberPlan,
-    InterruptTableObligation, InterruptTableProfile,
-    InterruptTablePublicationAuthority, InterruptTablePublicationAuthorityId,
-    InterruptTablePublicationId, InterruptTablePublicationReceiptId,
-    InterruptTablePublicationScope,
+    InterruptTableObligation, InterruptTableProfile, InterruptTablePublicationAuthority,
+    InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
+    InterruptTablePublicationReceiptId, InterruptTablePublicationScope,
 };
 use crate::{
     InterruptTableEstablishmentId, InterruptTableProfileId, RootAdmission, RootAdmissionId,
@@ -97,10 +96,7 @@ fn timer_member(vector: u8, stack_class: u16, ist: u8) -> InterruptTableMemberPl
 /// dedicated class, and the declared obligation's acknowledgement shape.
 /// Minting the record for facts the fixture's record does not carry is how
 /// a binding rejection is driven.
-fn declared_member_facts(
-    stack_class: u16,
-    acknowledged: bool,
-) -> InterruptTableMemberFacts {
+fn declared_member_facts(stack_class: u16, acknowledged: bool) -> InterruptTableMemberFacts {
     InterruptTableMemberFacts {
         entry_interrupt_return: true,
         stack_dedicated_class: stack_class,
@@ -125,7 +121,10 @@ fn fixture_member_admission(
     plan: InterruptTableMemberPlan,
     fixture: &crate::tests::InterruptTableMemberFixture,
 ) -> InterruptTableMemberAdmission {
-    member_admission(plan, declared_member_facts(fixture.stack_class, fixture.acknowledged))
+    member_admission(
+        plan,
+        declared_member_facts(fixture.stack_class, fixture.acknowledged),
+    )
 }
 
 /// The declared board-item table: every fatal exception entry on its own
@@ -305,11 +304,7 @@ fn admitted_table() -> AdmittedTable<'static> {
     let handles = install_members(&mut ledger, code, &members);
     let profile = table_profile(0x600);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
-    for ((vector, fixture), handle) in member_vectors()
-        .into_iter()
-        .zip(&members)
-        .zip(handles)
-    {
+    for ((vector, fixture), handle) in member_vectors().into_iter().zip(&members).zip(handles) {
         table
             .admit_interrupt_table_member(
                 &ledger,

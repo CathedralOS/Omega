@@ -1,14 +1,12 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
+    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -26,41 +24,7 @@ use super::{
     relocate_selected_instruction, validate_local_relocation,
 };
 use crate::ValidatedSelectedAnalysis;
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const MAT_A: SelectedInstructionId = SelectedInstructionId(2);
 const MAT_B: SelectedInstructionId = SelectedInstructionId(3);
@@ -1267,7 +1231,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         // row) = 10.
         (roster_actor, MAT_A, MAT_B, 10u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
             relocate_selected_instruction(&source, 0, member, destination, &environment, exact)
                 .unwrap();
@@ -1281,7 +1245,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             relocate_selected_instruction(&source, 0, member, destination, &environment, starved)
                 .unwrap_err(),
@@ -1646,7 +1610,7 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
     // (1 block + 7 instructions) + (1 operand per window materialization
     // over a four-instruction window) = 12.
     let exact_steps = 12u64;
-    let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+    let exact = measured_step_budget(exact_steps);
     let result =
         relocate_selected_instruction(&source, 0, MAT_A, MAT_B, &environment, exact).unwrap();
     validate_local_relocation(
@@ -1659,7 +1623,7 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
         result.transformed().clone(),
     )
     .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(exact_steps - 1);
     assert_eq!(
         relocate_selected_instruction(&source, 0, MAT_A, MAT_B, &environment, starved).unwrap_err(),
         LocalRelocationError::WorkBudgetExceeded
@@ -1683,7 +1647,11 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
 /// proposal below is handed to `validate_local_relocation` directly, so
 /// every rejection comes from the validator's own window audit.
 mod independence_tests {
-    use super::*;
+    use super::{
+        LocalRelocationError, MAT_A, MAT_B, NativeTarget, SUM, SelectedInstructionPlan,
+        ValidatedLocalRelocation, baseline_target_register_environment, budget, fixture,
+        validate_local_relocation,
+    };
 
     /// Move the member at `member_index` onto `destination_index` inside a
     /// source fixture's plan — the edit a producer emitting that

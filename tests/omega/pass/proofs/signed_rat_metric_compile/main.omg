@@ -2,7 +2,16 @@
 // public metric remains Nat-valued and keeps the existing laws.
 use omega::language::core::rat;
 
-machine negative_half() -> Rat {
+machine negative_half() -> Rat
+requires
+    (gcd(
+        add(
+            saturating_sub(Nat::Succ { prev: Nat::Zero }, Nat::Zero),
+            saturating_sub(Nat::Zero, Nat::Succ { prev: Nat::Zero })
+        ),
+        Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    )) == (Nat::Succ { prev: Nat::Zero })
+{
     mk_signed_rat(
         IntPair {
             neg: Nat::Succ { prev: Nat::Zero },
@@ -14,6 +23,14 @@ machine negative_half() -> Rat {
 }
 
 machine negative_gap_is_reflexive()
+requires
+    (gcd(
+        add(
+            saturating_sub(Nat::Succ { prev: Nat::Zero }, Nat::Zero),
+            saturating_sub(Nat::Zero, Nat::Succ { prev: Nat::Zero })
+        ),
+        Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    )) == (Nat::Succ { prev: Nat::Zero })
 ensures
     (rat_gap(negative_half(), negative_half())) == Nat::Zero
 {

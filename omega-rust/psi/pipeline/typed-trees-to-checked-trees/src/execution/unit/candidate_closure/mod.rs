@@ -235,10 +235,13 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
@@ -256,10 +259,7 @@ pub(super) fn retain_available(
             .iter()
             .filter(|(caller, _)| *caller == plan.machine)
         {
-            let hook_state = program
-                .machines()
-                .iter()
-                .find(|candidate| candidate.symbol == *hook_machine)
+            let hook_state = crate::lookup::machine_by_symbol(program, *hook_machine)
                 .and_then(|hook| program.machine_states(hook).first())
                 .map(|state| state.symbol);
             match hook_state {
@@ -342,6 +342,7 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     // The paired boundary call carries the callee dependency;

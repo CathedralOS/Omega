@@ -77,6 +77,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
     let state = ValueId::new(5_610).unwrap();
     let successor = |edge: u64, target, arguments| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target,
         arguments,
@@ -85,6 +86,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
     };
     let jump = |edge: u64, arguments| Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: dispatch,
         arguments,
@@ -111,6 +113,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
             entry,
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(5_699).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -120,11 +123,13 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_611).unwrap(),
                         result: OperationResult::Scalar(boolean(5_609)),
                         kind: OperationKind::BooleanConstant { value: true },
@@ -137,6 +142,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: pred_true,
                     parameters: Vec::new(),
@@ -145,6 +151,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: pred_false,
                     parameters: Vec::new(),
@@ -153,6 +160,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: dispatch,
                     parameters: vec![boolean(5_610)],
@@ -165,6 +173,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: yes,
                     parameters: Vec::new(),
@@ -173,6 +182,7 @@ pub(super) fn state_specialization_dispatch_verified() -> VerifiedPsiOptimizatio
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: no,
                     parameters: Vec::new(),

@@ -1364,8 +1364,9 @@ fn edge_unobserved(
 /// The block's boundary settlements after removing the instruction at
 /// `removed`: positions at or before it name instructions that stay put, and
 /// every later position — including the after-body position — shifts one
-/// ordinal earlier. Shared by proposal and replay so both compute the same
-/// roster from the source, never from each other.
+/// ordinal earlier. The proposal applies this remap; validation rebuilds the
+/// same shifted roster inside its own expected function rather than calling
+/// back here.
 pub(super) fn shifted_boundary_settlements(
     function: &SelectedFunction,
     block: SelectedBlockId,

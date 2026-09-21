@@ -245,6 +245,95 @@ fn open_semantic_application_remains_unproved() {
     );
 }
 
+/// The FLOAT-PROVIDERS acceptance leg end-to-end: an authored non-reflexive
+/// `FloatSemantics::*` ensures equality survives the owner's scalar-contract
+/// lowering as an `Atom` clause citing its module equality row, the produced
+/// artifact's own proof bundle discharges it under independent replay, and a
+/// module whose cited equality row is forged keeps the clause but loses the
+/// discharge.
+#[test]
+fn produced_artifact_verifies_authored_float_meaning_ensures() {
+    let checked = compile_source(
+        "use omega::language::core::float_operations;
+         machine read() -> u64
+         ensures FloatSemantics::add(FloatFormat::BINARY32,
+             Float::meaning32(1.0f32), Float::meaning32(2.0f32))
+             == Float::meaning32(3.0f32);
+         { 7 }",
+    )
+    .unwrap();
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
+        .produce_artifact()
+        .unwrap();
+    let bytes = artifact.to_bytes();
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let [clause] = entry.contract.ensures.as_slice() else {
+        panic!("the authored ensures equality lowers to one contract clause")
+    };
+    let semantic_vocabulary::Proposition::Atom(atom) = clause.proposition else {
+        panic!("the authored equality cites its module row as an Atom")
+    };
+    let row = (0..module.float_meaning_equalities.len())
+        .find(|index| {
+            terminal_psi::float_meaning_equality_proposition_id(u32::try_from(*index).unwrap())
+                == atom
+        })
+        .expect("the cited Atom names a module equality row");
+
+    let bundle = terminal_codec::decode_proof_section_for(&module, artifact.proof_bytes()).unwrap();
+    terminal_verifier::verify_module(
+        &module,
+        &bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the produced bundle discharges the authored equality");
+
+    // Without its produced evidence the same module is rejected; the clause is
+    // a real obligation, not metadata erased toward Truth.
+    assert!(matches!(
+        terminal_verifier::verify_module(
+            &module,
+            &terminal_psi::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        ),
+        Err(terminal_verifier::VerificationError::MissingEvidence(_))
+    ));
+
+    // A forged equality row — an operand retargeted to a literal whose meaning
+    // differs — stays structurally valid but carries no provable axiom, so the
+    // retained clause cannot discharge.
+    let mut forged = module.clone();
+    let original_left = forged.float_meaning_equalities[row].left;
+    forged.float_meaning_equalities[row].left = module
+        .float_meaning_projections
+        .iter()
+        .find(|projection| {
+            matches!(
+                projection.source,
+                FloatMeaningSource::ExactBinary32Literal(_)
+            ) && projection.result.id != original_left
+        })
+        .map(|projection| projection.result.id)
+        .expect("a second literal projection exists");
+    terminal_verifier::validate_module(&forged)
+        .expect("forging the operand keeps carrier compatibility");
+    assert!(
+        terminal_verifier::verify_module(
+            &forged,
+            &bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a forged equality row must not satisfy the cited Atom obligation"
+    );
+}
+
 #[test]
 fn symbolic_float_applications_validate_all_operands_after_source_removal() {
     let module = source_free_module();

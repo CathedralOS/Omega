@@ -222,6 +222,26 @@ fn blocking_executor_package_checks_with_the_closed_service_carrier() {
 }
 
 #[test]
+fn blocking_executor_linear_slots_swap_whole_through_the_concrete_pin() {
+    // BLOCKEXEC slot-empty channel leg: the package's `BoundedQueue<T, N>`
+    // ring over per-slot linear payloads is pinned concretely — a
+    // sum-typed slot (`Empty`/`Held`) gives the claim-free channel the
+    // row records as missing, and the whole-slot take/restore idiom
+    // checks: `take` moves the `Held` slot out whole and writes `Empty`
+    // back so the claim reaches the caller exactly once, `put` writes a
+    // fresh `Held` over a vacated slot. Head-indexed ring arithmetic
+    // stays on the contract-fold lane (see the fixture header).
+    let pass = pass_canary(fixture_roster::BLOCKEXEC_LINEAR_SLOT_SWAP_COMPILE);
+    compile_reviewed_repository_fixture(CheckedCompileRequest::new(&pass.join("main.omg"), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "blocking-executor linear slot pin should reach checked trees:\n{}",
+                render(&diagnostics)
+            )
+        });
+}
+
+#[test]
 fn parked_continuation_is_not_source_addressable_through_task_claims() {
     for &(operation, name) in fixture_roster::PARKED_CONTINUATION_FAIL_CANARIES {
         let diagnostics =
@@ -319,7 +339,7 @@ fn fixture_dependency_rows(project_root: &Path) -> Vec<FixtureDependencyRow> {
 /// service bindings still apply; every other package receives a fresh
 /// marker identity. Rows project transitively so a dependency's own
 /// path dependencies join the same inputs.
-fn depend_edge_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
+pub(super) fn depend_edge_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
     let project_root = root_path
         .parent()
         .expect("fixture source has a project root");
@@ -455,4 +475,81 @@ fn blocking_executor_consumer_compiles_through_the_depend_edge() {
         .find(|plan| plan.schema.trait_name == "WorkerProvider")
         .expect("selected WorkerProvider plan");
     assert_eq!(plan.provider_type, "CanaryWorkerProvider");
+}
+
+#[test]
+fn blocking_executor_isolated_provider_conformance_binds_the_inherited_row() {
+    // BLOCKEXEC isolated-provider composition leg: the package declares
+    // `IsolatedWorkerProvider: WorkerProvider` as the composition a
+    // worker-isolating provider satisfies. The marker trait owns no
+    // requirements, so its complete conformance surface is the inherited
+    // `WorkerProvider::execute` row — the fixture binds it by reference to
+    // the satisfies-clause realization, and the incomplete-conformance twin
+    // (FAIL_CANARIES) pins the missing-row rejection.
+    let pass = pass_canary(
+        fixture_roster::BLOCKEXEC_BLOCKING_EXECUTOR_ISOLATED_PROVIDER_CONFORMANCE_COMPILE,
+    );
+    let root = pass.join("main.omg");
+    let package_inputs =
+        depend_edge_package_inputs(&root).expect("the depend edge wires package inputs");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs),
+        ..CheckedCompileRequest::new(&root, None)
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "blocking-executor isolated-provider consumer should reach checked trees:\n{}",
+            render(&diagnostics)
+        )
+    });
+
+    // The named conformance to the package's marker trait is retained with
+    // the canary provider as its carrier.
+    let conformance = checked
+        .conformances()
+        .iter()
+        .find(|conformance| conformance.trait_name.as_str() == "IsolatedWorkerProvider")
+        .expect("checked-in `IsolatedWorkerProvider` conformance");
+    assert_eq!(
+        conformance.carrier_name().map(|name| name.as_str()),
+        Some("CanaryIsolatedWorkerProvider"),
+        "the marker-trait conformance must name the canary provider as carrier"
+    );
+
+    // The same provider is still selectable for the inherited `WorkerProvider`
+    // slot through ordinary build composition.
+    let plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "WorkerProvider")
+        .expect("selected WorkerProvider plan");
+    assert_eq!(plan.provider_type, "CanaryIsolatedWorkerProvider");
+
+    // The fence twin: an `IsolatedWorkerProvider` conformance binding no row
+    // rejects as incomplete — ambient machines never fill trait rows.
+    let fail = fail_canary(
+        fixture_roster::BLOCKEXEC_BLOCKING_EXECUTOR_ISOLATED_PROVIDER_INCOMPLETE_CONFORMANCE,
+    );
+    let expected = fs::read_to_string(fail.join("expected.txt"))
+        .expect("incomplete-conformance fail canary should carry expected.txt");
+    let fail_root = fail.join("main.omg");
+    let fail_package_inputs =
+        depend_edge_package_inputs(&fail_root).expect("the depend edge wires package inputs");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(fail_package_inputs),
+        ..CheckedCompileRequest::new(&fail_root, None)
+    })
+    .expect_err("an empty IsolatedWorkerProvider conformance must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "{} missing expected fragment {:?}:\n{combined}",
+        fail.display(),
+        expected.trim()
+    );
 }

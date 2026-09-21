@@ -58,12 +58,58 @@ impl OptimizedProgramStorageSemanticWrapperRelocationRequirement {
     }
 }
 
-/// One compiler-owned action in the exact receiver-free semantic wrapper.
+/// One compiler-provisioned receiver residence in the outgoing frame.
+/// `byte_count`/`alignment` are the checked referent layout supplied by the
+/// emitted semantic child; the slot is the 16-aligned zeroed region the
+/// wrapper provisions before binding its address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizedProgramStorageSemanticReceiverStorage {
+    pub(super) byte_count: u32,
+    pub(super) alignment: u32,
+    pub(super) slot_byte_count: u32,
+    pub(super) outgoing_stack_byte_offset: u32,
+}
+
+impl OptimizedProgramStorageSemanticReceiverStorage {
+    pub const fn byte_count(&self) -> u32 {
+        self.byte_count
+    }
+
+    pub const fn alignment(&self) -> u32 {
+        self.alignment
+    }
+
+    pub const fn slot_byte_count(&self) -> u32 {
+        self.slot_byte_count
+    }
+
+    pub const fn outgoing_stack_byte_offset(&self) -> u32 {
+        self.outgoing_stack_byte_offset
+    }
+}
+
+/// One compiler-owned action in the exact semantic wrapper.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperStep {
     EnterFunction,
     ReserveOutgoingStackFrame {
         byte_count: u32,
+    },
+    /// Zero-fill the frame region backing the provisioned receiver. The
+    /// incoming boundary plan never carries a receiver, so this residence is
+    /// the only storage the continuation's `&mut self` argument may name.
+    ProvisionReceiverMutableStorage {
+        outgoing_stack_byte_offset: u32,
+        slot_byte_count: u32,
+    },
+    /// Bind the provisioned receiver's address into the continuation's first
+    /// argument register. The continuation is the checked machine, whose
+    /// receiver parameter precedes its two visible Extent roots.
+    BindOutgoingReceiverAddress {
+        register: MachineRegister,
+        outgoing_stack_byte_offset: u32,
+        byte_count: u32,
+        alignment: u32,
     },
     CopyIncomingIndirectExtentWord {
         role: ProgramStorageEntryRootRole,
@@ -101,7 +147,11 @@ pub struct OptimizedProgramStorageSemanticWrapperPlan {
     pub(super) outgoing_frame_byte_count: u32,
     pub(super) outgoing_release_byte_count: u32,
     pub(super) pre_call_stack_alignment: u16,
-    pub(super) steps: [OptimizedProgramStorageSemanticWrapperStep; 11],
+    /// Present exactly when the selected source signature provisions a
+    /// mutable receiver; the supplied layout was derived from the emitted
+    /// child's checked self parameter.
+    pub(super) receiver: Option<OptimizedProgramStorageSemanticReceiverStorage>,
+    pub(super) steps: Vec<OptimizedProgramStorageSemanticWrapperStep>,
     pub(super) relocation: OptimizedProgramStorageSemanticWrapperRelocationRequirement,
     pub(super) encoding_disposition: OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     pub(super) physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition,
@@ -132,7 +182,11 @@ impl OptimizedProgramStorageSemanticWrapperPlan {
         self.pre_call_stack_alignment
     }
 
-    pub const fn steps(&self) -> &[OptimizedProgramStorageSemanticWrapperStep; 11] {
+    pub const fn receiver(&self) -> Option<OptimizedProgramStorageSemanticReceiverStorage> {
+        self.receiver
+    }
+
+    pub fn steps(&self) -> &[OptimizedProgramStorageSemanticWrapperStep] {
         &self.steps
     }
 

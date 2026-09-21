@@ -1,7 +1,7 @@
 # Derivation request admission controls
 
 Run `sh tests/gamma/derivation-admission/run.sh` on macOS arm64 with Python 3
-and `codesign`, or Windows x64 using Git Bash with Python 3. Other hosts fail
+and `codesign`, Linux x86-64, or Windows x64 using Git Bash with Python 3. Other hosts fail
 explicitly. Windows execution remains
 unvalidated in this checkpoint.
 
@@ -18,10 +18,10 @@ admission result, and no production function is extracted or replaced.
 The vectors cover all short-header extents; every identity/reserved byte;
 individual and combined high length bits; missing sections; maximum legal
 length claims; trailing bytes; empty and opaque sections; validation priority;
-and exact/adjacent 8 MiB request provision. Small controls run twice; large
+and exact/adjacent 130 MiB request provision. Small controls run twice; large
 boundary vectors run once. Every complete Gamma request, including diagnostic
 source and the evaluator's four-byte prefix, must fit its selected provision.
-The 60-second host watchdog produces no admission or proof judgment.
+The 600-second host watchdog produces no admission or proof judgment.
 
 The diagnostic entry always returns process status zero after reporting its
 owned admission observation. A framed result is byte 0 followed by three

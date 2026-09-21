@@ -3,8 +3,9 @@
 //! declaration, availability row, and selected application through
 //! `PackagePolicyRepresentation::rejoin_foreign_demands`, called from
 //! `review/candidate/compilation/package_pass.rs`, and rejects a differing
-//! consumer application. `calling.omg` is copied because `Calling<...>` creates
-//! an actual demand row; a plain boundary trait does not.
+//! consumer application. `Calling<...>` comes from the real
+//! standard library because it creates an actual demand row; a plain boundary
+//! trait does not.
 
 use package_evidence::record::{
     PackagePolicyRepresentationAgreementError, PackageReviewNominalOwner,
@@ -64,7 +65,7 @@ impl Drop for Tree {
 }
 
 const PRODUCER_SOURCE: &str = r#"use omega::language::core::representation;
-use calling;
+use omega_language_std::calling;
 
 pub boundary data Token;
 pub data Carrier { value: u64; }
@@ -118,11 +119,23 @@ pub boundary trait TokenBoundary: Calling<TransferPolicy> {
 }
 "#;
 
-const PRODUCER_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("opaque-producer");
-    builder.select_representation<Token, TokenRepresentation>();
+fn omega_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
-"#;
+
+fn producer_build(standard_library: &Path) -> String {
+    format!(
+        r#"machine build(builder: &mut Build) {{
+    builder.package("opaque-producer");
+    builder.depend(Source::Path {{
+        location: "{}"
+    }});
+    builder.select_representation<Token, TokenRepresentation>();
+}}
+"#,
+        omega_path(standard_library)
+    )
+}
 
 const CONSUMER_SOURCE: &str = r#"use producer::main;
 
@@ -138,9 +151,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
 
-const MATCHING_CONSUMER_BUILD: &str = r#"use producer::main;
-
-machine build(builder: &mut Build) {
+const MATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
     builder.application("opaque-consumer");
     builder.depend_as("producer", Source::Path {
         location: "../producer"
@@ -186,17 +197,16 @@ fn fixture(
     fs::create_dir_all(&producer).expect("create producer package");
     fs::create_dir_all(&consumer).expect("create consumer package");
     fs::write(producer.join("main.omg"), PRODUCER_SOURCE).expect("write producer source");
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+    let standard_library = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(7)
-        .expect("repository root");
+        .expect("repository root")
+        .join("source/library/std");
     fs::write(
-        producer.join("calling.omg"),
-        fs::read_to_string(repository.join("source/library/std/calling.omg"))
-            .expect("read calling library source"),
+        producer.join("build.omg"),
+        producer_build(&standard_library),
     )
-    .expect("write calling library source");
-    fs::write(producer.join("build.omg"), PRODUCER_BUILD).expect("write producer build");
+    .expect("write producer build");
 
     fs::write(consumer.join("main.omg"), consumer_source).expect("write consumer source");
     fs::write(consumer.join("build.omg"), consumer_build).expect("write consumer build");

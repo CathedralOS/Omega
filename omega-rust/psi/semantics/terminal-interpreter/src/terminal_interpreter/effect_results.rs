@@ -127,7 +127,8 @@ pub(super) fn requires_materialized_host_custody(
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::Record { fields: members } => fields.extend(members),
             StructuralTypeShape::Sum { cases } => {
                 fields.extend(cases.iter().flat_map(|case| &case.fields));

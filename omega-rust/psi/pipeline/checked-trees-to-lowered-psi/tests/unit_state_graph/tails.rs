@@ -460,3 +460,51 @@ fn scalar_length_arguments_preserve_the_guards_exact_extent_observation() {
         assert_eq!(effects(&source), vec![(b"AB".to_vec(), 1), (Vec::new(), 1)]);
     }
 }
+
+#[test]
+fn equality_complement_pair_tails_lower_and_execute_the_inverse_arm() {
+    let source = r#"
+        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
+        machine dispatch(value: i32, bytes: &[u8]) reaches Output {
+            transition {
+                value == 3 -> low(bytes)
+                value != 3 -> high(bytes)
+            }
+            state low(bytes: &[u8]) { Output::write(bytes, 1i32); }
+            state high(bytes: &[u8]) { Output::write(bytes, 2i32); }
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            dispatch(3, "hit");
+            dispatch(5, "miss");
+        }
+    "#;
+    assert_eq!(
+        effects(source),
+        vec![(b"hit".to_vec(), 1), (b"miss".to_vec(), 2)]
+    );
+}
+
+#[test]
+fn reversed_boolean_label_pair_tails_lower_and_execute_the_inverse_arm() {
+    let source = r#"
+        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
+        machine dispatch(flag: bool, bytes: &[u8]) reaches Output {
+            transition {
+                flag == false -> low(bytes)
+                flag == true -> high(bytes)
+            }
+            state low(bytes: &[u8]) { Output::write(bytes, 1i32); }
+            state high(bytes: &[u8]) { Output::write(bytes, 2i32); }
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            dispatch(true, "hit");
+            dispatch(false, "miss");
+        }
+    "#;
+    assert_eq!(
+        effects(source),
+        vec![(b"hit".to_vec(), 2), (b"miss".to_vec(), 1)]
+    );
+}

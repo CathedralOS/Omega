@@ -225,6 +225,16 @@ pub(crate) fn lower_trait_definition(
                     base.name.as_str(),
                 )));
             }
+            let wildcard = clause
+                .service_reaches
+                .iter()
+                .any(|reach| reach.as_str() == "_");
+            if wildcard && clause.service_reaches.len() > 1 {
+                return Err(Diagnostic::error(
+                    "refinement clause `reaches _;` is an independent abstract row and does not combine with named services",
+                ));
+            }
+            let mut clause_services = Vec::new();
             for reach in &clause.service_reaches {
                 // `reaches _;` is the independent abstract row bounded by the
                 // inherited row; the clause-location row variant is pending.
@@ -258,7 +268,36 @@ pub(crate) fn lower_trait_definition(
                         base.name.as_str(),
                     )));
                 }
+                clause_services.push(service);
             }
+            // `reaches` binds at the clause location: an omitted clause
+            // inherits, authored `reaches;` narrows to the empty row, named
+            // reaches intern a concrete row, and `reaches _;` mints one
+            // independent abstract row per covered requirement bounded by
+            // that requirement's inherited row.
+            let service_reach = if clause.service_reach_keyword_source_spans.is_empty() {
+                typed::trait_definition::TraitRefinementReach::Inherited
+            } else if wildcard {
+                typed::trait_definition::TraitRefinementReach::IndependentBounded(
+                    covered
+                        .iter()
+                        .map(|machine| typed::trait_definition::ClauseAbstractReachRow {
+                            requirement: crate::lowerer::name::lower_name(&machine.name),
+                            row: lowerer
+                                .typed_trees
+                                .service_reach_rows
+                                .intern_abstract(machine.service_reach_row),
+                        })
+                        .collect(),
+                )
+            } else {
+                typed::trait_definition::TraitRefinementReach::Concrete(
+                    lowerer
+                        .typed_trees
+                        .service_reach_rows
+                        .intern(clause_services),
+                )
+            };
             typed_trait
                 .refinement_clauses
                 .push(typed::trait_definition::TraitRefinementClause {
@@ -272,6 +311,7 @@ pub(crate) fn lower_trait_definition(
                         .iter()
                         .map(crate::lowerer::name::lower_name)
                         .collect(),
+                    service_reach,
                 });
         }
     }

@@ -335,6 +335,7 @@ mod tests {
             let mut operations = (1..=3)
                 .map(|ordinal| Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(ordinal).unwrap(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -348,8 +349,10 @@ mod tests {
                 .collect::<Vec<_>>();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(4).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: array_place,
                     structural_type: array_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -398,6 +401,7 @@ mod tests {
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
@@ -411,6 +415,7 @@ mod tests {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: ContractId::new(1).unwrap(),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -454,6 +459,7 @@ mod tests {
         let operations = [10, 11]
             .map(|ordinal| Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(ordinal).unwrap(),
                 result: OperationResult::Scalar(declaration(ordinal)),
                 kind: O::BooleanConstant { value: true },
@@ -479,6 +485,7 @@ mod tests {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
@@ -488,6 +495,7 @@ mod tests {
                         target,
                         arguments: vec![ValueId::new(10).unwrap(), ValueId::new(11).unwrap()],
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
@@ -495,6 +503,7 @@ mod tests {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: target,
                     parameters: vec![declaration(20), declaration(21)],
@@ -508,6 +517,7 @@ mod tests {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -565,6 +575,7 @@ mod tests {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(1).unwrap(),
                     parameters: Vec::new(),
@@ -576,6 +587,7 @@ mod tests {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: vec![declaration(20)],
@@ -588,6 +600,7 @@ mod tests {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -733,6 +746,7 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
@@ -741,6 +755,7 @@ mod tests {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -761,6 +776,7 @@ mod tests {
         };
         let constant = |ordinal: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: OperationResult::Scalar(declaration(ordinal)),
             kind: O::BooleanConstant { value: true },
@@ -807,6 +823,7 @@ mod tests {
         };
         covered.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(2).unwrap(),
             parameters: vec![ValueDeclaration {
@@ -854,6 +871,7 @@ mod tests {
 
         let call = |continuations: Vec<terminal_psi::CrashRouteBucket>| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(20).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -862,6 +880,7 @@ mod tests {
             }),
             kind: O::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: MachineId::new(9).unwrap(),
                 arguments: Vec::new(),
                 requirement_obligations: Vec::new(),

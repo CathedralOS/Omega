@@ -157,14 +157,11 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// `machine Vec4::get`), found through the machine that owns the target
     /// state. `None` for free machines (no attached data).
     fn target_self_data_definition(&self) -> Option<&typed_trees::data::DataDefinition> {
-        let machine = self.program.machines().iter().find(|machine| {
-            machine.symbol == self.target_symbol
-                || self
-                    .program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == self.target_symbol)
-        })?;
+        let machine =
+            crate::lookup::machine_by_symbol(self.program, self.target_symbol).or_else(|| {
+                crate::semantic_calls::find_state_with_machine(self.program, self.target_symbol)
+                    .map(|(machine, _)| machine)
+            })?;
         let attached_data = machine.attached_data.as_ref()?;
         self.program
             .data_definitions()
