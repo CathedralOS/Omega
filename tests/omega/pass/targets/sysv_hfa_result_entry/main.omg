@@ -4,5 +4,5 @@ use omega::language::core::float_operations;
 pub data FloatPair { first: f64; second: f64; }
 pub data Main { output: FloatPair; }
 boundary machine Main::main(&self) -> FloatPair {
-    transition { _ -> (self.output) }
+    transition { _ -> (FloatPair { first: self.output.first, second: self.output.second }) }
 }

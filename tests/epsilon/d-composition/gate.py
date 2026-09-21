@@ -163,15 +163,15 @@ def main():
                  109644, "95b15745e93609a5c164b5842218782653edc779280ea932a6293fda7deede4f",
                  b"", b"\x00\x00\x00\x00\x00A")
 
-    # The complete-D customer: the whole bound 558,065-byte closure plus this
+    # The complete-D customer: the whole bound 569,920-byte closure plus this
     # gate's own composition main, which feeds the sealed Omega source to D's
     # actual OmegaScalarCompiler::compile and publishes the emitted tape.
     # Checking covers every declared member; execution crosses parser,
     # scalar compilation, and Alpha tape emission. Expected observation is
     # pinned in expected.hex.
     packed = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("packed Omega D closure", packed, 558065,
-                     "3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950")
+    require_identity("packed Omega D closure", packed, 569920,
+                     "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
     composition_main = (gate / "main.epsilon").read_bytes()
     require_identity("composition main", composition_main, 1759,
                      "4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b")

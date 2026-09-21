@@ -270,3 +270,89 @@ fn selected_target_rejects_duplicate_catalog_members() {
         "selected target `windows_x86_64` has more than one bound required root slot `windows_x86_64::ProgramEntry`"
     ));
 }
+
+#[test]
+fn selected_target_keeps_the_migration_fallback_for_empty_root_bindings() {
+    let config = config_with_root_bindings(&[]);
+
+    let selected = selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+        .expect("a build file with no root rows keeps the migration fallback");
+
+    assert!(selected.is_none());
+}
+
+#[test]
+fn root_binding_row_must_be_target_qualified() {
+    let config = config_with_root_bindings(&[("ProgramEntry", "Application::start")]);
+
+    let diagnostics =
+        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+            .expect_err("an unqualified slot spelling has no target owner");
+
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].to_string().contains(
+        "root slot `ProgramEntry` is not target-qualified; expected `target::ProgramEntry`"
+    ));
+}
+
+#[test]
+fn malformed_foreign_root_row_rejects_beside_a_valid_selection() {
+    let config = config_with_root_bindings(&[
+        ("macos_arm64::UndeclaredSlot", "Application::start"),
+        ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
+    ]);
+
+    let diagnostics =
+        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+            .expect_err("an inactive row must still resolve its slot ownership");
+
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].to_string().contains(
+        "target profile `macos_arm64` declares no required root slot `macos_arm64::UndeclaredSlot`"
+    ));
+}
+
+#[test]
+fn foreign_root_row_with_unknown_profile_rejects_beside_a_valid_selection() {
+    let config = config_with_root_bindings(&[
+        ("plan9::ProgramEntry", "Application::start"),
+        ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
+    ]);
+
+    let diagnostics =
+        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+            .expect_err("an unknown profile cannot remain an inactive row");
+
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .to_string()
+            .contains("root slot `plan9::ProgramEntry` belongs to unknown target profile `plan9`")
+    );
+}
+
+#[test]
+fn root_selection_collects_every_malformed_row() {
+    let config = config_with_root_bindings(&[
+        ("ProgramEntry", "Application::start"),
+        ("plan9::ProgramEntry", "Diagnostics::start"),
+    ]);
+
+    let diagnostics =
+        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+            .expect_err("each malformed row reports its own identity");
+
+    assert_eq!(diagnostics.len(), 2);
+    assert!(
+        diagnostics[0]
+            .to_string()
+            .contains("root slot `ProgramEntry` is not target-qualified"),
+        "{diagnostics:?}"
+    );
+    assert!(
+        diagnostics[1]
+            .to_string()
+            .contains("root slot `plan9::ProgramEntry` belongs to unknown target profile"),
+        "{diagnostics:?}"
+    );
+}

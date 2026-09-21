@@ -200,8 +200,8 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);
@@ -452,8 +452,8 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
 fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
     let baseline = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);
@@ -757,11 +757,11 @@ fn a_provider_carrying_argument_still_stops_at_provider_attachment_requirements(
     // requirements.
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Carrier {{
-             runtime: TaskRuntime;
+         data Carrier<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, carrier: Carrier) {{ }}
          machine Main::main(&mut self) {{ }}"
@@ -839,5 +839,82 @@ fn a_shared_task_runtime_place_stops_at_signature_construction() {
     assert_eq!(
         omission.as_deref(),
         Some("`Main::probe` has no admitted body (local construction stopped at signature)")
+    );
+}
+
+#[test]
+fn an_inline_case_argument_on_an_attached_call_plans() {
+    // The parser gate's `source_full` first statement calls an attached
+    // machine through a nested receiver with an inline case literal:
+    // `self.lexer.reject(LexDiagnosticCode::SourceCapacityExceeded, l, l)`.
+    // The construction is established as a state-local operand before the
+    // call; unrestricted (copy) case types only — an affine literal still has
+    // no permission events to carry it and stays omitted.
+    let checked = checked(
+        r#"
+        data Code [copy] { case Exceeded; case Other; }
+        data AffineCode { case Exceeded; case Other; }
+        data Lexer { seen: u64 in Trapping; }
+        machine Lexer::reject(&mut self, code: Code, start: u64 in Trapping, end: u64 in Trapping) {
+            self.seen = start;
+        }
+        machine Lexer::note(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+            self.seen = start;
+        }
+        machine Lexer::ping(&mut self, code: Code) {
+        }
+        machine Lexer::reject_affine(&mut self, code: AffineCode) {
+        }
+        data Main { lexer: Lexer; }
+        machine Main::scalars_only(&mut self) {
+            let l: u64 [0..=65536] = 3;
+            self.lexer.note(l, l);
+        }
+        machine Main::rejects_inline(&mut self) {
+            let l: u64 [0..=65536] = 3;
+            self.lexer.reject(Code::Exceeded, l, l);
+        }
+        machine Main::pings_inline(&mut self) {
+            self.lexer.ping(Code::Exceeded);
+        }
+        machine Main::plain_scalar_siblings(&mut self) {
+            let l: u64 = 3;
+            self.lexer.reject(Code::Exceeded, l, l);
+        }
+        machine Main::bound_affine(&mut self) {
+            let c: AffineCode = AffineCode::Exceeded;
+            self.lexer.reject_affine(c);
+        }
+        machine Main::inline_affine(&mut self) {
+            self.lexer.reject_affine(AffineCode::Exceeded);
+        }
+    "#,
+    );
+    for name in [
+        "Main::scalars_only",
+        "Main::rejects_inline",
+        "Main::pings_inline",
+        "Main::plain_scalar_siblings",
+        "Main::bound_affine",
+    ] {
+        checked_trees_to_lowered_psi::lower_machine(&checked, name)
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+    }
+    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::inline_affine")
+        .expect_err("an affine literal has no permission events to carry it");
+    let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
+        machine,
+        omission,
+        ..
+    } = error
+    else {
+        panic!("unexpected error: {error:?}");
+    };
+    assert_eq!(machine, "Main::inline_affine");
+    assert_eq!(
+        omission.as_deref(),
+        Some(
+            "`Main::inline_affine` has no admitted body (local construction stopped at statement sequence: call: call operation, statement 0)"
+        )
     );
 }

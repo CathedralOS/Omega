@@ -1281,10 +1281,11 @@ fn compiler_body_cross_region_frame_indexed_integer_write_footprints_reach_artif
         fs::write(
             source.join("main.omg"),
             r#"use omega::language::std::console;
+use omega::language::core::service;
 
 data Entry { value: i32; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     entries: [Entry; 4];
     index: u64;
 }
@@ -1350,10 +1351,11 @@ fn compiler_body_frame_base_indexed_integer_write_footprints_reach_artifacts() {
         fs::write(
             source.join("main.omg"),
             r#"use omega::language::std::console;
+use omega::language::core::service;
 
 data Entry { value: i32; }
 data Room { entries: [Entry; 4]; }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let room: Room = Room {
@@ -1460,9 +1462,10 @@ fn compiler_body_double_indexed_integer_write_footprints_reach_artifacts() {
         fs::write(
             source.join("main.omg"),
             r#"use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [[i32; 4]; 3];
 }
 

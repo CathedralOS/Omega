@@ -208,6 +208,10 @@ fn validate_expression_call_bounds(
         || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
             call.target.as_str(),
         )
+        .is_some()
+        || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(
+            call.target.as_str(),
+        )
         .is_some())
         && !call.receiver.is_valid()
     {

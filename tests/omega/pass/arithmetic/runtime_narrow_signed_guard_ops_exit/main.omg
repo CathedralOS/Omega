@@ -6,11 +6,13 @@
 // Covers: i8 `>` and `<` against negatives, i8 subtract to a negative, and i8 multiply
 // to a negative -- all in guards. Exits 70.
 //
-// The fields are PLAIN i8 (Exact) deliberately: guard-position arithmetic in a
-// Saturating/Trapping domain has no fused lowering and is refused loudly by the
-// operand-domain fence (fail/arithmetic/guard_saturating_operand_rejected); this
-// canary's subject is narrow SIGNEDNESS, not overflow domains, and every value
-// stays in range.
+// The fields are PLAIN i8 (Exact) deliberately: this canary's subject is narrow
+// SIGNEDNESS, not overflow domains, and every value stays in range.
+// Guard-position Saturating arithmetic DOES have fused lowering -- it is pinned
+// by pass/slices/runtime_saturating_array_element_guard_exit, which hoists the
+// runtime-indexed element and computes the bool via a saturating binary write.
+// The `guard_saturating_operand_rejected` fence this used to cite no longer
+// exists.
 
 use omega_language_std::console;
 use omega::language::core::service;

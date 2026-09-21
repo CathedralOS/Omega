@@ -90,9 +90,9 @@ impl EmbeddedScalarCalls {
             // This assembler has no common qualified namespace with its root.
             // Bare helper payloads remain compatible with any root catalog;
             // qualified helper interfaces must not lose their definitions.
-            // Floating entry ranges are machine-local rows keyed by the
-            // helper's own emitted identities, so they merge into the root
-            // catalog without sharing that namespace.
+            // Floating and integer entry ranges are machine-local rows keyed
+            // by the helper's own emitted identities, so they merge into the
+            // root catalog without sharing that namespace.
             if !helper
                 .semantic_module
                 .scalar_qualifications
@@ -121,6 +121,16 @@ impl EmbeddedScalarCalls {
                 );
             lowered
                 .semantic_module
+                .scalar_qualifications
+                .integer_entry_ranges
+                .append(
+                    &mut helper
+                        .semantic_module
+                        .scalar_qualifications
+                        .integer_entry_ranges,
+                );
+            lowered
+                .semantic_module
                 .machines
                 .append(&mut helper.semantic_module.machines);
             lowered
@@ -144,6 +154,11 @@ impl EmbeddedScalarCalls {
             .semantic_module
             .scalar_qualifications
             .float_entry_ranges
+            .sort_by_key(|range| (range.machine, range.parameter));
+        lowered
+            .semantic_module
+            .scalar_qualifications
+            .integer_entry_ranges
             .sort_by_key(|range| (range.machine, range.parameter));
         Ok(())
     }

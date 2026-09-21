@@ -24,10 +24,10 @@ mod shared;
 mod validation;
 pub(crate) mod value_transport;
 
-pub use identity::selected_instruction_plan_identity;
 pub use model::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
 };
+pub use selected_instructions::selected_instruction_plan_identity;
 pub use validation::validate_selected_instructions;
 
 use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};

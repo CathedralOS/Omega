@@ -31,6 +31,20 @@ pub boundary trait WorkerProvider {
     ensures true;
 }
 
+// Hung-worker recovery boundary — the declared isolation contract the board
+// row names. A worker that never reaches a lifecycle outcome can only be
+// terminated in its own execution domain: bounded recovery from a genuine
+// hang requires process isolation, and an in-process worker cannot simply
+// be killed (wiki/spec/build/foreign_bindings.md), so this package never
+// declares an in-address-space teardown route. A provider satisfying
+// `IsolatedWorkerProvider` supplies the containment guarantees
+// provider_selection.md names — a parent endpoint, a separately evaluated
+// child manifest, forcible termination and fault containment — with
+// isolation/restart evidence retained on the provider, not invented here.
+// Ordinary workers only need `WorkerProvider`; an application that wants
+// hung-worker recovery selects an isolated provider.
+pub boundary trait IsolatedWorkerProvider: WorkerProvider {}
+
 // The shared wait substrate named by the spec: a small word/value wait plus
 // wake-one/wake-many boundary. `park` suspends the calling activation at a
 // canonical crossing; the parked continuation is compiler/provider-owned.
@@ -48,9 +62,10 @@ pub data Submission<T, Arguments> [linear] {
 }
 
 // Linear completion claim for one accepted submission — the package's
-// analogue of `Task<T>`: the owned right and obligation to observe or
-// settle the activation's lifecycle, discharged exactly once. Linear, so it
-// cannot be copied, overwritten, or dropped to discharge the claim.
+// analogue of `Task<T>`: the owned right and obligation to observe,
+// cancel-request, or settle the activation's lifecycle, discharged exactly
+// once. Linear, so it cannot be copied, overwritten, or dropped to
+// discharge the claim.
 pub data Ticket<T> [linear] {
     executor: u64;
     slot: u64;
@@ -87,16 +102,22 @@ pub data SubmitOutcome<T, Arguments> {
 }
 
 // One executor instance: its bounded submission queue, the wait word
-// producers and workers park on, and the routed worker-provider service
-// worker activations run under. `Service<WorkerProvider> in Bound` is the
-// held selected capability — established by build composition, never
-// package-authored (service.omg), matching the spec rule that selection
-// grants no ambient authority: the executor must hold the capability.
+// producers and workers park on, the routed worker-provider service worker
+// activations run under, and the count of vended claims not yet settled.
+// `Service<WorkerProvider>` is the held selected capability — established
+// by build composition, never package-authored (service.omg), matching the
+// spec rule that selection grants no ambient authority: the executor must
+// hold the capability. `outstanding` is the outstanding-claim ledger:
+// every `Accepted` vends one `Ticket` claim against this executor, and
+// `settle` retires exactly one — an executor must not die while claims it
+// vended are still live, because a `Ticket` can only be settled against
+// the executor that issued it.
 pub data Executor<T, Arguments, const N: u64> [linear] {
     queue: BoundedQueue<Submission<T, Arguments>, N>;
     wait_word: u64;
-    runtime: Service<WorkerProvider> in Bound;
+    runtime: Service<WorkerProvider>;
     open: bool;
+    outstanding: u64;
 }
 
 // Admit this submission into `executor`. Linear values must move through
@@ -121,20 +142,35 @@ requires
     self.open
 suspends; blocks;
 
+// Request cancellation of the activation this claim covers — the
+// cancel-request half of the claim's authority (`Task::request_cancel`'s
+// shape). The claim is retained: the request asks the provider for a
+// transition, it is not proof that execution stopped, and it discharges
+// nothing — only `settle`/`Executor::close` consume the claim. A worker
+// that ignores the request and never reports an outcome is the hung case;
+// recovery from it is the `IsolatedWorkerProvider` contract above.
+pub boundary requirement Ticket::request_cancel<T>(&self);
+
 // Terminally consume this claim against the executor that vended it;
 // blocks until the worker reports a lifecycle outcome. Same shape as
 // `Task::finish(self)`: settlement is the only discharge of the claim.
+// The executor is borrowed mutably so a satisfying body can retire the
+// claim on `outstanding` — an immutable borrow would leave `close`'s
+// provable zero-claims obligation unreachable.
 pub boundary requirement Ticket::settle<T, Arguments, const N: u64>(
     self,
-    executor: &Executor<T, Arguments, N>
+    executor: &mut Executor<T, Arguments, N>
 ) -> ExecutorOutcome<T>
 suspends; blocks;
 
-// Terminally consume an executor with a provably empty queue — reclaiming
-// it requires reconciliation of every outstanding claim first, so close
-// cannot proceed while queued submissions survive.
+// Terminally consume an executor with a provably empty queue and no live
+// completion claims — reclaiming it requires reconciliation of every
+// outstanding claim first, so close cannot proceed while queued
+// submissions or vended tickets survive (a `Ticket` has no other
+// discharge route once its executor is gone).
 pub boundary requirement Executor::close<T, Arguments, const N: u64>(
     self
 ) -> ()
 requires
     self.queue.length == 0;
+    self.outstanding == 0;

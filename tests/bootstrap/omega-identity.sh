@@ -36,6 +36,10 @@ require_omega_parser_entry_identity ||
   fail "bound parser entry refused the canonical checkout"
 require_omega_outcome_entry_identity ||
   fail "bound outcome entry refused the canonical checkout"
+require_omega_request_entry_identity ||
+  fail "bound request entry refused the canonical checkout"
+require_omega_request_fixture_identity ||
+  fail "bound request fixture refused the canonical checkout"
 require_omega_executable_entries_identity ||
   fail "bound executable entries refused the canonical checkout"
 echo "entries: bound gate-local customer entries pass"
@@ -52,17 +56,21 @@ echo "materialize: packed compiler is exactly the bound member bytes"
 # entry is the customer byte sequence its gate consumes; each is bound at
 # its recorded identity.
 for OMEGA_PACKED_CUSTOMER in \
-  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 562648 a47e7628d0b2a59f7a83c5b68dd3f367eb8a910e1bf4926c7f66be01489810de" \
-  "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 576295 517bee1ce9b180a993eb1a90e6d32e997afb08e8d4ba8c945d7637ceb355b919" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 559824 c3b86f71eba1e0f7317c9c4cd1b3afc8d26e2d80a1e114322c84beb20234548d" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls.epsilon 561404 a30e4e007367669e90e6356407eb0647552ec4415947b34629c4ce8601c3865a" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_b.epsilon 561149 ebbab1f132eafc5d3910d7ca7b90f1d7280caad9bad9c6d0f2f0b818bf559748" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_c.epsilon 560889 dcca542508d8a5c8406b0cbeacb53ef9f2d17c5d43cc16a0c3d5aecefa17ef8a" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_d.epsilon 560915 9ea9b0abca75b330fbbde43fc40e801a85a9fca184f79324849ff94d79c71e23" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_e.epsilon 560768 a62270323e17dea5fef4da69fb2042c1c690a5cbb36ca471cf5d7709a6c84ed1" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_f.epsilon 562490 be615c94a9f7812e33743580758e4bc66b2439f2e267dcec35ad68c285ce8822" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_g.epsilon 561192 3d2ebf05e91b6357d971acf291d8f04dec2e96444f17365339869ce787d4554a" \
-  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_h.epsilon 561258 4414e832300e9cc352a02b53e01baf1d1bb8cc3dd7dbf7d342e968a27b8f9e0e"
+  "omega-parser $OMEGA_PATH_OMEGA_PARSER_ENTRY 574503 bb0926635a8f6442c2a8b40e8ad015a5db7f2eea914062892d50ee6905104726" \
+  "omega-outcome $OMEGA_PATH_OMEGA_OUTCOME_ENTRY 589552 69aa773f4e006e9a737643cb0f97033c471176aed7dd31429e9cc205a4496e70" \
+  "omega-request $OMEGA_PATH_OMEGA_REQUEST_ENTRY 574032 236195acd6e62c28a8bc9670549b731ac5e813460b831a48b311c7d76c55d721" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main.epsilon 571677 3fc101fd95c3e7474b3fe2ccef26e905ad26e144b042e6fbffd6a0aeb0b05ff7" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/main_ocreq.epsilon 589169 bb0df0b84735b0a32c27838a187619934cce5d37fa1105033db75137c2791419" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls.epsilon 573551 fcbcda4189d01931ba3e296235d7680257a075136cf3994565161414d455d039" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_b.epsilon 573004 452b1864345a935ab7bce378ba6646b37477e6c08e531961d44cb491ca383032" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_c.epsilon 572744 5b8b21e7d7e91ce63f7b71cfd1d7122d43ba2d0f6d4184975956b77cf87bcbca" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_d.epsilon 572770 e9df055b44309313841e736e5d7631d57ac5587e6573c3f17da74aeea5ab4dc7" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_e.epsilon 572717 c12b0fedda175dfa5106bb9c8e38f001c148097d5e27b81ea00bb327cf2b91bb" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_f.epsilon 574345 1738a54b1a3d19bf97fdfc3e9bd9d66294426fd0c7bf78e538ff2d1e3784c7cd" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_g.epsilon 573047 5bf917e743d3d4a9c3a8846f58ede2b0cd865b4dd5219ad5afb20a24055014e9" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_h.epsilon 573113 0c6f6b9bb9d71aaf680b83c8b7220cec44162751adb2d0454df2820395783858" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_i.epsilon 573783 46d8399309e9e96b653a444dc002dba6636c11e2ac4452e8aaeb5fbb2bffc951" \
+  "omega-executable $OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/controls_j.epsilon 574381 f0fbc43cc70e2221f0166fe7df1c407d317bc1244f8ba5db4033a4d9cb32a7fc"
 do
   set -- $OMEGA_PACKED_CUSTOMER
   cat "$TMP/compiler.epsilon" "$2" > "$TMP/customer.epsilon"
@@ -146,6 +154,39 @@ rc=0
   fail "truncated outcome entry: expected exit 3, got $rc"
 echo "outcome entry: a one-byte change or truncation is refused with its record"
 
+cp "$OMEGA_PATH_OMEGA_REQUEST_ENTRY" "$TMP/corrupt-request-entry"
+flip_byte "$TMP/corrupt-request-entry"
+rc=0
+(
+  export OMEGA_PATH_OMEGA_REQUEST_ENTRY=$TMP/corrupt-request-entry
+  require_omega_request_entry_identity
+) 2>"$TMP/corrupt-request-entry.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted request entry: expected exit 3, got $rc"
+grep -q 'omega-request/README.md' "$TMP/corrupt-request-entry.err" ||
+  fail "corrupted request entry: refusal did not cite the gate record"
+head -c $((OMEGA_REQUEST_ENTRY_SIZE - 1)) \
+  "$OMEGA_PATH_OMEGA_REQUEST_ENTRY" > "$TMP/truncated-request-entry"
+rc=0
+(
+  export OMEGA_PATH_OMEGA_REQUEST_ENTRY=$TMP/truncated-request-entry
+  require_omega_request_entry_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated request entry: expected exit 3, got $rc"
+cp "$OMEGA_PATH_OMEGA_REQUEST_FIXTURE" "$TMP/corrupt-request-fixture"
+flip_byte "$TMP/corrupt-request-fixture"
+rc=0
+(
+  export OMEGA_PATH_OMEGA_REQUEST_FIXTURE=$TMP/corrupt-request-fixture
+  require_omega_request_fixture_identity
+) 2>"$TMP/corrupt-request-fixture.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted request fixture: expected exit 3, got $rc"
+grep -q 'omega-request/README.md' "$TMP/corrupt-request-fixture.err" ||
+  fail "corrupted request fixture: refusal did not cite the gate record"
+echo "request entry: a one-byte change or truncation is refused with its record"
+
 mkdir "$TMP/executable-entries"
 cp "$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES"/*.epsilon "$TMP/executable-entries/"
 flip_byte "$TMP/executable-entries/controls_d.epsilon"
@@ -174,7 +215,7 @@ echo "executable entries: a one-byte change or truncation is refused with its re
 
 for needle in \
   "$OMEGA_COMPILER_MANIFEST_SHA256" "$OMEGA_COMPILER_PACKED_SHA256" \
-  "558,065"
+  "569,920"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/5_omega/README.md" ||
     fail "bootstrap/5_omega/README.md lacks bound record $needle"
@@ -217,8 +258,21 @@ for needle in "$OMEGA_OUTCOME_ENTRY_SIZE" "$OMEGA_OUTCOME_ENTRY_SHA256"; do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-outcome/gate.py" ||
     fail "omega-outcome gate.py lacks bound entry record $needle"
 done
+for needle in \
+  "$(grouped "$OMEGA_REQUEST_ENTRY_SIZE")" "$OMEGA_REQUEST_ENTRY_SHA256" \
+  "$(grouped "$OMEGA_REQUEST_FIXTURE_SIZE")" "$OMEGA_REQUEST_FIXTURE_SHA256"
+do
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-request/README.md" ||
+    fail "tests/bootstrap/omega-request/README.md lacks bound record $needle"
+done
+for needle in "$OMEGA_REQUEST_ENTRY_SIZE" "$OMEGA_REQUEST_ENTRY_SHA256" \
+  "$OMEGA_REQUEST_FIXTURE_SIZE" "$OMEGA_REQUEST_FIXTURE_SHA256"; do
+  grep -q "$needle" "$OMEGA_REPO_ROOT/tests/bootstrap/omega-request/gate.py" ||
+    fail "omega-request gate.py lacks bound record $needle"
+done
 for OMEGA_EXECUTABLE_ENTRY in \
   "$OMEGA_EXECUTABLE_MAIN_ENTRY_SIZE $OMEGA_EXECUTABLE_MAIN_ENTRY_SHA256" \
+  "$OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE $OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_B_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_B_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_C_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_C_ENTRY_SHA256" \
@@ -226,7 +280,8 @@ for OMEGA_EXECUTABLE_ENTRY in \
   "$OMEGA_EXECUTABLE_CONTROLS_E_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_E_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SHA256" \
   "$OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SHA256" \
-  "$OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256"
+  "$OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256" \
+  "$OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256"
 do
   set -- $OMEGA_EXECUTABLE_ENTRY
   grep -q "$(grouped "$1")" \

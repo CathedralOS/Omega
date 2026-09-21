@@ -6,8 +6,10 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 | Retained child/files | Role | Deletion condition |
 | --- | --- | --- |
 | `conformance.sh` | Pins every Alpha opcode and the selected seed profile. | Delete only when a stronger executable conformance gate subsumes every case. |
+| `container.sh`, `container.py` | Validates both audited seed containers as native executables on every host: bound identity for the non-host seed too, PE32+/Mach-O structure, hole offset equal to the tape section's raw extent, and the stamped-artifact contract. | Delete only when an identity or provenance gate covers the same native-container contract. |
 | `bounds.py` | Hand-encoded bounds cases shared by native and reference checks. | Delete when stronger conformance controls subsume these exact/adjacent observations. |
 | `io-registers.hex` | Shared raw-tape regression for host scratch/register isolation. | Delete when stronger I/O conformance checks subsume its full-word and operand controls. |
+| `parity.sh` | On Linux x86-64, runs the conformance opcode battery plus the diamond edge corpus through both the committed `alpha_x64_linux` container and the independent reference, failing on any exit-code or stdout disagreement. | Delete when the reference interpreter is deleted, or when host-seed agreement coverage reaches the Linux container another way. |
 | `reference/` | Independent VM differential checks. | Delete when checked native correspondence subsumes the diagnostic. |
 | `tape-assembly/` | Off-chain assembler reconstruction, differential, grammar, and example tests. | Delete with the tool or when stronger checked coverage subsumes every relation. |
 
@@ -16,7 +18,8 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 `sh tests/alpha/conformance.sh` runs the native bounds cases through Python 3;
 `sh tests/alpha/reference/diamond-py.sh` runs the same short cases against the
 independent reference. Both commands work from the repository root on macOS
-arm64 and Windows x64 with Git Bash, Python 3, and the existing bootstrap tools.
+arm64, Windows x64 with Git Bash, and Linux x86-64 with Python 3 and the
+existing bootstrap tools.
 The native runner stamps copies directly to test hostile embedded lengths that
 the normal stamper correctly refuses. It compares exact stdout (including empty
 bytes), empty stderr, and native illegal-instruction termination rather than
@@ -39,7 +42,7 @@ Run these alone with `python3 tests/alpha/bounds.py --stack-only`. The reference
 excludes these large loops explicitly; it still checks return without a preceding
 call, access above the stack origin, and overlapping call storage.
 
-macOS arm64 execution is validated for the identities in the
+macOS arm64 and Linux x86-64 execution are validated for the identities in the
 [seed inventory](../../bootstrap/0_alpha/README.md#retention-inventory).
 Windows native execution remains outstanding; exact PE reconstruction and source
 review do not establish that host result. These tests do not discharge native

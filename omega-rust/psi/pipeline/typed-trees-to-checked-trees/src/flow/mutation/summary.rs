@@ -287,16 +287,8 @@ fn machine_symbol_for_state(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
 ) -> SymbolHandle {
-    program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-        })
-        .map(|machine| machine.symbol)
+    crate::semantic_calls::find_state_with_machine(program, state.symbol)
+        .map(|(machine, _)| machine.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
@@ -304,22 +296,15 @@ fn state_has_concrete_body_signature(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
 ) -> bool {
-    program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-        })
-        .is_some_and(|machine| {
+    crate::semantic_calls::find_state_with_machine(program, state.symbol).is_some_and(
+        |(machine, _)| {
             machine.body_is_present
                 && program
                     .state_parameters(state)
                     .iter()
                     .all(|parameter| parameter.type_reference.is_valid())
-        })
+        },
+    )
 }
 
 // Owned primitive formals contain no references: writes change callee storage,
@@ -347,17 +332,7 @@ fn collect_state_mutation_summary_places(
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let machine_symbol = program
-        .machines()
-        .iter()
-        .find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-                .then_some(machine.symbol)
-        })
-        .unwrap_or_else(SymbolHandle::invalid);
+    let machine_symbol = machine_symbol_for_state(program, state);
     let mut writes = Vec::new();
 
     for (statement_index, statement) in program
@@ -433,17 +408,7 @@ fn instantiate_call_relative_places(
         return None;
     }
     let target_state = find_state(program, borrow_call.target_symbol)?;
-    let target_machine_symbol = program
-        .machines()
-        .iter()
-        .find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == target_state.symbol)
-                .then_some(machine.symbol)
-        })
-        .unwrap_or_else(SymbolHandle::invalid);
+    let target_machine_symbol = machine_symbol_for_state(program, target_state);
     let mut argument_index = 0usize;
 
     for parameter in program.state_parameters(target_state) {

@@ -33,9 +33,13 @@ pub use uefi_boot_services::occurrence::{
     ValidatedUefiBootServicesHeaderIntegrity, validate_uefi_boot_services_occurrence,
 };
 pub use uefi_boot_services::{
-    UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
-    UefiBootServicesNativeFieldLayout, UefiBootServicesNativeLayoutError, UefiProtocolGuid,
-    ValidatedUefiBootServicesNativeLayout, plan_uefi_boot_services_native_layout,
+    UEFI_LOADED_IMAGE_PROTOCOL_GUID, UEFI_X64_BOOT_SERVICES_LAYOUT_PLAN_COMMITMENT,
+    UEFI_X64_BOOT_SERVICES_NATIVE_LAYOUT_COMMITMENT,
+    UEFI_X64_BOOT_SERVICES_SCHEMA_REPORT_FINGERPRINT, UefiBootServicesNativeField,
+    UefiBootServicesNativeFieldKind, UefiBootServicesNativeFieldLayout,
+    UefiBootServicesNativeLayoutError, UefiProtocolGuid, ValidatedUefiBootServicesNativeLayout,
+    exact_uefi_x64_boot_services_layout_plan_report, exact_uefi_x64_boot_services_native_layout,
+    plan_uefi_boot_services_native_layout, replayed_uefi_x64_boot_services_native_layout,
 };
 pub use uefi_loaded_image::occurrence::{
     UEFI_LOADED_IMAGE_PROTOCOL_REVISION, UefiLoadedImageOccurrenceValidationError,
@@ -53,9 +57,12 @@ pub use uefi_system_table::occurrence::{
     ValidatedUefiSystemTableHeaderIntegrity, validate_uefi_system_table_occurrence,
 };
 pub use uefi_system_table::{
-    UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
+    UEFI_X64_SYSTEM_TABLE_LAYOUT_PLAN_COMMITMENT, UEFI_X64_SYSTEM_TABLE_NATIVE_LAYOUT_COMMITMENT,
+    UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT, UefiSystemTableNativeField,
+    UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
     UefiSystemTableNativeLayoutError, ValidatedUefiSystemTableNativeLayout,
-    plan_uefi_system_table_native_layout,
+    exact_uefi_x64_system_table_layout_plan_report, exact_uefi_x64_system_table_native_layout,
+    plan_uefi_system_table_native_layout, replayed_uefi_x64_system_table_native_layout,
 };
 pub use x86_features::{
     AdmittedX86ScalarFmaProvider, X86_SCALAR_FMA_REQUIRED_FEATURES, X86DeploymentFeatures,
@@ -85,11 +92,11 @@ pub enum TargetProfile {
     LinuxX64,
     MacosArm64,
     /// The macOS x86-64 host profile. Recognition catalogues the Intel-macOS
-    /// host so `host()` resolves and `macos_x86_64` names a selected target;
-    /// realization still awaits its physical entry contract package and an
-    /// x86-64 Mach-O image writer — `program_entry_slot` keeps the hosted
-    /// compatibility fields empty and image emission refuses
-    /// `(MachO, X86_64)` until those legs land.
+    /// host so `host()` resolves and `macos_x86_64` names a selected target.
+    /// The x86-64 Mach-O writer, the `targets/macos_x86_64` contract package
+    /// and the hosted entry bridge are implemented; a real
+    /// x86_64-apple-darwin host run is still required (tracked under
+    /// MACOS-X64-HOST-PROFILE on TASKS.md).
     MacosX64,
     WindowsX64,
     UefiX64,
@@ -152,6 +159,7 @@ pub enum ProgramEntryCallingConvention {
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,
+    MacosX64,
     LinuxX86_64,
     LinuxArm64,
     WindowsX64,
@@ -162,6 +170,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
             Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
+            Self::MacosX64 => "omega::language::std::targets::macos_x86_64::entry",
             Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
             Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
             Self::WindowsX64 => "omega::language::std::targets::windows_x86_64::entry",
@@ -172,6 +181,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
             Self::MacosArm64 => "targets/macos_arm64/entry.omg",
+            Self::MacosX64 => "targets/macos_x86_64/entry.omg",
             Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
             Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
             Self::WindowsX64 => "targets/windows_x86_64/entry.omg",
@@ -184,6 +194,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "UEFI",
             Self::MacosArm64 => "macOS ARM64",
+            Self::MacosX64 => "macOS x86-64",
             Self::LinuxX86_64 => "Linux x86-64",
             Self::LinuxArm64 => "Linux ARM64",
             Self::WindowsX64 => "Windows x86-64",
@@ -525,6 +536,24 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
             ),
+            // The macOS x86-64 hosted bridge retains the same two authored
+            // surfaces: `MacosPhysicalEntry::enter` is the dyld `appMain`
+            // process arrival (argc in edi; argv, envp and apple in rsi, rdx
+            // and rcx; the completion status back in eax) and
+            // `ProgramStorageEntry::enter` is the semantic continuation it
+            // adapter-maps into. The source-visible application stays
+            // `HostedApplication` with no authored storage parameters; the two
+            // internal roots are provisioned by the bridge, never hosted
+            // arguments.
+            Self::MacosX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("MacosX64Application"),
+                Some("MacosPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::MacosX64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+            ),
             // The Windows x86-64 hosted bridge retains the same two authored
             // surfaces: `WindowsProcessEntry::enter` is the loader process
             // arrival (no contractual register inputs, 32-byte shadow space,
@@ -608,9 +637,28 @@ impl NativeTarget {
         }
     }
 
+    /// The host's native shape when this host is a catalogued deployment
+    /// profile. Unlike `host()`, this cannot fabricate a triple for a host the
+    /// toolchain does not certify: the shape comes through the profile, so an
+    /// uncatalogued host returns `None` rather than guessing.
+    pub fn host_if_supported() -> Option<Self> {
+        TargetProfile::host_if_supported().map(|profile| profile.native_target())
+    }
+
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         match target_name {
-            None => Ok(Self::host()),
+            // An omitted name is the Host convenience, not open-ended
+            // inference: it resolves through the catalogued deployment
+            // profile. A host with no catalogued profile refuses with a
+            // diagnostic instead of panicking in `host()` or naming a
+            // foreign shape.
+            None => Self::host_if_supported().ok_or_else(|| {
+                Diagnostic::error(
+                    "no target profile named and this host has no catalogued Omega \
+                     deployment profile; name an exact target profile explicitly"
+                        .to_owned(),
+                )
+            }),
             Some(target_name) => match TargetProfile::from_omega_target_name(Some(target_name))? {
                 // A recognized profile is not an implemented one: profile
                 // identity is a target-catalog fact, while this function is
@@ -969,8 +1017,8 @@ mod tests {
         );
         assert_eq!(profile.build_case_name(), "MacosX86_64");
 
-        // The triple is real: an x86-64 Mach-O image is a valid host shape,
-        // it just has no writer in this toolchain yet.
+        // The triple is real and the x86-64 Mach-O writer admits it; the
+        // remaining gap is the program-entry contract binding below.
         let native = profile.native_target();
         assert_eq!(native.architecture, super::Architecture::X86_64);
         assert_eq!(native.object_format, super::ObjectFormat::MachO);
@@ -978,19 +1026,43 @@ mod tests {
         assert_eq!(native.pointer_alignment, 8);
         assert_eq!(profile.native_realization(), Some(native));
 
-        // The slot schema comes from the same catch-all row the hosted
-        // compatibility profiles use: no toolchain physical-contract package
-        // applies until the macOS x86-64 entry bridge lands.
+        // The slot binds the closed macOS x86-64 contract package: the
+        // dyld `appMain` arrival is target-fixed System V AMD64 and the
+        // source-visible application stays `HostedApplication`.
         let slot = profile.program_entry_slot();
         assert_eq!(slot.owner, profile);
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
-        assert_eq!(slot.boundary_schema, None);
-        assert_eq!(slot.physical_arrival_requirement, None);
-        assert_eq!(slot.physical_contract_package, None);
-        assert_eq!(slot.physical_calling_convention, None);
-        assert_eq!(slot.semantic_calling_convention, None);
+        assert_eq!(slot.boundary_schema, Some("MacosX64Application"));
+        assert_eq!(
+            slot.physical_arrival_requirement,
+            Some("MacosPhysicalEntry::enter")
+        );
+        assert_eq!(
+            slot.physical_contract_package,
+            Some(ProgramEntryPhysicalContractPackage::MacosX64)
+        );
+        let physical_package = slot
+            .physical_contract_package
+            .expect("macOS x86-64 must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::macos_x86_64::entry"
+        );
+        assert_eq!(
+            physical_package.package_relative_source(),
+            "targets/macos_x86_64/entry.omg"
+        );
+        assert_eq!(physical_package.contract_name(), "macOS x86-64");
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::SystemVAMD64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
+            Some(super::ProgramEntryCallingConvention::SystemVAMD64)
+        );
         assert_eq!(
             slot.semantic_arrival_requirement,
             "ProgramStorageEntry::enter"
@@ -1001,5 +1073,31 @@ mod tests {
                 .map(|slot| slot.slot_name()),
             Some("ProgramEntry")
         );
+    }
+
+    #[test]
+    fn omitted_target_name_resolves_through_the_catalogued_host_profile() {
+        // The Host convenience resolves through the deployment-profile
+        // catalog: on a certified host it agrees with `host()`, and a host
+        // with no catalogued profile refuses instead of panicking or
+        // fabricating an uncertified triple.
+        let resolved = NativeTarget::from_omega_target_name(None);
+        match TargetProfile::host_if_supported() {
+            Some(profile) => {
+                let target = resolved.expect("catalogued host must resolve");
+                assert_eq!(target, profile.native_target());
+                assert_eq!(target, NativeTarget::host());
+                assert_eq!(NativeTarget::host_if_supported(), Some(target));
+            }
+            None => {
+                assert_eq!(NativeTarget::host_if_supported(), None);
+                let diagnostic = resolved.expect_err("uncatalogued host must refuse");
+                assert!(
+                    diagnostic
+                        .to_string()
+                        .contains("no catalogued Omega deployment profile")
+                );
+            }
+        }
     }
 }

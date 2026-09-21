@@ -3,7 +3,7 @@
 use super::super::super::super::super::super::ScalarType;
 use super::{
     Operation, OperationId, OperationKind, OperationResult, Terminator, ValueDeclaration, ValueId,
-    control_flow, publish_scalar_artifacts_with_arguments, reseal_proof,
+    control_flow, encode_fixture_sections, publish_scalar_artifacts_with_arguments,
 };
 #[test]
 fn boolean_entry_survives_calls_and_controls_ordinary_graph_publication() {
@@ -26,8 +26,7 @@ fn boolean_entry_survives_calls_and_controls_ordinary_graph_publication() {
 }
 
 fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = control_flow::branch_call_artifact(true);
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = control_flow::branch_call_artifact_parts(true);
     let branch = module.machines.remove(1);
     let callee = module.machines[1].id;
     let entry = &mut module.machines[0];
@@ -57,6 +56,7 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
         let result = ValueId::new(29_001).unwrap();
         prefix.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(29_001).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -76,8 +76,5 @@ fn boolean_call_artifact(inverted: bool) -> (Vec<u8>, Vec<u8>) {
         unreachable!()
     };
     *condition = branch_condition;
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    encode_fixture_sections(&module, &proof)
 }

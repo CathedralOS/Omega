@@ -4,10 +4,10 @@ use super::{
     BlockingInterface, CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedMachineResourceEnvelopes, CheckedResourceDerivationObligation,
     ClosedScalarValueContractPlan, CrashCallSiteLocation, CrashCause, CrashContractCapsule,
-    CrashInterface, CrashPlan, CrashPredicateIdentity, CrashRouteBucket, CrashRouteGuard,
-    CrashSiteLocation, MachineContractCommitment, MachineContractPlan, MachineContractPlans,
-    MachineSupplyMode, RealizedMachineContractEnvelope, SuspensionInterface, SymbolHandle,
-    SynchronousInvocationInterface, TerminationGuarantee, TerminationInterface,
+    CrashInterface, CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
+    CrashRouteGuard, CrashSiteLocation, MachineContractCommitment, MachineContractPlan,
+    MachineContractPlans, MachineSupplyMode, RealizedMachineContractEnvelope, SuspensionInterface,
+    SymbolHandle, SynchronousInvocationInterface, TerminationGuarantee, TerminationInterface,
     contract_report_fingerprint,
 };
 
@@ -693,4 +693,54 @@ fn internal_derivation_differs_from_published_omission() {
             TerminationGuarantee::NoGuarantee
         ))
     );
+}
+
+#[test]
+fn deeply_nested_crash_predicates_run_off_the_call_stack() {
+    use typed_trees::expression::UnaryOperator;
+
+    // substitute, boolean_value and write_canonical used to recurse on the
+    // boxed predicate tree, so a guard nested deeper than the thread stack
+    // overflowed before answering. The worklists answer identically without
+    // spending stack. `forget` skips the still-recursive derived Drop glue,
+    // and the derived PartialEq/Ord glue is likewise still recursive, so the
+    // pins read evaluated values and canonical lengths instead of comparing
+    // or cloning deep trees.
+    const DEPTH: usize = 100_000;
+
+    let mut expression = CrashPredicateExpression::Boolean(true);
+    for _ in 0..DEPTH {
+        expression = CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(expression),
+        };
+    }
+
+    // An even chain of negations keeps the leaf's value.
+    assert_eq!(expression.boolean_value(), Some(true));
+
+    // Canonical bytes stream the whole nest: the identity prefix byte, two
+    // bytes per `!` node, and the two-byte Boolean leaf.
+    let identity = CrashPredicateIdentity::from_expression(expression);
+    assert_eq!(identity.canonical_bytes().len(), 1 + 2 * DEPTH + 2);
+
+    // Substitution rebuilds the whole tree off the stack; the replaced
+    // parameter leaf still decides the evaluated result, and a missing
+    // binding leaves the parameter in place.
+    let mut parameterized = CrashPredicateExpression::Parameter(0);
+    for _ in 0..DEPTH {
+        parameterized = CrashPredicateExpression::Unary {
+            operator: UnaryOperator::LogicalNot as u8,
+            operand: Box::new(parameterized),
+        };
+    }
+    let substituted = parameterized.substitute(&[Some(CrashPredicateExpression::Boolean(false))]);
+    assert_eq!(substituted.boolean_value(), Some(false));
+    let unbound = parameterized.substitute(&[]);
+    assert_eq!(unbound.boolean_value(), None);
+
+    std::mem::forget(identity);
+    std::mem::forget(parameterized);
+    std::mem::forget(substituted);
+    std::mem::forget(unbound);
 }

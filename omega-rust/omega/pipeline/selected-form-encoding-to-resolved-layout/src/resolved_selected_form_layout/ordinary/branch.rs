@@ -1,8 +1,12 @@
 use std::collections::BTreeMap;
 
 use isa_aarch64::{
-    encode_aarch64_selected_i64_less_than_branch_form, encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_i64_less_than_branch_form,
+    encode_aarch64_selected_i64_less_than_widened_branch_form,
+    encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_nonzero_widened_branch_form,
     encode_aarch64_selected_u64_less_than_branch_form,
+    encode_aarch64_selected_u64_less_than_widened_branch_form,
 };
 use isa_x86_64::{
     encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
@@ -30,6 +34,7 @@ pub(super) fn resolve(
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
+    widened: bool,
 ) -> Result<(Vec<u8>, Option<Box<ResolvedBranchEvidence>>), OptimizedResolvedSelectedFormLayoutError>
 {
     let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
@@ -140,7 +145,13 @@ pub(super) fn resolve(
     let fallthrough_offset = *block_offsets.get(&when_fallthrough.block).ok_or(
         OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
     )?;
-    let byte_count = branch_size(architecture);
+    // The plan sizes widened AArch64 rows at eight bytes; the unconditional
+    // `B` that carries the far displacement occupies the row's second word.
+    let byte_count = if widened {
+        8
+    } else {
+        branch_size(architecture)
+    };
     let branch_end = instruction_offset
         .checked_add(byte_count)
         .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
@@ -153,8 +164,14 @@ pub(super) fn resolve(
         Architecture::X86_64 => checked_delta(taken_offset, branch_end)?,
         Architecture::Aarch64 => checked_delta(taken_offset, instruction_offset)?,
     };
-    let (bytes, register_reads, effects) =
-        encode(architecture, physical, machine, predicate, displacement)?;
+    let (bytes, register_reads, effects) = encode(
+        architecture,
+        physical,
+        machine,
+        predicate,
+        displacement,
+        widened,
+    )?;
     if effects != machine.alternative.encoded {
         return Err(
             OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction.id),
@@ -191,6 +208,7 @@ fn encode(
     machine: &PostAllocationMachineInstruction,
     predicate: ResolvedConditionalBranchPredicate,
     displacement: i64,
+    widened: bool,
 ) -> Result<
     (
         Vec<u8>,
@@ -214,11 +232,19 @@ fn encode(
             ))
         }
         (Architecture::Aarch64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
-            let encoded = encode_aarch64_selected_nonzero_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-            )
+            let encoded = if widened {
+                encode_aarch64_selected_nonzero_widened_branch_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+            } else {
+                encode_aarch64_selected_nonzero_branch_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+            }
             .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
             Ok((
                 encoded.bytes().to_vec(),
@@ -240,11 +266,19 @@ fn encode(
             ))
         }
         (Architecture::Aarch64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
-            let encoded = encode_aarch64_selected_u64_less_than_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-            )
+            let encoded = if widened {
+                encode_aarch64_selected_u64_less_than_widened_branch_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+            } else {
+                encode_aarch64_selected_u64_less_than_branch_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+            }
             .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
             Ok((
                 encoded.bytes().to_vec(),
@@ -266,11 +300,19 @@ fn encode(
             ))
         }
         (Architecture::Aarch64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
-            let encoded = encode_aarch64_selected_i64_less_than_branch_form(
-                physical,
-                machine.alternative.key,
-                displacement,
-            )
+            let encoded = if widened {
+                encode_aarch64_selected_i64_less_than_widened_branch_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+            } else {
+                encode_aarch64_selected_i64_less_than_branch_form(
+                    physical,
+                    machine.alternative.key,
+                    displacement,
+                )
+            }
             .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
             Ok((
                 encoded.bytes().to_vec(),

@@ -49,6 +49,7 @@ fn local_fixture(target: target::NativeTarget, unit_call: bool) -> LegalizedScal
     source.blocks[0].instructions[1].kind =
         LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
             result: StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type: identity,
                 multiplicity: StructuralMultiplicity::Unrestricted,

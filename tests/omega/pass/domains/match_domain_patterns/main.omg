@@ -1,6 +1,7 @@
-// Chapter 8 "Domain Patterns": a value can be matched against type-qualified
-// domain patterns. Each arm checks whether the value is in that domain and
-// dispatches to a distinct state. The trailing `_` makes the match exhaustive.
+// Chapter 8 "Domain Patterns": a value can be dispatched against
+// type-qualified domain patterns. Each arm checks whether the value is in
+// that domain and dispatches to a distinct state. The trailing `_` makes
+// the dispatch exhaustive.
 
 data Player {
     health: i32;
@@ -25,7 +26,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    match self.player {
+    transition self.player {
         Player::Alive -> alive()
         Player::Dead -> dead()
         _ -> other()

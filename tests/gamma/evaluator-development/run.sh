@@ -5,12 +5,15 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Direct Beta Gamma evaluator: skipped (python3 absent)"
     exit 0
 }
+
+require_seed_execution_host "Direct Beta Gamma evaluator"
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM

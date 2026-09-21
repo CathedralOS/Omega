@@ -7,10 +7,17 @@ use super::{
     boundary_id, call_module, edge_id, machine_id, provider_candidate_module, validate_module,
     value_id, verify_module,
 };
+use semantic_vocabulary::{
+    ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, StructuralDomainId,
+};
 use terminal_psi::{
-    BoundaryMachineResult, BoundaryStructuralResultDeclaration, CrashPredicateTerm,
+    BindingRelevance, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
+    CrashPredicateTerm, EntryClaim, ProgramLocalRootIntroductionSchema,
     ProviderParameterRefinement, ProviderSignatureParameter, StructuralAccess,
-    StructuralParameterDeclaration,
+    StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
+    program_local_root_introduction_compatibility_report_identity,
 };
 
 fn provider_module() -> TerminalModule {
@@ -111,6 +118,223 @@ fn provider_result_conformance_joins_structural_results_and_scalar_parameters() 
     ));
 }
 
+/// A claimed linear provider row: the boundary publishes `in Live` on its
+/// parameter (mirrored onto the conformance row as `required_domains`) and on
+/// its linear result, and the candidate binds the parameter's entry claim at
+/// its root and returns it — the registration-ledger shape provider_result
+/// admits. The member field and second domain exist for the drift pins.
+fn linear_provider_module() -> TerminalModule {
+    let mut module = provider_module();
+    let live = StructuralDomainId::new(1).unwrap();
+    let member_domain = StructuralDomainId::new(2).unwrap();
+    let carrier = StructuralTypeId::new(2).unwrap();
+    let member_type = StructuralTypeId::new(3).unwrap();
+    module.structural_types[1] = StructuralTypeDeclaration {
+        id: carrier,
+        identity: "test::OwnedValue".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: "member".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(member_type),
+            }],
+        },
+    };
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: member_type,
+        identity: "test::Member".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let algebra = ContentAlgebra {
+        kind: ContentAlgebraKind::CountedQuantity,
+        parameter: "A".into(),
+    };
+    let expression =
+        ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("1".into()));
+    module
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            id: live,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+            identity: "test::Live".into(),
+            carrier,
+            content_projection: Some(terminal_psi::StructuralContentProjection {
+                identity: ContentProjectionIdentity {
+                    domain: ContentDomainId::new(1).unwrap(),
+                    projection_report_fingerprint:
+                        language_semantics::content::terminal_projection_report_fingerprint(
+                            &algebra,
+                            &expression,
+                        ),
+                },
+                algebra,
+                expression,
+            }),
+            establishment_routes: Vec::new(),
+        });
+    module
+        .structural_domains
+        .push(terminal_psi::StructuralDomainDeclaration {
+            id: member_domain,
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
+            identity: "test::MemberLive".into(),
+            carrier: member_type,
+            content_projection: None,
+            establishment_routes: Vec::new(),
+        });
+    for parameter in [
+        &mut module.boundary_machines[0].structural_parameters[0],
+        &mut module.machines[1].structural_parameters[0],
+    ] {
+        parameter.multiplicity = StructuralMultiplicity::Linear;
+        parameter.qualifications = vec![live];
+    }
+    module.boundary_machines[0].requires = vec![StructuralDomainRequirement {
+        argument_index: 0,
+        domain: live,
+    }];
+    let BoundaryMachineResult::Structural(required) = &mut module.boundary_machines[0].result
+    else {
+        unreachable!()
+    };
+    required.multiplicity = StructuralMultiplicity::Linear;
+    required.qualifications = vec![live];
+    let row = &mut module.provider_candidates[0];
+    row.signature.parameters[0].multiplicity = StructuralMultiplicity::Linear;
+    row.signature.parameters[0].qualifications = vec![live];
+    row.refinement.required_domains = module.boundary_machines[0].requires.clone();
+    let candidate = &mut module.machines[1];
+    let TerminalMachineResult::Structural(result) = &mut candidate.result else {
+        unreachable!()
+    };
+    result.multiplicity = StructuralMultiplicity::Linear;
+    result.qualifications = vec![live];
+    let argument_claim = ClaimId::new(1).unwrap();
+    candidate.entry_claims = vec![EntryClaim {
+        claim: argument_claim,
+        input: PlaceId::new(1).unwrap(),
+        path: Vec::new(),
+    }];
+    let Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut candidate.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *returned_claims = vec![argument_claim];
+    module
+}
+
+#[test]
+fn provider_result_conformance_admits_claimed_linear_results() {
+    let module = linear_provider_module();
+    validate_module(&module).expect("claimed linear provider result conforms");
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("claimed linear provider row admits through verification");
+}
+
+#[test]
+fn provider_result_conformance_rejects_claim_and_authority_drift() {
+    let baseline = linear_provider_module();
+    validate_module(&baseline).unwrap();
+    for mutation in 0..6 {
+        let mut module = baseline.clone();
+        match mutation {
+            // The candidate result must declare the boundary's published
+            // qualifications exactly.
+            0 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    unreachable!()
+                };
+                result.qualifications.clear();
+            }
+            // A payload-path qualification has no boundary-side declaration to
+            // join: projected qualifications stay outside installed-provider
+            // results until the boundary grammar can publish them.
+            1 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    unreachable!()
+                };
+                result.projected_qualifications = vec![StructuralPathQualification {
+                    path: vec![StructuralPathSegment::Field("member".into())],
+                    domain: StructuralDomainId::new(2).unwrap(),
+                }];
+            }
+            // Entry claims bind only the parameter root: the caller's claims
+            // transfer in by position, not into a path beneath it.
+            2 => {
+                module.machines[1].entry_claims[0].path =
+                    vec![StructuralPathSegment::Field("member".into())]
+            }
+            // The conformance row must mirror the boundary's requirement rows.
+            3 => module.provider_candidates[0]
+                .refinement
+                .required_domains
+                .clear(),
+            // A boundary-declared root introduction has no candidate-side
+            // evidence model: the provider cannot perform the introduction an
+            // installed boundary contract promises.
+            4 => {
+                let live = StructuralDomainId::new(1).unwrap();
+                let domain = module
+                    .structural_domains
+                    .iter()
+                    .find(|domain| domain.id == live)
+                    .expect("live domain")
+                    .clone();
+                let projection = domain
+                    .content_projection
+                    .as_ref()
+                    .expect("live domain carries its owner projection")
+                    .clone();
+                let mut schema = ProgramLocalRootIntroductionSchema {
+                    argument_index: 0,
+                    source_parameter_position: 0,
+                    qualification: live,
+                    carrier: StructuralTypeId::new(2).unwrap(),
+                    projection: projection.identity,
+                    algebra: projection.algebra,
+                    capacity: projection.expression,
+                    compatibility_report_identity: 0,
+                };
+                schema.compatibility_report_identity =
+                    program_local_root_introduction_compatibility_report_identity(
+                        &module.boundary_machines[0].identity,
+                        &domain.identity,
+                        "test::OwnedValue",
+                        &schema,
+                    );
+                module.boundary_machines[0].program_local_root_introductions = vec![schema];
+            }
+            // The requirement the boundary publishes must still hold against
+            // the candidate's signature positions.
+            5 => {
+                module.provider_candidates[0].refinement.required_domains =
+                    vec![StructuralDomainRequirement {
+                        argument_index: 0,
+                        domain: StructuralDomainId::new(2).unwrap(),
+                    }]
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            validate_module(&module).unwrap_err(),
+            ModuleError::InvalidProviderCandidate {
+                boundary: boundary_id(1),
+                candidate: machine_id(2)
+            },
+            "mutation {mutation}"
+        );
+    }
+}
+
 #[test]
 fn provider_result_conformance_rejects_signature_and_contract_drift() {
     let baseline = provider_module();
@@ -127,22 +351,35 @@ fn provider_result_conformance_rejects_signature_and_contract_drift() {
                 };
                 result.structural_type = StructuralTypeId::new(1).unwrap();
             }
-            3 | 4 => {
+            3 => {
+                // Candidate drifts from the boundary's Affine result: Linear
+                // custody is admissible only when the boundary declares it.
                 let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
                 else {
                     unreachable!()
                 };
-                result.multiplicity = if mutation == 3 {
-                    StructuralMultiplicity::Linear
-                } else {
-                    StructuralMultiplicity::Unrestricted
+                result.multiplicity = StructuralMultiplicity::Linear;
+            }
+            4 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    unreachable!()
                 };
+                result.multiplicity = StructuralMultiplicity::Unrestricted;
                 let BoundaryMachineResult::Structural(required) =
                     &mut module.boundary_machines[0].result
                 else {
                     unreachable!()
                 };
-                required.multiplicity = result.multiplicity;
+                // Mutation 3 widens the requirement to linear while the
+                // candidate stays affine — a supported multiplicity, but the
+                // candidate must match it. Mutation 4 widens the requirement
+                // to unrestricted, which has no installed-provider leg at all.
+                required.multiplicity = if mutation == 3 {
+                    StructuralMultiplicity::Linear
+                } else {
+                    StructuralMultiplicity::Unrestricted
+                };
             }
             5 => {
                 module.machines[1].contract.requires =

@@ -7,7 +7,7 @@ use crate::terminal_interpreter::custody::{
     rebind_structural_result_claims, remove_affine_root, resolve_structural_path_type,
 };
 use crate::terminal_interpreter::execution::{
-    SuspendedCall, SuspendedCallResult, TerminalExecution, TerminatorFlow,
+    LiveClaim, SuspendedCall, SuspendedCallResult, TerminalExecution, TerminatorFlow,
 };
 use crate::terminal_interpreter::reference;
 use crate::terminal_interpreter::results::meter_status;
@@ -16,11 +16,12 @@ use crate::terminal_interpreter::{
     TerminalInterpretError, TerminalScalarCaseResult, TerminalScalarValue,
     TerminalStructuralResult,
 };
+use semantic_vocabulary::{ClaimId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
-    StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity, StructuralPathSegment,
-    TerminalMachineResult, Terminator,
+    StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachineResult, Terminator,
 };
 
 impl TerminalExecution {
@@ -88,6 +89,13 @@ impl TerminalExecution {
         let callee = machines
             .get(&completed.0.cleanup_machine)
             .expect("all nominal cleanup targets were validated before edge charge");
+        // The edge lends the consumed value to the hook's borrowed `self`
+        // receiver: the callee frame starts holding it at the declared
+        // receiver place, and the hook's ordinary body runs against it.
+        let receiver_binding = completed
+            .0
+            .cleanup_receiver
+            .map(|receiver| (receiver, completed.1.clone()));
         self.call_stack.push(SuspendedCall {
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
@@ -108,6 +116,9 @@ impl TerminalExecution {
         });
         self.values = BTreeMap::new();
         self.structural_values = BTreeMap::new();
+        if let Some((receiver, value)) = receiver_binding {
+            self.structural_values.insert(receiver, value);
+        }
         self.live_affine_frontier = BTreeSet::new();
         self.live_claims = BTreeMap::new();
         self.dynamic_parameters = BTreeMap::new();
@@ -597,6 +608,9 @@ impl TerminalExecution {
             });
             self.values = BTreeMap::new();
             self.structural_values = BTreeMap::new();
+            if let Some(receiver) = completed.0.cleanup_receiver {
+                self.structural_values.insert(receiver, completed.1.clone());
+            }
             self.live_affine_frontier = BTreeSet::new();
             self.live_claims = BTreeMap::new();
             self.dynamic_parameters = BTreeMap::new();
@@ -728,6 +742,9 @@ impl TerminalExecution {
                         });
                         self.values = BTreeMap::new();
                         self.structural_values = BTreeMap::new();
+                        if let Some(receiver) = completed.0.cleanup_receiver {
+                            self.structural_values.insert(receiver, completed.1.clone());
+                        }
                         self.live_affine_frontier = BTreeSet::new();
                         self.live_claims = BTreeMap::new();
                         self.dynamic_parameters = BTreeMap::new();
@@ -747,6 +764,26 @@ impl TerminalExecution {
                         };
                         self.values = caller.values;
                         self.values.insert(result_value, returned);
+                        self.retire_plain_locals();
+                        self.structural_values = caller.structural_values;
+                        self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
+                        self.live_affine_frontier = caller.live_affine_frontier;
+                        self.live_claims = caller.live_claims;
+                        self.dynamic_parameters = caller.dynamic_parameters;
+                        self.current_machine = caller.current_machine;
+                        self.current = caller.current;
+                        self.next_operation = caller.next_operation;
+                        return Ok(TerminatorFlow::Continue);
+                    }
+                    if final_result.is_none()
+                        && let Some(caller) = self.call_stack.pop()
+                    {
+                        let SuspendedCallResult::Unit = caller.result else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.values = caller.values;
                         self.retire_plain_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
@@ -914,9 +951,19 @@ impl TerminalExecution {
                 result,
             )));
         }
-        let value = self.structural_values.get(source).cloned().ok_or(
+        let mut value = self.structural_values.get(source).cloned().ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
+        // A machine's declared result qualifications are introduced at
+        // return: the signature's `established by` authority mints its
+        // domains onto the handed-back value, and a forwarded value may
+        // already carry them.
+        for domain in &signature.qualifications {
+            if !value.qualifications.contains(domain) {
+                value.qualifications.push(*domain);
+            }
+        }
+        value.qualifications.sort();
         self.validate_reference_return(signature, &value)?;
         if value.structural_type != signature.structural_type
             || signature
@@ -971,14 +1018,25 @@ impl TerminalExecution {
                 }
                 Some((
                     result.clone(),
-                    rebind_structural_result_claims(
-                        live_claims,
-                        &self.live_claims,
-                        *source,
-                        result,
-                        returned_claim_transfers,
-                        returned_claims,
-                    )?,
+                    if !result.claims.is_empty() && returned_claim_transfers.is_empty() {
+                        // A boundary call carries no returned-claim transfer
+                        // slots, so non-empty `result.claims` without
+                        // transfers identifies a boundary frame: the route
+                        // mints each binding on the caller by its own
+                        // establishment authority — conditioned on the
+                        // returned value inhabiting the claimed path — rather
+                        // than rebinding a claim the callee returned.
+                        self.mint_boundary_result_claims(live_claims, *source, result)?
+                    } else {
+                        rebind_structural_result_claims(
+                            live_claims,
+                            &self.live_claims,
+                            *source,
+                            result,
+                            returned_claim_transfers,
+                            returned_claims,
+                        )?
+                    },
                 ))
             }
             Some(_) => {
@@ -1046,6 +1104,90 @@ impl TerminalExecution {
         Ok(TerminatorFlow::Yield(TerminalExecutionStatus::Complete(
             result,
         )))
+    }
+
+    /// Installs the claims a boundary result declaration mints on the
+    /// caller. Each binding lands only when the returned value inhabits the
+    /// claimed path — a claim under a case payload mints only for a return
+    /// observing that case, so e.g. a `Rejected` return never mints the
+    /// `Registered` payload's claim.
+    fn mint_boundary_result_claims(
+        &self,
+        caller_claims: &BTreeMap<ClaimId, LiveClaim>,
+        source: PlaceId,
+        result: &StructuralOperationResult,
+    ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
+        let mut claims = caller_claims.clone();
+        for binding in &result.claims {
+            if !self.boundary_claim_path_inhabited(result.structural_type, source, &binding.path)? {
+                continue;
+            }
+            if claims
+                .insert(
+                    binding.claim,
+                    LiveClaim {
+                        place: Some(result.place),
+                        path: binding.path.clone(),
+                        multiplicity: Some(if binding.path.is_empty() {
+                            result.multiplicity
+                        } else {
+                            StructuralMultiplicity::Linear
+                        }),
+                    },
+                )
+                .is_some()
+            {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        }
+        Ok(claims)
+    }
+
+    /// Whether the returned value at `source` inhabits a minted claim's
+    /// `path`. Non-case segments resolve against the declared shape; a field
+    /// addressed through a sum names one case's payload member and is
+    /// inhabited only when the returned value's observed case carries a
+    /// field of that identity.
+    fn boundary_claim_path_inhabited(
+        &self,
+        root: StructuralTypeId,
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Result<bool, TerminalInterpretError> {
+        let mut structural_type = root;
+        let mut prefix = Vec::new();
+        for segment in path {
+            let declaration = self
+                .structural_types
+                .get(&structural_type)
+                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            if let (StructuralPathSegment::Field(identity), StructuralTypeShape::Sum { cases }) =
+                (segment, &declaration.shape)
+            {
+                let Ok(inhabited) = self.observe_structural_case(source, &prefix) else {
+                    return Ok(false);
+                };
+                let Some(case) = cases.iter().find(|case| case.id == inhabited) else {
+                    return Ok(false);
+                };
+                let Some(field) = case.fields.iter().find(|field| field.identity == *identity)
+                else {
+                    return Ok(false);
+                };
+                let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {
+                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                };
+                structural_type = next;
+            } else {
+                structural_type = resolve_structural_path_type(
+                    &self.structural_types,
+                    structural_type,
+                    std::slice::from_ref(segment),
+                )?;
+            }
+            prefix.push(segment.clone());
+        }
+        Ok(true)
     }
 
     pub(super) fn settle_crash(

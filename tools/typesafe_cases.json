@@ -34,7 +34,7 @@
     {
       "source": "wiki/drafts/test_cycle_measurements.md @ 11db03d310, Whole-run and selection limits",
       "kind": "report_excerpt",
-      "evidence": "A single full eight-thread workspace run at the recorded revision took 168.522 seconds including build work, with 7,681 passes, three failures, and 14 ignored tests across 117 targets. The failures were the package-source local-origin case and two platform-custody persistent-journal cases. This uncontrolled run does not establish a workspace speedup.\n\nAn actual narrow nextest listing for an x86-encoding/src/lib.rs change selected 1,067 active library tests in 20 library binaries, compared with 7,687 tests in 117 binaries normally. This measured test-count reduction, not elapsed-time improvement; package-manager remained selected.",
+      "evidence": "A single full eight-thread workspace run at the recorded revision took 168.522 seconds including build work, with 7,681 passes, three failures, and 14 ignored tests across 117 targets. This uncontrolled run does not establish a workspace speedup.\n\nAn actual narrow nextest listing for an x86-encoding/src/lib.rs change selected 1,067 active library tests in 20 library binaries, compared with 7,687 tests in 117 binaries normally. This measured test-count reduction, not elapsed-time improvement; package-manager remained selected.",
       "claims": [["The selection reduced the active test count.", true], ["The selected test execution was measured to be seven times faster.", false], ["The workspace run established a passing baseline.", false], ["The recorded full run included three failures.", true]]
     },
     {

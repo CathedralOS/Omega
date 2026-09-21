@@ -104,7 +104,8 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
             }
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 collect_scalar_fields(left, fields);
                 collect_scalar_fields(right, fields);
             }
@@ -450,7 +451,8 @@ fn payload_sum_nested_sum_equality_replays_end_to_end() {
         match proposition {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 collect_scalar_paths(left, paths);
                 collect_scalar_paths(right, paths);
             }
@@ -977,6 +979,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. } => None,

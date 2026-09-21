@@ -12,6 +12,7 @@ use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
+use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::record::PackageReviewCanonicalRow;
 use package_evidence::record::{
@@ -25,6 +26,7 @@ pub fn compare_review_only_capabilities(
     candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
+    let _stage = timings::stage("capability_comparison");
     compare_review_only_capability_records(baseline.reviews(), candidate, candidate_sources, limits)
 }
 
@@ -35,6 +37,7 @@ pub fn compare_review_only_initial_capabilities(
     candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
+    let _stage = timings::stage("capability_comparison");
     compare_review_only_capability_records::<CompilerIssuedPackageReview>(
         &[],
         candidate,

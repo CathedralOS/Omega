@@ -316,10 +316,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
                 );
             };
-            !program
-                .machines()
-                .iter()
-                .find(|candidate| candidate.symbol == *target_machine)
+            !crate::lookup::machine_by_symbol(program, *target_machine)
                 .is_some_and(|target| program.machine_contracts(target).is_empty())
                 || !crate::semantic_calls::find_state(program, *target_state)
                     .is_some_and(|target| program.state_contracts(target).is_empty())
@@ -401,6 +398,8 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
     });
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some(CheckedPartialAffineUnitCleanupMachinePlan {
         machine: CheckedUnitEffectMachinePlan {
             scalar_result: None,
@@ -412,6 +411,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             structural_parameters,
             scalar_parameters: Vec::new(),
             erased_scalar_parameters,
+            erased_proof_parameters,
             provider_attachment_requirements: Vec::new(),
             trivial_affine_locals: Vec::new(),
             entry_claims,

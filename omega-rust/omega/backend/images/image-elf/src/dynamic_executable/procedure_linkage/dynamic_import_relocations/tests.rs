@@ -1,11 +1,11 @@
 //! Dynamic import relocation tests.
 
 use super::{
-    Candidate, ElfDirectImportCallSite, FinalImageSection, R_AARCH64_JUMP_SLOT, R_X86_64_JUMP_SLOT,
-    RelocationKind, TargetProfile, ValidatedElfDynamicSectionDescriptorPlan, call_site,
-    checked_u32, derive_contents, non_authoritative_linkage_compatibility_fingerprint,
-    plan_elf_procedure_linkage_relocations, site_end, validate_candidate, validate_contents,
-    validate_site_spans,
+    Candidate, ElfDirectImportCallSite, FinalImageSection, R_AARCH64_ABS64, R_AARCH64_JUMP_SLOT,
+    R_X86_64_64, R_X86_64_JUMP_SLOT, RelocationKind, TargetProfile,
+    ValidatedElfDynamicSectionDescriptorPlan, call_site, checked_u32, derive_contents,
+    non_authoritative_linkage_compatibility_fingerprint, plan_elf_procedure_linkage_relocations,
+    site_end, validate_candidate, validate_contents, validate_site_spans,
 };
 use crate::{
     plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
@@ -130,6 +130,38 @@ fn image(
     (image, relocation_handles)
 }
 
+fn image_with_general_relocations(
+    target: TargetProfile,
+    imports: &[ImportFixture],
+    general_uses: &[(usize, usize)],
+) -> (FinalImage, Vec<Handle<FinalImageRelocation>>) {
+    let (mut image, _) = image(target, imports);
+    image.memory.data = vec![0; 48];
+    let symbol_handles = image
+        .symbol_table
+        .imports
+        .iter()
+        .map(|(_, import)| import.symbol_handle)
+        .collect::<Vec<_>>();
+    let mut handles = Vec::with_capacity(general_uses.len());
+    for &(import_index, offset) in general_uses {
+        handles.push(
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Data,
+                    offset,
+                    byte_width: 8,
+                    symbol_handle: symbol_handles[import_index],
+                    addend: 0,
+                    kind: RelocationKind::Absolute64,
+                }),
+        );
+    }
+    (image, handles)
+}
+
 fn descriptors_from_image(
     target: TargetProfile,
     image: FinalImage,
@@ -151,7 +183,10 @@ fn descriptors(
 }
 
 fn candidate(target: TargetProfile) -> Candidate {
-    let descriptors = descriptors(target, &IMPORTS);
+    let descriptors = descriptors_from_image(
+        target,
+        image_with_general_relocations(target, &IMPORTS, &[(0, 8)]).0,
+    );
     let contents = derive_contents(&descriptors).expect("derived procedure linkage");
     let non_authoritative_linkage_compatibility_fingerprint =
         non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents);
@@ -216,6 +251,75 @@ fn both_linux_targets_plan_exact_slots_jump_relocations_and_call_sites() {
                     && relocation.addend == 0
             }
         ));
+        validate_contents(plan.descriptors(), &plan.contents)
+            .expect("independent procedure-linkage replay");
+    }
+}
+
+#[test]
+fn data_slot_import_relocations_plan_exact_general_rela_rows() {
+    for (target, relocation_type) in [
+        (TargetProfile::LinuxX64, R_X86_64_64),
+        (TargetProfile::LinuxArm64, R_AARCH64_ABS64),
+    ] {
+        let mut image = FinalImage::with_capacity(
+            target.native_target(),
+            FinalImageMemory {
+                text: vec![0; 8],
+                data: vec![0; 8],
+                ..FinalImageMemory::default()
+            },
+            Handle::invalid(),
+            1,
+            1,
+            1,
+        );
+        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "__omega_data_import_0".to_owned(),
+            section: FinalImageSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle,
+            import: FinalImageImportPlan::Normalized(
+                normalize_foreign_locator(
+                    ForeignLocatorCandidate::ElfVersioned {
+                        object: b"libslots.so".to_vec(),
+                        symbol: b"slot_cell".to_vec(),
+                        version: b"V1".to_vec(),
+                    },
+                    target,
+                )
+                .expect("valid data-slot locator"),
+            ),
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: 0,
+                byte_width: 8,
+                symbol_handle,
+                addend: 7,
+                kind: RelocationKind::Absolute64,
+            });
+
+        let plan = plan_elf_procedure_linkage_relocations(descriptors_from_image(target, image))
+            .expect("validated procedure-linkage plan with a general row");
+        assert_eq!(plan.logical_slot_count(), 1);
+        assert_eq!(plan.procedure_relocation_count(), 1);
+        assert_eq!(plan.direct_call_site_count(), 0);
+        assert_eq!(plan.general_dynamic_relocation_count(), 1);
+        let row = plan.contents.general_relocations[0];
+        assert_eq!(row.request_index, 0);
+        assert_eq!(row.dynamic_symbol_index, 1);
+        assert_eq!(row.relocation_type, relocation_type);
+        assert_eq!(row.source_section, FinalImageSection::Data);
+        assert_eq!(row.source_offset, 0);
+        assert_eq!(row.addend, 7);
         validate_contents(plan.descriptors(), &plan.contents)
             .expect("independent procedure-linkage replay");
     }
@@ -369,6 +473,17 @@ fn independent_validation_rejects_every_slot_relocation_site_and_identity_corrup
         Box::new(|candidate| candidate.contents.jump_slot_relocations[0].dynamic_symbol_index += 1),
         Box::new(|candidate| candidate.contents.jump_slot_relocations[0].relocation_type += 1),
         Box::new(|candidate| candidate.contents.jump_slot_relocations[0].addend += 1),
+        Box::new(|candidate| {
+            candidate.contents.general_relocations.pop();
+        }),
+        Box::new(|candidate| candidate.contents.general_relocations[0].request_index += 1),
+        Box::new(|candidate| candidate.contents.general_relocations[0].source_offset += 8),
+        Box::new(|candidate| candidate.contents.general_relocations[0].dynamic_symbol_index += 1),
+        Box::new(|candidate| candidate.contents.general_relocations[0].relocation_type += 1),
+        Box::new(|candidate| candidate.contents.general_relocations[0].addend += 1),
+        Box::new(|candidate| {
+            candidate.contents.general_relocations[0].source_section = FinalImageSection::Text
+        }),
         Box::new(|candidate| candidate.non_authoritative_linkage_compatibility_fingerprint ^= 1),
     ];
 
@@ -419,6 +534,100 @@ fn malformed_offsets_ordinals_and_spans_reject_without_panicking() {
             RelocationKind::X86_64Relative32,
             &relocation,
         )
+        .is_err()
+    );
+}
+
+#[test]
+fn absolute_data_references_admit_general_relocation_rows() {
+    for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+        let (image, _) = image_with_general_relocations(target, &IMPORTS, &[(0, 8), (2, 24)]);
+        let plan = plan_elf_procedure_linkage_relocations(descriptors_from_image(target, image))
+            .expect("validated procedure linkage with general rows");
+        assert_eq!(plan.logical_slot_count(), 3);
+        assert_eq!(plan.procedure_relocation_count(), 3);
+        assert_eq!(plan.direct_call_site_count(), 4);
+        assert_eq!(plan.general_dynamic_relocation_count(), 2);
+        let expected_type = match target {
+            TargetProfile::LinuxX64 => R_X86_64_64,
+            TargetProfile::LinuxArm64 => R_AARCH64_ABS64,
+            _ => unreachable!(),
+        };
+        let rows = &plan.contents.general_relocations;
+        assert_eq!(
+            rows.iter().map(|row| row.source_offset).collect::<Vec<_>>(),
+            [8, 24]
+        );
+        assert_eq!(
+            rows.iter().map(|row| row.request_index).collect::<Vec<_>>(),
+            [0, 2]
+        );
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.dynamic_symbol_index)
+                .collect::<Vec<_>>(),
+            [1, 3]
+        );
+        assert!(rows.iter().all(|row| {
+            row.source_section == FinalImageSection::Data
+                && row.relocation_type == expected_type
+                && row.addend == 0
+        }));
+        validate_contents(plan.descriptors(), &plan.contents)
+            .expect("independent replay admits general rows");
+    }
+}
+
+#[test]
+fn malformed_general_relocation_shapes_reject_with_custody() {
+    type Mutation = Box<dyn Fn(&mut FinalImage, Handle<FinalImageRelocation>)>;
+    let mutations: Vec<Mutation> = vec![
+        Box::new(|image, handle| {
+            image.relocation_table.relocations.get_mut(handle).section = FinalImageSection::Bss;
+        }),
+        Box::new(|image, handle| {
+            image
+                .relocation_table
+                .relocations
+                .get_mut(handle)
+                .byte_width = 4;
+        }),
+        Box::new(|image, handle| {
+            image.relocation_table.relocations.get_mut(handle).offset = 48;
+        }),
+        Box::new(|image, handle| {
+            image.relocation_table.relocations.get_mut(handle).offset = 4;
+        }),
+        Box::new(|image, handle| {
+            image.relocation_table.relocations.get_mut(handle).kind =
+                RelocationKind::X86_64Relative32;
+        }),
+    ];
+    for mutate in mutations {
+        let (mut image, handles) =
+            image_with_general_relocations(TargetProfile::LinuxX64, &IMPORTS, &[(0, 8)]);
+        mutate(&mut image, handles[0]);
+        let descriptors = descriptors_from_image(TargetProfile::LinuxX64, image);
+        let expected_identity =
+            descriptors.non_authoritative_descriptor_compatibility_fingerprint();
+        let error = plan_elf_procedure_linkage_relocations(descriptors)
+            .expect_err("malformed general relocation must reject with custody");
+        assert_eq!(
+            error
+                .into_parts()
+                .0
+                .non_authoritative_descriptor_compatibility_fingerprint(),
+            expected_identity
+        );
+    }
+
+    let (overlapping, _) =
+        image_with_general_relocations(TargetProfile::LinuxX64, &IMPORTS, &[(0, 8), (1, 12)]);
+    assert!(
+        plan_elf_procedure_linkage_relocations(descriptors_from_image(
+            TargetProfile::LinuxX64,
+            overlapping
+        ))
         .is_err()
     );
 }

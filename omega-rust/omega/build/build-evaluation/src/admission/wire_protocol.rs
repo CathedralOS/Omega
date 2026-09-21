@@ -2,12 +2,15 @@
 //! migration is validated against the build's compatibility demands, and
 //! the report the compiler emits is built from the same walk.
 
+use std::collections::BTreeMap;
+
 use arena::HandleSpan;
 use artifacts::{
     WireCaseReportEntry, WireCompatibilityDemandReportEntry, WireCompatibilityFactReport,
     WireCompatibilityVerdicts, WireFieldRelevance, WireFieldReportEntry, WireProtocolReport,
     WireRealizationOrigin, WireSchemaReportEntry, WireTrustClass, WireVersionReportEntry,
 };
+use checked_interpreter::WireCodecVerification;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::wire::{WireMember, WireSchema};
@@ -16,7 +19,42 @@ pub fn validate_wire_protocol(
     typed: &TypedTrees,
     compatibility_demands: &[crate::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
+    // Independent verification of every generated codec FIRST: a codec that
+    // provably diverges from the public compact_binary requirement is a
+    // compile-time diagnostic, not an admission.
+    let verifications: BTreeMap<String, Result<WireCodecVerification, String>> = typed
+        .wire_schemas()
+        .iter()
+        .map(|schema| {
+            (
+                qualified_schema_path(typed, schema.symbol, schema.name.as_str()),
+                checked_interpreter::verify_wire_schema_codec(typed, schema),
+            )
+        })
+        .collect();
+    let report = build_wire_protocol_report(typed, compatibility_demands, &verifications);
+    let verification_diagnostics: Vec<Diagnostic> = verifications
+        .iter()
+        .filter_map(|(path, result)| {
+            result.as_ref().err().map(|divergence| {
+                Diagnostic::error(format!(
+                    "generated wire codec `{path}` failed independent verification against the \
+                     public compact_binary requirement: {divergence}"
+                ))
+            })
+        })
+        .collect();
+    match (
+        validate_wire_protocol_report(&report),
+        verification_diagnostics,
+    ) {
+        (Ok(()), empty) if empty.is_empty() => Ok(()),
+        (Ok(()), diagnostics) => Err(diagnostics),
+        (Err(mut report_diagnostics), mut verification_diagnostics) => {
+            report_diagnostics.append(&mut verification_diagnostics);
+            Err(report_diagnostics)
+        }
+    }
 }
 
 fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<Diagnostic>> {
@@ -58,11 +96,16 @@ fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<
 struct SchemaRow {
     qualified_path: String,
     entry: WireSchemaReportEntry,
+    /// The runtime data definition a `PreservingDecode<Policy, Value>`
+    /// implementation names as its value type, when the schema has one.
+    /// `wire` declarations without a data counterpart carry none.
+    value_symbol: Option<symbols::SymbolHandle>,
 }
 
 fn build_wire_protocol_report(
     typed: &TypedTrees,
     compatibility_demands: &[crate::WireCompatibilityDemand],
+    verifications: &BTreeMap<String, Result<WireCodecVerification, String>>,
 ) -> WireProtocolReport {
     let mut rows = typed
         .wire_schemas()
@@ -70,20 +113,25 @@ fn build_wire_protocol_report(
         .map(|schema| SchemaRow {
             qualified_path: qualified_schema_path(typed, schema.symbol, schema.name.as_str()),
             entry: schema_report_entry(typed, schema),
+            value_symbol: None,
         })
         .collect::<Vec<_>>();
-    for (ordinary_path, ordinary) in typed.data_definitions().iter().filter_map(|data| {
-        ordinary_data_schema_report_entry(typed, data).map(|entry| {
-            (
-                qualified_schema_path(typed, data.symbol, data.name.as_str()),
-                entry,
-            )
+    for (ordinary_path, ordinary, value_symbol) in
+        typed.data_definitions().iter().filter_map(|data| {
+            ordinary_data_schema_report_entry(typed, data).map(|entry| {
+                (
+                    qualified_schema_path(typed, data.symbol, data.name.as_str()),
+                    entry,
+                    data.symbol,
+                )
+            })
         })
-    }) {
+    {
         if let Some(generated) = rows
             .iter_mut()
             .find(|row| row.qualified_path == ordinary_path)
         {
+            generated.value_symbol = Some(value_symbol);
             generated.entry.normalized_schema_report_identity =
                 ordinary.normalized_schema_report_identity;
             if generated.entry.fields.is_empty() {
@@ -98,6 +146,7 @@ fn build_wire_protocol_report(
             rows.push(SchemaRow {
                 qualified_path: ordinary_path,
                 entry: ordinary,
+                value_symbol: Some(value_symbol),
             });
         }
     }
@@ -148,15 +197,107 @@ fn build_wire_protocol_report(
         schema.realization_origin = Some(WireRealizationOrigin::Generated {
             generator: "Omega compiler compact_binary generator".to_owned(),
         });
-        schema.trust_class = Some(WireTrustClass::Admitted {
-            authority: "Omega compiler".to_owned(),
-        });
-        schema.realization_evidence = vec![
-            "normalized compact_binary plan validated against the schema walk".to_owned(),
-            "generated body is not yet independently checked against the public codec requirement"
-                .to_owned(),
-            "differential canaries are validation evidence, not derived-contract proof".to_owned(),
-        ];
+        // Trust class follows the codec spec's realization table: the
+        // generated body reports Derived when an independent check of the
+        // public requirement passes — either the authored
+        // `CompactBinary::plan` grammar policy agreeing with the codec
+        // walk, or the interpreter's generated-codec verification closing
+        // with no coverage gaps. A proven divergence never reports Derived.
+        let plan_evidence =
+            "normalized compact_binary plan validated against the schema walk".to_owned();
+        let policy_verified = typed.wire_schema_plan_policy_verified(source_schema.symbol);
+        let policy_evidence = || {
+            "generated codec plan independently checked against the authored \
+             `CompactBinary::plan` grammar policy; disagreement is a compile error"
+                .to_owned()
+        };
+        match verifications.get(&row.qualified_path) {
+            // The whole requirement exercised and passed: the codec's trust
+            // is derived from the check, not the generator's authority.
+            Some(Ok(verification)) if verification.gaps.is_empty() => {
+                schema.trust_class = Some(WireTrustClass::Derived);
+                let mut evidence = vec![
+                    plan_evidence,
+                    format!(
+                        "independently checked against the public codec requirement: {}",
+                        verification.checks.join("; ")
+                    ),
+                ];
+                if policy_verified {
+                    evidence.push(policy_evidence());
+                }
+                schema.realization_evidence = evidence;
+            }
+            // Partially exercised: report what was verified. The authored
+            // grammar policy remains an independent check for the rest;
+            // without it the uncovered portion stays generator-admitted.
+            Some(Ok(verification)) => {
+                schema.trust_class = if policy_verified {
+                    Some(WireTrustClass::Derived)
+                } else {
+                    Some(WireTrustClass::Admitted {
+                        authority: "Omega compiler".to_owned(),
+                    })
+                };
+                let mut evidence = vec![
+                    plan_evidence,
+                    format!(
+                        "independent verification passed: {}",
+                        verification.checks.join("; ")
+                    ),
+                ];
+                if policy_verified {
+                    evidence.push(policy_evidence());
+                    evidence.push(format!(
+                        "interpreter verification coverage gap: {}",
+                        verification.gaps.join("; ")
+                    ));
+                } else {
+                    evidence.push(format!(
+                        "coverage gap keeps generator-admitted trust: {}",
+                        verification.gaps.join("; ")
+                    ));
+                }
+                schema.realization_evidence = evidence;
+            }
+            // A proven divergence: validation turns it into a diagnostic;
+            // the row still records why the codec is untrusted.
+            Some(Err(divergence)) => {
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
+                schema.realization_evidence = vec![
+                    plan_evidence,
+                    format!("independent verification found a codec divergence: {divergence}"),
+                ];
+            }
+            None => {
+                schema.trust_class = if policy_verified {
+                    Some(WireTrustClass::Derived)
+                } else {
+                    Some(WireTrustClass::Admitted {
+                        authority: "Omega compiler".to_owned(),
+                    })
+                };
+                schema.realization_evidence = if policy_verified {
+                    vec![
+                        plan_evidence,
+                        policy_evidence(),
+                        "differential canaries are validation evidence, not derived-contract proof"
+                            .to_owned(),
+                    ]
+                } else {
+                    vec![
+                        plan_evidence,
+                        "generated body is not yet independently checked against the public codec \
+                         requirement"
+                            .to_owned(),
+                        "differential canaries are validation evidence, not derived-contract proof"
+                            .to_owned(),
+                    ]
+                };
+            }
+        }
     }
     rows.sort_by(|left, right| left.entry.name.cmp(&right.entry.name));
     let demands = compatibility_demands
@@ -261,16 +402,16 @@ fn compatibility_demand_report(
 ) -> WireCompatibilityDemandReportEntry {
     let local = select_era_path(
         &demand.local_schema,
-        rows.iter()
-            .map(|row| (row.qualified_path.as_str(), &row.entry)),
+        rows.iter().map(|row| (row.qualified_path.as_str(), row)),
     );
     let peer = select_era_path(
         &demand.peer_schema,
-        rows.iter()
-            .map(|row| (row.qualified_path.as_str(), &row.entry)),
+        rows.iter().map(|row| (row.qualified_path.as_str(), row)),
     );
-    let local_schema = era_resolved(&local).copied();
-    let peer_schema = era_resolved(&peer).copied();
+    let local_row = era_resolved(&local).copied();
+    let peer_row = era_resolved(&peer).copied();
+    let local_schema = local_row.map(|row| &row.entry);
+    let peer_schema = peer_row.map(|row| &row.entry);
     let codec = local_schema
         .and_then(|schema| schema.encoding.as_deref())
         .or_else(|| peer_schema.and_then(|schema| schema.encoding.as_deref()))
@@ -309,22 +450,24 @@ fn compatibility_demand_report(
         &demand.peer_schema,
         &demand.local_schema,
     );
-    let identity_reuse = migration_route
-        .as_ref()
-        .and_then(|route| retired_identity_reuse(typed, &route.eras));
+    let identity_reuse = match &migration_route {
+        MigrationRouteSearch::Complete(route) => retired_identity_reuse(typed, &route.eras),
+        _ => None,
+    };
     let migration_value = local_schema.is_some()
         && peer_schema.is_some()
-        && migration_route.is_some()
+        && matches!(migration_route, MigrationRouteSearch::Complete(_))
         && identity_reuse.is_none();
     let migration_detail = match (local_schema, peer_schema, &migration_route) {
         (None, _, _) | (_, None, _) => schema_selection_detail(&local, &peer, demand),
-        (Some(_), Some(_), None) => {
+        (Some(_), Some(_), MigrationRouteSearch::Missing) => {
             format!(
                 "no complete `{}` migration route exists from `{}` to `{}`",
                 demand.lineage, demand.peer_schema, demand.local_schema
             )
         }
-        (Some(_), Some(_), Some(route)) => {
+        (Some(_), Some(_), MigrationRouteSearch::Ambiguous(detail)) => detail.clone(),
+        (Some(_), Some(_), MigrationRouteSearch::Complete(route)) => {
             if let Some(reuse) = identity_reuse {
                 format!("the selected route is not a sound migration: {reuse}")
             } else if route.machines.is_empty() {
@@ -337,10 +480,15 @@ fn compatibility_demand_report(
 
     let readability = fact(demand.require_readable, readability_value, readable_detail);
     let writability = fact(demand.require_writable, writability_value, writable_detail);
+    let preserving_decode = local_row
+        .and_then(|row| row.value_symbol)
+        .and_then(|symbol| published_preserving_decode(typed, symbol));
     let unknown_preservation = fact(
         demand.require_unknown_preservation,
-        false,
-        if compact_binary {
+        preserving_decode.is_some(),
+        if let Some(detail) = preserving_decode {
+            detail
+        } else if compact_binary {
             "compact_binary publishes strict unknown-member behavior".to_owned()
         } else {
             format!("codec `{codec}` publishes no preserving behavior")
@@ -384,6 +532,55 @@ fn compatibility_demand_report(
         migration_coverage,
         satisfied,
     }
+}
+
+/// Whether an authored `PreservingDecode<Policy, Value>` realization exists
+/// for the local schema's value type — the codec publishing preserving
+/// decode stops `PreserveUnknown` demands from being unsatisfiable. Returns
+/// the report detail naming the realizing machine.
+fn published_preserving_decode(
+    typed: &TypedTrees,
+    value_symbol: symbols::SymbolHandle,
+) -> Option<String> {
+    typed
+        .machines()
+        .iter()
+        .flat_map(|machine| {
+            typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .map(move |conformance| (machine, conformance))
+        })
+        .filter(|(machine, conformance)| {
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            }) = typed_trees::machine::resolve_satisfied_declaration(
+                typed, machine, conformance,
+            )
+            else {
+                return false;
+            };
+            if definition.name.as_str() != "PreservingDecode"
+                || requirement.name.as_str() != "decode_preserving"
+            {
+                return false;
+            }
+            typed
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+                .get(1)
+                .is_some_and(|value| {
+                    typed.type_reference_table.type_symbol(*value) == value_symbol
+                })
+        })
+        .map(|(machine, _)| {
+            format!(
+                "codec publishes preserving decode: `{}` satisfies `PreservingDecode::decode_preserving` for the local schema's value type",
+                qualified_schema_path(typed, machine.symbol, machine.name.as_str())
+            )
+        })
+        .next()
 }
 
 fn fact(required: bool, satisfied: bool, detail: String) -> WireCompatibilityFactReport {
@@ -443,9 +640,9 @@ fn select_era_path<'a, T>(
     }
 }
 
-fn schema_selection_detail(
-    local: &EraSelection<&WireSchemaReportEntry>,
-    peer: &EraSelection<&WireSchemaReportEntry>,
+fn schema_selection_detail<T>(
+    local: &EraSelection<T>,
+    peer: &EraSelection<T>,
     demand: &crate::WireCompatibilityDemand,
 ) -> String {
     if matches!(local, EraSelection::Missing) && matches!(peer, EraSelection::Missing) {
@@ -541,22 +738,40 @@ struct MigrationRoute {
     eras: Vec<symbols::SymbolHandle>,
 }
 
+/// What the route search found between the selected eras. `Complete` carries
+/// the uniquely bound checked conversion chain the report certifies;
+/// `Ambiguous` means a complete chain exists but every one traverses an edge
+/// bound by more than one machine, so no unique conversion is certified;
+/// `Missing` means no bound chain exists at all.
+enum MigrationRouteSearch {
+    Complete(MigrationRoute),
+    Ambiguous(String),
+    Missing,
+}
+
 /// The checked migration route between two explicitly selected eras. Edges
 /// are the machines bound to `FormatMigration<Lineage, Old, New>`; lineage,
 /// old, and new are compared by declaration symbol, never by leaf name, so a
 /// route bound on one module's declarations cannot satisfy another module's
-/// demand even when the declarations are spelled identically.
+/// demand even when the declarations are spelled identically. The certified
+/// route may only traverse edges bound by exactly one machine: an edge bound
+/// twice would certify whichever binding the search happened to reach first,
+/// so such a route is reported ambiguous rather than selected.
 fn migration_route(
     typed: &TypedTrees,
     lineage: &str,
     peer: &str,
     local: &str,
-) -> Option<MigrationRoute> {
-    let local_symbol = resolve_declared_era(typed, local)?;
-    let peer_symbol = resolve_declared_era(typed, peer)?;
-    let lineage_symbol = resolve_declared_era(typed, lineage)?;
+) -> MigrationRouteSearch {
+    let (Some(local_symbol), Some(peer_symbol), Some(lineage_symbol)) = (
+        resolve_declared_era(typed, local),
+        resolve_declared_era(typed, peer),
+        resolve_declared_era(typed, lineage),
+    ) else {
+        return MigrationRouteSearch::Missing;
+    };
     if peer_symbol == local_symbol {
-        return Some(MigrationRoute {
+        return MigrationRouteSearch::Complete(MigrationRoute {
             machines: Vec::new(),
             eras: vec![local_symbol],
         });
@@ -587,10 +802,62 @@ fn migration_route(
         }
     }
 
-    let mut frontier = vec![(peer_symbol, Vec::<String>::new(), vec![peer_symbol])];
-    let mut visited = vec![peer_symbol];
+    let uniquely_bound = |(old, new): &(symbols::SymbolHandle, symbols::SymbolHandle)| {
+        edges
+            .iter()
+            .filter(|edge| (edge.0, edge.1) == (*old, *new))
+            .count()
+            == 1
+    };
+    let certified_edges = edges
+        .iter()
+        .filter(|(old, new, _)| uniquely_bound(&(*old, *new)))
+        .cloned()
+        .collect::<Vec<_>>();
+    if let Some(route) = search_route(&certified_edges, peer_symbol, local_symbol) {
+        return MigrationRouteSearch::Complete(route);
+    }
+    if let Some(route) = search_route(&edges, peer_symbol, local_symbol) {
+        let hops = route
+            .eras
+            .windows(2)
+            .filter_map(|hop| {
+                let machines = edges
+                    .iter()
+                    .filter(|edge| (edge.0, edge.1) == (hop[0], hop[1]))
+                    .map(|edge| format!("`{}`", edge.2))
+                    .collect::<Vec<_>>();
+                (machines.len() > 1).then(|| {
+                    format!(
+                        "edge `{}` -> `{}` is bound by {}",
+                        typed.symbols.display_path(hop[0], "::"),
+                        typed.symbols.display_path(hop[1], "::"),
+                        machines.join(", ")
+                    )
+                })
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return MigrationRouteSearch::Ambiguous(format!(
+            "no uniquely bound `{lineage}` migration route exists from `{peer}` to `{local}`: \
+             {hops}; bind exactly one machine to each checked conversion edge"
+        ));
+    }
+    MigrationRouteSearch::Missing
+}
+
+/// Depth-first search for a bound edge chain from `peer` to `local` over the
+/// given edges, returning the machines in peer-to-local order and the era
+/// symbols the chain traverses, oldest first.
+fn search_route(
+    edges: &[(symbols::SymbolHandle, symbols::SymbolHandle, String)],
+    peer: symbols::SymbolHandle,
+    local: symbols::SymbolHandle,
+) -> Option<MigrationRoute> {
+    let mut frontier = vec![(peer, Vec::<String>::new(), vec![peer])];
+    let mut visited = vec![peer];
     while let Some((current, machines, eras)) = frontier.pop() {
-        for (old, new, machine) in &edges {
+        for (old, new, machine) in edges {
             if *old != current {
                 continue;
             }
@@ -598,7 +865,7 @@ fn migration_route(
             next_machines.push(machine.clone());
             let mut next_eras = eras.clone();
             next_eras.push(*new);
-            if *new == local_symbol {
+            if *new == local {
                 return Some(MigrationRoute {
                     machines: next_machines,
                     eras: next_eras,
@@ -1056,11 +1323,14 @@ fn report_relevance_name(relevance: WireFieldRelevance) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        ScopeTable, codec_requirement_report_identity, compatibility_verdicts,
-        encode_requirement_report_identity, fields_equal, normalized_wire_plan_report_identity,
-        schema_accepts,
+        ScopeTable, build_wire_protocol_report, codec_requirement_report_identity,
+        compatibility_verdicts, encode_requirement_report_identity, fields_equal,
+        normalized_wire_plan_report_identity, qualified_schema_path, schema_accepts, search_route,
     };
-    use artifacts::{WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry};
+    use artifacts::{
+        WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry, WireTrustClass,
+    };
+    use std::collections::BTreeMap;
     use typed_trees::wire::WirePlacement;
 
     fn field(
@@ -1188,6 +1458,256 @@ mod tests {
         assert!(
             !schema_accepts(&reader, &writer),
             "compact-equal schema reports cannot authorize an incompatible exact wire shape"
+        );
+    }
+
+    #[test]
+    fn independently_verified_generated_codec_reports_derived_trust() {
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+        use tokens_to_syntax_trees::parse_syntax_trees;
+
+        let tokens = Lexer::new(
+            "data Packet { #0 tag: u32; #1 depth: i32; } \
+             machine main() -> i32 { transition true { true -> 7 false -> 0 } }",
+        )
+        .tokenize()
+        .expect("wire tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("wire syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("wire symbols");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("wire types");
+
+        let verifications: BTreeMap<_, _> = typed
+            .wire_schemas()
+            .iter()
+            .map(|schema| {
+                (
+                    qualified_schema_path(&typed, schema.symbol, schema.name.as_str()),
+                    checked_interpreter::verify_wire_schema_codec(&typed, schema),
+                )
+            })
+            .collect();
+        let report = build_wire_protocol_report(&typed, &[], &verifications);
+        let row = report
+            .schemas
+            .iter()
+            .find(|row| row.name == "Packet")
+            .expect("packet row");
+        assert_eq!(row.trust_class, Some(WireTrustClass::Derived));
+        assert!(
+            row.realization_evidence
+                .iter()
+                .any(|entry| entry.contains("independently checked"))
+        );
+    }
+
+    fn edge(
+        old: u32,
+        new: u32,
+        machine: &str,
+    ) -> (symbols::SymbolHandle, symbols::SymbolHandle, String) {
+        (
+            symbols::SymbolHandle::from_arena_index(old),
+            symbols::SymbolHandle::from_arena_index(new),
+            machine.to_owned(),
+        )
+    }
+
+    #[test]
+    fn checked_conversion_route_composes_eras_oldest_to_current() {
+        // A two-era chain converts across an intermediate shape: the bound
+        // machines run peer-to-local and the route records every era it
+        // traverses, oldest first.
+        let edges = [
+            edge(1, 2, "V1::to_v2"),
+            edge(2, 3, "V2::to_v3"),
+            edge(9, 10, "Unrelated::edge"),
+        ];
+
+        let route = search_route(
+            &edges,
+            symbols::SymbolHandle::from_arena_index(1),
+            symbols::SymbolHandle::from_arena_index(3),
+        )
+        .expect("a bound edge chain reaches the local era");
+
+        assert_eq!(route.machines, ["V1::to_v2", "V2::to_v3"]);
+        assert_eq!(
+            route.eras,
+            [
+                symbols::SymbolHandle::from_arena_index(1),
+                symbols::SymbolHandle::from_arena_index(2),
+                symbols::SymbolHandle::from_arena_index(3),
+            ]
+        );
+    }
+
+    #[test]
+    fn checked_conversion_route_uses_a_direct_edge() {
+        let edges = [edge(1, 2, "V1::to_v2")];
+
+        let route = search_route(
+            &edges,
+            symbols::SymbolHandle::from_arena_index(1),
+            symbols::SymbolHandle::from_arena_index(2),
+        )
+        .expect("the single bound edge is the route");
+
+        assert_eq!(route.machines, ["V1::to_v2"]);
+        assert_eq!(route.eras.len(), 2);
+    }
+
+    #[test]
+    fn checked_conversion_route_rejects_eras_with_no_bound_chain() {
+        // A demand between eras that no FormatMigration edge connects must not
+        // certify a conversion; partial chains that stop short do not satisfy
+        // it either.
+        let edges = [edge(1, 2, "V1::to_v2")];
+
+        assert!(
+            search_route(
+                &edges,
+                symbols::SymbolHandle::from_arena_index(1),
+                symbols::SymbolHandle::from_arena_index(3),
+            )
+            .is_none()
+        );
+        assert!(
+            search_route(
+                &edges,
+                symbols::SymbolHandle::from_arena_index(2),
+                symbols::SymbolHandle::from_arena_index(1),
+            )
+            .is_none(),
+            "a downgrade edge is a separate binding, not the reverse of the upgrade"
+        );
+    }
+
+    #[test]
+    fn checked_conversion_route_terminates_through_a_cycle_edge() {
+        // Lineages may bind a downgrade edge alongside the upgrade; the
+        // search must not follow the cycle back into a visited era.
+        let cyclic = [edge(1, 2, "V1::to_v2"), edge(2, 1, "V2::to_v1")];
+        assert!(
+            search_route(
+                &cyclic,
+                symbols::SymbolHandle::from_arena_index(1),
+                symbols::SymbolHandle::from_arena_index(3),
+            )
+            .is_none()
+        );
+
+        let cyclic_with_exit = [
+            edge(1, 2, "V1::to_v2"),
+            edge(2, 1, "V2::to_v1"),
+            edge(2, 3, "V2::to_v3"),
+        ];
+        let route = search_route(
+            &cyclic_with_exit,
+            symbols::SymbolHandle::from_arena_index(1),
+            symbols::SymbolHandle::from_arena_index(3),
+        )
+        .expect("the route continues past the cycle to the local era");
+        assert_eq!(route.machines, ["V1::to_v2", "V2::to_v3"]);
+    }
+
+    fn typed_fixture(source_text: &str) -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source_text)
+            .tokenize()
+            .expect("tokenize wire fixture");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse wire fixture");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve wire fixture");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type wire fixture")
+    }
+
+    fn wire_report(source_text: &str) -> artifacts::WireProtocolReport {
+        let mut typed = typed_fixture(source_text);
+        build_time_evaluation::compute_wire_plans(&mut typed, None, 0)
+            .expect("wire plan pass accepts the fixture");
+        build_wire_protocol_report(&typed, &[], &BTreeMap::new())
+    }
+
+    #[test]
+    fn synthesized_codec_stays_admitted_without_an_authored_grammar_policy() {
+        let report = wire_report(
+            "data Packet { #1 seed: u64; #2 label: &[u8]; }\ndata Main { }\nmachine Main::main(&mut self) { }\n",
+        );
+
+        let packet = report
+            .schemas
+            .iter()
+            .find(|schema| schema.name == "Packet")
+            .expect("Packet schema row");
+        assert!(packet.synthesized_codec);
+        assert_eq!(
+            packet.trust_class,
+            Some(artifacts::WireTrustClass::Admitted {
+                authority: "Omega compiler".to_owned()
+            }),
+            "a generated codec with no independent check remains compiler-admitted"
+        );
+        assert!(
+            packet
+                .realization_evidence
+                .iter()
+                .any(|line| line.contains("not yet independently checked"))
+        );
+    }
+
+    #[test]
+    fn policy_verified_generated_codec_reports_derived_trust() {
+        // The authored `CompactBinary::plan` grammar policy agreeing with the
+        // codec walk is the independent check of the public requirement; the
+        // generated body then reports Derived (codec spec realization table).
+        let report = wire_report(
+            r#"
+data Packet { #1 seed: u64; #2 label: &[u8]; }
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan [copy] { case Varint(tag: u64); case LengthPrefixed(tag: u64); }
+data Plan { fields: [FieldPlan; 32]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+
+data CompactBinary { fields: [FieldPlan; 32]; }
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.fields[0] = FieldPlan::Varint { tag: 1 };
+    self.fields[1] = FieldPlan::LengthPrefixed { tag: 2 };
+    Plan {
+        fields: self.fields,
+        entry_count: schema.field_count,
+        size_fixed: 0,
+        size_is_dynamic: true,
+        align: 1,
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+        );
+
+        let packet = report
+            .schemas
+            .iter()
+            .find(|schema| schema.name == "Packet")
+            .expect("Packet schema row");
+        assert_eq!(
+            packet.trust_class,
+            Some(artifacts::WireTrustClass::Derived),
+            "the policy-verified generated codec is independently checked, not admitted"
+        );
+        assert!(
+            packet
+                .realization_evidence
+                .iter()
+                .any(|line| line.contains("independently checked against the authored"))
         );
     }
 }

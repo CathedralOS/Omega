@@ -127,12 +127,14 @@ fn module() -> TerminalModule {
             entry: id(1, BlockId::new),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id(1, BlockId::new),
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id(1, OperationId::new),
                         result: OperationResult::Scalar(declaration(
                             COMPARISON,
@@ -145,6 +147,7 @@ fn module() -> TerminalModule {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: id(2, OperationId::new),
                         result: OperationResult::Scalar(declaration(50, integer_type)),
                         kind: OperationKind::IntegerConstant {
@@ -160,6 +163,7 @@ fn module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id(1, ContractId::new),
                 crash_routes: vec![guarded(CrashCause::Trap, negative(RIGHT))],
                 requires: Vec::new(),
@@ -381,11 +385,13 @@ fn entry_disproof_requires_the_same_formal_on_every_incoming_edge() {
         arguments: vec![id(RIGHT, ValueId::new)],
         structural_arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),

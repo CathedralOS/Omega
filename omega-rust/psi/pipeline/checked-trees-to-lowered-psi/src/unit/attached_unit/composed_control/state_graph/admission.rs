@@ -416,6 +416,116 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     terminator_ordinal + 1,
                 )?;
             }
+            (CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }, tail)
+                if tail.len() == arms.len() + 1
+                    && tail[..arms.len()].iter().all(|statement| {
+                        matches!(statement, StatementNode::Transition(transition)
+                        if matches!(transition.guard, TransitionGuardNode::When(_)))
+                    })
+                    && matches!(tail.last(), Some(StatementNode::Transition(transition))
+                    if transition.guard == TransitionGuardNode::Always) =>
+            {
+                // The shared scalar tail roster owns this chain's guard order
+                // and selected destinations; every arm must rejoin it exactly.
+                let retained = checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_tails
+                    .iter()
+                    .filter(|tail| tail.state == state.state)
+                    .collect::<Vec<_>>();
+                let [retained] = retained.as_slice() else {
+                    return unsupported("guarded jump successors lost their source roster");
+                };
+                let exits = checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .guarded_exits
+                    .span(retained.arms)
+                    .ok_or(LoweringError::Unsupported(
+                        "guarded jump successors have a stale roster",
+                    ))?;
+                if exits.len() != arms.len() {
+                    return unsupported("guarded jump successors drifted from their roster");
+                }
+                for (index, (arm, exit)) in arms.iter().zip(exits.iter()).enumerate() {
+                    let ordinal = terminator_ordinal + index;
+                    let statement_ordinal = u32::try_from(ordinal)
+                        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
+                    let StatementNode::Transition(transition) = &tail[index] else {
+                        return unsupported("guarded jump arm lost its authored transition");
+                    };
+                    let checked_trees::CheckedScalarBranchDestination::Jump(selected) =
+                        &exit.destination
+                    else {
+                        return unsupported("guarded jump arm is not a named-state edge");
+                    };
+                    if exit.guard_statement_ordinal != statement_ordinal
+                        || selected.statement_ordinal != statement_ordinal
+                        || selected.is_continuation
+                        || selected.target != arm.successor.target_state
+                    {
+                        return unsupported("guarded jump arm drifted from the shared roster");
+                    }
+                    if checked.facts.values.scalar_expressions.expression_at(
+                        state.state,
+                        statement_ordinal,
+                        CheckedScalarExpressionRole::Guard,
+                    ) != Some(&arm.guard)
+                    {
+                        return unsupported("guarded jump guard disagrees with checked expression");
+                    }
+                    let (binding, _) = checked
+                        .facts
+                        .values
+                        .scalar_expressions
+                        .bound_expression_at(
+                            state.state,
+                            arm.successor.statement_ordinal,
+                            CheckedScalarExpressionRole::Guard,
+                        )
+                        .ok_or(LoweringError::Unsupported(
+                            "guarded jump guard has no exact source binding",
+                        ))?;
+                    crate::expression_preparation::source_custody::validate_pure(
+                        checked,
+                        binding,
+                        ScalarType::Boolean,
+                    )?;
+                    if !matches!(arm.guard, CheckedScalarExpression::Boolean(_)) {
+                        return unsupported("guarded jump guard is not Boolean");
+                    }
+                    edges::validate(
+                        checked,
+                        plan,
+                        source,
+                        state,
+                        transition,
+                        &arm.successor,
+                        ordinal,
+                    )?;
+                }
+                let Some(checked_trees::CheckedScalarBranchDestination::Jump(selected)) =
+                    &retained.fallback
+                else {
+                    return unsupported("guarded jump fallback is not a named-state edge");
+                };
+                let ordinal = terminator_ordinal + arms.len();
+                let statement_ordinal = u32::try_from(ordinal)
+                    .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
+                let Some(StatementNode::Transition(transition)) = tail.last() else {
+                    return unsupported("guarded jump fallback lost its authored transition");
+                };
+                if selected.statement_ordinal != statement_ordinal
+                    || selected.is_continuation
+                    || selected.target != fallback.target_state
+                {
+                    return unsupported("guarded jump fallback drifted from the shared roster");
+                }
+                edges::validate(checked, plan, source, state, transition, fallback, ordinal)?;
+            }
             _ => return unsupported("Unit graph terminator disagrees with authored state"),
         }
     }

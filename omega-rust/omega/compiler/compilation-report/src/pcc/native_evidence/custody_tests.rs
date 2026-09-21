@@ -39,16 +39,38 @@ use image::{
     FinalImage, FinalImageLayout, FinalImageMemory, PlacedDataGap, PlacedDataRegion,
     PlacedExecutableGap, PlacedExecutableRegion,
 };
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
     PccGuarantee, PccIncompleteness, PccProductKind, PccProofSidecar, PccReceiverPolicy,
     PccVerificationOutcome, pcc_artifact_commitment,
 };
 
+#[path = "custody_fields.rs"]
+mod custody_fields;
+
 use super::{
     MAX_FOOTPRINT_REGISTERS, MAX_INVENTORY_ROWS, NativeEvidenceError, NativePlacedImageEvidence,
 };
 use crate::pcc::{native_semantic_profile_identity, verify_native_proof_sidecar};
+use custody_fields::NativePlacedImageEvidenceFieldForTest;
+
+/// The exact verdict one substituted placed-image evidence wire earns from the
+/// shared checker. Every leg of the inventory below declares one of these as
+/// its `ExactError`: the checker classifies the substitution rather than
+/// accepting it, so its `Ok` arm is never produced.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EvidenceVerdict {
+    /// The representation closes the substitution: decoding rejects it as
+    /// malformed evidence before any custody decision.
+    Malformed,
+    /// The substituted section is canonical — it decodes and re-encodes
+    /// byte-identically — and independent receiver-side replay rejects it
+    /// under this named subject.
+    RejectedAt(String),
+}
 
 const TEXT_FILE_OFFSET: u64 = 96;
 const TEXT_LEN: usize = 20;
@@ -596,101 +618,1082 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         })
     );
 
-    // A record-level substitution still forms a canonical section — it
-    // decodes to the mutated claim — and independent replay rejects it under
-    // the named subject while the envelope keeps the honest claim.
-    let rejects_at_replay =
-        |name: &'static str, mutated: &NativePlacedImageEvidence, subject: &'static str| {
-            let mutated_bytes = mutated.to_bytes();
-            assert_ne!(mutated_bytes, encoded, "{name} must change the wire");
-            assert_eq!(
-                NativePlacedImageEvidence::from_bytes(&mutated_bytes),
-                Ok(mutated.clone()),
-                "{name} must remain a canonical section"
-            );
-            let sidecar = native_sidecar(&executable, mutated_bytes);
-            assert_eq!(
-                rejecting_subject(verify_native_proof_sidecar(
-                    &executable,
-                    &sidecar.to_bytes(),
-                    &policy
-                )),
-                subject,
-                "{name}"
-            );
+    // The shared checker classifies every substituted wire: a section the
+    // representation closes rejects at decoding as malformed evidence; a
+    // canonical section must re-encode byte-identically and then rejects at
+    // independent receiver-side replay under a named subject, while the
+    // envelope keeps the honest claim and the receiver keeps the policy it
+    // pinned from the honest offer.
+    let check = |wire: &Vec<u8>| -> Result<Vec<u8>, EvidenceVerdict> {
+        let decoded = match NativePlacedImageEvidence::from_bytes(wire) {
+            Err(NativeEvidenceError::Malformed(_)) => return Err(EvidenceVerdict::Malformed),
+            Err(error) => panic!("a substituted section must decode or be malformed: {error:?}"),
+            Ok(decoded) => decoded,
         };
-
-    // A wire-level substitution inside a scalar or digest field decodes to a
-    // different canonical section — the mutation is representable — and
-    // rejects at the same replay join.
-    let rejects_wire_at_replay =
-        |name: &'static str, mutated_wire: Vec<u8>, subject: &'static str| {
-            let decoded = NativePlacedImageEvidence::from_bytes(&mutated_wire)
-                .unwrap_or_else(|error| panic!("{name} must decode canonically: {error:?}"));
-            assert_ne!(decoded, honest, "{name} must decode to a different section");
-            assert_eq!(
-                decoded.to_bytes(),
-                mutated_wire,
-                "{name} must re-encode byte-identically"
-            );
-            let sidecar = native_sidecar(&executable, mutated_wire);
-            assert_eq!(
-                rejecting_subject(verify_native_proof_sidecar(
-                    &executable,
-                    &sidecar.to_bytes(),
-                    &policy
-                )),
-                subject,
-                "{name}"
-            );
-        };
-
-    // A substitution the representation closes rejects at decoding, before
-    // any custody decision.
-    let malformed = |name: &'static str, mutated_wire: Vec<u8>| {
-        assert!(
-            matches!(
-                NativePlacedImageEvidence::from_bytes(&mutated_wire),
-                Err(NativeEvidenceError::Malformed(_))
-            ),
-            "{name} must reject as malformed evidence"
+        assert_eq!(
+            decoded.to_bytes(),
+            *wire,
+            "a canonical substitution must re-encode byte-identically"
         );
+        let sidecar = native_sidecar(&executable, wire.clone());
+        Err(EvidenceVerdict::RejectedAt(rejecting_subject(
+            verify_native_proof_sidecar(&executable, &sidecar.to_bytes(), &policy),
+        )))
     };
 
-    // --- the declared target tuple ---
+    // The footprint register vocabulary is closed, canonically ordered, and
+    // declared per target: a register the declared architecture does not own
+    // is malformed, not a foreign claim.
+    let footprint = spans.regions[0]
+        .footprint
+        .as_ref()
+        .expect("the fixture carries a footprint");
 
-    // Object format keeps a declared partner under the fixed architecture,
-    // so the substitution stays canonical and rejects at the semantic-profile
-    // join: the evidence's declared target must realize the offered profile.
-    // The same leg under an architecture substitution needs footprint-free
-    // rows — the register vocabulary is closed per architecture, so rows
-    // that carry one are malformed under a foreign arch rather than
-    // canonical (asserted below with the decode-time legs).
-    let mut mutated = honest.clone();
-    mutated.target.architecture = target::Architecture::Aarch64;
-    mutated.inventory.regions[0].footprint = None;
-    mutated.inventory.regions[2].footprint = None;
-    rejects_at_replay(
-        "a substituted target architecture",
-        &mutated,
-        "semantic profile",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.target.architecture = target::Architecture::Aarch64;
-    malformed(
-        "a foreign architecture over x86 footprint registers",
-        mutated.to_bytes(),
-    );
+    let substitute = |wire: &mut Vec<u8>,
+                      field: NativePlacedImageEvidenceFieldForTest,
+                      _donor: &Vec<u8>| {
+        use NativePlacedImageEvidenceFieldForTest as Field;
+        match field {
+            // --- the declared target tuple ---
+            // Object format keeps a declared partner under the fixed architecture,
+            // so the substitution stays canonical and rejects at the semantic-profile
+            // join: the evidence's declared target must realize the offered profile.
+            // The same leg under an architecture substitution needs footprint-free
+            // rows — the register vocabulary is closed per architecture, so rows
+            // that carry one are malformed under a foreign arch rather than
+            // canonical (asserted below with the decode-time legs).
+            Field::SubstitutedTargetArchitecture => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.target.architecture = target::Architecture::Aarch64;
+                mutated.inventory.regions[0].footprint = None;
+                mutated.inventory.regions[2].footprint = None;
+                *wire = mutated.to_bytes();
+            }
+            Field::ForeignArchitectureOverX86FootprintRegisters => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.target.architecture = target::Architecture::Aarch64;
+                *wire = mutated.to_bytes();
+            }
+            Field::SubstitutedTargetObjectFormat => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.target.object_format = target::ObjectFormat::Coff;
+                *wire = mutated.to_bytes();
+            }
+            // --- the declared text extent ---
+            Field::ShiftedDeclaredTextExtent => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.text_file_offset -= 1;
+                *wire = mutated.to_bytes();
+            }
+            Field::DeclaredExtentBeyondTheContainer => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.text_file_offset = executable.len() as u64;
+                *wire = mutated.to_bytes();
+            }
+            Field::OverflowingDeclaredExtent => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.text_file_offset = u64::MAX;
+                *wire = mutated.to_bytes();
+            }
+            Field::WireLevelTextOffsetSubstitution => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.text_file_offset.start] ^= 0xff;
+                *wire = substituted;
+            }
+            // --- the executable inventory scalars ---
+            Field::SubstitutedInventoryTextAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.text_address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventoryTextByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.text_byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventoryTextDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.text_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventoryTextFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.text_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventorySealDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.inventory_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventorySealFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.inventory_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            // --- each executable region-row field ---
+            // Offset 4 keeps the rows offset-ordered, so the substitution stays
+            // canonical; the replay then finds the row's stored address and digest
+            // disagree with the bytes it now claims.
+            Field::SubstitutedRegionSectionOffset => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.regions[0].section_offset,
+                    &4u64.to_le_bytes(),
+                );
+            }
+            Field::SubstitutedRegionAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedRegionByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedRegionByteDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].byte_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedRegionByteFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].byte_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            // A same-length symbol substitution stays UTF-8 and canonical; the
+            // inventory seal over the symbol no longer matches.
+            Field::SubstitutedRegionSymbol => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].symbol.start] = b'f';
+                *wire = substituted;
+            }
+            // --- the footprint sub-structure ---
+            Field::DroppedRegionFootprint => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions[0].footprint = None;
+                *wire = mutated.to_bytes();
+            }
+            Field::AddedRegionFootprint => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions[1].footprint = Some(StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86Rcx]),
+                    MachineStateSet::new([MachineState::SegmentState]),
+                ));
+                *wire = mutated.to_bytes();
+            }
+            Field::SubstitutedFootprintRegisterSet => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                    RegisterSet::new([
+                        MachineRegister::X86Rax,
+                        MachineRegister::X86Rdi,
+                        MachineRegister::X86Rbx,
+                    ]),
+                    MachineStateSet::new([MachineState::Flags]),
+                ));
+                *wire = mutated.to_bytes();
+            }
+            Field::SubstitutedFootprintMachineStateSet => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rdi]),
+                    MachineStateSet::new([MachineState::Flags, MachineState::DebugState]),
+                ));
+                *wire = mutated.to_bytes();
+            }
+            // Dropping only the non-implied state class stays canonical — decode
+            // re-derives the register-implied union — and still rejects: the sealed
+            // footprint no longer matches the retained rows. (A wire form that drops
+            // the implied class itself is non-canonical; that leg is below.)
+            Field::FootprintReducedToRegisterImpliedMachineState => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                    RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rdi]),
+                    MachineStateSet::empty(),
+                ));
+                *wire = mutated.to_bytes();
+            }
+            Field::EmptiedRegionFootprint => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                    RegisterSet::new([]),
+                    MachineStateSet::empty(),
+                ));
+                *wire = mutated.to_bytes();
+            }
+            // --- the executable region and gap rosters ---
+            Field::DroppedRegionRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions.remove(0);
+                *wire = mutated.to_bytes();
+            }
+            // An inserted row inside an unclassified gap keeps the offsets ordered,
+            // so it still encodes canonically; the replay rejects because the byte
+            // digest and gap partition it claims are not the ones the bytes produce.
+            Field::InsertedRegionRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.regions.insert(
+                    1,
+                    PlacedExecutableRegion {
+                        origin: FinalExecutableRegionOrigin::CompilerFunction,
+                        section_offset: 4,
+                        address: mutated.inventory.text_address + 4,
+                        byte_count: 4,
+                        byte_digest: mutated.inventory.regions[1].byte_digest,
+                        byte_report_fingerprint: mutated.inventory.regions[1]
+                            .byte_report_fingerprint,
+                        symbol: "forged".to_owned(),
+                        footprint: None,
+                    },
+                );
+                *wire = mutated.to_bytes();
+            }
+            Field::DroppedGapRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.unclassified_gaps.remove(0);
+                *wire = mutated.to_bytes();
+            }
+            // An inserted gap inside an existing gap keeps the gap offsets ordered
+            // and canonical; the recomputed partition still disagrees.
+            Field::InsertedGapRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.inventory.unclassified_gaps.insert(
+                    1,
+                    PlacedExecutableGap {
+                        section_offset: 6,
+                        address: mutated.inventory.text_address + 6,
+                        byte_count: 2,
+                        byte_digest: mutated.inventory.unclassified_gaps[0].byte_digest,
+                        byte_report_fingerprint: mutated.inventory.unclassified_gaps[0]
+                            .byte_report_fingerprint,
+                    },
+                );
+                *wire = mutated.to_bytes();
+            }
+            // --- each executable gap-row field ---
+            Field::SubstitutedGapSectionOffset => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.gaps[0].section_offset, &5u64.to_le_bytes());
+            }
+            Field::SubstitutedGapAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.gaps[0].address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedGapByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.gaps[0].byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedGapByteDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.gaps[0].byte_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedGapByteFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.gaps[0].byte_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            // --- the declared data extent ---
+            Field::ShiftedDeclaredDataExtent => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.data_file_offset -= 1;
+                *wire = mutated.to_bytes();
+            }
+            Field::DeclaredDataExtentBeyondTheContainer => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.data_file_offset = executable.len() as u64;
+                *wire = mutated.to_bytes();
+            }
+            Field::WireLevelDataOffsetSubstitution => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_file_offset.start] ^= 0xff;
+                *wire = substituted;
+            }
+            // --- the data inventory scalars ---
+            Field::SubstitutedInventoryDataAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventoryDataByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventoryDataDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedInventoryDataFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataInventorySealDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_inventory_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataInventorySealFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_inventory_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            // --- each data region-row field ---
+            // A data origin substitution between two declared origins stays
+            // canonical; the seal over the row's origin no longer matches.
+            Field::SubstitutedDataRegionOrigin => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].origin.start] = 3;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataRegionSectionOffset => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.data_regions[0].section_offset,
+                    &4u64.to_le_bytes(),
+                );
+            }
+            Field::SubstitutedDataRegionAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataRegionByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataRegionByteDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].byte_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataRegionByteFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].byte_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataRegionSymbol => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].symbol.start] = b'f';
+                *wire = substituted;
+            }
+            // --- the data region and gap rosters ---
+            Field::DroppedDataRegionRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.data_inventory.regions.remove(0);
+                *wire = mutated.to_bytes();
+            }
+            // An inserted row inside the unclassified gap keeps the offsets ordered,
+            // so it still encodes canonically; the replay rejects because the byte
+            // digest and gap partition it claims are not the ones the bytes produce.
+            Field::InsertedDataRegionRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.data_inventory.regions.insert(
+                    1,
+                    PlacedDataRegion {
+                        origin: FinalDataRegionOrigin::AlignmentPadding,
+                        section_offset: 8,
+                        address: mutated.data_inventory.data_address + 8,
+                        byte_count: 4,
+                        byte_digest: mutated.data_inventory.regions[0].byte_digest,
+                        byte_report_fingerprint: mutated.data_inventory.regions[0]
+                            .byte_report_fingerprint,
+                        symbol: String::new(),
+                    },
+                );
+                *wire = mutated.to_bytes();
+            }
+            Field::DroppedDataGapRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.data_inventory.unclassified_gaps.remove(0);
+                *wire = mutated.to_bytes();
+            }
+            // An inserted gap inside the existing gap keeps the gap offsets ordered
+            // and canonical; the recomputed partition still disagrees.
+            Field::InsertedDataGapRow => {
+                let mut mutated =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                mutated.data_inventory.unclassified_gaps.insert(
+                    1,
+                    PlacedDataGap {
+                        section_offset: 9,
+                        address: mutated.data_inventory.data_address + 9,
+                        byte_count: 1,
+                        byte_digest: mutated.data_inventory.unclassified_gaps[0].byte_digest,
+                        byte_report_fingerprint: mutated.data_inventory.unclassified_gaps[0]
+                            .byte_report_fingerprint,
+                    },
+                );
+                *wire = mutated.to_bytes();
+            }
+            // --- each data gap-row field ---
+            Field::SubstitutedDataGapSectionOffset => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.data_gaps[0].section_offset,
+                    &9u64.to_le_bytes(),
+                );
+            }
+            Field::SubstitutedDataGapAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_gaps[0].address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataGapByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_gaps[0].byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataGapByteDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_gaps[0].byte_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedDataGapByteFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_gaps[0].byte_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            // --- the import-data extent ---
+            // The import-data inventory is the canonical empty one here, so its
+            // representable substitutions split two ways: a field that makes the
+            // inventory non-empty-shaped (its base address, byte count, or row
+            // rosters) or that points its extent somewhere decodes as an
+            // unrepresentable claim — a non-empty `.rdata` custody inventory exists
+            // only under x86-64 Coff, and an empty one carries no extent — while a
+            // digest or fingerprint substitution stays canonical and fails the
+            // replayed seal over the empty extent instead.
+            Field::ShiftedDeclaredImportDataExtent => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.import_data_file_offset,
+                    &4u64.to_le_bytes(),
+                );
+            }
+            Field::SubstitutedImportDataBaseAddress => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.import_data_address.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedImportDataByteCount => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.import_data_byte_count.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedImportDataDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.import_data_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedImportDataFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.import_data_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::SubstitutedImportDataInventorySealDigest => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.import_data_inventory_digest.start] ^= 0xff;
+                *wire = substituted;
+            }
+            Field::SubstitutedImportDataInventorySealFingerprint => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.import_data_inventory_report_fingerprint.start] ^= 1;
+                *wire = substituted;
+            }
+            Field::PaddedImportDataRegionRoster => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.import_data_region_count,
+                    &2u64.to_le_bytes(),
+                );
+            }
+            Field::PaddedImportDataGapRoster => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.import_data_gap_count, &2u64.to_le_bytes());
+            }
+            // Closed vocabulary tags.
+            Field::UnknownArchitectureTag => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.architecture.start] = 9;
+                *wire = substituted;
+            }
+            Field::UnknownObjectFormatTag => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.object_format.start] = 9;
+                *wire = substituted;
+            }
+            Field::UnknownRegionOriginTag => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].origin.start] = 9;
+                *wire = substituted;
+            }
+            Field::UnknownDataRegionOriginTag => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].origin.start] = 9;
+                *wire = substituted;
+            }
+            Field::UnknownFootprintPresenceTag => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].footprint_presence.start] = 2;
+                *wire = substituted;
+            }
+            // The declared target set is closed: undeclared pointer axes and
+            // undeclared (architecture, format) pairs are malformed, not merely
+            // unusual claims.
+            Field::UndeclaredPointerSize => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.pointer_size, &4u64.to_le_bytes());
+            }
+            Field::UndeclaredPointerAlignment => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.pointer_alignment, &4u64.to_le_bytes());
+            }
+            Field::UndeclaredX8664MachoTargetPair => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.object_format.start] = 2;
+                *wire = substituted;
+            }
+            Field::UndeclaredAarch64CoffTargetPair => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.architecture.start] = 1;
+                substituted[spans.object_format.start] = 3;
+                *wire = substituted;
+            }
+            Field::UnknownFootprintRegisterCode => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[footprint.register_codes.start..footprint.register_codes.start + 2]
+                    .copy_from_slice(&0x0400u16.to_le_bytes());
+                *wire = substituted;
+            }
+            Field::FootprintRegisterOfAnotherArchitecture => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[footprint.register_codes.start + 2..footprint.register_codes.start + 4]
+                    .copy_from_slice(&0x0200u16.to_le_bytes());
+                *wire = substituted;
+            }
+            Field::UnboundedFootprintRegisterCount => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &footprint.register_count,
+                    &(MAX_FOOTPRINT_REGISTERS + 1).to_le_bytes(),
+                );
+            }
+            // A duplicated register dedups on decode, so the re-encode is shorter and
+            // the offered wire form was never canonical.
+            Field::DuplicatedFootprintRegister => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[footprint.register_codes.clone()]
+                    .copy_from_slice(&[0u16.to_le_bytes(), 0u16.to_le_bytes()].concat());
+                *wire = substituted;
+            }
+            // Reversed register order re-sorts on decode; the re-encode differs.
+            Field::UnorderedFootprintRegisters => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[footprint.register_codes.clone()]
+                    .copy_from_slice(&[7u16.to_le_bytes(), 0u16.to_le_bytes()].concat());
+                *wire = substituted;
+            }
+            // Machine-state bits outside the closed vocabulary reject.
+            Field::MachineStateBitsOutsideTheVocabulary => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[footprint.machine_state.clone()]
+                    .copy_from_slice(&0x0200u16.to_le_bytes());
+                *wire = substituted;
+            }
+            // A wire state set missing the class its registers imply re-derives the
+            // union on decode, so the offered wire form was never canonical.
+            Field::MachineStateSetMissingAnImpliedClass => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[footprint.machine_state.clone()]
+                    .copy_from_slice(&0x0004u16.to_le_bytes());
+                *wire = substituted;
+            }
+            // An import-thunk claim on a target that realizes none is malformed, and
+            // a thunk row that misses the closed form's extent or footprint is
+            // malformed on the realizing target — the thunk legs are exercised
+            // directly below.
+            Field::ImportThunkRowELFCannotRealize => {
+                let mut forged =
+                    NativePlacedImageEvidence::from_bytes(wire).expect("the honest wire decodes");
+                forged.inventory.regions[1].origin = FinalExecutableRegionOrigin::ImportThunk;
+                *wire = forged.to_bytes();
+            }
+            // Bounded roster counts.
+            Field::UnboundedRegionCount => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.region_count,
+                    &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
+                );
+            }
+            Field::UnboundedGapCount => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.gap_count,
+                    &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
+                );
+            }
+            Field::UnboundedDataRegionCount => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.data_region_count,
+                    &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
+                );
+            }
+            Field::UnboundedDataGapCount => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.data_gap_count,
+                    &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
+                );
+            }
+            // A count that lies about the rows that follow desynchronizes the frame.
+            Field::ShortenedRegionCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.region_count, &2u64.to_le_bytes());
+            }
+            Field::ExtendedRegionCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.region_count, &4u64.to_le_bytes());
+            }
+            Field::ShortenedGapCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.gap_count, &1u64.to_le_bytes());
+            }
+            Field::ExtendedGapCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.gap_count, &3u64.to_le_bytes());
+            }
+            Field::ShortenedDataRegionCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.data_region_count, &0u64.to_le_bytes());
+            }
+            Field::ExtendedDataRegionCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.data_region_count, &2u64.to_le_bytes());
+            }
+            Field::ShortenedDataGapCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.data_gap_count, &0u64.to_le_bytes());
+            }
+            Field::ExtendedDataGapCount => {
+                let encoded = wire.clone();
+                *wire = splice(&encoded, &spans.data_gap_count, &2u64.to_le_bytes());
+            }
+            // Row order and duplication are closed by the representation.
+            Field::ReorderedRegionRows => {
+                let encoded = wire.clone();
+                *wire = swap(&encoded, &spans.regions[0].whole, &spans.regions[1].whole);
+            }
+            Field::DuplicatedRegionRow => {
+                let encoded = wire.clone();
+                let mut substituted = splice(&encoded, &spans.region_count, &4u64.to_le_bytes());
+                substituted.splice(
+                    spans.regions[1].whole.end..spans.regions[1].whole.end,
+                    encoded[spans.regions[1].whole.clone()].iter().copied(),
+                );
+                *wire = substituted;
+            }
+            Field::ReorderedGapRows => {
+                let encoded = wire.clone();
+                *wire = swap(&encoded, &spans.gaps[0].whole, &spans.gaps[1].whole);
+            }
+            Field::DuplicatedGapRow => {
+                let encoded = wire.clone();
+                let mut substituted = splice(&encoded, &spans.gap_count, &3u64.to_le_bytes());
+                substituted.splice(
+                    spans.gaps[1].whole.end..spans.gaps[1].whole.end,
+                    encoded[spans.gaps[1].whole.clone()].iter().copied(),
+                );
+                *wire = substituted;
+            }
+            Field::DuplicatedDataRegionRow => {
+                let encoded = wire.clone();
+                let mut substituted =
+                    splice(&encoded, &spans.data_region_count, &2u64.to_le_bytes());
+                substituted.splice(
+                    spans.data_regions[0].whole.end..spans.data_regions[0].whole.end,
+                    encoded[spans.data_regions[0].whole.clone()].iter().copied(),
+                );
+                *wire = substituted;
+            }
+            // Region symbols are bounded UTF-8.
+            Field::NonUTF8RegionSymbol => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.regions[0].symbol.start] = 0xff;
+                *wire = substituted;
+            }
+            Field::OverstatedSymbolLength => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.regions[0].symbol_len,
+                    &u64::MAX.to_le_bytes(),
+                );
+            }
+            Field::NonUTF8DataRegionSymbol => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted[spans.data_regions[0].symbol.start] = 0xff;
+                *wire = substituted;
+            }
+            Field::OverstatedDataSymbolLength => {
+                let encoded = wire.clone();
+                *wire = splice(
+                    &encoded,
+                    &spans.data_regions[0].symbol_len,
+                    &u64::MAX.to_le_bytes(),
+                );
+            }
+            Field::TrailingByte => {
+                let encoded = wire.clone();
+                let mut substituted = encoded.clone();
+                substituted.push(0);
+                *wire = substituted;
+            }
+        }
+    };
+    let outcome = |field: NativePlacedImageEvidenceFieldForTest| {
+        use NativePlacedImageEvidenceFieldForTest as Field;
+        MutationOutcome::ExactError(match field {
+            Field::SubstitutedTargetArchitecture => {
+                EvidenceVerdict::RejectedAt("semantic profile".into())
+            }
+            Field::ForeignArchitectureOverX86FootprintRegisters => EvidenceVerdict::Malformed,
+            Field::SubstitutedTargetObjectFormat => {
+                EvidenceVerdict::RejectedAt("semantic profile".into())
+            }
+            Field::ShiftedDeclaredTextExtent => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DeclaredExtentBeyondTheContainer => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::OverflowingDeclaredExtent => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::WireLevelTextOffsetSubstitution => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryTextAddress => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryTextByteCount => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryTextDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryTextFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventorySealDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventorySealFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedRegionSectionOffset => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedRegionAddress => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedRegionByteCount => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedRegionByteDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedRegionByteFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedRegionSymbol => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DroppedRegionFootprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::AddedRegionFootprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedFootprintRegisterSet => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedFootprintMachineStateSet => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::FootprintReducedToRegisterImpliedMachineState => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::EmptiedRegionFootprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DroppedRegionRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::InsertedRegionRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DroppedGapRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::InsertedGapRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedGapSectionOffset => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedGapAddress => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedGapByteCount => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedGapByteDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedGapByteFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::ShiftedDeclaredDataExtent => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DeclaredDataExtentBeyondTheContainer => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::WireLevelDataOffsetSubstitution => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryDataAddress => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryDataByteCount => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryDataDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedInventoryDataFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataInventorySealDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataInventorySealFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionOrigin => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionSectionOffset => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionAddress => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionByteCount => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionByteDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionByteFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataRegionSymbol => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DroppedDataRegionRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::InsertedDataRegionRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::DroppedDataGapRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::InsertedDataGapRow => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataGapSectionOffset => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataGapAddress => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataGapByteCount => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataGapByteDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedDataGapByteFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::ShiftedDeclaredImportDataExtent => EvidenceVerdict::Malformed,
+            Field::SubstitutedImportDataBaseAddress => EvidenceVerdict::Malformed,
+            Field::SubstitutedImportDataByteCount => EvidenceVerdict::Malformed,
+            Field::SubstitutedImportDataDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedImportDataFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedImportDataInventorySealDigest => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::SubstitutedImportDataInventorySealFingerprint => {
+                EvidenceVerdict::RejectedAt("native executable inventory".into())
+            }
+            Field::PaddedImportDataRegionRoster => EvidenceVerdict::Malformed,
+            Field::PaddedImportDataGapRoster => EvidenceVerdict::Malformed,
+            Field::UnknownArchitectureTag => EvidenceVerdict::Malformed,
+            Field::UnknownObjectFormatTag => EvidenceVerdict::Malformed,
+            Field::UnknownRegionOriginTag => EvidenceVerdict::Malformed,
+            Field::UnknownDataRegionOriginTag => EvidenceVerdict::Malformed,
+            Field::UnknownFootprintPresenceTag => EvidenceVerdict::Malformed,
+            Field::UndeclaredPointerSize => EvidenceVerdict::Malformed,
+            Field::UndeclaredPointerAlignment => EvidenceVerdict::Malformed,
+            Field::UndeclaredX8664MachoTargetPair => EvidenceVerdict::Malformed,
+            Field::UndeclaredAarch64CoffTargetPair => EvidenceVerdict::Malformed,
+            Field::UnknownFootprintRegisterCode => EvidenceVerdict::Malformed,
+            Field::FootprintRegisterOfAnotherArchitecture => EvidenceVerdict::Malformed,
+            Field::UnboundedFootprintRegisterCount => EvidenceVerdict::Malformed,
+            Field::DuplicatedFootprintRegister => EvidenceVerdict::Malformed,
+            Field::UnorderedFootprintRegisters => EvidenceVerdict::Malformed,
+            Field::MachineStateBitsOutsideTheVocabulary => EvidenceVerdict::Malformed,
+            Field::MachineStateSetMissingAnImpliedClass => EvidenceVerdict::Malformed,
+            Field::ImportThunkRowELFCannotRealize => EvidenceVerdict::Malformed,
+            Field::UnboundedRegionCount => EvidenceVerdict::Malformed,
+            Field::UnboundedGapCount => EvidenceVerdict::Malformed,
+            Field::UnboundedDataRegionCount => EvidenceVerdict::Malformed,
+            Field::UnboundedDataGapCount => EvidenceVerdict::Malformed,
+            Field::ShortenedRegionCount => EvidenceVerdict::Malformed,
+            Field::ExtendedRegionCount => EvidenceVerdict::Malformed,
+            Field::ShortenedGapCount => EvidenceVerdict::Malformed,
+            Field::ExtendedGapCount => EvidenceVerdict::Malformed,
+            Field::ShortenedDataRegionCount => EvidenceVerdict::Malformed,
+            Field::ExtendedDataRegionCount => EvidenceVerdict::Malformed,
+            Field::ShortenedDataGapCount => EvidenceVerdict::Malformed,
+            Field::ExtendedDataGapCount => EvidenceVerdict::Malformed,
+            Field::ReorderedRegionRows => EvidenceVerdict::Malformed,
+            Field::DuplicatedRegionRow => EvidenceVerdict::Malformed,
+            Field::ReorderedGapRows => EvidenceVerdict::Malformed,
+            Field::DuplicatedGapRow => EvidenceVerdict::Malformed,
+            Field::DuplicatedDataRegionRow => EvidenceVerdict::Malformed,
+            Field::NonUTF8RegionSymbol => EvidenceVerdict::Malformed,
+            Field::OverstatedSymbolLength => EvidenceVerdict::Malformed,
+            Field::NonUTF8DataRegionSymbol => EvidenceVerdict::Malformed,
+            Field::OverstatedDataSymbolLength => EvidenceVerdict::Malformed,
+            Field::TrailingByte => EvidenceVerdict::Malformed,
+        })
+    };
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "native placed-image evidence section",
+        fields: NativePlacedImageEvidenceFieldForTest::INVENTORY,
+        honest: &|| encoded.clone(),
+        donor: windows_thunk_pair().0.to_bytes(),
+        custody: &|wire: &Vec<u8>| wire.clone(),
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: None,
+    });
 
     let mut mutated = honest.clone();
     mutated.target.object_format = target::ObjectFormat::Coff;
-    rejects_at_replay(
-        "a substituted target object format",
-        &mutated,
-        "semantic profile",
-    );
-
     // Recomputing the offered profile over the substituted target does not
     // launder the substitution either: the pinned policy accepts only the
     // profile the receiver was fixed with.
@@ -699,6 +1702,7 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         native_semantic_profile_identity(mutated.target),
         mutated.to_bytes(),
     );
+
     assert_eq!(
         rejecting_subject(verify_native_proof_sidecar(
             &executable,
@@ -709,640 +1713,19 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         "an honestly recomputed foreign profile must still reject"
     );
 
-    // --- the declared text extent ---
-
-    let mut mutated = honest.clone();
-    mutated.text_file_offset -= 1;
-    rejects_at_replay(
-        "a shifted declared text extent",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.text_file_offset = executable.len() as u64;
-    rejects_at_replay(
-        "a declared extent beyond the container",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.text_file_offset = u64::MAX;
-    rejects_at_replay(
-        "an overflowing declared extent",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.text_file_offset.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a wire-level text offset substitution",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- the executable inventory scalars ---
-
-    let mut wire = encoded.clone();
-    wire[spans.text_address.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted inventory text address",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.text_byte_count.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted inventory text byte count",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.text_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted inventory text digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.text_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted inventory text fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.inventory_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted inventory seal digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.inventory_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted inventory seal fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- each executable region-row field ---
-
-    // Offset 4 keeps the rows offset-ordered, so the substitution stays
-    // canonical; the replay then finds the row's stored address and digest
-    // disagree with the bytes it now claims.
-    rejects_wire_at_replay(
-        "a substituted region section offset",
-        splice(
-            &encoded,
-            &spans.regions[0].section_offset,
-            &4u64.to_le_bytes(),
-        ),
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].address.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted region address",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].byte_count.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted region byte count",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].byte_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted region byte digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].byte_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted region byte fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    // A same-length symbol substitution stays UTF-8 and canonical; the
-    // inventory seal over the symbol no longer matches.
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].symbol.start] = b'f';
-    rejects_wire_at_replay(
-        "a substituted region symbol",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- the footprint sub-structure ---
-
-    let mut mutated = honest.clone();
-    mutated.inventory.regions[0].footprint = None;
-    rejects_at_replay(
-        "a dropped region footprint",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.inventory.regions[1].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rcx]),
-        MachineStateSet::new([MachineState::SegmentState]),
-    ));
-    rejects_at_replay(
-        "an added region footprint",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([
-            MachineRegister::X86Rax,
-            MachineRegister::X86Rdi,
-            MachineRegister::X86Rbx,
-        ]),
-        MachineStateSet::new([MachineState::Flags]),
-    ));
-    rejects_at_replay(
-        "a substituted footprint register set",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rdi]),
-        MachineStateSet::new([MachineState::Flags, MachineState::DebugState]),
-    ));
-    rejects_at_replay(
-        "a substituted footprint machine-state set",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // Dropping only the non-implied state class stays canonical — decode
-    // re-derives the register-implied union — and still rejects: the sealed
-    // footprint no longer matches the retained rows. (A wire form that drops
-    // the implied class itself is non-canonical; that leg is below.)
-    let mut mutated = honest.clone();
-    mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rdi]),
-        MachineStateSet::empty(),
-    ));
-    rejects_at_replay(
-        "a footprint reduced to register-implied machine state",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([]),
-        MachineStateSet::empty(),
-    ));
-    rejects_at_replay(
-        "an emptied region footprint",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // --- the executable region and gap rosters ---
-
-    let mut mutated = honest.clone();
-    mutated.inventory.regions.remove(0);
-    rejects_at_replay(
-        "a dropped region row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // An inserted row inside an unclassified gap keeps the offsets ordered,
-    // so it still encodes canonically; the replay rejects because the byte
-    // digest and gap partition it claims are not the ones the bytes produce.
-    let mut mutated = honest.clone();
-    mutated.inventory.regions.insert(
-        1,
-        PlacedExecutableRegion {
-            origin: FinalExecutableRegionOrigin::CompilerFunction,
-            section_offset: 4,
-            address: mutated.inventory.text_address + 4,
-            byte_count: 4,
-            byte_digest: mutated.inventory.regions[1].byte_digest,
-            byte_report_fingerprint: mutated.inventory.regions[1].byte_report_fingerprint,
-            symbol: "forged".to_owned(),
-            footprint: None,
-        },
-    );
-    rejects_at_replay(
-        "an inserted region row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.inventory.unclassified_gaps.remove(0);
-    rejects_at_replay("a dropped gap row", &mutated, "native executable inventory");
-
-    // An inserted gap inside an existing gap keeps the gap offsets ordered
-    // and canonical; the recomputed partition still disagrees.
-    let mut mutated = honest.clone();
-    mutated.inventory.unclassified_gaps.insert(
-        1,
-        PlacedExecutableGap {
-            section_offset: 6,
-            address: mutated.inventory.text_address + 6,
-            byte_count: 2,
-            byte_digest: mutated.inventory.unclassified_gaps[0].byte_digest,
-            byte_report_fingerprint: mutated.inventory.unclassified_gaps[0].byte_report_fingerprint,
-        },
-    );
-    rejects_at_replay(
-        "an inserted gap row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // --- each executable gap-row field ---
-
-    rejects_wire_at_replay(
-        "a substituted gap section offset",
-        splice(&encoded, &spans.gaps[0].section_offset, &5u64.to_le_bytes()),
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.gaps[0].address.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted gap address",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.gaps[0].byte_count.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted gap byte count",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.gaps[0].byte_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted gap byte digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.gaps[0].byte_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted gap byte fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- the declared data extent ---
-
-    let mut mutated = honest.clone();
-    mutated.data_file_offset -= 1;
-    rejects_at_replay(
-        "a shifted declared data extent",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.data_file_offset = executable.len() as u64;
-    rejects_at_replay(
-        "a declared data extent beyond the container",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_file_offset.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a wire-level data offset substitution",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- the data inventory scalars ---
-
-    let mut wire = encoded.clone();
-    wire[spans.data_address.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted inventory data address",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_byte_count.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted inventory data byte count",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted inventory data digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted inventory data fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_inventory_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted data inventory seal digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_inventory_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted data inventory seal fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- each data region-row field ---
-
-    // A data origin substitution between two declared origins stays
-    // canonical; the seal over the row's origin no longer matches.
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].origin.start] = 3;
-    rejects_wire_at_replay(
-        "a substituted data region origin",
-        wire,
-        "native executable inventory",
-    );
-
-    rejects_wire_at_replay(
-        "a substituted data region section offset",
-        splice(
-            &encoded,
-            &spans.data_regions[0].section_offset,
-            &4u64.to_le_bytes(),
-        ),
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].address.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted data region address",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].byte_count.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted data region byte count",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].byte_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted data region byte digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].byte_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted data region byte fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].symbol.start] = b'f';
-    rejects_wire_at_replay(
-        "a substituted data region symbol",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- the data region and gap rosters ---
-
-    let mut mutated = honest.clone();
-    mutated.data_inventory.regions.remove(0);
-    rejects_at_replay(
-        "a dropped data region row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // An inserted row inside the unclassified gap keeps the offsets ordered,
-    // so it still encodes canonically; the replay rejects because the byte
-    // digest and gap partition it claims are not the ones the bytes produce.
-    let mut mutated = honest.clone();
-    mutated.data_inventory.regions.insert(
-        1,
-        PlacedDataRegion {
-            origin: FinalDataRegionOrigin::AlignmentPadding,
-            section_offset: 8,
-            address: mutated.data_inventory.data_address + 8,
-            byte_count: 4,
-            byte_digest: mutated.data_inventory.regions[0].byte_digest,
-            byte_report_fingerprint: mutated.data_inventory.regions[0].byte_report_fingerprint,
-            symbol: String::new(),
-        },
-    );
-    rejects_at_replay(
-        "an inserted data region row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    let mut mutated = honest.clone();
-    mutated.data_inventory.unclassified_gaps.remove(0);
-    rejects_at_replay(
-        "a dropped data gap row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // An inserted gap inside the existing gap keeps the gap offsets ordered
-    // and canonical; the recomputed partition still disagrees.
-    let mut mutated = honest.clone();
-    mutated.data_inventory.unclassified_gaps.insert(
-        1,
-        PlacedDataGap {
-            section_offset: 9,
-            address: mutated.data_inventory.data_address + 9,
-            byte_count: 1,
-            byte_digest: mutated.data_inventory.unclassified_gaps[0].byte_digest,
-            byte_report_fingerprint: mutated.data_inventory.unclassified_gaps[0]
-                .byte_report_fingerprint,
-        },
-    );
-    rejects_at_replay(
-        "an inserted data gap row",
-        &mutated,
-        "native executable inventory",
-    );
-
-    // --- each data gap-row field ---
-
-    rejects_wire_at_replay(
-        "a substituted data gap section offset",
-        splice(
-            &encoded,
-            &spans.data_gaps[0].section_offset,
-            &9u64.to_le_bytes(),
-        ),
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_gaps[0].address.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted data gap address",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_gaps[0].byte_count.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted data gap byte count",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_gaps[0].byte_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted data gap byte digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.data_gaps[0].byte_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted data gap byte fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    // --- the import-data extent ---
-
-    // The import-data inventory is the canonical empty one here, so its
-    // representable substitutions split two ways: a field that makes the
-    // inventory non-empty-shaped (its base address, byte count, or row
-    // rosters) or that points its extent somewhere decodes as an
-    // unrepresentable claim — a non-empty `.rdata` custody inventory exists
-    // only under x86-64 Coff, and an empty one carries no extent — while a
-    // digest or fingerprint substitution stays canonical and fails the
-    // replayed seal over the empty extent instead.
-    malformed(
-        "a shifted declared import-data extent",
-        splice(
-            &encoded,
-            &spans.import_data_file_offset,
-            &4u64.to_le_bytes(),
-        ),
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.import_data_address.start] ^= 0xff;
-    malformed("a substituted import-data base address", wire);
-
-    let mut wire = encoded.clone();
-    wire[spans.import_data_byte_count.start] ^= 1;
-    malformed("a substituted import-data byte count", wire);
-
-    let mut wire = encoded.clone();
-    wire[spans.import_data_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted import-data digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.import_data_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted import-data fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.import_data_inventory_digest.start] ^= 0xff;
-    rejects_wire_at_replay(
-        "a substituted import-data inventory seal digest",
-        wire,
-        "native executable inventory",
-    );
-
-    let mut wire = encoded.clone();
-    wire[spans.import_data_inventory_report_fingerprint.start] ^= 1;
-    rejects_wire_at_replay(
-        "a substituted import-data inventory seal fingerprint",
-        wire,
-        "native executable inventory",
-    );
-
-    malformed(
-        "a padded import-data region roster",
-        splice(
-            &encoded,
-            &spans.import_data_region_count,
-            &2u64.to_le_bytes(),
-        ),
-    );
-    malformed(
-        "a padded import-data gap roster",
-        splice(&encoded, &spans.import_data_gap_count, &2u64.to_le_bytes()),
-    );
-
     // --- the containing commitment honestly recomputed ---
-
     // Recomputing the artifact commitment over substituted container bytes
     // does not launder the substitution: the section still replays against
     // the bytes actually published and rejects the mutated span.
     let mut foreign_executable = executable.clone();
+
     foreign_executable[TEXT_FILE_OFFSET as usize + 4] ^= 0xff;
+
     let foreign_sidecar = native_sidecar(&foreign_executable, encoded.clone());
+
     let foreign_policy =
         PccReceiverPolicy::for_offered_claim(&foreign_sidecar, AdmissionProfile::default());
+
     assert_eq!(
         rejecting_subject(verify_native_proof_sidecar(
             &foreign_executable,
@@ -1355,10 +1738,14 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
 
     // The same laundering attempt against the data extent rejects identically.
     let mut foreign_executable = executable.clone();
+
     foreign_executable[DATA_FILE_OFFSET as usize + 4] ^= 0xff;
+
     let foreign_sidecar = native_sidecar(&foreign_executable, encoded.clone());
+
     let foreign_policy =
         PccReceiverPolicy::for_offered_claim(&foreign_sidecar, AdmissionProfile::default());
+
     assert_eq!(
         rejecting_subject(verify_native_proof_sidecar(
             &foreign_executable,
@@ -1373,10 +1760,14 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
     // fails no row and reaches the honest behavioral-remainder verdict. The
     // artifact commitment, not the inventories, binds those bytes.
     let mut outside = executable.clone();
+
     outside[0] ^= 0xff;
+
     let outside_sidecar = native_sidecar(&outside, encoded.clone());
+
     let outside_policy =
         PccReceiverPolicy::for_offered_claim(&outside_sidecar, AdmissionProfile::default());
+
     assert_eq!(
         verify_native_proof_sidecar(&outside, &outside_sidecar.to_bytes(), &outside_policy),
         PccVerificationOutcome::Incomplete(PccIncompleteness::UnsupportedEvidence {
@@ -1385,12 +1776,11 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         "bytes outside the declared extents are bound by the commitment, not the inventories"
     );
 
-    // --- the non-canonical legs: closed tags, closed targets, ordered and
-    // deduplicated vocabularies, bounded counts, and the exact wire extent
-    // all reject at decoding before any custody decision ---
+    // --- the legs outside the inventory: the envelope's own identity and
+    // the exact wire extent, which reject at decoding without ever forming a
+    // substituted section ---
 
-    // The envelope's own identity: an unrecognized magic or version is
-    // unsupported, never malformed.
+    // An unrecognized magic or version is unsupported, never malformed.
     let mut wire = encoded.clone();
     wire[spans.magic.start] ^= 0xff;
     assert_eq!(
@@ -1398,219 +1788,14 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         Err(NativeEvidenceError::Unsupported),
         "an unrecognized magic is unsupported"
     );
+
     let mut wire = encoded.clone();
     wire[spans.version.start] = 9;
+
     assert_eq!(
         NativePlacedImageEvidence::from_bytes(&wire),
         Err(NativeEvidenceError::Unsupported),
         "an unrecognized version is unsupported"
-    );
-
-    // Closed vocabulary tags.
-    let mut wire = encoded.clone();
-    wire[spans.architecture.start] = 9;
-    malformed("an unknown architecture tag", wire);
-    let mut wire = encoded.clone();
-    wire[spans.object_format.start] = 9;
-    malformed("an unknown object format tag", wire);
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].origin.start] = 9;
-    malformed("an unknown region origin tag", wire);
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].origin.start] = 9;
-    malformed("an unknown data region origin tag", wire);
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].footprint_presence.start] = 2;
-    malformed("an unknown footprint presence tag", wire);
-
-    // The declared target set is closed: undeclared pointer axes and
-    // undeclared (architecture, format) pairs are malformed, not merely
-    // unusual claims.
-    malformed(
-        "an undeclared pointer size",
-        splice(&encoded, &spans.pointer_size, &4u64.to_le_bytes()),
-    );
-    malformed(
-        "an undeclared pointer alignment",
-        splice(&encoded, &spans.pointer_alignment, &4u64.to_le_bytes()),
-    );
-    let mut wire = encoded.clone();
-    wire[spans.object_format.start] = 2;
-    malformed("an undeclared x86_64-macho target pair", wire);
-    let mut wire = encoded.clone();
-    wire[spans.architecture.start] = 1;
-    wire[spans.object_format.start] = 3;
-    malformed("an undeclared aarch64-coff target pair", wire);
-
-    // The footprint register vocabulary is closed, canonically ordered, and
-    // declared per target: a register the declared architecture does not own
-    // is malformed, not a foreign claim.
-    let footprint = spans.regions[0]
-        .footprint
-        .as_ref()
-        .expect("the fixture carries a footprint");
-    let mut wire = encoded.clone();
-    wire[footprint.register_codes.start..footprint.register_codes.start + 2]
-        .copy_from_slice(&0x0400u16.to_le_bytes());
-    malformed("an unknown footprint register code", wire);
-    let mut wire = encoded.clone();
-    wire[footprint.register_codes.start + 2..footprint.register_codes.start + 4]
-        .copy_from_slice(&0x0200u16.to_le_bytes());
-    malformed("a footprint register of another architecture", wire);
-    malformed(
-        "an unbounded footprint register count",
-        splice(
-            &encoded,
-            &footprint.register_count,
-            &(MAX_FOOTPRINT_REGISTERS + 1).to_le_bytes(),
-        ),
-    );
-    // A duplicated register dedups on decode, so the re-encode is shorter and
-    // the offered wire form was never canonical.
-    let mut wire = encoded.clone();
-    wire[footprint.register_codes.clone()]
-        .copy_from_slice(&[0u16.to_le_bytes(), 0u16.to_le_bytes()].concat());
-    malformed("a duplicated footprint register", wire);
-    // Reversed register order re-sorts on decode; the re-encode differs.
-    let mut wire = encoded.clone();
-    wire[footprint.register_codes.clone()]
-        .copy_from_slice(&[7u16.to_le_bytes(), 0u16.to_le_bytes()].concat());
-    malformed("unordered footprint registers", wire);
-    // Machine-state bits outside the closed vocabulary reject.
-    let mut wire = encoded.clone();
-    wire[footprint.machine_state.clone()].copy_from_slice(&0x0200u16.to_le_bytes());
-    malformed("machine-state bits outside the vocabulary", wire);
-    // A wire state set missing the class its registers imply re-derives the
-    // union on decode, so the offered wire form was never canonical.
-    let mut wire = encoded.clone();
-    wire[footprint.machine_state.clone()].copy_from_slice(&0x0004u16.to_le_bytes());
-    malformed("a machine-state set missing an implied class", wire);
-
-    // An import-thunk claim on a target that realizes none is malformed, and
-    // a thunk row that misses the closed form's extent or footprint is
-    // malformed on the realizing target — the thunk legs are exercised
-    // directly below.
-    let mut forged = honest.clone();
-    forged.inventory.regions[1].origin = FinalExecutableRegionOrigin::ImportThunk;
-    malformed("an import thunk row ELF cannot realize", forged.to_bytes());
-
-    // Bounded roster counts.
-    malformed(
-        "an unbounded region count",
-        splice(
-            &encoded,
-            &spans.region_count,
-            &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
-        ),
-    );
-    malformed(
-        "an unbounded gap count",
-        splice(
-            &encoded,
-            &spans.gap_count,
-            &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
-        ),
-    );
-    malformed(
-        "an unbounded data region count",
-        splice(
-            &encoded,
-            &spans.data_region_count,
-            &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
-        ),
-    );
-    malformed(
-        "an unbounded data gap count",
-        splice(
-            &encoded,
-            &spans.data_gap_count,
-            &(MAX_INVENTORY_ROWS + 1).to_le_bytes(),
-        ),
-    );
-    // A count that lies about the rows that follow desynchronizes the frame.
-    malformed(
-        "a shortened region count",
-        splice(&encoded, &spans.region_count, &2u64.to_le_bytes()),
-    );
-    malformed(
-        "an extended region count",
-        splice(&encoded, &spans.region_count, &4u64.to_le_bytes()),
-    );
-    malformed(
-        "a shortened gap count",
-        splice(&encoded, &spans.gap_count, &1u64.to_le_bytes()),
-    );
-    malformed(
-        "an extended gap count",
-        splice(&encoded, &spans.gap_count, &3u64.to_le_bytes()),
-    );
-    malformed(
-        "a shortened data region count",
-        splice(&encoded, &spans.data_region_count, &0u64.to_le_bytes()),
-    );
-    malformed(
-        "an extended data region count",
-        splice(&encoded, &spans.data_region_count, &2u64.to_le_bytes()),
-    );
-    malformed(
-        "a shortened data gap count",
-        splice(&encoded, &spans.data_gap_count, &0u64.to_le_bytes()),
-    );
-    malformed(
-        "an extended data gap count",
-        splice(&encoded, &spans.data_gap_count, &2u64.to_le_bytes()),
-    );
-
-    // Row order and duplication are closed by the representation.
-    malformed(
-        "reordered region rows",
-        swap(&encoded, &spans.regions[0].whole, &spans.regions[1].whole),
-    );
-    let mut wire = splice(&encoded, &spans.region_count, &4u64.to_le_bytes());
-    wire.splice(
-        spans.regions[1].whole.end..spans.regions[1].whole.end,
-        encoded[spans.regions[1].whole.clone()].iter().copied(),
-    );
-    malformed("a duplicated region row", wire);
-    malformed(
-        "reordered gap rows",
-        swap(&encoded, &spans.gaps[0].whole, &spans.gaps[1].whole),
-    );
-    let mut wire = splice(&encoded, &spans.gap_count, &3u64.to_le_bytes());
-    wire.splice(
-        spans.gaps[1].whole.end..spans.gaps[1].whole.end,
-        encoded[spans.gaps[1].whole.clone()].iter().copied(),
-    );
-    malformed("a duplicated gap row", wire);
-    let mut wire = splice(&encoded, &spans.data_region_count, &2u64.to_le_bytes());
-    wire.splice(
-        spans.data_regions[0].whole.end..spans.data_regions[0].whole.end,
-        encoded[spans.data_regions[0].whole.clone()].iter().copied(),
-    );
-    malformed("a duplicated data region row", wire);
-
-    // Region symbols are bounded UTF-8.
-    let mut wire = encoded.clone();
-    wire[spans.regions[0].symbol.start] = 0xff;
-    malformed("a non-UTF-8 region symbol", wire);
-    malformed(
-        "an overstated symbol length",
-        splice(
-            &encoded,
-            &spans.regions[0].symbol_len,
-            &u64::MAX.to_le_bytes(),
-        ),
-    );
-    let mut wire = encoded.clone();
-    wire[spans.data_regions[0].symbol.start] = 0xff;
-    malformed("a non-UTF-8 data region symbol", wire);
-    malformed(
-        "an overstated data symbol length",
-        splice(
-            &encoded,
-            &spans.data_regions[0].symbol_len,
-            &u64::MAX.to_le_bytes(),
-        ),
     );
 
     // The wire extent is exact: a cut at any field boundary and any trailing
@@ -1655,9 +1840,6 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
             "truncation at byte {cut} must reject"
         );
     }
-    let mut wire = encoded.clone();
-    wire.push(0);
-    malformed("a trailing byte", wire);
 }
 
 /// The absolute address the Coff fixture's thunk displacement decodes to —
@@ -2389,6 +2571,74 @@ fn import_data_inventory_decodes_only_binding_slots_on_coff() {
     );
 }
 
+/// The Coff thunk leg decodes the committed bytes through the target's
+/// closed form table, not a byte-prefix guess: another indirect-jump ModRM
+/// is a different realized form and must reject the same way foreign bytes
+/// do. The seals stay honest — the lie is only the instruction form.
+#[test]
+fn coff_thunk_rejects_indirect_jumps_outside_the_closed_form() {
+    // `jmp qword ptr [rsp]` is a real FF /4 indirect jump but not the closed
+    // `jmp [rip+disp32]` thunk form.
+    let mut text = vec![0xabu8; 12];
+    text.extend_from_slice(&[0xff, 0x24, 0x24, 0x78, 0x56, 0x34]);
+    let target = target::NativeTarget::windows_x64();
+    let (extent, footprint) = super::import_thunk_form(target).expect("Coff realizes a thunk");
+    let mut image = FinalImage::with_capacity(
+        target,
+        FinalImageMemory {
+            text: text.clone(),
+            ..FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.extend([
+        FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::CompilerFunction,
+            section_offset: 0,
+            byte_count: 12,
+            symbol: "entry".into(),
+            footprint: None,
+        },
+        FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::ImportThunk,
+            section_offset: 12,
+            byte_count: extent,
+            symbol: "host_call".into(),
+            footprint: Some(footprint),
+        },
+    ]);
+    let layout = FinalImageLayout::default();
+    let mut executable = vec![0xffu8; TEXT_FILE_OFFSET as usize];
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target,
+        TEXT_FILE_OFFSET,
+        image::place_executable_regions(&image, layout).expect("the fixture places"),
+        0,
+        image::place_data_regions(&image, layout).expect("the fixture places"),
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    let sidecar = native_sidecar_with_profile(
+        &executable,
+        native_semantic_profile_identity(target),
+        evidence.to_bytes(),
+    );
+    assert_eq!(
+        rejecting_subject(verify_native_proof_sidecar(
+            &executable,
+            &sidecar.to_bytes(),
+            &offered_policy(&sidecar)
+        )),
+        "native executable inventory",
+        "a Coff thunk whose bytes decode to a different indirect jump must reject"
+    );
+}
+
 // ---------------------------------------------------------------------
 // Container-declared entry custody: the entry point a container declares
 // to its loader is re-derived from the published bytes and must land on
@@ -2440,9 +2690,9 @@ const COFF_TEXT_FILE_OFFSET: u64 = 0x200;
 fn pe32_plus_header(image_base: u64, entry_rva: u32) -> Vec<u8> {
     const PE_OFFSET: usize = 0x80;
     let mut header = vec![0u8; COFF_TEXT_FILE_OFFSET as usize];
-    header[..2].copy_from_slice(&[b'M', b'Z']);
+    header[..2].copy_from_slice(b"MZ");
     header[0x3c..0x40].copy_from_slice(&(PE_OFFSET as u32).to_le_bytes());
-    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(&[b'P', b'E', 0, 0]);
+    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(b"PE\0\0");
     let optional = PE_OFFSET + 24;
     header[optional..optional + 2].copy_from_slice(&0x20bu16.to_le_bytes());
     header[optional + 16..optional + 20].copy_from_slice(&entry_rva.to_le_bytes());
@@ -2613,12 +2863,10 @@ fn container_declared_entry_lands_on_a_committed_region_boundary() {
     }
     // A null entry and a container that does not parse as ELF64 both leave
     // the leg silent.
-    for entry in [0] {
-        let (evidence, executable) = elf_entry_pair(entry);
-        evidence
-            .replay_against(&executable)
-            .expect("a null e_entry declares no checkable entry");
-    }
+    let (evidence, executable) = elf_entry_pair(0);
+    evidence
+        .replay_against(&executable)
+        .expect("a null e_entry declares no checkable entry");
     let (evidence, executable) = honest_pair();
     evidence
         .replay_against(&executable)

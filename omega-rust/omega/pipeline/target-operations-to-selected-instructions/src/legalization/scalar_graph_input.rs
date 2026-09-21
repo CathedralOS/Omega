@@ -80,6 +80,7 @@ pub(super) fn structural_contract(
     }
     None
 }
+pub(in crate::legalization) mod indirect_calls;
 mod nodes;
 mod target;
 use header::function_abi;
@@ -145,6 +146,8 @@ pub(super) fn exact_cast_has_native_carriers(source: IntegerType, target: Intege
         && !(source.bits() == 16 && target.bits() > 16)
 }
 
+#[cfg(test)]
+mod admission_vocabulary_tests;
 #[cfg(test)]
 mod exact_cast_carrier_tests;
 

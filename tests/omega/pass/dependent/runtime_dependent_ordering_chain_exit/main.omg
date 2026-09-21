@@ -10,13 +10,15 @@
 // pair ends; positive offsets do not mint (would over-claim).
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; items: [u8; 5]; count: u32 [0..=11]; j: u32; out: i32; }
+data Main where count <= 11 { console: Service<Console>; items: [u8; 5]; count: u32; j: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 4;
     self.j = 4;
     self.items[4] = 7;
     transition self.j <= self.count { true -> read(self.j) _ -> bad() }
-    state read(&mut self, i: u32 [0..=self.count]) {
+    state read(&mut self, i: u32)
+        requires i <= self.count
+    {
         // count's SUBSTITUTED high (11) exceeds items.len (5); only the
         // chained ordering (i <= count) + this guard (count < 5) proves.
         transition self.count < 5 {
@@ -24,7 +26,9 @@ machine Main::main(&mut self) reaches Console {
             _ -> bad()
         }
     }
-    state go(&mut self, k: u32 [0..=self.count]) {
+    state go(&mut self, k: u32)
+        requires k <= self.count
+    {
         self.out = self.items[k] as i32;
         self.console.exit_process(self.out);
     }

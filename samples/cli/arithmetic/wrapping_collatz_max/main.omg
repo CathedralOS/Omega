@@ -1,0 +1,69 @@
+// wrapping_collatz_max -- a dependency-free benchmark subject.
+//
+// Same shape as wrapping_square_sum: no depend() edges, so `omega update`
+// settles with no dependency findings and the runtime leg observes a
+// deterministic clean exit on any hosted target through the ordinary
+// ProgramEntry completion. The work differs on purpose: a branchy nested
+// Collatz loop instead of a straight-line accumulate, so the optimizer
+// sees control-flow merging and a bounded inner iteration profile:
+//
+//   best = max over start in 1..=100_000 of steps until the sequence
+//   hits 1, capped at 10_000 steps per start   (all mod 2^64)
+//
+// The per-start step cap gives the inner loop an explicit termination
+// witness; high starts overflow `3 * n + 1` freely under Wrapping.
+
+data Main {
+    start: u64 in Wrapping;
+    best: u64 in Wrapping;
+    n: u64 in Wrapping;
+    steps: u64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.start = 1;
+    self.best = 0;
+    transition { _ -> outer_() }
+
+    state outer_(&mut self) {
+        transition self.start <= 100000 { true -> begin_start() _ -> done() }
+    }
+    state begin_start(&mut self) {
+        self.n = self.start;
+        self.steps = 0;
+        transition { _ -> inner_() }
+    }
+    state inner_(&mut self) {
+        transition self.n != 1 && self.steps < 10000 {
+            true -> even_or_odd()
+            _ -> settle()
+        }
+    }
+    state even_or_odd(&mut self) {
+        transition self.n & 1 == 0 { true -> even() _ -> odd() }
+    }
+    state even(&mut self) {
+        self.n = self.n >> 1;
+        transition { _ -> inner_step() }
+    }
+    state odd(&mut self) {
+        self.n = self.n * 3 + 1;
+        transition { _ -> inner_step() }
+    }
+    state inner_step(&mut self) {
+        self.steps = self.steps + 1;
+        transition { _ -> inner_() }
+    }
+    state settle(&mut self) {
+        transition self.steps > self.best { true -> record() _ -> advance() }
+    }
+    state record(&mut self) {
+        self.best = self.steps;
+        transition { _ -> advance() }
+    }
+    state advance(&mut self) {
+        self.start = self.start + 1;
+        transition { _ -> outer_() }
+    }
+    state done(&mut self) {}
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "negative: slice encoding without an injective pair constructor",
+  "target": {"capsule": "linux_x86_64", "address_model": "flat_u64"},
+  "types": {
+    "integers": {"unsigned_widths": [8]},
+    "addresses": true,
+    "slices": [
+      {"name": "Bytes", "element": "u8"}
+    ]
+  },
+  "pair_constructor_injective": false,
+  "inhabitants": {
+    "Integer": 1,
+    "Nat": 1,
+    "UInt8": 1,
+    "Addr": 1,
+    "Bytes": 1
+  }
+}

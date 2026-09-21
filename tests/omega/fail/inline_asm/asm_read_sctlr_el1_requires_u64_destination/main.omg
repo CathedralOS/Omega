@@ -1,0 +1,9 @@
+use omega::language::core::assembly;
+
+data Main {
+    value: u32;
+}
+
+machine Main::main(&mut self) reaches MachineControl {
+    asm { read_sctlr_el1 self.value }
+}

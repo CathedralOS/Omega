@@ -1,3 +1,14 @@
+// FAIL canary. Despite this fixture's name, `Slice::Length` is NOT
+// unimplemented -- it is a first-class builtin ranking view
+// (`RankingOrder::SliceLength`, named in the checker's own diagnostic beside
+// `Nat::Descending` and `Nat::BoundedDistance`, with relational lowering and an
+// in-crate acceptance test).
+//
+// This rejects for an ordinary reason: the recursive edge `walk(entries, ...)`
+// forwards the SAME slice, so only `index` moves and the declared measure never
+// strictly decreases. `expected.txt` pins `cannot prove the `terminates by`
+// ranking`. The supported shape re-slices the subject on each edge.
+
 data Entry {
     value: i32;
 }
