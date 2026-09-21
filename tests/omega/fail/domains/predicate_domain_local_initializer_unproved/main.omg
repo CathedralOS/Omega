@@ -1,0 +1,12 @@
+// A local declared into a predicate domain must initialize from an
+// established source: `raw` is a bare i64 with no hypothesis bounding it,
+// so declaring `carried` in Km from it owes the predicate obligation the
+// initializer cannot discharge.
+
+domain i64::Km
+requires
+    self >= 0;
+
+machine copy_unproved(raw: i64) {
+    let carried: i64 in Km = raw;
+}
