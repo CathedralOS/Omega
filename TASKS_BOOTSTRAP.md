@@ -408,8 +408,17 @@ prerequisite to every lower-rung milestone.
   `*-identity.sh` gates, `source-closure.sh`, and `chain-hygiene.sh` — and
   `alpha-beta-edge.sh` now reports its seed-execution legs UNAVAILABLE
   (exit 2) rather than FAILED where no audited Alpha container runs.
-  Still requiring macOS arm64 or Windows x64: Alpha conformance, Beta
-  self-reconstruction, and the shared word prefix. The
+  Update (z124, linux x86-64 at `d2fe213ff6`): with `alpha_x64_linux`
+  bound as a seed-execution host, the previously macOS/Windows-only legs
+  now run here — `tests/alpha/conformance.sh` 34/34 + native bounds 78/78,
+  `tests/alpha/parity.sh` seed parity 33/33, `tests/beta/compiler/
+  reconstruction.sh` PASS (Beta reconstructs its direct Alpha tape
+  byte-identically), `tests/beta/compiler/word-prefix.sh` 736/736
+  controls, `tests/beta/compiler/compiler-diamond.sh` 6/6, and
+  `alpha-beta-edge.sh --edge` VERIFIED. Alpha conformance, Beta
+  self-reconstruction, and the shared word prefix no longer require
+  macOS arm64 or Windows x64; the remaining host-gated leg is the literal
+  Windows Git Bash route below. The
   omega-parser/outcome/executable chain now runs on Linux x86-64
   (`alpha_x64_linux` is bound; the parser gate is fully green there),
   and the parser gate's Windows PE seed ran both legs byte-exactly under
