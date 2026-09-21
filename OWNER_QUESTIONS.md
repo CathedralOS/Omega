@@ -191,6 +191,50 @@ it instantiates. A reviewer verifies those citations before the framing.
    every `source/library/core/numeric_conversion.omg` machine ending in a
    Trapping conversion stays unable to reach a native artifact.
 
+4. **May a lowering be refused for the aggregate amount of proof work it
+   requires, and if so what fixes that ceiling?** (named decision:
+   `compile-time-proof-work-ceiling`).
+   [Kernel metatheory](wiki/spec/proofs/kernel_metatheory.md) settles the
+   per-conversion case and only that case: `Budget` "makes the procedure
+   total on arbitrary input: exhaustion is `CoreError::StepCeiling`, a typed
+   error — never `Ok(false)` and never a hang", and `DEFAULT_CONVERSION_STEPS`
+   "is a policy default, not part of the calculus" (`:232-240`). Stack depth
+   is handled the same way, as a resource outside the calculus (`:242-250`).
+   Both guarantees are per call, and both are honoured today.
+
+   What is unspecified is the aggregate. `mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+   in `checked-trees-to-lowered-psi` makes roughly 20,000 individually
+   bounded, individually successful kernel certificate acceptances and never
+   returns a verdict — measured at `de5798c306`: 192 of 192 traced producer
+   calls over 200ms returned a proof, the relaxed fallback was never reached,
+   and no `StepCeiling` fired. So the spec's promise that exhaustion is
+   "never a hang" holds for every call while the compilation hangs anyway.
+   Cost grows about cubically in the number of top-level `&&` conjuncts in a
+   machine body, with a cliff between 73 conjuncts (37s) and 74 (over 400s).
+
+   The near-term repair is algorithmic and needs no decision — the cost is
+   two redundant whole-module reconstructions and a per-condition certificate
+   that cites the entire equality roster, both named on
+   **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT**. The question is what the compiler
+   owes when an algorithmically-reasonable program still exceeds any
+   practical budget. Three candidate answers: (a) nothing — compile time is
+   unbounded by design, and a program that is too large simply takes too
+   long, which keeps the calculus clean and leaves the hang; (b) a ceiling on
+   aggregate proof work per lowering, refused as a typed error in the same
+   register as `StepCeiling`, which makes the compiler total but fixes a
+   **language-visible limit on how large a `requires`-carrying machine body
+   may be** — a program's admissibility would then depend on a policy
+   default; (c) a ceiling that is diagnostic only, reported without refusing,
+   which preserves admissibility but does not make the compiler total.
+
+   This matters beyond one fixture: the member is the `+ 1 SIGTERM` in every
+   recorded run of that crate, and it blocks **RC-PCC-REPLAY**, whose gate
+   command runs `-p checked-trees-to-lowered-psi --no-fail-fast` and
+   therefore cannot reach a verdict. Until this is answered, no row should
+   add a bound here — 192 of 192 obligations are provable, so a bound chosen
+   without this decision would silently abandon obligations the compiler can
+   discharge, which is worse than the hang.
+
 ## Squalr scalar-scan port: surface-driven shape choices
 
 The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced
