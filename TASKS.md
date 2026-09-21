@@ -1002,609 +1002,192 @@ syntax and other terminal services are not prerequisites.
 
 ## P3 - Terminal Psi, PCC, and observation
 
-- **PCC-PRODUCT-PUBLICATION.** Deliver native evidence for the
-  [optional proof product contract](wiki/spec/proofs/publication.md). Both
-  products publish and check today. `build_native_proof_sidecar`
-  (`omega-rust/omega/compiler/compilation-report/src/pcc.rs`) emits a native
-  `.proof` beside the flat executable and inside `Contents/MacOS/`, carrying
-  the placed-image evidence section — the declared executable-text and
-  initialized-data extents plus the complete placed executable-region and
-  data-region inventories over those bytes, with region and gap digests,
-  addresses, fingerprints and both inventory seals
-  (`pcc/native_evidence.rs`) — and `verify_native_proof_sidecar` replays the
-  section against the exact artifact bytes, rejecting a section that lies
-  about them and an envelope that relabels the semantic profile. Section
-  version 2 additionally binds each claimed `ImportThunk` row to the declared
-  target's closed thunk form: only (x86_64, Coff) `jmp [rip+disp32]` and
-  (aarch64, MachO) `ADRP/LDR/BR X16` are thunk claims at all, the claimed
-  extent and footprint must equal the closed form's at decode, footprint
-  registers must belong to the declared architecture, and replay re-derives
-  the thunk opcodes from the committed bytes — on Mach-O additionally
-  requiring the decoded pointer load to pair exactly one committed
-  `ImportBindingSlot`, which is the first leg verifying what bytes do rather
-  than only where they sit. Section version 3 adds the writer-owned
-  `.rdata` extent — emitted as `final_import_data_bytes` beside the flat
-  executable with its own `PlacedDataRegionInventory` of
-  `ImportBindingSlot` rows over the IAT — and replays each Coff thunk's
-  decoded `disp32` binding against exactly one placed slot whose address,
-  symbol, byte count and section-relative offset match, and vice versa
-  (`image-pe::validate_pe_x86_64_import_binding_pairing`). The dynamic ELF
-  writer emits the same custody shape: its `.got.plt` enters
-  `final_import_data_bytes` with one `ImportBindingSlot` row per bound
-  import, each offset grounded in the applied `.rela.plt` `r_offset`
-  binding write and each symbol naming the versioned locator's dynsym
-  spelling; Mach-O's slots already ride the data inventory and the static
-  ELF lane still refuses imports outright. Replay also
-  re-derives the container's own declared entry — ELF64 `e_entry`, PE32+
-  `ImageBase + AddressOfEntryPoint`, Mach-O 64 `LC_MAIN` mapped through the
-  `__TEXT` segment — from the committed bytes alone and requires it to name
-  the start of a placed executable region; a loader-visible entry that lands
-  off a committed boundary rejects. Replay also re-derives the loadable map
-  the container declares to its loader — ELF64 `PT_LOAD` offsets and
-  `p_flags`, PE32+ section raw ranges and characteristics, Mach-O 64
-  `LC_SEGMENT_64` `fileoff`/`filesize` under `initprot` — and requires the
-  declared extents to be pairwise disjoint, the text extent inside
-  executable coverage, the data extent inside writable coverage, and the
-  import-data extent inside some loadable range; containment is
-  one-directional because the emitted layouts legitimately map bytes past
-  the extents (ELF headers inside `PT_LOAD`, PE raw padding, Mach-O
-  `__TEXT`'s own header). That still
-  establishes custody and thunk
-  realization only, which is why the sidecar offers
-  `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,
-  and why every native pair still ends
-  `Incomplete(UnsupportedEvidence { product: Native })`. The contract fixes
-  three outcomes with no partial success, so a coverage-only pair can never be
-  `Complete`.
+- **PCC-PRODUCT-PUBLICATION.** Deliver standalone native behavioral evidence
+  under [optional proof products](wiki/spec/proofs/publication.md).
+  `compilation-report/src/pcc.rs` already publishes/verifies native sidecars,
+  including bundle placement, image/data inventories, entry/load-map custody and
+  bounded import-thunk semantics. These coverage checks still end in
+  `Incomplete(UnsupportedEvidence { product: Native })`, not behavioral success.
 
-  Remaining work: standalone native semantic and correspondence checking,
-  owned by the native semantic and certification owners rather than
-  `compilation-report`, which owns the envelope and the sidecar.
+  Native semantic/certification owners must:
+  - Decode published instructions against the declared target's closed semantics.
+  - Reconstruct control-flow edges and entry obligations inside function regions;
+    a container entry landing on a placed boundary proves only the custody half.
+  - Establish premise availability and lowering correspondence, either by
+    translating checked Terminal obligations or proving native obligations
+    directly. Producer-report hashes or unrelated valid Psi prove neither.
+  - Return `Complete` only under a guarantee supported by that behavioral
+    evidence; unbuilt target legs remain `Incomplete`.
 
-  Wave-9 recheck at `c267df86ac` (linux x86-64); re-verified at
-  `e7c0099cb2`: the claimed `compilation-report` surface is green —
-  `cargo nextest run -p compilation-report` 64/64 pass, covering the placed-image evidence legs
-  (extent/inventory replay, thunk closed-form binding on both targets,
-  entry-boundary custody, loadable-role containment), the envelope claim
-  fields (artifact commitment, semantic/checker profiles, guarantees,
-  premises, assumptions, possessed dependencies, resource limits), the
-  product-kind routing, and every named refusal (tampered pair, relabeled
-  profile, byte-drifted extents, malformed section, Psi companion beside
-  native bytes). No unclaimed slice remains inside the envelope: every
-  remaining leg below is the native semantic checker's, not this crate's.
+  Reuse the existing envelope rather than putting semantic checking in
+  `compilation-report`. Acceptance: artifact bytes, companion and the receiver's
+  pinned policy suffice after deleting source and Psi. Arbitrary native bytes
+  paired with valid Psi/recomputed producer hashes, tampering, relabeled profiles
+  and stale sidecars reject. Bind evidence after byte-changing finalization and
+  check permitted loading/relocation correspondence; a matching file hash does
+  not establish loaded-image semantics. Omitted dependencies must be pinned by
+  exact identity and independently possessed by the receiver; preserve
+  receiver-owned admission. Broader mathematical guarantees depend on
+  **PROOF-KERNEL-CORE**, **PROOF-CERTIFICATION-BRIDGE** and their completed
+  profiles, not a policy DSL. **MACOS-APPLICATION-PUBLICATION** owns actual bundle
+  execution, not this evidence.
 
-  - Instruction rows decoded from the published text and checked against the
-    closed semantics of the declared target.
-  - Entries and incoming edges over those decoded rows — the custody half
-    (the container-declared entry landing on a placed boundary) is landed;
-    the semantic half (control-flow edges and entry obligations inside
-    compiler-function regions) is not.
-  - Premise availability and lowering correspondence: either transform the
-    Terminal obligations the Psi product carries into native rows, or prove the
-    native obligations directly. Hashes of producer validation reports and an
-    unrelated valid Psi artifact establish neither.
-  - The verdict and the guarantee it licenses. `verify_native_proof_sidecar`
-    returns `Incomplete` at its tail even after a fully replayed section; a
-    completed leg returns `Complete` under a guarantee naming what the
-    behavioral evidence establishes, and a target whose leg is unbuilt keeps
-    reporting `Incomplete` rather than a custody-only success.
+- **PSIIR.** Complete source-free Terminal execution and logical-work bounds
+  across canonical encoding, independent reconstruction, interpretation,
+  resource analysis, native realization and installation.
+  The [encoding contract](wiki/spec/terminal-psi/encoding.md) and
+  `tests/architecture/encoding_contract.rs` already cover the codec's closed
+  vocabulary, envelopes and mathematical certificates; maintain that coverage
+  as the operation owners extend it, not another wire-format project.
 
-  Acceptance: native-only standalone checking returns a real verdict from the
-  artifact bytes, the companion and a pinned policy after the source and Psi
-  artifacts are deleted. The existing refusals survive unchanged: arbitrary
-  native bytes paired with valid Psi and recomputed producer hashes, a tampered
-  pair, a relabeled semantic profile and a stale sidecar all reject, and the
-  receiver never inherits the producer's admission profile. Claims beyond the
-  bounded `omega.terminal-verified-module.v1` guarantee depend on
-  **PROOF-KERNEL-CORE**, **PROOF-CERTIFICATION-BRIDGE** and completed profile
-  rules, not a new policy DSL.
+  Remaining resource analysis is in `terminal-fixed-fuel`: derive bounds from
+  relevant preconditions and retain precise absence-of-bound causes, including
+  unbounded rank and the wait/foreign edge preventing closure. Acyclic
+  conditional/case segments, condensed ranked interiors and topology-identified
+  unranked cycles already have derivation. An invocation-bound callee without
+  retained realization/bound evidence is genuinely open: preserve
+  `InvocationBoundCallee` rather than fabricate a ceiling or classify every
+  refusal as an implementation bug.
 
-  **MACOS-APPLICATION-PUBLICATION** owns bundle execution acceptance.
+  Acceptance: discard source/producer state, independently reconstruct all
+  obligations, then interpret or lower the same artifact with exact resource
+  and installation custody. Native/ABI/final-code claims require final-realization
+  evidence, not checked API metadata or opaque supply. Preserve recompute-and-
+  compare bounds and truthful unavailable results. Specific source/native
+  gaps belong to the operation owners below and **TRANSLATION-VALIDATION** in
+  `TASKS_OPTIMIZER.md`; codec fixture drift belongs to repository closure,
+  not repeated wire-design tasks.
 
-- **PSIIR.** Extend Terminal Psi only in complete vertical slices through
-  canonical encoding, independent reconstruction, verification,
-  interpretation, resource analysis, native lowering, artifact custody, and
-  installation. [Terminal specification subjects](wiki/README.md#current-specification-subjects)
-  own the vocabulary. The [encoding contract](wiki/spec/terminal-psi/encoding.md)
-  now specifies every operation, terminator, scalar-term, proposition, and
-  proof-node form the codec accepts, plus the machine, scalar-block-invariant,
-  catalog, and obligation-ledger row layouts, the byte envelope — magic,
-  format marker, and vocabulary field — each codec emission opens with, and
-  the decode-and-rederive payloads a receiver must reconstruct: canonical
-  artifact framing, debug-map file/site rows and subject tags, the
-  optimization-execution record, the PCC proof sidecar, and the
-  mathematical-certificate judgment a receiver replays in the kernel — its
-  postorder term table, declaration signature, context, and the term, sort,
-  and level tag spaces.
-  `tests/architecture/encoding_contract.rs` pins each closed tag space, the
-  module's counted-table declaration order, the artifact and certificate
-  framing orders, the section rederivation and byte-for-byte re-encoding
-  obligations, and every envelope marker against the `terminal-codec`
-  definitions so they cannot drift.
+- **GENERAL-CYCLIC-EXECUTION.** Complete
+  [cyclic control](wiki/spec/terminal-psi/control_flow.md) and
+  [safety/progress checking](wiki/spec/language/termination.md) for the unchanged
+  decimal/Console loop and `print_squares`.
+  Owners: `terminal-verifier/src/validation/control_flow/`, Psi's
+  `execution/unit/`, `checked-trees-to-lowered-psi/src/unit/attached_unit/`
+  and expression preparation. The same-name optimizer-board task owns native
+  receiving/replay coverage. Unit/scalar/aggregate functions already share the
+  common native graph; no countdown or whole-Unit fallback.
 
-  Acceptance: source and producer state can be discarded before an
-  independent verifier reconstructs every obligation and executes or lowers
-  the same artifact, and the encoding contract specifies every operation and
-  proof-node form the codec accepts. The wire-surface legs are landed
-  (`1b5a521a1f`, `ad130023702d`, `43e2780cf0`): the contract now covers every
-  emission and payload `terminal-codec` accepts, including the standalone
-  certificate envelope. Remaining legs are the execution/interpretation side
-  of acceptance — interpretation, resource analysis, native lowering, and
-  installation custody — which live outside this codec fence.
+  - Carry bounded-field byte reads through expression lowering and the portable
+    vocabulary. The checked literal-equality guard retains
+    `StructuralParameterIndexedRead` with a field path, but
+    `expression_preparation/prepare_expression.rs` requires a whole byte-view
+    parameter. `runtime_number_to_decimal_exit_canary_runs` exposes this join;
+    `runtime_bounded_carrier_write_read_exit` and `utf8_equals_literal_exit`
+    are related controls. Use exact carrier/path/live-length evidence, not a
+    decimal-specific leaf.
+  - Close the customer over existing scalar-call/store transport and cyclic
+    bounded-field writes. `compiler/tests/byte_field_replacement/indexed.rs`
+    already covers source writes and cyclic native publication; helper coverage
+    is not the unchanged customer's output. Coordinate obsolete range-suffix
+    fixtures with **REMOVE-BRACKETED-RANGE-ANNOTATIONS**.
+  - Replace remaining cyclic shape exclusions with independently checked
+    arrival/custody relations: qualified and partial owned values, structural
+    results, claim transfers/reshuffles/partition compositions and effectful
+    calls. Preserve dominance, exact successors/frontiers, current-iteration
+    guards and test-fuel suspension/resumption. Extend only when the retained
+    proof establishes the case; fuel or a relaxed allowlist proves no safety.
+  - Compose projected helpers, Console structural operands, indexed/aggregate
+    writes and computed results without source-state duplication.
 
-  Resource-analysis slice landed: `terminal-fixed-fuel` segment derivation
-  composes acyclic conditional and case interiors as the maximum arm
-  (`block_to_edge_bound` in `fuel_certification/segment_partition.rs`), so a
-  multi-block segment certificate bounds every walk that commits its endpoint
-  instead of failing closed (`verify_module` + `derive_fixed_segment_fuel`,
-  `cargo nextest run -p terminal-fixed-fuel` 60/60). Open inside that leg:
-  invocation-bound callees, ranked-cyclic interiors, and
-  relevant-precondition derivation.
+  Architecture trap: `unranked_cycles.rs` keeps growing per source shape
+  although its eligibility check grants no proof authority. Complete the
+  per-arrival custody checking before retiring superseded restrictions.
+  The producer's `proofs/scalar_block_invariants/lockstep.rs` also recognizes
+  a particular divisor/counter update. Its proposals are independently proved,
+  but general strengthening should not become one recognizer per customer.
+  Existing `cyclic_field_divisor_*` controls already establish that arithmetic
+  case; do not repeat the isolated invariant milestone.
 
-  Follow-on slice landed: absence-of-bound reports now carry the directed
-  cause the logical-work spec requires. An acyclic traversal that re-enters a
-  cyclic component reports `FixedFuelError::UnboundedCycleComponent {
-  component, cause: Unranked }` — the verifier-derived component identity,
-  not whichever block the walk happened to revisit — while `ControlCycle`
-  remains for the malformed-condensed-graph path. The component name is
-  `terminal_verifier::cyclic_component_identity`, a topology digest over the
-  members' internal edges that equals `control_cycle_identity` on any
-  producer ranking row for the same component (pinned by
-  `topology_derived_identity_matches_producer_identity`), so a report already
-  names the component a later ranking would join. Invocation-bound callees
-  already reject by name (`InvocationBoundCallee`) and ranked-cyclic
-  interiors bound through the condensed graph (`7591b2607c`); open inside the
-  leg is relevant-precondition derivation plus the remaining causes —
-  unbounded rank and the exact wait/foreign edge preventing closure — which
-  arrive with the dependent-bound machinery that can express them
-  (`cargo nextest run -p terminal-fixed-fuel` 61/61).
+  Acceptance: unchanged decimal source reaches Terminal, then its native
+  exit/output on the hosted matrix with exact caller/callee resources and
+  ranking where declared. Corrupt arrivals, custody, guards, effects and proof
+  groups reject. **SAMPLE-CORPUS** owns the full customer and current
+  `print_squares` scope pause; **STATE-LOCAL-VALUE-FRONTIER** owns shared value
+  transport. Interpreted loops or checked-only canaries do not exercise the
+  complete lowering repair.
 
-  Native/external execution, ABI, fixed native resource, and final-code replay
-  claims additionally require exact final-realization evidence. Preserve
-  complete standalone products without hidden `CheckedCompilation` state;
-  checked API/capability results and opaque executable supply cannot establish
-  those claims. Physical optimization replay belongs to
-  `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
-
-  Re-verified at `beaa8e1c1b` (linux x86-64): the resource-analysis leg
-  keeps growing green — `cargo nextest run -p terminal-fixed-fuel` is
-  73/73 (was 60/60 → 61/61 on the readings above), including the
-  bounded-walk machine_bounds battery. The wire surface is NOT clean at
-  this base: `terminal-codec` reads 439 pass / 18 fail — the same
-  unattributed drift families the linux baseline already carried
-  (sections::semantic_module::block_wire wire-tag roundtrips ×10,
-  ledger_spike gamma fixture byte-pins ×3, canonical decoder/identity
-  rows ×2, publication boundary/tool/substitution ×3; down from the
-  earlier linux reading's 20). None is new evidence against this row's
-  contract — `tests/architecture/encoding_contract.rs` pins the closed
-  tag spaces against the codec definitions, and the failures are
-  fixture/tag drift on the producer side, not spec holes — but they
-  keep the codec fence red and belong to the unattributed-baseline
-  lanes until claimed. Interpretation, native lowering and installation
-  custody remain the open legs as recorded.
-
-  Re-verified at `bc772bf7cd7e` (linux x86-64): `cargo nextest run -p
-  terminal-fixed-fuel` holds 73/73, and `cargo nextest run -p
-  terminal-codec --all-targets` reads 366 pass / 18 fail — the identical
-  three drift families (semantic_module::block_wire roundtrips ×10,
-  ledger_spike gamma byte-pins ×3, canonical decoder/identity ×2,
-  publication boundary/tool/substitution ×3). The interpretation leg is
-  currently fenced (`terminal-interpreter` under
-  REGISTERED-CALLBACK-LIFETIME); relevant-precondition derivation and
-  the remaining absence-of-bound causes still wait on the
-  dependent-bound machinery as recorded above.
-- **NEW-CODEC-LEDGER-SPIKE-FIXTURE-DRIFT.** Resolved — re-mines the
-  `ledger_spike` gamma fixture byte-pin family named in PSIIR's
-  codec-fence notes above. Repaired on main by `e763377285f6c`
-  ("re-record ledger-spike fixtures for the erased_proof_arguments
-  wire"), which re-recorded `tests/fixtures/terminal_ledger_spike*.hex`
-  and `terminal_ledger_structural_effect.hex` for the `e2728569622f6`
-  erased-proof-formals wire shift. Re-verified at `832c55e69b7` (linux
-  x86-64): `cargo nextest run -p terminal-codec -E
-  'test(~ledger_spike)'` → 3/3 pass; the full crate now reads 374 pass
-  / 10 fail, with only the `semantic_module::block_wire` roundtrip
-  family still red — the canonical decoder/identity and publication
-  families are green too, and block_wire belongs to the remaining
-  unattributed-drift lanes, not this item. No code change.
-
-- **GENERAL-CYCLIC-EXECUTION.** Complete the
-  [cyclic control contract](wiki/spec/terminal-psi/control_flow.md) and
-  [separate safety/progress rules](wiki/spec/language/termination.md) for
-  `print_squares` and the Console writer. Owners:
-  `terminal-verifier/src/validation/control_flow.rs`, Psi's shared
-  `execution/unit/` and `checked-trees-to-lowered-psi/src/unit/attached_unit/`,
-  and Omega's ordinary `lowering/control_flow/` plus receiving graph replay.
-  Unit/scalar/aggregate functions already share that native graph; do not
-  recreate the deleted Unit planner or unsigned-countdown native route.
-
-  Composed cyclic Unit plans, path-scoped store invalidation, stored-field
-  equations, storage-observation block invariants and checked wrapping-update
-  bound transport already exist. The guarded divisor bound is covered by the
-  `cyclic_field_divisor_*` controls in
-  `checked-trees-to-lowered-psi/src/tests/cyclic_byte_literal_calls.rs`; do not
-  re-derive a counter/divisor invariant. None of this carries the decimal
-  conversion loop through Terminal production yet, and the verifier admits a
-  cyclic machine only through the shape allowlist in
-  `validation/control_flow/unranked_cycles.rs`.
-
-  Remaining work:
-
-  - The `check` state's conditional guard now carries a checked form:
-    `values/scalar/boolean_lowering.rs` decomposes `BoundedOwned` carrier
-    `==`/`!=` against a byte-sequence literal into a live-length
-    `IntegerComparison` over `StructuralParameterByteLength` folded with one
-    `StructuralParameterIndexedRead` equality per literal byte, so the
-    existing `scalar_expressions` `Guard` row admits it without a new variant
-    or a `boolean_expression_reads_carrier` arm. Composed bodies also admit
-    `ScalarCall`/`BoundaryScalarCall` through `ScalarCallSite`
-    (`execution/unit/scalar_targets`), which lifts the ordinary
-    `available_target` caller view onto `CheckedComposedUnitControlStatePlan`;
-    `digit_write`'s byte-store `ScalarResult` needs that, since
-    `CheckedByteSequenceStoreValue` has no `Computation` carrier. On
-    2026-09-20 (Linux x86-64) the call-store pair is admitted through
-    composed-control emission: `state_graph/body.rs` counts
-    `ScalarResult`-valued shared stores as body effects, gives `ScalarCall`
-    a binding namespace that skips discarded results, and admits the
-    `ScalarCall` + `LocalData`/`Assignment`/`Call` operand pairs;
-    `composed_control/admission.rs` retains `ScalarCall` operations
-    through source-call custody, callee fingerprint/commitment, and
-    per-kind service-reach agreement; `composed_control/scalar_calls.rs`
-    collects op-level call targets into the embedded catalog;
-    `composed_control/emission.rs` emits `ScalarCall` as
-    `OperationKind::Call`/`CallStructuralScalar` through the same
-    binding-ordinal and contract checks ordinary machines use.
-    `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs`
-    now advances past `digit_write` to the `check` guard and fails at
-    `Lowering(Unsupported("indexed reads require a whole byte-view
-    parameter"))`: the named check is affirmative — Terminal
-    `OperationKind` still lacks a leaf reading bounded-field byte content.
-    The t2c equality decomposition emits `StructuralParameterIndexedRead`
-    conjuncts with `path=[Field(out)]`, while
-    `expression_preparation/prepare_expression.rs` only admits the
-    whole-parameter byte view and terminal `ByteSequenceRead` carries no
-    field path (`StructuralByteSequenceFieldLength`/
-    `StructuralByteSequenceFieldByteStore` are the only field-path byte
-    ops). Resume there: add a field-path byte-read leaf through Terminal
-    `OperationKind` (parallel to `ByteSequenceFieldLength`, resolving
-    through `structural_fields::resolve_byte_length`'s carrier walk) —
-    `representations/terminal-psi` is outside this wave's TR3-TR8 claim.
-    Sibling canaries `runtime_bounded_carrier_write_read_exit` and
-    `utf8_equals_literal_exit` already fail in this closure's custody
-    gates at base, so the equality frontier is shared, not
-    decimal-specific.
-  - The same-statement store's lowering custody landed at 31945fb9066 and is
-    pinned by `emission/call_source_custody/tests.rs`, whose invalid control
-    keeps a bounded destination refusing an unproved call result. Note that
-    the checked-only canary roster does not reach this crate: registering a
-    fixture there pins its checked semantics only, and disabling the arm
-    leaves those canaries green, so a crate-level test is what exercises a
-    lowering repair. `filesystem/native_close` is registered there and now
-    compiles; its remaining stop is the entry-side `FilesystemHost`
-    fused-provider selection shared by the whole `filesystem/native_*`
-    family, owned by **ENTRY-CONTENT-ROOTS**, which does not reach this
-    crate.
-  - Indexed byte-field writes need composed cyclic-Unit and customer closure
-    coverage. Reuse the ordinary native bounded-field store and exact
-    live-length replay, not a new byte-view adapter.
-    `compiler/tests/byte_field_replacement/indexed.rs` covers direct and nested
-    source writes, and (landed beside this row) a composed cyclic-Unit leg:
-    `Record::rewrite` carries `position`/`byte` through bounded fields
-    (`want_position: u64 [0..=2]`, `want_byte: u8 [0..=127]` — states cannot
-    name machine parameters), stores into `self.out[position]` inside a
-    `write`/`again` cycle, and passes verification plus native publication on
-    all four targets — `cyclic_indexed_replacement`,
-    `cyclic_indexed_byte_field_replacement_publishes_native`, and the
-    host-native `cyclic_indexed_store_updates_original_backing_
-    without_changing_extent` (exact live length, sibling custody, `turns`
-    counter round-trips). The customer-closure half (an authored customer
-    reaching this shape) remains open.
-  - Extend bounded safety/proof admission to qualified and partial owned
-    custody, structural results, projected claims and effectful calls.
-    `unranked_cycles.rs` admits claims pinned on owned entry parameters and
-    call requirement/crash rosters; it still refuses claim transfers, content
-    reshuffles and partition compositions, qualified parameters, and any
-    structural result other than a plain scalar case. Preserve dominance,
-    exact successor transfers, ownership frontiers, current-iteration guards
-    and test-fuel suspension/resumption. General cyclic invariants/ranking
-    views need retained evidence; guarded-crash checking must not enumerate
-    unbounded paths. Finite fuel or a relaxed shape check is not a safety
-    proof.
-  - Source production must compose projected helpers, Console structural
-    operands, indexed/aggregate writes and computed results without state
-    duplication.
-
-  Acceptance: the unchanged customer reaches native exit/output on the hosted
-  matrix, with exact caller/callee resource composition and independently checked
-  ranking where declared. Corrupt arrivals, ownership, guards, effects and proof
-  groups reject. The unchanged decimal loop is the next source acceptance, then
-  the native customer. **SAMPLE-CORPUS** owns whole-customer execution and its
-  current scope pause; interpreted loops or isolated graph tests cannot close
-  it. The store-value repairs are ordinary value transport shared with
-  **STATE-LOCAL-VALUE-FRONTIER**; they stay here only as this customer's resume
-  point.
-
-  Flag: two mechanisms here grow per customer shape. The verifier's
-  `unranked_cycles.rs` (`eligible`, `cycle_operation_eligible`) is a 780-line
-  allowlist of machine, place, terminator and operation shapes with 27 commits
-  since 2026-09-07, most admitting one more shape; its own comments say
-  eligibility carries no proof authority and the per-arrival frontier
-  comparison is the custody proof. Completing that comparison for cyclic
-  arrivals would let the allowlist be deleted instead of widened. The producer's
-  `proofs/scalar_block_invariants/lockstep.rs` recognizes exactly one update
-  pair (`divisor = divisor / d`, `counter = counter + 1` under `counter < N`,
-  at most 64 clauses) to make the decimal loop's bound inductive. Its output is
-  a proposal the verifier re-proves, so it is not a trust hole, but it is a
-  recognizer for one customer's arithmetic, not a general strengthening rule.
-
-  Fence map at `1d8feeeb4fe` (this wave, so no slice is claimable right
-  now): `checked-trees-to-lowered-psi/src/unit` is wholesale-claimed by
-  STRUCTURAL-UNIT-LOWERING (z130); `terminal-codec/src/sections/
-  semantic_module` — required for any new `OperationKind` variant's wire
-  form — is claimed by DOMAIN-ISSUER-ROUTES (z73);
-  `terminal-psi-to-abstract-operations/src/lowering/control_flow` by
-  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (z37); `t2c/execution/unit/state_graph`
-  + `composed_control.rs` + `t2a2/artifact_admission/native.rs` by
-  GENERAL-CYCLIC-EXECUTION-OPTIMIZER (z139); `c2l/machine_lowering` by
-  STATE-LOCAL-VALUE-FRONTIER (z126). The named resume leg (field-path
-  byte-read leaf through Terminal `OperationKind`) crosses the codec and
-  unit surfaces at minimum, so it waits on those drains.
 - **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
-  operators, nested structural paths, calls, cycles, execution and package review.
-  Owners include `facts/operator_crashes.rs`, `CrashPlan::checked_operators`,
-  captured operands in `flow/expression.rs`, and Terminal/native evidence
-  consumers. Source checking alone is not portable proof. Retain exact selected
-  requirement, saved actuals, Match arm and surviving route; do not invent calls,
-  infer semantic crashes from emitted traps, or narrow opaque contracts by
-  inspecting providers.
+  selected operators, nested values, calls, cycles, execution and package review.
+  Owners: `facts/{operator_crashes,crash_entry_values}.rs`,
+  `CrashPlan::checked_operators`, `flow/expression.rs`,
+  lowered `retention/operation_crash_contracts.rs` and independent Terminal/
+  native consumers. Keep selected requirement, saved actuals, Match arm and
+  surviving route; do not infer semantic causes from traps or inspect opaque
+  providers to narrow contracts.
 
-  Checked operator crash sites, entry provenance in
-  `facts/crash_entry_values.rs`, inferred ceilings on lowered machine
-  contracts, guarded boundary ceilings with independent actual-argument
-  substitution, `TerminalTraceV1` boundary crash rows and per-site package
-  review rows already exist. Terminal also carries operation-level crash
-  contracts (`TerminalModule::operation_crash_contracts`), substituted by
-  `terminal-verifier/src/validation/crash/operation_contracts.rs` and produced
-  by `checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs`.
-  That producer reaches an emitted operation only through the selected IEEE
-  and selected integer comparison occurrence rosters. General call and control
-  routes still need the emitted-operation joins below.
-
-  Remaining work:
-
-  - Give the remaining crash-qualified uses a replayable Terminal carrier. A
-    named `Namespace::requirement(...)` use has no emitted-operation join and
-    fails closed in the producer, as do a non-scalar or miscounted operand
-    roster and a call operation used as the selected operator's emitted carrier.
-    A guarded float operator still needs structured Terminal guard lowering:
-    `proofs/crash_routes/scalar_terms.rs` rejects `IeeeFloatComparison`.
-    A generic operator or a guard through a structural formal
-    keeps identity only. Surviving routes are invocation-specific and may
-    carry no portable `scalar_expression` after conservative `Truth` widening;
-    copying checked rows onto `MachineContract` alone would not establish
-    replay meaning.
-  - Finish boundary crash outcomes. The trace profile observes a declared
-    ceiling at its call operation; the runtime trace and refinement join that
-    resolves one invocation's outcome
-    ([observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows))
-    is absent. Omega carries a verified boundary crash contract on the
-    boundary declaration, but target lowering's Unit, borrowed and
-    aggregate-result call lanes (`operations.rs`, `borrowed_calls.rs` and
-    `aggregate_results.rs` under
-    `abstract-operations-to-target-operations/src/lowering/control_flow/`)
-    refuse nonempty `crash_continuations` with `UnsupportedControlFlow`, the
-    error `compiler/tests/behavior_exclusions.rs` pins for its crash-bearing
-    native fixture. Extend the source-to-execution controls in
-    `checked-trees-to-lowered-psi/tests/scalar_boundary_arguments.rs` while
-    preserving exact call sites, guard actuals, abandoned claims, staged
-    writeback and no-result/no-cleanup behavior. Source crash predicates lower
-    through fixed-width `ScalarTerm`; proof-only mathematical terms do not
-    imply an authored mathematical guard route.
-  - Carry qualified scalar results and the remaining normal-contract
-    vocabulary through ordered boundary completion. Reuse the machine-entry
-    and scalar normal-guarantee path pinned in
-    `checked-trees-to-lowered-psi/tests/unit_scalar_result_source/boundary_wrappers/`.
-    State/control contracts, mutable snapshots crossing state joins, and
-    field/arithmetic predicates still need their evidence joins. Preserve
-    authored callee contracts regardless of whether a helper is a direct
-    closure root or a transitive dependency; a checked call identity is not
-    contract proof. Mutable scalar inputs still need the shared
-    signature/storage path beyond the invocation-entry read checker. Do not
-    infer normal guarantees from crash ceilings or use current storage as an
-    entry snapshot.
-  - Package contract review still needs exact carrier/value custody for
-    declaration and result projections through indexes, case payloads and
-    generic field substitution beyond ordinary declaration-owned field paths.
-    Reuse Psi's exact carrier/case relation; do not manufacture a machine
-    owner from the classifier. Saved or call-produced result tags without a
-    live predicate need ordinary value/effect custody; do not replay
-    initializers or callee bodies to recover a tag after its evaluation
-    point. `package-evidence/tests/callable_policy/case_membership.rs` is the
-    existing source-to-recovery control. The retired `proposition`
-    declaration surface belongs to **PROOF-CONTRACT-MIGRATION**, not an
-    independent membership-extension task.
-  - Fixed element provenance landed: the local `PlaceSegment` now mirrors the
-    canonical `facts::PlaceSegment` algebra with `FixedIndex`/`FixedRange`
-    (normalized from constant index expressions, including `start..end`
-    literals through `expression_table.constant_integer_value`), and
-    `paths_interfere` carries the canonical disjointness rules — same-kind
-    disjointness, half-open window overlap, and fixed-index containment —
-    plus the conservative `_ => true` fallback for heterogeneous pairs.
-    `operand_entry_provenance`, `entry_operand_projected`, `rooted_place_path`
-    and `statement_may_overwrite_place` all project indexed steps through it,
-    so a read of `items[1]` keeps its bound snapshot across writes provably
-    outside `[1]` while a dynamic index still dirties everything at or below
-    the root. (this branch — `facts/crash_entry_values/mutable.rs`,
-    `crash_entry_values.rs`, `literal_projection.rs`; 3 witness tests pin the
-    fixed-index/fixed-range disjointness and the dynamic-index refusal)
-  - Entry provenance still widens a surviving route to `Truth` for `Opaque`
-    and `ContentConservation` leaves, non-constant index expressions, and
-    whole-collection value reads below an element write (whole-storage
-    identity needs a pristine check that does not exist yet). Extend it only
-    with proven origins: divergent arrivals, unresolvable cycles and other
-    unknown provenance must remain conservative, and current spelling/live
-    storage is not a saved actual. This owns **MATCH-SELECTIVE-LOWERING**'s
-    crash-qualified equality dependency and shares entry snapshots with
-    **STATE-LOCAL-VALUE-FRONTIER**.
+  - Generalize selected-use to emitted-operation joins beyond existing IEEE/
+    integer comparison rosters. Named uses, structural operand telescopes and
+    call carriers need exact operand mapping, provider commitment and Psi/Omega
+    replay through one compositional occurrence relation, not another roster
+    per operator. Guarded float/generic/structural-formal routes need portable
+    predicate vocabulary; copying identity or conservative `Truth` rows is
+    not replay of the original guard.
+  - Finish invocation-outcome trace/refinement joins under
+    [reconstructed observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows).
+    Target Unit/borrowed/aggregate call lanes already carry crash continuations;
+    do not restore the old blanket-refusal diagnosis. Exercise actual outcome,
+    guard substitution, abandoned claims, staged writeback and no-result/
+    no-cleanup behavior through the source-to-execution route, using
+    `scalar_boundary_arguments.rs` and `behavior_exclusions.rs`.
+  - Carry qualified scalar results, state/control contracts, mutable entry
+    snapshots across joins and field/arithmetic guarantees through ordered
+    completion. Reuse `unit_scalar_result_source/boundary_wrappers/`.
+    Preserve transitive callees' authored contracts; current mutable storage is
+    not an entry snapshot, and crash ceilings imply no normal guarantee.
+  - Complete package-review projections through indexes, case payloads and
+    generic fields using Psi's exact carrier/case relation. Keep
+    `package-evidence/tests/callable_policy/case_membership.rs` as the
+    source/recovery control; saved/result tags need ordinary value custody,
+    not re-executed initializers or callee bodies.
+  - Extend entry provenance for opaque/content leaves, dynamic indices and
+    whole-collection reads after element writes only with proven origins.
+    Fixed-index/range disjointness already exists. Divergent arrivals,
+    unresolvable cycles and unknown origins remain conservative.
+    Share snapshots with **STATE-LOCAL-VALUE-FRONTIER** and the crash-qualified
+    equality dependency of **MATCH-SELECTIVE-LOWERING**.
 
   Acceptance: source `operators/crash_routes` and crash-qualified float controls
-  retain exact surviving-route evidence through independent Terminal replay and
-  execution; package projections already carry the site rows. Safe uses
-  discharge each route; changed guards, captures, substitutions, sites and stale
-  writes reject. Preserve examined/discharged routes and caller coverage, not
-  only the final cause set.
+  preserve exact examined/discharged routes and caller coverage through
+  independent Terminal replay, execution and package review. Safe uses discharge
+  each route; changed guards, captures, substitutions, sites and stale writes
+  reject. Proof-only mathematical terms do not authorize executable guard use;
+  retired proposition declarations remain **PROOF-CONTRACT-MIGRATION** scope.
 
-  Flag: selected-operator custody is growing one roster per operator kind.
-  `LoweredPsi` holds `selected_ieee_float_comparison_occurrences`,
-  `selected_ieee_float_fma_occurrences` and
-  `selected_integer_comparison_occurrences`, each with its own replay module in
-  `lowered-psi-to-terminal-psi/src/boundary_operator_custody/` and its own Omega
-  association (`float_comparisons/`, `float_fma/`). Named uses and every
-  non-comparison operator still have no join. One
-  occurrence row from a checked `operator_use` or `named_use` to its emitted
-  operations, operand mapping and provider commitment, with one Psi replay and
-  one Omega rejoin, would give those uses a carrier without another roster.
+- **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Complete executable policies
+  from [numeric values](wiki/spec/language/numeric_values.md) through Terminal,
+  interpretation and native realization. Owners:
+  `checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
+  operation/observation vocabulary and its independent checking/realization.
 
-  Wave state at `c040d8f67c` (~13:00Z Sep 21, linux x86-64, c2l): scope
-  re-verified against `retention/operation_crash_contracts.rs`,
-  `proofs/crash_routes/scalar_terms.rs` and the claims registry; no
-  unowned bounded slice. The Terminal-carrier leg decomposes into joins
-  that each need vocabulary that does not exist yet: a named
-  `Namespace::requirement(...)` use has no emission occurrence roster at
-  all (the Flag paragraph's one-row join is the prescribed repair, and it
-  is a `LoweredPsi` representation + emission-recording change, not an
-  admission tweak); a call carrier is design-gated because calls carry
-  their own continuations (`positional_scalar_operands` rejects every
-  `Call*` kind); a non-scalar or miscounted roster has no structural
-  formal telescope to bind (`validate_operator_signature` is
-  deliberately all-scalar); and the guarded float leg is term-vocabulary
-  gated — `scalar_terms.rs` rejects `IeeeFloatComparison` because the
-  route language has no atomic float proposition, so admitting it means
-  a new `ScalarTerm` form plus terminal-codec and verifier substitution
-  support. The boundary-crash-outcomes leg is fenced outright: a2t
-  `src/lowering/` is wholly under CML4 (~17:45Z). The entry-provenance
-  widenings (`facts/crash_entry_values*`) are unfenced but each needs a
-  proven-origin rule that does not exist — whole-storage pristine check,
-  scalar-bound evidence for non-constant indices — and the row bars
-  guessing from current storage. The package-review leg (indexes, case
-  payloads, generic substitution custody through the
-  `package-evidence` `callable_policy/case_membership.rs` control) is
-  unfenced but ports Psi's exact carrier/case relation into review
-  evidence — a cross-crate relation port, not a bounded slice.
+  - Trapping sites are owner-blocked on
+    `terminal-operation-level-trap-crash-site` in
+    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). The current profile has edge and
+    boundary-call crash rows, not an ordinary trapping operation's site.
+    Do not fabricate a boundary identity or terminator edge. Once settled,
+    carry primitive denotation and path-conditioned crash evidence under the
+    same-cause ceiling through all consumers. Trapping casts/shifts currently
+    refuse runtime preparation; direct Trapping arithmetic in contract position
+    remains invalid, not a new predicate term.
+  - Realize nontrivial signed/mixed-sign wrapping conversions beyond identity,
+    widening and supported unsigned narrowing. Truncation toward zero does not
+    implement a negative value's modular image; bit masking alone supplies no
+    proof of the exact-cast range.
+  - Complete signed/mixed-sign saturating conversion beyond existing admitted
+    cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
+    as controls. A signed saturating subtraction is not the unsigned clamp
+    identity. Missing representation/realization is implementation work, not a
+    reason to mark this whole row owner-blocked.
 
-- **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Give the executable
-  arithmetic policies of [numeric values](wiki/spec/language/numeric_values.md)
-  their Terminal form. Psi checking accepts them, but Terminal production
-  stops at the three gaps below, so no program using them reaches a native
-  artifact. The largest is Trapping, which Terminal Psi cannot express:
-  [structural predicates](wiki/spec/terminal-psi/structural_predicates.md)
-  requires executable Trapping operations to "carry their primitive
-  denotation and path-conditioned crash site, checked against the published
-  same-cause ceiling", and Terminal Psi attaches crash continuations only to
-  call operations. A producer therefore may not expand one into a guard and a
-  `Crash` terminator, and the repair crosses the firewall.
-
-  Remaining work:
-
-  - DESIGN-BLOCKED on OWNER_QUESTIONS.md question 3
-    (`terminal-operation-level-trap-crash-site`): add a Terminal Trapping
-    operation family with its `terminal-verifier` rule,
-    `terminal-interpreter` case and Omega realization. The blocker is not
-    the family but its crash site. `observations.md` enumerates the
-    reconstructed profile as a closed row list, and only two groups carry a
-    crash — group 3 keyed by edge (`terminal_trace_v1.rs:232`,
-    `(MachineId, BlockId, EdgeId)`) and group 4 keyed by a `BoundaryCall`'s
-    operation plus its boundary public identity and route bucket
-    (`terminal_trace_v1.rs:236`). A trapping `a + b` has neither an edge nor
-    a boundary identity, and the same section forbids fabricating a
-    terminator edge for an operation-level crash, so no admitted encoding
-    exists for it. Resuming means choosing a profile row shape and moving
-    `omega.terminal.observation-profile.v1` with it.
-    `checked-trees-to-lowered-psi/src/expression_preparation/`
-    (`prepare_expression.rs`, `bindings/mod.rs`) refuses `IntegerTrappingCast`
-    and now the checked `TrappingShiftLeft`/`TrappingShiftRight` forms with
-    "requires runtime policy realization". Those shift kinds exist
-    (`checked_integer_binary_kind` maps `(ShiftLeft|ShiftRight, Trapping)`)
-    and evaluate through the primitive's exact shift, so a Trapping shift,
-    whose out-of-range count the spec makes an executable trap condition,
-    carries a normal-return fact and refuses explicitly at expression
-    preparation instead of vanishing from the computation plan as an
-    `InvalidUnitMachinePlan` omission; package-evidence projects them onto
-    integer-binary vocabulary tags 22-23. The five remaining Trapping
-    arithmetic operators keep their no-fact boundary: their check-stage
-    refusal is pinned by
-    `flow/transfers/byte_sequence_tests.rs::argument_cast_policies_follow_the_callee_parameter_domain`,
-    under a live NOMINAL-FIELD-FLOW claim at this writing. The Trapping
-    refusal in `scalar_graph/scalar_contracts/namespace.rs` is
-    contract-position and stays: direct Trapping arithmetic forms no
-    predicate term.
-  - Realize modular conversion with a signed source or target;
-    `prepare_expression.rs` lowers only unsigned-to-unsigned
-    `IntegerWrappingCast`. Do not retry expression-level composition:
-    truncation toward zero is not the modular image of a negative dividend,
-    a same-width sign reinterpretation needs a value-level select that
-    Lowered Psi has no operation for, and masking plus an exact cast needs a
-    bitwise range the spec denies.
-  - Boolean-to-integer conversion landed at 4133043eab:
-    `CheckedScalarComputationKind::BooleanToInteger` owns the authored cast
-    occurrence and its evaluated operand and lowers through the ordinary
-    conditional selection of destination-typed 0 and 1.
-  - Saturating conversion for unsigned narrowing pairs landed this leg
-    (z73): `CheckedScalarExpression::IntegerSaturatingCast` is the checked
-    form, and `prepare_expression.rs` lowers it branch-free — the clamp
-    `min(value, target_max)` is the ordinary arithmetic spelling
-    `value - (value sat_sub target_max)` at the source width, wrapped in
-    `value mod 2^target_bits` so the emitted `IntegerExactCast` carries its
-    own range bound. Signed carriers have no such spelling (a signed
-    `sat_sub` clamps at ±2^N, not 0), so signed or mixed-sign saturating
-    pairs keep the same `construct_integer_cast` check-stage refusal,
-    pinned by the i16→i8 control in
-    `integer_policy_realization.rs::a_saturating_conversion_composes_on_unsigned_narrowing`.
-    The six unsigned `narrow_*_saturating` machines in
-    `numeric_conversion.omg` now carry the cast spelling; the signed
-    machines keep their explicit transition clamps. Canary attribution at
-    `ff2f489bbf`: the six `core/numeric_*` canaries were already red for
-    independent reasons (four Trapping-boundary refusals, a unit-graph
-    `unreachable states` in `numeric_conversion_surface`, and an
-    unconsumed-nested-call omission in
-    `numeric_cross_signed_conversion_surface`) — verified identical with
-    and without this leg's edits.
-
-  Re-verified at `59e0b5ec22d` (z203 leg): no unblocked slice exists.
-  The implementing surfaces are unfenced this wave (the row's
-  "live NOMINAL-FIELD-FLOW claim at this writing" has drained, and
-  `expression_preparation/`, `terminal_trace_v1.rs` and
-  `observations.md` hold no claims) but every remaining leg stops
-  upstream of code: the Trapping family is still DESIGN-BLOCKED —
-  `OWNER_QUESTIONS.md` question 3
-  (`terminal-operation-level-trap-crash-site`) sits unanswered under
-  Open questions, and `prepare_expression.rs:250` still refuses
-  `TrappingShiftLeft`/`TrappingShiftRight` with "checked trapping
-  operation requires runtime policy realization" — and both signed
-  conversion legs need Lowered Psi vocabulary the representation does
-  not have (a value-level select for same-width sign
-  reinterpretation; a signed clamp spelling), per the dead-end notes
-  recorded above.
-
-  Acceptance: the six `core/numeric_*` pass canaries and every
-  `source/library/core/numeric_conversion.omg` machine ending in a Trapping
-  conversion compile and execute their trap routes, an independent verifier
-  replays each crash site against the published ceiling, and no policy is
-  silently weakened into another. Move the four boundaries pinned in
-  `checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`, each
-  paired with an admitted neighbour differing in one coordinate. The
-  `float/float_trapping_*` and `expressions/arithmetic_domain_trapping_*`
-  families are customers too, but no repro separates their
-  `InvalidUnitMachinePlan` stop from GENERAL-CYCLIC-EXECUTION's; rerun them
-  before attributing it.
-
-  **DESIGN-BLOCKED (verified 2026-09-21).** `wiki/spec/terminal-psi/observations.md`
-  binds the reconstructed-row profile in closed order, and its only crash-bearing
-  groups are edge-ordered crash sites and `BoundaryCall` routes; :59 forbids the
-  escape hatch outright -- "A boundary crash is observed at its calling
-  operation, not on a fabricated terminator edge." A trapping `a + b` is neither
-  an edge nor a boundary call, and no operation-level non-boundary crash row is
-  stated. Open as `terminal-operation-level-trap-crash-site`
-  (OWNER_QUESTIONS.md:154).
+  Acceptance: the six `core/numeric_*` canaries and Trapping conversions in
+  `source/library/core/numeric_conversion.omg` reach native execution with
+  policy-correct success/failure and independent crash-site replay.
+  Advance `checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`
+  controls beside valid neighbors differing in one relevant coordinate.
+  Reproduce `float/float_trapping_*` and
+  `expressions/arithmetic_domain_trapping_*` before attributing their failures;
+  a generic missing-plan diagnostic does not identify arithmetic policy.
+  Never silently weaken one policy into another.
 
 - **PROOF-KERNEL-CORE.** Finish the common mathematical term/declaration model
   and independent checker in Psi under the
