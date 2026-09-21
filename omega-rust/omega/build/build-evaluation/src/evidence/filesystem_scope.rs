@@ -135,7 +135,27 @@ fn overlap_key(path: &Path) -> PathBuf {
 fn roots_overlap(left: &Path, right: &Path) -> bool {
     let left = overlap_key(left);
     let right = overlap_key(right);
-    left == right || left.starts_with(&right) || right.starts_with(&left)
+    left.starts_with(&right) || right.starts_with(&left)
+}
+
+/// The root-overlap fence each scoped directory must clear before binding:
+/// `roots_overlap` already covers `..`, relative, and host-alias spellings,
+/// so every root pairing routes through this one diagnostic shape rather
+/// than duplicating the check per pair.
+fn reject_overlapping_roots(
+    candidate: &Path,
+    fenced: &Path,
+    candidate_role: &str,
+    fenced_role: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    if roots_overlap(candidate, fenced) {
+        return Err(vec![Diagnostic::error(format!(
+            "{candidate_role} `{}` must not overlap the {fenced_role} `{}`",
+            candidate.display(),
+            fenced.display()
+        ))]);
+    }
+    Ok(())
 }
 
 /// Release handle for one occurrence's private captured-source backing.
@@ -301,20 +321,18 @@ impl BuildMachineFilesystemScope {
         input: CapturedBuildSourceInput,
         snapshot_dir: PathBuf,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if roots_overlap(&snapshot_dir, &self.build_dir) {
-            return Err(vec![Diagnostic::error(format!(
-                "captured source snapshot directory `{}` must not overlap the build write root `{}`",
-                snapshot_dir.display(),
-                self.build_dir.display()
-            ))]);
-        }
-        if roots_overlap(&snapshot_dir, &self.source_root) {
-            return Err(vec![Diagnostic::error(format!(
-                "captured source snapshot directory `{}` must not overlap the source root `{}`",
-                snapshot_dir.display(),
-                self.source_root.display()
-            ))]);
-        }
+        reject_overlapping_roots(
+            &snapshot_dir,
+            &self.build_dir,
+            "captured source snapshot directory",
+            "build write root",
+        )?;
+        reject_overlapping_roots(
+            &snapshot_dir,
+            &self.source_root,
+            "captured source snapshot directory",
+            "source root",
+        )?;
         self.captured_source_input = Some(input);
         self.snapshot_dir = Some(snapshot_dir);
         Ok(self)
@@ -533,13 +551,12 @@ impl BuildMachineFilesystemScope {
         // fence never sees, so the write root is rechecked here after the
         // inventory is bound.
         for input in &self.named_inputs {
-            if roots_overlap(&input.snapshot_dir, &self.build_dir) {
-                return Err(vec![Diagnostic::error(format!(
-                    "build write root `{}` must not overlap named input snapshot directory `{}`",
-                    self.build_dir.display(),
-                    input.snapshot_dir.display()
-                ))]);
-            }
+            reject_overlapping_roots(
+                &self.build_dir,
+                &input.snapshot_dir,
+                "build write root",
+                "named input snapshot directory",
+            )?;
         }
         // Compare against admission's recorded key before any mutation: an
         // ancestor aliased between them must refuse here, not after

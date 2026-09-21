@@ -10316,6 +10316,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   snapshot-custody pins. Documented residual, by design: detection is not
   atomicity — "these checks do not make a mutable host tree atomic"
   (capture-side drift rejection, fail-closed). Row consumed.
+- **NEW-BUILD-DIR-SNAPSHOT-ROOT-FENCE-DEDUP.** Mined candidate; slice landed.
+  The name resolves to the duplicated root-overlap fences in
+  `build-evaluation/src/evidence/filesystem_scope.rs`: three near-identical
+  `roots_overlap` rejection blocks (snapshot↔build-dir and
+  snapshot↔source-root in `bind_captured_source_input`, build-dir↔named-input
+  snapshot in `ensure_write_roots`) each hand-rolled its own diagnostic.
+  All three now route through one `reject_overlapping_roots` helper —
+  spelling-independent via `overlap_key`, message substrings ("source root",
+  "build write root", "named input snapshot directory") preserved.
+  `cargo nextest run -p build-evaluation --lib`: 92/92 PASS on linux
+  x86-64; `cargo fmt` clean. Worked unclaimed — no claimable marker existed
+  for this name and the file carries no live fence.
 - **FINITE-GENERIC-METHOD-FAMILIES.** Mined candidate — alias for the
   [finite generic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
   section, the exact spec surface owned by FINITE-GENERIC-DISPATCH (the
