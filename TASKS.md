@@ -7763,6 +7763,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Open surface left to siblings: more *selection* rows (contrast/variant)
   and the unfilled host legs.
 - **BENCHMARK-STANDALONE-SUBJECT.** Depend-free benchmark subject. Verified scope: a subject with no `depend()` skips the shared std plumbing and is the only compile reaching a published artifact at this revision — `samples/cli/basics/standalone` landed: empty `Main::main` bound to all hosted `ProgramEntry` roots, ~25 s end-to-end compile on w9 Linux x86-64. Runtime leg stays `skipped` (`--no-run`): `ProcessExit` provider authority is bound to the std package identity and a subject-local boundary machine produces no provider plan, so the artifact cannot exit cleanly. Re-verified on 97eeaf222a: `benchmark.py measure --target linux_x86_64 --no-run --print` publishes an 8192-byte artifact, median compile 27.6 s, peak RSS ~146 MB, runtime `skipped`; no committed record row yet. Remaining: the committed record row under `tools/benchmark/records/` and the `wiki/drafts/benchmarks.md` coverage entry are fenced to sibling claims this wave.
+- **BENCHMARK-SUBJECT-CORPUS-EXPANSION.** — mined candidate; scope verified
+  at `f600f8400b7`, covered and fenced — re-mines the "more measurable
+  subjects" frontier behind the benchmark matrix, and every producible leg
+  is claimed or gated this wave:
+  (a) std-depend subjects (the corpus body): closed at tip — `omega update`
+      on `samples/cli/arithmetic/euclid_gcd` (linux_x86_64 host) rejects
+      inside the `omega-language-std` candidate check: `routed service
+      field Filesystem::host has no exact Fused selected-provider-plan
+      join` — the same std-wide settlement frontier already recorded for
+      `prime_counter` at `18cebfa1062` (wiki/drafts/benchmarks.md). The
+      repair is the selected-provider-plan join family, not a subject fix.
+  (b) depend-free subjects: producible — a fresh `standalone` x
+      `linux_x86_64` record regenerated and `validate`-clean on this host
+      at this tip (1 compile sample, 31,692 ms; peak RSS 151 MB; 8192-byte
+      artifact; runtime `skipped`). Committing it needs
+      `tools/benchmark/records/` + `wiki/drafts/benchmarks.md`, fenced by
+      BENCHMARK-CROSS-HOST-ROWS (~14:04Z); the runtime leg stays `skipped`
+      until the Process-exit contract migration recorded on
+      DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT lands.
+  (c) proof subjects: `structural_proofs` committed; `math_proofs` stays
+      blocked at checked-call selection (PROOF-SAMPLES-CHECKED-CALL-
+      SELECTION).
+  No unfenced slice exists under this name.
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
