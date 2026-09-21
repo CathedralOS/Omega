@@ -10771,7 +10771,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MATHEMATICAL-FOUNDATIONS-REAL, MATH-PROOFS-CALL-SELECTION-OCCURRENCE,
   MATH-PROOFS-DECLARATION-SELECTION.
 - **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
-- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** Resolved — duplicate of the
+  already-adjudicated custody-expectation slice. The stub re-mines the
+  custody-gate expectation surface left by the landed custody ordering:
+  STALE-CUSTODY-GATE-EXPECTATIONS verified at `43104bde655a` that all five
+  custody-named fail fixtures still reject with their pinned fragments under
+  `fail_canaries_reject_with_expected_diagnostic_fragment`, and the
+  `tests/native-differential` custody-order pin
+  (`terminal_psi_source/contracts_and_frontend_drop.rs::
+  source_statement_custody_gate_runs_after_the_parameter_custody_gate`,
+  expecting `LoweringError::Unsupported("scalar source custody has no
+  authored statement")` after the parameter custody gate resolves) is intact
+  at `72fc66d6c32`. There is no stale custody expectation to retarget; the
+  actual expected.txt drift census (12 drifted canaries + silent
+  acceptances) is RC-DIAGNOSTICS-GATE's named lane, not this row.
 - **NATIVE-DIFFERENTIAL-MATRIX.** Mined candidate; scope verified at
   `ac4e4eee9b`: names the native-differential leg of the
   [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
