@@ -355,10 +355,15 @@ pub(super) fn admit_run_relocation(
             index > crossing.landing_index
         } else {
             // An intermediate block's whole body is crossed — any
-            // settlement in it observes a changed executed prefix.
-            crossing.positions.iter().any(|(block_index, positions)| {
-                !positions.is_empty() && function.blocks[*block_index].id == settlement.block
-            })
+            // settlement in it observes a changed executed prefix. The
+            // block key decides rather than its position list: an
+            // empty-bodied intermediate records no ordinals, yet a
+            // settlement at index 0 still trades which side of that
+            // point the member executes on.
+            crossing
+                .positions
+                .iter()
+                .any(|(block_index, _)| function.blocks[*block_index].id == settlement.block)
         };
         if refused {
             return Err(RunRelocationRejection::Settlement);
