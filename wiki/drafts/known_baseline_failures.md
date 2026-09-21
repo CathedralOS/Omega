@@ -1098,6 +1098,36 @@ Closed at 7b224763615 (2026-09-21, linux x86-64):
 passes; the `borrowed_subslices` members now live under the crate's
 `--test suite` target.
 
+## workspace `--lib` red cluster
+
+`cargo nextest run --workspace --lib --no-fail-fast` members that fail on
+linux x86-64 at `0f75a052f09` (2026-09-21), carried into this doc by exact
+name per **KNOWN-BASELINE-FAILURES-REFRESH**; the owning row is
+**RC-REPOSITORY-CLOSURE** (TASKS.md), whose macOS reading at `5958706064`
+recorded a superset — 13 of 16,169 — with different membership: the
+checked-trees-to-lowered-psi `structural_control_cases::ranked_*` pair, the
+compilation-report `pcc::native_evidence` member, the compiler
+`native_publication_writes_only_declared_products` member and the
+external-roots `stack_and_fuel::fixed_fuel` member all pass on linux here,
+while four terminal-codec members fail only on macOS
+(`sections::structural_block_wire_tests::{primitive_local_operations_round_trip_with_exact_result_and_operand_identities,structural_block_bindings_round_trip_and_bind_each_argument_order}`,
+`sections::trust_graph::tests::{canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation,current_graph_is_closed_canonical_and_explicitly_not_fully_derived}`).
+Neither host reading alone is the baseline.
+
+- package-manager (6):
+  `operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`,
+  `operations::compile_project::tests::receiving_admission::accepted_console_customer_receives_admission_only_under_a_sufficient_policy`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_exit_permission_as_a_blocking_row`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_output_and_input_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::review_publishes_the_named_component_description_for_an_independent_selection`
+  (witnessed: 335 run, 6 failed at `0f75a052f09` — the same membership as
+  the macOS row's reading).
+- native-realization (1):
+  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`.
+- package-evidence (1):
+  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`.
+
 ## Host note (macOS)
 
 `rust-objcopy` emits `dyld: Library not loaded: @rpath/libLLVM.dylib` (SIGABRT)
