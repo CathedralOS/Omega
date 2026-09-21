@@ -216,16 +216,13 @@ impl<'program> EndpointInput<'program> {
         if self.is_prefix_path(program, value, depth) {
             return true;
         }
-        if let Some((_, next_owner)) = self.chain.get(depth + 1) {
-            if let ExpressionNode::StructLiteral(inner) = program.expression_table.expression(value)
-            {
-                if inner.type_symbol == *next_owner
-                    && inner.case_symbol.is_none()
-                    && inner.case_name.is_none()
-                {
-                    return self.literal_preserves_at(program, inner, depth + 1, locals);
-                }
-            }
+        if let Some((_, next_owner)) = self.chain.get(depth + 1)
+            && let ExpressionNode::StructLiteral(inner) = program.expression_table.expression(value)
+            && inner.type_symbol == *next_owner
+            && inner.case_symbol.is_none()
+            && inner.case_name.is_none()
+        {
+            return self.literal_preserves_at(program, inner, depth + 1, locals);
         }
         false
     }

@@ -30,7 +30,7 @@ fn structural_unit_return_selects_without_materializing_unused_owned_input() {
         let selected = stage_optimized_instruction_selection(target)
             .expect("unused owned input must reach ordinary instruction selection");
         validate_optimized_selection_custody(
-            selected.optimized_target(),
+            selected.optimized_target_owner(),
             selected.register_environment(),
             selected.legalized(),
             selected.selected(),

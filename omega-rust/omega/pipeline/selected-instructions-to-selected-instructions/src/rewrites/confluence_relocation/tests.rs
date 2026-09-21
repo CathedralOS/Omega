@@ -2222,14 +2222,15 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+4+3+4 = 14), and again for this function's
-    // blocks (14). The crossed surfaces pair the member (1) against
-    // `T_TAIL` (1) and the `Jump` terminator (2 uses + defs on x86-64):
-    // 2+3 = 5 steps. The dead-path bound prices each block's body,
-    // terminator, and edge surfaces once per member location plus the
-    // initial scan: on x86-64 the materializations cost 1 each, the jumps
-    // 2, the branch 3, and the return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 —
-    // times one written member register plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 5 + 52;
+    // blocks (14); the path walk pushes the lone `Jump` edge once (1).
+    // The crossed surfaces pair the member (1) against `T_TAIL` (1) and
+    // the `Jump` terminator (2 uses + defs on x86-64): 2+3 = 5 steps. The
+    // dead-path bound prices each block's body, terminator, and edge
+    // surfaces once per member location plus the initial scan: on x86-64
+    // the materializations cost 1 each, the jumps 2, the branch 3, and
+    // the return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written
+    // member register plus one: 26*2 = 52.
+    let steps: u64 = 14 + 14 + 1 + 5 + 52;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_into_confluence(&source, 0, MOVING, HEAD, &environment, exact)
         .unwrap();
@@ -2248,7 +2249,7 @@ fn measured_validation_step_boundary() {
     );
     // Landing at the body end crosses the whole join body: the member
     // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the terminator.
-    let steps_end: u64 = 14 + 14 + (2 + 2 + 2 + 2 + 3) + 52;
+    let steps_end: u64 = 14 + 14 + 1 + (2 + 2 + 2 + 2 + 3) + 52;
     let exact = OptimizationWorkBudget::new(1, 1, steps_end, 1, 1).unwrap();
     relocate_selected_instruction_into_confluence(&source, 0, MOVING, RET, &environment, exact)
         .unwrap();
@@ -2357,4 +2358,236 @@ fn confluence_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![MOVING, HEAD, TAIL, MID]
     );
+}
+
+/// The validator proves its legality reconstruction is its own: a forged
+/// proposal — the same edit a producer would publish — is produced
+/// directly on the source's plan without consulting admission, so the
+/// validator's verdict cannot ride on the producer's admission record. A
+/// legal forged move validates; a forged move across a hazard-coupled
+/// crossed position, a still-live member write, or a non-speculatable
+/// member rejects with the legality error, not a replay mismatch.
+mod independence_tests {
+    use super::{
+        ConfluenceRelocationError, HEAD, MID, MOVING, NativeTarget, POINTER, R_MID, R_MOVE,
+        R_TTAIL, RET, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+        T_TAIL, ValidatedConfluenceRelocation, baseline_target_register_environment, budget,
+        fixture, instruction, mutated, validate_confluence_relocation,
+    };
+
+    /// Relocate `member` out of its inflow block onto `landing_index`
+    /// inside the join block's body — the edit a producer emitting that
+    /// relocation would publish — without asking admission whether the
+    /// window is legal.
+    fn forged(
+        source: &ValidatedConfluenceRelocation,
+        member: SelectedInstructionId,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let (block_index, member_index) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_index, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.id == member)
+                    .map(|member_index| (block_index, member_index))
+            })
+            .unwrap();
+        let instruction = function.blocks[block_index]
+            .instructions
+            .remove(member_index);
+        function.blocks[3]
+            .instructions
+            .insert(landing_index, instruction);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the member is pure register work, the crossed tail and
+    /// edge carry no hazards, and its write dies unread on every
+    /// continuation, so the audit derives the move and the content
+    /// comparison accepts it.
+    #[test]
+    fn forged_member_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_confluence_relocation(
+            &source,
+            0,
+            MOVING,
+            HEAD,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 0),
+        )
+        .unwrap();
+    }
+
+    /// The same forged move validates at the body end: naming the join's
+    /// terminator-carried return instruction lands the member past every
+    /// body position, and the validator derives that landing itself.
+    #[test]
+    fn forged_member_move_to_the_body_end_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_confluence_relocation(
+            &source,
+            0,
+            MOVING,
+            RET,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the member moved past a crossed position reading the
+    /// register it defines — here `T_TAIL` mutated to read `R_MOVE`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`,
+    /// not a replay mismatch, because it reconstructs the window's
+    /// hazards instead of trusting the producer's admission record. The
+    /// member's own block tail is crossed at every landing, so the
+    /// body-end landing refuses the same way.
+    #[test]
+    fn forged_member_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[2] = instruction(
+                T_TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_TTAIL],
+            );
+        });
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                MOVING,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                MOVING,
+                RET,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 3),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that skipped the dead-path audit would publish the
+    /// member landing ahead of a join position that still reads the
+    /// member's register — here `MID` mutated to read `R_MOVE`. The
+    /// position sits past the landing index so the window's hazard audit
+    /// never crosses it; the validator's own dead-path walk finds the
+    /// foreign definition live at a shared reader and refuses with
+    /// `UnsupportedPair`. Landing at the body end crosses the same
+    /// reader instead, which the hazard audit's coupling refuses —
+    /// either gate the validator derives itself.
+    #[test]
+    fn forged_member_whose_write_stays_live_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[3].instructions[1] = instruction(
+                MID,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_MID],
+            );
+        });
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                MOVING,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                MOVING,
+                RET,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 3),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that dropped the speculation bound would publish a
+    /// memory-capable member sunk into the confluence — here `MOVING`
+    /// mutated to a row-less `Load8`, which passes `schedulable` but
+    /// performs an access on every arrival it newly runs on. The
+    /// validator's own pure-work gate refuses with
+    /// `UnsupportedInstruction`, not a replay mismatch.
+    #[test]
+    fn forged_non_speculatable_member_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[1] = instruction(
+                MOVING,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, R_MOVE],
+            );
+        });
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                MOVING,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedInstruction
+        );
+    }
 }

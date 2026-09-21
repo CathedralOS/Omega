@@ -2,7 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{ConventionalSumLayout, ValueShape};
+use calling_conventions::{
+    CallingPolicy, ConventionalSumLayout, SystemVEightbyteClass, ValueClass, ValueShape,
+};
 use semantic_vocabulary::{IeeeFloatFormat, OperationId, ScalarType, StructuralTypeId};
 use target_operations::{
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
@@ -244,9 +246,6 @@ pub(super) fn bounded_byte_field_geometry(
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(u32, u64), InvalidStructuralShape> {
-    let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
-        return Err(InvalidStructuralShape);
-    };
     let indexed = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))
@@ -256,12 +255,89 @@ pub(super) fn bounded_byte_field_geometry(
     }
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
+    let (field_offset, carrier) =
+        byte_sequence_field_geometry(root, path, declarations, &indexed, &mut cache, &mut active)?;
+    let ByteSequenceCarrier::BoundedOwned { capacity } = carrier else {
+        return Err(InvalidStructuralShape);
+    };
+    // The live length word plus declared capacity must remain inside the root
+    // storage the argument points into.
+    if u64::from(field_offset)
+        .checked_add(8)
+        .and_then(|end| end.checked_add(capacity))
+        .is_none_or(|end| {
+            end > u64::from(
+                shape(root, &indexed, &mut cache, &mut active)
+                    .map(|shape| shape.byte_size)
+                    .unwrap_or(0),
+            )
+        })
+    {
+        return Err(InvalidStructuralShape);
+    }
+    Ok((field_offset, capacity))
+}
+
+/// A stored borrowed-view descriptor field likewise has no projected carrier
+/// identity: the path's last segment names a record field carrying
+/// `ByteSequence(BorrowedView)` storage. Reconstruct the field's byte offset
+/// inside the root so an argument presenting it as the formal's descriptor
+/// type replays geometry, not a claimed type.
+pub(super) fn borrowed_view_field_offset(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<u32, InvalidStructuralShape> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let (field_offset, carrier) =
+        byte_sequence_field_geometry(root, path, declarations, &indexed, &mut cache, &mut active)?;
+    if carrier != ByteSequenceCarrier::BorrowedView {
+        return Err(InvalidStructuralShape);
+    }
+    // The two descriptor words must remain inside the root storage the
+    // argument points into.
+    if u64::from(field_offset).checked_add(16).is_none_or(|end| {
+        end > u64::from(
+            shape(root, &indexed, &mut cache, &mut active)
+                .map(|shape| shape.byte_size)
+                .unwrap_or(0),
+        )
+    }) {
+        return Err(InvalidStructuralShape);
+    }
+    Ok(field_offset)
+}
+
+/// A byte-sequence field is a leaf carrier, not a structural type: the path's
+/// last segment names a record field carrying `ByteSequence` storage directly.
+/// Resolve only the field's byte offset and carrier; the storage stays the
+/// caller's. `Err` covers a malformed prefix as well as a leaf that is not a
+/// byte-sequence field.
+fn byte_sequence_field_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    slices: &[StructuralTypeDeclaration],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(u32, ByteSequenceCarrier), InvalidStructuralShape> {
+    let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+        return Err(InvalidStructuralShape);
+    };
     let (parent, parent_offset) = if prefix.is_empty() {
         (root, 0)
     } else {
-        project_static_path(root, prefix, declarations)?
+        project_static_path(root, prefix, slices)?
     };
-    let declaration = indexed.get(&parent).ok_or(InvalidStructuralShape)?;
+    let declaration = declarations.get(&parent).ok_or(InvalidStructuralShape)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return Err(InvalidStructuralShape);
     };
@@ -270,39 +346,331 @@ pub(super) fn bounded_byte_field_geometry(
         !field.relevance.is_erased()
             && !matches!(field.field_type, StructuralFieldType::Erased { .. })
     }) {
-        let field_shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
+        let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
         local_offset = align(local_offset, u32::from(field_shape.alignment))?;
         if field.identity == *identity {
-            let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-                field.field_type
-            else {
+            let StructuralFieldType::ByteSequence(carrier) = field.field_type else {
                 return Err(InvalidStructuralShape);
             };
             let field_offset = parent_offset
                 .checked_add(local_offset)
                 .ok_or(InvalidStructuralShape)?;
-            // The live length word plus declared capacity must remain inside
-            // the root storage the argument points into.
-            if u64::from(field_offset)
-                .checked_add(8)
-                .and_then(|end| end.checked_add(capacity))
-                .is_none_or(|end| {
-                    end > u64::from(
-                        shape(root, &indexed, &mut cache, &mut active)
-                            .map(|shape| shape.byte_size)
-                            .unwrap_or(0),
-                    )
-                })
-            {
-                return Err(InvalidStructuralShape);
-            }
-            return Ok((field_offset, capacity));
+            return Ok((field_offset, carrier));
         }
         local_offset = local_offset
             .checked_add(u32::from(field_shape.byte_size))
             .ok_or(InvalidStructuralShape)?;
     }
     Err(InvalidStructuralShape)
+}
+
+/// The signature shape one declared structural formal carries on the
+/// normalized boundary: an `Owned` formal transports the referent by value
+/// under the policy's aggregate classification; a borrowed formal's referent
+/// pointer is one pointer word, except a `ByteSequence(BorrowedView)` formal
+/// whose own two-word descriptor crosses by value under the aggregate class.
+pub(super) fn boundary_formal_shape(
+    structural_type: StructuralTypeId,
+    access: StructuralAccess,
+    declarations: &[StructuralTypeDeclaration],
+    policy: CallingPolicy,
+    pointer_shape: ValueShape,
+) -> Result<ValueShape, InvalidStructuralShape> {
+    match access {
+        StructuralAccess::Owned => classified_boundary_shape(structural_type, declarations, policy),
+        StructuralAccess::SharedBorrow
+        | StructuralAccess::MutableBorrow
+        | StructuralAccess::WriteOnlyBorrow => {
+            let descriptor_formal = declarations.iter().any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                    )
+            });
+            if descriptor_formal {
+                reconstruct(structural_type, declarations)
+            } else {
+                Ok(pointer_shape)
+            }
+        }
+    }
+}
+
+/// The by-value boundary shape one structural type carries under the calling
+/// policy: the provider-side materialization classifies records and fixed
+/// arrays by their scalar leaves — homogeneous-float members under AAPCS and
+/// SysV, per-eightbyte integer/SSE classes under SysV, one integer view under
+/// Microsoft x64. Scalar and descriptor carriers keep their semantic shape;
+/// carriers with no by-value boundary encoding refuse, matching the upstream
+/// materialization that produced the plan being replayed.
+fn classified_boundary_shape(
+    structural_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+    policy: CallingPolicy,
+) -> Result<ValueShape, InvalidStructuralShape> {
+    let indexed = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    if indexed.len() != declarations.len() {
+        return Err(InvalidStructuralShape);
+    }
+    let declaration = indexed
+        .get(&structural_type)
+        .copied()
+        .ok_or(InvalidStructuralShape)?;
+    let referent = shape(
+        structural_type,
+        &indexed,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    let class = match &declaration.shape {
+        StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. } => {
+            let mut leaves = Vec::new();
+            collect_scalar_leaves(
+                structural_type,
+                0,
+                &indexed,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                &mut leaves,
+                0,
+            )?;
+            classify_scalar_leaves(&leaves, referent, policy)?
+        }
+        StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => referent.class,
+        _ => return Err(InvalidStructuralShape),
+    };
+    Ok(ValueShape {
+        class,
+        byte_size: referent.byte_size,
+        alignment: referent.alignment,
+    })
+}
+
+/// Every scalar leaf one structural carrier contributes to aggregate
+/// classification: `(byte_offset, byte_size, is_float)` rows in declared
+/// storage order, matching the leaves the boundary materialization collects
+/// from the typed signature graph. Descriptor views and references are single
+/// integer leaves; inline byte storage contributes one leaf per byte.
+#[allow(clippy::too_many_arguments)]
+fn collect_scalar_leaves(
+    structural_type: StructuralTypeId,
+    base_offset: u32,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    leaves: &mut Vec<(u32, u32, bool)>,
+    depth: usize,
+) -> Result<(), InvalidStructuralShape> {
+    if depth > 32 {
+        return Err(InvalidStructuralShape);
+    }
+    let declaration = declarations
+        .get(&structural_type)
+        .copied()
+        .ok_or(InvalidStructuralShape)?;
+    match &declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => {
+            let leaf = scalar_shape(*scalar);
+            leaves.push((
+                base_offset,
+                u32::from(leaf.byte_size),
+                matches!(scalar, ScalarType::IeeeFloat(_)),
+            ));
+        }
+        StructuralTypeShape::Reference { .. }
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+            let referent = shape(structural_type, declarations, cache, active)?;
+            leaves.push((base_offset, u32::from(referent.byte_size), false));
+        }
+        StructuralTypeShape::Record { fields } => {
+            let mut local_offset = 0_u32;
+            for field in fields.iter().filter(|field| {
+                !field.relevance.is_erased()
+                    && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+            }) {
+                let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
+                local_offset = align(local_offset, u32::from(field_shape.alignment))?;
+                collect_field_leaves(
+                    &field.field_type,
+                    base_offset
+                        .checked_add(local_offset)
+                        .ok_or(InvalidStructuralShape)?,
+                    declarations,
+                    cache,
+                    active,
+                    leaves,
+                    depth + 1,
+                )?;
+                local_offset = local_offset
+                    .checked_add(u32::from(field_shape.byte_size))
+                    .ok_or(InvalidStructuralShape)?;
+            }
+        }
+        StructuralTypeShape::FixedArray { element, length } => {
+            let element_shape = shape(*element, declarations, cache, active)?;
+            for index in 0..*length {
+                let offset = u64::from(element_shape.byte_size)
+                    .checked_mul(index)
+                    .and_then(|element_offset| u64::from(base_offset).checked_add(element_offset))
+                    .and_then(|total| u32::try_from(total).ok())
+                    .ok_or(InvalidStructuralShape)?;
+                collect_scalar_leaves(
+                    *element,
+                    offset,
+                    declarations,
+                    cache,
+                    active,
+                    leaves,
+                    depth + 1,
+                )?;
+            }
+        }
+        _ => return Err(InvalidStructuralShape),
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_field_leaves(
+    field: &StructuralFieldType,
+    base_offset: u32,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    leaves: &mut Vec<(u32, u32, bool)>,
+    depth: usize,
+) -> Result<(), InvalidStructuralShape> {
+    match field {
+        StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
+        | StructuralFieldType::IeeeFloat(_) => {
+            let leaf = field_shape(field, declarations, cache, active)?;
+            leaves.push((base_offset, u32::from(leaf.byte_size), true));
+        }
+        StructuralFieldType::Scalar(_) | StructuralFieldType::BoundedInteger(_) => {
+            let leaf = field_shape(field, declarations, cache, active)?;
+            leaves.push((base_offset, u32::from(leaf.byte_size), false));
+        }
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+            let leaf = field_shape(field, declarations, cache, active)?;
+            leaves.push((base_offset, u32::from(leaf.byte_size), false));
+        }
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+            let leaf = field_shape(field, declarations, cache, active)?;
+            for index in 0..u32::from(leaf.byte_size) {
+                leaves.push((
+                    base_offset
+                        .checked_add(index)
+                        .ok_or(InvalidStructuralShape)?,
+                    1,
+                    false,
+                ));
+            }
+        }
+        StructuralFieldType::Structural(nested) => collect_scalar_leaves(
+            *nested,
+            base_offset,
+            declarations,
+            cache,
+            active,
+            leaves,
+            depth + 1,
+        )?,
+        StructuralFieldType::Erased { .. } => return Err(InvalidStructuralShape),
+    }
+    Ok(())
+}
+
+/// The ABI class the collected scalar leaves determine under the calling
+/// policy: homogeneous-float aggregates, SysV per-eightbyte classes, or one
+/// integer view — identical to the classification the boundary
+/// materialization applied when it evaluated the plan under replay.
+fn classify_scalar_leaves(
+    leaves: &[(u32, u32, bool)],
+    referent: ValueShape,
+    policy: CallingPolicy,
+) -> Result<ValueClass, InvalidStructuralShape> {
+    if policy == CallingPolicy::MicrosoftX64 {
+        return Ok(ValueClass::Integer);
+    }
+    if let Some(members) = homogeneous_float_leaves(leaves, referent) {
+        if policy == CallingPolicy::Aapcs64
+            || (policy == CallingPolicy::SystemVAMD64 && members > 1)
+        {
+            return Ok(ValueClass::HomogeneousFloatAggregate { members });
+        }
+        if policy == CallingPolicy::SystemVAMD64 && members == 1 {
+            return Ok(ValueClass::Float);
+        }
+    }
+    if policy != CallingPolicy::SystemVAMD64 || referent.byte_size > 16 {
+        return Ok(ValueClass::Integer);
+    }
+    let mut classes = [None, None];
+    for &(offset, byte_size, is_float) in leaves {
+        let eightbyte = usize::try_from(offset / 8).map_err(|_| InvalidStructuralShape)?;
+        let last = offset
+            .checked_add(byte_size)
+            .and_then(|end| end.checked_sub(1))
+            .ok_or(InvalidStructuralShape)?;
+        if eightbyte > 1
+            || usize::try_from(last / 8).map_err(|_| InvalidStructuralShape)? != eightbyte
+        {
+            return Err(InvalidStructuralShape);
+        }
+        classes[eightbyte] = Some(match classes[eightbyte] {
+            Some(existing_is_sse) => existing_is_sse && is_float,
+            None => is_float,
+        });
+    }
+    let first = classes[0].ok_or(InvalidStructuralShape)?;
+    let second = if referent.byte_size > 8 {
+        classes[1].ok_or(InvalidStructuralShape)?
+    } else {
+        false
+    };
+    if !first && !second {
+        return Ok(ValueClass::Integer);
+    }
+    if referent.byte_size <= 8 {
+        return Err(InvalidStructuralShape);
+    }
+    Ok(ValueClass::SystemVAggregate {
+        first: if first {
+            SystemVEightbyteClass::Sse
+        } else {
+            SystemVEightbyteClass::Integer
+        },
+        second: if second {
+            SystemVEightbyteClass::Sse
+        } else {
+            SystemVEightbyteClass::Integer
+        },
+    })
+}
+
+/// A homogeneous float aggregate is a dense run of one to four equal IEEE
+/// members starting at offset zero, covering the referent exactly.
+fn homogeneous_float_leaves(leaves: &[(u32, u32, bool)], referent: ValueShape) -> Option<u8> {
+    let &(0, member_size, true) = leaves.first()? else {
+        return None;
+    };
+    let members = u8::try_from(leaves.len()).ok()?;
+    ((1..=4).contains(&members)
+        && matches!(member_size, 4 | 8)
+        && leaves
+            .iter()
+            .enumerate()
+            .all(|(index, &(offset, size, is_float))| {
+                is_float && size == member_size && offset == index as u32 * member_size
+            })
+        && referent.byte_size == u16::try_from(member_size * u32::from(members)).unwrap_or(0)
+        && referent.alignment == u16::try_from(member_size).unwrap_or(0))
+    .then_some(members)
 }
 
 fn shape(

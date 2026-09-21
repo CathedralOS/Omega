@@ -2,10 +2,7 @@ use crate::StagedOptimizedProgramStorageSemanticWrapperEncoding;
 use crate::optimized_semantic_wrapper_object::error::*;
 use crate::optimized_semantic_wrapper_object::model::WRAPPER_SYMBOL_NAME;
 use crate::optimized_semantic_wrapper_object::model::*;
-use isa_x86_64::{
-    X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
-    resolve_x86_64_semantic_unit_wrapper_private_continuation,
-};
+use isa_x86_64::resolve_x86_64_semantic_unit_wrapper_private_continuation;
 use object_file::{ObjectLocalSymbolId, RelocationFreeObjectPlan, RelocationFreeObjectSymbolRole};
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
@@ -30,11 +27,10 @@ pub(crate) fn compose_object(
     if child.relocation_record_count != 0 {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::SourceObjectMismatch);
     }
+    // The encoding's validated template is the wrapper's byte authority: a
+    // provisioned receiver widens the canonical receiver-free geometry.
     let wrapper_byte_count = u64::try_from(encoding.template().bytes().len())
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?;
-    if wrapper_byte_count != X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT as u64 {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject);
-    }
     let child_entry = child
         .symbols
         .iter()
@@ -138,6 +134,6 @@ pub(crate) fn compose_object(
         relocation_record_count: 0,
     };
     object.identity = object.recomputed_identity()?;
-    validate_object(&object)?;
+    validate_object(&object, encoding.template())?;
     Ok(object)
 }

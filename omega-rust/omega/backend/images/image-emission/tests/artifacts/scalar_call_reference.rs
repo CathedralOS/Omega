@@ -141,8 +141,13 @@ fn published_scalar_reference_binds_one_exit_shim_and_replays_to_its_result() {
     );
 
     // The emitted image is a real static executable: the entry's i32 result
-    // becomes the low byte of the exit_group status.
-    crate::hosted_exit_runtime::assert_exit(&output.bytes, 37);
+    // becomes the low byte of the exit_group status. The image is Linux
+    // x86-64 — the shim bytes asserted above are x86-64 opcodes ending in
+    // `exit_group` — so only that host can run it; `assert_exit` admits
+    // Linux AArch64 and macOS AArch64 too, where this ELF is not executable.
+    if NativeTarget::host() == NativeTarget::linux_x64() {
+        crate::hosted_exit_runtime::assert_exit(&output.bytes, 37);
+    }
 }
 
 #[test]

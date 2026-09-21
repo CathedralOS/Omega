@@ -1,0 +1,7 @@
+// `serialize` writes no registers: an invented clobber entry cannot be
+// reconciled with the catalog's empty realized-clobber set.
+data Main {}
+
+machine Main::main(&mut self) {
+    asm where clobbers rax { serialize }
+}

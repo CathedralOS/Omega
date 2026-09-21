@@ -74,11 +74,25 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         .ok_or(LoweringError::Unsupported(
             "provider field call names no authored attachment field",
         ))?;
+    // The authored field spells the provider as a `&'a mut <boundary trait>`
+    // borrow; the requirement names the provider itself, so the comparison
+    // unwraps the carrier's mutable reference (and any qualifications) first.
+    let mut carrier = field.type_reference;
+    loop {
+        match checked.type_reference_table.type_reference(carrier) {
+            checked_trees::types::TypeReferenceNode::Constrained {
+                base_type: inner, ..
+            } => carrier = *inner,
+            checked_trees::types::TypeReferenceNode::Reference {
+                referee: inner,
+                access: language_core::ReferenceAccess::Mutable,
+                ..
+            } => carrier = *inner,
+            _ => break,
+        }
+    }
     if field.relevance.is_erased()
-        || checked
-            .normalized_type_identity(field.type_reference)
-            .as_str()
-            != requirement.provider_type_identity
+        || checked.normalized_type_identity(carrier).as_str() != requirement.provider_type_identity
     {
         return unsupported("provider field call changed its authored carrier");
     }

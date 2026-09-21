@@ -443,6 +443,7 @@ pub(super) fn check_component(
                             // subject it denotes at this arrival.
                             match comparison::argument_comparison(
                                 program,
+                                machine.symbol,
                                 &ranks[position],
                                 *argument,
                                 &site_guards,
@@ -960,10 +961,26 @@ fn expression_is_inert(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
+    expression_is_inert_or_calls(program, machine, state, expression, &|_| false)
+}
+
+/// The same inertness walk with value-position calls admitted per
+/// `admit_call`: an accepted call's receiver and arguments recur under the
+/// same rule, so nested call arguments and composed initializers are
+/// covered, while every subterm that is not a call must still be inert the
+/// way it would be with no call present.
+fn expression_is_inert_or_calls(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
+) -> bool {
     if !expression.is_valid() {
         return true;
     }
-    let inert = |expression| expression_is_inert(program, machine, state, expression);
+    let inert =
+        |expression| expression_is_inert_or_calls(program, machine, state, expression, admit_call);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             inert(dispatch.subject)
@@ -1036,6 +1053,19 @@ fn expression_is_inert(
         // unadmitted indexed operation can have selected behavior this pure
         // rank slice cannot see.
         ExpressionNode::Borrow(borrow) => inert(borrow.target),
-        ExpressionNode::Call(_) | ExpressionNode::Indexed(_) | ExpressionNode::Range(_) => false,
+        ExpressionNode::Call(call) => {
+            // A call admitted by the caller's bar keeps every subterm inert
+            // the way transition actuals are; the caller decides which
+            // callees may appear and covers their writes in the aggregate
+            // write frame separately.
+            admit_call(call)
+                && (!call.receiver.is_valid() || inert(call.receiver))
+                && program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| inert(*argument))
+        }
+        ExpressionNode::Indexed(_) | ExpressionNode::Range(_) => false,
     }
 }

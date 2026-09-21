@@ -225,6 +225,9 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index, ..
         }
+        | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+            statement_index, ..
+        }
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             statement_index, ..
         } => Some(*statement_index),
@@ -246,6 +249,12 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
         }
+        CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StoreStructuralField {
+            statement_index, ..
+        } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
             Some(store.statement_index)
         }

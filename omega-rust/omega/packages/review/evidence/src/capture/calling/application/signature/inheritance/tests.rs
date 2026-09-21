@@ -1,4 +1,4 @@
-use super::*;
+use super::{Application, Identifier, SymbolHandle, TraitDefinition, TypedTrees, collect};
 
 fn application(owner: TraitDefinition) -> Application {
     let lifetime_arguments = vec![Identifier::generated("x"); owner.lifetime_parameters.len()];

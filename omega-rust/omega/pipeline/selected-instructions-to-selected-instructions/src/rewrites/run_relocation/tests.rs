@@ -1632,3 +1632,152 @@ fn run_relocation_is_deterministic_and_re_admitted() {
     assert_eq!(body[0].id, MAT_D);
     assert_eq!(body[1].id, MAT_C);
 }
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_run_relocation` directly, so
+/// every rejection comes from the validator's own window audit.
+mod independence_tests {
+    use super::{
+        FIRST, MAT_A, MAT_B, MAT_C, NativeTarget, POINTER, RunRelocationError, SUM,
+        SelectedInstructionKind, SelectedInstructionPlan, THIRD, ValidatedRunRelocation,
+        baseline_target_register_environment, budget, fixture, instruction, mutated,
+        validate_run_relocation,
+    };
+
+    /// Move the run `run` onto `destination_index` inside a source
+    /// fixture's plan — the edit a producer emitting that relocation
+    /// would publish — without asking admission whether the window is
+    /// legal.
+    fn forged(
+        source: &ValidatedRunRelocation,
+        run: std::ops::RangeInclusive<usize>,
+        destination_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let width = *run.end() - *run.start() + 1;
+        let members: Vec<_> = instructions.drain(*run.start()..=*run.end()).collect();
+        let landing = if destination_index > *run.end() {
+            destination_index + 1 - width
+        } else {
+            destination_index
+        };
+        instructions.splice(landing..landing, members);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the run's members and the crossed positions carry no
+    /// hazards, no roster rows, and no barriers, so the audit derives the
+    /// move and the content comparison accepts the rotation.
+    #[test]
+    fn forged_run_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_run_relocation(
+            &source,
+            0,
+            MAT_A,
+            SUM,
+            MAT_B,
+            &environment,
+            budget(),
+            forged(&source, 0..=1, 4),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the run moved past a crossed position reading a register a
+    /// member defines — here `MAT_C` mutated to read `FIRST` from `MAT_A`.
+    /// The validator's own legality audit refuses with `UnsupportedPair`,
+    /// not a replay mismatch, because it reconstructs the window's
+    /// hazards instead of trusting the producer's admission record.
+    #[test]
+    fn forged_run_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let add = environment
+                .constraint(environment.selected_keys().add_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                MAT_C,
+                SelectedInstructionKind::WrappingAddI64,
+                &add,
+                &[FIRST, POINTER, THIRD],
+            );
+        });
+        assert_eq!(
+            validate_run_relocation(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_B,
+                &environment,
+                budget(),
+                forged(&source, 0..=1, 4),
+            )
+            .unwrap_err(),
+            RunRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that landed the run away from the destination's window
+    /// edge publishes a window whose content is not the admitted
+    /// rotation: the run split across the interior and the destination
+    /// left trailing fails the content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_run_off_the_derived_edge_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        // The run lands at positions 1..=2 — not the trailing edge the
+        // derived window admits for this destination.
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let members: Vec<_> = instructions.drain(0..=1).collect();
+        instructions.splice(1..1, members);
+        assert_eq!(
+            validate_run_relocation(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_B,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            RunRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A destination naming a position inside the run is inadmissible on
+    /// the validator's own audit — the run's span would swallow the slot
+    /// the move targets — before any proposal content is compared.
+    #[test]
+    fn destination_inside_the_run_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_run_relocation(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                SUM,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            RunRelocationError::UnsupportedPair
+        );
+    }
+}

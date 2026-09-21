@@ -27,6 +27,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -40,6 +41,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
                     }],
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_038).unwrap(),
                         target: exit,
@@ -50,6 +52,7 @@ pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUni
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: exit,
                     parameters: vec![declaration(forwarded)],
@@ -89,6 +92,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: caller_entry,
                 parameters: Vec::new(),
@@ -98,6 +102,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
                     result: OperationResult::Scalar(boolean(call_result)),
                     kind: OperationKind::Call {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         callee,
                         arguments: Vec::new(),
                         requirement_obligations: Vec::new(),
@@ -106,6 +111,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_609).unwrap(),
                     target: caller_exit,
@@ -116,6 +122,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: caller_exit,
                 parameters: vec![boolean(forwarded)],
@@ -146,6 +153,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         entry: callee_entry,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: callee_entry,
             parameters: Vec::new(),
@@ -163,6 +171,7 @@ pub(super) fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationU
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(1_616).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

@@ -8,30 +8,29 @@ use package_evidence::{project_checked_calling_policy, record::PackagePolicyCall
 use support::*;
 
 fn policy(declaration: &str) -> PackagePolicyCallingPlan {
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(5)
-        .unwrap();
     let fixture = fs::read_to_string(
-        repository.join("source/library/std/tests/direct_callback_parameter.omg"),
+        repository_root().join("source/library/std/tests/direct_callback_parameter.omg"),
     )
     .unwrap();
+    // `use calling` would import the now-public standard `calling` module,
+    // colliding with the package-local copy written beside main.omg.
     let prefix = fixture
         .split_once("boundary trait HookProcedure:")
         .unwrap()
-        .0;
+        .0
+        .replace("use calling;\n", "");
     let package = TempPackage::new();
-    package.write("main.omg", &format!("{prefix}\n{declaration}"));
     package.write(
-        "calling.omg",
-        &fs::read_to_string(repository.join("source/library/std/calling.omg")).unwrap(),
+        "main.omg",
+        &format!("{prefix}\n{declaration}")
+            .replace("use calling;", "use omega_language_std::calling;"),
     );
     package.write(
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
+        package_inputs: Some(package_inputs_with_std(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
     .expect("calling lifetime fixture checks");

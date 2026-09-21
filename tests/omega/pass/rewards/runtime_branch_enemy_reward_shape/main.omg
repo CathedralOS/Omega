@@ -16,15 +16,18 @@ data RandomState {}
 data Main {
 }
 
-machine Main::main(
-    &mut self,
-    enemy: Enemy,
-    random: &mut RandomState,
-    reward: &mut Reward
-) {
-    transition self.chance(random, 1, 4) {
-        true -> enemy_item(enemy, random, reward)
-        false -> enemy_gold(enemy, random, reward)
+machine Main::main(&mut self) {
+    let enemy: Enemy = Enemy { depth: 3 };
+    let mut random: RandomState = RandomState {};
+    let mut reward: Reward = Reward {
+        kind: RewardKind::Gold,
+        gold: 0,
+        item: ItemKind::RustedDagger
+    };
+
+    transition self.chance(&mut random, 1, 4) {
+        true -> enemy_item(enemy, &mut random, &mut reward)
+        false -> enemy_gold(enemy, &mut random, &mut reward)
     }
     
 

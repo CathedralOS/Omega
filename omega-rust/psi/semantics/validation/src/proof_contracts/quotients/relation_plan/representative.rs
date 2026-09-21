@@ -107,17 +107,15 @@ pub(super) fn representative_machine_state(
 /// Progress-profile premises are observable admission dependencies and cannot
 /// be silently discharged by the initial quotient wrapper.
 pub(super) fn unconditional_representative_termination(
-    program: &TypedTrees,
+    termination: &dyn crate::proof_contracts::quotients::CheckedTerminationOracle,
     representative: &RepresentativeTelescope,
 ) -> Option<RepresentativeTermination> {
-    crate::machine_calls::denotational_calls::unconditionally_terminates(
-        program,
-        representative.machine_symbol,
-    )
-    .then_some(RepresentativeTermination {
-        machine_symbol: representative.machine_symbol,
-        state_symbol: representative.state_symbol,
-    })
+    termination
+        .unconditionally_terminates(representative.machine_symbol)
+        .then_some(RepresentativeTermination {
+            machine_symbol: representative.machine_symbol,
+            state_symbol: representative.state_symbol,
+        })
 }
 
 /// Consume the shared whole-program operational and service-reach fixed points

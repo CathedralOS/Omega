@@ -233,6 +233,9 @@ pub(crate) fn decode_projected_qualifications(
 ) -> Result<Vec<StructuralPathQualification>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralQualifications)?;
+    if count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut qualifications = Vec::with_capacity(count);
     for _ in 0..count {
         qualifications.push(StructuralPathQualification {

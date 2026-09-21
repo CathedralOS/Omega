@@ -194,6 +194,9 @@ fn authored_declaration_selection_intrinsic_name(
         Intrinsic::WireEncode => ("wire_encode", None),
         Intrinsic::WireDecode => ("wire_decode", None),
         Intrinsic::InlineAssemblyOperation => ("inline_assembly_operation", None),
+        Intrinsic::ProofView => ("proof_view", None),
+        Intrinsic::QuotientDefine => ("quotient_define", None),
+        Intrinsic::QuotientLift => ("quotient_lift", None),
     }
 }
 

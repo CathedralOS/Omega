@@ -6,14 +6,14 @@ use omega::language::core::service;
 // the runtime edge owned by `drive_uefi_os_handoff_cycle` — acquire or grow
 // map storage, retain the freshest snapshot/key, retry a stale key under a
 // decreasing explicit bound, and transfer custody only on a successful exit.
-// Custody storage lives on the `UefiOsHandoffLegs` record bound beneath the
+// Custody storage lives on the `UefiOsHandoffCycle` record bound beneath the
 // entry frame: the adapter establishes the Boot Services table base and image
 // handle, the stale-key bound and exhaustion status are the target-authored
-// constants below, and every firmware-written cell is a leg field the
-// boundary machines borrow in place. The scalar-returning calls live on the
-// legs because the checked Unit surface does not yet admit boundary scalar
-// results across state edges; the cycle reads each leg's retained `status`
-// and owns the bounded-retry policy.
+// constants below, and every firmware-written cell is a record field the
+// boundary machines borrow in place. The scalar-returning calls live on
+// per-leg `boundary machine`s because the checked Unit surface does not yet
+// admit boundary scalar results across state edges; the cycle reads each
+// leg's retained `status` and owns the bounded-retry policy.
 //
 // Success never returns — Boot Services custody is consumed and control
 // transfers into the loaded image's entry — and bounded stale-key exhaustion
@@ -162,34 +162,16 @@ uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::transfer_to_entry()
 uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status: u64)
     satisfies UefiOsHandoffTermination::firmware_return;
 
-// The authored cycle's terminal-stage carrier: one provider per record keeps
-// each machine inside the single-carrier admission shape.
-pub data UefiOsHandoffTerminal {
-    termination: Service<UefiOsHandoffTermination>;
-}
-
-pub machine UefiOsHandoffTerminal::firmware_return(&mut self, status: u64)
-    reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination;
-{
-    self.termination.firmware_return(status);
-}
-
-pub machine UefiOsHandoffTerminal::transfer(&mut self)
-    reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination;
-{
-    self.termination.transfer();
-}
-
-// The bound handoff cycle's custody storage and Boot Services carrier.
-// `table`/`image` are the adapter-established Boot Services table base and
-// image handle (carried as `u64` addresses, the leaf ABI width); `map`,
-// `map_capacity`, and `map_pages` are the retained map-buffer allocation;
-// `next_map`/`pages` stage a grown buffer until its adoption is certain;
-// `map_size`, `key`, `descriptor_size`, and `descriptor_version` carry the
-// freshest firmware snapshot evidence; and `status` is the last status each
-// leg's firmware call produced.
+// The cycle's Boot Services carrier and custody storage. A record's attached
+// machines are admitted only while the record holds a single provider-backed
+// field, so the termination carrier is a sibling record rather than a second
+// `Service` here. `table`/`image` are the adapter-established Boot Services
+// table base and image handle (carried as `u64` addresses, the leaf ABI
+// width); `map`, `map_capacity`, and `map_pages` are the retained map-buffer
+// allocation; `next_map`/`pages` stage a grown buffer until its adoption is
+// certain; `map_size`, `key`, `descriptor_size`, and `descriptor_version`
+// carry the freshest firmware snapshot evidence; and `status` is the last
+// status each leg's firmware call produced.
 pub data UefiOsHandoffLegs {
     boot_services: Service<UefiBootServices>;
     table: u64;
@@ -218,17 +200,13 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::acquire(&mut self)
     self.map_size = self.map_capacity;
     let table_in: u64 = self.table;
     let map_in: u64 = self.map;
-    let map_size_out: &mut u64 = &mut self.map_size;
-    let key_out: &mut u64 = &mut self.key;
-    let descriptor_size_out: &mut u64 = &mut self.descriptor_size;
-    let descriptor_version_out: &mut u32 = &mut self.descriptor_version;
     let status_out: u64 = self.boot_services.get_memory_map(
         table_in,
-        map_size_out,
+        &mut self.map_size,
         map_in,
-        key_out,
-        descriptor_size_out,
-        descriptor_version_out
+        &mut self.key,
+        &mut self.descriptor_size,
+        &mut self.descriptor_version
     );
     self.status = status_out;
 }
@@ -241,13 +219,12 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::grow(&mut self)
 {
     let table_in: u64 = self.table;
     let pages_in: u64 = self.pages;
-    let next_map_out: &mut u64 = &mut self.next_map;
     let status_out: u64 = self.boot_services.allocate_pages(
         table_in,
         EFI_ALLOCATE_ANY_PAGES,
         EFI_LOADER_DATA,
         pages_in,
-        next_map_out
+        &mut self.next_map
     );
     self.status = status_out;
 }
@@ -277,15 +254,84 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::attempt_exit(&mut self)
     self.status = status_out;
 }
 
+// The authored cycle's terminal-stage carrier: one provider per record keeps
+// each machine inside the single-carrier admission shape.
+pub data UefiOsHandoffTerminal {
+    termination: Service<UefiOsHandoffTermination>;
+}
+
+pub machine UefiOsHandoffTerminal::firmware_return(&mut self, status: u64)
+    reaches UefiOsHandoffTermination
+    invokes UefiOsHandoffTermination;
+{
+    self.termination.firmware_return(status);
+}
+
+pub machine UefiOsHandoffTerminal::transfer(&mut self)
+    reaches UefiOsHandoffTermination
+    invokes UefiOsHandoffTermination;
+{
+    self.termination.transfer();
+}
+
 // The bound handoff cycle: the legs record performs every scalar-returning
 // Boot Services call, and this state graph owns the bounded retry policy —
 // `map` custody, the freshest snapshot/key, the stale-key `remaining` bound,
 // and the terminal edges on `terminal`.
+//
+// The cyclic-custody envelope admits only the bare persistent `&mut self`
+// receiver with empty structural paths, so calls out of the cycle must not
+// name `self.legs`/`self.terminal` receivers directly. Each leg and terminal
+// machine gains a thin acyclic forwarder on this record; projected receivers
+// are legal inside the acyclic forwarding bodies, and field reads/writes
+// through `self.legs.*`/`self.terminal.*` stay admitted inside the cycle.
 pub data UefiOsHandoffCycle {
     legs: UefiOsHandoffLegs;
     terminal: UefiOsHandoffTerminal;
     remaining: u64;
     exhaustion: u64;
+}
+
+machine UefiOsHandoffCycle::acquire(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    self.legs.acquire();
+}
+
+machine UefiOsHandoffCycle::grow(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    self.legs.grow();
+}
+
+machine UefiOsHandoffCycle::free_map(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    self.legs.free_map();
+}
+
+machine UefiOsHandoffCycle::attempt_exit(&mut self)
+    reaches UefiBootServices
+    invokes UefiBootServices;
+{
+    self.legs.attempt_exit();
+}
+
+machine UefiOsHandoffCycle::firmware_return(&mut self, status: u64)
+    reaches UefiOsHandoffTermination
+    invokes UefiOsHandoffTermination;
+{
+    self.terminal.firmware_return(status);
+}
+
+machine UefiOsHandoffCycle::transfer(&mut self)
+    reaches UefiOsHandoffTermination
+    invokes UefiOsHandoffTermination;
+{
+    self.terminal.transfer();
 }
 
 // The authored bounded handoff cycle, the source route of
@@ -295,7 +341,7 @@ pub data UefiOsHandoffCycle {
 // map-acquisition leg that refreshes the retained snapshot and key without
 // spending a stale-key attempt; `attempt_exit`/`exit_rejected`/`retry`/
 // `split_rejection`/`split_exhaustion` form the outer bounded leg. Every rejecting stage performs
-// the firmware return with the live custody still on `legs`; `complete`
+// the firmware return with the live custody still on this record; `complete`
 // is the nonreturning transfer.
 pub machine UefiOsHandoffCycle::run(&mut self)
     reaches UefiBootServices + UefiOsHandoffTermination
@@ -313,7 +359,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     }
 
     state acquire(&mut self) {
-        self.legs.acquire();
+        self.acquire();
         transition { _ -> acquired() }
     }
 
@@ -342,7 +388,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
         let required: u64 = (self.legs.map_size as u64 in Saturating)
             + (EFI_PAGE_BYTES - 1);
         self.legs.pages = required / EFI_PAGE_BYTES;
-        self.legs.grow();
+        self.grow();
         transition { _ -> release() }
     }
 
@@ -361,7 +407,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     }
 
     state free(&mut self) {
-        self.legs.free_map();
+        self.free_map();
         transition { _ -> adopt() }
     }
 
@@ -376,7 +422,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // A successful acquire attempted no exit yet; the freshest `key` on the
     // legs record is the snapshot the exit leg presents.
     state attempt_exit(&mut self) {
-        self.legs.attempt_exit();
+        self.attempt_exit();
         transition { _ -> exit_rejected() }
     }
 
@@ -413,21 +459,21 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // The live leg status is not an admitted rejection: the invocation's
     // firmware return carries it with the retained custody intact.
     state reject_status(&mut self) {
-        self.terminal.firmware_return(self.legs.status);
+        self.firmware_return(self.legs.status);
         transition { _ -> reject_status() }
     }
 
     // Stale-key bound spent: the invocation's firmware return carries the
     // target-authored exhaustion status.
     state exhausted(&mut self) {
-        self.terminal.firmware_return(self.exhaustion);
+        self.firmware_return(self.exhaustion);
         transition { _ -> exhausted() }
     }
 
     // Boot Services consumed: the compiler-owned transfer enters the loaded
     // image's entry and never returns to this cycle.
     state complete(&mut self) {
-        self.terminal.transfer();
+        self.transfer();
         transition { _ -> complete() }
     }
 }
