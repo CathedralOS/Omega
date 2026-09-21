@@ -10429,6 +10429,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   dependency gate is what holds: the leg cannot start until
   RUNTIME-VALUE-GENERICS lands the value-binder machinery the roster
   membership proof runs on — still an open row with no live claim.
+  Re-verified holding at `90df29812c` (linux x86-64): RUNTIME-VALUE-GENERICS
+  remains an open row (its `monomorphization/` remaining-work bullets still
+  list contract/qualification preservation and native call/storage routes);
+  no live claim fences `dynamic_scalar_calls/` or
+  `monomorphization/dynamic_families.rs` — the current GENERIC-* claims cover
+  preparation equations, draft prose, pass-corpus tests, and
+  terminal-verifier call-graph validation, none of which implement this leg.
+  The dependency gate still holds: no independent slice.
 - **GENERIC-VIRTUAL-DISPATCH.** Resolved — scope verified: sibling
   re-mine of the same GENERIC-VIRTUAL-CALLS bullet (recorded in its
   sibling-stub roster above) — a `Value` argument proven a roster
