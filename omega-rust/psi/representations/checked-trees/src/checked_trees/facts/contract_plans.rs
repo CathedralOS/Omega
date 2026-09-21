@@ -158,10 +158,19 @@ impl MachineContractPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineContractPlan {
     pub machine: SymbolHandle,
-    /// Source-handle-free projection of authored value clauses into the
-    /// closed reflexive scalar equality subset. An unrecognized clause is
-    /// retained as `None`, so consumers fail closed without reopening typed
-    /// proof expressions.
+    /// Projection of unbound requires/ensures clauses into the closed
+    /// scalar vocabulary, free of source handles: reflexive `==` literal
+    /// values (`Boolean`/`Integer`), `Predicate`s over the entry scalar
+    /// parameters (an ensures clause may also name the result),
+    /// requires-tail `FloatRange` windows, and ensures-only
+    /// `FloatMeaningEquality` rows — the one shape that retains its typed
+    /// `==` expression handle until the lowering rejoin resolves it. A
+    /// derived parameter-range tail follows the authored requires prefix.
+    /// An unbound clause outside the vocabulary keeps its row as `None`,
+    /// so consumers fail closed without reopening typed proof expressions.
+    /// Named-witness lanes produce no row at all — the evidence contract
+    /// plan checks them — and crash or outcome-specific clauses only set
+    /// the plan's `has_*` flags.
     pub closed_scalar_values: ClosedScalarValueContractPlan,
     /// Canonical published crash ceiling plus independent checked body sites.
     /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
