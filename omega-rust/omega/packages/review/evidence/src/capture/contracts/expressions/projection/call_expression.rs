@@ -82,6 +82,15 @@ pub(super) fn project_call_expression(
             }
             Vec::new()
         }
+        PackageReviewContractCallTarget::ProofView { .. } => {
+            if !call.machine_arguments.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` supplies static arguments to a compiler-owned proof view",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            Vec::new()
+        }
     };
     if call.quotient_operation.is_some() {
         return Err(vec![Diagnostic::error(format!(

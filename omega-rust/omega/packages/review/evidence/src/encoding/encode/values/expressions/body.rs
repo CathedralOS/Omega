@@ -306,6 +306,10 @@ pub(super) fn encode_contract_expression_body(
                             Ok(())
                         })?;
                     }
+                    PackageReviewContractCallTarget::ProofView { name } => {
+                        encoder.tag("proof_view", 4);
+                        encoder.field("name", |encoder| encoder.string(name))?;
+                    }
                 };
                 Ok(())
             })?;

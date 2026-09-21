@@ -71,7 +71,7 @@ machine exercise() {
         );
         assert_eq!(row.compiler_intrinsic_builtin(), None);
         assert_eq!(
-            row.realization().path(),
+            row.realization().expect("authored row realization").path(),
             realization,
             "the authored realization nominal remains independent of compiler execution identity",
         );
@@ -234,7 +234,10 @@ pub machine FloatProvider::from_f64(value: f64) -> f32
         ),
     );
     assert_eq!(row.compiler_intrinsic_builtin(), None);
-    assert_eq!(row.realization().path(), "FloatProvider::from_f64");
+    assert_eq!(
+        row.realization().expect("authored row realization").path(),
+        "FloatProvider::from_f64"
+    );
 
     let selected_provider_row = review
         .canonical_rows()
@@ -314,7 +317,9 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
             let realization = format!("FloatProvider::{name}_{primitive}");
             let row = rows
                 .iter()
-                .find(|row| row.realization().path() == realization)
+                .find(|row| {
+                    row.realization().map(|identity| identity.path()) == Some(realization.as_str())
+                })
                 .unwrap_or_else(|| panic!("missing selected provider row for {realization}"));
             assert_eq!(
                 row.compiler_intrinsic_execution(),
@@ -521,7 +526,10 @@ machine exercise() {
             )),
             "{species}: the closed execution identity is the same",
         );
-        assert_eq!(row.realization().path(), "FloatProvider::negate_f32");
+        assert_eq!(
+            row.realization().expect("authored row realization").path(),
+            "FloatProvider::negate_f32"
+        );
 
         let [application] = review.boundary_application_realizations() else {
             panic!("{species}: exactly one D29 application-realization row")
