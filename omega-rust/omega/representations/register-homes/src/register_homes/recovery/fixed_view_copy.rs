@@ -170,6 +170,8 @@ pub enum FixedViewCopyDecodeError {
     UnknownMachineRegime(u8),
     UnknownEntryStack(u8),
     UnknownPreemption(u8),
+    UnknownMachineFunctionKind(u8),
+    InvalidMachineFunctionIdentity,
     InvalidMachineStateSet(u16),
     UnknownForeignScalarSource(u8),
     InvalidSameStackContribution,
