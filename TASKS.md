@@ -11125,14 +11125,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
   two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
   returned-view frontier and the [conformances](wiki/spec/language/conformances.md)
-  application-matching boundary. Multi-source leg:
+  application-matching boundary. Multi-source leg (landed at `9106b1ca037`
+  upstream and `2d0de49fe8a8` on the z148 lane):
   `typed-trees-to-checked-trees/src/borrow/view_link.rs` maps an explicit
-  result lifetime to one input parameter plus its complete matching
-  structural leaves; reusing one lifetime on multiple input parameters
-  currently rejects and is not a general multiple-source relation
-  (README#lifetime-source-correspondence). Implementing it means every
-  parameter carrying the selected lifetime contributes its leaves as
-  possible sources, each supporting the returned access. Outlives leg:
+  result lifetime to EVERY input parameter carrying it — direct reference
+  parameters and structurally carried leaves alike — each contributing its
+  matching leaves as possible sources of the returned view and each required
+  to supply the result's access (`IncompatibleSourceAccess` still rejects a
+  restricted sibling). The shared resolver feeds the declaration check and
+  the loan attributor unchanged: multi-source signatures resolve to
+  `ViewReturnSource::Fields` with one field per (result leaf x matching input
+  leaf), and the existing per-field loan path tracks each contributing
+  source, so writing any candidate while the view is live rejects
+  (`borrow/` multi_source_* canaries on the z148 lane). Elision stays
+  single-source: unannotated multiple candidates still reject as
+  `ElidedMultipleInputs`. Outlives leg:
+
   general authored outlives bounds have no surface — lifetimes.md spells
   binders only, conformances.md states whole-conformance applications do
   not gain outlives/variance/subtyping and introducing them requires
@@ -11145,6 +11153,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DYNAMIC-RECEIVER-LOAN-ORIGIN 01:47Z expired unworked). Sibling rows
   LIFETIME-SOURCE-CORRESPONDENCE and GENERIC-RETURNED-VIEW-LIFETIMES record
   the same clause family and the same residual pair.
+||||||| parent of 2d0de49fe8a83 (borrow: explicit result lifetime links every matching input as a possible source)
+  binders only, conformances.md states whole-conformance applications do
+  not gain outlives/variance/subtyping and introducing them requires
+  revisiting the application-matching rule; there is no authored syntax or
+  semantics to implement, so that leg waits on a spec decision, not a
+  checker gap. Dispatch note (`669925b8b9`): the multi-source surface is
+  fenced — `view_link.rs`, `view_link/`, `loans.rs` under
+  GENERIC-RETURNED-VIEW-LIFETIMES (22:27Z) and `checks/borrows/` under
+  DYNAMIC-RECEIVER-LOAN-ORIGIN (01:47Z); sibling row
+  LIFETIME-SOURCE-CORRESPONDENCE is the same clause family and is itself
+  claimed (01:51Z).
+  The two stale reject-expectation pins the earlier residual named
+  (`carrier_result_ambiguous_inputs_and_access_escalation_reject`,
+  `direct_result_rejects_ambiguity_between_owned_and_direct_inputs`) and
+  the retired `LifetimeMatchesMultipleInputs` variant plus its elision
+  diagnostic arm are drained on both lanes (upstream `9106b1ca037`,
+  z148 `2d0de49fe8a8`).
 - **LIFETIME-SOURCE-CORRESPONDENCE.** Scope verified on `8ccd793fa8` — re-mine
   of the same clause family as sibling GENERIC-RETURNED-VIEW-LIFETIMES
   (annotated dispatch above). `borrow/view_link.rs` ("Lifetimes stage 2")
