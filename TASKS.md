@@ -9219,6 +9219,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `ensure_write_roots`, so no separate window exists to close there either;
   a concrete admission-phase surface would need a new finding.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY.** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
+- **HOSTED-PLATFORM-RUN-MATRIX.** Resolved — covered by owned sibling
+  rows. The name re-mines the [required platform
+  runs](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
+  hosted matrix: four runner rows (linux_x86_64, linux_arm64,
+  macos_arm64, windows_x86_64) whose emitted products must execute on
+  matching hosts before the release contract closes. Verified at
+  `e7c0099cb2b7` (linux x86-64, ~06:35Z Sep 21): the only prior board
+  mention was inside RC-PLATFORM-RUN-RECORDS's sibling tail (:10503),
+  and no independent slice is claimable — the record substrate
+  (`tools/release/release_record.py`, `tools/release/records`,
+  `tools/release_matrix.py`) is fenced to RC-HOST-RUNNER-LANES
+  (~07:56Z), the contract doc itself was foreign-fenced to
+  RC-PLATFORM-RUNNER-COVERAGE when claimed (~14:19Z), and the per-host
+  rows are separately owned: linux_x86_64 under
+  RC-NATIVE-MATRIX-LINUX-X86-64 (~11:30Z; witnessed red-but-real at
+  `a0b906db93` in the doc's recorded table), linux_arm64 under
+  RC-NATIVE-MATRIX-LINUX-ARM64 (~07:03Z; cross-compile only from this
+  lane), windows_x86_64 under RC-WINDOWS-X64-NATIVE-ROW (~08:36Z),
+  macos_arm64 under the RC-NATIVE-MATRIX-MACOS-ARM64 row (Codex
+  cluster lineage), with host coordination under RC-NATIVE-MATRIX-HOSTS
+  (~09:43Z) and closure under RC-NATIVE-MATRIX-CLOSURE (~08:06Z) /
+  RC-RELEASE-RECORD-AND-CLOSURE (~14:26Z). The matrix stays
+  structurally open per the doc's closure rule — all four matching-host
+  runs must be recorded and three hosts are unavailable from this lane.
+  Folds into RC-PLATFORM-RUN-RECORDS; dispatch a re-mine there.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
   span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
   (verified `14e6f8f72e`). Verified at `96b4afed92e5`: every intrinsic
