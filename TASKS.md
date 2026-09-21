@@ -10562,11 +10562,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is exhaustive over `Architecture`. This wrapper lane is the one place that
   hard-codes x86-64.
 
-  Decide first whether an AArch64 semantic unit wrapper template is owed at
-  all — check the wrapper's spec text before writing an encoder, since the
-  clean refusal may be the intended contract for non-x86 hosts. If it is
-  owed, give the lane an `Architecture` switch and an AArch64 template beside
-  the x86-64 one.
+  An AArch64 template is owed; that question is settled, so start from the
+  encoder rather than re-deciding it. The lane's own module doc calls this
+  the "target-owned semantic ProgramStorage wrapper", and
+  [entry roots](wiki/spec/build/entry_roots.md) frames the whole surface as
+  per-target — a "target-authored bootstrap adapter and physical result map",
+  with "the exact target adapter" validating the environment's physical
+  values. A lane that hard-codes one ISA's encoder contradicts that. Both
+  AArch64 targets reach it: `ProgramStorageEntry` is declared in
+  `source/library/std/targets/linux_arm64/entry.omg` and
+  `.../macos_arm64/entry.omg`, alongside the x86-64 and UEFI targets. Give
+  the lane an `Architecture` switch and an AArch64 template beside the
+  x86-64 one.
 
   Acceptance: either the lane selects a template per architecture and an
   AArch64 host encodes its own wrapper, with a test pinning both ISAs; or the
