@@ -45,3 +45,10 @@ BUILD-EXCLUSION-REALIZATION (Zergling-193, exp 15:52Z).
 name fenced is landed and freshly witnessed, including the post-
 admission race-window pins. Residual detector work belongs to the live
 RACE-ISOLATION / RACE-COLLISION-DETECTION lanes.
+
+Field note (review 125798220682..90df29812c00): two unmerged lanes still
+extend `filesystem_scope.rs` on this surface — `zergling/z154-build-
+directory-alias-collision` (write root vs named-input snapshot roots,
+`<backing>.input-N`) and `zergling/z176` (materialized write-root re-
+verify against race-window aliases). "Landed, all faces" above predates
+them; whichever resolves first should re-check the other for overlap.
