@@ -805,3 +805,187 @@ fn sealed_ranking_view_signature_that_drifts_from_its_row_rejects() {
         );
     }
 }
+
+mod package_ownership {
+    //! A closed direct family is published only by its semantic-home owner's
+    //! package: a `machine <token>` binding whose attached home, home domain,
+    //! or any declared operand type belongs to another package rejects at its
+    //! own declaration.
+
+    use super::{Lexer, SymbolResolvedTrees, resolve_source};
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source::{DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
+
+    /// `(root, filename, text, package marker)`; one marker is one package.
+    fn resolve_packaged_sources(
+        members: &[(&str, &str, &str, u8)],
+    ) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+        let mut sources = SourceMap::default();
+        for (root, filename, text, marker) in members {
+            sources.add_checked_instance(
+                PathBuf::from(root).join(filename),
+                (*text).to_owned(),
+                PathBuf::from(root),
+                PackageKeyIdentity::from_digest([*marker; 32]),
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            );
+        }
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        for file in sources.files() {
+            let tokens = Lexer::new(&file.source).tokenize().expect("tokens");
+            syntax
+                .extend_from(&parse_syntax_trees_with_id(file.source_id, &tokens).expect("syntax"));
+        }
+        crate::resolve(crate::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn free_binding_over_foreign_data_rejects_at_its_declaration() {
+        let diagnostics = resolve_packaged_sources(&[
+            (
+                "owner",
+                "wrap.omg",
+                "module wrap; pub data Wrap { value: u64; }",
+                1,
+            ),
+            (
+                "intruder",
+                "intruder.omg",
+                "module intruder; use wrap;
+                 machine + add(left: wrap::Wrap, right: wrap::Wrap) -> wrap::Wrap { left }",
+                2,
+            ),
+        ])
+        .expect_err("a foreign family's free binding rejects at declaration");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "`add` binds the fixed operator token `+` into a closed family through the \
+                 operand declaration `wrap::Wrap`, which another package owns"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn attached_binding_to_foreign_data_rejects_at_its_declaration() {
+        let diagnostics = resolve_packaged_sources(&[
+            (
+                "owner",
+                "wrap.omg",
+                "module wrap; pub data Wrap { value: u64; }",
+                1,
+            ),
+            (
+                "intruder",
+                "intruder.omg",
+                "module intruder; use wrap;
+                 machine + wrap::Wrap::add(left: wrap::Wrap, right: wrap::Wrap) -> wrap::Wrap { left }",
+                2,
+            ),
+        ])
+        .expect_err("attaching to a foreign type injects into its package's family");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "`wrap::Wrap::add` binds the fixed operator token `+` into a closed family \
+                 through the attached declaration `wrap::Wrap`, which another package owns"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn mixed_package_operands_reject_on_the_foreign_home() {
+        let diagnostics = resolve_packaged_sources(&[
+            (
+                "owner",
+                "wrap.omg",
+                "module wrap; pub data Wrap { value: u64; }",
+                1,
+            ),
+            (
+                "intruder",
+                "intruder.omg",
+                "module intruder; use wrap; data Local { value: u64; }
+                 machine + mix(left: Local, right: wrap::Wrap) -> Local { left }",
+                2,
+            ),
+        ])
+        .expect_err("owning one operand grants no authority over the other's family");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("`wrap::Wrap`")),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn same_package_members_across_files_share_the_family() {
+        resolve_packaged_sources(&[
+            (
+                "pkg",
+                "wrap.omg",
+                "module wrap; pub data Wrap { value: u64; }",
+                1,
+            ),
+            (
+                "pkg",
+                "ops.omg",
+                "module ops; use wrap;
+                 machine + wrap::Wrap::add(left: wrap::Wrap, right: wrap::Wrap) -> wrap::Wrap { left }
+                 machine - combine(left: wrap::Wrap, right: u64) -> u64 { right }",
+                1,
+            ),
+        ])
+        .expect("one package may publish both attached and free bindings over its own types");
+    }
+
+    #[test]
+    fn free_binding_over_foreign_domain_rejects() {
+        let diagnostics = resolve_packaged_sources(&[
+            ("owner", "wrap.omg", "module wrap; pub domain u8::Level;", 1),
+            (
+                "intruder",
+                "intruder.omg",
+                "module intruder; use wrap;
+                 machine + add(left: u8 in Level, right: u8) -> u64 { 0u64 }",
+                2,
+            ),
+        ])
+        .expect_err("a foreign domain's constraint names its owning family");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "into a closed family through the operand declaration `wrap::u8::Level`, which \
+                 another package owns"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn unmanaged_sources_keep_the_owner_local_rule() {
+        // Sources without package identity cannot prove a foreign owner; the
+        // existing owner-local check still applies and nothing new rejects.
+        resolve_source(
+            "data Vec2 { x: u64; y: u64; }
+             machine + Vec2::add(left: Vec2, right: Vec2) -> Vec2 { left }
+             machine - combine(left: Vec2, right: u64) -> u64 { right }",
+        )
+        .expect("source-free packages stay owner-local");
+    }
+}

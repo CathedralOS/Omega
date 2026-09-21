@@ -266,11 +266,15 @@ fn boundary_call_ensures_bound(
             }
             _ => None,
         })?;
-    let TypeReferenceNode::Named {
-        name: trait_name, ..
-    } = program.type_reference_table.type_reference(field_type)
-    else {
-        return None;
+    let mut type_node = program.type_reference_table.type_reference(field_type);
+    let trait_name = loop {
+        match type_node {
+            TypeReferenceNode::Named { name, .. } => break name,
+            TypeReferenceNode::Reference { referee, .. } => {
+                type_node = program.type_reference_table.type_reference(*referee);
+            }
+            _ => return None,
+        }
     };
     let trait_definition = program
         .traits()
@@ -627,5 +631,208 @@ fn symbolic_expression_bound(
     match side {
         BoundSide::Upper => symbolic_param_upper_bound(program, machine, source, expression, depth),
         BoundSide::Lower => symbolic_param_lower_bound(program, machine, source, expression, depth),
+    }
+}
+
+/// One operand's inclusive bound: a literal at its value, a place's
+/// declared range / per-edge meet through the symbolic walk, or (for the
+/// upper side) a recursively composed composite expression.
+fn offset_operand_bound(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    operand: ExpressionHandle,
+    side: BoundSide,
+) -> Option<i64> {
+    // Composite operands bound through the structural walk FIRST: a
+    // declared type range on the arithmetic result is far looser than the
+    // composed operand bounds.
+    if side == BoundSide::Upper
+        && matches!(
+            program.expression_table.expression(operand),
+            ExpressionNode::Binary(_)
+        )
+        && let Some(composite) = composite_offset_upper_bound(program, machine, state, operand)
+    {
+        return Some(composite);
+    }
+    symbolic_expression_bound(program, machine, state, operand, SYMBOLIC_BOUND_DEPTH, side)
+}
+
+/// An inclusive UPPER bound for a COMPUTED offset expression (`k * 2`,
+/// `k * stride + base`) composed from boundable leaves -- the gap-4b bound
+/// walk applied to the offset syntax itself rather than to a guard. The
+/// composite is sound only where it cannot wrap below the claimed bound:
+/// Multiply and ShiftLeft require nonnegative operand floors (checked ops
+/// keep an overflowing result unproven), and Subtract additionally requires
+/// the left floor to dominate the right ceiling so wrapping underflow
+/// cannot produce a value above the bound. Anything else stays unproven.
+pub(super) fn composite_offset_upper_bound(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    use typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return offset_operand_bound(program, machine, state, expression, BoundSide::Upper);
+    };
+    match binary.operator {
+        BinaryOperator::Add => {
+            offset_operand_bound(program, machine, state, binary.left, BoundSide::Upper)?
+                .checked_add(offset_operand_bound(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    BoundSide::Upper,
+                )?)
+        }
+        BinaryOperator::Subtract => {
+            let left_floor =
+                offset_operand_bound(program, machine, state, binary.left, BoundSide::Lower)?;
+            let right_ceiling =
+                offset_operand_bound(program, machine, state, binary.right, BoundSide::Upper)?;
+            if left_floor < right_ceiling {
+                return None;
+            }
+            offset_operand_bound(program, machine, state, binary.left, BoundSide::Upper)?
+                .checked_sub(offset_operand_bound(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    BoundSide::Lower,
+                )?)
+        }
+        BinaryOperator::Multiply => {
+            let left_floor =
+                offset_operand_bound(program, machine, state, binary.left, BoundSide::Lower)?;
+            let right_floor =
+                offset_operand_bound(program, machine, state, binary.right, BoundSide::Lower)?;
+            if left_floor < 0 || right_floor < 0 {
+                return None;
+            }
+            offset_operand_bound(program, machine, state, binary.left, BoundSide::Upper)?
+                .checked_mul(offset_operand_bound(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    BoundSide::Upper,
+                )?)
+        }
+        BinaryOperator::ShiftLeft => {
+            let left_floor =
+                offset_operand_bound(program, machine, state, binary.left, BoundSide::Lower)?;
+            if left_floor < 0 {
+                return None;
+            }
+            let ExpressionNode::Integer(shift) = program.expression_table.expression(binary.right)
+            else {
+                return None;
+            };
+            let factor = 1i64.checked_shl(shift.value_i64()?.try_into().ok()?)?;
+            offset_operand_bound(program, machine, state, binary.left, BoundSide::Upper)?
+                .checked_mul(factor)
+        }
+        _ => None,
+    }
+}
+
+/// Prove `expression ≡ 0 (mod modulus)` for a runtime offset expression --
+/// the congruence half of the interior-slice tiling proof. Residues compose
+/// structurally: a literal multiple; a product with one zero-residue
+/// factor; a sum or difference of two zero-residue operands; a left shift
+/// by enough bits that `2^n ≡ 0`; a place whose declared interval
+/// collapses to a single multiple. Anything else stays unproven.
+///
+/// Caller contract: this is only consulted after the offset's proven upper
+/// bound lands below the source region, so the composed value is small
+/// enough that no operand can wrap past it -- the residue arithmetic is
+/// exact, not modular.
+pub(super) fn offset_expression_is_multiple_of(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    modulus: usize,
+) -> bool {
+    use typed_trees::expression::BinaryOperator;
+    if modulus < 2 {
+        return false;
+    }
+    let modulus = modulus as i64;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal
+            .value_i64()
+            .is_some_and(|value| value % modulus == 0),
+        ExpressionNode::Binary(binary) => match binary.operator {
+            BinaryOperator::Multiply => {
+                offset_expression_is_multiple_of(
+                    program,
+                    machine,
+                    state,
+                    binary.left,
+                    modulus as usize,
+                ) || offset_expression_is_multiple_of(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    modulus as usize,
+                )
+            }
+            BinaryOperator::Add | BinaryOperator::Subtract => {
+                offset_expression_is_multiple_of(
+                    program,
+                    machine,
+                    state,
+                    binary.left,
+                    modulus as usize,
+                ) && offset_expression_is_multiple_of(
+                    program,
+                    machine,
+                    state,
+                    binary.right,
+                    modulus as usize,
+                )
+            }
+            BinaryOperator::ShiftLeft => {
+                let Some(shift) = ({
+                    let ExpressionNode::Integer(shift) =
+                        program.expression_table.expression(binary.right)
+                    else {
+                        return false;
+                    };
+                    shift.value_i64()
+                }) else {
+                    return false;
+                };
+                (0..=60).contains(&shift) && (1i64 << shift) % modulus == 0
+            }
+            _ => false,
+        },
+        _ => {
+            // A place whose declared interval collapses to one value is a
+            // constant for congruence purposes.
+            let Some(raw) = crate::value_custody::places::declared_place_type_raw(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) else {
+                return false;
+            };
+            let Some(interval) =
+                crate::proof_contracts::arithmetic_domains::range_constraint_interval(program, raw)
+            else {
+                return false;
+            };
+            matches!(
+                (interval.low(), interval.high()),
+                (Some(low), Some(high)) if low == high && low % modulus == 0
+            )
+        }
     }
 }

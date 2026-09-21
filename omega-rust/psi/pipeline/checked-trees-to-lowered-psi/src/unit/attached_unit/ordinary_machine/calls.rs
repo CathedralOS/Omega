@@ -92,6 +92,7 @@ impl MachineEmission<'_> {
         let ordinary_calls::PreparedCall {
             arguments: terminal_scalar_arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments: terminal_arguments,
             claim_transfers,
             requirement_obligations,
@@ -104,6 +105,7 @@ impl MachineEmission<'_> {
             step.evaluated_scalar_arguments.as_deref(),
             &self.scalar_result_values,
             &signatures::find(self.machine_signatures, plan.machine)?.erased_scalar_parameters,
+            &signatures::find(self.machine_signatures, plan.machine)?.erased_proof_parameters,
             self.parameters,
             &self.local_places,
             &self.structural_result_places,
@@ -130,6 +132,7 @@ impl MachineEmission<'_> {
                 ordinary_calls::PreparedCall {
                     arguments: terminal_scalar_arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     structural_arguments: terminal_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -159,6 +162,7 @@ impl MachineEmission<'_> {
             callee: lookup_machine_id(self.machine_ids, *target_machine)?,
             arguments: terminal_scalar_arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments: terminal_arguments,
             claim_transfers,
             requirement_obligations,
@@ -357,6 +361,33 @@ impl MachineEmission<'_> {
             );
             (dense, erased_terms(&erased)?)
         };
+        // Selected-operator callees are builtin and own no proof lane; only a
+        // checked `ScalarCall` records erased proof actuals. Caller `Formal`
+        // occurrences resolve against this machine's erased-proof roster.
+        let erased_proof_arguments = match operation {
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                erased_proof_arguments,
+                ..
+            } => {
+                let caller_proof_parameters =
+                    &signatures::find(self.machine_signatures, plan.machine)?
+                        .erased_proof_parameters;
+                if erased_proof_arguments.len() != target.erased_proof_parameters().len() {
+                    return unsupported("scalar call erased proof roster drifted from its target");
+                }
+                erased_proof_arguments
+                    .iter()
+                    .map(|term| {
+                        crate::scalar_graph::scalar_contracts::checked_proof_term(
+                            checked,
+                            term,
+                            caller_proof_parameters,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?
+            }
+            _ => Vec::new(),
+        };
         if checked
             .facts
             .contract_plans
@@ -473,6 +504,7 @@ impl MachineEmission<'_> {
                 callee,
                 arguments,
                 erased_arguments,
+                erased_proof_arguments,
                 structural_arguments: lower_structural_arguments(
                     structural_arguments,
                     self.parameters,
@@ -496,12 +528,14 @@ impl MachineEmission<'_> {
                 callee,
                 arguments,
                 erased_arguments,
+                erased_proof_arguments,
                 requirement_obligations,
                 crash_continuations,
             }
         };
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id,
             result: terminal_psi::OperationResult::Scalar(value),
             kind,
@@ -648,12 +682,14 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id,
             result: OperationResult::Scalar(value),
             kind: OperationKind::CallStructuralScalar {
                 callee: lookup_machine_id(self.machine_ids, *realization_machine)?,
                 arguments: scalar_arguments,
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: arguments,
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
@@ -784,8 +820,10 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: result_place,
                 structural_type: result_type,
                 multiplicity: StructuralMultiplicity::Affine,
@@ -797,6 +835,7 @@ impl MachineEmission<'_> {
                 callee: lookup_machine_id(self.machine_ids, *realization_machine)?,
                 arguments: scalar_arguments,
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: arguments,
                 claim_transfers: Vec::new(),
                 returned_claim_transfers: Vec::new(),
@@ -900,6 +939,7 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: terminal_psi::OperationResult::Scalar(value),
             kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {

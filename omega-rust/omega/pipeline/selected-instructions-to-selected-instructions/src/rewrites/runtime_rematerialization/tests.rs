@@ -1,19 +1,20 @@
+mod independence_tests;
+
 use super::Arc;
 use crate::RuntimeRematerializationError;
 use crate::RuntimeRematerializationReceipt;
 use crate::ValidatedRuntimeRematerialization;
 use crate::rematerialize_selected_runtime_value;
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use crate::validate_runtime_rematerialization;
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBoundarySettlement, SelectedBoundarySettlementPayload,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedOperand, SelectedSuccessor, SelectedSuccessorRole,
-    SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
+    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -22,43 +23,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-/// Build an instruction from a validated target row, as selection and the
-/// sibling rewrites do: the row supplies the complete operand interface.
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
 
 /// A raw selected-stage unit fixture, not a source/Terminal admission claim.
 /// Register 1 is defined by one `MaterializeI64` and consumed by three copies.
@@ -441,7 +405,7 @@ fn non_materialize_definitions_and_fixed_uses_gain_no_regeneration() {
         .unwrap_err(),
         RuntimeRematerializationError::UnsupportedValue
     );
-    let tiny = OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap();
+    let tiny = measured_step_budget(1);
     assert_eq!(
         rematerialize_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, tiny)
             .unwrap_err(),
@@ -836,7 +800,7 @@ fn validation_budget_covers_the_admission_scan() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     for (source, exact_steps) in [(fixture(target), 13u64), (spread(target), 16u64)] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result = rematerialize_selected_runtime_value(
             &source,
             0,
@@ -854,7 +818,7 @@ fn validation_budget_covers_the_admission_scan() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             rematerialize_selected_runtime_value(
                 &source,

@@ -757,7 +757,15 @@ fn walk_state_write_prefix_inner(
                     }) {
                         return None;
                     }
-                    wire_codecs::known_wire_codec_call_written_paths(program, nested_call)
+                    wire_codecs::known_wire_codec_call_written_paths(
+                        program,
+                        machine,
+                        nested_call,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                        &divergent_alias_origins,
+                    )
                 } else {
                     let argument_types = super::call_targets::call_argument_types(
                         program,
@@ -786,6 +794,7 @@ fn walk_state_write_prefix_inner(
                         nested_call.target_symbol,
                         nested_call.target.as_str(),
                         &nested_receiver_members,
+                        &[],
                         None,
                         arguments,
                         machine,
@@ -862,20 +871,6 @@ fn walk_state_write_prefix_inner(
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
-                    if target.is_valid()
-                        && let TransitionTargetNode::Named { arguments, .. } =
-                            program.statement_table.transition_target(target)
-                        && program
-                            .statement_table
-                            .expression_handles(*arguments)
-                            .iter()
-                            .any(|argument| origins.mentions_divergent(program, *argument))
-                    {
-                        // Named-state transfer does not yet substitute finite
-                        // candidate sets. It must not drop the raw local as
-                        // private storage after instantiating target writes.
-                        return None;
-                    }
                     if (!local_alias_origins.is_empty()
                         || !stored.is_empty()
                         || !divergent_alias_origins.is_empty())
@@ -901,6 +896,8 @@ fn walk_state_write_prefix_inner(
                         complete_state_summaries,
                         &locals,
                         matches!(query, Some(StateWriteQuery::Complete)),
+                        &origins,
+                        &machine_symbols,
                     )?
                     .iter()
                     .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))

@@ -115,7 +115,8 @@ pub(in crate::legalization) fn contains_reference(
                     push_fields(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
         }
     }
@@ -1056,6 +1057,7 @@ fn entry(
                     parent: None,
                     operation: None,
                     result: StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity: parameter.multiplicity,

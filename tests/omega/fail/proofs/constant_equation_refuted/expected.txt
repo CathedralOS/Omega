@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from false_constant_equation at statement 0: false
+machine `false_constant_equation` ensures contract proof fact `false` is disproved by constant arithmetic

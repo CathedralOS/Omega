@@ -70,10 +70,7 @@ pub(crate) fn validate_linear_permission_events(
         else {
             continue;
         };
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
         else {
             continue;
         };
@@ -560,16 +557,8 @@ fn append_unresolved_state_result_mapping_diagnostics(
         }
     }
 
-    let machine_name = program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-        })
-        .map(|machine| machine.name.as_str())
+    let machine_name = crate::semantic_calls::find_state_with_machine(program, state.symbol)
+        .map(|(machine, _)| machine.name.as_str())
         .unwrap_or("<unknown machine>");
     for (statement_index, path) in unresolved_statements {
         diagnostics.push(Diagnostic::error(format!(

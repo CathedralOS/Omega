@@ -1,0 +1,14 @@
+// Compile canary: the durable depend-edge consumer — this fixture's build
+// reaches the bundled blocking-executor package through an authored
+// `builder.depend` row instead of a hand-instantiated contract copy, and
+// selects the canary worker provider through ordinary build composition.
+
+machine build(builder: &mut Build) {
+    builder.application("blocking-executor-consumer-depend-compile");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/blocking-executor"
+    });
+    builder.select_provider<blocking_executor::WorkerProvider, CanaryWorkerProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}

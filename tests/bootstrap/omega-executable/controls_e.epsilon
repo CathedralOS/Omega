@@ -17,6 +17,9 @@ machine Main::main(&mut self) {
     self.compiler.compile("machine answer() -> u8 { -1 }", "answer");
     self.incomplete();
 
+    self.compiler.compile("machine answer() -> u8 { !1 }", "answer");
+    self.incomplete();
+
     self.compiler.compile("machine answer() -> u32 { 42 }", "answer");
     self.incomplete();
 

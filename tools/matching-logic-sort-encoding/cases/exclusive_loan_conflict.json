@@ -1,0 +1,17 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "negative: exclusive and shared loans live over one region",
+  "target": {"capsule": "linux_x86_64", "address_model": "flat_u64"},
+  "types": {
+    "addresses": true
+  },
+  "inhabitants": {
+    "Addr": 2,
+    "Loan_mut": 1,
+    "Loan_shared": 1
+  },
+  "loans": [
+    {"element": "b1", "kind": "mut", "region": "buf", "parent": null},
+    {"element": "s1", "kind": "shared", "region": "buf", "parent": null}
+  ]
+}

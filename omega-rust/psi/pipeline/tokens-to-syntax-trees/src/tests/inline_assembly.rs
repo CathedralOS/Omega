@@ -413,7 +413,11 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
         ("lidt self.value", "deriver-only"),
         ("ret", "creates a hidden control exit"),
         (
-            "ldr x0, self.value",
+            "ldrb x0, self.value",
+            "no structured operand provenance/permission contract",
+        ),
+        (
+            "ldur x0, self.value",
             "no structured operand provenance/permission contract",
         ),
     ] {
@@ -431,6 +435,166 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
         assert!(
             rendered.contains(expected),
             "expected `{expected}` for `{instruction}`, got `{rendered}`"
+        );
+    }
+}
+
+/// `mov`/`movq` spell a structured data move: both operands are ordinary Omega
+/// expressions and the instruction desugars to a checked assignment, exactly
+/// like `jmp` desugars to a checked transition (catalog RegisterMove row).
+#[test]
+fn parses_register_move_as_an_ordinary_checked_assignment() {
+    let source = r#"
+        data Main {
+            value: i32;
+            buffer: [u64; 4];
+        }
+
+        machine Main::main(&mut self) {
+            let mut scratch: u64 = 0;
+            asm {
+                mov self.value, 3;
+                movq scratch, self.buffer[1]
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("register moves should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed.items.state_handles(machine.states)[0];
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements)
+        .to_vec();
+
+    assert_eq!(statements.len(), 3, "let + two desugared moves");
+    let StatementNode::Assignment(first) = parsed.statements.statement(statements[1]) else {
+        panic!("mov should desugar to an assignment");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(first.value),
+        ExpressionNode::Integer(_)
+    ));
+    let StatementNode::Assignment(second) = parsed.statements.statement(statements[2]) else {
+        panic!("movq should desugar to an assignment");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(second.value),
+        ExpressionNode::Indexed(_)
+    ));
+}
+
+/// The contracted memory transfers spell their memory operand as a typed
+/// Omega place: `ldr <dest>, <place>` desugars to `<dest> = <place>` and
+/// `str <value>, <place>` to `<place> = <value>` — the place carries the
+/// provenance/permission contract (catalog MemoryTransfer rows).
+#[test]
+fn parses_memory_transfers_as_place_assignments() {
+    let source = r#"
+        data Main {
+            value: u64;
+            buffer: [u64; 4];
+        }
+
+        machine Main::main(&mut self) {
+            asm {
+                str self.value, self.buffer[0];
+                ldr self.value, self.buffer[0]
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("memory transfers should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed.items.state_handles(machine.states)[0];
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements)
+        .to_vec();
+
+    assert_eq!(statements.len(), 2, "two desugared transfers");
+    // `str value, place` writes the value INTO the place: the place is the
+    // assignment target, the spelled value operand the source.
+    let StatementNode::Assignment(store) = parsed.statements.statement(statements[0]) else {
+        panic!("str should desugar to an assignment");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(store.target),
+        ExpressionNode::Indexed(_)
+    ));
+    // `ldr dest, place` reads the place INTO the destination.
+    let StatementNode::Assignment(load) = parsed.statements.statement(statements[1]) else {
+        panic!("ldr should desugar to an assignment");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(load.value),
+        ExpressionNode::Indexed(_)
+    ));
+
+    for instruction in [
+        "ldr self.value, [self.buffer]",
+        "str [self.buffer], self.value",
+    ] {
+        let source = format!(
+            r#"
+            data Main {{ value: u64; buffer: [u64; 4]; }}
+            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("a bracketed transfer operand keeps the bracket refusal");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains("bracketed `[...]` memory addressing"),
+            "expected bracketed-operand refusal for `{instruction}`, got `{rendered}`"
+        );
+    }
+}
+
+/// The move contract covers place/value operands only: a bracketed `[address]`
+/// operand is raw memory addressing and keeps the unmodeled-memory refusal.
+#[test]
+fn rejects_bracketed_memory_operands_on_register_moves() {
+    for instruction in [
+        "mov self.value, [self.other]",
+        "mov [self.value], self.other",
+        "movq self.value, [self.buffer]",
+    ] {
+        let source = format!(
+            r#"
+            data Main {{ value: i32; other: i32; buffer: [u64; 4]; }}
+            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens).expect_err("bracketed operand should reject");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains("bracketed `[...]` memory addressing"),
+            "expected bracketed-memory diagnostic for `{instruction}`, got `{rendered}`"
         );
     }
 }

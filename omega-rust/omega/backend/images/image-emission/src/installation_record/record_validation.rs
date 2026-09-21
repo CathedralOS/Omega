@@ -47,12 +47,24 @@ fn validate_complete_image_placement(image: &ExecutableImage) -> Result<(), Inst
         return Err(InstallationError::InvalidImagePlacementCustody);
     }
     if image.target().object_format == ObjectFormat::MachO {
-        image_macho::validate_macho_aarch64_import_binding_pairing(
-            &output.final_text_bytes,
-            &output.executable_regions,
-            &output.data_regions,
-        )
-        .map_err(|_| InstallationError::InvalidImagePlacementCustody)?;
+        match image.target().architecture {
+            target::Architecture::Aarch64 => {
+                image_macho::validate_macho_aarch64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )
+                .map_err(|_| InstallationError::InvalidImagePlacementCustody)?;
+            }
+            target::Architecture::X86_64 => {
+                image_macho::validate_macho_x86_64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )
+                .map_err(|_| InstallationError::InvalidImagePlacementCustody)?;
+            }
+        }
     }
     Ok(())
 }

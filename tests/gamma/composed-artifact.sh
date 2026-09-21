@@ -5,13 +5,10 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
 
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Gamma composed artifact: unsupported host; needs macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Gamma composed artifact"
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM

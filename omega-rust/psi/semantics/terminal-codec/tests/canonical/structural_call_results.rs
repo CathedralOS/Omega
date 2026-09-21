@@ -17,7 +17,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 103_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 105_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -140,6 +140,7 @@ fn structural_call_rows_require_canonical_claim_and_qualification_order() {
     unordered_qualifications
         .structural_domains
         .push(StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: structural_domain_id(2),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
             identity: "example::Occurrence::Retained".to_owned(),
@@ -199,6 +200,7 @@ fn structural_call_result_paths_round_trip_and_missing_call_custody_fails_closed
     let leaf = structural_type_id(2);
     let domain = structural_domain_id(2);
     module.structural_domains.push(StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
         identity: "RegionPayload::Ready".into(),
@@ -262,6 +264,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
         [
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(2),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -272,6 +275,7 @@ fn boundary_scalar_parameter_and_argument_order_round_trips_canonically() {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

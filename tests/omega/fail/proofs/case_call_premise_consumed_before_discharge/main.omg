@@ -1,0 +1,24 @@
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+machine empty_only(value: Tree) -> Tree
+requires value in Tree::Empty;
+terminates;
+{ value }
+
+machine make_empty_of(value: Tree) -> Tree
+requires value in Tree::Empty;
+ensures result in Tree::Empty;
+terminates;
+{ value }
+
+// The outer call consumes the inner call's result tag, but the inner call's
+// own premise is never discharged (other is a Node) — the tag is consumed
+// before its discharge can exist.
+machine consumed_before_discharge(other: Tree)
+requires other in Tree::Node;
+ensures empty_only(make_empty_of(other)) == empty_only(make_empty_of(other));
+{}

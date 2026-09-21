@@ -1,0 +1,14 @@
+// A trait signature return type spelling a bare boundary trait is a value
+// position; only `Service<R>` carries a service.
+boundary trait Console {
+    machine write_line(text: &[u8]);
+}
+
+trait Notifier {
+    machine current() -> Console;
+}
+
+data Main { }
+
+machine Main::main(&mut self) {
+}

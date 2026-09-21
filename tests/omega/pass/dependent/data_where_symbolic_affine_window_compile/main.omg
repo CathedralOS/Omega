@@ -8,7 +8,9 @@ where
     end: u32;
 }
 
-machine SuccessorPair::set(&mut self, value: u32 [0..=100]) {
+machine SuccessorPair::set(&mut self, value: u32)
+requires value <= 100
+{
     self.start = value;
     self.end = value + 1;
 }

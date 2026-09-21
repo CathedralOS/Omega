@@ -72,6 +72,7 @@ machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
         &project.0.join("checked"),
         &entry,
         Some(&snapshot),
+        false,
     )
     .expect("retain the final binding pass at the requested entry");
     let bindings = checked.resolved_semantic_bindings().collect::<Vec<_>>();

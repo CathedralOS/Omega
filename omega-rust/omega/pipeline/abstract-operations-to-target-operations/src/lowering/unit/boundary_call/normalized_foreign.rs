@@ -12,8 +12,8 @@ use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
     MachineId, NativeTarget, OperationId, PlaceId, StructuralAccess, StructuralPathSegment,
     StructuralTypeId, StructuralTypeLookup, StructuralTypeShape, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
-    ValueClass, ValueId, ValueLocation, ValueShape,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarHomeRequirement, ValueClass, ValueId, ValueLocation, ValueShape,
 };
 #[cfg(test)]
 use semantic_vocabulary::BlockId;
@@ -53,6 +53,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     native_callback: Option<&target_operations::TargetNativeCallbackArgument>,
+    operations: &[TargetUnitOperation],
 ) -> Result<Vec<TargetStructuralArgument>, LoweringError> {
     if structural_arguments.len() != declaration.structural_parameters.len()
         || !declaration.has_valid_parameter_order()
@@ -79,12 +80,35 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
         .map(|((index, (argument, parameter)), semantic_position)| {
             let native_position = semantic_position
                 + usize::from(callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal));
-            let source = parameters_by_place.get(&argument.place).copied().ok_or(
-                LoweringError::UnknownStructuralArgumentPlace {
-                    machine,
-                    place: argument.place,
-                },
-            )?;
+            let (source_structural_type, source_shape, argument_source) =
+                if let Some(source) = parameters_by_place.get(&argument.place).copied() {
+                    (
+                        source.structural_type,
+                        source.shape,
+                        source.placement.clone().into(),
+                    )
+                } else if let Some((home, _placement)) =
+                    super::super::projected_result::source(operations, argument.place)
+                {
+                    // An owned argument may transport a dominating call's exact
+                    // result place: the structural home carries the producer
+                    // identity the verifier's boundary-actuals arm requires.
+                    let (psi_operation, _) = home
+                        .operation_result()
+                        .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
+                    (
+                        home.structural_type(),
+                        home.layout.shape(),
+                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation,
+                        },
+                    )
+                } else {
+                    return Err(LoweringError::UnknownStructuralArgumentPlace {
+                        machine,
+                        place: argument.place,
+                    });
+                };
             if usize::try_from(parameter.position).ok() != Some(index) {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
@@ -98,9 +122,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 }
                 (
-                    source.structural_type,
+                    source_structural_type,
                     structural_shape(
-                        source.structural_type,
+                        source_structural_type,
                         structural_types,
                         shape_cache,
                         active,
@@ -126,14 +150,14 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     )
                 };
                 if argument.path.is_empty() {
-                    if !descriptor_root(source.structural_type) {
+                    if !descriptor_root(source_structural_type) {
                         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                     }
                     (
-                        source.structural_type,
+                        source_structural_type,
                         byte_sequence_shape(
                             terminal_psi::ByteSequenceCarrier::BorrowedView,
-                            source.structural_type,
+                            source_structural_type,
                         )
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
                         0,
@@ -147,7 +171,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                     }
                     match resolve_structural_field_path(
-                        source.structural_type,
+                        source_structural_type,
                         &argument.path,
                         structural_types,
                         shape_cache,
@@ -156,7 +180,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         Ok(projection) => projection,
                         Err(_) => {
                             let Some(offset) = borrowed_view_field_offset(
-                                source.structural_type,
+                                source_structural_type,
                                 &argument.path,
                                 structural_types,
                                 shape_cache,
@@ -184,14 +208,23 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     }
                 }
             };
+            // Caller storage parameters arrive with unrestricted multiplicity;
+            // a dominating call's result is the consumed-once owned aggregate
+            // the verifier admits under affine multiplicity.
+            let expected_multiplicity = match &argument_source {
+                target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
+                    terminal_psi::StructuralMultiplicity::Affine
+                }
+                _ => terminal_psi::StructuralMultiplicity::Unrestricted,
+            };
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access
-                || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                || parameter.multiplicity != expected_multiplicity
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || u32::from(projected_shape.byte_size)
                     .checked_add(source_byte_offset)
-                    .is_none_or(|end| end > u32::from(source.shape.byte_size))
+                    .is_none_or(|end| end > u32::from(source_shape.byte_size))
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
@@ -274,13 +307,13 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 place: argument.place,
                 access: argument.access,
                 path: argument.path.clone(),
-                root_structural_type: source.structural_type,
+                root_structural_type: source_structural_type,
                 structural_type: projected_type,
                 shape: parameter_shape,
                 source_byte_offset,
                 fixed_array_length: None,
                 element_stride: None,
-                source: source.placement.clone().into(),
+                source: argument_source,
                 destination: destination.clone(),
             })
         })

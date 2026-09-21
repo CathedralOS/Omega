@@ -17,6 +17,85 @@ impl Drop for Sources {
 }
 
 #[test]
+fn foreign_domain_constant_helpers_execute_after_source_removal() {
+    let directory =
+        std::env::temp_dir().join(format!("omega-native-record-domain-{}", std::process::id()));
+    std::fs::create_dir(&directory).unwrap();
+    let sources = Sources(directory);
+    let root = sources.0.join("root");
+    let shapes = sources.0.join("shapes");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&shapes).unwrap();
+    std::fs::write(
+        shapes.join("settings.omg"),
+        "module settings; pub data Point [copy] { value: u32; }",
+    )
+    .unwrap();
+    std::fs::write(
+        shapes.join("policy.omg"),
+        "module policy; use settings::Point;
+         pub domain Point::Selected;",
+    )
+    .unwrap();
+    let identity = |marker| PackageKeyIdentity::from_digest([marker; 32]).unwrap();
+    let inputs = || {
+        PackageCompilationInputs::new_package(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root.clone()),
+                PackageSourceBinding::new(identity(2), "shapes", shapes.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "shapes",
+                identity(2),
+            )],
+        )
+        .unwrap()
+    };
+    let main = root.join("main.omg");
+    let source = |constructor: &str| {
+        format!(
+            "use shapes::settings; use shapes::policy;
+         data Point [copy] {{ value: u32; }}
+         machine payload(value: settings::Point in policy::Point::Selected) -> u32 {{ value.value }}
+         machine compute() -> u32 {{
+             let value: settings::Point in policy::Point::Selected = {constructor};
+             payload(value)
+         }}
+         const VALUE: u32 = compute();
+         machine read() -> u32 {{ VALUE }}"
+        )
+    };
+    std::fs::write(&main, source("settings::Point { value: 37 }")).unwrap();
+    let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest {
+        package_inputs: Some(inputs()),
+        ..compiler::CheckedCompileRequest::new(&main, None)
+    })
+    .expect("foreign domain retains its exact record carrier");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
+        .produce_artifact()
+        .expect("foreign record domain reaches Terminal");
+    let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    drop(checked);
+    std::fs::write(&main, source("Point { value: 37 }")).unwrap();
+    assert!(
+        compiler::compile_to_checked(compiler::CheckedCompileRequest {
+            package_inputs: Some(inputs()),
+            ..compiler::CheckedCompileRequest::new(&main, None)
+        })
+        .is_err(),
+        "a same-shaped local carrier cannot replace the domain's foreign carrier"
+    );
+    drop(sources);
+    assert!(!main.exists());
+    execute(
+        &artifact,
+        "#include <stdint.h>\nextern uint32_t omega_entry(void);\nint main(void) { return omega_entry() == 37 ? 0 : 1; }",
+    );
+}
+
+#[test]
 fn package_qualified_constructors_and_locals_execute_with_their_declaring_case() {
     let directory = std::env::temp_dir().join(format!(
         "omega-native-package-membership-{}",

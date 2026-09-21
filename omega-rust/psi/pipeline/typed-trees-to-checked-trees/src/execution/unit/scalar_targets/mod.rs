@@ -60,10 +60,7 @@ pub(super) fn registered_structural_graph_target<'facts>(
     {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -126,10 +123,7 @@ pub(super) fn registered_primitive_store_target<'plans>(
     {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let mut shapes = ShapeCollector::new(program);
     let expected = returns::primitive_effects::build_machine(program, facts, &mut shapes, machine)?;
     (expected == *plan).then_some(plan)
@@ -236,10 +230,7 @@ pub(super) fn available_target(
         return (structural_arguments.is_empty() && claim_transfers.is_empty())
             .then_some(AvailableScalarTarget::Registered);
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == *target_machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, *target_machine)?;
     let [state] = program.machine_states(machine) else {
         return None;
     };

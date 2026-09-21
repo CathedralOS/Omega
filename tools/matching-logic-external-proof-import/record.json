@@ -1,0 +1,977 @@
+{
+  "cases": [
+    {
+      "case": "axiom_outside_closure",
+      "diagnostic": {
+        "detail": "cited outside declared closure: ['s_nat']",
+        "rule": "axiom-outside-closure"
+      },
+      "elapsed_ms": 0.047,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "classical_rule",
+      "diagnostic": {
+        "detail": "external rule 'lem' is classical; the accepted foundation is constructive (wiki/spec/proofs/classicality.md)",
+        "rule": "classical-rule-import"
+      },
+      "elapsed_ms": 0.04,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "closure_overstated",
+      "diagnostic": {
+        "detail": "declared but never cited: ['z_nat']",
+        "rule": "closure-overstated"
+      },
+      "elapsed_ms": 0.04,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "duplicate_id",
+      "diagnostic": {
+        "detail": "duplicate step id 'dz'",
+        "rule": "malformed-step"
+      },
+      "elapsed_ms": 0.03,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "fixpoint_import",
+      "diagnostic": {
+        "detail": "external rule 'mu' introduces a fixpoint, which the fragment excludes by construction",
+        "rule": "fragment-escape"
+      },
+      "elapsed_ms": 0.03,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "goal_mismatch",
+      "diagnostic": {
+        "detail": "translated proof derives ['equals', ['sym', 'add', [['sym', 's', [['sym', 's', [['sym', 'z', []]]]]], ['sym', 'z', []]]], ['sym', 's', [['sym', 's', [['sym', 'z', []]]]]]], goal is ['equals', ['sym', 'add', [['sym', 's', [['sym', 's', [['sym', 'z', []]]]]], ['sym', 's', [['sym', 'z', []]]]]], ['sym', 's', [['sym', 's', [['sym', 's', [['sym', 'z', []]]]]]]]]",
+        "rule": "goal"
+      },
+      "elapsed_ms": 0.05,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "malformed_step",
+      "diagnostic": {
+        "detail": "step 'x' (UI) missing field 'witness'",
+        "rule": "malformed-step"
+      },
+      "elapsed_ms": 0.032,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "premise_order",
+      "diagnostic": {
+        "detail": "step 'c1' cites equality='u1', which is not an earlier step",
+        "rule": "premise-order"
+      },
+      "elapsed_ms": 0.02,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "recheck_failure",
+      "diagnostic": {
+        "detail": {
+          "detail": "implication premise derived ['forall', 'y', ['equals', ['sym', 'add', [['sym', 's', [['sym', 's', [['sym', 'z', []]]]]], ['sym', 's', [['var', 'y']]]]], ['sym', 's', [['sym', 'add', [['sym', 's', [['sym', 's', [['sym', 'z', []]]]]], ['var', 'y']]]]]]]",
+          "rule": "modus_ponens"
+        },
+        "rule": "translation-recheck"
+      },
+      "elapsed_ms": 0.094,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "admissions": [
+        "axiom:add_s",
+        "axiom:add_z"
+      ],
+      "axiom_closure": [
+        "add_s",
+        "add_z"
+      ],
+      "bridge_graph": {
+        "AXIOM": "axiom",
+        "DEF_CLOSED": "defined_closed",
+        "REFL": "eq_refl",
+        "SUBST": "eq_subst",
+        "TRANS": "eq_trans",
+        "UI": "forall_elim"
+      },
+      "case": "reference",
+      "elapsed_ms": 0.147,
+      "expect": "accept",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "observation_profile": {
+        "certificate_bytes": 984,
+        "certificate_nodes": 11,
+        "export_bytes": 1049,
+        "export_steps": 10
+      },
+      "verdict": "accept"
+    },
+    {
+      "case": "undeclared_axiom",
+      "diagnostic": {
+        "detail": "cited outside case axioms: ['mul_comm']",
+        "rule": "undeclared-axiom"
+      },
+      "elapsed_ms": 0.042,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "unknown_rule",
+      "diagnostic": {
+        "detail": "no bridge for external rule 'CHEAT'",
+        "rule": "unknown-external-rule"
+      },
+      "elapsed_ms": 0.03,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "unsupported_rule",
+      "diagnostic": {
+        "detail": "external rule 'HYP' carries hypotheses outside the bounded import fragment",
+        "rule": "unsupported-external-rule"
+      },
+      "elapsed_ms": 0.031,
+      "expect": "reject",
+      "goal": [
+        "equals",
+        [
+          "sym",
+          "add",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "z",
+                  []
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          "sym",
+          "s",
+          [
+            [
+              "sym",
+              "s",
+              [
+                [
+                  "sym",
+                  "s",
+                  [
+                    [
+                      "sym",
+                      "z",
+                      []
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    }
+  ],
+  "design_doc": "wiki/drafts/matching_logic_external_proof_import.md",
+  "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+  "importer": {
+    "bridge": {
+      "ANDI": "and_intro",
+      "ANDL": "and_elim_left",
+      "ANDR": "and_elim_right",
+      "AXIOM": "axiom",
+      "DEF_CLOSED": "defined_closed",
+      "DEF_MEMBER": "defined_membership",
+      "EE": "exists_elim",
+      "EI": "exists_intro",
+      "GEN": null,
+      "HYP": null,
+      "IMPI": null,
+      "MEMBER": "membership_intro",
+      "MP": "modus_ponens",
+      "ORE": null,
+      "ORIL": "or_intro_left",
+      "ORIR": "or_intro_right",
+      "REFL": "eq_refl",
+      "SUBST": "eq_subst",
+      "SYM": "eq_sym",
+      "TRANS": "eq_trans",
+      "UI": "forall_elim"
+    },
+    "path": "tools/matching-logic-external-proof-import/external_proof_import.py",
+    "physical_lines": 459,
+    "sha256": "f8eb892ca24c74c8c9b758a8e2715d16faff80d55e39bf2c1d0b316d2975e9a8"
+  },
+  "recorded_utc": "2026-09-20T23:51:41Z",
+  "rule_version": "external-arithmetic-proof/1",
+  "schema": "omega-external-proof-import-record/1",
+  "semantics_doc": "wiki/drafts/matching_logic.md",
+  "semantics_version": "6c5a4c49be9bd98e",
+  "summary": {
+    "divergences": [],
+    "negative": 12,
+    "positive": 1,
+    "total": 13
+  },
+  "translation": "checked: every accepted case replays the translated certificate through tools/matching-logic-slice/slice_checker.py"
+}

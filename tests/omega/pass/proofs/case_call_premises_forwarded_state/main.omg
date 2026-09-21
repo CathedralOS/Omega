@@ -1,0 +1,44 @@
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+machine empty_only(value: Tree) -> Tree
+requires value in Tree::Empty;
+terminates;
+{ value }
+
+// A premise discharged on the caller's boundary survives forwarding through a
+// second named-state hop before a case call consumes it.
+machine forwarded_twice(known: Tree) -> Tree
+requires known in Tree::Empty;
+terminates;
+{
+    transition { _ -> middle(known) }
+    state middle(carried: Tree) -> Tree {
+        transition { _ -> leaf(carried) }
+    }
+    state leaf(still_known: Tree) -> Tree {
+        transition { _ -> (empty_only(still_known)) }
+    }
+}
+
+// A premise discharged by a completed call's guarantee can be forwarded into a
+// named state and consumed there.
+machine preserve_empty(value: Tree) -> Tree
+requires value in Tree::Empty;
+ensures result in Tree::Empty;
+terminates;
+{ value }
+
+machine forwarded_from_completed(seed: Tree) -> Tree
+requires seed in Tree::Empty;
+terminates;
+{
+    let established: Tree = preserve_empty(seed);
+    transition { _ -> held(established) }
+    state held(carried: Tree) -> Tree {
+        transition { _ -> (empty_only(carried)) }
+    }
+}

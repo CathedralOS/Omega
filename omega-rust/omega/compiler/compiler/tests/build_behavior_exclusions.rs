@@ -7,6 +7,7 @@
 use compiler::CheckedCompileRequest;
 use compiler::{
     CompileOptions, CompileRequest, RequestedCompileProduct, compile, compile_to_checked,
+    realize_retained_native_artifact,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -353,34 +354,42 @@ fn authored_physical_exclusion_publishes_and_runs_on_the_host() {
     assert!(output.stderr.is_empty());
 }
 
-#[test]
-fn authored_physical_exclusion_rejects_exercised_output_not_unrelated_input() {
-    let project = TempProject::new();
-    project.write(
-        "main.omg",
-        r#"use omega_language_std::console;
-use omega::language::core::service;
-data Main { console: Service<Console>; }
-machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
-"#,
-    );
+/// The Console output composition's build entry: an application depending on
+/// omega_language_std by path, selecting its native Console provider under
+/// the exact `alias::decl` spelling cross-package operands require, bound to
+/// the macOS ARM64 entry with `extra` carrying the authored exclusions.
+fn console_output_build(name: &str, extra: &str) -> String {
     let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
         .expect("repository root")
         .join("source/library/std");
-    let build = format!(
+    format!(
         r#"machine build(builder: &mut Build) {{
-    builder.application("physical-exclusion-output");
+    builder.application("{name}");
     builder.depend(Source::Path {{ location: "{}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
-    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessInput);
-}}
+{extra}}}
 "#,
         standard_library.to_string_lossy().replace('\\', "/")
-    );
-    project.write("build.omg", &build);
+    )
+}
+
+/// Package inputs for the Console composition: the checked macOS entry
+/// binding always, plus the std Console provider's exit binding only when
+/// the selected provider is `ConsoleNativeProvider` — an app-authored
+/// provider carries no toolchain exit semantics to accept.
+fn console_package_inputs(
+    project: &TempProject,
+    name: &str,
+    native_console_provider: bool,
+) -> package_compilation::PackageCompilationInputs {
+    let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("repository root")
+        .join("source/library/std");
     let root_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([81; 32]).unwrap();
     let library_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([82; 32]).unwrap();
     let entry_binding =
@@ -389,11 +398,7 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
     let inputs = package_compilation::PackageCompilationInputs::new_package(
         root_identity,
         vec![
-            package_compilation::PackageSourceBinding::new(
-                root_identity,
-                "physical-exclusion-output",
-                project.0.clone(),
-            ),
+            package_compilation::PackageSourceBinding::new(root_identity, name, project.0.clone()),
             package_compilation::PackageSourceBinding::new(
                 library_identity,
                 "omega-language-std",
@@ -409,6 +414,9 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
     .expect("fixture packages")
     .with_accepted_semantic_bindings(vec![entry_binding.clone()])
     .expect("exact entry binding");
+    if !native_console_provider {
+        return inputs;
+    }
     let checked = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs.clone()),
         ..CheckedCompileRequest::new(&project.main(), Some("macos_arm64"))
@@ -417,9 +425,28 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
     let binding =
         console_acceptance::candidate_console_exit_binding(&checked, library_identity, true, false)
             .expect("accept fixture Console provider");
-    let inputs = inputs
+    inputs
         .with_accepted_semantic_bindings(vec![entry_binding, binding])
-        .expect("exact accepted binding");
+        .expect("exact accepted binding")
+}
+
+#[test]
+fn authored_physical_exclusion_rejects_exercised_output_not_unrelated_input() {
+    let project = TempProject::new();
+    project.write(
+        "main.omg",
+        r#"use omega_language_std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; }
+machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
+"#,
+    );
+    let build = console_output_build(
+        "physical-exclusion-output",
+        "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessInput);\n",
+    );
+    project.write("build.omg", &build);
+    let inputs = console_package_inputs(&project, "physical-exclusion-output", true);
     let request = || {
         CompileRequest::new(CompileOptions {
             root_path: project.main(),
@@ -457,6 +484,260 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
     else {
         panic!("output cannot satisfy its physical exclusion");
     };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("excluded physical authority class ProcessOutput")),
+        "{diagnostics:?}"
+    );
+
+    // Optional optimizations cannot satisfy the physical axis either: the
+    // verdict is adjudicated against the retained mechanism closure, whose
+    // provider leaves keep their exercised dispositions regardless of the
+    // optimization record the artifact commits.
+    project.write(
+        "build.omg",
+        &build.replace(
+            "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessInput);\n",
+            "    builder.optimizations.enable(Optimization::SparseConditionalConstantPropagation);\n    builder.optimizations.enable(Optimization::ControlFlowCleanup);\n    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+        ),
+    );
+    let Err(diagnostics) =
+        compile(request()).and_then(compiler::CompileOutcomes::into_single_report)
+    else {
+        panic!("an optimized output cannot satisfy its physical exclusion");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("excluded physical authority class ProcessOutput")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn a_retained_physical_exclusion_replays_against_the_product_by_consumers() {
+    // The retained Terminal product carries the authored exclusion union;
+    // an independent consumer realizing it through
+    // `realize_retained_native_artifact` re-runs the same mechanism-closure
+    // adjudication the producing gate enforced — no source is consulted.
+    // ProcessOutput violates this closure (the Console provider exercises
+    // it), unrelated ProcessInput admits, and the verdict is identical with
+    // and without a receiver permission policy because the physical axis is
+    // independent of receiver admission.
+    const OUTPUT_PROGRAM: &str = r#"use omega_language_std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; }
+machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
+"#;
+    let retained_for = |class: effects::TerminalAuthorityClass| {
+        let project = TempProject::new();
+        project.write("main.omg", OUTPUT_PROGRAM);
+        project.write(
+            "build.omg",
+            &console_output_build(
+                "physical-exclusion-replay",
+                &format!(
+                    "    builder.exclude_physical_authority(PhysicalAuthorityClass::{class:?});\n"
+                ),
+            ),
+        );
+        let inputs = console_package_inputs(&project, "physical-exclusion-replay", true);
+        let retained = compile(
+            CompileRequest::new(CompileOptions {
+                root_path: project.main(),
+                build_dir: None,
+                target_name: Some("macos_arm64".into()),
+            })
+            .with_package_inputs(inputs)
+            .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+        )
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("the excluded output product retains")
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+        (project, retained)
+    };
+    let realize = |retained: compilation_report::RetainedTerminalArtifact,
+                   receiving_policy: bool| {
+        // The accepted-package policy must rejoin the retained permission
+        // rows exactly; the receiving policy is either that same policy or
+        // absent, so this leg also covers receiver-policy independence.
+        let proposal = retained
+            .native_realization_proposal()
+            .expect("native proposal");
+        let subsystem = proposal.subsystem();
+        let accepted_package_policy =
+            native_realization::terminal_authority_permission_policy_with_rows(
+                proposal.package_terminal_authority_permissions().to_vec(),
+            )
+            .expect("retained package permissions form the accepted policy");
+        let terminal_authority_permission_policy =
+            receiving_policy.then(|| accepted_package_policy.clone());
+        realize_retained_native_artifact(
+            retained,
+            compiler::RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_package_policy,
+                terminal_authority_permission_policy,
+                image_request: native_realization::ExecutableImageEmissionRequest::direct(
+                    subsystem,
+                ),
+                imports: &[],
+            },
+        )
+        .map_err(|(_, diagnostics)| diagnostics)
+    };
+
+    let (_project, retained) = retained_for(effects::TerminalAuthorityClass::ProcessOutput);
+    let diagnostics = realize(retained, true)
+        .expect_err("a retained closure exercising ProcessOutput cannot satisfy its exclusion");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("excluded physical authority class ProcessOutput")),
+        "{diagnostics:?}"
+    );
+
+    for with_receiving_policy in [false, true] {
+        let (_project, retained) = retained_for(effects::TerminalAuthorityClass::ProcessInput);
+        realize(retained, with_receiving_policy)
+            .unwrap_or_else(|diagnostics| {
+                panic!("an unrelated physical class must replay admitted: {diagnostics:#?}")
+            })
+            .as_direct()
+            .expect("a direct image request produces direct custody")
+            .validate()
+            .expect("the admitted native artifact validates");
+    }
+}
+
+/// The Console output program against an app-authored provider whose
+/// satisfied methods exercise no physical authority: the silent replacement
+/// is the benign side of the provider-replacement control — the same product
+/// keeps its exclusion only until a provider that actually exercises the
+/// class is selected back in.
+const SILENT_CONSOLE_MAIN: &str = r#"use omega_language_std::console;
+use omega::language::core::service;
+
+pub data SilentConsole { }
+
+machine SilentConsole::write_line(text: &[u8])
+satisfies Console::write_line
+{
+}
+
+machine SilentConsole::write(text: &[u8])
+satisfies Console::write
+{
+}
+
+machine SilentConsole::read_line(out_line: &mut [u8]) -> LineReadResult
+satisfies Console::read_line
+crashes Trap
+{
+    crash Trap;
+}
+
+machine SilentConsole::read_byte() -> ByteRead
+satisfies Console::read_byte
+crashes Trap
+{
+    crash Trap;
+}
+
+machine SilentConsole::write_byte(byte: i32)
+satisfies Console::write_byte
+{
+}
+
+machine SilentConsole::exit_process(return_code: i32)
+satisfies Console::exit_process
+{
+    transition true { true -> idle() }
+    state idle() {
+        transition true { true -> idle() }
+    }
+}
+
+data Main { console: Service<Console>; }
+machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
+"#;
+
+#[test]
+fn replacing_a_silent_console_provider_with_excluded_behavior_rejects() {
+    // Provider substitution cannot launder a physical exclusion: the verdict
+    // tracks the SELECTED provider's exercised mechanism classes, not the
+    // presence of a `Service<Console>` field.
+    let build_for = |provider: &str| {
+        format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("silent-console-substitution");
+    builder.depend(Source::Path {{ location: "{}" }});
+    builder.select_provider<omega_language_std::Console, {}>();
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);
+}}
+"#,
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(4)
+                .expect("repository root")
+                .join("source/library/std")
+                .to_string_lossy()
+                .replace('\\', "/"),
+            provider
+        )
+    };
+
+    // The silent provider admits: its write_byte exercises nothing, so the
+    // ProcessOutput exclusion's mechanism-closure review finds no violated
+    // class and the retained product forms for consumer replay.
+    let silent = TempProject::new();
+    silent.write("main.omg", SILENT_CONSOLE_MAIN);
+    silent.write("build.omg", &build_for("SilentConsole"));
+    let inputs = console_package_inputs(&silent, "silent-console-substitution", false);
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: silent.main(),
+            build_dir: None,
+            target_name: Some("macos_arm64".into()),
+        })
+        .with_package_inputs(inputs)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("a provider exercising no ProcessOutput satisfies the exclusion");
+    report
+        .into_retained_native_artifact()
+        .expect("retained native product")
+        .validate()
+        .expect("the admitted silent-provider artifact validates");
+
+    // Selecting the native provider back exercises ProcessOutput through the
+    // write_byte mechanism leaf, and the identical authored exclusion now
+    // rejects at the same mechanism-closure adjudication.
+    let native = TempProject::new();
+    native.write("main.omg", SILENT_CONSOLE_MAIN);
+    native.write(
+        "build.omg",
+        &build_for("omega_language_std::ConsoleNativeProvider"),
+    );
+    let inputs = console_package_inputs(&native, "silent-console-substitution", true);
+    let diagnostics = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: native.main(),
+            build_dir: None,
+            target_name: Some("macos_arm64".into()),
+        })
+        .with_package_inputs(inputs)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect_err("the replaced provider exercises the excluded class");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -1035,5 +1316,410 @@ fn a_retained_exclusion_is_replayed_against_the_artifact_by_consumers() {
         )
         .is_ok(),
         "the artifact's retained exclusion policy must replay satisfied"
+    );
+}
+
+// The named next native control for physical exclusions
+// (TASKS.md BUILD-EXCLUSION-REALIZATION): the sink-app/logger-kit
+// composition from `tests/behavior_exclusions.rs`, targeted at
+// macos_arm64, with `exclude_service<Sink>` replaced by
+// `exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput)`
+// and a NativeArtifact request. The fixture directories stay owned by
+// the semantic-exclusions work; this probe replicates the composition
+// inline.
+const LOGGER_KIT_MAIN: &str = r#"use omega::language::core::service;
+
+pub boundary trait Sink {
+    machine emit(text: &[u8]);
+}
+
+pub data QuietSink { }
+
+machine QuietSink::emit(text: &[u8])
+satisfies Sink::emit
+{
+}
+
+pub machine log_quiet(text: &[u8])
+reaches Sink
+{
+    let marker: u8 = 0;
+}
+"#;
+
+const LOGGER_KIT_BUILD: &str = r#"machine build(builder: &mut Build) {
+    builder.package("logger-kit");
+    builder.select_provider<Sink, QuietSink>();
+}
+"#;
+
+const SINK_APP_MAIN: &str = r#"use logger_kit::main;
+use omega::language::core::service;
+
+data Main {
+    sink: Service<Sink>;
+}
+
+machine Main::main(&mut self)
+reaches Sink
+{
+    self.sink.emit("still an invocation");
+}
+"#;
+
+// Native realization of the sink composition currently stops in
+// `target-operations-to-selected-instructions`' legalization with
+// `SourceCustodyMismatch`: the silent service invocation lacks ordinary
+// native custody (a dependency owned outside this item's paths, recorded
+// on TASKS.md at ee249ec910). This sentinel asserts that exact frontier on
+// both native targets; when the custody dependency closes the assertion
+// flips and this test must be upgraded to the full control: native
+// execution with empty output plus an independent retained-product replay.
+fn sink_composition_native_report(
+    target: &str,
+) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+    let project = TempProject::new();
+    project.write("logger-kit/main.omg", LOGGER_KIT_MAIN);
+    project.write("logger-kit/build.omg", LOGGER_KIT_BUILD);
+    project.write("app/main.omg", SINK_APP_MAIN);
+    project.write(
+        "app/build.omg",
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("sink-physical");
+    builder.depend(Source::Path {{ location: "../logger-kit" }});
+    builder.select_provider<logger_kit::Sink, logger_kit::QuietSink>();
+    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);
+    builder.roots.bind({target}::ProgramEntry, Main::main);
+}}
+"#
+        ),
+    );
+    let root_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([91; 32]).unwrap();
+    let library_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([92; 32]).unwrap();
+    let inputs = package_compilation::PackageCompilationInputs::new_package(
+        root_identity,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                root_identity,
+                "sink-physical",
+                project.0.join("app"),
+            ),
+            package_compilation::PackageSourceBinding::new(
+                library_identity,
+                "logger-kit",
+                project.0.join("logger-kit"),
+            ),
+        ],
+        vec![package_compilation::PackageDependencyBinding::new(
+            root_identity,
+            "logger_kit",
+            library_identity,
+        )],
+    )
+    .expect("fixture packages");
+    compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.0.join("app/main.omg"),
+            build_dir: None,
+            target_name: Some(target.into()),
+        })
+        .with_package_inputs(inputs)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+}
+
+#[test]
+fn sink_composition_physical_exclusion_reaches_native_custody_frontier() {
+    for target in ["macos_arm64", "linux_x86_64", "windows_x86_64"] {
+        let Err(diagnostics) = sink_composition_native_report(target) else {
+            panic!(
+                "{target}: silent-service custody closed; upgrade this test to the full native control (publish, run empty output, retained replay)"
+            );
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("SourceCustodyMismatch")),
+            "{target}: expected the recorded custody frontier, got {diagnostics:?}"
+        );
+    }
+}
+
+// The foreign-boundary e2e leg of BUILD-EXCLUSION-REALIZATION: a real
+// composition whose boundary requirement binds `ProviderBinding::Import`
+// reaches the mechanism-closure review under an authored exclusion. The
+// receiving policy's explicit row classifies the normalized foreign
+// mechanism with an exercised class; the exclusion then rejects the closure,
+// naming the requirement and the foreign mechanism — the same adjudication a
+// compiler-intrinsic leaf receives (the row-level seam is pinned in
+// native-realization's
+// `a_foreign_mechanism_leaf_exercising_an_excluded_class_rejects`).
+const FOREIGN_BOUNDARY_MAIN: &str = r#"use omega::language::core::external_binding;
+
+pub data ForeignMath {}
+
+pub boundary requirement ForeignMath::exit_with(code: i32);
+
+data ForeignMathProvider {}
+
+linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+
+data Main {}
+machine Main::main(&mut self) {
+    ForeignMath::exit_with(70);
+}
+"#;
+
+fn foreign_boundary_build(exclusion: &str) -> String {
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"foreign-boundary-exclusion\");\n    builder.exclude_physical_authority({exclusion});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n"
+    )
+}
+
+fn foreign_boundary_request(root: PathBuf, product: RequestedCompileProduct) -> CompileRequest {
+    CompileRequest::new(CompileOptions {
+        root_path: root,
+        build_dir: None,
+        target_name: Some("linux_x86_64".into()),
+    })
+    .with_requested_product(product)
+}
+
+// The mechanism identity is exact-identity, not name-matched: it is derived
+// from the retained proposal's external binding rows (normalized locator +
+// canonical boundary entry plan), the same derivation the admission path
+// performs on the settled import.
+fn foreign_boundary_policy(
+    retained: &compilation_report::RetainedTerminalArtifact,
+    exercised: &[effects::TerminalAuthorityClass],
+) -> native_realization::TerminalAuthorityPolicy {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let rows = proposal
+        .external_binding_rows()
+        .iter()
+        .filter_map(|row| {
+            let calling_conventions::ExternalBindingKind::Import { locator } = &row.binding else {
+                return None;
+            };
+            Some(native_realization::TerminalAuthorityPolicyRow::new(
+                native_realization::normalized_foreign_terminal_mechanism(
+                    locator,
+                    row.boundary_entry_plan.as_ref()?,
+                )
+                .expect("retained foreign boundary plan is canonical"),
+                effects::TerminalAuthorityDisposition::from_classes(exercised.iter().copied()),
+            ))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !rows.is_empty(),
+        "at least one normalized import policy row expected"
+    );
+    native_realization::terminal_authority_policy_with_rows(rows)
+        .expect("receiving policy has exact normalized import rows")
+}
+
+// A minimal `ProviderExecutionEvidence` for the one import the composition
+// selects — the settlement admission needs exact provider-plan custody, not
+// a real interpreter report.
+#[derive(Debug)]
+struct ForeignLeafExecution {
+    requirement: String,
+    plan_report_identity: u64,
+}
+
+impl installation_evidence::ProviderExecutionEvidence for ForeignLeafExecution {
+    fn requirement_identity(&self) -> &str {
+        &self.requirement
+    }
+    fn provider_plan_report_identity(&self) -> u64 {
+        self.plan_report_identity
+    }
+    fn provider_execution_report_identity(&self) -> u64 {
+        0x4d41_4348_4f01
+    }
+    fn provider_execution_report_fingerprint(&self) -> u64 {
+        0x4d41_4348_4f02
+    }
+    fn normalized_root_report_identity(&self) -> u64 {
+        0x4d41_4348_4f03
+    }
+    fn boundary_contract_report_fingerprint(&self) -> u64 {
+        0x4d41_4348_4f04
+    }
+}
+
+fn admit_foreign_import(
+    retained: &compilation_report::RetainedTerminalArtifact,
+) -> (
+    ForeignLeafExecution,
+    task_plans::AdmittedSameStackContribution,
+) {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let matches = proposal
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| {
+            plan.rows.iter().filter_map(move |row| {
+                matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::Import { .. }
+                )
+                .then_some((plan, row))
+            })
+        })
+        .collect::<Vec<_>>();
+    let [(plan, row)] = matches.as_slice() else {
+        panic!("one selected evaluated import expected")
+    };
+    let plan_report_identity = plan.report_fingerprint();
+    let plan_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
+        *plan.identity_digest().as_bytes(),
+    );
+    let requirement = row.requirement_identity.clone();
+    let same_stack = task_plans::admit_same_stack_contribution(
+        task_plans::SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: plan_report_identity,
+            provider_plan_commitment: plan_commitment,
+            requirement_identity: requirement.clone(),
+            receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                0x454c_4600_0110,
+            )
+            .unwrap(),
+            bytes: 64,
+            alignment: 16,
+        },
+        plan_report_identity,
+        plan_commitment,
+        &requirement,
+    )
+    .expect("exact provider-plan custody admits the foreign leaf");
+    (
+        ForeignLeafExecution {
+            requirement,
+            plan_report_identity,
+        },
+        same_stack,
+    )
+}
+
+#[test]
+fn a_source_evaluated_import_exercising_an_excluded_class_rejects_at_closure_review() {
+    let project = TempProject::new();
+    project.write("main.omg", FOREIGN_BOUNDARY_MAIN);
+    project.write(
+        "build.omg",
+        &foreign_boundary_build("PhysicalAuthorityClass::ProcessTermination"),
+    );
+    let retained = compile(foreign_boundary_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the boundary-requirement composition compiles to a Terminal product")
+    .into_retained_terminal_artifact()
+    .expect("the Terminal product retains its native realization proposal");
+    let subsystem = retained
+        .native_realization_proposal()
+        .expect("native proposal")
+        .subsystem();
+
+    // A foreign mechanism carries no compiler-known disposition: the
+    // exercised class is supplied by the receiving policy's explicit row —
+    // exercised, not permissioned (no permission policy is attached at all)
+    // — exactly as the settled-filesystem cohort or the consumer's package
+    // policy supplies it in production.
+    let policy = foreign_boundary_policy(
+        &retained,
+        &[effects::TerminalAuthorityClass::ProcessTermination],
+    );
+    let (execution, same_stack) = admit_foreign_import(&retained);
+    let (_, diagnostics) = realize_retained_native_artifact(
+        retained,
+        compiler::RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy.clone(),
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: None,
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            imports: &[compiler::SourceEvaluatedImportSettlement::new(
+                &execution,
+                &same_stack,
+            )],
+        },
+    )
+    .expect_err("an import leaf exercising the excluded class cannot realize");
+    let message = format!("{diagnostics:?}");
+    assert!(
+        message.contains("behavior exclusions"),
+        "the exclusion adjudication must fire: {message}"
+    );
+    assert!(message.contains("ForeignMath::exit_with"), "{message}");
+    assert!(message.contains("NormalizedForeign"), "{message}");
+    assert!(message.contains("ProcessTermination"), "{message}");
+
+    // Control: excluding a class no leaf exercises passes mechanism
+    // adjudication; the import-bearing image then proceeds past the review
+    // and stops later — the union, not the mechanism inventory, decides.
+    project.write(
+        "build.omg",
+        &foreign_boundary_build("PhysicalAuthorityClass::PortIo"),
+    );
+    let retained = compile(foreign_boundary_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the boundary-requirement composition compiles to a Terminal product")
+    .into_retained_terminal_artifact()
+    .expect("the Terminal product retains its native realization proposal");
+    let subsystem = retained
+        .native_realization_proposal()
+        .expect("native proposal")
+        .subsystem();
+    let (execution, same_stack) = admit_foreign_import(&retained);
+    let (_, diagnostics) = realize_retained_native_artifact(
+        retained,
+        compiler::RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy,
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: None,
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            imports: &[compiler::SourceEvaluatedImportSettlement::new(
+                &execution,
+                &same_stack,
+            )],
+        },
+    )
+    .expect_err("the import-bearing image stops at interpreter custody");
+    let message = format!("{diagnostics:?}");
+    assert!(
+        !message.contains("behavior exclusions"),
+        "no exclusion adjudicates: {message}"
     );
 }

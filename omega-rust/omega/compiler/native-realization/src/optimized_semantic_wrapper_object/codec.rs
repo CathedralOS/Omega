@@ -1,7 +1,8 @@
 use crate::optimized_semantic_wrapper_object::error::*;
 use crate::optimized_semantic_wrapper_object::model::*;
 use crate::optimized_semantic_wrapper_object::model::{CODEC_VERSION, CONTAINER_MAGIC};
-use crate::optimized_semantic_wrapper_object::object::validate_object;
+use crate::optimized_semantic_wrapper_object::object::{validate_object, validate_object_shape};
+use isa_x86_64::ValidatedX86_64SemanticUnitWrapperTemplate;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
@@ -15,11 +16,12 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 pub fn encode_optimized_program_storage_semantic_wrapper_object(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+    wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
 ) -> Result<
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectError,
 > {
-    validate_object(object)?;
+    validate_object(object, wrapper)?;
     let mut bytes = Vec::new();
     bytes.extend_from_slice(CONTAINER_MAGIC);
     bytes.extend_from_slice(&CODEC_VERSION.to_le_bytes());
@@ -57,7 +59,7 @@ pub fn decode_optimized_program_storage_semantic_wrapper_object(
     if cursor.remaining() != 0 {
         return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes);
     }
-    validate_object(&object)
+    validate_object_shape(&object)
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidObject)?;
     Ok(object)
 }

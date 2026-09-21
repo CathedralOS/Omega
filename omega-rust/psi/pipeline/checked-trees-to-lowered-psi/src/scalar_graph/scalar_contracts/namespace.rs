@@ -17,7 +17,8 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             validate(left)?;
             validate(right)
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar(left)?;
             scalar(right)
         }
@@ -48,6 +49,9 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         }
         CheckedScalarExpression::IntegerTrappingCast { .. } => Err(LoweringError::Unsupported(
             "trapping conversion is not total scalar contract arithmetic",
+        )),
+        CheckedScalarExpression::IntegerSaturatingCast { .. } => Err(LoweringError::Unsupported(
+            "saturating conversion is not supported scalar contract arithmetic",
         )),
         CheckedScalarExpression::Local { .. } | CheckedScalarExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(

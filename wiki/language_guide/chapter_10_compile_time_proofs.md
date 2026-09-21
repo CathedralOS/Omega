@@ -32,10 +32,21 @@ values after that modulus. Composing two such bundles must prove the composed
 modulus's law, not just construct another value called `ConvergenceEvidence`.
 
 General quantification must also support arbitrary mathematical functions and
-predicates, not only executable declarations. Neither a dedicated proposition
-declaration nor a machine returning a logical result is a prerequisite. Optional
-[formula naming syntax](../proposals/0001_proof_formula_syntax.md) is a separate,
-unproven ergonomic proposal, not accepted source syntax.
+predicates, not only executable declarations. A machine returning a logical
+result is not a prerequisite.
+
+A dedicated `proposition` declaration is accepted source syntax and ships in
+the standard library. It names a proof family without proving any instance:
+
+```omega
+proposition int_pair_equivalent(left: IntPair, right: IntPair) =
+    (add(left.pos, right.neg)) == (add(right.pos, left.neg));
+```
+
+(`source/library/core/int.omg`.) Three bodies are accepted: `;` for a
+primitive proposition, `evidence Interface;`, and `= fact;` as above. Its
+binders are proof-static and cannot declare lifetime parameters. Quotient
+formation requires one.
 
 The [proof contract](../spec/proofs/contracts.md#machines-and-bundles) owns these
 rules and their foundational requirements.
@@ -580,7 +591,7 @@ development builds with a standing warning until granted; dependency boundary
 machines are inert until granted. A package cannot grant its own claims on
 behalf of its consumers. Development use is not consumer or release acceptance.
 
-A boundary statement the checker can refute against declared ranges, domains,
+A boundary statement the checker can refute against established bounds, domains,
 or another accepted statement rejects despite a grant. This is not a guarantee
 that the complete assumption set is consistent. These rules belong to
 [receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).

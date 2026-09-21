@@ -1,0 +1,16 @@
+// NOTE: no Expected-exit annotation on purpose -- this is the depend-free
+// benchmark subject. It emits a native artifact without any package
+// dependency, but the artifact has no process-exit authority: the canonical
+// ProcessExit provider is bound to the standard library package, so a
+// standalone program cannot terminate cleanly and its run behavior is
+// unspecified. The samples corpus treats it as compile-checked only, and the
+// benchmark harness measures it with --no-run.
+//
+// The empty body is deliberate: the subject measures the fixed cost of the
+// whole compile pipeline -- source to published native artifact -- for the
+// smallest deployable program.
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

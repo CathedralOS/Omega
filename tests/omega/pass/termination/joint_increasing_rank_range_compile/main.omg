@@ -1,0 +1,30 @@
+// COMPILE CANARY: a complete mutual call cycle descends through a bounded
+// increasing cursor. scan_a -> scan_b preserves index toward the fixed
+// limit and scan_b -> scan_a strictly increases it, so every complete cycle
+// descends under the increasing-to normalized rank; the authored range
+// constrains the rank the view produces.
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.scan_a(4, 0) }
+}
+
+machine Main::scan_a(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+-> u64
+{
+    transition index < limit {
+        true -> self.scan_b(limit, index)
+        false -> index
+    }
+}
+
+machine Main::scan_b(&mut self, limit: u64, index: u64)
+terminates by index -> Nat::IncreasingTo(limit) in 0..=limit;
+-> u64
+{
+    transition index < limit {
+        true -> self.scan_a(limit, index + 1)
+        false -> index
+    }
+}
