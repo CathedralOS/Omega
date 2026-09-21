@@ -6863,6 +6863,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 ## Mined items (deep-mine sweep, wave 9)
 
+- **ABI-LAYOUT-REDERIVATION-AUDIT.** Mined candidate — resolved: the name
+  names the landed opaque-representation-selection rederivation audit.
+  `representation-planning::rederive_opaque_representation_selections`
+  (`representation_selection.rs:97`) independently replays the build-time
+  `select_representation` harvest over the final typed graph and rejects any
+  divergence from the retained build custody — per-row stale custody
+  (selecting-machine or stored-vs-rederived `selected_application_commitment`
+  mismatch), roster omission/duplication/reorder/extension, and a build
+  machine that does not resolve to exactly one final declaration — before
+  the boundary calling plan and package-review evidence consumers trust the
+  rows (`phase_transitions.rs:172`,
+  `packages/review/evidence/.../policy/selections.rs:41`). The
+  `BoundaryOpaqueRepresentationUse` rederivation is also re-audited at
+  boundary-plan admission (`callback_bindings.rs`, "stale
+  opaque-representation application custody"). Re-verified green on linux
+  x86-64 at `94e764a6da`: `cargo nextest run -p representation-planning
+  --lib representation_selection` — 5/5 (honest replay, recompute-from-
+  evidence, roster rejection, per-field substitution matrix, single-
+  build-machine pin).
 - **ALIGNMENT-STRING-PARSING.** Mined candidate — scope verified,
   covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
   alignment-string parsing gap inside the Squalr app's geometry lane
