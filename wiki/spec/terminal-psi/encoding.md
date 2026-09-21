@@ -260,6 +260,7 @@ and the proof bundle share this grammar byte for byte.
 | 14 | IntegerMathEqual | integer math term + integer math term |
 | 15 | IntegerMathLessThan | integer math term + integer math term |
 | 16 | IntegerMathLessOrEqual | integer math term + integer math term |
+| 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
 
 ## Operation rows
 
