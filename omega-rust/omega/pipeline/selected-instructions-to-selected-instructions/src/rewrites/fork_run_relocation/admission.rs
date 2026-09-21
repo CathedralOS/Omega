@@ -13,8 +13,8 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedSuccessor, SelectedTerminator,
+    SelectedBlock, SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId,
+    SelectedSuccessor, SelectedTerminator,
 };
 
 use super::ForkRunRelocationError;
@@ -28,8 +28,7 @@ use crate::rewrites::window_hazards::{
     coupled, has_call_contract, register_writes, schedulable, surface,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The run's own block: the fork's branching head.
     pub block_index: usize,
     /// The run's first member index in the block body.
@@ -96,15 +95,15 @@ fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -
         })
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,
     last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, ForkRunRelocationError> {
+) -> Result<Admission, ForkRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ForkRunRelocationError::SourceMismatch);
@@ -391,7 +390,6 @@ pub(super) fn admit<'source>(
         return Err(ForkRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,
