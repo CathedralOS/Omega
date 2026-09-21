@@ -8437,7 +8437,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   lowered-psi cleanup-roster emission leg stays owned by
   STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
-- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
+- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Mined candidate —
+  scope verified, covered (same verdict recorded on origin/main):
+  re-mines the review-projection input-resolution clause in
+  `wiki/spec/packages/review.md` ("read each fact from the earliest
+  coherent compiler-owned representation that establishes its meaning…
+  only final findings enter comparison"). The admission projection
+  already satisfies it: `packages/review/evidence/src/capture/` is
+  exclusively `project_checked_*` — every projected fact (callable,
+  calling, package, boundary-application, selected-provider,
+  representation, conformance, and terminal-permission policies)
+  consumes the checked representation, and `capture/package/mod.rs`
+  refuses standalone/target-free compilations and missing checked facts
+  rather than sourcing them late. Typed/resolved state owns structural
+  identity on the same rows as the resolved PACKAGE-EVIDENCE-* siblings;
+  the genuinely unfinished ledger joins (certificates, transitive open
+  obligations, schema migration, admission decisions in
+  `src/ledger/obligation_ledger.rs`) stay named under
+  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent
+  slice.
 - **PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN.** Mined candidate — resolved:
   the name re-covers the cross-package-visibility loan-origin cluster
   already closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at e76d715c8e (verified base 6ef64f6dd6) —
