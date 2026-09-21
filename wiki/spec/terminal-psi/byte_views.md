@@ -3,8 +3,11 @@
 [Portable product](product.md) | [Boundary calls](boundary_calls.md)
 
 This describes immutable observations and fixed-extent writes through borrowed
-byte views. It does not grant owned byte storage, resizing, implicit nominal
-projections, native descriptor support, or element views over typed items.
+byte views, and the borrowed element-typed slice views of the same custody
+family. It does not grant owned byte storage, resizing, implicit nominal
+projections, or native descriptor support. Byte-view descriptors never
+establish element views, and element views are never derived from byte
+arithmetic; each view kind is its own descriptor.
 
 ## Values and observations
 
@@ -162,6 +165,34 @@ type and access of its source. Replacing one element preserves the extent and
 the untouched elements; it grants no resize, no reinterpretation as bytes,
 and no derived element views.
 
+| Operation | Result | Required evidence |
+| --- | --- | --- |
+| `ElementViewLength { source }` | Exact `u64` element count. | An available shared or exact mutable element view; the count is the view's own stored runtime length, not a field merely named length. |
+| `ElementViewRead { source, index, length, obligation }` | The element value. | A `[copy]` element type; `u64` index and length; dominating length observation of the identical view; checked `index < length`. |
+| `ElementViewWrite { destination, index, value, length, obligation }` | Unit; replace one element without changing extent. | Exclusive mutable element view; an element-typed value; `u64` index and current same-view length; checked `index < length`; the displaced element's disposal must be legal at that edge. |
+| `ElementViewSubslice { source, start, end, length, obligation }` | Shared element view of `[start, end)` over the identical backing. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length` in element units. |
+
+A by-value `ElementViewRead` exists only for `[copy]` element types: a
+non-copy element cannot move out of borrowed storage, and the transfer rule
+rejects the move even where a machine's signature omits the bound. The
+settled source spelling is `Slice::index<T [copy]>` — chapter 19 declares the
+bound; the core `boundary machine [] Slice::index<T>` declaration is
+under-constrained, but identical in accepted programs because the ownership
+law supplies the same cut. Non-copy elements are reached through borrowed
+spellings instead: `Slice::from`, `Slice::tail` and `Slice::range` return
+element views, and `Slice::index_mut` yields a `&mut T` projection rather
+than an element value. Element writes move the supplied value in and the
+displaced element out of its slot under the ordinary disposal law for its
+type; the write supplies no escape for a value whose cleanup is not legal
+there.
+
+An element-view subslice uses a structural operation-result place carrying
+the same element type, the same access, unrestricted multiplicity, and no
+claims or qualifications — equal endpoints, including an empty suffix, still
+require both proof legs. Sources may be immutable machine/block structural
+parameters or dominating subslice results; an arbitrary equal-valued length,
+other view, sibling branch, or future producer supplies no length custody.
+
 No `OperationKind` realizes these operations yet, so an unchecked typed
 descriptor — including one produced by scaling a byte view's extent by an
 element width — admits nothing. When realized, a native consumer retains the
@@ -188,20 +219,15 @@ treating fuel/proof evidence as native support.
 
 ## Element views
 
-This document's vocabulary addresses raw `u8` octets only. A view whose
-index space is a sequence of typed elements — over a `FixedArray(T, N)` with
-`T` other than `u8`, or over any other borrowed structural container — is not
-a byte view, and byte-view descriptors do not establish it. A descriptor
-carrying an element type and a dense element index space is an indexed
-projection path; this presentation does not admit it. Byte reads and writes
-through this document select octets inside a `u8` sequence; they do not
-synthesize or reinterpret typed elements, and byte offsets do not acquire
-element identity.
+The element-typed slice views above are the element vocabulary of this
+document — no separate surface is required. What this document still does
+not admit is conflation: a byte view's index space is octets inside a `u8`
+sequence, and it never synthesizes or reinterprets typed elements; an
+element view's index space is elements, and byte offsets never acquire
+element identity. A descriptor carrying an element type and a dense element
+index space is not an indexed projection path into a byte view, and neither
+view kind establishes the other.
 
-An element-view vocabulary requires its own surfaces rather than reuse of
-these operations: a distinct descriptor type carrying the element type, typed
-extent evidence over the backing container, projection vocabulary for
-construction and extraction, and its own custody rules for element mutation.
-Consumers must not derive an element view from a byte view's backing or index
-arithmetic; a consumer needing typed elements rejects the unvocabularied
-spelling rather than reinterpreting octet contents.
+Consumers must not derive an element view from a byte view's backing or
+index arithmetic; a consumer needing typed elements rejects the
+unvocabularied spelling rather than reinterpreting octet contents.
