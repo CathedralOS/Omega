@@ -9233,7 +9233,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stubs on the same surface: BENCHMARK-WINDOWS-PEAK-RSS,
   WINDOWS-PEAK-MEMORY-MEASUREMENT.
 - **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
-- **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
+- **BETA-COMPILER-SEED-REFUSAL** — mined candidate; covered — alias stub of the
+  landed Beta seed-refusal surface (resolved siblings BETA-PE-SEED-REFUSAL /
+  BETA-SEED-EXEC-HOST-REFUSAL name this row): every seed-executing gate refuses
+  exit 2 on hosts that cannot exec the selected container through
+  `require_seed_execution_host`. Re-verified at `12ea4941eb` on linux x86-64:
+  `tests/beta/compiler/reconstruction.sh:26`, `compiler-diamond.sh`,
+  `register-address-regression.sh`, `word-prefix.sh` and
+  `tools/bootstrap/beta/build.sh:28` all route through the helper; the
+  refusal-on-unsupported-host leg is host-gated by definition. No slice
+  remains under this name.
 - **BETA-ENCODING-CERTIFICATE-CHECK** — verified 7ec604d7ef: re-mines the
   certificate surface the sibling annotation on
   BETA-ENCODING-SELECTED-CHAIN-PRODUCTION already resolved — the selected
