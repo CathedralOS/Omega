@@ -11404,6 +11404,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_x86_64 slice outside a claimed fence exists. Sibling re-mine
   stubs: SQUALR-GEOMETRY-PARITY-GAPS, SQUALR-GEOMETRY-PARITY-RESIDUE.
 - **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-WINDOWS-GEOMETRY-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
+  Fence re-audit at `ea78f0e486` on the adjudicated row's name
+  (SQUALR-GEOMETRY-PARITY-GAPS — its own stub is retired, this row is its
+  surviving sibling): the recorded wholesale fence rotated —
+  GEOMETRY-ALIGNMENT-REGIONS' hold is gone and `samples/apps/squalr` is now
+  dir-fenced by REGION-ALIGNMENT-EXPANSION (zergling-z68, exp 07:25Z);
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION holds a live board claim (z175, exp
+  06:28Z) for the host-gated Windows leg. Disposition unchanged: every
+  enumerated gap remains an owned sibling row and no linux_x86_64 slice
+  outside a claimed fence exists.
 - **SQUALR-PLUGIN-IMPLEMENTATIONS.** Scope verified at a4ffd1aff8 —
   re-mines the "plugins/*: implementation unported" row of
   `samples/apps/squalr/README.md`'s port-boundary table. All eight plugin
