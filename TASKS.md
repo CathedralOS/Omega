@@ -11796,6 +11796,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-C-SELF-HOST-EDGE (same resolution at `ac4e4eee9b`),
   OMEGA-COMPILER-TAPE-BINDING, OMEGA-D*, OCREQ-REQUEST-{BINDING,
   ENTRY-BINDING}.
+  Re-verified at `53817f8759e5` (linux x86-64, zergling-111): unchanged —
+  `omega0_compiler_bytecode.tape` still does not exist (only
+  `beta_compiler_bytecode.tape` + `gamma_evaluator_bytecode.tape` remain
+  under `bootstrap/`), `source/omega/main.omg` still stops upstream at the
+  selected-dispatch service-custody rejoin (`service_custody/root.rs:146`
+  emits "selected ProgramEntry establishment rejoins {} Terminal
+  attachment identities; expected one" — `f705cbdb5119`'s exact-identity
+  Service carrier admission landed psi-side and does not touch the omega
+  rejoin), and TASKS_BOOTSTRAP.md's precondition stays unmet. No tape and
+  no slice exist on this row.
 - **OMEGA-C-SELF-HOST-EDGE.** Verified `ac4e4eee9b`: the canonical item is
   `TASKS_BOOTSTRAP.md`'s OMEGA-C — "the sole self-host edge": compile the
   exact Omega-written closure at `source/omega/{build.omg,main.omg}` with D,
