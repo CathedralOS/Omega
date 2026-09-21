@@ -189,7 +189,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   all six records still carry completed `Rollback evidence` with `Approved
   status`, `Owner approval`, and `Measurement evidence` PENDING — the
   remaining legs are owner/product decisions plus the BENCHMARKS-gated
-  measurement leg, not implementable slices.
+  measurement leg, not implementable slices. Re-witnessed at `90df29812c0`
+  (linux x86-64): `exact_rule_rollout_is_complete_and_promotion_gated` still
+  green; the six records still carry completed `Rollback evidence` and the
+  same three PENDING legs.
   Acceptance: the command passes from a clean checkout and every promoted
   exact rule has the evidence the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
