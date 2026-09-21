@@ -694,7 +694,7 @@ pub(super) fn propagate_statement_transfers(
     let declared_target_domains = match statement {
         StatementNode::Assignment(assignment) => {
             match (
-                crate::facts::field_domain::machine_by_symbol(program, machine_symbol),
+                crate::lookup::machine_by_symbol(program, machine_symbol),
                 crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {

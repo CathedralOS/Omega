@@ -364,10 +364,7 @@ fn contract_owner_environment(
 ) -> Option<TypeEnvironment> {
     match owner {
         ContractProofFactOwner::Machine { machine_symbol } => {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
             let entry = program.machine_states(machine).first();
             Some(machine_environment(program, machine, entry))
         }
@@ -375,10 +372,7 @@ fn contract_owner_environment(
             machine_symbol,
             state_symbol,
         } => {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
             let state = program
                 .machine_states(machine)
                 .iter()
@@ -635,11 +629,7 @@ fn collect_ranking_environments(
         }) {
             continue;
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == custody.machine)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
             continue;
         };
         environments.push(machine_environment(
