@@ -13769,6 +13769,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `CompilerBuiltinExecution`, privileged port effects are implemented, and
   general calls remain blocked on FRAME-LAYOUT. Row consumed — the item stays
   on the optimizer board.
+  Re-verified at `23338b3d093` for the DYNAMIC-CALL-OCCURRENCE-SPANS stub:
+  the fenced leg it named is landed — `CallDynamic*` occurrences now bind
+  their dispatch parent and span custody at `95019d341a9` and descriptor
+  table-window relocation custody at `da97c882017`
+  (`physical/derivation/evidence.rs` + `operator_applications.rs`
+  `derive_dynamic_call_span` joins all five emitted record families);
+  witness `dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`
+  re-run green on linux x86-64. The claim of this name has drained; the
+  recorded residuals stay upstream-gated (e2e `physical_child_replay` waits
+  on CallUnitWithDynamicArguments legalization + attachment-identity joins;
+  remaining intrinsic occurrences belong to TV-OPERATOR-APPLICATIONS-REPLAY)
+  and live on the canonical TRANSLATION-VALIDATION row.
 - **TRANSPARENT-TRAIT-REFINEMENTS.** — in progress (branch
   `zergling/z137-transparent-trait-refinements`); parser through typed trees
   land on that branch: `trait Local = Base { machine * reaches; suspends
