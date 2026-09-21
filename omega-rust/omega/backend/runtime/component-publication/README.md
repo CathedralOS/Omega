@@ -39,7 +39,7 @@ carrier with one public closed nongeneric, lifetime-free requirement. Exact type
 carrier/base/requirement and full plan digest rejoin erasure authorization;
 lookalikes, authored qualifications, or provenance substitution cannot erase it.
 
-The [service contract](../../../../../wiki/spec/build/component_publication.md#service-bindings-and-era-entry)
+The [service contract](../../../../../wiki/spec/build/component_publication.md#bindings-and-era-entry)
 now makes establishment intrinsic to compiler-known `Service<R>`, without an
 authored qualification. `ENTRY-CONTENT-ROOTS` owns retiring the separate domain
 and migrating recognition/evidence; exact occurrence and selected-plan checking

@@ -797,6 +797,91 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   the separate-tool route required by the spec; do not infer publication,
   confinement, or usability from observation-only tests.
 
+## Embedding and interpreted components
+
+Implement the [embedding contract](wiki/spec/build/embedding.md) as an ordinary
+library, not a CLI wrapper or scripting dialect. Work from one source-to-host
+customer through real lifetime and component behavior. Existing `Service` names
+in implementation evidence elsewhere on this board describe the current code;
+the accepted carrier name is `Binding`. Do not rewrite observed diagnostics until
+the implementation migration actually lands.
+
+- **BINDING-CARRIER-NAME.** (new-scope) Migrate the compiler-known runtime
+  carrier from `Service<R>` to `Binding<R>` and the unrelated native locator from
+  `Binding<...>` to `ForeignBinding<...>`. Owners: `source/library/core/service.omg`,
+  `source/library/core/external_binding.omg`, declaration-identity/semantic-binding
+  consumers, diagnostics, samples, and corpus readers. Preserve exact canonical
+  establishment, affine custody, provider selection, and foreign-locator
+  semantics; do not add a spelling-based privilege or compatibility alias.
+  Acceptance: the actual source-to-native and source-to-Psi binding customers use
+  the new names, missing/forged establishment and wrong locator identities still
+  reject, and an ordinary same-spelled user type gains no compiler authority.
+  Apply normal exact schema/declaration identity migration, not cross-version
+  evidence compatibility guessed from equal spelling or layout.
+
+- **EMBEDDING-SOURCE-TO-HOST.** (new-scope) Deliver compile -> load -> bind ->
+  invoke -> host result -> guest result -> close from an ordinary source-authored
+  interface package, host implementation, and script entry. Owners: product
+  compilation/entry descriptions, `psi/semantics/terminal-interpreter`, and
+  selected host adapter realization; expose the library, not command dispatch.
+  Use the ratified carrier name after **BINDING-CARRIER-NAME**. The existing
+  `terminal-interpreter/tests/unit/embedding_lifetimes.rs` probes are scalar,
+  source-free mechanics, not this acceptance. Share immutable admitted programs
+  across independently reclaimable instances. Two same-trait slots must address
+  different host objects; absent/wrong/unauthorized bindings reject before effects.
+  Include host-supplied invalid input/precondition rejection and native result
+  schema rejection, not only console output. Then connect public descriptions and
+  checked dynamic invocation through the same adapters; requested type metadata
+  reuses [Semantic reflection](#semantic-reflection), not a second registry.
+  No mandatory source compiler, filesystem, global runtime, or thread is needed
+  to load an already produced Psi artifact. Keep compilation authority separate.
+
+- **EMBEDDING-RESOURCE-LIFETIMES.** (new-scope) Extend that customer through a
+  borrowed view, an owned host resource, asynchronous host completion, and an
+  explicitly contracted callback. Owners: embedding runtime/adapters and existing
+  Terminal loan/custody/execution semantics; depends on **EMBEDDING-SOURCE-TO-HOST**.
+  Acceptance: pause inside an invariant window and reject conflicting inspection
+  and mutation, then resume without repeated effects; also reject an edit that
+  preserves the type invariant but invalidates retained stronger facts. Retained
+  results/callbacks prevent premature close, dropping the invocation handle
+  does not release debt, stale/wrong-runtime handles reject, and completion is
+  exact-once with duplicate/late response controls. Exercise failure after a host
+  effect and unsupported abandonment without retry or fabricated cleanup.
+  Close one instance while another remains usable. Admission must reject resource
+  modes whose abandonment cannot be contained. A whole-runtime busy wrapper may
+  be an initial floor, not the long-term concurrency/replacement architecture.
+
+- **PSI-COMPONENT-REPLACEMENT.** (new-scope) Supply the interpreter-backed
+  execution/install/publication provider for a guest that replaces its own
+  independent subcomponent without returning from its main machine. Reuse
+  **COMPONENT-SUBSTRATE**'s closed import/export and replacement evidence plus
+  **EMBEDDING-RESOURCE-LIFETIMES**; do not create a second module manager.
+  Owners: component execution/publication library and interpreter instance/entry
+  custody; application code owns acquisition, migration, and update policy.
+  Acceptance: ordinary root/nested build composition produces a replacement Psi
+  component; the running guest stages it and publishes under delegated authority.
+  New entries use v2, a paused old call/session continues v1, and v1 retires only
+  after all pins/dispositions settle. Missing update authority, incompatible
+  schema, widened authority, premature retirement, and handler substitution on
+  resume reject. Exercise both shared external state and an explicit state
+  disposition, preserving unaffected components. Loading alone never publishes;
+  the outer host must not implement the guest's update coordinator for the test.
+
+- **INTERPRETED-CATHEDRAL.** (new-scope) Drive actual Cathedral startup,
+  memory establishment and visible device work, then event delivery while it
+  remains live, then guest-owned component replacement. Depends on the connected
+  embedding/component tasks and the necessary existing boot/entry/resource
+  capabilities; Cathedral owns OS code, the host supplies contracted mechanisms.
+  Use the same shared algorithms/state machines in native and interpreted routes;
+  select providers/build composition rather than add execution-mode conditionals.
+  A host routine replacing Cathedral's boot, scheduler, or update policy does not
+  count. Report each delivered slice and its real remaining dependencies rather
+  than claim a boot banner demonstrates the full system. Unchanged assembly-
+  bearing boot is OWNER-BLOCKED on `interpreted-inline-assembly` in
+  **OWNER_QUESTIONS.md**; generic embedding work is not blocked. Do not silently
+  require removing OS assembly or promise an emulator. Simulation is evidence
+  under the selected environment model, not native timing/hardware correctness.
+
 ## Requirement-based tests
 
 Implement [the settled testing contract](wiki/spec/build/testing.md) through
@@ -1126,7 +1211,7 @@ Owners include
 
 - **ENTRY-CONTENT-ROOTS.** Finish authored receiver entry under the
   [entry contract](wiki/spec/build/entry_roots.md), principally the settled
-  [intrinsic service validity](wiki/spec/build/component_publication.md#service-bindings-and-era-entry)
+  [intrinsic binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry)
   migration and activation/completion lifecycle. Owners: target package source
   assembly, `program-entry-plan`, Psi `terminal-production`, Omega
   `compiler/native-realization`, `backend/images/image-emission`, and
