@@ -31,6 +31,7 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         scalar_type,
     };
     let result = terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,

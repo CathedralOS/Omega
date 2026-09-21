@@ -6,7 +6,7 @@
 //! continuation, and completes through exit_group.
 
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf, compile, fs,
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf, Stdio, compile, fs,
     repo_root, unique_no_output_build_dir,
 };
 
@@ -26,8 +26,8 @@ impl Drop for HostedProject {
 }
 
 /// Compile one authored Linux x86-64 receiver application. `bound_service`
-/// selects between `Service<Console> in Bound` and a bare interface field that
-/// must fail closed; `explicit_exit` routes normal completion through
+/// selects between `Service<Console>` and a bare interface field that must
+/// fail closed; `explicit_exit` routes normal completion through
 /// `exit_process(37)` so the provider's own status survives the bridge.
 fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: bool) {
     let directory = unique_no_output_build_dir();
@@ -43,7 +43,7 @@ fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: boo
             r#"machine build(builder: &mut Build) {{
     builder.application("linux-hosted-receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }}
 "#
@@ -56,7 +56,7 @@ fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: boo
         ""
     };
     let console_type = if bound_service {
-        "Service<Console> in Bound"
+        "Service<Console>"
     } else {
         "Console"
     };
@@ -96,7 +96,7 @@ machine Main::main(&mut self) reaches Console {{
 "#
         ),
     )
-    .expect("write receiver storage and Bound Console customer");
+    .expect("write receiver storage and fused Console customer");
     let result = compile(CanaryCompileSpec {
         root_path: project.0.join("main.omg"),
         build_dir: Some(project.0.join("build")),
@@ -104,14 +104,12 @@ machine Main::main(&mut self) reaches Console {{
         product: CanaryCompileProduct::NativeArtifact,
     });
     if !bound_service {
-        let diagnostics = result.expect_err("a bare interface field supplies no Bound occurrence");
+        let diagnostics = result.expect_err("a bare interface field is not a service carrier");
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody"
-                )),
-            "unexpected missing-establishment rejection: {diagnostics:#?}"
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+            "unexpected bare-carrier rejection: {diagnostics:#?}"
         );
         return;
     }
@@ -237,7 +235,7 @@ fn linux_hosted_receiver_provisions_record_arrays_and_the_zero_tag_sum_case() {
             r#"machine build(builder: &mut Build) {{
     builder.application("linux-hosted-receiver-sum-array");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }}
 "#
@@ -272,7 +270,7 @@ data Main {
     tags: [Event; 2];
     event: Event;
     mixed: Mixed;
-    console: Service<Console> in Bound;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -300,7 +298,7 @@ machine Main::main(&mut self) reaches Console {
 }
 "#,
     )
-    .expect("write widened receiver storage and Bound Console customer");
+    .expect("write widened receiver storage and fused Console customer");
     let report = compile(CanaryCompileSpec {
         root_path: project.0.join("main.omg"),
         build_dir: Some(project.0.join("build")),
@@ -453,6 +451,63 @@ fn linux_hosted_receiver_explicit_process_exit_preserves_its_distinct_outcome() 
 }
 
 #[test]
-fn linux_hosted_receiver_rejects_bare_interface_without_bound_establishment() {
+fn linux_hosted_receiver_rejects_bare_interface_field() {
     compile_and_run_linux_hosted_receiver(false, false);
+}
+
+/// The committed `samples/cli/basics/number_guess` application — a published
+/// `Service<Console>` receiver process carrying a `[copy]` search record and a
+/// 256-byte pause buffer — compiles to a Linux x86-64 native artifact and runs
+/// to its documented exit 70 through the same kernel entry bridge. The pause
+/// read completes on EOF, so stdin is closed rather than scripted.
+#[test]
+fn linux_hosted_receiver_number_guess_runs_to_documented_exit_70() {
+    let directory = unique_no_output_build_dir();
+    fs::create_dir(&directory).expect("create exclusively owned number-guess project");
+    let project = HostedProject(directory);
+    let report = compile(CanaryCompileSpec {
+        root_path: repo_root().join("samples/cli/basics/number_guess/main.omg"),
+        build_dir: Some(project.0.join("build")),
+        target_name: Some("linux_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("number_guess hosted receiver must produce its executable: {diagnostics:#?}")
+    });
+    report
+        .retained_native_artifact()
+        .expect("retain admitted native object")
+        .object()
+        .hosted_receiver_binding()
+        .expect("number_guess provisions an image-backed receiver");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("exact executable publication receipt");
+    let bytes = fs::read(executable).expect("read published ELF");
+    assert_eq!(
+        bytes.get(..4),
+        Some([0x7f, 0x45, 0x4c, 0x46].as_slice()),
+        "the published number_guess artifact must be an ELF image"
+    );
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        let output = Command::new(executable)
+            .stdin(Stdio::null())
+            .output()
+            .expect("execute published number_guess process");
+        assert_eq!(
+            output.status.code(),
+            Some(70),
+            "unexpected process completion: {output:?}"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("PASS: found 42 in exactly 7 guesses (exit 70)"),
+            "expected the documented PASS line, got {stdout:?}"
+        );
+        assert!(output.stderr.is_empty(), "unexpected stderr: {output:?}");
+    }
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+    eprintln!("SKIP: number_guess runtime requires Linux x86-64; source cross-emission checked");
 }

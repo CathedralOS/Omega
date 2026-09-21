@@ -6,6 +6,7 @@ use super::{
 };
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
+use crate::review::timings;
 use crate::review::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackagePolicyChangeError,
     PackagePolicyChangeLimits, PackagePolicyChangeSet, ReviewOnlyCapabilityConflictError,
@@ -149,6 +150,7 @@ pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
     ),
     FreshPackageRootPolicyError,
 > {
+    let _stage = timings::stage("root_policy_binding");
     let (question, associated_reviews) =
         CanonicalPackageReconstructionQuestion::associate_resolved_reviews(
             target_closure,

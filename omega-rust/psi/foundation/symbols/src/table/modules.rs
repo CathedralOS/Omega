@@ -361,6 +361,27 @@ impl SymbolTable {
             })
     }
 
+    /// Whether one authored import edge in `reference` brings `symbol`'s
+    /// leaf name into that source's resolution scope. Importing an
+    /// unmoduled source exposes every leaf it declares; a moduled source
+    /// exposes a leaf only through a narrow import of that exact
+    /// declaration, so a broad `module::name` edge never collides with a
+    /// package-local `name`.
+    pub(super) fn import_exposes_symbol(&self, reference: SourceId, symbol: SymbolHandle) -> bool {
+        let Some(declaration) = self.symbol_source_span(symbol) else {
+            return false;
+        };
+        self.source_scoped_top_level_bindings.iter().any(|binding| {
+            let Some(import) = &binding.module_import else {
+                return false;
+            };
+            binding.reference_source == reference
+                && binding.declaration_source == declaration.source_id
+                && ((import.exact_source && !self.source_module(declaration.source_id).is_valid())
+                    || self.display_path(symbol, "::") == logical_import_path(import))
+        })
+    }
+
     pub fn symbol_module(&self, symbol: SymbolHandle) -> SymbolHandle {
         self.symbol_provenance_source_span(symbol)
             .map(|span| self.source_module(span.source_id))

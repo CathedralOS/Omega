@@ -97,6 +97,7 @@ fn record_unit(affine: bool) -> PsiOptimizationUnit {
         node.operation = AbstractOperation::EstablishRecord {
             psi_operation: operation,
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity,

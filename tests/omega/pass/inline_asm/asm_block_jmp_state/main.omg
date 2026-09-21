@@ -1,7 +1,7 @@
 // Chapter 22 (Inline Assembly): compact control-flow assembly `asm { jmp
-// my_state() }` should be accepted when the target resolves to an Omega state
-// transition. Unimplemented: `asm` is not a recognized statement keyword, so the
-// block body is parsed as ordinary expressions and rejected.
+// my_state() }` is accepted when the target resolves to an Omega state
+// transition. `asm` is a statement keyword -- `parse_statement` dispatches it
+// contextually -- and this fixture compiles as a pass canary.
 
 data Main {
     value: i32;

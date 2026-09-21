@@ -29,6 +29,7 @@ fn store_module(multiplicity: StructuralMultiplicity, home: u8) -> TerminalModul
             [
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(19),
                     result: OperationResult::Scalar(ValueDeclaration {
                         id: id(19),
@@ -41,8 +42,10 @@ fn store_module(multiplicity: StructuralMultiplicity, home: u8) -> TerminalModul
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(20),
                     result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity,
@@ -65,6 +68,7 @@ fn store_module(multiplicity: StructuralMultiplicity, home: u8) -> TerminalModul
     }
     machine.blocks[block_position].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(21),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -152,6 +156,7 @@ fn store_cannot_use_a_record_home_before_establishment_or_block_binding() {
         // Use an independently dominating scalar so the failure is structural.
         let constant = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(30),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: id(30),
@@ -226,6 +231,7 @@ fn owned_store_rejects_a_dominating_wrong_scalar_carrier() {
             store_position,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(30),
                 result: OperationResult::Scalar(ValueDeclaration {
                     id: id(30),

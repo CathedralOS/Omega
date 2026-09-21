@@ -6,7 +6,8 @@ mod entry_contract;
 mod provider_continuation;
 
 pub(crate) use entry_contract::{
-    replay_semantic_contract, replay_settlement, validate_entry_shape,
+    bind_semantic_contract, receiver_layout, replay_semantic_contract, replay_settlement,
+    validate_entry_shape,
 };
 pub use provider_continuation::validate_installed_program_storage_continuation_evidence;
 pub(crate) use provider_continuation::validate_retained_installed_provider_continuation;
@@ -32,16 +33,19 @@ pub fn validate_optimized_program_storage_semantic_wrapper_object(
     validate_retained_installed_provider_continuation(&staged.source)?;
     validate_optimized_program_storage_semantic_wrapper_encoding(&staged.encoding)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Encoding)?;
-    let contract = replay_semantic_contract(&staged.settlement, &staged.encoding)?;
+    let contract = replay_semantic_contract(&staged.settlement, &staged.encoding, &staged.source)?;
     validate_entry_shape(&staged.source, &staged.settlement, &contract)?;
     let expected = construct_object(&staged.settlement, &staged.source, &staged.encoding)?;
-    validate_object(&staged.object)?;
+    validate_object(&staged.object, staged.encoding.template())?;
     if staged.object != expected {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject);
     }
     let decoded = decode_optimized_program_storage_semantic_wrapper_object(&staged.container.bytes)
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::ContainerMismatch)?;
-    let container = encode_optimized_program_storage_semantic_wrapper_object(&expected)?;
+    let container = encode_optimized_program_storage_semantic_wrapper_object(
+        &expected,
+        staged.encoding.template(),
+    )?;
     if decoded != expected || staged.container != container {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::ContainerMismatch);
     }

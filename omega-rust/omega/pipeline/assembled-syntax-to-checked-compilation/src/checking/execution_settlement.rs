@@ -195,6 +195,8 @@ pub(super) fn check_selected_execution(
             package_inputs,
             selected_build_machine: selected_build_machine_symbol,
             freestanding: build_config.freestanding,
+            privileged_port_io: build_config.privileged_services.port_io,
+            privileged_interrupt_table: build_config.privileged_services.interrupt_table,
             boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
             opaque_representation_selections: &opaque_representation_selections,
             provider_plans: &provider_plans,

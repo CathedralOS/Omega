@@ -152,8 +152,11 @@ checked realization reach.
 
 Operator and top-level requirement signature capture borrows the checked
 compilation when there are no static parameters to instantiate. Nonempty
-static parameter lists retain clone-local instantiation. Both paths preserve
-source association, lifetime validation, and complete signature projection.
+static parameter lists instantiate through borrow-projected table reads —
+plan-layout rows, schema definitions, and the matched node are read through
+short borrows and rewritten handle spans are rebuilt only where members
+change. Both paths preserve source association, lifetime validation, and
+complete signature projection.
 
 The `OMEGA-SELECTED-PROVIDER-POLICY` version-4 component places grants inside
 their complete normalized plan and links atomic family coordinates by canonical

@@ -25,17 +25,9 @@ pub(crate) fn bind_proof_output_call_facts(
             ));
             continue;
         };
-        let machine_target = program.machines().iter().find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == call.target_symbol)
-                .map(|state| (machine, state))
-        });
-        let open_requirement = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == package.machine_symbol)
+        let machine_target =
+            crate::semantic_calls::find_state_with_machine(program, call.target_symbol);
+        let open_requirement = crate::lookup::machine_by_symbol(program, package.machine_symbol)
             .map(|machine| {
                 validation::named_conformance_target_requirement(
                     program,
@@ -86,10 +78,7 @@ pub(crate) fn bind_proof_output_call_facts(
         // Generic templates use the same checked contract lanes as their
         // closed instances. An evidence call names its public signature;
         // only a closed call carries a concrete realization dispatch row.
-        let caller_is_generic = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == package.machine_symbol)
+        let caller_is_generic = crate::lookup::machine_by_symbol(program, package.machine_symbol)
             .is_some_and(|machine| {
                 !machine.lifetime_parameters.is_empty()
                     || !machine.type_parameters.is_empty()
@@ -285,12 +274,9 @@ pub(crate) fn bind_proof_output_call_facts(
         }
 
         let runtime_call = if let Some(statement_index) = package.runtime_call_statement_index {
-            let Some(caller_state) = program.machines().iter().find_map(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == package.state_symbol)
-            }) else {
+            let Some(caller_state) =
+                crate::semantic_calls::find_state(program, package.state_symbol)
+            else {
                 diagnostics.push(diagnostics::Diagnostic::error(
                     "proof-output binding has no caller state",
                 ));
@@ -570,10 +556,7 @@ fn check_open_proof_output_requirement(
             .expression_table
             .expression_handles(call.arguments)
             .is_empty()
-        && program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == caller)
+        && crate::lookup::machine_by_symbol(program, caller)
             .is_some_and(|machine| machine.attached_data.is_none());
     if !unit && !scalar {
         return Err(rejected(
@@ -633,9 +616,18 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     };
     if application.trait_definition != dispatch.declaring_trait {
-        return Err(rejected(
-            "inherited parent-trait requirement rows remain unsupported",
-        ));
+        let Some(application_trait) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == application.trait_definition)
+        else {
+            return Err(rejected("its application trait is absent"));
+        };
+        if !trait_requires_transitively(program, application_trait, dispatch.declaring_trait) {
+            return Err(rejected(
+                "its declaring trait is absent from the application trait's requirement closure",
+            ));
+        }
     }
     let rows = application
         .rows
@@ -730,10 +722,7 @@ fn checked_static_requirement_dispatch<'program>(
             .expression_handles(call.arguments)
             .is_empty()
         && !call.receiver.is_valid()
-        && program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == caller_machine)
+        && crate::lookup::machine_by_symbol(program, caller_machine)
             .is_some_and(|machine| machine.attached_data.is_none());
     if program.machine_states(realization_machine).len() != 1
         || realization_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -757,6 +746,38 @@ fn checked_static_requirement_dispatch<'program>(
         },
         requirement,
     )))
+}
+
+/// Whether `required_trait` appears in the transitive `requires` closure of
+/// `trait_definition`. Inherited rows keep the parent's declaring-trait
+/// identity, so a dispatch declared on a parent is admitted through a
+/// conformance to its descendant.
+fn trait_requires_transitively(
+    program: &typed_trees::TypedTrees,
+    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    required_trait: SymbolHandle,
+) -> bool {
+    let mut pending = vec![trait_definition];
+    let mut visited = Vec::new();
+    while let Some(definition) = pending.pop() {
+        if visited.contains(&definition.symbol) {
+            continue;
+        }
+        visited.push(definition.symbol);
+        for requirement in program.trait_requirements(definition) {
+            if requirement.symbol == required_trait {
+                return true;
+            }
+            if let Some(parent) = program
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == requirement.symbol)
+            {
+                pending.push(parent);
+            }
+        }
+    }
+    false
 }
 
 fn check_public_named_witness_lanes(
@@ -953,19 +974,15 @@ pub(crate) fn intake_call_ensures_propositions(
     call: &typed_trees::statement::TableCall,
     known: &mut std::collections::BTreeSet<String>,
 ) {
-    let Some((callee, state)) = program.machines().iter().find_map(|machine| {
-        if machine.symbol == call.target_symbol {
-            return program
+    let Some((callee, state)) = crate::lookup::machine_by_symbol(program, call.target_symbol)
+        .and_then(|machine| {
+            program
                 .machine_states(machine)
                 .first()
-                .map(|state| (machine, state));
-        }
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == call.target_symbol)
-            .map(|state| (machine, state))
-    }) else {
+                .map(|state| (machine, state))
+        })
+        .or_else(|| crate::semantic_calls::find_state_with_machine(program, call.target_symbol))
+    else {
         return;
     };
     let parameters = program.state_parameters(state);

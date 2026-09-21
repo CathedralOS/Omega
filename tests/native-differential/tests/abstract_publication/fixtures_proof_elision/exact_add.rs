@@ -46,12 +46,14 @@ pub(in super::super) fn exact_add_verified_with_result(
             machine_result,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_018).unwrap(),
                         result: OperationResult::Scalar(declaration(left)),
                         kind: OperationKind::IntegerConstant {
@@ -60,6 +62,7 @@ pub(in super::super) fn exact_add_verified_with_result(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_019).unwrap(),
                         result: OperationResult::Scalar(declaration(right)),
                         kind: OperationKind::IntegerConstant {
@@ -68,6 +71,7 @@ pub(in super::super) fn exact_add_verified_with_result(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1_020).unwrap(),
                         result: OperationResult::Scalar(declaration(computed)),
                         kind: OperationKind::ExactIntegerAdd {

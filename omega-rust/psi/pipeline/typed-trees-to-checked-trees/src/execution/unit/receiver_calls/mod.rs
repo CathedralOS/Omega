@@ -127,11 +127,7 @@ pub(super) fn reconcile(
             if !demanded.contains(&plan.machine) {
                 return true;
             }
-            let Some(machine) = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == plan.machine)
-            else {
+            let Some(machine) = crate::lookup::machine_by_symbol(program, plan.machine) else {
                 return false;
             };
             let Some(rebuilt) = control::build_checked_machine_with(
@@ -540,10 +536,7 @@ fn receiver_place(
         &site,
         statement_index,
     )?;
-    let authored_machine = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == machine)?;
+    let authored_machine = crate::lookup::machine_by_symbol(program, machine)?;
     let authored_state = crate::semantic_calls::find_state_in_machine(program, machine, state)?;
     if let Some(aliases) =
         receiver_aliases::aliases(program, facts, authored_machine, authored_state)

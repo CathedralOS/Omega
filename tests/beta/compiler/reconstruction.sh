@@ -20,14 +20,10 @@ fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
-# The reconstructed compiler runs inside the audited Alpha container: a Mach-O
-# seed on macOS arm64, the Windows PE seed elsewhere. Hosts that cannot exec
-# the selected container refuse (exit 2) rather than crash on the exec below.
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Beta compiler reconstruction: requires macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+# The reconstructed compiler runs inside the audited Alpha container. Hosts
+# that cannot exec the selected container refuse (exit 2) rather than crash
+# on the exec below; the audited host matrix lives in seed_env.sh.
+require_seed_execution_host "Beta compiler reconstruction"
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT

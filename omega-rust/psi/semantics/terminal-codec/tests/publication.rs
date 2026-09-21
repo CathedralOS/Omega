@@ -139,6 +139,37 @@ fn malformed_tampering_rejects_before_publication() {
 }
 
 #[test]
+fn format_marker_drift_rejects_and_preserves_the_published_destination() {
+    let directory = test_directory("format-marker");
+    let destination = directory.join("module.psi");
+    let old = b"previous complete artifact";
+    fs::write(&destination, old).unwrap();
+
+    // The format marker is the little-endian u16 immediately after the
+    // eight-byte magic. A drifted marker must reject before the
+    // destination is touched in either direction.
+    for marker in [103u16, 106u16] {
+        let mut bytes = canonical_bytes();
+        bytes[8..10].copy_from_slice(&marker.to_le_bytes());
+        let publication = TerminalSemanticArtifactPublication::begin(&destination).unwrap();
+        publication
+            .producer_output()
+            .unwrap()
+            .write_all(&bytes)
+            .unwrap();
+
+        assert!(matches!(
+            publication.publish(None),
+            Err(TerminalSemanticPublicationError::Decode(
+                terminal_codec::CodecError::UnsupportedFormatMarker(observed)
+            )) if observed == marker
+        ));
+        assert_eq!(fs::read(&destination).unwrap(), old);
+    }
+    assert!(staging_paths(&directory).is_empty());
+}
+
+#[test]
 fn valid_but_substituted_terminal_meaning_rejects_when_expected_is_bound() {
     let directory = test_directory("valid-tamper");
     let destination = directory.join("module.psi");

@@ -321,6 +321,8 @@ fn declaration(
         | MachineSemanticKind::ExactRemainderU64
         | MachineSemanticKind::WrappingRemainderI64
         | MachineSemanticKind::WrappingDivideI64
+        | MachineSemanticKind::ExactDivideI64
+        | MachineSemanticKind::ExactRemainderI64
         | MachineSemanticKind::SaturatingAdd(_)
         | MachineSemanticKind::SaturatingSubtract(_)
         | MachineSemanticKind::SaturatingDivide(_)
@@ -548,7 +550,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::ExactDivideU64 => (vec![0, 1, 3], vec![2]),
         MachineSemanticKind::WrappingRemainderI64
         | MachineSemanticKind::ExactRemainderU64
-        | MachineSemanticKind::WrappingDivideI64 => (vec![0, 1], vec![2, 3]),
+        | MachineSemanticKind::WrappingDivideI64
+        | MachineSemanticKind::ExactDivideI64
+        | MachineSemanticKind::ExactRemainderI64 => (vec![0, 1], vec![2, 3]),
         MachineSemanticKind::SaturatingAdd(carrier)
         | MachineSemanticKind::SaturatingSubtract(carrier)
         | MachineSemanticKind::SaturatingDivide(carrier)
@@ -661,6 +665,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             MachineSemanticKind::WrappingRemainderI64
             | MachineSemanticKind::ExactRemainderU64
             | MachineSemanticKind::WrappingDivideI64
+            | MachineSemanticKind::ExactDivideI64
+            | MachineSemanticKind::ExactRemainderI64
             | MachineSemanticKind::SaturatingRemainder(_) => (
                 vec![],
                 vec![],
@@ -819,6 +825,10 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         // `cmp` the divisor against -1, `jne` to the divide, `neg` the
         // dividend for the wrapping MIN / -1 answer, `jmp` over `cqo; idiv`.
         MachineSemanticKind::WrappingDivideI64 => MachineSizeKnowledge::ExactBytes(16),
+        // Bare `cqo; idiv` / `cqo; idiv; mov rdx, rax`: the proven exact
+        // obligations exclude every faulting input the guard exists for.
+        MachineSemanticKind::ExactDivideI64 => MachineSizeKnowledge::ExactBytes(5),
+        MachineSemanticKind::ExactRemainderI64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::SaturatingAdd(carrier)
         | MachineSemanticKind::SaturatingSubtract(carrier)
         | MachineSemanticKind::SaturatingDivide(carrier)

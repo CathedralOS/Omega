@@ -173,6 +173,56 @@ fn invalidation_frees_the_key_row_and_stales_its_ids() {
 }
 
 #[test]
+fn dependency_sweep_drops_every_row_naming_the_changed_dependency() {
+    let mut program = program();
+    let base = program.int_reference();
+    let machine = program.machine;
+    let [count, total] = program.data;
+    let plan = ProofPlan::new(&program.typed_trees);
+    let count_key = key_for(&plan, machine, count, base);
+    let total_key = key_for(&plan, machine, total, base);
+    assert!(
+        count_key.as_str().contains("::count"),
+        "the canonical key embeds the data symbol's resolved identity"
+    );
+
+    let mut store = DerivationStore::new();
+    let first = store.store(count_key.clone(), 1).expect("stored");
+    let second = store.store(count_key.clone(), 2).expect("stored");
+    let kept = store.store(total_key, 3).expect("stored");
+
+    // `count`'s declaration changed: every row whose canonical identity
+    // still names it is affected, whatever key the caller can reproduce.
+    let removed = store.invalidate_where(|key| key.as_str().contains("::count"));
+    assert_eq!(removed, 2);
+    assert_eq!(store.candidates(&count_key).count(), 0);
+    assert_eq!(store.derivation(first), None);
+    assert_eq!(store.derivation(second), None);
+    assert_eq!(store.derivation(kept), Some(&3));
+    assert_eq!(store.len(), 1);
+    assert_eq!(store.key_count(), 1);
+}
+
+#[test]
+fn dependency_sweep_without_a_match_drops_nothing() {
+    let mut program = program();
+    let base = program.int_reference();
+    let machine = program.machine;
+    let count = program.data[0];
+    let plan = ProofPlan::new(&program.typed_trees);
+    let count_key = key_for(&plan, machine, count, base);
+
+    let mut store = DerivationStore::new();
+    let id = store.store(count_key.clone(), 1).expect("stored");
+    assert_eq!(
+        store.invalidate_where(|key| key.as_str().contains("::nonexistent")),
+        0
+    );
+    assert_eq!(store.len(), 1);
+    assert_eq!(store.derivation(id), Some(&1));
+}
+
+#[test]
 fn capacity_refusal_is_explicit() {
     let mut program = program();
     let base = program.int_reference();

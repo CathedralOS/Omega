@@ -102,10 +102,12 @@ pub enum MachineSemanticKind {
     ExactShiftLeftI64,
     ExactShiftRightI64,
     ExactShiftRightU64,
+    ExactDivideI64,
+    ExactRemainderI64,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 107] = [
+    pub const ALL: [Self; 109] = [
         Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
@@ -213,6 +215,8 @@ impl MachineSemanticKind {
         Self::ExactShiftLeftI64,
         Self::ExactShiftRightI64,
         Self::ExactShiftRightU64,
+        Self::ExactDivideI64,
+        Self::ExactRemainderI64,
     ];
 }
 
@@ -297,6 +301,8 @@ pub enum MachineAlternativeFamily {
     ExactShiftLeftI64,
     ExactShiftRightI64,
     ExactShiftRightU64,
+    ExactDivideI64,
+    ExactRemainderI64,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -390,6 +396,8 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactShiftLeftI64 => Self::ExactShiftLeftI64,
             MachineSemanticKind::ExactShiftRightI64 => Self::ExactShiftRightI64,
             MachineSemanticKind::ExactShiftRightU64 => Self::ExactShiftRightU64,
+            MachineSemanticKind::ExactDivideI64 => Self::ExactDivideI64,
+            MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
         }
     }
 }

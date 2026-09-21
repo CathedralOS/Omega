@@ -611,6 +611,7 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
     let block = finished.id;
     finished.terminator = Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge,
         target: block,
         arguments: finished
@@ -630,16 +631,24 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
+    // The productive unranked self-loop verifies, but fixed-fuel derivation
+    // refuses rather than invent a ceiling: the directed report names the
+    // verifier-derived component identity and the Unranked cause — not
+    // whichever block the traversal happened to revisit.
+    let expected_component = terminal_verifier::cyclic_component_identity(machine, &[block]);
     let verified = terminal_verifier::verify_module(
         &changed,
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
     .expect("an unchanged immutable view may be carried by a productive loop");
-    assert!(
-        matches!(terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, changed.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::ControlCycle(actual)) if actual == block)
-    );
+    assert!(matches!(
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, changed.entry),
+        Err(terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+            component,
+            cause: terminal_fixed_fuel::UnboundedCycleCause::Unranked,
+        }) if component == expected_component
+    ));
     let mut execution = TerminalExecution::start_artifact(
         &encode_module(&changed).unwrap(),
         &encode_proof_section(&changed, &lowered.proof_bundle).unwrap(),

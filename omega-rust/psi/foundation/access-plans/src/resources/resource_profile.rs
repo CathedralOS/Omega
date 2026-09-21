@@ -33,6 +33,24 @@ pub enum ExternalReadBehavior {
     Destructive,
 }
 
+/// Whether memory backing a region can still be written by a peer the
+/// provider does not control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PeerWritability {
+    /// The provider holds exclusive write custody: either exclusive from
+    /// acquisition, or a formerly shared peer's write permission revoked
+    /// and remapped with cross-core invalidation completed before the
+    /// supply was offered. `Stable` supply over this region is coherent.
+    Exclusive,
+    /// A hostile writable peer can still rewrite these bytes. The region
+    /// may honestly supply `External` or `Atomic` capability — every
+    /// authorized access is one exact-width event under mutation — but
+    /// never `Stable`: zero-copy stable placement would read what the peer
+    /// can still change after validation. Content needing stable
+    /// validation must first be copied into exclusive memory.
+    HostileShared,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TransferRule {
     pub width_bits: u16,
@@ -79,6 +97,7 @@ impl AtomicCapability {
 pub struct ResourceRegion {
     pub offset: u64,
     pub length: u64,
+    pub peer: PeerWritability,
     pub stable: StableCapability,
     pub external: ExternalCapability,
     pub atomic: AtomicCapability,
@@ -155,6 +174,7 @@ impl ValidatedResourceProfile {
             regions.push(ResourceRegion {
                 offset: start - offset,
                 length: retained_end - start,
+                peer: region.peer,
                 stable: region.stable,
                 external: region.external.clone(),
                 atomic: region.atomic.clone(),

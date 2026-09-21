@@ -81,6 +81,7 @@ fn dead_scalar_fixture() -> LoweredPsi {
         .extend([
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(2001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -91,6 +92,7 @@ fn dead_scalar_fixture() -> LoweredPsi {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(2002).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -305,6 +307,7 @@ fn dead_scalar_selection_rewrites_where_the_reconstructed_question_does_not_reac
         });
     let dead = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(4242).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -903,6 +906,7 @@ fn global_value_numbering_fixture() -> LoweredPsi {
         .extend([
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(2001).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -913,6 +917,7 @@ fn global_value_numbering_fixture() -> LoweredPsi {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(2002).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -923,6 +928,7 @@ fn global_value_numbering_fixture() -> LoweredPsi {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(2003).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -933,6 +939,7 @@ fn global_value_numbering_fixture() -> LoweredPsi {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(2004).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

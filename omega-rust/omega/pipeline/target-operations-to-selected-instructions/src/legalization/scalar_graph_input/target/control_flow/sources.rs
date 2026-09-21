@@ -113,6 +113,22 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
                 value: *value,
             },
         )),
+        TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+            psi_operation,
+            result,
+            format,
+            ..
+        } => Some((
+            *result,
+            Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                defining_operation: *psi_operation,
+                source_value: *result,
+                scalar_type: semantic_vocabulary::ScalarType::IeeeFloat(*format),
+                shape: super::super::super::scalar_shape(
+                    semantic_vocabulary::ScalarType::IeeeFloat(*format),
+                )?,
+            }),
+        )),
         TargetUnitOperation::IeeeFloatCompare { result_home, .. }
         | TargetUnitOperation::ScalarDefinition { result_home, .. }
         | TargetUnitOperation::Call {

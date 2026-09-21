@@ -139,4 +139,5 @@ pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions, ProductEntryCompatibility,
     evaluate_build_machine_arguments, evaluate_build_time_machine, evaluate_const_machine,
     evaluate_const_machine_measured, evaluate_granted_build_machine_arguments, interpret_entry,
+    interpret_entry_symbol,
 };

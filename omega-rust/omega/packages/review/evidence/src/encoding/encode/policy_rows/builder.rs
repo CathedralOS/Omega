@@ -7,6 +7,7 @@ use crate::record::PackagePolicyRow;
 use crate::record::PackagePolicyRowKind;
 use crate::record::PackagePolicyRowLimits;
 use crate::record::PackagePolicyRowUsage;
+use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct Builder<'policy> {
     policy: &'policy PackagePolicyBaseline,
@@ -113,7 +114,15 @@ impl<'policy> Builder<'policy> {
             self.remaining_elements(),
             self.limits.maximum_depth,
         );
-        self.frame(&mut measure, kind, initial, audit, &value)?;
+        frame_row(
+            &mut measure,
+            self.policy.package,
+            self.policy.target,
+            kind,
+            initial,
+            audit,
+            &value,
+        )?;
         let (binary_length, text_length, remaining) = measure.row_metrics()?;
         self.charge_elements(remaining);
         self.charge_bytes(
@@ -127,7 +136,15 @@ impl<'policy> Builder<'policy> {
             self.remaining_elements(),
             self.limits.maximum_depth,
         )?;
-        self.frame(&mut output, kind, initial, audit, &value)?;
+        frame_row(
+            &mut output,
+            self.policy.package,
+            self.policy.target,
+            kind,
+            initial,
+            audit,
+            &value,
+        )?;
         let (binary, text, remaining) = output.row_metrics()?;
         self.charge_elements(remaining);
         if (binary, text) != (binary_length, text_length) {
@@ -145,56 +162,6 @@ impl<'policy> Builder<'policy> {
             audit_recommended_when_present: audit,
         });
         Ok(())
-    }
-
-    fn frame(
-        &self,
-        encoder: &mut Encoder,
-        kind: PackagePolicyRowKind,
-        initial: bool,
-        audit: bool,
-        value: &impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
-    ) -> Result<(), PackageReviewEncodingError> {
-        encoder.field("binary_format", |encoder| {
-            encoder.fixed_bytes(b"OMEGA-PACKAGE-POLICY-ROW\0");
-            Ok(())
-        })?;
-        encoder.field("row_schema", |encoder| {
-            encoder.u16(PACKAGE_POLICY_ROW_VERSION);
-            Ok(())
-        })?;
-        encoder.field("baseline_schema", |encoder| {
-            encoder.u16(crate::encoding::PACKAGE_POLICY_BASELINE_VERSION);
-            Ok(())
-        })?;
-        encoder.field("package", |encoder| {
-            encoder.package_identity(self.policy.package);
-            Ok(())
-        })?;
-        encoder.field("target", |encoder| {
-            encoder.string(self.policy.target.identity().as_str())
-        })?;
-        encoder.field("kind", |encoder| {
-            encoder.tag(kind.as_str(), kind.canonical_tag());
-            Ok(())
-        })?;
-        encoder.field("initial_requires_decision", |encoder| {
-            encoder.boolean(initial);
-            Ok(())
-        })?;
-        encoder.field("update_requires_decision", |encoder| {
-            encoder.boolean(initial);
-            Ok(())
-        })?;
-        encoder.field("audit_recommended_when_present", |encoder| {
-            encoder.boolean(audit);
-            Ok(())
-        })?;
-        encoder.field("audit_recommended_on_change", |encoder| {
-            encoder.boolean(kind.row_change_audit(initial, audit));
-            Ok(())
-        })?;
-        encoder.field("value", value)
     }
 
     pub(super) fn finish(
@@ -219,4 +186,59 @@ impl<'policy> Builder<'policy> {
         }
         Ok((self.rows, self.usage))
     }
+}
+
+/// One row's acceptance frame: the versioning envelope, the occurrence's
+/// package identity and target, the row kind, its decision flags, and the
+/// carried value. Shared by whole-baseline projection and single-request
+/// rendering so both produce identical canonical text.
+pub(super) fn frame_row(
+    encoder: &mut Encoder,
+    package: PackageKeyIdentity,
+    target: target::TargetProfile,
+    kind: PackagePolicyRowKind,
+    initial: bool,
+    audit: bool,
+    value: &impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.field("binary_format", |encoder| {
+        encoder.fixed_bytes(b"OMEGA-PACKAGE-POLICY-ROW\0");
+        Ok(())
+    })?;
+    encoder.field("row_schema", |encoder| {
+        encoder.u16(PACKAGE_POLICY_ROW_VERSION);
+        Ok(())
+    })?;
+    encoder.field("baseline_schema", |encoder| {
+        encoder.u16(crate::encoding::PACKAGE_POLICY_BASELINE_VERSION);
+        Ok(())
+    })?;
+    encoder.field("package", |encoder| {
+        encoder.package_identity(package);
+        Ok(())
+    })?;
+    encoder.field("target", |encoder| {
+        encoder.string(target.identity().as_str())
+    })?;
+    encoder.field("kind", |encoder| {
+        encoder.tag(kind.as_str(), kind.canonical_tag());
+        Ok(())
+    })?;
+    encoder.field("initial_requires_decision", |encoder| {
+        encoder.boolean(initial);
+        Ok(())
+    })?;
+    encoder.field("update_requires_decision", |encoder| {
+        encoder.boolean(initial);
+        Ok(())
+    })?;
+    encoder.field("audit_recommended_when_present", |encoder| {
+        encoder.boolean(audit);
+        Ok(())
+    })?;
+    encoder.field("audit_recommended_on_change", |encoder| {
+        encoder.boolean(kind.row_change_audit(initial, audit));
+        Ok(())
+    })?;
+    encoder.field("value", value)
 }

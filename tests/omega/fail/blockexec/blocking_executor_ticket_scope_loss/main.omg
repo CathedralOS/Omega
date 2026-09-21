@@ -1,0 +1,24 @@
+// BLOCKEXEC — linear completion claim pinned at `Token` granularity, the
+// `task_core_scope_loss` sibling for the executor's `Ticket`: a vended
+// claim must be discharged exactly once by `Ticket::settle`/`Executor::
+// close`; ordinary scope exit cannot discharge it (the executor's
+// `outstanding` ledger records the claim as live). The package's real
+// surface is exercised by the pass canaries; this pin declares the claim
+// shape so the multiplicity rejection is witnessed without the package's
+// TR3-TR8 admission route.
+
+data Ticket [linear] {
+    executor: u64;
+    slot: u64;
+}
+
+// A Ticket linear value cannot disappear through ordinary scope cleanup.
+machine leak(ticket: Ticket) {
+    // The state-parameter claim remains live and must be consumed or
+    // transferred.
+}
+
+machine lose_ticket_claim() {
+    let ticket: Ticket = Ticket { executor: 0, slot: 0 };
+    leak(ticket);
+}

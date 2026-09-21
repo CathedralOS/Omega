@@ -8,8 +8,16 @@ use omega_language_std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
-    self.a = 9000000000000000000 + 9000000000000000000; // add overflow
-    self.b = 4000000000 * 4000000000;                   // multiply overflow
-    self.c = (1 << 63) / -1;                             // i64::MIN / -1 division overflow
+    // Anonymous folds stay exact until an operand lands (decision 17), so each
+    // operand lands in the field's declared Wrapping carrier before combining.
+    let add_l: i64 in Wrapping = 9000000000000000000;
+    let add_r: i64 in Wrapping = 9000000000000000000;
+    let mul_l: i64 in Wrapping = 4000000000;
+    let mul_r: i64 in Wrapping = 4000000000;
+    let min: i64 in Wrapping = -9223372036854775807 - 1;
+    let neg_one: i64 in Wrapping = -1;
+    self.a = add_l + add_r;      // add overflow wraps
+    self.b = mul_l * mul_r;      // multiply overflow wraps
+    self.c = min / neg_one;      // i64::MIN / -1 division overflow wraps
     self.console.exit_process(0);
 }
