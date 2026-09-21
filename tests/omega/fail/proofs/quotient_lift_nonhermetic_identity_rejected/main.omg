@@ -1,3 +1,7 @@
+// Field note (review cca013f8ceae..c924529921dd): unregistered — roster::
+// registered_fail_canaries_* names this fixture (with predicate_domain_local_initializer_*);
+// add it to a canary_suite fail roster before relying on it as evidence.
+
 use omega::language::core::relation;
 
 data Representative {
