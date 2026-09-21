@@ -203,13 +203,14 @@ pub(crate) fn selected_call_summary<'a>(
             build_bound_demands: &[],
         });
     }
-    let target_machine = program.machines().iter().find(|candidate| {
-        candidate.symbol == target_symbol
-            || program
-                .machine_states(candidate)
-                .iter()
-                .any(|state| state.symbol == target_symbol)
-    })?;
+    let target_machine = program
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == target_symbol)
+        .or_else(|| {
+            crate::semantic_calls::find_state_with_machine(program, target_symbol)
+                .map(|(machine, _)| machine)
+        })?;
     match &target_machine.termination_plan.interface {
         language_semantics::TerminationInterface::Published(guarantee) => {
             let build_bound_demands = summaries

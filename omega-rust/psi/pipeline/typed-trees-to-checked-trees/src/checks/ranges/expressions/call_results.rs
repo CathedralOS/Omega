@@ -39,14 +39,7 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
     {
         (machine, program.machine_states(machine).first()?)
     } else {
-        let target = crate::semantic_calls::find_state(program, call.target_symbol)?;
-        let machine = program.machines().iter().find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == call.target_symbol)
-        })?;
-        (machine, target)
+        crate::semantic_calls::find_state_with_machine(program, call.target_symbol)?
     };
     // An authored parameter named `result` on the called signature shadows the
     // reserved binder; a `result` operand then denotes that parameter, not the
