@@ -16718,12 +16718,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (Resolved) and -EXECUTION (scoped): re-mines the catalog route leg of
   **EXACT-MACHINE-SIMPLIFICATIONS** (TASKS_OPTIMIZER.md:641) — each
   `Orphaned` rewrite in `rewrites/module_catalog.rs` needs a catalog entry
-  executed by the stage entrance. Implementing surfaces remain under live
-  sibling claims at verification time (`rewrites/{mod.rs,module_catalog.rs}`
-  under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z; pair descriptors under
-  COMPOSABLE-PAIR-DESCRIPTORS 23:57Z; `address_fold` under
-  REWRITE-VALIDATOR-INDEPENDENCE 00:19Z+1d). Folds into
-  SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice.
+  executed by the stage entrance. Re-verified at `bf1a1a8d6cc9`:
+  `module_catalog.rs` retains 42 `Orphaned` rows and
+  `optimize_selected_instructions` still dispatches only the
+  identity/selected-lowering run (`selected_optimization.rs:17`). Fence
+  map rolled over — `rewrites/{mod,module_catalog}.rs` and the pair
+  descriptors are free, but per-module validator legs are fenced:
+  `rewrites/dead_store*` under DEAD-STORE-INDEPENDENT-VALIDATION
+  (11:51Z), `commuting_interchange/validation.rs` under
+  COMMUTING-INTERCHANGE-VALIDATOR-INDEPENDENCE (11:56Z),
+  `rewrites/{diamond_relocation,window_hazards}` under
+  SCHEDULING-RELOCATION-UNIFICATION (11:59Z), and
+  `tests/ancestry_contract.rs` under SELECTED-OPTIMIZATION-DIRECT-READS
+  (05:22Z). Folds into SELECTED-REWRITE-CATALOG-EXECUTION; no
+  independent slice.
 - **SELECTED-OPTIMIZATION-DIRECT-READS.** Mined candidate — resolved,
   covered. Re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL
   surface (the direct-reads leg): `selected_optimization.rs` no longer
