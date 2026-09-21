@@ -11796,6 +11796,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`x86_rel8_selected` rejects `Architecture::Aarch64` as `UnsupportedTarget`
   in catalog.rs, and `hosted_sequences.rs` emits the out-of-range
   diagnostic). Dispatch it here — already resolved.
+- **OCREQ-REQUEST-BINDING.** — mined candidate; resolved — re-mine
+  stub of the bound OCREQ request-entry surface (sibling
+  resolutions: CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING,
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING, OCREQ-REQUEST-ENTRY-BINDING
+  below). Binding stands on main: `compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_*` plus the sealed-request fixture pair and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`; fresh witness recorded below.
+  No unbound residual under this name.
+  Re-witnessed at `7d03d489e3d` on linux x86-64: `sh
+  tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
+  identities verified (622,933-byte receipt request, 565,909-byte
+  customer, 45-byte expected observation); execution legs stay
+  seed-host-gated per the frontier.
 - **OCREQ-REQUEST-ENTRY-BINDING.** Mined candidate; scope verified at
   163670cf6d — re-mines the bound OCREQ request-entry surface (sibling
   resolutions: CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING,
