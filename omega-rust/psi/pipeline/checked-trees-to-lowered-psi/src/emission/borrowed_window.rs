@@ -62,6 +62,20 @@ pub(crate) struct OpenBorrowedWindow {
     spelling: String,
 }
 
+impl OpenBorrowedWindow {
+    /// Frontier identity of the hole: the exact place (root and spelled
+    /// route) plus its declared type. `moved` is the path-local result
+    /// binding of that arm's extraction, so it is excluded — reconverging
+    /// arms may each have moved the same field under different bindings and
+    /// still carry one agreeing hole.
+    fn same_hole(&self, other: &Self) -> bool {
+        self.source == other.source
+            && self.full_path == other.full_path
+            && self.field == other.field
+            && self.hole_type == other.hole_type
+    }
+}
+
 /// The restoring value: an already-owned whole structural place of the hole's
 /// exact declared type. The removed value itself or any other whole owned
 /// value of that type qualifies; both values' obligations stay with their
@@ -223,13 +237,22 @@ impl BorrowedWindowLedger {
     }
 
     /// Reconverging paths must agree on the exact open holes; one repaired
-    /// path does not repair another.
+    /// path does not repair another. The frontier is hole identity — root,
+    /// spelled route, declared type — so sibling paths that each opened the
+    /// same place agree even though their `moved` result bindings are
+    /// arm-local: on the joined edge the shared hole is one open window,
+    /// and `emit_store` never consults `moved` when reseating it.
     pub(crate) fn require_same_frontier(&self, other: &Self) -> Result<(), LoweringError> {
         let disagreeing = self
             .open
             .iter()
-            .find(|absent| !other.open.contains(absent))
-            .or_else(|| other.open.iter().find(|absent| !self.open.contains(absent)));
+            .find(|absent| !other.open.iter().any(|open| open.same_hole(absent)))
+            .or_else(|| {
+                other
+                    .open
+                    .iter()
+                    .find(|absent| !self.open.iter().any(|open| open.same_hole(absent)))
+            });
         match disagreeing {
             None => Ok(()),
             Some(absent) => Err(unpinned(
@@ -1217,6 +1240,54 @@ mod tests {
             .ledger
             .require_same_frontier(&unrepaired)
             .expect("both paths closed");
+    }
+
+    #[test]
+    fn sibling_paths_opening_the_same_hole_agree_at_the_join() {
+        let receiver = envelope_receiver();
+        let mut left_arm = Emission::new();
+        let left_moved = left_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the first path");
+        let mut right_arm = Emission::new();
+        right_arm.next_place = 3;
+        let right_moved = right_arm
+            .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+            .expect("open on the second path");
+        // Each arm bound its own result place for the removed value; the
+        // frontier is the shared hole, not the per-arm binding.
+        assert_ne!(left_moved, right_moved);
+        left_arm
+            .ledger
+            .require_same_frontier(&right_arm.ledger)
+            .expect("same hole opened on both paths agrees");
+        right_arm
+            .ledger
+            .require_same_frontier(&left_arm.ledger)
+            .expect("agreement is symmetric");
+
+        // A hole opened on one arm only still disagrees with a path that
+        // never opened it, and with a path that opened a different hole.
+        let mut untouched = Emission::new();
+        assert_unpinned(
+            left_arm
+                .ledger
+                .require_same_frontier(&untouched.ledger)
+                .unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
+        untouched
+            .emit_move(&receiver, &checked_place(&fields(&["right"]), CELL))
+            .expect("open the sibling field instead");
+        assert_unpinned(
+            left_arm
+                .ledger
+                .require_same_frontier(&untouched.ledger)
+                .unwrap_err(),
+            "self.left",
+            "reconverging paths disagree",
+        );
     }
 
     #[test]
