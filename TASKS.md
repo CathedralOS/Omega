@@ -10775,6 +10775,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   green (15/15 at `b260ea749e`), with every re-recorded digest's citing
   justification revalidated in the landing commit's body.
 
+  Sibling re-mine names reaching this duty: TRUSTED-SURFACE-DIGEST-REFRESH,
+  -DIGEST-RERECORD, -LEDGER-REFRESH, -LEDGER-RERECORD (removed at
+  `af99dc50542c`), and BASELINE-VERIFIER-DIGEST-LEDGER. Ledger currently
+  green at `f44a1177ed` — `recorded_digests_match_the_working_tree`
+  1/1 PASS; no re-record needed this wave.
+
 - **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS** — verified 14e6f8f72e: the span-arm surface
