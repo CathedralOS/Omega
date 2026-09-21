@@ -15870,7 +15870,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `capture/semantics/signatures/policy.rs` belong to their own owners'
   fences.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
-- **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
+- **REWRITE-CATALOG-ADMISSION** — the stage entrance's piece landed (selected_optimization.rs): `admit_selected_optimization` is the one ordered admission route — each projected phase selection resolves through the owning phase's catalog (allocation recovery admitted-and-deferred, selected lowering admitted-and-executed), empty and nonempty selections traverse the same walk, and deferred-plus-executable composition still rejects. Remaining of the mined flag: Optimization members + catalog rows for the relocation/other orphan families (member vocabulary is optimization-core's), per-stage candidate discovery binding source and selection identities.
 - **REWRITE-VALIDATOR-INDEPENDENCE.** Mined candidate — resolved at
   `d8041919ad`: this re-mines the EXACT-MACHINE-SIMPLIFICATIONS bullet
   "separate validation from proposal" (TASKS_OPTIMIZER.md) — each rewrite's
