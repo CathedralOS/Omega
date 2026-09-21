@@ -2,6 +2,7 @@
 
 use crate::declarations::PackageKey;
 use crate::resolution::source::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
+use crate::review::timings;
 use package_source::SourceResolveError;
 use std::collections::BTreeSet;
 use std::fmt;
@@ -238,13 +239,15 @@ impl PackageSourcePatch {
 }
 
 /// Render an update patch, or a complete candidate-source review when the old
-/// snapshot is unavailable. Both snapshots are revalidated against their
-/// resolver-issued content commitments before capture and after rendering.
+/// snapshot is unavailable. Both snapshots are verified against their
+/// resolver-issued content commitments inside capture and revalidated after
+/// rendering.
 pub fn render_package_source_patch(
     baseline: Option<&PackageSourceCustody>,
     candidate: &PackageSourceCustody,
     limits: PackageSourcePatchLimits,
 ) -> Result<PackageSourcePatch, PackageSourcePatchError> {
+    let _stage = timings::stage("source_patch_rendering");
     if baseline.is_some_and(|baseline| baseline.key() != candidate.key()) {
         return Err(PackageSourcePatchError::PackageKeyMismatch);
     }

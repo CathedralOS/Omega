@@ -652,3 +652,114 @@ fn qualified_module_selection_requires_a_direct_dependency() {
     })
     .expect("explicit direct dependency admits the public module machine");
 }
+
+// The root binding carries identity as a symbol resolved under its lexical
+// package; another package may declare a machine with the same bare spelling.
+// Interpretation must dispatch on that symbol, not the name.
+#[test]
+fn selected_program_entry_dispatches_by_exact_symbol_not_spelling() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    // The dependency's `combat::launch` is the bound entry and exits 0. The
+    // root's reachable `launch(dummy)` is a decoy: spelling-based dispatch
+    // reaches it first and would exit 7.
+    TempTree::write(
+        root.join("main.omg"),
+        "use dep::combat; machine launch(dummy: u8) -> i32 { 7 }",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) {\n\
+         \x20   builder.application(\"entry-symbol-exactness\");\n\
+         \x20   builder.roots.bind(windows_x86_64::ProgramEntry, dep::combat::launch);\n\
+         }",
+    );
+    TempTree::write(
+        dependency.join("combat.omg"),
+        "module combat; pub machine launch() {\n\
+         \x20   let marker: u8 = 42;\n\
+         }",
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("one direct dependency");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("a dependency-aliased root binding compiles");
+    let entry = checked
+        .selected_program_entry()
+        .expect("the root binding selects the dependency's exact entry");
+    let bound_symbol = entry.source_signature().machine_symbol();
+    let same_named: Vec<_> = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.name.as_str() == "launch")
+        .collect();
+    assert_eq!(
+        same_named.len(),
+        2,
+        "both packages retain a machine named `launch`"
+    );
+    assert_ne!(
+        same_named[0].symbol, bound_symbol,
+        "spelling dispatch must not reach the same machine the binding selected"
+    );
+    let outcome = checked_interpreter::interpret_entry_symbol(
+        &checked,
+        bound_symbol,
+        &[],
+        checked_interpreter::InterpretOptions::default(),
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(
+        outcome.exit_code, 0,
+        "the bound dependency machine runs, not its same-named root twin"
+    );
+}
+
+// The bundled toolchain claims the `omega::language::core` namespace: a
+// requester-local source at the same path can never be reached by the
+// import, so the package-reconciled route names the collision instead of
+// silently shadowing it. The standalone-tree arm of this rule is pinned by
+// the `modules/bundled_core_name_collision_rejected` corpus canary.
+#[test]
+fn bundled_core_import_colliding_with_requester_source_rejects() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        "use omega::language::core::marker; machine score() -> u64 { 7 }",
+    );
+    let colliding_module_dir = root.join("omega/language/core");
+    std::fs::create_dir_all(&colliding_module_dir)
+        .expect("create requester-local bundled-core module directory");
+    TempTree::write(colliding_module_dir.join("marker.omg"), "data Marker {}");
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(root_inputs(&root)),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect_err("a requester-local source must not shadow the bundled core namespace");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("collides with a requester-local source below"),
+        "missing bundled-core collision diagnostic:\n{combined}"
+    );
+}

@@ -16,6 +16,12 @@ pub const PROOFS_INTEGER_MEASURED_NAT_INDUCTION_COMPILE: &str =
     "proofs/integer_measured_nat_induction_compile";
 pub const PROOFS_RUNTIME_RANKED_ACCUMULATOR_GUARANTEE_EXIT: &str =
     "proofs/runtime_ranked_accumulator_guarantee_exit";
+pub const PROOFS_ACCUMULATOR_GUARANTEE_WRONG_STEP_TWIN: &str =
+    "proofs/accumulator_guarantee_wrong_step_twin";
+pub const PROOFS_ACCUMULATOR_GUARANTEE_UNESTABLISHED_TWIN: &str =
+    "proofs/accumulator_guarantee_unestablished_twin";
+pub const PROOFS_ACCUMULATOR_GUARANTEE_UNBOUNDED_FORMALS: &str =
+    "proofs/accumulator_guarantee_unbounded_formals";
 pub const TERMINATION_PROOF_NON_TAIL_JOINT_MACHINE_CYCLE_COMPILE: &str =
     "termination/proof_non_tail_joint_machine_cycle_compile";
 pub const FLOAT_FLOAT_TO_INT_EXACT_PROOFS_EXIT: &str = "float/float_to_int_exact_proofs_exit";
@@ -75,6 +81,7 @@ pub const DEPENDENT_DATA_WHERE_CALLEE_ESTABLISHES: &str = "dependent/data_where_
 pub const DEPENDENT_DATA_WHERE_MULTISTATE_CALLEE: &str = "dependent/data_where_multistate_callee";
 pub const DEPENDENT_DATA_WHERE_GATED_LITERAL_PROVES: &str =
     "dependent/data_where_gated_literal_proves";
+pub const DEPENDENT_EMBED_SELF_FIELD_VIEW: &str = "dependent/embed_self_field_view";
 pub const ARITHMETIC_ZII_RANGE_EXCLUDES_ZERO_REJECTED: &str =
     "arithmetic/zii_range_excludes_zero_rejected";
 pub const RANGE_ELEMENT_RANGE_ZERO_EXCLUDED: &str = "range/element_range_zero_excluded";
@@ -154,6 +161,8 @@ pub const FLOAT_FLOAT_TRAPPING_PROPAGATED_INFINITY_TRAPS: &str =
 pub const FLOAT_EXCLUSIVE_RANGE_BELOW_ENDPOINT: &str = "float/exclusive_float_range_below_endpoint";
 pub const FLOAT_EXCLUSIVE_RANGE_ENDPOINT_REJECTED: &str =
     "float/exclusive_float_range_endpoint_rejected";
+pub const PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED: &str =
+    "proofs/quotient_lift_unproved_termination_rejected";
 
 pub const PASS_CANARIES: &[&str] = &[
     WIRE_DECODE_REQUIREMENT_SURFACE,
@@ -193,8 +202,13 @@ pub const PASS_CANARIES: &[&str] = &[
     FLOAT_EXCLUSIVE_RANGE_BELOW_ENDPOINT,
 ];
 
-pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] =
-    &[DEPENDENT_DATA_WHERE_STANDING_BOUND_ABSENT_REJECTED];
+pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
+    DEPENDENT_DATA_WHERE_STANDING_BOUND_ABSENT_REJECTED,
+    PROOFS_ACCUMULATOR_GUARANTEE_WRONG_STEP_TWIN,
+    PROOFS_ACCUMULATOR_GUARANTEE_UNESTABLISHED_TWIN,
+    PROOFS_ACCUMULATOR_GUARANTEE_UNBOUNDED_FORMALS,
+    PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED,
+];
 
 pub const FAIL_CANARIES: &[&str] = &[
     PROOFS_NAT_EXACT_SUBTRACTION_REQUIRES_ORDER,
@@ -312,4 +326,28 @@ pub const FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES: &[&str] = &[
     FLOAT_FLOAT_TRAPPING_INVALID_TRAPS,
     FLOAT_FLOAT_TRAPPING_PROPAGATED_NAN_TRAPS,
     FLOAT_FLOAT_TRAPPING_PROPAGATED_INFINITY_TRAPS,
+];
+
+/// Fail canaries whose refusal lives in the production stages behind checked
+/// semantics (`checked-trees-to-lowered-psi` and its consumers). They need
+/// the Terminal-artifact route -- a `Check` stop never reaches the lowering
+/// wall, and Terminal production exercises the fence without entering native
+/// realization -- but bind a non-native `ProgramEntry`, so they carry an
+/// explicit target like `CROSS_TARGET_FAIL_CANARIES`.
+pub const CROSS_TARGET_PRODUCTION_FAIL_CANARIES: &[(&str, &str)] = &[
+    // Checked `let`/`boundary let` declarations reach the lowering consumer;
+    // production refuses because no Terminal evidence encoding carries them
+    // yet. The fixture binds only `linux_x86_64::ProgramEntry`.
+    (
+        "proofs/mathematical_declaration_lowering_rejected",
+        "linux_x86_64",
+    ),
+    // Checked semantics admits the conditional claim join as evidence;
+    // `checked-trees-to-lowered-psi` refuses it pending Terminal
+    // exit-alternative correspondence. The fixture binds only
+    // `linux_x86_64::ProgramEntry`.
+    (
+        "ownership/linear_ambiguous_state_result_mapping",
+        "linux_x86_64",
+    ),
 ];

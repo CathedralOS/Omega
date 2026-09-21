@@ -457,19 +457,45 @@ fn instantiate_call_domain_membership_instance(
         ) {
             continue;
         }
-        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(*argument)
-        else {
-            continue;
-        };
-        let Some((_, bound)) = substitutions.iter().find(|(binder, _)| *binder == *symbol) else {
-            continue;
-        };
-        let Some(replacement) = bound_index_argument_reference(program, bound) else {
-            continue;
-        };
-        *argument = replacement;
-        changed = true;
+        match program.type_reference_table.type_reference(*argument) {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                let Some((_, bound)) = substitutions.iter().find(|(binder, _)| *binder == *symbol)
+                else {
+                    continue;
+                };
+                let Some(replacement) = bound_index_argument_reference(program, bound) else {
+                    continue;
+                };
+                *argument = replacement;
+                changed = true;
+            }
+            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
+                // An index spelled as an expression binds the callee's binder
+                // at leaf positions: the caller-side spelling is the
+                // const-expression reference whose leaves compare equal under
+                // this call's bound substitutions.
+                let sites = program.type_reference_table.const_expression_sites();
+                let Some((replacement, _)) = sites.into_iter().find(|(_, candidate)| {
+                    *candidate != *expression
+                        && !crate::facts::index_compatibility::expression_uses_binder(
+                            program,
+                            *candidate,
+                            &substitutions,
+                        )
+                        && crate::facts::index_compatibility::bound_index_expressions_equal(
+                            program,
+                            *candidate,
+                            *expression,
+                            &substitutions,
+                        )
+                }) else {
+                    continue;
+                };
+                *argument = replacement;
+                changed = true;
+            }
+            _ => continue,
+        }
     }
     if !changed {
         return;

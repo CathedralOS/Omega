@@ -166,9 +166,16 @@ fn local_provenance(
                             .find(|parameter| parameter.symbol == name.symbol)
                     })
                     .ok_or("record origin has no source declaration")?;
-                return if program.type_multiplicity(parameter.type_reference)
-                    == Multiplicity::Unrestricted
+                let multiplicity = program.type_multiplicity(parameter.type_reference);
+                return if multiplicity == Multiplicity::Unrestricted
+                    || (multiplicity == Multiplicity::Affine
+                        && !parameter.is_self
+                        && !parameter.is_const
+                        && !parameter.is_mutable)
                 {
+                    // An owned affine parameter mints no state-entry claim;
+                    // the move stamps this local's own statement establishment
+                    // as the provenance the join ledger carries.
                     Ok(None)
                 } else {
                     Err("record parameter origin requires its own custody join")

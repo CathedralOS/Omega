@@ -402,6 +402,7 @@ fn mutable_reference_temporarily_lends_shared_read_and_write_only_store() {
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: machine_id(92),
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -898,6 +899,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),

@@ -254,12 +254,14 @@ fn terminal_fixture() -> TerminalModule {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(0x7203).expect("jump edge identity"),
                         target: final_block,
@@ -270,6 +272,7 @@ fn terminal_fixture() -> TerminalModule {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: final_block,
                     parameters: Vec::new(),
@@ -282,6 +285,7 @@ fn terminal_fixture() -> TerminalModule {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(0x7205).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -396,12 +400,14 @@ fn ranked_terminal_fixture() -> TerminalModule {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: preheader,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: preheader_edge,
                         target: header,
@@ -412,6 +418,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: header,
                     parameters: vec![ValueDeclaration {
@@ -450,6 +457,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         condition,
                         when_true: SuccessorEdge {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: guard_edge,
                             target: decrement,
@@ -458,6 +466,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                         },
                         when_false: SuccessorEdge {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: exit_edge,
                             target: done,
@@ -468,6 +477,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: decrement,
                     parameters: Vec::new(),
@@ -501,6 +511,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     ],
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: backedge,
                         target: header,
@@ -511,6 +522,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: done,
                     parameters: Vec::new(),
@@ -523,6 +535,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: core_id(0x7451, ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -903,6 +916,13 @@ fn installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence() {
     assert_eq!(binding.installed_code(), installed.identity());
     assert_eq!(binding.artifact(), installed.artifact());
     assert_eq!(binding.entry(), selected_entry);
+    // A safe-point catalog row is per-traversal evidence: each row's
+    // endpoint rides its start block's own terminator, so the row bounds a
+    // single visit of that block — header and decrement each charge their
+    // two operations plus terminator (3), while preheader and done charge
+    // the terminator alone (1). The rank carrier's type maximum multiplies
+    // member visits only in whole-entry composition (`derive_fixed_entry_
+    // fuel`), never inside a per-edge segment row.
     assert_eq!(
         binding
             .segments()

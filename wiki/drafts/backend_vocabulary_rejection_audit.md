@@ -104,6 +104,68 @@ Coverage: `compiler/tests/realization_custody.rs` maps every
   `external-roots`, and `component_verification.rs` sit under sibling claims
   at audit time; each already routes unknown values through named diagnostics.
 
+## Operation vocabulary — `target-operations-to-selected-instructions`
+
+The other half of this item's territory, audited at `3a505ad6ff`: every
+`AbstractOperation` family that reaches the backend is either legalized and
+selected or cleanly refused — never silently miscompiled, never panicked on.
+The classification seam is `legalization/scalar_graph_input/nodes.rs::admit`.
+
+### Admission (`nodes.rs` + `control.rs`)
+
+`admit` classifies every `OptimizationNode.operation`:
+
+- seventeen non-scalar families (`EstablishRecord`, `PrimitiveLocalStore`, …)
+  return `Ok` immediately with no scalar row;
+- `BoundaryCall` admits conditionally;
+- each listed scalar family admits only under its payload guards
+  (`scalar_shape`, `valid_literal`, `saturating_carrier`,
+  `supports_wrapping_divide_i64`, `supports_signed_wrapping_remainder`,
+  `exact_cast_has_native_carriers`), with malformed payloads re-classified;
+- the catch-all returns `NodeRejection::UnsupportedFamily`.
+
+`nodes::validate` maps `Malformed` to `SourceCustodyMismatch` and
+`UnsupportedFamily` to `LegalizationError::UnsupportedScalarOperation`,
+carrying the machine and the operation itself. Terminators are classified by
+`control.rs`: `Crash`, `StructuralCase`, `ReturnStructural`, `ReturnUnit`,
+`Return`, `Jump` (only with `residual_affine_discards.is_empty()`), and
+`Conditional` admit; every other operation in terminator position refuses as
+custody-invalid.
+
+Fourteen well-formed families currently refuse at this seam:
+`StoreDynamicDescriptor`, `WriteOnlyIndexedPrimitiveStore`,
+`MoveStructuralField`, `StoreStructuralField`, `AtomicEvent`,
+`EstablishTrivialAffineLocal`, `CallUnitWithDynamicArguments`,
+`CallStructuralScalarWithDynamicArguments`, `CallDynamicScalar`,
+`CallStoredDynamicScalar`, `CallDynamicUnit`, `PortWrite`,
+`NearestIeeeFloatFusedMultiplyAdd`, `SaturatingIntegerMultiply`. Each is a
+deliberate "not yet realized" admission boundary (e.g. FMA is tracked by
+FLOAT-FMA-NATIVE-TRANSPORT), not a hole.
+
+### Selection coverage
+
+Every `LegalizedScalarInstructionKind` variant (51 today) has a construction
+arm in `selection/construction/scalar_graph.rs`: the outer `match
+&operation.kind` is exhaustive with no wildcard, so an uncovered kind fails at
+compile time, not at runtime. Per-target encodability is data-driven through
+`SelectedConstraintKeys` `Option` fields — a key absent on a target (e.g.
+`hosted_read_byte` is `Some` only on `linux_x64`) refuses via
+`.ok_or_else(invalid)` as `SelectedInstructionError`. Admitted-but-unencodable
+is therefore a named refusal, never a silent miscompile; its
+`SourceCustodyMismatch` variant label does misname a capability gap
+(observation only, not a defect). The single `unreachable!` in selection
+(shift dispatch) is reachable only from the four shift-kind arm patterns and
+is guarded by them.
+
+### Pre-validation matchers
+
+Every `match` on `node.operation` outside `nodes.rs`/`control.rs` is either a
+selective probe before admission (`primitive_locals`, `byte_views`, `header`,
+`aggregate_results` — each can only produce `Err`/`None` on the shapes it
+examines and otherwise defers to `admit`) or a post-`validate` replay
+(`source/scalar_graph::instruction`, `validate_target`), whose catch-alls
+return `SourceCustodyMismatch`. None panic on vocabulary.
+
 ## Findings
 
 1. **component-description tag coverage gap (fixed here):** six vocabulary
@@ -117,9 +179,22 @@ Coverage: `compiler/tests/realization_custody.rs` maps every
    trusted for `Vec::with_capacity` before bounds validation). The Psi-side
    codec is outside this audit's claimed paths; worth a follow-up board item
    for allocation-before-validation in terminal-codec readers.
+3. **Operation-vocabulary seam verified, pin added:** the
+   `UnsupportedScalarOperation` route produces a named
+   `LegalizationError` carrying machine and operation, which propagates
+   through `OptimizedSelectionPipelineError::Legalization` and
+   `OptimizedVerifiedPhysicalPipelineError::Selection` to
+   `selected_physical_pipeline_failed` — an ordinary `Vec<Diagnostic>`, no
+   abort. `admission_vocabulary_tests.rs` pins the `UnsupportedFamily`
+   classification for refused families and the named-diagnostic mapping.
+   (The pre-existing `PortWrite` leg in `tests/legalization/scalar_call_unit.rs`
+   asserts only `.is_err()` on an abstract-side plan mutation that refuses at
+   custody derivation — it does not exercise the named route.)
 
 ## Evidence
 
 - `cargo nextest run -p component-description --lib` — 23/23 pass.
 - `cargo clippy -p component-description --all-targets` — clean.
 - `cargo fmt --check` — clean.
+- `cargo test -p target-operations-to-selected-instructions
+  admission_vocabulary` — 2/2 pass.

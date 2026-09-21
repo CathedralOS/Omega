@@ -96,7 +96,8 @@ pub(super) fn folded_literal<'a>(
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
-                | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
+                | LegalizedScalarInstructionKind::BoundarySettlement(_)
+                | LegalizedScalarInstructionKind::DynamicParameterCall(_) => false,
                 LegalizedScalarInstructionKind::BooleanNot { operand }
                 | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
                 | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {

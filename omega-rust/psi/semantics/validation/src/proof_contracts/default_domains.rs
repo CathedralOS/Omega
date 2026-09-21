@@ -41,7 +41,9 @@ use crate::proof_contracts::default_domains::assignment_windows::refuse_open_win
 use crate::proof_contracts::default_domains::data_reads::attached_value_established;
 use crate::proof_contracts::default_domains::data_reads::scan_statement_reads;
 use call_summaries::{collect_call_summaries, machine_symbol_for_state};
-use place_queries::is_self_rooted;
+use place_queries::{
+    is_self_rooted, transition_evaluated_expressions, write_target_index_expressions,
+};
 use state_flow::{PlaceValuation, canonicalize_valuations, meet_valuations, state_edges};
 use symbolic_values::{SymbolicValue, expression_contains_call};
 
@@ -502,6 +504,29 @@ fn walk_state(
         );
         match statement {
             StatementNode::Assignment(assignment) => {
+                // Calls hidden in the written value or in the target's index
+                // expressions are still consumption points: they observe the
+                // pre-write state and may poison every tracked valuation.
+                let index_expressions = write_target_index_expressions(program, assignment.target);
+                if expression_contains_call(program, assignment.value)
+                    || index_expressions
+                        .iter()
+                        .any(|index| expression_contains_call(program, *index))
+                {
+                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    preserve_proven_establishment(&tracked, &mut call_established);
+                    tracked.clear();
+                    poisoned_all = true;
+                    collect_call_summaries(
+                        program,
+                        assignment.value,
+                        summaries,
+                        &mut call_established,
+                    );
+                    for index in &index_expressions {
+                        collect_call_summaries(program, *index, summaries, &mut call_established);
+                    }
+                }
                 handle_assignment(
                     program,
                     machine,
@@ -584,35 +609,58 @@ fn walk_state(
                     );
                 }
             }
-            StatementNode::Transition(transition)
+            StatementNode::Transition(transition) => {
                 if matches!(
                     transition.exit,
                     typed_trees::statement::TransitionExit::Crash(_)
-                ) =>
-            {
-                has_explicit_crash = true;
-                if record_crash_sites {
-                    let mut open_data = tracked
-                        .iter()
-                        .filter(|place| place.window_open)
-                        .map(|place| place.definition.symbol)
-                        .chain(
-                            inherited_windows
-                                .iter()
-                                .map(|(_, _, data_symbol)| *data_symbol),
-                        )
-                        .collect::<Vec<_>>();
-                    open_data.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-                    open_data.dedup();
-                    if !open_data.is_empty() {
-                        crash_sites.push(OpenInvariantCrashSite {
-                            machine: machine.symbol,
-                            state: state.symbol,
-                            statement_ordinal: u32::try_from(statement_ordinal).expect(
-                                "state-local statement ordinal exceeds crash evidence range",
-                            ),
-                            open_data,
-                        });
+                ) {
+                    has_explicit_crash = true;
+                    if record_crash_sites {
+                        let mut open_data = tracked
+                            .iter()
+                            .filter(|place| place.window_open)
+                            .map(|place| place.definition.symbol)
+                            .chain(
+                                inherited_windows
+                                    .iter()
+                                    .map(|(_, _, data_symbol)| *data_symbol),
+                            )
+                            .collect::<Vec<_>>();
+                        open_data.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                        open_data.dedup();
+                        if !open_data.is_empty() {
+                            crash_sites.push(OpenInvariantCrashSite {
+                                machine: machine.symbol,
+                                state: state.symbol,
+                                statement_ordinal: u32::try_from(statement_ordinal).expect(
+                                    "state-local statement ordinal exceeds crash evidence range",
+                                ),
+                                open_data,
+                            });
+                        }
+                    }
+                }
+                // A transition's evaluated expressions (guard, named-target
+                // arguments, value target) may carry calls: those are hard
+                // consumption points and opaque writes exactly as a bare call
+                // statement is. The crash-site evidence above was collected
+                // first so this poisoning cannot erase it.
+                let evaluated = transition_evaluated_expressions(program, transition);
+                if evaluated
+                    .iter()
+                    .any(|expression| expression_contains_call(program, *expression))
+                {
+                    refuse_open_windows(&tracked, &inherited_windows, "a call", diagnostics);
+                    preserve_proven_establishment(&tracked, &mut call_established);
+                    tracked.clear();
+                    poisoned_all = true;
+                    for expression in &evaluated {
+                        collect_call_summaries(
+                            program,
+                            *expression,
+                            summaries,
+                            &mut call_established,
+                        );
                     }
                 }
             }

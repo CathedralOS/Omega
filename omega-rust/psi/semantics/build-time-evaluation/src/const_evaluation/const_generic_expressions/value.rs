@@ -46,6 +46,7 @@ use language_semantics::const_value::{
 };
 use numerics::{
     arithmetic::ArithmeticDomain,
+    float_semantics::{FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics},
     literals::{FloatFormat, IntegerLiteral, LandedIntegerType},
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -719,6 +720,24 @@ fn evaluate_expression(
                             Value::Landed(carrier, right, policy),
                         )?
                     }
+                    (Value::Float(format, left), Value::Anonymous(right)) => {
+                        let right =
+                            land_anonymous_float(program, context, right, format, &selected_arms)?;
+                        apply(
+                            operator,
+                            Value::Float(format, left),
+                            Value::Float(format, right),
+                        )?
+                    }
+                    (Value::Anonymous(left), Value::Float(format, right)) => {
+                        let left =
+                            land_anonymous_float(program, context, left, format, &selected_arms)?;
+                        apply(
+                            operator,
+                            Value::Float(format, left),
+                            Value::Float(format, right),
+                        )?
+                    }
                     (left, right) => apply(operator, left, right)?,
                 };
                 values.push(value);
@@ -997,6 +1016,17 @@ fn validate_shapes(
                     Shape::Integer(carrier, reference, policy),
                 )
             }
+            // An already-landed float operand lands its anonymous peer at its
+            // own format for this operation. The peer owes only a defined
+            // exact value; the format accepts every rational magnitude.
+            (Shape::Float(format), Shape::Anonymous(right)) => {
+                match_dispatch::validate_anonymous_fragments(program, context, right)?;
+                (Shape::Float(format), Shape::Float(format))
+            }
+            (Shape::Anonymous(left), Shape::Float(format)) => {
+                match_dispatch::validate_anonymous_fragments(program, context, left)?;
+                (Shape::Float(format), Shape::Float(format))
+            }
             operands => operands,
         };
         let result = match (left, right) {
@@ -1042,6 +1072,32 @@ fn validate_shapes(
                         program,
                         Shape::Integer(left, left_reference, left_policy),
                     )?
+                }
+            }
+            (Shape::Float(left), Shape::Float(right)) => {
+                if left != right {
+                    return Err("constant float operands have incompatible landed formats".into());
+                }
+                if matches!(
+                    operator,
+                    BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
+                        | BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                ) {
+                    Shape::Boolean
+                } else if matches!(
+                    operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                ) {
+                    Shape::Float(left)
+                } else {
+                    return Err("constant operator has incompatible operand types".into());
                 }
             }
             _ => return Err("constant operator has incompatible operand types".into()),
@@ -1239,6 +1295,101 @@ fn landed_literal(literal: &IntegerLiteral) -> Result<Value, String> {
     Ok(Value::Landed(landing.landed_type, value, landing.domain))
 }
 
+/// An anonymous operand mixing into a landed float operation lands at that
+/// operation's format first, matching the runtime landing boundary. Landing is
+/// the single rounding of the completed rational at the selected format.
+fn land_anonymous_float(
+    program: &TypedTrees,
+    context: EvaluationContext<'_>,
+    expression: ExpressionHandle,
+    format: FloatFormat,
+    selected_arms: &[(ExpressionHandle, ExpressionHandle)],
+) -> Result<u64, String> {
+    let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+        program,
+        expression,
+        selected_arms,
+        |operand| context.has_builtin(program, operand),
+    )
+    .ok_or("floating operand requires a defined exact anonymous value")?;
+    Ok(match format {
+        FloatFormat::F32 => u64::from(exact.to_f32().to_bits()),
+        FloatFormat::F64 => exact.to_f64().to_bits(),
+    })
+}
+
+/// Landed operands decode to exact meanings and re-encode through the shared
+/// `FloatSemantics` provider so constant and runtime arithmetic keep one
+/// definition. A NaN result carries no authored payload bits, so it cannot
+/// materialize as declaration identity and must reject here.
+fn float_apply(
+    operator: BinaryOperator,
+    left_format: FloatFormat,
+    left: u64,
+    right_format: FloatFormat,
+    right: u64,
+) -> Result<Value, String> {
+    if left_format != right_format {
+        return Err("constant float operands have incompatible landed formats".into());
+    }
+    let semantic_format = match left_format {
+        FloatFormat::F32 => SemanticFloatFormat::BINARY32,
+        FloatFormat::F64 => SemanticFloatFormat::BINARY64,
+    };
+    let left = float_meaning(left_format, left);
+    let right = float_meaning(right_format, right);
+    match operator {
+        BinaryOperator::Equal => {
+            return Ok(Value::Boolean(FloatSemantics::equal(&left, &right)));
+        }
+        BinaryOperator::NotEqual => {
+            return Ok(Value::Boolean(FloatSemantics::not_equal(&left, &right)));
+        }
+        BinaryOperator::Less => {
+            return Ok(Value::Boolean(FloatSemantics::less(&left, &right)));
+        }
+        BinaryOperator::LessOrEqual => {
+            return Ok(Value::Boolean(FloatSemantics::less_or_equal(&left, &right)));
+        }
+        BinaryOperator::Greater => {
+            return Ok(Value::Boolean(FloatSemantics::greater(&left, &right)));
+        }
+        BinaryOperator::GreaterOrEqual => {
+            return Ok(Value::Boolean(FloatSemantics::greater_or_equal(
+                &left, &right,
+            )));
+        }
+        _ => {}
+    }
+    let meaning = match operator {
+        BinaryOperator::Add => FloatSemantics::add(semantic_format, &left, &right),
+        BinaryOperator::Subtract => FloatSemantics::subtract(semantic_format, &left, &right),
+        BinaryOperator::Multiply => FloatSemantics::multiply(semantic_format, &left, &right),
+        BinaryOperator::Divide => FloatSemantics::divide(semantic_format, &left, &right),
+        _ => return Err("unsupported builtin floating constant operator".into()),
+    };
+    if meaning.is_nan() {
+        return Err(
+            "floating constant operation produced NaN without explicit representation bits".into(),
+        );
+    }
+    Ok(Value::Float(left_format, float_bits(left_format, &meaning)))
+}
+
+fn float_meaning(format: FloatFormat, bits: u64) -> FloatMeaning {
+    match format {
+        FloatFormat::F32 => FloatMeaning::from_f32(f32::from_bits(bits as u32)),
+        FloatFormat::F64 => FloatMeaning::from_f64(f64::from_bits(bits)),
+    }
+}
+
+fn float_bits(format: FloatFormat, meaning: &FloatMeaning) -> u64 {
+    match format {
+        FloatFormat::F32 => u64::from(meaning.to_f32().to_bits()),
+        FloatFormat::F64 => meaning.to_f64().to_bits(),
+    }
+}
+
 fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, String> {
     if let (Value::Boolean(left), Value::Boolean(right)) = (left, right) {
         return match operator {
@@ -1246,6 +1397,9 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
             BinaryOperator::NotEqual => Ok(Value::Boolean(left != right)),
             _ => Err("unsupported builtin Boolean constant operator".into()),
         };
+    }
+    if let (Value::Float(left_format, left), Value::Float(right_format, right)) = (left, right) {
+        return float_apply(operator, left_format, left, right_format, right);
     }
     let (
         Value::Landed(left_carrier, left, policy),
@@ -1532,6 +1686,32 @@ pub(crate) fn evaluate_integer_endpoint(
         literal = literal.with_landing(landing);
     }
     Ok((literal, warnings))
+}
+
+/// Evaluate a context-free const argument against its declared exact carrier.
+/// Deferred const-generic applications fold through this entry once Omega
+/// supplies their selected provider bodies; the canonical index carries the
+/// spelling a `Named` type-reference node records.
+pub(crate) fn evaluate_closed_const_argument(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    calls: &dyn ConstantCalls,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    let (value, warnings) = evaluate_scalar_in(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        destination,
+        ArithmeticDomain::Exact,
+        Some(calls),
+    )?;
+    match value {
+        ScalarValue::Index(canonical) => Ok((canonical, warnings)),
+        ScalarValue::Float { .. } => {
+            Err("const application needs an exact integer or Boolean carrier".into())
+        }
+    }
 }
 
 #[cfg(test)]

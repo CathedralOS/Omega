@@ -91,7 +91,12 @@ class LandingTests(unittest.TestCase):
         return result.stdout.strip()
 
     def commit(self, directory, message):
-        self.git(directory, "commit", "--allow-empty", "-m", message)
+        counter = getattr(self, "_commits", 0) + 1
+        self._commits = counter
+        marker = directory / f"work-{counter}.txt"
+        marker.write_text(message + "\n", encoding="utf-8")
+        self.git(directory, "add", marker.name)
+        self.git(directory, "commit", "-m", message)
         return self.git(directory, "rev-parse", "HEAD")
 
     def start(self, directory, *arguments):
@@ -178,6 +183,31 @@ class LandingTests(unittest.TestCase):
         self.assert_remote(self.initial, claim["claim"])
         self.assertEqual(self.publish(self.a, claim, candidate)["state"], "published")
         self.assert_remote(candidate)
+
+    def test_publish_refuses_empty_candidate(self):
+        claim = self.claim(self.a)
+        self.git(self.a, "commit", "--allow-empty", "-m", "ledger entry")
+        empty = self.git(self.a, "rev-parse", "HEAD")
+        self.publish(self.a, claim, empty, expected=1)
+        self.assert_remote(self.initial, claim["claim"])
+
+    def test_publish_refuses_board_only_candidate_without_flag(self):
+        claim = self.claim(self.a)
+        (self.a / "TASKS.md").write_text("- **ITEM.** row\n", encoding="utf-8")
+        self.git(self.a, "add", "TASKS.md")
+        self.git(self.a, "commit", "-m", "board sweep")
+        board = self.git(self.a, "rev-parse", "HEAD")
+        self.publish(self.a, claim, board, expected=1)
+        self.assert_remote(self.initial, claim["claim"])
+        published = self.run_landing(self.a, "publish", "--claim", claim["claim"],
+                                     "--base", claim["base"], "--candidate", board,
+                                     "--board-update")
+        self.assertEqual(published["state"], "published")
+        self.assert_remote(board)
+
+    def test_board_update_flag_is_publish_only(self):
+        self.run_landing(self.a, "enqueue", "--owner", "A", "--board-update",
+                         expected=1)
 
     def test_recovery_fences_former_owner_and_requires_reason(self):
         claim = self.claim(self.a)

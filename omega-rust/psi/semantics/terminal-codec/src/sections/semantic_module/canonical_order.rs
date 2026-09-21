@@ -862,6 +862,16 @@ fn validate_canonical_proposition(
             }
             Ok(())
         }
+        Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+            validate_scalar_term_depth(left)?;
+            validate_scalar_term_depth(right)?;
+            if left > right {
+                return Err(CodecError::NonCanonicalOrder(
+                    "scalar IEEE equality operands",
+                ));
+            }
+            Ok(())
+        }
         Proposition::ByteSequenceEqual { left, right } => {
             if left > right {
                 return Err(CodecError::NonCanonicalOrder(

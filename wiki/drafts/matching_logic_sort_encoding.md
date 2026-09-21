@@ -29,7 +29,7 @@ junk (below) cannot satisfy them by accident.
 | `Nat` | `Nat(x)` | Totality of constructors; closure of `+`, `*` over members |
 | `Int` | `Int(x)`, disjoint from `Nat(x)` | Signed range per width; no overlap with `Nat` — `Int` is not `Nat`'s nonneg half |
 | `addr` | `Addr(x)` | Interpreted under the selected target's address model; membership grants no storage or access authority |
-| `u64[0..=3]` and ranged ints | `Nat(x) ∧ 0 ≤ x ∧ x ≤ 3` | Bound predicates on the same one-sorted integers; revision at each bound change |
+| `u64 in Small` for a predicate domain requiring `self <= 3` | `Nat(x) ∧ 0 ≤ x ∧ x ≤ 3` | Carrier membership and the declared bound predicate; revision at each predicate change |
 | `&[T]` slices | `∃b l. x = ⟨b, l⟩ ∧ Addr(b) ∧ Nat(l) ∧ ∀i < l. T(b + i)` | Bounded quantifier over the pointee region; pair constructor must be injective |
 | user sum (`enum`) | `Sum(x) ⟺ ⋁_k (Tag_k(x) ∧ Payload_k(x))` | Pairwise tag disjointness, exhaustiveness, payload membership per arm |
 
@@ -50,10 +50,12 @@ predicate). Two consequences:
 - A statement that quantifies over `Nat` quantifies over a predicate, not a
   sort; the axiom set must carry closure, induction schema where used, and
   disjointness from other memberships explicitly.
-- Membership in a *ranged* type is membership in `Nat` conjoined with bounds.
-  A caller that learns `y ∈ u64[0..=3]` must be able to decompose it to
-  `Nat(y) ∧ 0 ≤ y ∧ y ≤ 3`; a producer that asserts only the conjunct is
-  asserting more than the type says only if the bounds are total.
+- Membership in a predicate-only domain combines carrier membership with its
+  declared predicates. For `domain u64::Small requires self <= 3;`, a caller
+  that learns `y ∈ (u64 in Small)` must recover the carrier fact and the bound,
+  here `Nat(y) ∧ 0 ≤ y ∧ y ≤ 3`. Predicate formation must be total. Ordinary
+  contracts and guards can establish the same bound without an explicit domain
+  qualification; they do not create a distinct scalar range-annotation type.
 
 ## Definedness
 

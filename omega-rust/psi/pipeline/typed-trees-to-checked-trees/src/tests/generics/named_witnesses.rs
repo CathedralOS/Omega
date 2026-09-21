@@ -965,3 +965,74 @@ fn specialization_identity_changes_with_selected_machine_contract() {
 
     assert_ne!(report_fingerprint(""), report_fingerprint("ensures true;"));
 }
+
+#[test]
+fn static_named_witness_requirement_call_accepts_inherited_requirement() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Base {
+            machine Self::produce() -> bool
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+
+        trait Producer {
+            requires Base;
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce() -> bool
+            requires local_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = local_in;
+                true
+            }
+        }
+
+        machine invoke<Element, Order: Element satisfies Producer>() -> bool
+        requires incoming: ready()
+        {
+            let (value; public_out: proof) = Order::produce(; incoming);
+            value
+        }
+
+        machine caller() -> bool
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(; incoming)
+        }
+    "#;
+
+    let typed = typed_source(source).expect("typed inherited-requirement static requirement call");
+    let checked = lower_typed_trees(typed).expect(
+        "an inherited parent-trait requirement row should admit the static named-witness call",
+    );
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .collect::<Vec<_>>();
+    let [(invocation, dispatch)] = invocations.as_slice() else {
+        panic!("one exact inherited-requirement proof-output call")
+    };
+    let base = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Base")
+        .expect("Base trait");
+    assert_eq!(dispatch.declaring_trait, base.symbol);
+    assert!(invocation.runtime_call.is_some());
+    assert_eq!(invocation.outputs.len(), 1);
+}

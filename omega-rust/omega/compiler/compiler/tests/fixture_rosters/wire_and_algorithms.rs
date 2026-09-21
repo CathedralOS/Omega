@@ -29,6 +29,8 @@ pub(crate) const RUNTIME_WIRE_DECODE_REJECTS_BAD_NESTED_LENGTH_EXIT: &str =
     "wire/runtime_wire_decode_rejects_bad_nested_length_exit";
 pub(crate) const RUNTIME_WIRE_ROUNDTRIP_REPEATED_EXIT: &str =
     "wire/runtime_wire_roundtrip_repeated_exit";
+pub(crate) const RUNTIME_WIRE_EXACT_ARRAY_WITHOUT_COUNT_EXIT: &str =
+    "wire/runtime_wire_exact_array_without_count_exit";
 pub(crate) const RUNTIME_WIRE_DECODE_REJECTS_REPEATED_OVERFLOW_EXIT: &str =
     "wire/runtime_wire_decode_rejects_repeated_overflow_exit";
 pub(crate) const RUNTIME_WIRE_DECODE_REJECTS_WRONG_ERA_EXIT: &str =
@@ -139,6 +141,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_WIRE_ROUNDTRIP_NESTED_EXIT,
     RUNTIME_WIRE_DECODE_REJECTS_BAD_NESTED_LENGTH_EXIT,
     RUNTIME_WIRE_ROUNDTRIP_REPEATED_EXIT,
+    RUNTIME_WIRE_EXACT_ARRAY_WITHOUT_COUNT_EXIT,
     RUNTIME_WIRE_DECODE_REJECTS_REPEATED_OVERFLOW_EXIT,
     RUNTIME_WIRE_DECODE_REJECTS_WRONG_ERA_EXIT,
     RUNTIME_WIRE_ENCODE_STRING_EXIT,

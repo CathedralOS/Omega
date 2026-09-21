@@ -15,6 +15,7 @@ use crate::{
     ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
     RetainedNativeArtifact, RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
+use artifacts::compile_timings::PhaseTiming;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +87,9 @@ pub struct CompileReport {
     /// Exact checked receipt for a macOS application package publication.
     /// Flat publications and unpublished reports retain `None`.
     package_publication: Option<package::NativePackagePublicationReceipt>,
+    /// Per-stage measurements the checked record accumulated during this
+    /// compilation; empty unless the request asked for timing collection.
+    timings: Vec<PhaseTiming>,
 }
 
 impl CompileReport {
@@ -207,6 +211,7 @@ impl CompileReport {
             application_intent: None,
             application_identifier: None,
             package_publication: None,
+            timings: Vec::new(),
         };
         if report.has_consistent_executable_publication_custody() {
             Ok(report)
@@ -248,6 +253,7 @@ impl CompileReport {
             application_intent: None,
             application_identifier: None,
             package_publication: None,
+            timings: Vec::new(),
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("compiler report retained inconsistent native-artifact custody");
@@ -550,6 +556,7 @@ impl CompileReport {
             application_intent: self.application_intent,
             application_identifier: self.application_identifier,
             package_publication,
+            timings: self.timings,
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("published native report failed custody replay".to_owned());
@@ -662,6 +669,7 @@ impl CompileReport {
             application_intent: self.application_intent,
             application_identifier: self.application_identifier,
             package_publication: None,
+            timings: self.timings,
         })
     }
 
@@ -728,6 +736,19 @@ impl CompileReport {
     ) -> Self {
         self.trust_admission_settlement = settlement;
         self
+    }
+
+    /// Retain the per-stage measurements the checked record accumulated
+    /// during this compilation.
+    pub fn with_timings(mut self, timings: Vec<PhaseTiming>) -> Self {
+        self.timings = timings;
+        self
+    }
+
+    /// The stage ladder this compilation recorded; empty when the request
+    /// did not collect timings.
+    pub fn timings(&self) -> &[PhaseTiming] {
+        &self.timings
     }
 
     /// Retain the normalized Build's optional proof-product requests and the
@@ -845,6 +866,7 @@ impl CompileReport {
             application_intent: None,
             application_identifier: None,
             package_publication: None,
+            timings: Vec::new(),
         };
         report
             .has_consistent_executable_publication_custody()

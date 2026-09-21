@@ -8,10 +8,14 @@ These contracts do not imply implementation support for every native route.
 
 ## Binding values
 
+`ForeignBinding` is the compile-time native-locator carrier, distinct from the
+established runtime authority [`Binding<R>`](component_publication.md#bindings-and-era-entry).
+Neither equal spelling nor a validated locator establishes a runtime binding.
+
 A bodyless leaf declares `satisfies Requirement` and uses `via expression` only
 for an irreducible payload not determined by declaration, signature, and target.
 The expression is compile-time evaluable to an ordinary closed
-`Binding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument
+`ForeignBinding<ObjectLength, SymbolLength, VersionLength>` value. Each const argument
 is a `u64` byte-array length and part of type identity; unused coordinates are
 zero.
 

@@ -190,7 +190,7 @@ fn saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer() {
             // the result `Def` — redensified to `VirtualRegisterId(1)` —
             // from the clean copy row: the register pins and the dropped
             // tail are gone with the divide form, and so is every unit
-            // effect it carried. `FaultDischargedByLiteralDeadUnitDefs`
+            // effect it carried. `DischargedByLiteral`/`RetiredWhenDead` composition
             // retires the x86-64 `rdx`/`rflags` clobbers unconditionally —
             // dropping a clobber only narrows destruction.
             assert_eq!(rewritten.operands.len(), 2);
@@ -788,7 +788,7 @@ fn saturating_divide_one_fold_rejects_while_another_instruction_reads_the_define
 
 #[test]
 fn saturating_divide_one_fold_rejects_a_consumer_implicitly_using_a_unit() {
-    // `FaultDischargedByLiteralDeadUnitDefs` forbids the consumer's own
+    // `DischargedByLiteral`/`RetiredWhenDead` composition forbids the consumer's own
     // implicit uses too: a use the `CopyI64` does not carry would
     // silently stop being observed. Forging the branch row's
     // condition-state use onto the consumer — `nzcv` on aarch64,
@@ -898,7 +898,7 @@ fn saturating_divide_one_fold_rejects_a_literal_claiming_the_wrong_operand_posit
 fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks_it_allows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // `BoundEarlyClobberConsumerOperands` admits `fixed_view` pins and
+    // `BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` admits `fixed_view` pins and
     // `early_clobber` marks — the bindings constrain only the dropped
     // operand list — while `tied_to` still rejects: a tied register would
     // be a co-allocation the rewrite silently dissolves. The x86-64

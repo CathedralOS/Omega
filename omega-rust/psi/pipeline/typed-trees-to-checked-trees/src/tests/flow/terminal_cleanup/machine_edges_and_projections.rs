@@ -656,6 +656,275 @@ fn projected_transition_cleanup_admits_wider_exact_paths() {
 }
 
 #[test]
+fn projected_transition_cleanup_retains_construction_local_residuals() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::route(pair: Pair) {
+            let spare: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };
+            Sink::take(spare.left);
+            transition { _ -> next(pair.left) }
+            state next(token: Token) {}
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "route");
+    let declaration = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .unwrap();
+    let state = &checked.machine_states(declaration)[0];
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("the construction-local temporary opens the entry state")
+    };
+    let edge = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_projected_edge(machine, entry, 2)
+        .expect("the transition follows two prefix statements");
+    assert_eq!(edge.statement_ordinal, 2);
+    assert_eq!(edge.transfer.source_parameter_position, 0);
+    assert_eq!(edge.transfer.target_parameter_position, 0);
+    assert_eq!(edge.transfer.path.len(), 1);
+    assert!(matches!(
+        &edge.transfer.path[0],
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            if identity.ends_with("left")
+    ));
+    let [local_residual, parameter_residual] = edge.residual_affine_discards.as_slice() else {
+        panic!("the temporary remainder dies before the parameter remainder")
+    };
+    assert_eq!(
+        local_residual.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+            symbol: local.symbol
+        }
+    );
+    assert_eq!(local_residual.path.len(), 1);
+    assert!(matches!(
+        &local_residual.path[0],
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            if identity.ends_with("right")
+    ));
+    assert_eq!(local_residual.type_identity, edge.transfer.type_identity);
+    assert_eq!(
+        parameter_residual.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    );
+    assert_eq!(parameter_residual.path, local_residual.path);
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_edge(machine, entry, 2)
+            .is_none(),
+        "whole-root consumers must fail closed on a projected edge"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_state(machine, entry)
+            .is_none(),
+        "a state carrying partial local custody publishes no whole-state slice"
+    );
+    assert_eq!(
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            &checked.facts,
+        ),
+        checked.facts.flow.terminal_structural_control_cleanups,
+        "projected cleanup reconstruction is deterministic"
+    );
+    let mut missing_exit = checked.facts.clone();
+    missing_exit.flow.ownership.permissions = Default::default();
+    assert!(
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            &missing_exit,
+        )
+        .for_projected_edge(machine, entry, 2)
+        .is_none(),
+        "missing authoritative affine-drop evidence must reject"
+    );
+}
+
+#[test]
+fn projected_transition_cleanup_orders_mixed_dying_roots() {
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::route(pair: Pair) {
+            let first: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };
+            Sink::take(first.left);
+            let second: Pair = Pair { left: Token { value: 3 }, right: Token { value: 4 } };
+            Sink::take(second.left);
+            transition { _ -> next(pair.left) }
+            state next(token: Token) {}
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "route");
+    let declaration = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .unwrap();
+    let state = &checked.machine_states(declaration)[0];
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let local_at = |index| {
+        let typed_trees::statement::StatementNode::LocalData(local) = &statements[index] else {
+            panic!("statement {index} is the temporary declaration")
+        };
+        local.symbol
+    };
+    let edge = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_projected_edge(machine, entry, 4)
+        .expect("two temporaries die on the projected edge");
+    let residual_roots = edge
+        .residual_affine_discards
+        .iter()
+        .map(|residual| residual.source.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        residual_roots,
+        vec![
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: local_at(2)
+            },
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: local_at(0)
+            },
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0
+            },
+        ],
+        "dying roots unwind in reverse establishment order: second temporary, first temporary, entry parameter"
+    );
+    for residual in &edge.residual_affine_discards {
+        assert_eq!(residual.path.len(), 1);
+        assert!(matches!(
+            &residual.path[0],
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+                if identity.ends_with("right")
+        ));
+    }
+}
+
+#[test]
+fn projected_transition_cleanup_fences_unaccounted_temporary_custody() {
+    let sources = [
+        (
+            "temporary consumed by two calls",
+            r#"
+            data Token { value: i32; }
+            data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take(token: Token) {}
+            data Root {}
+            machine Root::route(pair: Pair) {
+                let spare: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };
+                Sink::take(spare.left);
+                Sink::take(spare.right);
+                transition { _ -> next(pair.left) }
+                state next(token: Token) {}
+            }
+            "#,
+        ),
+        (
+            "temporary moved through the edge argument",
+            r#"
+            data Token { value: i32; }
+            data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take(token: Token) {}
+            data Root {}
+            machine Root::route(pair: Pair) {
+                let spare: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };
+                Sink::take(spare.left);
+                transition { _ -> next(spare.right) }
+                state next(token: Token) {}
+            }
+            "#,
+        ),
+        (
+            "parameter consumed before the edge",
+            r#"
+            data Token { value: i32; }
+            data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take(token: Token) {}
+            data Root {}
+            machine Root::route(pair: Pair) {
+                Sink::take(pair.left);
+                transition { _ -> next(pair.right) }
+                state next(token: Token) {}
+            }
+            "#,
+        ),
+        (
+            "untouched dying temporary",
+            r#"
+            data Token { value: i32; }
+            data Pair { left: Token; right: Token; }
+            data Root {}
+            machine Root::route(pair: Pair) {
+                let spare: Pair = Pair { left: Token { value: 1 }, right: Token { value: 2 } };
+                transition { _ -> next(pair.left) }
+                state next(token: Token) {}
+            }
+            "#,
+        ),
+        (
+            "nominal temporary root",
+            r#"
+            data Token { value: i32; }
+            data Pair { left: Token; right: Token; }
+            data Resource {}
+            machine Resource::drop(&mut self) {}
+            data Root {}
+            machine Root::route(pair: Pair) {
+                let resource: Resource = Resource {};
+                transition { _ -> next(pair.left) }
+                state next(token: Token) {}
+            }
+            "#,
+        ),
+    ];
+    for (case, source) in sources {
+        let checked = checked(source);
+        let (machine, entry) = machine_and_entry_state(&checked, "route");
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_structural_control_cleanups
+                .projected_edges
+                .iter()
+                .all(|edge| edge.machine != machine || edge.state != entry),
+            "{case} must remain outside the construction-local cohort"
+        );
+    }
+}
+
+#[test]
 fn projected_transition_shape_helper_rejects_nominal_root_cleanup() {
     let typed = typed_program(
         r#"
@@ -707,5 +976,62 @@ fn projected_transition_shape_helper_rejects_nominal_root_cleanup() {
         )
         .is_none(),
         "a record-level nominal destructor must fence projected cleanup"
+    );
+}
+
+#[test]
+fn projected_transition_cleanup_admits_multi_state_machines() {
+    // The projected-edge plan is keyed by (machine, state, statement) and
+    // revalidates custody per edge, so a machine with more than two states
+    // admits the same bounded cohort as long as the forwarding state and its
+    // target keep the one-parameter Unit shape.
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Pair { left: Token; right: Token; }
+        data Root {}
+        machine Root::route(pair: Pair) {
+            transition { _ -> mid(pair.left) }
+            state mid(token: Token) {
+                transition { _ -> sink(token) }
+            }
+            state sink(token: Token) {}
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "route");
+    let edge = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_projected_edge(machine, entry, 0)
+        .expect("the multi-state machine keeps its projected entry-edge cleanup");
+    assert_eq!(edge.machine, machine);
+    assert_eq!(edge.state, entry);
+    assert_eq!(edge.transfer.source_parameter_position, 0);
+    assert_eq!(edge.transfer.path.len(), 1);
+    let [sibling] = edge.residual_affine_discards.as_slice() else {
+        panic!("exactly one maximal sibling residual should remain")
+    };
+    assert_eq!(
+        sibling.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    );
+    assert!(matches!(
+        &sibling.path[0],
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            if identity.ends_with("right")
+    ));
+
+    // The downstream consumer replays the recorded evidence exactly, so a
+    // drifted row still cannot join.
+    let rebuilt =
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            &checked.facts,
+        );
+    assert_eq!(
+        rebuilt,
+        checked.facts.flow.terminal_structural_control_cleanups
     );
 }
