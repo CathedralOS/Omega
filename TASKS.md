@@ -14693,6 +14693,37 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   REWRITE-CATALOG, PIPELINE-REWRITE-CATALOG-WIRING.
 
   row).
+||||||| parent of ad9f07b3461f (board: re-witness SELECTED-REWRITE-CATALOG-EXECUTION cluster state)
+- **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
+  at 6d00135b89 — re-mines the keep-or-delete leg of the
+  SELECTED-REWRITE-CATALOG cluster; the verdict is recorded on sibling
+  SELECTED-REWRITE-CATALOG-DISPOSITION (Resolved): the delete leg is
+  already exercised (SELECTED-REWRITES-CATALOG-OR-DELETE removed
+  `rewrites/literal_compare` + `rewrites/literal_arithmetic`, roots pinned
+  in `optimizer_source_organization::retired_paths`), and disposition is
+  indivisible from the catalog leg it feeds — folds into
+  SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS.
+  Re-verified at `2ccef088fb73` (linux x86-64): the upstream annotation now
+  also records zergling-z21's `literal_minuend` retirement (catalog 49
+  rows / 34 orphaned; `CompareI64Zero` minuend-0 refinement lost with it —
+  recovery assigned to DECLARATIVE-PEEPHOLES as a `COMPARE_LEFT_ZERO`
+  grammar). Current fences on the cluster: `rewrites/module_catalog.rs` +
+  `selected_optimization.rs` under PIPELINE-REWRITE-ORPHANS (exp 10:36Z),
+  same-family item claims SELECTED-REWRITE-CATALOG-ROUTE (04:11Z) and
+  -WIRING (05:01Z). Next acceptance unchanged: vocabulary member + catalog
+  executor for the remaining orphans, pending the `optimization-core`
+  naming handoff (WORKSPACE-ROLLOUT per the parent row). No independent
+  slice remains under this name.
+- **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
+  at 6d00135b89 — re-mines the keep-or-delete leg of the
+  SELECTED-REWRITE-CATALOG cluster; the verdict is recorded on sibling
+  SELECTED-REWRITE-CATALOG-DISPOSITION (Resolved): the delete leg is
+  already exercised (SELECTED-REWRITES-CATALOG-OR-DELETE removed
+  `rewrites/literal_compare` + `rewrites/literal_arithmetic`, roots pinned
+  in `optimizer_source_organization::retired_paths`), and disposition is
+  indivisible from the catalog leg it feeds — folds into
+  SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS.
+
 - **SELECTED-REWRITE-CATALOG-ROUTE.** Mined candidate; scope verified at
   6d00135b89 — re-mines the route leg of the same cluster: the stage
   entrance (`optimize_selected_instructions` /
