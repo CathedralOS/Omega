@@ -8645,7 +8645,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rows below, and its acceptance (interpreted D compiles the Omega C closure
   to `omega0_compiler_bytecode.tape`) additionally depends on
   OMEGA-PRODUCT-COMPILER-SOURCE (C is still a lexer plus partial parser under
-  `source/psi/` — fenced to OMEGA-WRITTEN-PRODUCT-COMPILER, 07:20Z). Sibling re-mines of the same
+  `source/psi/` — fenced to OMEGA-WRITTEN-PRODUCT-COMPILER, 07:20Z).
+  Re-verified at `72fc66d6c32` (z102): the fence picture is unchanged in
+  kind — live claims are still OMEGA-D-REQUEST-AND-ENTRY-ROUTE (z130,
+  10:05Z) and OMEGA-D-REQUEST-V1-TABLES (z126, 11:19Z, same two paths),
+  OMEGA-D-SCALAR-SEQUENCING's item lease has drained, and
+  TASKS_BOOTSTRAP.md itself is path-claimed under CHAIN-MANIFEST's duty
+  pass (z132, ~15:04Z), so the tracked row is readable but claimed for
+  editing. The C-dependency is unchanged. Sibling re-mines of the same
   OMEGA-D clauses: OMEGA-D, OMEGA-D-COMPILER-REQUEST-TABLES,
   OMEGA-D-ENTRY-ADAPTER, OMEGA-D-ENTRY-ADAPTER-RETIREMENT,
   OMEGA-D-REAL-ENTRY-ROUTE, OMEGA-D-REQUEST-ADMISSION,
@@ -8846,7 +8853,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `typed-trees-to-checked-trees/src/execution/unit/*`, Fused custody in
   `selected-dispatch`) sit in PROVIDER-ATTACHMENT-MACHINE-PLAN /
   ENTRY-CONTENT-ROOTS / GENERAL-CYCLIC-EXECUTION lanes — outside this item's
-  fixture fence; the windows run leg is host-gated by design.
+  fixture fence; the windows run leg is host-gated by design.  Re-verified 2026-09-20 (ffival) at `59e0b5ec22`: compile stop UNCHANGED —
+  `Main::gui requires a selected Fused provider for boundary Gui` witnessed via
+  OMEGA_PASS_CANARY_FILTER=runtime_gui_foreground_window_exit (1 fail). Fence
+  probes exit 2 on both producing surfaces: execution/unit held by
+  PROVIDER-ATTACHMENT-MACHINE-PLAN (Zergling-200, ~09:49Z Sep 21) +
+  CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP (~08:46Z); selected-dispatch held
+  by RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL (z140, ~15:31Z Sep 21). Fixture
+  claim b7ba6f3a released.
+
+
 - **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT.** — mined candidate; scope verified
   2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
   _literal_dispatch_exit` pair in the known-baseline-failures InvalidUnitMachinePlan
@@ -10223,6 +10239,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under live claims (GRAPH-COST-EVIDENCE-CORPUS z126 11:04Z,
   WORKLOAD-CORPUS z175 07:19Z, WORKLOAD-MULTIVERSIONING z126 11:11Z).
   Feature-family residual stays corpus-gated as recorded.
+  Re-verified at `a43a1929b1` (linux x86-64, 2026-09-21 ~07:39Z): the
+  claim map rotated — `pass_manager/` is no longer claim-held — but the
+  residual remains authorization-gated, not claim-gated: the feature
+  families are training/evaluation machinery the spec forbids in the
+  reference compiler and they wait on the versioned workload corpus
+  (currently being drafted under GRAPH-COST-EVIDENCE-CORPUS /
+  WORKLOAD-MULTIVERSIONING claims, exp ~11:04Z/11:11Z). No leg remains.
 - **HOST-ALIAS-BUILD-DIR-DETECTION.** Advanced — the race-window residual
   verified at `7452910c6e` (a host alias planted between admission's
   `overlap_key` check and the first write is invisible to the
@@ -10764,6 +10787,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `omega-matching-logic-comparison/1`;
   `tools/tests/test_matching_logic_metrics.py` → 16/16
   (the suite lives under `tools/tests/`, not beside the harness).
+  Re-witnessed at `72fc66d6c3267`: `run_metrics.py validate` → 3/3
+  records conform to `omega-matching-logic-comparison/1`,
+  `tools/tests/test_matching_logic_metrics.py` → 16/16.
 - **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
   at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
   adjudicated surface (chapter 14's recorded gap: a trait requirement
@@ -10785,7 +10811,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MATHEMATICAL-FOUNDATIONS-REAL, MATH-PROOFS-CALL-SELECTION-OCCURRENCE,
   MATH-PROOFS-DECLARATION-SELECTION.
 - **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
-- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** Resolved — duplicate of the
+  already-adjudicated custody-expectation slice. The stub re-mines the
+  custody-gate expectation surface left by the landed custody ordering:
+  STALE-CUSTODY-GATE-EXPECTATIONS verified at `43104bde655a` that all five
+  custody-named fail fixtures still reject with their pinned fragments under
+  `fail_canaries_reject_with_expected_diagnostic_fragment`, and the
+  `tests/native-differential` custody-order pin
+  (`terminal_psi_source/contracts_and_frontend_drop.rs::
+  source_statement_custody_gate_runs_after_the_parameter_custody_gate`,
+  expecting `LoweringError::Unsupported("scalar source custody has no
+  authored statement")` after the parameter custody gate resolves) is intact
+  at `72fc66d6c32`. There is no stale custody expectation to retarget; the
+  actual expected.txt drift census (12 drifted canaries + silent
+  acceptances) is RC-DIAGNOSTICS-GATE's named lane, not this row.
 - **NATIVE-DIFFERENTIAL-MATRIX.** Mined candidate; scope verified at
   `ac4e4eee9b`: names the native-differential leg of the
   [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
@@ -11329,7 +11368,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
-- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; resolved, re-verified
+  at `72fc66d6c3` (linux x86-64). Retired alias of the landed
+  terminal-verifier edge-cleanup ordering already adjudicated on sibling
+  SUCCESSOR-DISCARD-ORDER and OWNED-SUCCESSOR-EDGE-ORDERING: edge validation
+  consumes owned successor sources before the residual and trivial discard
+  rosters (`validation/frontier/block_parameters.rs` documents the order,
+  `terminators.rs` runs it), Jump-edge residual discards close the projected
+  argument root as the exact complement in canonical order
+  (`InvalidPartialAffineCleanup` otherwise), and naming a residual-retired
+  root in the trivial roster is `EdgeAffineDiscardsInvalid`. Fresh witness:
+  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
+  test(~owned_successors)' --no-fail-fast` — 16/16 pass, including
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
+  `jump_edge_residual_discards_close_the_projected_argument_root_in_order`,
+  `branched_local_cleanup_rejects_missing_reordered_and_double_discard` and
+  `unit_return_requires_exact_reverse_order_affine_discards`. The
+  lowered-psi cleanup-roster emission leg stays with
+  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. No independent slice.
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Mined candidate —
@@ -11530,7 +11586,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-SPILL-FAMILY-ORPHANS, PIPELINE-WRAPPER-OBJECT-ORPHAN, and the
   resolved POC-* family.
 - **PIPELINE-REWRITE-ORPHANS.** — mined candidate; verify scope then implement.
-- **PHYSICAL-ENTRY-BRIDGES** — mined candidate; scope verified, covered — the resolved sibling PHYSICAL-ENTRY-END-TO-END row names this stub as a re-mine of the "end-to-end physical entry" note in `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an entry does not claim that its native bridge has been installed"), which the note itself assigns to ENTRY-CONTENT-ROOTS. The physical-entry-bridge acceptance leg already passes natively on linux x86-64 at `cdee121ee9` (`samples_with_documented_exit_run_correctly` under `OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`: published process with `Service<Console>` receiver compiles to a native artifact and runs to exit 70); the intrinsic `Service<R>` carrier cut landed at `f705cbdb5`. The epic's remaining bridge legs (receiver nominal-cleanup/completion occupancy, per-host legs) stay with ENTRY-CONTENT-ROOTS and are live-fenced this wave (program-entry-plan, external-roots `ProgramLocalRootInstallationLedger`, image-emission hosted_receiver). No independent slice exists here.
+- **PHYSICAL-ENTRY-BRIDGES** — mined candidate; scope verified, covered — the resolved sibling PHYSICAL-ENTRY-END-TO-END row names this stub as a re-mine of the "end-to-end physical entry" note in `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an entry does not claim that its native bridge has been installed"), which the note itself assigns to ENTRY-CONTENT-ROOTS. The physical-entry-bridge acceptance leg already passes natively on linux x86-64 at `cdee121ee9` (`samples_with_documented_exit_run_correctly` under `OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`: published process with `Service<Console>` receiver compiles to a native artifact and runs to exit 70); the intrinsic `Service<R>` carrier cut landed at `f705cbdb5`. The epic's remaining bridge legs (receiver nominal-cleanup/completion occupancy, per-host legs) stay with ENTRY-CONTENT-ROOTS and are live-fenced this wave (program-entry-plan, external-roots `ProgramLocalRootInstallationLedger`, image-emission hosted_receiver). No independent slice exists here. Re-verified at `72fc66d6c32` (z203 leg): still covered and the fence roster is intact with fresh holders — STARTUP-ENTRY-MECHANICS (~15:34Z) now holds `external-roots/src/root_entry` + `image-emission hosted_unit_entry.rs`, EPOCH-RESOURCE-SNAPSHOTS (~11:32Z) holds `external-roots/src/program_local/program_local_roots`, PLAN-LAID-VIEWS (~09:25Z) holds `image-emission/src/hosted_receiver*`, EXCEPTION-ROOTS-AND-TIMER (~08:59Z) holds `entry_exit_stub.rs`, and the UEFI legs sit under UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z) / UEFI-OS-HANDOFF (~10:19Z).
 - **PHYSICAL-ENTRY-END-TO-END.** Mined candidate — resolved: the name
   re-mines the "end-to-end physical entry" note in
   `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an
@@ -13121,6 +13177,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   exists. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION,
   RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL,
   RUST-COMPILER-RELEASE-RECORD.
+  Re-verified at `72fc66d6c3` ([z70 ledger](wiki/drafts/rust_release_record_z70.md)):
+  `tools/release/records/` still absent (zero committed records);
+  TASKS_BOOTSTRAP.md:76 gate verbatim; the CONTRACT.md comparator quote
+  has aged into different wording (policy preserved); production surface
+  now double-fenced (RC-HOST-RUNNER-LANES, RC-RELEASE-RECORD).
 
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
@@ -13455,6 +13516,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
   SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
   STAGED-ANCESTRY-ELIMINATION.
+- **RO-S2S-ANCESTRY-WALKS.** Resolved 2026-09-21 — minted sibling stub of
+  the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface (carrier row
+  above). Re-verified at `72fc66d6c3` on linux x86-64: zero
+  `.optimized_target()` data reads remain under
+  `selected-instructions-to-selected-instructions/src`, and the
+  `tests/ancestry_contract.rs` ratchet (4 tests) pins the surviving
+  `selected_stage`/`liveness_stage`/`live_range_stage`/`source_legality_stage`
+  hops to the named custody/replay file inventory — ancestry climbs are
+  contract inputs, not data reads. No independent slice exists under this
+  name.
 - **SELECTED-REWRITE-CATALOG-EXECUTION.** Mined candidate; scope verified
   at 6d00135b89 — re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
   (TASKS_OPTIMIZER.md:641) — "give the stage an execution route under
