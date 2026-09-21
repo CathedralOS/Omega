@@ -117,6 +117,9 @@ pub(crate) struct LoweredComposedInternalTarget {
     /// The callee's published erased-formal roster; a call carries one
     /// proof-only erased argument per row.
     pub(super) erased_scalar_formals: Vec<ValueDeclaration>,
+    /// The callee's published erased-proof roster in contract order; a call
+    /// carries one erased proof argument per row.
+    pub(super) erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     /// The callee's published `requires` clauses in contract order; the call
     /// allocates one obligation per row.
     pub(super) requires: Vec<Proposition>,

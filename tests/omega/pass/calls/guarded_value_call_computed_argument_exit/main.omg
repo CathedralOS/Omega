@@ -5,7 +5,7 @@
 // argument through the spliced continuation, whose operation proof
 // obligation the backend now discharges. pick(60) takes the true arm,
 // dbl(61) returns 122, and main exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; }
 machine dbl(x: i32 [0..=1001]) -> i32 {

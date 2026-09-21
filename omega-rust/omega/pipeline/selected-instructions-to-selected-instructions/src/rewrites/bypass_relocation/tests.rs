@@ -1809,8 +1809,10 @@ fn memory_roster_binds_the_window() {
 /// inside the source block's executed prefix, and one positioned past the
 /// landing index observes it inside the join's — both refuse, while
 /// positions at or before either boundary keep the executed set they
-/// always had. A settlement inside the arm never observed the member: the
-/// member never enters the arm's body, so every arm prefix is unchanged.
+/// always had. A settlement inside the crossed arm refuses too: the
+/// member runs after the arm's point after the move where it ran before
+/// it before, so every arm prefix changes which side of it the member
+/// executed on.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
@@ -1830,15 +1832,19 @@ fn boundary_settlements_bound_the_window() {
             "source-block settlement at {position}"
         );
     }
-    // The member never enters the arm's body: no arm prefix ever contained
-    // or loses it, so a settlement anywhere in the arm admits.
+    // The arm's whole body is crossed: the member moved past it observes a
+    // changed executed prefix at every arm position, so each refuses.
     for position in [0u32, 1, 2] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        relocate(&settled, &environment, MOVING, HEAD).unwrap();
+        assert_eq!(
+            relocate(&settled, &environment, MOVING, HEAD).unwrap_err(),
+            BypassRelocationError::UnsupportedPair,
+            "arm settlement at {position}"
+        );
     }
     // In the join block the bound is the landing index: at or before it
     // the executed prefix is unchanged; past it the member joins the
@@ -2049,24 +2055,27 @@ fn target_mismatch_rejects() {
 }
 
 /// The bounded audit is measured: the bypass window prices every scan,
-/// crossed-surface pair, and roster row against the work budget, and a
-/// budget one step short refuses rather than skimping. The head landing
-/// crosses the member's own tail, the branch with its two edges, and the
-/// arm with its terminator and edge — thirteen crossed-surface pairs — and
-/// naming `MID` lands the member one position deeper, adding the join
-/// head's pair.
+/// crossed-surface pair, successor edge, path-walk bound, and roster row
+/// against the work budget, and a budget one step short refuses rather
+/// than skimping. The head landing crosses the member's own tail, the
+/// branch with its two edges, and the arm with its terminator and edge —
+/// three crossed positions and three crossed edges — and naming `MID`
+/// lands the member one position deeper, adding the join head's pair.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
     // Each block contributes its body plus its terminator once to the
-    // whole-function scan and once to this function's blocks: 11 + 11.
-    // The crossed surfaces pair the member (1) against TRAIL (1), the arm
-    // body (1 each), the arm `Jump` terminator (1 use + 1 definition on
-    // x86-64), and the branch terminator (2 uses + 1 definition):
-    // 2+2+2+3+4 = 13 steps.
-    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */ + 13;
+    // whole-function scan and once to this function's blocks: 11 + 11,
+    // then one step per successor edge: 2 + 1 + 0. The path walk prices
+    // the branch-edge bound: 2 * 2. The crossed positions pair the member
+    // (1) against TRAIL (1) and the arm body (1 each): 3 * 2 = 6. The
+    // crossed edges pair the member (1) against the branch terminator
+    // (2 uses + 1 definition on x86-64) on both branch edges and the arm's
+    // `Jump` terminator (1 use + 1 definition): 4 + 4 + 3 = 11.
+    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */
+        + 3 /* successor edges */ + 4 /* path-walk bound */ + 6 + 11;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_through_bypass(&source, 0, MOVING, HEAD, &environment, exact)
         .unwrap();
@@ -2083,7 +2092,7 @@ fn measured_validation_step_boundary() {
         .unwrap_err(),
         BypassRelocationError::WorkBudgetExceeded
     );
-    // Landing at `MID` crosses one more surface pair — the join head.
+    // Landing at `MID` crosses one more position pair — the join head.
     let exact = OptimizationWorkBudget::new(1, 1, steps + 2, 1, 1).unwrap();
     relocate_selected_instruction_through_bypass(&source, 0, MOVING, MID, &environment, exact)
         .unwrap();

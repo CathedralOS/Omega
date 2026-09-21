@@ -25,6 +25,7 @@ pub(super) fn lower(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -68,6 +69,7 @@ pub(super) fn lower(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -246,6 +248,7 @@ pub(super) fn lower(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -327,6 +330,7 @@ pub(super) fn lower(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             requirement_obligations,
             crash_continuations,
         } => AbstractOperation::Call {
@@ -376,6 +380,7 @@ mod tests {
             blocks: Vec::new(),
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -413,6 +418,7 @@ mod tests {
                 OperationKind::CallUnit {
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee,
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
@@ -424,6 +430,7 @@ mod tests {
                 scalar_result(),
                 OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee,
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -436,6 +443,7 @@ mod tests {
                 scalar_result(),
                 OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee,
                     arguments: Vec::new(),
                     requirement_obligations: call_rows().0,

@@ -134,6 +134,7 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
         target: binding_block,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![argument(3)],
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -147,6 +148,7 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
             binding_block,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: binding_block,
                 parameters: Vec::new(),
                 structural_parameters: vec![parameter(4)],
@@ -156,6 +158,7 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
                     target: writing_block,
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
@@ -177,6 +180,7 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
             writing_block,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: writing_block,
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -245,6 +249,7 @@ fn mutable_view_state_transfer_preserves_exact_binding_and_charges_before_commit
             destination_block,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: destination_block,
                 parameters: Vec::new(),
                 structural_parameters: vec![parameter(4)],
@@ -267,6 +272,7 @@ fn mutable_view_state_transfer_preserves_exact_binding_and_charges_before_commit
         target: destination_block,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![argument(3)],
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -332,6 +338,7 @@ fn mutable_view_state_transfer_rejects_duplicate_loan_and_access_widening() {
             target,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: target,
                 parameters: Vec::new(),
                 structural_parameters: vec![parameter(4), second],

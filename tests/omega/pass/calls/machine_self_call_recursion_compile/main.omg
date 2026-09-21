@@ -5,8 +5,8 @@
 // fence was retired upstream: resolution now folds the self-prefixed arm
 // target onto the same bare loop-back edge `-> countdown(..)` spells
 // (constant stack, may legally diverge), so checked semantics admits the
-// machine. The native route still refuses it at the transitive Unit-plan
-// admission wall. The measured twin RUNS:
+// machine, and the transitive Unit-plan admission produces the machine's
+// plan — the native route compiles it. The measured twin RUNS:
 // pass/calls/runtime_measured_tail_recursion_exit.
 data Main {
 }

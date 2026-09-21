@@ -10,8 +10,9 @@ use crate::authored_selections::intrinsic_calls::{
 };
 use crate::authored_selections::member_targets::checked_member_target;
 use crate::authored_selections::operator_targets::{
-    checked_generic_operator_target, checked_operator_target_for_occurrence,
-    checked_structural_equality_call, typed_operator_has_no_authored_selection,
+    GenericOperatorValueOrigins, checked_generic_operator_target,
+    checked_operator_target_for_occurrence, checked_structural_equality_call,
+    typed_operator_has_no_authored_selection,
 };
 use crate::authored_selections::selection_collection::{
     checked_struct_literal_type_symbol, collect_checked_proof_membership_selections,
@@ -37,6 +38,10 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
     let mut resolutions = Vec::new();
     let mut inferred_conformances = Vec::new();
     let expressions = &program.tables.expression_table;
+    // Built at the first open-generic operator occurrence and shared by every
+    // later one: this loop reads the expression table and the checked facts
+    // and writes neither, so one index answers them all.
+    let mut generic_operator_values: Option<GenericOperatorValueOrigins> = None;
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -297,7 +302,14 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                             | ExpressionNode::Unary(_)
                     ) =>
                 {
-                    checked_generic_operator_target(program, facts, expression)?
+                    checked_generic_operator_target(
+                        program,
+                        facts,
+                        generic_operator_values.get_or_insert_with(|| {
+                            GenericOperatorValueOrigins::index(program, facts)
+                        }),
+                        expression,
+                    )?
                     .or_else(|| checked_operator_target_for_occurrence(
                         program,
                         facts,

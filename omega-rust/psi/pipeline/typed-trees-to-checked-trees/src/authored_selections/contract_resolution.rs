@@ -243,10 +243,7 @@ fn contract_contains_expression(
     match program.proof_facts.get(fact) {
         typed_trees::domain::ProofFact::Expression(root) => {
             crate::authored_selections::member_targets::expression_contains(
-                program,
-                *root,
-                expression,
-                &mut Vec::new(),
+                program, *root, expression,
             )
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
@@ -254,7 +251,6 @@ fn contract_contains_expression(
                 program,
                 membership.value,
                 expression,
-                &mut Vec::new(),
             )
         }
         typed_trees::domain::ProofFact::Proposition(application) => program
@@ -263,10 +259,7 @@ fn contract_contains_expression(
             .iter()
             .any(|root| {
                 crate::authored_selections::member_targets::expression_contains(
-                    program,
-                    *root,
-                    expression,
-                    &mut Vec::new(),
+                    program, *root, expression,
                 )
             }),
     }

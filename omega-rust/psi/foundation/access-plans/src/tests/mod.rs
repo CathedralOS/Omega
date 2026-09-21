@@ -41,8 +41,9 @@ use extents::ResidentClaimId;
 use extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
     ExtentProvenanceId, ExtentRights, MappedRangeReceiptContext, MappingEraId, MappingGrant,
-    MappingGrantId, MappingId, MappingSourceMode, TranslationActivationReceipt,
-    TranslationInstallObligations, TranslationReleaseObligations, map_owned,
+    MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationObligations,
+    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+    map_owned,
 };
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 
@@ -793,6 +794,7 @@ fn device_requirement_mapped_range(offset: u64, length: u64) -> MappedRangeRecei
         extent_id(815, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::default(),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         source,

@@ -51,12 +51,13 @@
 //! barriers anywhere in the window — the branch and arm terminators are
 //! crossed positions, not window members — and a boundary settlement
 //! refuses where the member changes sides with its block's executed
-//! prefix: past the member's index in the join, or past the landing index
-//! in the head. The arm block needs no settlement audit: the member never
-//! enters its body, so no arm prefix ever contained or loses it. Memory
-//! motion stays the shared accounting: a roster-carrying member crosses
-//! only row-less positions, each terminator and each edge's own access
-//! rows counting as accounted boundary positions.
+//! prefix: past the member's index in the join, past the landing index
+//! in the head, or anywhere inside a crossed arm — the member never
+//! enters an arm's body, but it executes before that point after the
+//! move where it executed after it before. Memory motion stays the
+//! shared accounting: a roster-carrying member crosses only row-less
+//! positions, each terminator and each edge's own access rows counting
+//! as accounted boundary positions.
 //!
 //! No instruction, register, roster row, call, settlement, successor, or
 //! terminator record changes: the member keeps its own id, kind,
