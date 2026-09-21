@@ -13,7 +13,7 @@ pub(super) fn encode(plan: &StackSlotColoringPlan) -> Vec<u8> {
     bytes
 }
 
-pub(in crate::assignment::stack_slot_coloring) fn encode_content(
+pub(in crate::register_homes::stack_slot_coloring) fn encode_content(
     plan: &StackSlotColoringPlan,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
