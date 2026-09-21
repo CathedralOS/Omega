@@ -846,6 +846,59 @@ fn deeply_nested_terms_validate_off_the_call_stack() {
 }
 
 #[test]
+fn deeply_nested_terms_evaluate_off_the_call_stack() {
+    // The constant evaluators recursed on their trees the way the validators
+    // did, so a deep literal nest overflowed the thread stack before producing
+    // a value. The worklist plus operand-value stack keeps the same answer
+    // without spending stack. `forget` skips the still-recursive drop glue.
+    const DEPTH: usize = 100_000;
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+
+    let mut integer = ScalarTerm::integer(u8_type, IntegerValue::Unsigned(1)).expect("u8 literal");
+    for _ in 0..DEPTH {
+        integer = ScalarTerm::IntegerBitwiseNot {
+            scalar_type: u8_type,
+            operand: Box::new(integer),
+        };
+    }
+    // u8 bitwise-not alternates 1 <-> 254; an even depth returns the literal.
+    assert_eq!(
+        integer.integer_value(),
+        Some((u8_type, IntegerValue::Unsigned(1)))
+    );
+    std::mem::forget(integer);
+
+    let mut boolean = ScalarTerm::boolean(true);
+    for _ in 0..DEPTH {
+        boolean = ScalarTerm::BooleanNot {
+            operand: Box::new(boolean),
+        };
+    }
+    assert_eq!(boolean.boolean_value(), Some(true));
+    std::mem::forget(boolean);
+
+    // A boolean node over a deep integer subtree delegates to the iterative
+    // integer evaluator rather than recursing through `boolean_value`.
+    let mut deep_integer =
+        ScalarTerm::integer(u8_type, IntegerValue::Unsigned(0)).expect("u8 literal");
+    for _ in 0..DEPTH {
+        deep_integer = ScalarTerm::IntegerBitwiseNot {
+            scalar_type: u8_type,
+            operand: Box::new(deep_integer),
+        };
+    }
+    let equal = ScalarTerm::IntegerEqual {
+        scalar_type: u8_type,
+        left: Box::new(deep_integer),
+        right: Box::new(
+            ScalarTerm::integer(u8_type, IntegerValue::Unsigned(0)).expect("u8 literal"),
+        ),
+    };
+    assert_eq!(equal.boolean_value(), Some(true));
+    std::mem::forget(equal);
+}
+
+#[test]
 fn saturating_multiply_clamps_at_declared_signed_and_unsigned_bounds() {
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     assert_eq!(
