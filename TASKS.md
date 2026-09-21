@@ -6586,38 +6586,45 @@ Proof/evidence:
   sound route, per MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT's verified row.
 - **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check
   (includes GAMMA-CERTIFICATE-CHECK). Mined candidate — scope verified;
-  every implementable surface is fenced to live claims (measured
-  ~21:30Z Sep 20). The row names the beta-encoding certificate
-  production+check cluster's two open TASKS_BOOTSTRAP.md bullets: (a)
+  re-verified at `0f75a052f09` (linux x86-64): the fenced re-pin leg
+  recorded below has now landed upstream at `a31bdf79e5129` ("bootstrap:
+  land the 130 MiB derivation-checker request extent"), which set the
+  compiled-in extent to the selected 136,314,880 bytes in
+  `implementation/admission/extents.gamma` and re-pinned the checker
+  manifest, packed/diagnostic source identities, and admission-boundary
+  vectors across the derivation gates. On this host
+  `tests/gamma/beta-encoding-check/run.sh` now reproduces the recorded
+  request exactly (135,485,028 bytes, sha256
+  `7c0e3bf2…2908`, 3,182,974 proof rows, ~33s host-side stepper
+  production) and the materialized evaluator accepted the framed
+  request past admission — the previously recorded
+  `admission_incomplete` code-1 refusal at the 8,388,608-byte bound is
+  gone — and entered the long Checked-observation run (projected 45-52M
+  work units, 6h timeout; a bounded observation, not a completion).
+  The row names the beta-encoding certificate production+check
+  cluster's two open TASKS_BOOTSTRAP.md bullets: (a)
   produce the certificate through the selected chain — host-blocked,
   the selected chain needs a seed-execution host (macOS arm64 or
   Windows x64; the AlphaBootstrapV5 evaluator frames requests inside its
   128 GiB `M` arena, and the host-side stepper gate
   `tests/gamma/beta-encoding-theory/run.sh --full-subject` is recorded
   as diagnostic production, not the selected chain); (b) check the full
-  certificate under the exact profile — the gate
-  `tests/gamma/beta-encoding-check/run.sh` exists and its linux x86-64
-  measurement records the checker refusing `admission_incomplete` code 1
-  at the compiled-in 8,388,608-byte extent, so the bounded
-  implementable leg is landing the selected 136,314,880-byte extent in
-  `implementation/admission/extents.gamma` and re-pinning the checker
-  manifest, packed and diagnostic source identities, and
-  admission-boundary vectors in the derivation gates. All of those
-  surfaces are claimed: `bootstrap/proofs/{beta_encoding,checker}` and
+  certificate under the exact profile — the admission blocker is
+  cleared; what remains is completing the evaluator run on a seed host
+  and recording measured rows/work/time, then the mutation legs the
+  acceptance document lists. Live fences at re-verification (~04:2xZ
+  Sep 21): `bootstrap/proofs/{beta_encoding,checker}` +
   `tests/gamma/{beta-encoding-check,beta-encoding-theory,
   derivation-admission,derivation-checking,derivation-comparison,
-  derivation-substitution,derivation-layout}` plus
-  `tools/bootstrap/proofs` to BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE
-  (Devin/z153, exp ~01:54Z Sep 21), `tests/gamma/beta-encoding-check` +
-  `beta-encoding-theory` additionally to GAMMA-CERTIFICATE-NATIVE-CHECK
-  (Devin/swarm-z99, exp ~05:25Z), `tools/bootstrap/proofs` to
-  CHAIN-CERTIFICATE-ADMISSION-BINDING (Zergling-43, ~05:25Z), and the
-  mutation legs to BETA-ENCODING-MUTATION-REJECTION (zergling-182,
-  ~00:31Z); sibling live claim on the same production surface:
-  GAMMA-CERT-CHAIN-PRODUCTION (zergling-182, ~00:40Z). Frontier once a
-  fence opens: land the extents.gamma re-pin → run the check gate on a
-  seed host and record measured work/time → run the mutation legs the
-  acceptance document lists. The retained-role audit bullet is already
+  derivation-substitution,derivation-layout}` + `tools/bootstrap/proofs`
+  to BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE (Devin/z153, exp 17:09Z
+  Sep 21), `tests/gamma/beta-encoding-check` + `bootstrap/proofs/checker`
+  additionally to GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE (zergling-165,
+  ~08:53Z), and `tools/bootstrap/proofs` to
+  CHAIN-CERTIFICATE-ADMISSION-BINDING (Zergling-43, ~05:30Z);
+  GAMMA-CERTIFICATE-NATIVE-CHECK, BETA-ENCODING-MUTATION-REJECTION, and
+  GAMMA-CERT-CHAIN-PRODUCTION claims recorded earlier have expired.
+  The retained-role audit bullet is already
   resolved on the bootstrap board. The included GAMMA-CERTIFICATE-CHECK
   name folds into the certificate-check cluster alongside its resolved
   siblings (GAMMA-CERT-FULL-CHECK, GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE,
