@@ -356,17 +356,14 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedStructuralValueHandle> {
         let kind = if validation::reference_result_custody::parts(self.program, expected).is_some()
         {
-            let state = self
-                .program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == self.machine)
-                .and_then(|machine| {
+            let state = crate::lookup::machine_by_symbol(self.program, self.machine).and_then(
+                |machine| {
                     self.program
                         .machine_states(machine)
                         .iter()
                         .find(|state| state.symbol == self.state)
-                })?;
+                },
+            )?;
             CheckedStructuralValueKind::Reference {
                 source: validation::reference_result_custody::initializer_source(
                     self.program,
@@ -472,11 +469,7 @@ impl Builder<'_, '_> {
             else {
                 return None;
             };
-            let machine = self
-                .program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == self.machine)?;
+            let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
             let state = self
                 .program
                 .machine_states(machine)
@@ -909,11 +902,7 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let owner = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == self.machine)?;
+        let owner = crate::lookup::machine_by_symbol(self.program, self.machine)?;
         let state = self
             .program
             .machine_states(owner)
