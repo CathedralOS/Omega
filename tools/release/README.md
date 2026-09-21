@@ -20,21 +20,38 @@ when installed and through Cargo otherwise, per AGENTS.md.
 
 ## Recording a runner row
 
+Each runner row is a *lane*: the contract requires the emitted programs to
+be executed directly on the matching host, so `run` must be invoked on a
+host that can execute the lane's target, and must carry the direct-execution
+observation for that lane:
+
 ```text
-python3 tools/release/release_record.py run --target linux_x86_64 --all
+python3 tools/release/release_record.py run --target linux_x86_64 \
+    --native-execution "mbx nextest run -p omega-native-differential-test"
 ```
+
+`--native-execution` is the lane's native-observation evidence: one command
+that runs the emitted programs natively and exits 0 on success. Its command,
+exit, elapsed time, and bounded output tail are stored on the lane's
+`platform_runs` row; the row reads `recorded` only when it exits 0. A lane
+that fails its observation still writes the record — the row stays `open`.
+On a host that cannot execute the lane at all, `run` refuses rather than
+writing a record that cannot carry the lane.
 
 PowerShell uses the same invocation with `python`. Restrict to one gate with
 `--gate RC-REPOSITORY` (repeatable). A red gate still writes a record — the
 record is the evidence, open rows and all — so `run` exits 0 after writing
 and reports `closure: open` with the open rows.
 
-Platform runs that need a named emulator (only `linux_arm64` per the
-contract's runner table):
+The `linux_arm64` lane additionally accepts any host when the record names
+the emulator (the contract's "emulation is acceptable only when the release
+record names the emulator and version" allowance); the observation command
+runs through that emulator:
 
 ```text
 python3 tools/release/release_record.py run --target linux_arm64 \
-    --emulator "qemu-aarch64 9.0.0" --gate RC-NATIVE-MATRIX
+    --emulator "qemu-aarch64 9.0.0" --gate RC-NATIVE-MATRIX \
+    --native-execution "qemu-aarch64 <path-to-emitted-elf>"
 ```
 
 ## Expected skips
@@ -57,8 +74,10 @@ python3 tools/release/release_record.py check records/linux_x86_64__*.json
 ```
 
 `check` exits nonzero when the schema drifts, a required field is missing, a
-gate's recorded command no longer matches the contract, an emulator appears
-on a non-arm64 row, or the recorded closure contradicts the rows.
+gate's recorded command no longer matches the contract, a `recorded`
+platform row lacks a passing direct-execution observation or its lane's
+matching host, an emulator appears on a non-arm64 row, or the recorded
+closure contradicts the rows.
 
 `tools/tests/test_release_record.py` guards the substrate itself: the gate
 manifest must stay verbatim-equal to the completion document's command

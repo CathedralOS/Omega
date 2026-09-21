@@ -36,7 +36,11 @@ fn a_record_without_an_admission_rejects() {
     let (request_bytes, plan_bytes, _) = payment_pair();
     // No admissions at all: every Component-role instance is unbound.
     assert!(matches!(
-        verify_plan(&plan_bytes, &request_bytes, &[]),
+        verify_plan(
+            &plan_bytes,
+            &request_bytes,
+            &Vec::<AdmittedComponent>::new()
+        ),
         Err(PlanRejection::ComponentBinding {
             failure: ComponentBindingFailure::MissingVerifiedComponent,
             ..
@@ -608,6 +612,99 @@ fn a_modified_binding_after_check_rejects_independently() {
     assert!(matches!(
         verify_plan(&plan_bytes, &request_bytes, &payment_components()),
         Err(PlanRejection::InvalidGraph(_))
+    ));
+}
+
+#[test]
+fn a_fabricated_exporter_instance_rejects_as_unknown() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // The export key names an instance index outside the roster entirely —
+    // fabricated, not merely a wrong slot on a real member.
+    plan.bindings[1].export = endpoint(9, 1);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::UnknownInstance {
+            index: 9
+        }))
+    ));
+}
+
+#[test]
+fn a_fabricated_import_key_naming_an_export_endpoint_rejects() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // authorization's slot 1 exists but is export-only; a fabricated import
+    // key naming it resolves to the wrong direction, not a real endpoint.
+    plan.bindings[1].import = endpoint(1, 1);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::WrongDirection {
+            key,
+            expected: EndpointDirection::Import,
+        })) if key == endpoint(1, 1)
+    ));
+}
+
+#[test]
+fn a_duplicated_binding_rejects() {
+    let (_, _, mut plan) = payment_pair();
+    // A fabricated second binding over api's already-bound import cannot
+    // even serialize: the codec refuses non-canonical binding rows before
+    // the bytes could reach the verifier.
+    plan.bindings.push(plan.bindings[0].clone());
+    assert!(matches!(
+        encode_plan(&plan),
+        Err(CodecError::NotCanonical {
+            section: "plan bindings"
+        })
+    ));
+}
+
+#[test]
+fn a_dropped_binding_leaves_the_import_unbound() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // Erasing a binding fabricates the same gap: api's demanded import now
+    // has no edge at all.
+    plan.bindings.remove(0);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::UnboundImport {
+            key,
+        })) if key == endpoint(0, 0)
+    ));
+}
+
+#[test]
+fn a_fabricated_endpoint_slot_rejects_as_undeclared() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // A serialized endpoint key for a slot no endpoint occupies: the bytes
+    // decode cleanly and the rejection lands at graph normalization.
+    plan.bindings[0].import = endpoint(0, 7);
+    plan.bindings
+        .sort_by_key(|binding| (binding.import, binding.export));
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::UnknownEndpoint {
+            key,
+        })) if key == endpoint(0, 7)
+    ));
+}
+
+#[test]
+fn a_rewired_reverse_connection_fails_replay() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // No implied reverse connection: binding authorization's demanded import
+    // to api's entry export names real endpoints and normalizes to a real
+    // edge, so the recorded satisfied rows must fail replay on the rewired
+    // graph rather than stand.
+    plan.bindings[1].export = endpoint(0, 0);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::ReplayMismatch { .. }) | Err(PlanRejection::PolicyNotSatisfied { .. })
     ));
 }
 

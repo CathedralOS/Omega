@@ -41,26 +41,22 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let calls = collect_elision_calls(program);
     let mut diagnostics = Vec::new();
     for mut call in calls {
-        let Some((callee_machine, callee_state)) = program.machines().iter().find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == call.target)
-                .map(|state| (machine, state))
-        }) else {
-            continue;
-        };
-        let Some(caller_machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == call.caller_machine)
+        let Some((callee_machine, callee_state)) =
+            crate::semantic_calls::find_state_with_machine(program, call.target)
         else {
             continue;
         };
-        let caller_state = program
-            .machine_states(caller_machine)
-            .iter()
-            .find(|state| state.symbol == call.caller_state);
+        let Some(caller_machine) = crate::lookup::machine_by_symbol(program, call.caller_machine)
+        else {
+            continue;
+        };
+        // The caller state must resolve inside the caller machine itself; a
+        // whole-program find could admit a same-named state stored elsewhere.
+        let caller_state = crate::semantic_calls::find_state_in_machine(
+            program,
+            call.caller_machine,
+            call.caller_state,
+        );
 
         let mut call_lifetimes = Vec::<(String, String)>::new();
         let mut conflicting_call_lifetime = false;

@@ -158,6 +158,29 @@ pub(super) fn expression_conformance_receiver(
     }
 }
 
+/// A conformance bound may name a transparent refinement. "A refinement names
+/// a structural bound on an existing base conformance, not a new nominal
+/// satisfaction target" (spec, `language/conformances.md`), so the requirement
+/// namespace an evidence call selects is the resolved BASE trait's, never the
+/// refinement's own (empty) machine list. Refining a refinement is rejected at
+/// symbol resolution, so exactly one hop reaches the nominal base.
+fn bound_carrier_definition(
+    program: &TypedTrees,
+    carrier: symbols::SymbolHandle,
+) -> Option<&typed_trees::trait_definition::TraitDefinition> {
+    let definition = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == carrier)?;
+    match &definition.refines {
+        Some(base) => program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == base.symbol),
+        None => Some(definition),
+    }
+}
+
 /// Evidence selects a requirement namespace, not an implicit runtime receiver.
 /// Rejoin its exact child to the bound's reachable, unambiguous requirement.
 pub(super) fn named_conformance_requirement<'program>(
@@ -190,11 +213,7 @@ pub(super) fn named_conformance_requirement<'program>(
     {
         return Err(failure());
     }
-    let carrier = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == bound.carrier)
-        .ok_or_else(failure)?;
+    let carrier = bound_carrier_definition(program, bound.carrier).ok_or_else(failure)?;
     let mut selected = None;
     for trait_definition in program.traits() {
         if crate::declarations::traits::arguments_for_declaring_trait(
@@ -242,11 +261,7 @@ pub(super) fn validate_named_conformance_arguments(
     for parameter in &mut parameters {
         parameter.is_self = false;
     }
-    let Some(carrier) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == requirement.bound.carrier)
-    else {
+    let Some(carrier) = bound_carrier_definition(program, requirement.bound.carrier) else {
         return;
     };
     let Some(inherited_arguments) = crate::declarations::traits::arguments_for_declaring_trait(

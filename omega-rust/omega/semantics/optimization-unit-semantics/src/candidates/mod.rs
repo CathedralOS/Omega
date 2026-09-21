@@ -1,9 +1,11 @@
 //! Optimizer module role: stage group. Independent candidate acceptance, organized by the producing pass family.
 
+mod case_membership_specialization;
 mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_scalar_elimination;
 mod dispatch;
+mod field_value_specialization;
 mod global_value_numbering;
 mod observation;
 mod proof_check_elision;
@@ -11,10 +13,12 @@ mod rewrite_accounting;
 mod sparse_conditional_constant_propagation;
 mod state_specialization;
 
+pub use case_membership_specialization::*;
 pub use control_flow_cleanup::*;
 pub use copy_propagation::*;
 pub use dead_scalar_elimination::*;
 pub use dispatch::*;
+pub use field_value_specialization::*;
 pub use global_value_numbering::*;
 pub use observation::*;
 pub use proof_check_elision::*;

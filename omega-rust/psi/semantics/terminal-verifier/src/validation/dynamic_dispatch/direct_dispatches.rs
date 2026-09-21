@@ -119,6 +119,7 @@ pub(super) fn validate_direct_dispatches(
                     callee,
                     arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -129,6 +130,7 @@ pub(super) fn validate_direct_dispatches(
             ) if *callee == dispatch.realization
                 && arguments.is_empty()
                 && erased_arguments.is_empty()
+                && erased_proof_arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && operation_result.scalar_type == callable_result.scalar_type
                 && operation_result.qualifications == callable_result.qualifications
@@ -142,6 +144,7 @@ pub(super) fn validate_direct_dispatches(
                     callee,
                     arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -152,6 +155,7 @@ pub(super) fn validate_direct_dispatches(
             ) if *callee == dispatch.realization
                 && arguments.is_empty()
                 && erased_arguments.is_empty()
+                && erased_proof_arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && claim_transfers.is_empty()
                 && requirement_obligations.is_empty()

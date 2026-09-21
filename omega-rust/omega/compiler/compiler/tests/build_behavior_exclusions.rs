@@ -1446,3 +1446,280 @@ fn sink_composition_physical_exclusion_reaches_native_custody_frontier() {
         );
     }
 }
+
+// The foreign-boundary e2e leg of BUILD-EXCLUSION-REALIZATION: a real
+// composition whose boundary requirement binds `ProviderBinding::Import`
+// reaches the mechanism-closure review under an authored exclusion. The
+// receiving policy's explicit row classifies the normalized foreign
+// mechanism with an exercised class; the exclusion then rejects the closure,
+// naming the requirement and the foreign mechanism — the same adjudication a
+// compiler-intrinsic leaf receives (the row-level seam is pinned in
+// native-realization's
+// `a_foreign_mechanism_leaf_exercising_an_excluded_class_rejects`).
+const FOREIGN_BOUNDARY_MAIN: &str = r#"use omega::language::core::external_binding;
+
+pub data ForeignMath {}
+
+pub boundary requirement ForeignMath::exit_with(code: i32);
+
+data ForeignMathProvider {}
+
+linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
+    Binding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "exit",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+machine ForeignMathProvider::exit_leaf(code: i32)
+satisfies ForeignMath::exit_with via foreign_exit_binding();
+
+data Main {}
+machine Main::main(&mut self) {
+    ForeignMath::exit_with(70);
+}
+"#;
+
+fn foreign_boundary_build(exclusion: &str) -> String {
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"foreign-boundary-exclusion\");\n    builder.exclude_physical_authority({exclusion});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n"
+    )
+}
+
+fn foreign_boundary_request(root: PathBuf, product: RequestedCompileProduct) -> CompileRequest {
+    CompileRequest::new(CompileOptions {
+        root_path: root,
+        build_dir: None,
+        target_name: Some("linux_x86_64".into()),
+    })
+    .with_requested_product(product)
+}
+
+// The mechanism identity is exact-identity, not name-matched: it is derived
+// from the retained proposal's external binding rows (normalized locator +
+// canonical boundary entry plan), the same derivation the admission path
+// performs on the settled import.
+fn foreign_boundary_policy(
+    retained: &compilation_report::RetainedTerminalArtifact,
+    exercised: &[effects::TerminalAuthorityClass],
+) -> native_realization::TerminalAuthorityPolicy {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let rows = proposal
+        .external_binding_rows()
+        .iter()
+        .filter_map(|row| {
+            let calling_conventions::ExternalBindingKind::Import { locator } = &row.binding else {
+                return None;
+            };
+            Some(native_realization::TerminalAuthorityPolicyRow::new(
+                native_realization::normalized_foreign_terminal_mechanism(
+                    locator,
+                    row.boundary_entry_plan.as_ref()?,
+                )
+                .expect("retained foreign boundary plan is canonical"),
+                effects::TerminalAuthorityDisposition::from_classes(exercised.iter().copied()),
+            ))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !rows.is_empty(),
+        "at least one normalized import policy row expected"
+    );
+    native_realization::terminal_authority_policy_with_rows(rows)
+        .expect("receiving policy has exact normalized import rows")
+}
+
+// A minimal `ProviderExecutionEvidence` for the one import the composition
+// selects — the settlement admission needs exact provider-plan custody, not
+// a real interpreter report.
+#[derive(Debug)]
+struct ForeignLeafExecution {
+    requirement: String,
+    plan_report_identity: u64,
+}
+
+impl installation_evidence::ProviderExecutionEvidence for ForeignLeafExecution {
+    fn requirement_identity(&self) -> &str {
+        &self.requirement
+    }
+    fn provider_plan_report_identity(&self) -> u64 {
+        self.plan_report_identity
+    }
+    fn provider_execution_report_identity(&self) -> u64 {
+        0x4d41_4348_4f01
+    }
+    fn provider_execution_report_fingerprint(&self) -> u64 {
+        0x4d41_4348_4f02
+    }
+    fn normalized_root_report_identity(&self) -> u64 {
+        0x4d41_4348_4f03
+    }
+    fn boundary_contract_report_fingerprint(&self) -> u64 {
+        0x4d41_4348_4f04
+    }
+}
+
+fn admit_foreign_import(
+    retained: &compilation_report::RetainedTerminalArtifact,
+) -> (
+    ForeignLeafExecution,
+    task_plans::AdmittedSameStackContribution,
+) {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let matches = proposal
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| {
+            plan.rows.iter().filter_map(move |row| {
+                matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::Import { .. }
+                )
+                .then_some((plan, row))
+            })
+        })
+        .collect::<Vec<_>>();
+    let [(plan, row)] = matches.as_slice() else {
+        panic!("one selected evaluated import expected")
+    };
+    let plan_report_identity = plan.report_fingerprint();
+    let plan_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
+        *plan.identity_digest().as_bytes(),
+    );
+    let requirement = row.requirement_identity.clone();
+    let same_stack = task_plans::admit_same_stack_contribution(
+        task_plans::SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: plan_report_identity,
+            provider_plan_commitment: plan_commitment,
+            requirement_identity: requirement.clone(),
+            receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                0x454c_4600_0110,
+            )
+            .unwrap(),
+            bytes: 64,
+            alignment: 16,
+        },
+        plan_report_identity,
+        plan_commitment,
+        &requirement,
+    )
+    .expect("exact provider-plan custody admits the foreign leaf");
+    (
+        ForeignLeafExecution {
+            requirement,
+            plan_report_identity,
+        },
+        same_stack,
+    )
+}
+
+#[test]
+fn a_source_evaluated_import_exercising_an_excluded_class_rejects_at_closure_review() {
+    let project = TempProject::new();
+    project.write("main.omg", FOREIGN_BOUNDARY_MAIN);
+    project.write(
+        "build.omg",
+        &foreign_boundary_build("PhysicalAuthorityClass::ProcessTermination"),
+    );
+    let retained = compile(foreign_boundary_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the boundary-requirement composition compiles to a Terminal product")
+    .into_retained_terminal_artifact()
+    .expect("the Terminal product retains its native realization proposal");
+    let subsystem = retained
+        .native_realization_proposal()
+        .expect("native proposal")
+        .subsystem();
+
+    // A foreign mechanism carries no compiler-known disposition: the
+    // exercised class is supplied by the receiving policy's explicit row —
+    // exercised, not permissioned (no permission policy is attached at all)
+    // — exactly as the settled-filesystem cohort or the consumer's package
+    // policy supplies it in production.
+    let policy = foreign_boundary_policy(
+        &retained,
+        &[effects::TerminalAuthorityClass::ProcessTermination],
+    );
+    let (execution, same_stack) = admit_foreign_import(&retained);
+    let (_, diagnostics) = realize_retained_native_artifact(
+        retained,
+        compiler::RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy.clone(),
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: None,
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            imports: &[compiler::SourceEvaluatedImportSettlement::new(
+                &execution,
+                &same_stack,
+            )],
+        },
+    )
+    .expect_err("an import leaf exercising the excluded class cannot realize");
+    let message = format!("{diagnostics:?}");
+    assert!(
+        message.contains("behavior exclusions"),
+        "the exclusion adjudication must fire: {message}"
+    );
+    assert!(message.contains("ForeignMath::exit_with"), "{message}");
+    assert!(message.contains("NormalizedForeign"), "{message}");
+    assert!(message.contains("ProcessTermination"), "{message}");
+
+    // Control: excluding a class no leaf exercises passes mechanism
+    // adjudication; the import-bearing image then proceeds past the review
+    // and stops later — the union, not the mechanism inventory, decides.
+    project.write(
+        "build.omg",
+        &foreign_boundary_build("PhysicalAuthorityClass::PortIo"),
+    );
+    let retained = compile(foreign_boundary_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("the boundary-requirement composition compiles to a Terminal product")
+    .into_retained_terminal_artifact()
+    .expect("the Terminal product retains its native realization proposal");
+    let subsystem = retained
+        .native_realization_proposal()
+        .expect("native proposal")
+        .subsystem();
+    let (execution, same_stack) = admit_foreign_import(&retained);
+    let (_, diagnostics) = realize_retained_native_artifact(
+        retained,
+        compiler::RetainedNativeRealizationRequest {
+            profile: &proof_admission::AdmissionProfile::default(),
+            optimization_selections:
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+            terminal_authority_policy: policy,
+            accepted_package_terminal_authority_permission_policy:
+                native_realization::current_terminal_authority_permission_policy(),
+            terminal_authority_permission_policy: None,
+            image_request: native_realization::ExecutableImageEmissionRequest::direct(subsystem),
+            imports: &[compiler::SourceEvaluatedImportSettlement::new(
+                &execution,
+                &same_stack,
+            )],
+        },
+    )
+    .expect_err("the import-bearing image stops at interpreter custody");
+    let message = format!("{diagnostics:?}");
+    assert!(
+        !message.contains("behavior exclusions"),
+        "no exclusion adjudicates: {message}"
+    );
+}

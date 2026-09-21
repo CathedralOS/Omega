@@ -279,6 +279,7 @@ mod tests {
             blocks: Vec::new(),
             contract: terminal_psi::MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: semantic_id(owner.get(), ContractId::new),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -366,6 +367,7 @@ mod tests {
         let block = module.machines[0].entry;
         module.machines[0].blocks = vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block,
             structural_parameters: Vec::new(),
             parameters: vec![ValueDeclaration {
@@ -375,6 +377,7 @@ mod tests {
             }],
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: producer,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -443,6 +446,7 @@ mod tests {
             .id;
         module.machines[0].blocks[0].operations[0].kind = OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: owner,
             arguments: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -954,6 +958,7 @@ mod tests {
         let mut call = module.clone();
         call.machines[0].blocks[0].operations[0].kind = OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: call.entry,
             arguments: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -970,6 +975,7 @@ mod tests {
         let mut structural = module;
         structural.machines[0].blocks[0].operations[0].result =
             OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: semantic_id(1, PlaceId::new),
                 structural_type: semantic_id(1, StructuralTypeId::new),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1000,6 +1006,7 @@ mod tests {
         let variants = [
             OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: semantic_id(1, MachineId::new),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -1097,6 +1104,7 @@ mod tests {
         let mut unit_call = module.clone();
         unit_call.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: unit_call.entry,
             structural_arguments: Vec::new(),
@@ -1143,6 +1151,7 @@ mod tests {
         let mut structural_result = module.clone();
         structural_result.machines[0].blocks[0].operations[0].result =
             OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: semantic_id(1, PlaceId::new),
                 structural_type: semantic_id(1, StructuralTypeId::new),
                 multiplicity: StructuralMultiplicity::Unrestricted,

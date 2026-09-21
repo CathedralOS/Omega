@@ -2,10 +2,11 @@
 
 use arena::Arena;
 use checked_trees::{
-    CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralAccess,
-    CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedProofTerm, CheckedScalarBranchDestination, CheckedScalarMachineGraph,
+    CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedStructuralAccess, CheckedStructuralControlTransferPlan,
+    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarArgumentSourcePlan,
 };
 use language_semantics::{Multiplicity, PermissionEventSource};
 use typed_trees::{
@@ -19,6 +20,7 @@ struct SuccessorArguments {
     structural: Vec<CheckedStructuralControlTransferPlan>,
     scalar: Vec<CheckedStructuralScalarArgumentPlan>,
     erased: Vec<CheckedStructuralScalarArgumentPlan>,
+    proof: Vec<CheckedProofTerm>,
 }
 
 pub(super) fn iter(
@@ -72,6 +74,7 @@ pub(super) fn retain(
     graph: &mut CheckedScalarMachineGraph,
     structural: &mut Arena<CheckedStructuralControlTransferPlan>,
     scalar: &mut Arena<CheckedStructuralScalarArgumentPlan>,
+    proof: &mut Arena<CheckedProofTerm>,
 ) -> Option<()> {
     // Resolve all edges before mutating their spans. Working rows are private;
     // only the completed argument partition enters the durable arenas.
@@ -93,6 +96,7 @@ pub(super) fn retain(
         successor.structural_transfers = structural.insert_many(rows.structural);
         successor.scalar_arguments = scalar.insert_many(rows.scalar);
         successor.erased_arguments = scalar.insert_many(rows.erased);
+        successor.erased_proof_arguments = proof.insert_many(rows.proof);
     }
     Some(())
 }
@@ -102,6 +106,7 @@ pub(super) fn validate(
     graph: &CheckedScalarMachineGraph,
     structural: &Arena<CheckedStructuralControlTransferPlan>,
     scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
+    proof: &Arena<CheckedProofTerm>,
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
@@ -109,6 +114,7 @@ pub(super) fn validate(
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
                 || scalar.span(successor.erased_arguments)? != expected.erased
+                || proof.span(successor.erased_proof_arguments)? != expected.proof
             {
                 return None;
             }
@@ -123,10 +129,7 @@ fn arguments(
     source: &CheckedScalarStateGraph,
     successor: &CheckedScalarSuccessor,
 ) -> Option<SuccessorArguments> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == graph.machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     let states = program.machine_states(machine);
     let source_state = states.iter().find(|state| state.symbol == source.state)?;
     let target = graph
@@ -193,13 +196,16 @@ fn arguments(
             != target.scalar_parameters.len()
                 + target.structural_parameters.len()
                 + target.erased_scalar_parameters.len()
+                + target.erased_proof_parameters.len()
     {
         return None;
     }
+    let proof_only = typed_trees::proof_only::classify(program);
     let mut rows = SuccessorArguments {
         structural: Vec::new(),
         scalar: Vec::new(),
         erased: Vec::new(),
+        proof: Vec::new(),
     };
     let mut transferred_affine = Vec::new();
     for (actual, (argument_position, formal)) in
@@ -207,7 +213,27 @@ fn arguments(
     {
         let argument_ordinal = u32::try_from(argument_position).ok()?;
         if formal.relevance.is_erased() {
-            let primitive_type = program.primitive_type_reference(formal.type_reference)?;
+            let Some(primitive_type) = program.primitive_type_reference(formal.type_reference)
+            else {
+                // Proof-only erased formals index the contract term lane;
+                // the actual lowers to a proof term rather than an
+                // expression marker.
+                let retained = target.erased_proof_parameters.get(rows.proof.len())?;
+                if retained.source_position != argument_ordinal
+                    || proof_only
+                        .proof_only_mention(program, formal.type_reference)
+                        .is_none()
+                {
+                    return None;
+                }
+                rows.proof.push(crate::values::lower_proof_term(
+                    program,
+                    *actual,
+                    source_parameters,
+                    &proof_only,
+                )?);
+                continue;
+            };
             let target_erased_parameter_index = u32::try_from(rows.erased.len()).ok()?;
             let retained = target.erased_scalar_parameters.get(rows.erased.len())?;
             if retained.source_position != argument_ordinal
@@ -339,10 +365,7 @@ fn transition_permission_source(
     state: &State,
     successor: &CheckedScalarSuccessor,
 ) -> Option<PermissionEventSource> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let statement_index = successor.statement_ordinal as usize;
     let StatementNode::Transition(transition) = program
         .statement_table

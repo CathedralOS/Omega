@@ -192,6 +192,25 @@ fn runtime_wire_utf8_invalid_refused_exit_canary_runs() {
 }
 
 #[test]
+fn wire_preserving_decode_relay_exit_canary_runs() {
+    // First authored `PreservingDecode` that executes: the decoder validates
+    // the known member, binds the unknown tail into `OpaqueWireRemainder`
+    // under the codec identity, and the consumer reads both halves back.
+    let canary = pass_canary(fixture_roster::WIRE_PRESERVING_DECODE_RELAY_EXIT);
+    let scratch = std::env::temp_dir().join(format!("omega-preserving-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("preserving-decode canary should compile");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "preserving-decode canary",
+        "the decoded value and the retained opaque remainder should both agree with the frame",
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn runtime_wire_schema_as_value_type_exit_canary_runs() {
     // A numbered data serves as a plain program type + encodes from itself.
     let canary = pass_canary(fixture_roster::RUNTIME_WIRE_SCHEMA_AS_VALUE_TYPE_EXIT);

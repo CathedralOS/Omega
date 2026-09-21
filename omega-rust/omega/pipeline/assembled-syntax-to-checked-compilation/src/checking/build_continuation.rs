@@ -1,6 +1,6 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
-use super::CheckedChildExecution;
+use super::{CheckedChildExecution, RestrictedBuildGrants};
 use crate::checking::phase_transitions::{
     resolve_seeded_syntax_extension, symbol_resolved_trees_to_seeded_base,
     syntax_trees_to_symbol_resolved_trees, type_seeded_extension,
@@ -59,6 +59,7 @@ pub(super) fn evaluate_build_and_continue(
         // Build evaluation is this continuation's last stop before provider
         // settlement; the caller extracts the discovery write target first.
         independent_component_discovery: _,
+        restricted_build_grants,
     } = child;
     // CLI aliases end at request admission. Every source, build, provider, and
     // artifact consumer below observes only the catalog's canonical spelling.
@@ -116,6 +117,7 @@ pub(super) fn evaluate_build_and_continue(
         admitted_build,
         package_authority_verdict,
         base_sources,
+        restricted_build_grants,
     })
     .execute()?;
     frontend = executed_frontend;
@@ -271,6 +273,9 @@ struct AdmittedBuildCheckpoint {
     package_authority_verdict:
         Option<crate::package::declaration_admission::AuthoredDeclarationAuthorityVerdict>,
     base_sources: Arc<source::SourceMap>,
+    /// Consent binding the admitted program's projected restricted requests
+    /// join before their own build effects execute.
+    restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
 
 struct ExecutedBuildCheckpoint {
@@ -283,11 +288,19 @@ struct ExecutedBuildCheckpoint {
 }
 
 impl AdmittedBuildCheckpoint {
-    fn execute(self) -> Result<ExecutedBuildCheckpoint, Vec<Diagnostic>> {
+    fn execute(mut self) -> Result<ExecutedBuildCheckpoint, Vec<Diagnostic>> {
         let selected_build_symbol = self.admitted_build.selected_build_machine_symbol();
         // Restricted-host requests describe the admission decision, not its
         // execution; capture them before the checkpoint is consumed.
         let restricted_build_requests = self.admitted_build.restricted_build_requests();
+        if let Some(grants) = self.restricted_build_grants.as_mut() {
+            // A bound consent checkpoint joins each request's projected
+            // meaning before the effect it authorizes executes — an
+            // ungranted request waits on acceptance rather than running.
+            for request in &restricted_build_requests {
+                grants.admit(request)?;
+            }
+        }
         let computed_build_config = self.admitted_build.execute()?;
         if computed_build_config.selected_build_machine_symbol != selected_build_symbol {
             return Err(vec![Diagnostic::error(

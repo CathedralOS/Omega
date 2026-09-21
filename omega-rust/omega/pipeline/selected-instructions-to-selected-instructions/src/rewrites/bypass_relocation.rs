@@ -27,16 +27,18 @@
 //! branch never names is the diamond family's shape, not this one.
 //!
 //! Between the member's old position and its new one lie only the crossed
-//! positions the window audits: the member's own block tail behind it,
+//! positions the shared window derivation enumerates
+//! (`block_edges::crossed_window`): the member's own block tail behind it,
 //! the branch terminator instruction, both branch edges' register
-//! transports — the bypass edge's included — the arm's complete body and
+//! transports — the bypass edge's included — each arm's complete body and
 //! `Jump` terminator with its outgoing transports, and the join block's
 //! body instructions before the landing index. Positions before the
 //! member's index, at or after the landing index, and in every other
 //! block keep the member on the side they always had, so they are never
 //! crossed.
 //!
-//! The hazard audit is the diamond family's applied across the bypassed
+//! The hazard audit is the shared run-window audit
+//! (`window_hazards::admit_run_relocation`) applied across the bypassed
 //! shape: a register or condition-state unit the member writes and a
 //! crossed instruction reads or writes, or the member reads and a crossed
 //! instruction writes, refuses in either direction. Every crossed edge's
@@ -46,11 +48,12 @@
 //! parameter, or reading the parameter would observe or feed a different
 //! value after the move and refuses. Calls, hosted effects, terminator
 //! kinds, and call-roster entries are barriers anywhere in the window —
-//! the branch terminator and the arm's `Jump` terminator are the crossed
+//! the branch terminator and each arm's `Jump` terminator are the crossed
 //! edges, not window members — and a boundary settlement refuses where
-//! the member changes sides with its block's executed prefix: past the
-//! member's index in its own block, or past the landing index in the
-//! join block.
+//! the member changes sides with a block's executed prefix: past the
+//! member's index in its own block, past the landing index in the join
+//! block, or anywhere inside a crossed arm — the member runs after the
+//! arm's point after the move where it ran before it before.
 //!
 //! Memory ordering keeps the validated `memory_accesses` roster's
 //! completeness discipline: a memory-capable member or crossed

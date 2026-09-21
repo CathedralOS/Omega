@@ -339,9 +339,12 @@ fn live_element_subloan_admits_parent_receiver_calls() {
 /// A runtime scalar index with a declared range produces
 /// `WriteOnlyIndexedPrimitiveStore` — the path terminates at the array, the
 /// index stays a `u64` operand, and the bounds obligation is retained. Omega
-/// admission carries it into the verified abstract inventory; the remaining
-/// fence is target lowering (`PLACED-ACCESS-NATIVE-OPS`), which must keep
-/// rejecting the operation explicitly until physical realization lands.
+/// admission carries it into the verified abstract inventory. This pin is
+/// self-flipping at the `PLACED-ACCESS-NATIVE-OPS` boundary: while target
+/// lowering still refuses the operation it pins the named
+/// `UnsupportedWriteOnlyPrimitiveStore` rejection, and once the native leg
+/// lands the same fixture executes on the host and observes the caller
+/// element mutate while its neighbors stay untouched.
 #[test]
 fn declared_range_runtime_index_store_reaches_verified_abstract_inventory() {
     for access in ["write", "mut"] {
@@ -373,20 +376,45 @@ fn declared_range_runtime_index_store_reaches_verified_abstract_inventory() {
         let _ = obligation;
         // Omega admission + optimization inventory accept the operation.
         let _optimized = super::optimize(&artifact);
-        // Target lowering stays fail-closed until the native leg lands.
-        let error =
-            native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
-                super::optimize(&artifact),
-                NativeTarget::host(),
-                &[],
-            )
-            .map(|_| ())
-            .expect_err("runtime-indexed store still stops at target lowering");
-        let rendered = format!("{error:?}");
-        assert!(
-            rendered.contains("UnsupportedWriteOnlyPrimitiveStore"),
-            "{access}: target-lowering boundary: {rendered}"
-        );
+        match native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+            super::optimize(&artifact),
+            NativeTarget::host(),
+            &[],
+        ) {
+            // Target lowering stays fail-closed until the native leg lands.
+            Err(error) => {
+                let rendered = format!("{error:?}");
+                assert!(
+                    rendered.contains("UnsupportedWriteOnlyPrimitiveStore"),
+                    "{access}: target-lowering boundary: {rendered}"
+                );
+            }
+            // The pin flipped: the realized host function writes through the
+            // caller-selected element and leaves its neighbors untouched.
+            Ok(_) => {
+                let (bytes, entry) =
+                    primitive_stores::published_text(&source, NativeTarget::host());
+                native_function::assert_c_text(
+                    &bytes,
+                    entry,
+                    r#"
+                    #include <stdint.h>
+                    #include <string.h>
+                    extern void omega_entry(uint64_t index, uint16_t *values);
+                    int main(void) {
+                        struct { uint64_t before; uint16_t values[4]; uint64_t after; } frame;
+                        memset(&frame, 0xa5, sizeof frame);
+                        frame.values[2] = 17;
+                        unsigned char expected[sizeof frame];
+                        memcpy(expected, &frame, sizeof frame);
+                        frame.values[2] = 0;
+                        omega_entry(2, frame.values);
+                        return memcmp(expected, &frame, sizeof frame) != 0;
+                    }
+                "#,
+                );
+            }
+        }
     }
 }
 

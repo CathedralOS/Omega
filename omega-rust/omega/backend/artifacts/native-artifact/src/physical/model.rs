@@ -400,11 +400,50 @@ impl From<DynamicCallDispatchParts> for DynamicCallDispatch {
 pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
+    /// Relocation custody for one descriptor-materializing `CallDynamic*`
+    /// record's complete emitted sequence. Every Text relocation inside the
+    /// span is one of the record's validated windows — each table-address
+    /// materialization joined to its conformance or descriptor table symbol,
+    /// plus a forwarded record's resolved direct call — committed as an
+    /// ordered digest of the exact windows so a record carrying one
+    /// materialization per dynamic argument stays a bounded child field.
+    DynamicCallCustody(DynamicCallRelocationCustody),
     UnresolvedNormalizedForeignCall(NormalizedForeignCallRelocation),
     /// Fragment-publication custody: the call's import field lives in the
     /// retained relocation-free object plan, which owns the unresolved field
     /// row and declared import symbol in place of object relocation records.
     UnresolvedNormalizedForeignCallImportField(NormalizedForeignCallImportField),
+}
+
+/// Ordered relocation custody of one descriptor-materializing dynamic-call
+/// sequence. The digest commits every window's exact relocation fields —
+/// object offset, byte width, kind, bound table or callee symbol, addend, and
+/// origin — in the record's materialization order, so replay rebinds custody
+/// rather than recomputing which relocations belong inside the span.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DynamicCallRelocationCustody {
+    windows_digest: [u8; 32],
+    window_count: u32,
+}
+
+impl DynamicCallRelocationCustody {
+    pub const fn windows_digest(&self) -> [u8; 32] {
+        self.windows_digest
+    }
+
+    pub const fn window_count(&self) -> u32 {
+        self.window_count
+    }
+}
+
+pub(crate) fn dynamic_call_relocation_custody(
+    windows_digest: [u8; 32],
+    window_count: u32,
+) -> DynamicCallRelocationCustody {
+    DynamicCallRelocationCustody {
+        windows_digest,
+        window_count,
+    }
 }
 
 /// Exact unresolved import relocation retained by one normalized-foreign D41

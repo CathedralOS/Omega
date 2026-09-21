@@ -156,6 +156,19 @@ fn reconstruct_provenance(
     if *output_function != expected_function {
         return Err(CaseMembershipSpecializationError::CandidateMismatch);
     }
+    provenance_rows(input_function, plan)
+}
+
+/// The exact node custody a plan's folded observations carry: each folded
+/// site retains the membership's own provenance and fuel settlement, realized
+/// at the same node. Proposal and validation share this reconstruction so a
+/// published candidate names exactly the custody the walk independently
+/// derives.
+pub(crate) fn provenance_rows(
+    input_function: &optimization_unit::PsiOptimizationFunction,
+    plan: &CaseMembershipPlan,
+) -> Result<Vec<ProvenanceRewrite>, CaseMembershipSpecializationError> {
+    let machine = plan.machine;
     let mut rows = Vec::new();
     for row in &plan.memberships {
         let index = usize::try_from(row.site.node)
