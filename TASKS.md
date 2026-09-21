@@ -14707,6 +14707,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-SEED-PARITY 15:14Z on the draft ledger). A Linux
   `--target windows_x86_64` emit leg does not satisfy the run-based
   acceptance. No linux_x86_64 slice exists under this name.
+  Re-verified at `8f58b6676b0` (zergling-132, linux x86-64): unchanged
+  host gate — no Windows development host exists in this lane — and the
+  submodule gitlink has moved again to `ef6682f75f4` (from `5b0307c352`,
+  via SQUALR-DEBUG-ASSERTIONS' crash-parity get_element_count bump), so
+  the Windows leg must re-run against the new pin whenever a Windows
+  host appears. Fence refresh: `samples/apps/squalr` is dir-fenced by
+  SQUALR-DEBUG-ASSERTIONS (~16:25Z); the GEOMETRY-WINDOWS-VALIDATION
+  item claim stays live (~13:53Z); the recorded draft
+  `wiki/drafts/squalr_geometry_windows_validation.md` named by the
+  sibling row is not landed on main.
 - **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
   verified, re-mine of the audited sibling row
   SQUALR-GEOMETRY-WINDOWS-VALIDATION (~line 10273, verified against
