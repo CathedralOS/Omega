@@ -15,8 +15,7 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedTerminator,
+    SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
 use super::ConfluenceRunRelocationError;
@@ -30,8 +29,7 @@ use crate::rewrites::window_hazards::{
     coupled, has_call_contract, register_writes, schedulable, surface,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The run's own block: one inflow of the join.
     pub block_index: usize,
     /// The run's first member index in the block body.
@@ -84,15 +82,15 @@ fn speculatable(instruction: &SelectedInstruction) -> bool {
     )
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,
     last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, ConfluenceRunRelocationError> {
+) -> Result<Admission, ConfluenceRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ConfluenceRunRelocationError::SourceMismatch);
@@ -351,7 +349,6 @@ pub(super) fn admit<'source>(
         return Err(ConfluenceRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,
