@@ -1348,4 +1348,153 @@ mod machine_bounds {
             "entry edge plus the rank-bounded interior"
         );
     }
+
+    /// A codec-valid `Natural` component with a once-only tail: entry 1
+    /// passes machine parameter `initial` into header 2's rank parameter
+    /// `rank`; 2 conditionally enters work 3 (preserving) or exits to
+    /// return block 4; 3 either passes `next` back to 2 (strict) or
+    /// forwards to tail 8 (preserving); 8 passes `last` back to 2
+    /// (strict). Removing endpoint edge 6 leaves 2 -> 3 -> 2 cyclic while
+    /// 8 cannot be re-entered, so interior walks visit 8 at most once.
+    fn cyclic_tail_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let successor =
+            |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                edge: id::<EdgeId>(edge),
+                target: id::<BlockId>(target),
+                arguments,
+                erased_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300)],
+                    Terminator::Conditional {
+                        condition: id(9_000),
+                        when_true: successor(4, 2, vec![id(300)]),
+                        when_false: successor(5, 8, Vec::new()),
+                    },
+                ),
+                block(4, Vec::new(), return_unit(7)),
+                block(
+                    8,
+                    vec![rank_constant(80, 800)],
+                    jump_with(6, 2, vec![id(800)]),
+                ),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3, 8]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(5),
+                        source: id(3),
+                        target: id(8),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(6),
+                        source: id(8),
+                        target: id(2),
+                        successor_rank: id(800),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic
+    }
+
+    /// When the endpoint exclusion leaves once-only members beside the
+    /// surviving cycle, only the re-enterable members keep the rank
+    /// multiplier: component {2,3,8} bounds a segment committing tail
+    /// edge 6 by rank * (visit 2 + visit 3) + visit 8 rather than rank *
+    /// all three member visits. Uses the internal surface because the
+    /// verifier requires discharged rank obligations that a hand-built
+    /// module cannot carry.
+    #[test]
+    fn natural_cycle_once_only_members_leave_the_rank_scale() {
+        let module = module(1, vec![cyclic_tail_machine()]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(6), &mut BTreeMap::new())
+                .expect("mid-component segment derives")
+                .ceiling_units,
+            4 * 256 + 2,
+            "the surviving 2 -> 3 -> 2 cycle at rank scale plus once-only member 8"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(6), &mut BTreeMap::new())
+                .expect("entry-to-commit segment derives")
+                .ceiling_units,
+            1 + 4 * 256 + 2,
+            "entry edge plus the tightened interior"
+        );
+    }
 }
