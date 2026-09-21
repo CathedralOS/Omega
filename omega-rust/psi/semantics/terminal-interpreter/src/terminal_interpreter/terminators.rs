@@ -776,6 +776,26 @@ impl TerminalExecution {
                         self.next_operation = caller.next_operation;
                         return Ok(TerminatorFlow::Continue);
                     }
+                    if final_result.is_none()
+                        && let Some(caller) = self.call_stack.pop()
+                    {
+                        let SuspendedCallResult::Unit = caller.result else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.values = caller.values;
+                        self.retire_plain_locals();
+                        self.structural_values = caller.structural_values;
+                        self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
+                        self.live_affine_frontier = caller.live_affine_frontier;
+                        self.live_claims = caller.live_claims;
+                        self.dynamic_parameters = caller.dynamic_parameters;
+                        self.current_machine = caller.current_machine;
+                        self.current = caller.current;
+                        self.next_operation = caller.next_operation;
+                        return Ok(TerminatorFlow::Continue);
+                    }
                     let result = final_result.map_or(
                         TerminalExecutionResult::Unit,
                         TerminalExecutionResult::Scalar,
