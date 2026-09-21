@@ -8195,13 +8195,31 @@ Platform/cross-host (structurally gated — document host limits):
   86/86 `target` + `program-entry-plan` tests pass on linux x86-64.
   Remaining leg: a real x86_64-apple-darwin host run (requires the Intel
   host; this session ran on linux x86-64).
-  Remaining legs: the `ProgramEntryPhysicalContractPackage::MacosX64` enum arm
-  + `program_entry_slot` row in `target/src/lib.rs` (fenced by
-  UEFI-PHYSICAL-SEMANTIC-ENTRY at dispatch time), the hosted-receiver bridge
-  arm in `hosted_receiver.rs` (fenced by ENTRY-CONTENT-ROOTS), the
-  `native_hosted_target()` cfg arm in `compiler/tests/canary_suite.rs`
-  (fenced by PRIVILEGED-PORT-EFFECT-SETTLEMENTS), and a real x86_64-apple-darwin host run
-  (requires the Intel host; this session ran on linux x86-64).
+  **Re-measured 2026-09-21 on macOS arm64: all four code legs listed below as
+  remaining are landed, and only the host run is left.** Counted in tree:
+  `ProgramEntryPhysicalContractPackage::MacosX64` has 12 references,
+  `AcceptedSemanticBindingRole::MacosX64ProgramEntry` 7, `target/src/lib.rs`
+  carries 20 `MacosX64` occurrences, the hosted-receiver bridge arm is present
+  in `image-emission/src/hosted_receiver.rs` (`MacosX64`, `SystemVAMD64`,
+  `X86Rdi`), and `canary_suite.rs` has the
+  `cfg(all(target_os = "macos", target_arch = "x86_64"))` `native_hosted_target()`
+  arm. The provider package `source/library/std/targets/macos_x86_64/` and
+  `core/targets/macos_x86_64/float_impl.omg` both exist, and
+  `core/float_operations.omg` imports the latter alongside the other four
+  targets. The exact contract module `exact_macos_x86_64.rs` is in
+  `program-entry-plan/src/program_entry_physical/`. Second-host witness:
+  `cargo nextest run -p target -p program-entry-plan` is **87/87** on macOS
+  arm64 (the row previously recorded 86/86 on linux x86-64 only).
+
+  The stale paragraph this replaces listed those four as remaining and fenced;
+  the fences it named have long rotated and the work landed.
+
+  Remaining leg: a real x86_64-apple-darwin host run. **Host-blocked, not
+  design-blocked** — it needs an Intel Mac, and no audited x86-64 Mach-O Alpha
+  seed exists either (`tools/bootstrap/alpha/seed_env.sh` ships exactly three
+  containers: `alpha_arm64_macos`, `alpha_x64_linux`, `alpha_x64_windows.exe`,
+  which is why `Darwin-x86_64` is correctly absent from
+  `ALPHA_SEED_EXECUTABLE`).
   Fence re-audit at `f6bb8e6c2e` (INTEL-MACOS-HOST-PROFILE — the retired
   re-mine stub, verified named alias of this row; its scope paragraph
   orphaned under HOSTED-INLINE-ASSEMBLY-AUTHORITY is folded here): the
