@@ -524,8 +524,18 @@ fn interrupt_boundary_with_parameters(
     class: u16,
     parameter_count: usize,
 ) -> crate::ValidatedBoundaryEntryPlan {
+    interrupt_boundary_with_shapes(
+        class,
+        vec![crate::ValueShape::integer(8, 8); parameter_count],
+    )
+}
+
+fn interrupt_boundary_with_shapes(
+    class: u16,
+    parameters: Vec<crate::ValueShape>,
+) -> crate::ValidatedBoundaryEntryPlan {
     let signature = crate::CallSignature {
-        parameters: vec![crate::ValueShape::integer(8, 8); parameter_count],
+        parameters,
         result: None,
     };
     let mut call = crate::evaluate_call_plan(crate::CallingPolicy::MicrosoftX64, &signature)
@@ -791,6 +801,54 @@ fn deriver_stub_carries_member_call_frame_and_peak_overhead() {
         stub.stub().peak_entry_overhead_bytes(),
         15 * 8 + 15 + (outgoing + 8).next_multiple_of(16) + 8
     );
+}
+
+#[test]
+fn deriver_stub_member_call_frame_reserves_indirect_copies_and_pointer_slots() {
+    // A 16-byte integer rides indirectly under Microsoft x64: the pointer
+    // occupies an argument register and the caller-owned copy lands in the
+    // outgoing area above the register shadow space at offset 32.
+    let boundary = interrupt_boundary_with_shapes(11, vec![crate::ValueShape::integer(16, 8)]);
+    let installed = stub_installed_facts(
+        &boundary,
+        13,
+        X86_64GateKind::Trap,
+        vec![masked_context(
+            1,
+            3,
+            0,
+            X86_64HardwareStackSelection::InterruptStackTable {
+                slot: 3,
+                dedicated_class: 11,
+            },
+            X86_64ArrivalMechanism::Exception,
+        )],
+    );
+    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
+    assert_eq!(stub.stub().member_call_frame.outgoing_stack_bytes, 48);
+    assert_eq!(stub.stub().member_call_frame.reserved_bytes, 64);
+
+    // Five indirect parameters push the fifth pointer word onto the stack at
+    // offset 32; the 16-aligned copies start at 48 and run to 128.
+    let boundary = interrupt_boundary_with_shapes(11, vec![crate::ValueShape::integer(16, 8); 5]);
+    let installed = stub_installed_facts(
+        &boundary,
+        13,
+        X86_64GateKind::Trap,
+        vec![masked_context(
+            1,
+            3,
+            0,
+            X86_64HardwareStackSelection::InterruptStackTable {
+                slot: 3,
+                dedicated_class: 11,
+            },
+            X86_64ArrivalMechanism::Exception,
+        )],
+    );
+    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
+    assert_eq!(stub.stub().member_call_frame.outgoing_stack_bytes, 128);
+    assert_eq!(stub.stub().member_call_frame.reserved_bytes, 144);
 }
 
 #[test]

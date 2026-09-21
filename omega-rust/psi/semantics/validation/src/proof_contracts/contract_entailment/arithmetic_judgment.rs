@@ -327,6 +327,10 @@ pub(super) struct Engine<'program> {
     /// back to its display spelling.
     strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
     strict_symbol_bindings_valid: bool,
+    /// Only the exact-meaning call adapter licenses widening while capturing
+    /// actuals. Other strict readers (ranges and saved locals) have not checked
+    /// operand arithmetic and must retain their existing cast refusal.
+    exact_argument_widening: bool,
     /// The synthetic guarantee `result` has no resolved symbol. A scoped
     /// roster may bind it to the exact term an exit returns; without a
     /// binding the name stays outside a strict engine's language.
@@ -399,6 +403,7 @@ impl<'program> Engine<'program> {
             parameter_atoms,
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
+            exact_argument_widening: false,
             strict_result_binding: None,
             strict_projections: Vec::new(),
             strict_domain_self: Vec::new(),
@@ -645,6 +650,19 @@ impl<'program> Engine<'program> {
         }
         self.strict_projections.push((expression, value));
         true
+    }
+
+    /// The caller establishes exact builtin operand meaning and live captures.
+    /// Widenings are transparent only while those actuals are normalized; a
+    /// strict symbol namespace alone does not license this reading elsewhere.
+    pub(super) fn bind_exact_arguments(
+        &mut self,
+        arguments: &[StrictArithmeticExpressionBinding],
+    ) -> bool {
+        self.exact_argument_widening = true;
+        let bound = self.bind_strict_arguments(arguments);
+        self.exact_argument_widening = false;
+        bound
     }
 
     pub(super) fn bind_strict_arguments(
@@ -1013,6 +1031,7 @@ impl<'program> Engine<'program> {
             parameter_atoms: Vec::new(),
             strict_symbol_bindings: Some(bindings),
             strict_symbol_bindings_valid: true,
+            exact_argument_widening: false,
             strict_result_binding: None,
             strict_projections: Vec::new(),
             strict_domain_self: Vec::new(),
@@ -1790,8 +1809,37 @@ impl<'program> Engine<'program> {
                 // conversion preserves the already-proven mathematical value.
                 self.normalize(cast.value)
             }
+            ExpressionNode::Cast(cast) if self.strict_integer_widen(&cast) => {
+                // A total fixed-integer widening has the same mathematical
+                // value. Keep operand normalization in its original namespace;
+                // the caller's meaning/capture checks still own admissibility.
+                self.normalize(cast.value)
+            }
             _ => None,
         }
+    }
+
+    fn strict_integer_widen(&self, cast: &typed_trees::expression::TableCastExpression) -> bool {
+        if self.strict_symbol_bindings.is_none()
+            || !self.exact_argument_widening
+            || self.proof_integer_formation
+            || cast.form.is_recast()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            || !cast.semantic_domain.is_empty()
+            || !cast.semantic_domain_arguments.is_empty()
+            || cast.semantic_domain_symbol.is_valid()
+            || cast.semantic_domain_id.is_valid()
+            || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+        {
+            return false;
+        }
+        let Some(target) =
+            crate::value_custody::recasts::exact_primitive_type(self.program, cast.target_type)
+        else {
+            return false;
+        };
+        crate::proof_contracts::proof_embeddings::integer_embedding(self.program, cast.value)
+            .is_some_and(|source| crate::integer_widen_is_total(source.primitive, target))
     }
 
     fn normalize_integer_embedding(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {

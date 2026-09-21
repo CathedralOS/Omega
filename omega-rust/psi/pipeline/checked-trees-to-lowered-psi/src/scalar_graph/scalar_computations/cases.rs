@@ -293,9 +293,21 @@ impl Expansion<'_> {
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {
-                let (place, case) = site
-                    .bindings
-                    .structural_local_observation(argument, observed_case)?;
+                let (place, path, case) = match argument.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        ..
+                    } => {
+                        let identity = structural_case_identity(self.checked, observed_case)?;
+                        site.bindings
+                            .parameter_case_observation(argument, &identity)?
+                    }
+                    _ => {
+                        let (place, case) = site
+                            .bindings
+                            .structural_local_observation(argument, observed_case)?;
+                        (place, Vec::new(), case)
+                    }
+                };
                 return Ok(self.binding(
                     input_types,
                     input_types.len(),
@@ -304,7 +316,7 @@ impl Expansion<'_> {
                         expression: Box::new(
                             LoweredBooleanReturnExpression::StructuralCaseMembership {
                                 source: place,
-                                path: Vec::new(),
+                                path,
                                 case,
                             },
                         ),
@@ -473,4 +485,30 @@ pub(crate) fn declarations(
             },
         })
     })
+}
+
+/// Parameter-field observations retain a case by symbol; the structural-case
+/// resolver keys on the declared identity spelling, so recover it from the
+/// case's own declaration.
+fn structural_case_identity(
+    checked: &CheckedTrees,
+    observed_case: symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    checked
+        .data_definitions()
+        .iter()
+        .flat_map(|data| checked.data_members(data).iter())
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) if variant.symbol == observed_case => Some(
+                variant
+                    .identity
+                    .map(|identity| format!("#{identity}"))
+                    .unwrap_or_else(|| variant.name.as_str().to_owned()),
+            ),
+            _ => None,
+        })
+        .next()
+        .ok_or(LoweringError::Unsupported(
+            "computed membership lost its case owner",
+        ))
 }

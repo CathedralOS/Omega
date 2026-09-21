@@ -406,6 +406,13 @@ pub enum CheckedScalarExpression {
         primitive_type: typed_trees::types::PrimitiveType,
         operand: Box<CheckedScalarExpression>,
     },
+    /// Selected clamping conversion at the target width; total on every
+    /// source value. Only unsigned-to-unsigned narrowings carry this form —
+    /// other saturating pairs have no checked cast kind.
+    IntegerSaturatingCast {
+        primitive_type: typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
+    },
     /// A selected trapping conversion, not a proof of exactness or termination.
     /// Known representable inputs may supply a conditional normal-return fact;
     /// runtime consumers must retain the policy or reject this form.
@@ -435,7 +442,8 @@ impl CheckedScalarExpression {
             | Self::IntegerWiden { primitive_type, .. }
             | Self::IntegerExactCast { primitive_type, .. }
             | Self::IntegerTrappingCast { primitive_type, .. }
-            | Self::IntegerWrappingCast { primitive_type, .. } => Some(*primitive_type),
+            | Self::IntegerWrappingCast { primitive_type, .. }
+            | Self::IntegerSaturatingCast { primitive_type, .. } => Some(*primitive_type),
             Self::IntegerLiteral { literal } => Some(match literal.landing()?.landed_type {
                 LandedIntegerType::I8 => PrimitiveType::I8,
                 LandedIntegerType::I16 => PrimitiveType::I16,
@@ -519,6 +527,15 @@ pub enum CheckedBooleanExpression {
     },
     IntegerComparison {
         kind: CheckedIntegerComparisonKind,
+        left: Box<CheckedScalarExpression>,
+        right: Box<CheckedScalarExpression>,
+    },
+    /// Atomic IEEE comparison between scalar terms (parameters and composed
+    /// float expressions), as opposed to the structural-leaf form below. It is
+    /// deliberately not represented as generic/reflexive scalar equality: IEEE
+    /// equality is non-reflexive at NaN and distinguishes signed zero.
+    ScalarIeeeFloatComparison {
+        kind: CheckedIeeeFloatComparisonKind,
         left: Box<CheckedScalarExpression>,
         right: Box<CheckedScalarExpression>,
     },

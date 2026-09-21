@@ -49,7 +49,12 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmReadCr4
             | BuiltinFunction::AsmWriteCr0
             | BuiltinFunction::AsmWriteCr3
-            | BuiltinFunction::AsmWriteCr4 => vec![TerminalAuthorityClass::MachineControl],
+            | BuiltinFunction::AsmWriteCr4
+            | BuiltinFunction::AsmWriteBackInvalidate
+            | BuiltinFunction::AsmInvalidate
+            | BuiltinFunction::AsmWriteBackNoInvalidate => {
+                vec![TerminalAuthorityClass::MachineControl]
+            }
             BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
                 vec![TerminalAuthorityClass::PortIo]
             }
@@ -59,6 +64,11 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmLoadFence
             | BuiltinFunction::AsmStoreFence
             | BuiltinFunction::AsmFullFence
+            | BuiltinFunction::AsmSerialize
+            | BuiltinFunction::AsmInstructionSyncBarrier
+            | BuiltinFunction::AsmSpinPause
+            | BuiltinFunction::AsmYieldHint
+            | BuiltinFunction::AsmNop
             | BuiltinFunction::AsmSnapshotFlags
             | BuiltinFunction::FloatIsNan
             | BuiltinFunction::FloatMultiplyThenAddF32
@@ -137,9 +147,11 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
             .classes(),
         &[TerminalAuthorityClass::ProcessOutput]
     );
+    // Three hosted coordinates precede the builtin block in the closed
+    // inventory; every row after them must carry an empty authority class.
     for mechanism in closed_policy_mechanisms()
         .into_iter()
-        .skip(2 + BuiltinFunction::COUNT)
+        .skip(3 + BuiltinFunction::COUNT)
     {
         assert!(
             policy
@@ -169,8 +181,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            16, 152, 215, 45, 241, 95, 240, 121, 174, 31, 12, 230, 136, 152, 136, 230, 194, 24,
-            169, 159, 253, 75, 136, 3, 170, 20, 157, 158, 169, 92, 154, 165,
+            29, 10, 232, 43, 3, 139, 179, 141, 91, 66, 205, 22, 7, 52, 154, 147, 52, 180, 228, 24,
+            129, 49, 71, 37, 173, 201, 115, 5, 120, 77, 203, 206,
         ]
     );
 }

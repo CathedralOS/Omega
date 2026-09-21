@@ -295,6 +295,21 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.extend(record_stores);
             continue;
         }
+        trace.phase("scalar field store sequence: record literal field store");
+        if let Some(record_stores) = build_record_literal_field_store_sequence(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            scalar_parameters,
+            statement_index,
+            assignment,
+            trace,
+        ) {
+            stores.extend(record_stores);
+            continue;
+        }
         // An assignment whose source is this statement's own call has no
         // authored scalar expression to store. Its call operation is sequenced
         // with the other calls, and the store consuming that result is
@@ -489,7 +504,7 @@ pub(super) fn build_whole_record_store_sequence(
         if !matches!(
             primitive_type,
             PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        ) && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
+        ) && !primitive_type.accepts_integer_literal()
         {
             return None;
         }
@@ -524,6 +539,247 @@ pub(super) fn build_whole_record_store_sequence(
                         position: destination.position,
                     },
                 carrier_path: Vec::new(),
+                field_identity: terminal_field_identity(program, declaration.symbol)?,
+                primitive_type,
+                value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root),
+            },
+        ));
+    }
+    // A fieldless literal writes nothing the coverage checks can name; the
+    // authored assignment must still own at least one store.
+    (!stores.is_empty()).then_some(stores)
+}
+
+/// `root.path..leaf` = `Record { .. }`: the leaf field of the target place is
+/// itself a plain record and the source is that record's own literal. The
+/// assignment decomposes into the ordered member stores an authored
+/// `root.path..leaf.member` sequence would produce — every member supplies its
+/// scalar computation at the `RecordField` coordinate, and each store carries
+/// the target's full field path so the emitted shape matches a nested field
+/// store the source could spell directly.
+#[allow(clippy::too_many_arguments)]
+fn build_record_literal_field_store_sequence(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    trace: &LocalConstructionTrace,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    trace.phase("structural field store: record literal field");
+    let source_parameters = program.state_parameters(state);
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::try_from(statement_index).ok()?,
+        assignment.target,
+    )?;
+    // Indexed carriers belong to the borrowed-element custody family; a record
+    // literal's decomposition names field segments only.
+    if place.segments.is_empty()
+        || !place
+            .segments
+            .iter()
+            .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+    {
+        return None;
+    }
+    let mut destinations = structural_parameters.iter().filter_map(|destination| {
+        let parameter = source_parameters.get(destination.position as usize)?;
+        (place.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            .then_some((destination, parameter))
+    });
+    let (destination, parameter) = destinations.next()?;
+    if destinations.next().is_some()
+        || destination.multiplicity == Multiplicity::Linear
+        || !matches!(
+            destination.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        )
+        || !destination.qualifications.is_empty()
+        || parameter.is_self != destination.is_self
+        || parameter.is_const
+        || !parameter.is_mutable
+    {
+        return None;
+    }
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    let expected_access = match access {
+        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        language_semantics::ReferenceAccess::Shared => return None,
+    };
+    if destination.access != expected_access
+        || crate::execution::terminal_unit::abi_parameter_count(source_parameters)
+            != scalar_parameters.len() + structural_parameters.len()
+    {
+        return None;
+    }
+    let mut carrier_owner = if destination.is_self {
+        Some(
+            program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == machine.attached_data_symbol)?,
+        )
+    } else {
+        crate::facts::field_domain::data_definition_for_field_type(program, *referee)
+    };
+    // Every segment of the target path is a record-typed field; the leaf's
+    // record type is the literal's declared owner.
+    let mut carrier_path = Vec::with_capacity(place.segments.len());
+    let mut record_owner = None;
+    for (index, segment) in place.segments.iter().enumerate() {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        let owner = carrier_owner?;
+        if !plain_record(owner, program) {
+            return None;
+        }
+        let carrier = exact_relevant_field(program, owner, *symbol)?;
+        if !crate::facts::field_domain::domain_constraint_symbols(program, carrier.type_reference)
+            .is_empty()
+        {
+            return None;
+        }
+        carrier_path.push(CheckedUnitStructuralPathSegment::Field(
+            terminal_field_identity(program, carrier.symbol)?,
+        ));
+        carrier_owner = crate::facts::field_domain::data_definition_for_field_type(
+            program,
+            carrier.type_reference,
+        );
+        if index == place.segments.len() - 1 {
+            record_owner = carrier_owner;
+        }
+    }
+    let record_owner = record_owner?;
+    if !plain_record(record_owner, program) {
+        return None;
+    }
+    trace.phase("structural field store: record literal source");
+    let value_root = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        statement_index,
+        assignment.value,
+    )?;
+    if value_root.machine != machine.symbol {
+        return None;
+    }
+    let checked_trees::CheckedStructuralValueKind::Record {
+        data_symbol,
+        fields,
+    } = facts
+        .values
+        .structural_values
+        .nodes
+        .get(value_root.root)
+        .kind
+        .clone()
+    else {
+        return None;
+    };
+    if data_symbol != record_owner.symbol {
+        return None;
+    }
+    let fields = facts
+        .values
+        .structural_values
+        .record_fields
+        .span(fields)?
+        .to_vec();
+    trace.phase("structural field store: record literal frame");
+    let source_path =
+        crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments);
+    let source_root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
+    // Mutation summaries name the receiver separately from the ordinary
+    // parameter roster, even when it occupies structural position zero.
+    let mutation_root = if destination.is_self {
+        "self".to_owned()
+    } else {
+        format!("$P{}", destination.position)
+    };
+    let expected_mutation_path =
+        format!("{mutation_root}{}", source_path.strip_prefix(&source_root)?);
+    let frame = &facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame;
+    // Sequence admission already replayed the complete frame; this
+    // statement's write must be one of its named paths — the custody proof a
+    // field sequence earns one store at a time, applied to the literal's
+    // leaf record.
+    if !matches!(frame.complete_paths(), Some(paths) if paths.iter().any(|path| path == &expected_mutation_path))
+    {
+        return None;
+    }
+    let mut stores = Vec::with_capacity(fields.len());
+    for (ordinal, field) in fields.iter().enumerate() {
+        let checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
+            return None;
+        };
+        let declaration = exact_relevant_field(program, record_owner, field.field)?;
+        if !crate::facts::field_domain::domain_constraint_symbols(
+            program,
+            declaration.type_reference,
+        )
+        .is_empty()
+        {
+            return None;
+        }
+        let primitive_type = program.primitive_type_reference(declaration.type_reference)?;
+        if !matches!(
+            primitive_type,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+        ) && !primitive_type.accepts_integer_literal()
+        {
+            return None;
+        }
+        let field_ordinal = u32::try_from(ordinal).ok()?;
+        // The literal field's computation must exist at this statement's own
+        // `RecordField` coordinate; a root borrowed from another role would
+        // let the store consume a computation the assignment never authored.
+        facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .find(|row| {
+                row.machine == machine.symbol
+                    && row.state == state.symbol
+                    && row.statement_ordinal == statement_index
+                    && row.root == root
+                    && matches!(row.role,
+                        CheckedScalarExpressionRole::RecordField { expression, field_ordinal: ordinal }
+                            if expression == assignment.value && ordinal == field_ordinal)
+            })?;
+        let node = facts.values.scalar_computations.nodes.get(root);
+        if node.authored_root != field.expression || node.primitive_type != primitive_type {
+            return None;
+        }
+        stores.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+            CheckedStructuralScalarFieldStorePlan {
+                statement_index,
+                destination:
+                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                        position: destination.position,
+                    },
+                carrier_path: carrier_path.clone(),
                 field_identity: terminal_field_identity(program, declaration.symbol)?,
                 primitive_type,
                 value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root),
@@ -936,7 +1192,7 @@ fn build_structural_field_store_at(
     if !matches!(
         primitive_type,
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-    ) && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
+    ) && !primitive_type.accepts_integer_literal()
     {
         return None;
     }
@@ -1051,9 +1307,7 @@ fn build_structural_field_store_at(
         CheckedScalarExpression::IeeeFloatLiteral { .. } => {
             crate::values::scalar_expression_type(value) == Some(primitive_type)
         }
-        CheckedScalarExpression::IntegerLiteral { .. } => {
-            primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
-        }
+        CheckedScalarExpression::IntegerLiteral { .. } => primitive_type.accepts_integer_literal(),
         CheckedScalarExpression::Boolean(boolean) => {
             primitive_type == PrimitiveType::Bool
                 && matches!(

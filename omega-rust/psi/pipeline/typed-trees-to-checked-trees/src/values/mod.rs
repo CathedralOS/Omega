@@ -66,8 +66,8 @@ pub(crate) use scalar::{
     lower_operator_crash_contract_expression, lower_proof_term, lower_scalar_contract_predicate,
     lower_scalar_parameter_range_requirements, lower_signature_crash_contract_expression,
     lower_state_scalar_contract_predicate, lower_state_scalar_expression,
-    lower_unit_scalar_argument, nested_structural_call_return_type, operator_is_builtin,
-    resolve_structural_parameter_path, retag_exact_integer_literal,
+    lower_unit_scalar_argument, nested_structural_call_return_type, occupies_scalar_position,
+    operator_is_builtin, resolve_structural_parameter_path, retag_exact_integer_literal,
     retain_nested_structural_call_arguments, scalar_expression_type,
 };
 

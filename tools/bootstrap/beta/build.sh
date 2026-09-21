@@ -21,6 +21,12 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
+
+# The materialized compiler runs inside the audited Alpha container. Hosts
+# that cannot exec the selected container refuse (exit 2) rather than crash on
+# the exec below; the audited host matrix lives in seed_env.sh.
+require_seed_execution_host "Beta build"
+
 BUILD_DIR="$OMEGA_REPO_ROOT/build/tools/beta"
 mkdir -p "$BUILD_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED

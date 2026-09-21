@@ -67,3 +67,4 @@ normalized_id!(TaskArgumentCustodyId, "task-argument-custody");
 normalized_id!(TaskLifecycleClaimId, "task-lifecycle-claim");
 normalized_id!(LiveCarryPlaceId, "live-carry-place");
 normalized_id!(LiveCarryTypeId, "live-carry-type");
+normalized_id!(CompositionModelId, "composition-model");

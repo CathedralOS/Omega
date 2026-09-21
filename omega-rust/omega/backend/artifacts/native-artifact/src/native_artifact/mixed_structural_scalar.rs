@@ -181,6 +181,38 @@ mod tests {
     }
 
     #[test]
+    fn every_access_profile_rejoins_terminal() {
+        for access in [
+            StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let (mut machine, mut abi) = fixture();
+            machine.structural_parameters[0].access = access;
+            abi.structural_parameters[0].access = access;
+            assert!(matches_terminal_machine(&machine, &abi), "{access:?}");
+        }
+    }
+
+    #[test]
+    fn mismatched_access_profiles_reject() {
+        let (machine, abi) = fixture();
+        for retained in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let mut drifted = abi.clone();
+            drifted.structural_parameters[0].access = retained;
+            assert!(
+                !matches_terminal_machine(&machine, &drifted),
+                "{retained:?}"
+            );
+        }
+    }
+
+    #[test]
     fn fresh_semantic_ids_do_not_self_authenticate() {
         let (machine, abi) = fixture();
 

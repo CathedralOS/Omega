@@ -500,7 +500,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         .any(|clause| matches!(clause, Some(ClosedScalarContractValue::Predicate(_))));
     let has_entry_ranges = plan
         .float_entry_ranges()
-        .is_some_and(|ranges| !ranges.is_empty());
+        .is_some_and(|ranges| !ranges.is_empty())
+        || plan
+            .integer_entry_ranges()
+            .is_some_and(|ranges| !ranges.is_empty());
     // A helper remains a real callee when embedded in another execution plan.
     // Its checked call identity does not discharge requirements or establish
     // guarantees. Retain the same contract regardless of closure-root position.

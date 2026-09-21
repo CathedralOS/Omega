@@ -135,10 +135,10 @@ fn write_application_value(candidate: &mut Candidate, ordinal: usize) {
 }
 
 #[test]
-fn both_linux_targets_apply_exact_eight_target_virtual_addresses() {
+fn both_linux_targets_apply_exact_nine_target_virtual_addresses() {
     for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
         let resolved = apply_elf_dynamic_address_fixups(standard_placed(target)).unwrap();
-        assert_eq!(resolved.applied_addresses().len(), 8);
+        assert_eq!(resolved.applied_addresses().len(), 9);
         assert_ne!(
             resolved.non_authoritative_resolved_compatibility_fingerprint(),
             0
@@ -153,7 +153,7 @@ fn both_linux_targets_apply_exact_eight_target_virtual_addresses() {
         );
         let layout = resolved.placed_section_headers().load_layout();
         for application in resolved.applied_addresses() {
-            assert_eq!(application.storage_section_index(), 11);
+            assert_eq!(application.storage_section_index(), 12);
             assert_eq!(application.byte_width(), 8);
             assert_eq!(
                 application.kind(),
@@ -180,7 +180,7 @@ fn both_linux_targets_apply_exact_eight_target_virtual_addresses() {
 }
 
 #[test]
-fn exactly_sixty_four_mutable_bytes_change_and_every_other_byte_is_preserved() {
+fn exactly_seventy_two_mutable_bytes_change_and_every_other_byte_is_preserved() {
     let resolved =
         apply_elf_dynamic_address_fixups(standard_placed(TargetProfile::LinuxX64)).unwrap();
     let indexed = indexed_payloads(resolved.placed_section_headers());
@@ -190,7 +190,7 @@ fn exactly_sixty_four_mutable_bytes_change_and_every_other_byte_is_preserved() {
         let end = application.byte_offset() + usize::from(application.byte_width());
         mutable[application.byte_offset()..end].fill(true);
     }
-    assert_eq!(mutable.iter().filter(|byte| **byte).count(), 64);
+    assert_eq!(mutable.iter().filter(|byte| **byte).count(), 72);
     for (offset, (&actual, &upstream)) in resolved.bytes().iter().zip(&source.bytes).enumerate() {
         if mutable[offset] {
             assert_eq!(upstream, 0);

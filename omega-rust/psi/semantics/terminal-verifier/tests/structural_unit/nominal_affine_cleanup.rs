@@ -1,9 +1,10 @@
 use super::{
-    boundary_call_mut, content_entry_claim, content_predicate, executable_nominal_affine_module,
-    five_call_executable_nominal_affine_module, hard_root_module, nominal_affine_module,
-    partial_affine_field_module, projected_unit_call_module, structural_parameter,
-    three_call_executable_nominal_affine_module, two_call_executable_nominal_affine_module,
-    two_element_projected_unit_call_module, unit_call_mut,
+    boundary_call_mut, content_entry_claim, content_predicate, contextual_nominal_affine_module,
+    executable_nominal_affine_module, five_call_executable_nominal_affine_module, hard_root_module,
+    nominal_affine_module, partial_affine_field_module, projected_unit_call_module,
+    structural_parameter, three_call_executable_nominal_affine_module,
+    two_call_executable_nominal_affine_module, two_element_projected_unit_call_module,
+    unit_call_mut,
 };
 use crate::structural_unit::{
     block_id, claim_id, contract_id, domain_id, edge_id, machine_id, obligation_id, operation_id,
@@ -384,6 +385,154 @@ fn nominal_affine_cleanup_rejects_forged_target_and_unsupported_field_type() {
     };
     assert!(matches!(
         validate_module(&unsupported_scalar),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
+fn nominal_affine_cleanup_rejects_contract_carrying_members_and_self() {
+    let mut ensured_caller = nominal_affine_module();
+    ensured_caller.machines[0]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: Proposition::Truth,
+        });
+    assert!(matches!(
+        validate_module(&ensured_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut crashing_caller = nominal_affine_module();
+    crashing_caller.machines[0]
+        .contract
+        .crash_routes
+        .push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                content_predicate(place_id(1)),
+            ))],
+        });
+    assert!(matches!(
+        validate_module(&crashing_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut ensured_target = nominal_affine_module();
+    ensured_target.machines[1]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: Proposition::Truth,
+        });
+    assert!(matches!(
+        validate_module(&ensured_target),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut crashing_target = nominal_affine_module();
+    crashing_target.machines[1]
+        .contract
+        .crash_routes
+        .push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                content_predicate(place_id(1)),
+            ))],
+        });
+    assert!(matches!(
+        validate_module(&crashing_target),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut attached_self_caller = nominal_affine_module();
+    attached_self_caller.machines[0].attachment = Some(structural_type_id(1));
+    attached_self_caller.machines[0].structural_parameters[0].is_self = true;
+    attached_self_caller.machines[0].structural_places[0].kind = StructuralPlaceKind::Parameter {
+        position: 0,
+        is_self: true,
+    };
+    assert!(matches!(
+        validate_module(&attached_self_caller),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
+fn executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers() {
+    let mut ensured_helper = executable_nominal_affine_module();
+    ensured_helper.machines[2]
+        .contract
+        .ensures
+        .push(ContractClause {
+            obligation: obligation_id(1),
+            proposition: Proposition::Truth,
+        });
+    assert!(matches!(
+        validate_module(&ensured_helper),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut required_helper = executable_nominal_affine_module();
+    required_helper.machines[2]
+        .contract
+        .requires
+        .push(Proposition::Truth);
+    assert!(matches!(
+        validate_module(&required_helper),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut crashing_helper = executable_nominal_affine_module();
+    crashing_helper.machines[2]
+        .contract
+        .crash_routes
+        .push(CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                content_predicate(place_id(1)),
+            ))],
+        });
+    assert!(matches!(
+        validate_module(&crashing_helper),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut unattached_helper = executable_nominal_affine_module();
+    unattached_helper.machines[2].attachment = None;
+    assert!(matches!(
+        validate_module(&unattached_helper),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+
+    let mut nonempty_helper_attachment = executable_nominal_affine_module();
+    nonempty_helper_attachment.structural_types[1].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            identity: "payload".into(),
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+        }],
+    };
+    assert!(matches!(
+        validate_module(&nonempty_helper_attachment),
+        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+    ));
+}
+
+#[test]
+fn contextual_nominal_affine_cleanup_rejects_receiver_colliding_with_live_place() {
+    let mut module = contextual_nominal_affine_module();
+    let Terminator::ReturnUnitNominalAffine { cleanups, .. } =
+        &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    cleanups[0].cleanup_receiver = Some(place_id(1));
+    assert!(matches!(
+        validate_module(&module),
         Err(ModuleError::InvalidNominalAffineCleanup { .. })
     ));
 }

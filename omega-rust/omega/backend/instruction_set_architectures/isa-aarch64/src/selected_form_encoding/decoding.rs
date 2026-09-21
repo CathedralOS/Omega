@@ -686,7 +686,8 @@ pub(crate) fn validate_decoded(
                     destination: registers[2],
                 }]
         }
-        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+        SelectedInstructionKind::WrappingDivideI64 { .. }
+        | SelectedInstructionKind::ExactDivideI64 { .. } => {
             decoded
                 == [DecodedWord::SignedDivide {
                     dividend: registers[0],
@@ -712,7 +713,8 @@ pub(crate) fn validate_decoded(
                         },
                     ]
         }
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        SelectedInstructionKind::WrappingRemainderI64 { .. }
+        | SelectedInstructionKind::ExactRemainderI64 { .. } => {
             registers[2] != registers[0]
                 && registers[2] != registers[1]
                 && decoded
@@ -958,7 +960,9 @@ pub(crate) fn footprint(
         SelectedInstructionKind::ExactDivideU64 { .. }
         | SelectedInstructionKind::ExactRemainderU64 { .. }
         | SelectedInstructionKind::WrappingRemainderI64 { .. }
-        | SelectedInstructionKind::WrappingDivideI64 { .. } => (vec![0, 1], vec![2], false),
+        | SelectedInstructionKind::WrappingDivideI64 { .. }
+        | SelectedInstructionKind::ExactDivideI64 { .. }
+        | SelectedInstructionKind::ExactRemainderI64 { .. } => (vec![0, 1], vec![2], false),
         SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }

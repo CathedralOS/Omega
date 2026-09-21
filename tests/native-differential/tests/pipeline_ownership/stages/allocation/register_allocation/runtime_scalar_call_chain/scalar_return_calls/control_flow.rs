@@ -7,15 +7,15 @@ use super::super::super::super::super::super::{
 
 use super::{
     AdmissionProfile, EdgeId, IntegerValue, NativeTarget, Operation, OperationId, OperationKind,
-    OperationResult, OptimizationSelections, Terminator, ValueDeclaration, ValueId, artifact,
-    compiler_baseline_request_v1, optimize_artifact_sections, publish_scalar_artifacts,
-    reseal_proof,
+    OperationResult, OptimizationSelections, ProofBundle, TerminalModule, Terminator,
+    ValueDeclaration, ValueId, artifact_parts, compiler_baseline_request_v1,
+    encode_fixture_sections, optimize_artifact_sections, publish_scalar_artifacts,
 };
 #[test]
 fn branch_calls_and_join_parameters_reach_common_native_publication() {
     for (equal, expected) in [(true, 37), (false, 41)] {
-        let (semantic, proof) = branch_call_artifact(equal);
-        let mut shuffled = terminal_codec::decode_module(&semantic).unwrap();
+        let (mut shuffled, bundle) = branch_call_artifact_parts(equal);
+        let (semantic, proof) = encode_fixture_sections(&shuffled, &bundle);
         // Keep Terminal's canonical BlockId order, but number the join before
         // both arms. Execution follows edges, not the numeric block order.
         let middle = &mut shuffled.machines[1];
@@ -28,8 +28,7 @@ fn branch_calls_and_join_parameters_reach_common_native_publication() {
             *target = join;
         }
         middle.blocks.sort_by_key(|block| block.id);
-        let shuffled_proof = reseal_proof(&shuffled, &proof);
-        let shuffled = terminal_codec::encode_module(&shuffled).unwrap();
+        let (shuffled, shuffled_proof) = encode_fixture_sections(&shuffled, &bundle);
         publish_scalar_artifacts(
             expected,
             [(semantic, proof.clone()), (shuffled, shuffled_proof)],
@@ -108,8 +107,12 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
 }
 
 pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
-    let (semantic, proof) = artifact(37);
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (module, proof) = branch_call_artifact_parts(equal);
+    encode_fixture_sections(&module, &proof)
+}
+
+pub(super) fn branch_call_artifact_parts(equal: bool) -> (TerminalModule, ProofBundle) {
+    let (mut module, proof) = artifact_parts(37);
     let scalar_type = module.machines[1].parameters[0].scalar_type;
     let value = |raw| ValueId::new(raw).unwrap();
     let block = |raw| BlockId::new(raw).unwrap();
@@ -222,8 +225,5 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             },
         },
     ];
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-    )
+    (module, proof)
 }

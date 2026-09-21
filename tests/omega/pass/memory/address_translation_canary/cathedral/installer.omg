@@ -46,40 +46,36 @@ pub data CathedralPageTables {
 // next-level entry naming the child table's frame, the leaf takes the
 // terminal entry for `source_base`, and the root activates.
 pub machine CathedralPageTables::install(
-    &mut self,
+    tables: CathedralPageTables,
     hardware: &TranslationHardware,
     source_base: addr,
     destination_base: addr
-)
+) -> CathedralPageTables
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
     let virtual_base: u64 = destination_base as u64;
     let source_frame: u64 = source_base as u64;
-    let pdpt_base: u64 = self.pdpt.storage.base as u64;
-    let pd_base: u64 = self.pd.storage.base as u64;
-    let pt_base: u64 = self.pt.storage.base as u64;
-    hardware.store_entry(
-        &mut self.pml4,
-        level_index(virtual_base, 0),
-        TableEntry::next_level(pdpt_base)
-    );
-    hardware.store_entry(
-        &mut self.pdpt,
-        level_index(virtual_base, 1),
-        TableEntry::next_level(pd_base)
-    );
-    hardware.store_entry(
-        &mut self.pd,
-        level_index(virtual_base, 2),
-        TableEntry::next_level(pt_base)
-    );
-    hardware.store_entry(
-        &mut self.pt,
-        level_index(virtual_base, 3),
-        TableEntry::terminal(source_frame, true)
-    );
-    hardware.activate_root(&self.pml4);
+    let pdpt_base: u64 = tables.pdpt.storage.base as u64;
+    let pd_base: u64 = tables.pd.storage.base as u64;
+    let pt_base: u64 = tables.pt.storage.base as u64;
+    let pml4_slot: u64 = level_index(virtual_base, 0);
+    let pdpt_slot: u64 = level_index(virtual_base, 1);
+    let pd_slot: u64 = level_index(virtual_base, 2);
+    let pt_slot: u64 = level_index(virtual_base, 3);
+    let pml4_entry: TableEntry = TableEntry::next_level(pdpt_base);
+    let pdpt_entry: TableEntry = TableEntry::next_level(pd_base);
+    let pd_entry: TableEntry = TableEntry::next_level(pt_base);
+    let leaf_entry: TableEntry = TableEntry::terminal(source_frame, true);
+    // `store_entry` consumes each table and returns it, so every level's
+    // qualified backing crosses the hardware edge explicitly instead of
+    // inside a `&mut` borrow the boundary contract could not re-certify.
+    let pml4_table: Table = hardware.store_entry(tables.pml4, pml4_slot, pml4_entry);
+    let pdpt_table: Table = hardware.store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
+    let pd_table: Table = hardware.store_entry(tables.pd, pd_slot, pd_entry);
+    let pt_table: Table = hardware.store_entry(tables.pt, pt_slot, leaf_entry);
+    hardware.activate_root(&pml4_table);
+    CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: pt_table }
 }
 
 // Release the leaf serving `virtual_base`: clear its slot and invalidate the
@@ -87,19 +83,23 @@ invokes hardware;
 // install computed for this base, so the cleared slot is the entry the
 // install wrote.
 pub machine CathedralPageTables::remove(
-    &mut self,
+    tables: CathedralPageTables,
     hardware: &TranslationHardware,
     virtual_base: addr
-)
+) -> CathedralPageTables
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
-    hardware.store_entry(
-        &mut self.pt,
-        level_index(virtual_base as u64, 3),
-        TableEntry::EMPTY
-    );
+    let leaf_slot: u64 = level_index(virtual_base as u64, 3);
+    let cleared: TableEntry = TableEntry::EMPTY;
+    let pt_table: Table = hardware.store_entry(tables.pt, leaf_slot, cleared);
     hardware.invalidate_leaf(virtual_base);
+    CathedralPageTables {
+        pml4: tables.pml4,
+        pdpt: tables.pdpt,
+        pd: tables.pd,
+        pt: pt_table,
+    }
 }
 
 // The second level of mapping authority: a terminal entry stored at depth 2
@@ -108,34 +108,29 @@ invokes hardware;
 // granularity is which table slot the terminal lands in, not a different
 // bit pattern -- and the provider still finishes by activating the root.
 pub machine CathedralPageTables::install_huge(
-    &mut self,
+    tables: CathedralPageTables,
     hardware: &TranslationHardware,
     source_base: addr,
     destination_base: addr
-)
+) -> CathedralPageTables
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
     let virtual_base: u64 = destination_base as u64;
     let source_frame: u64 = source_base as u64;
-    let pdpt_base: u64 = self.pdpt.storage.base as u64;
-    let pd_base: u64 = self.pd.storage.base as u64;
-    hardware.store_entry(
-        &mut self.pml4,
-        level_index(virtual_base, 0),
-        TableEntry::next_level(pdpt_base)
-    );
-    hardware.store_entry(
-        &mut self.pdpt,
-        level_index(virtual_base, 1),
-        TableEntry::next_level(pd_base)
-    );
-    hardware.store_entry(
-        &mut self.pd,
-        level_index(virtual_base, 2),
-        TableEntry::terminal(source_frame, true)
-    );
-    hardware.activate_root(&self.pml4);
+    let pdpt_base: u64 = tables.pdpt.storage.base as u64;
+    let pd_base: u64 = tables.pd.storage.base as u64;
+    let pml4_slot: u64 = level_index(virtual_base, 0);
+    let pdpt_slot: u64 = level_index(virtual_base, 1);
+    let pd_slot: u64 = level_index(virtual_base, 2);
+    let pml4_entry: TableEntry = TableEntry::next_level(pdpt_base);
+    let pdpt_entry: TableEntry = TableEntry::next_level(pd_base);
+    let leaf_entry: TableEntry = TableEntry::terminal(source_frame, true);
+    let pml4_table: Table = hardware.store_entry(tables.pml4, pml4_slot, pml4_entry);
+    let pdpt_table: Table = hardware.store_entry(tables.pdpt, pdpt_slot, pdpt_entry);
+    let pd_table: Table = hardware.store_entry(tables.pd, pd_slot, leaf_entry);
+    hardware.activate_root(&pml4_table);
+    CathedralPageTables { pml4: pml4_table, pdpt: pdpt_table, pd: pd_table, pt: tables.pt }
 }
 
 // Release the depth-2 leaf serving `virtual_base`: the same deterministic
@@ -143,17 +138,21 @@ invokes hardware;
 // invalidation -- a stale huge translation is still one page-mapping entry
 // to the hardware, only spanning more of the address space.
 pub machine CathedralPageTables::remove_huge(
-    &mut self,
+    tables: CathedralPageTables,
     hardware: &TranslationHardware,
     virtual_base: addr
-)
+) -> CathedralPageTables
 reaches TranslationHardware + MachineControl
 invokes hardware;
 {
-    hardware.store_entry(
-        &mut self.pd,
-        level_index(virtual_base as u64, 2),
-        TableEntry::EMPTY
-    );
+    let leaf_slot: u64 = level_index(virtual_base as u64, 2);
+    let cleared: TableEntry = TableEntry::EMPTY;
+    let pd_table: Table = hardware.store_entry(tables.pd, leaf_slot, cleared);
     hardware.invalidate_leaf(virtual_base);
+    CathedralPageTables {
+        pml4: tables.pml4,
+        pdpt: tables.pdpt,
+        pd: pd_table,
+        pt: tables.pt,
+    }
 }

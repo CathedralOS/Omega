@@ -213,6 +213,37 @@ none supplies semantic integer constants or operations. [PROFILE.md](PROFILE.md)
 records the current source bounds and scoped measurements, separate from
 full-certificate acceptance.
 
+## Definition package
+
+[definition_package.bin](definition_package.bin) commits the emitted package
+itself: the exact 116,900-byte theory section `theory.gamma` writes under the
+selected evaluator, SHA-256
+`6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c`. The
+checker request envelope's theory section is exactly these bytes
+([REQUEST.md](../checker/REQUEST.md)), so this file is the owner-fixed
+definition package the [acceptance contract](ACCEPTANCE.md) fixes
+independently of the certificate producer. It is not host-authored: the
+host-side mirror reproduces the evaluator emission byte-for-byte, and
+`tools/bootstrap/proofs/sources_env.sh` binds the file to the same identity
+(`require_beta_encoding_definition_package_identity`). A digest is an identity
+check on the package bytes, not a proof of the encoded source.
+
+## Certificate request
+
+The produced certificate request — the check request the
+[certificate-check gate](../../../tests/gamma/beta-encoding-check/README.md)
+consumes — binds at 135,485,028 bytes, SHA-256
+`7c0e3bf230a2675a170ea77dc6962ef6aa7c03ce15248b27475c7c6a3e592908`
+(`require_beta_encoding_certificate_request_identity` in
+`tools/bootstrap/proofs/sources_env.sh`). The bytes are produced, not
+committed: the stepper edge reproduces them from the bound theory and checker
+closures, and the producing gate's full-subject record carries the same
+identity. A digest is an identity check on the produced bytes, not a proof of
+the derivation the certificate claims. The check edge's disclosed admission
+record — the checker's 17-byte `Checked` observation — binds its proof-row
+count in the producing record; its measured work field lands with the first
+native run and binds then.
+
 ## Error-valued encoder definitions
 
 Functions 58..107 implement the complete encoder over the Source tree: list
@@ -257,8 +288,9 @@ independently reconstructed the owner-fixed proposition over the complete
 selected subject and produced the full untrusted derivation — 3,182,484
 rows and 135,451,492 request bytes, 16.1 times the 8,388,608-byte provision it
 was measured against — so
-the certificate is produced and measured and the provisions to admit it are
-now selected, pending the Alpha extent-supply leg. [PROFILE.md](PROFILE.md) records the complete
+the certificate is produced and measured, the provisions to admit it are
+selected, and the 136,314,880-byte request extent is landed in the Alpha
+checker. [PROFILE.md](PROFILE.md) records the complete
 measurements; the residual routes are the owner-level decisions named in the
 cost review. Do not let producer-supplied definitions choose the
 meaning of the artifact being accepted.

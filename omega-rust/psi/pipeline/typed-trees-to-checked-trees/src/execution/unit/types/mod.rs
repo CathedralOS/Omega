@@ -1,16 +1,19 @@
 //! Structural type, shape, claim, and return-custody helpers.
 use super::{
-    BTreeMap, BTreeSet, CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner, DataMember,
-    DataShapeKind, ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, PrimitiveType, ProofFact, SemanticDomainId,
-    SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
-    TypeReferenceNode, TypedTrees,
+    BTreeMap, BTreeSet, CheckFacts, CheckedBoundaryMachineResultPlan, CheckedStructuralAccess,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    PrimitiveType, ProofFact, SemanticDomainId, SignatureContractKind, StateParameter,
+    SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
-use checked_trees::CheckedStructuralPathQualification;
+use checked_trees::{
+    CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+};
 use typed_trees::type_identity::TypeIdentityRequest;
 
 mod scalar_fields;
@@ -91,6 +94,7 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -98,6 +102,8 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
         })
@@ -295,11 +301,16 @@ pub(super) fn checked_structural_signature_contract_supported(
 }
 
 /// A static boundary requirement may carry the implicit membership contracts
-/// induced by qualified parameter types, but no independently authored proof
-/// contract in this Terminal slice. Reconstruct the exact pair set from both
-/// surfaces so an omitted or extra membership cannot be hidden by lowering.
+/// induced by qualified parameter types, plus authored `ensures result in
+/// <domain>` clauses whose every fact carries the established qualification
+/// authorization (`boundary_qualification_authorization` — a domain
+/// BoundaryRequirement route or carry permission pinned to this signature),
+/// but no other independently authored proof contract in this Terminal slice.
+/// Reconstruct the exact pair set from both surfaces so an omitted or extra
+/// membership cannot be hidden by lowering.
 pub(super) fn signature_contracts_are_exact_parameter_qualifications(
     program: &TypedTrees,
+    owner_symbol: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
 ) -> bool {
     let parameters = program.state_signature_parameters(signature);
@@ -371,6 +382,36 @@ pub(super) fn signature_contracts_are_exact_parameter_qualifications(
             continue;
         }
         if contract.kind != SignatureContractKind::Requires || contract.binding.is_some() {
+            // The one independently authored clause this slice admits is
+            // `ensures result in <domain>`: the domain must already
+            // authorize this signature through a BoundaryRequirement
+            // establishment route or a carry permission, which is exactly
+            // what the qualification-authorization evidence on the checked
+            // fact replays.
+            let authorized_ensures = contract.kind == SignatureContractKind::Ensures
+                && contract.facts.count() > 0
+                && (0..contract.facts.count()).all(|offset| {
+                    let fact = arena::Handle::from_parts(
+                        contract
+                            .facts
+                            .start()
+                            .arena_index()
+                            .checked_add(offset)
+                            .expect("proof fact handle index overflow"),
+                        contract.facts.start().generation(),
+                    );
+                    crate::facts::qualification_evidence::boundary_qualification_authorization(
+                        program,
+                        owner_symbol,
+                        signature,
+                        contract.kind.clone(),
+                        fact,
+                    )
+                    .is_some()
+                });
+            if authorized_ensures {
+                continue;
+            }
             return false;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -553,6 +594,88 @@ pub(super) fn parameter_qualifications(
     output.sort_by_key(|domain| domain.0);
     output.dedup();
     Some(output)
+}
+
+/// Fold the domains an authorized `ensures result in <domain>` clause pins on
+/// a boundary requirement into the result's structural qualifications. The
+/// clause only counts when its fact replays the established qualification
+/// authorization (a `BoundaryRequirement` establishment route or carry
+/// permission naming this requirement); anything else was already refused by
+/// the exact-qualification gate above. A scalar or unit result cannot carry a
+/// structural domain qualification, so folding onto one refuses the plan
+/// rather than silently dropping the authored custody.
+pub(super) fn fold_authorized_result_domains(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    owner_symbol: SymbolHandle,
+    signature: &typed_trees::signature::StateSignature,
+    result_type: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    result: CheckedBoundaryMachineResultPlan,
+) -> Option<CheckedBoundaryMachineResultPlan> {
+    let mut authorized = Vec::new();
+    for contract in program.state_signature_contracts(signature) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for offset in 0..contract.facts.count() {
+            let fact = arena::Handle::from_parts(
+                contract
+                    .facts
+                    .start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("proof fact handle index overflow"),
+                contract.facts.start().generation(),
+            );
+            if crate::facts::qualification_evidence::boundary_qualification_authorization(
+                program,
+                owner_symbol,
+                signature,
+                contract.kind.clone(),
+                fact,
+            )
+            .is_none()
+            {
+                continue;
+            }
+            let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
+                continue;
+            };
+            let Some(domain) = crate::facts::qualification_evidence::domain_definition(
+                program,
+                membership.domain_symbol,
+            ) else {
+                continue;
+            };
+            authorized.push(domain.semantic_id);
+        }
+    }
+    authorized.sort_by_key(|domain| domain.0);
+    authorized.dedup();
+    if authorized.is_empty() {
+        return Some(result);
+    }
+    let CheckedBoundaryMachineResultPlan::Structural {
+        type_identity,
+        multiplicity,
+        mut qualifications,
+    } = result
+    else {
+        return None;
+    };
+    for domain in authorized {
+        shapes.add_domain(domain, result_type, binders)?;
+        if !qualifications.contains(&domain) {
+            qualifications.push(domain);
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    Some(CheckedBoundaryMachineResultPlan::Structural {
+        type_identity,
+        multiplicity,
+        qualifications,
+    })
 }
 
 /// Collect domain constraints below a structural root without treating them
@@ -832,7 +955,36 @@ pub(crate) fn erased_proof_parameter_plans(
         .collect()
 }
 
-pub(super) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
+/// Whether an authored parameter owns a slot in the caller's structural
+/// argument namespace once the unit plan is sealed. Erased bindings and
+/// `const` formals carry no runtime slot, direct `Placed` view parameters
+/// stay custody-only, and scalar primitives live in the scalar namespace. A
+/// borrowed `self` is excluded here because it joins only when the plan
+/// retains it; receivers that read `self` go through `reads_receiver`, which
+/// decides retention before this index is committed.
+pub(crate) fn structural_parameter_candidate(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+) -> bool {
+    if parameter.is_const || strips_erased_parameter(parameter) == Some(true) {
+        return false;
+    }
+    if parameter.is_self {
+        return !is_reference(program, parameter.type_reference);
+    }
+    if matches!(
+        program.type_reference_table.type_reference(parameter.type_reference),
+        TypeReferenceNode::Reference { referee, .. }
+            if program.placed_view_plan_for_type_reference(*referee).is_some()
+    ) {
+        return false;
+    }
+    program
+        .primitive_type_reference(parameter.type_reference)
+        .is_none()
+}
+
+pub(crate) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
@@ -890,6 +1042,27 @@ pub(super) fn shared_plain_affine_referent(
         return None;
     };
     (program.type_multiplicity(*referee) == Multiplicity::Affine
+        && has_plain_owned_contents(program, *referee))
+    .then_some(*referee)
+}
+
+/// Exclusive references to this existing whole non-linear carrier do not own
+/// or qualify the referent either: the boundary writes back through them as an
+/// out-parameter, and custody of the referent stays with the caller. Linear
+/// referents, nested references, and constrained carriers stay out.
+pub(super) fn mutable_plain_nonlinear_referent(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Mutable,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) != Multiplicity::Linear
         && has_plain_owned_contents(program, *referee))
     .then_some(*referee)
 }
@@ -1411,6 +1584,36 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(identity.clone(), plan);
             return Some(identity);
         }
+        if let Some(element) =
+            borrowed_slice_view_element(self.program, type_reference, substitutions)
+        {
+            let identity = borrowed_slice_view_type_identity(
+                self.program,
+                type_reference,
+                binders,
+                substitutions,
+            );
+            if !self.in_progress.insert(identity.clone()) {
+                return None;
+            }
+            let element_type_identity = self.add_type(element, binders, substitutions);
+            self.in_progress.remove(&identity);
+            let plan = CheckedUnitStructuralTypePlan {
+                identity: identity.clone(),
+                shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity: element_type_identity?,
+                },
+            };
+            if self
+                .types
+                .get(&identity)
+                .is_some_and(|existing| existing != &plan)
+            {
+                return None;
+            }
+            self.types.insert(identity.clone(), plan);
+            return Some(identity);
+        }
         let mut type_reference = type_reference;
         loop {
             match self
@@ -1900,6 +2103,9 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity,
                         ..
+                    }
+                    | CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                        element_type_identity,
                     } => {
                         retained.insert(element_type_identity.clone());
                     }
@@ -1988,6 +2194,115 @@ pub(super) fn scalar_type(
             _ => return None,
         }
     }
+}
+
+/// Maximal untouched complement of one projected owned move into a finite
+/// record or array root, in reverse establishment order — the same residual
+/// vocabulary the partial-affine Unit lane publishes for anonymous
+/// temporaries. The projected leaf must itself resolve to a collected
+/// structural shape and carry the target parameter's exact partial-affine
+/// identity, so the transfer names real structural custody rather than a
+/// scalar or byte-carrier move that never had residual partition.
+pub(crate) fn projected_move_residuals(
+    program: &TypedTrees,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    root_type: TypeReferenceHandle,
+    moved_path: &[CheckedUnitStructuralPathSegment],
+    moved_type: TypeReferenceHandle,
+    target_type: TypeReferenceHandle,
+) -> Option<(String, Vec<CheckedUnitPartialAffineDiscardPlan>)> {
+    if moved_path.is_empty() {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let root_identity = shapes.add_partial_affine_type(root_type, &[])?;
+    let moved_identity = shapes.add_partial_affine_type(moved_type, &[])?;
+    if !matches!(
+        shapes.types.get(&moved_identity).map(|plan| &plan.shape),
+        Some(
+            CheckedUnitStructuralTypeShape::Record { .. }
+                | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        )
+    ) {
+        return None;
+    }
+    if shapes.add_partial_affine_type(target_type, &[])? != moved_identity {
+        return None;
+    }
+    let residuals = super::cleanup::partial_affine_residuals(
+        &shapes.types,
+        &source,
+        &root_identity,
+        &[(moved_path.to_vec(), moved_identity.clone())],
+    )?;
+    Some((moved_identity, residuals))
+}
+
+/// The element of a borrowed `&[T]` view. Fixed arrays and vectors own
+/// contiguous storage and a slice borrows it, carrying its own extent as a
+/// stored runtime length rather than a declared constant, so the view's shape
+/// names only its element. One leading reference shell is the borrow itself;
+/// arithmetic-domain and other constraint shells qualify the carrier without
+/// changing it. The byte element keeps its established `ByteSequence` carrier,
+/// whose length, read and subslice obligations are already reconstructed.
+pub(crate) fn borrowed_slice_view_element(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    let mut borrowed = false;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                let (_, replacement) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)?;
+                // A substitution can bind a parameter to its own reference;
+                // rewriting it again only loops.
+                if *replacement == type_reference {
+                    return None;
+                }
+                type_reference = *replacement;
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } if !borrowed => {
+                borrowed = true;
+                type_reference = *referee;
+            }
+            TypeReferenceNode::Slice { element_type } if borrowed => {
+                return (program.primitive_type_reference(*element_type)
+                    != Some(PrimitiveType::U8))
+                .then_some(*element_type);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// The view's own identity is the borrowed `[T]` carrier, with the reference
+/// and constraint shells peeled exactly as the borrowed byte view peels them:
+/// borrow access belongs to the plan carrying the view, not to its shape.
+pub(crate) fn borrowed_slice_view_type_identity(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> String {
+    while let TypeReferenceNode::Reference { referee, .. }
+    | TypeReferenceNode::Constrained {
+        base_type: referee, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *referee;
+    }
+    program
+        .type_identity(TypeIdentityRequest {
+            binders,
+            substitutions,
+            ..TypeIdentityRequest::ordinary(type_reference)
+        })
+        .into_string()
 }
 
 pub(crate) fn byte_sequence_carrier(

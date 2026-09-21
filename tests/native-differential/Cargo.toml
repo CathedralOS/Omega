@@ -58,6 +58,7 @@ effects = { path = "../../omega-rust/omega/representations/effects" }
 
 [dev-dependencies]
 package-compilation = { path = "../../omega-rust/omega/build/package-compilation" }
+build-declarations = { path = "../../omega-rust/omega/build/build-declarations" }
 boundary-applications = { path = "../../omega-rust/omega/representations/boundary-applications" }
 object-file = { path = "../../omega-rust/omega/backend/object/object-file", features = ["test-support"] }
 legalized-operations = { path = "../../omega-rust/omega/representations/legalized-operations" }
@@ -68,6 +69,7 @@ resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/r
 register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine", features = ["test-support"] }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
 compiler = { path = "../../omega-rust/omega/compiler/compiler" }
+checked-compilation-to-terminal-artifact = { path = "../../omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact" }
 component-deployment = { path = "../../omega-rust/omega/build/component-deployment" }
 effects = { path = "../../omega-rust/omega/representations/effects" }
 isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-aarch64" }

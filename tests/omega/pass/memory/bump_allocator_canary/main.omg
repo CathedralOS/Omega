@@ -58,12 +58,15 @@
 //
 // - `Granted` cannot be minted from geometry, and a checked callable may
 //   retain content-bearing custody only from a consumed owned input. The
-//   split therefore consumes the whole tail; a `&mut` carve was rejected
-//   because its result custody would come from a borrowed parameter.
-//   Partitioning is a boundary requirement: the package authors the exact
-//   `separate` law, and the selected provider is what establishes the two
-//   qualified sub-ranges. No ordinary machine here constructs `Extent`
-//   geometry.
+//   split therefore consumes the whole tail; a `&mut` carve stays rejected —
+//   retried through the borrowed-storage restoration window, the field
+//   move-out is tracked but no boundary call may run while `strategy.tail`
+//   is absent, and the surviving result still derives its custody from a
+//   borrowed parameter (`fail/memory/bump_allocator_borrowed_strategy_carve`
+//   pins both refusals). Partitioning is a boundary requirement: the package
+//   authors the exact `separate` law, and the selected provider is what
+//   establishes the two qualified sub-ranges. No ordinary machine here
+//   constructs `Extent` geometry.
 // - Recomposition takes one `Split` record rather than two `Extent`
 //   parameters: a boundary returning `Granted` custody from two consumed
 //   qualified inputs is rejected as ambiguous, and the checker's exact
@@ -111,6 +114,15 @@
 //   growable storage. An unbounded retained list needs explicit placed-storage
 //   indirection and a ranking proof over that representation. A recursively
 //   owned inline record would have infinite layout; Omega does not box it.
+// - `shrink` releases the live buffer's tail-ward suffix in place: split at
+//   `kept`, fold the freed `rest` into the strategy tail, restore the
+//   residual from the recomposed geometry. This is the `Vec<T>` truncate
+//   edge over the bump chain — the live buffer is always the newest
+//   allocation, so its suffix is the only region that can return this way;
+//   a retained outgrown buffer keeps its own custody until `close`.
+//   Shrinking past the live buffer's length is refused at
+//   `kept <= vec.buffer.length`
+//   (`tests/omega/fail/memory/bump_allocator_shrink_beyond_buffer`).
 //
 // Growth still carries no elements. Content-preserving movement waits on the
 // placed element operations, and merge still demands `Vacant` on every part
@@ -141,6 +153,10 @@
 // - An occupied slot cannot be placed again: `place` requires `Vacant`,
 //   which an occupied storage does not carry
 //   (`tests/omega/fail/memory/bump_allocator_place_into_occupied`).
+// - A resident-bearing region cannot return tail-ward either: `release`
+//   demands `Vacant` on `returned`, so the newest allocation rejects at the
+//   call before its `merge` is even reached
+//   (`tests/omega/fail/memory/bump_allocator_release_with_live_resident`).
 //
 // Discovered edges that fix the spelling:
 // - Indexed membership is supported in both types and proof facts. `place`
@@ -160,287 +176,7 @@
 //   semantics are settled.
 use omega::language::core::extent;
 use omega::language::core::content;
-
-// Exact partition of one qualified vacant range into two adjacent qualified
-// vacant ranges.
-data Split {
-    taken: Extent in Granted & Vacant;
-    rest: Extent in Granted & Vacant;
-}
-
-boundary trait ExtentPartition {
-    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
-    ensures
-        result.taken.length == length,
-        embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
-        Granted::content(old(&whole))
-        == separate(
-            Granted::content(&result.taken),
-            Granted::content(&result.rest),
-        );
-
-    machine merge(parts: Split) -> Extent
-    ensures
-        embed(result.length) == embed(parts.taken.length) + embed(parts.rest.length),
-        result in Granted & Vacant,
-        separate(
-            Granted::content(old(&parts.taken)),
-            Granted::content(old(&parts.rest)),
-        )
-        == Granted::content(&result);
-}
-
-// Bump policy: the allocation is the low end of the tail; the rest is the new
-// tail. Nothing about the allocation's later cleanup moves the tail.
-// `remaining` is the counted byte residual summarizing the tail's capacity;
-// it is a separate premise from the tail's placement authority.
-data Bump {
-    tail: Extent in Granted & Vacant;
-    remaining: u64;
-}
-
-data Issued {
-    strategy: Bump;
-    allocation: Extent in Granted & Vacant;
-}
-
-data Attempt {
-    case Allocated(issued: Issued);
-    case Exhausted(strategy: Bump);
-}
-
-// Failure returns the unchanged strategy; success returns its exact partition.
-machine try_allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Attempt
-reaches ExtentPartition
-{
-    transition length <= strategy.remaining {
-        true -> Attempt::Allocated { issued: allocate(partition, strategy, length) }
-        _ -> Attempt::Exhausted { strategy: strategy }
-    }
-}
-
-// Infallible request: the caller proves the exact capacity requirement
-// `length <= strategy.remaining` (allocation.md), and the body decrements
-// the residual by the same length the requires bounds — the requires
-// ordering is what licenses the subtraction.
-machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
-requires
-    length <= strategy.remaining
-ensures
-    result.strategy.remaining == strategy.remaining - length;
-    result.allocation.length == length;
-    embed(result.strategy.tail.length) + embed(result.allocation.length) == embed(strategy.tail.length)
-reaches ExtentPartition
-{
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let parts: Split = partition.split(tail, length);
-    check_extent_length(&parts.taken, length);
-    Issued {
-        strategy: Bump {
-            tail: parts.rest,
-            remaining: strategy.remaining - length,
-        },
-        allocation: parts.taken,
-    }
-}
-
-// Exercise the published count at an ordinary caller obligation, independently
-// of the extent's custody. This check must use the exact allocation invocation;
-// the source constructor or a second allocation cannot stand in for its result.
-machine check_remaining(remaining: u64, previous: u64, length: u64)
-requires
-    length <= previous;
-    remaining == previous - length
-{}
-
-// The split's exact returned extent carries the requested length. This scalar
-// fact grants no storage authority; the separate content law carries custody.
-machine check_extent_length(extent: &Extent in Granted & Vacant, expected: u64)
-requires extent.length == expected
-{}
-
-// Reset after full return. `lower` was issued before `upper`, so the original
-// range is `lower ++ upper ++ tail`. Both returned regions are consumed, and
-// both must still be vacant: a region whose resident has not been retired
-// does not type as `Vacant` and cannot reach recomposition.
-machine reset(
-    partition: &ExtentPartition,
-    strategy: Bump,
-    lower: Extent in Granted & Vacant,
-    upper: Extent in Granted & Vacant
-) -> Bump
-ensures
-    embed(result.remaining) == embed(lower.length) + embed(upper.length) + embed(strategy.tail.length)
-reaches ExtentPartition
-{
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let upper_and_tail: Extent in Granted & Vacant = partition.merge(Split {
-        taken: upper,
-        rest: tail,
-    });
-    let whole: Extent in Granted & Vacant = partition.merge(Split {
-        taken: lower,
-        rest: upper_and_tail,
-    });
-    let restored_residual: u64 = whole.length;
-    Bump { tail: whole, remaining: restored_residual }
-}
-
-// Return the newest tail-adjacent allocation while older allocations stay
-// live. `returned` must still be `Vacant` — a region holding a live
-// resident does not satisfy the parameter. The recomposed tail's own
-// geometry restores the residual; the strategy's custody is conserved by
-// the same merge law `reset` composes.
-machine release(
-    partition: &ExtentPartition,
-    strategy: Bump,
-    returned: Extent in Granted & Vacant
-) -> Bump
-ensures
-    embed(result.tail.length) == embed(returned.length) + embed(strategy.tail.length);
-    embed(result.remaining) == embed(returned.length) + embed(strategy.tail.length)
-reaches ExtentPartition
-{
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let grown: Extent in Granted & Vacant = partition.merge(Split {
-        taken: returned,
-        rest: tail,
-    });
-    let restored_residual: u64 = grown.length;
-    Bump { tail: grown, remaining: restored_residual }
-}
-
-// The reservation half of a `Vec<T>`-style owner over the bump chain: one
-// live buffer, the strategy it was issued from, and one retained old buffer.
-// `buffer.length` is the capacity measure. Elements and general retained
-// storage still need the placed-access route described in the header.
-data BumpVec {
-    strategy: Bump;
-    buffer: Extent in Granted & Vacant;
-    retained_buffer: RetiredSlot;
-}
-
-// Open a reservation of `capacity` bytes. `residual` is the caller's stated
-// capacity premise for the backing, tied to its geometry by the second
-// requires clause. Later allocations consume `allocate`'s returned residual.
-machine open(
-    partition: &ExtentPartition,
-    whole: Extent in Granted & Vacant,
-    capacity: u64,
-    residual: u64
-) -> BumpVec
-requires
-    capacity <= residual;
-    residual == whole.length
-reaches ExtentPartition
-{
-    let issued: Issued = allocate(
-        partition,
-        Bump { tail: whole, remaining: residual },
-        capacity,
-    );
-    let strategy: Bump = issued.strategy;
-    let remaining: u64 = strategy.remaining;
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let buffer: Extent in Granted & Vacant = issued.allocation;
-    BumpVec {
-        strategy: Bump { tail: tail, remaining: remaining },
-        buffer: buffer,
-        retained_buffer: RetiredSlot::Empty,
-    }
-}
-
-// The recomposition receipt: one qualified extent standing for the range
-// `close` folded back. A record, not a bare extent, because the caller-side
-// claim mapping is only published by a construction transfer — a bare
-// `whole`/`as` return leaves the caller's bound result without a conserved
-// claim mapping (the same reason `reset` returns `Bump`).
-data Recomposed {
-    backing: Extent in Granted & Vacant;
-}
-
-// Close the container: recompose current buffer, tail, and retained buffer.
-// The buffer
-// must still be `Vacant` — closing a container whose elements were never
-// retired does not type. Both slot cases must return the entire held backing.
-machine close(partition: &ExtentPartition, vec: BumpVec) -> Recomposed
-reaches ExtentPartition
-{
-    let strategy: Bump = vec.strategy;
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let buffer: Extent in Granted & Vacant = vec.buffer;
-    let whole: Extent in Granted & Vacant = partition.merge(Split {
-        taken: buffer,
-        rest: tail,
-    });
-    let remaining: u64 = whole.length;
-    let restored: Bump = reset_retired(
-        partition,
-        Bump { tail: whole, remaining: remaining },
-        vec.retained_buffer,
-    );
-    Recomposed { backing: restored.tail }
-}
-
-// Reserve a new buffer from the tail without returning the old buffer to it.
-// The finite retained slot makes a second growth reject without losing any
-// claim. Capacity exhaustion likewise preserves the existing container.
-data Growth {
-    case Grown(vec: BumpVec);
-    case Rejected(vec: BumpVec);
-}
-
-machine grow(partition: &ExtentPartition, vec: BumpVec, capacity: u64) -> Growth
-reaches ExtentPartition
-{
-    let strategy: Bump = vec.strategy;
-    let buffer: Extent in Granted & Vacant = vec.buffer;
-    transition vec.retained_buffer {
-        RetiredSlot::Empty -> reserve(partition, strategy, buffer, capacity)
-        RetiredSlot::Held { storage } -> Growth::Rejected {
-            vec: BumpVec {
-                strategy: strategy,
-                buffer: buffer,
-                retained_buffer: RetiredSlot::Held { storage: storage },
-            },
-        }
-    }
-
-    state reserve(
-        partition: &ExtentPartition,
-        strategy: Bump,
-        buffer: Extent in Granted & Vacant,
-        capacity: u64
-    ) -> Growth {
-        let attempt: Attempt = try_allocate(partition, strategy, capacity);
-        transition attempt {
-            Attempt::Allocated { issued } -> Growth::Grown {
-                vec: BumpVec {
-                    strategy: issued.strategy,
-                    buffer: issued.allocation,
-                    retained_buffer: RetiredSlot::Held { storage: buffer },
-                },
-            }
-            Attempt::Exhausted { strategy } -> Growth::Rejected {
-                vec: BumpVec {
-                    strategy: strategy,
-                    buffer: buffer,
-                    retained_buffer: RetiredSlot::Empty,
-                },
-            }
-        }
-    }
-}
-
-// Two coexisting allocations, cleanup of each, then reset to the whole range,
-// chained through the package machines `allocate` and `reset`. The caller
-// proves the exact capacity requirement at the entry — `capacity` covers the
-// whole 16 + 32 plan and equals the backing's geometry — then threads the
-// actual returned residual into the second request. Reset then proves the
-// original capacity available for a third request, without a runtime guard.
-// Each returned record's
-// qualified fields are restated
-// through exactly typed locals in the custody order described in the header.
+use alloc::bump;
 machine exercise(
     partition: &ExtentPartition,
     whole: Extent in Granted & Vacant,
@@ -679,6 +415,35 @@ reaches ExtentPartition
     }
 }
 
+// Shrink then grow: `shrink` returns the live buffer's freed suffix to the
+// tail, `grow` spends part of the restored residual on a new buffer while
+// the shrunk one moves to the retained slot, and `close` folds every region
+// back. The grown leg proves the restored residual is spendable, not just
+// recorded — the same residual law `release` established.
+machine exercise_shrink(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition
+{
+    let vec: BumpVec = open(partition, whole, 32, capacity);
+    let shrunk: BumpVec = shrink(partition, vec, 16);
+    let growth: Growth = grow(partition, shrunk, 8);
+    transition growth {
+        Growth::Grown { vec } -> finish(partition, vec)
+        Growth::Rejected { vec } -> finish(partition, vec)
+    }
+
+    state finish(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+        let recomposed: Recomposed = close(partition, vec);
+        recomposed.backing as Extent
+    }
+}
+
 // The same two-allocation plan spelled directly over the partition boundary,
 // kept as the control surface for restating `Split` fields from a boundary
 // result.
@@ -812,42 +577,6 @@ reaches ExtentPartition, ResidentStorage
     });
     recomposed as Extent
 }
-
-data RetiredSlot {
-    case Empty;
-    case Held(storage: Extent in Granted & Vacant);
-}
-
-machine retain_buffer(storage: Extent in Granted & Vacant) -> RetiredSlot {
-    RetiredSlot::Held { storage: storage }
-}
-
-machine reset_retired(
-    partition: &ExtentPartition,
-    strategy: Bump,
-    retired: RetiredSlot
-) -> Bump
-reaches ExtentPartition
-{
-    transition retired {
-        RetiredSlot::Empty -> strategy
-        RetiredSlot::Held { storage } -> restore(partition, strategy, storage)
-    }
-
-    state restore(
-        partition: &ExtentPartition,
-        strategy: Bump,
-        storage: Extent in Granted & Vacant
-    ) -> Bump {
-        let whole: Extent in Granted & Vacant = partition.merge(Split {
-            taken: storage,
-            rest: strategy.tail,
-        });
-        let remaining: u64 = whole.length;
-        Bump { tail: whole, remaining: remaining }
-    }
-}
-
 machine exercise_retained(
     partition: &ExtentPartition,
     whole: Extent in Granted & Vacant,

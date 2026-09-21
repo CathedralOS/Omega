@@ -9,7 +9,7 @@ use effects::{
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
 
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 545;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 553;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
     ArithmeticDomain::Exact,

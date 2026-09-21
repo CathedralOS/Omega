@@ -12,6 +12,11 @@ use layout_plans::ConventionalRecordSumChildInterior;
 use layout_plans::ConventionalRecordSumChildLayoutReport;
 use layout_plans::ConventionalRecursiveRecordSumPathsLayoutReport;
 use layout_plans::ConventionalSumLayoutReport;
+use layout_plans::{
+    ConsumptionInstant, DataSymbolId, MaterializationContext, PlacementConstraints, PlacementPhase,
+    RelocationTarget, SymbolicFieldPathSegment, SymbolicFieldValue,
+    derive_symbolic_materialization_with_inner_layouts,
+};
 
 #[test]
 #[cfg(target_pointer_width = "64")]
@@ -2148,4 +2153,126 @@ fn open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_own
     else {
         panic!("the open template's member stays an unapplied `Generic` reference")
     };
+}
+
+#[test]
+fn non_closed_member_applications_stay_fenced_under_the_recursive_owner() {
+    // The sibling shape of the open-template pin: a member typed by a
+    // non-closed generic application (`Log<two()>` — `two()` never
+    // substitutes because the crate-local check path skips orchestration
+    // const-eval) names no closed checked identity, so no `Log<two()>`
+    // definition exists for a carrier to describe. The member joins the
+    // ordinary fields and a symbolic path into it finds no inner layout.
+    // On the connected pipeline the same spelling either substitutes to a
+    // closed instance (`Log<2>`) or rejects at synthesis, so the residual
+    // fence covers exactly this unapplied remainder.
+    let checked = checked(
+        "machine two() -> u64 { 2 }
+         data Event [copy] { case Idle; case Hit(code: u64); }
+         data Log<const N: u64> [copy] { events: [Event; N]; }
+         data Root [copy] { log: Log<two()>; direct: Event; marker: u64; }",
+    );
+    let root = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Root")
+        .unwrap();
+    // Witness the non-closed spelling surviving as an unapplied `Generic`
+    // member: no synthesized `Log<two()>` definition exists.
+    let TypeReferenceNode::Generic { .. } = checked
+        .data_members(root)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .find(|field| field.name.as_str() == "log")
+        .map(|field| {
+            checked
+                .type_reference_table
+                .type_reference(field.type_reference)
+        })
+        .expect("Root keeps a `log` member")
+    else {
+        panic!("the non-closed member stays an unapplied `Generic` reference")
+    };
+    assert!(
+        checked
+            .data_definitions()
+            .iter()
+            .all(|definition| definition.name.as_str() != "Log<two()>"),
+        "no closed instance exists for the non-closed member"
+    );
+
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        root.symbol,
+    )
+    .expect("an ordinary sibling field still projects the record");
+    // `direct` is the level's one sum child; `log` transcribes only its
+    // outer placement entries — the fence's boundary for a member no closed
+    // checked identity can name.
+    let [direct_row] = paths.children.as_slice() else {
+        panic!("the authored sum field is the level's one child")
+    };
+    assert_eq!(direct_row.field, "direct");
+    assert!(matches!(
+        direct_row.hop,
+        ConventionalRecordSumChildHop::Field
+    ));
+    assert!(
+        paths
+            .outer_layout
+            .entries
+            .iter()
+            .any(|entry| entry.field == "log"),
+        "the non-closed member retains its outer placement entries"
+    );
+
+    // A whole-field symbolic write into the member still derives — its bytes
+    // were laid out — while traversal below the non-closed boundary rejects
+    // because no carrier can name the interior.
+    let whole = SymbolicFieldValue::new("log", 64, data_target()).expect("symbolic field");
+    let materialized = derive_symbolic_materialization_with_inner_layouts(
+        &paths.outer_layout,
+        &[],
+        &[whole],
+        post_handoff(),
+        |_| None,
+    )
+    .expect("the member's own placement writes whole-field");
+    assert_eq!(materialized.actions.len(), 1);
+
+    let traversal = SymbolicFieldValue::new("log", 64, data_target())
+        .expect("symbolic field")
+        .with_inner_segment(SymbolicFieldPathSegment::new("events"));
+    let error = derive_symbolic_materialization_with_inner_layouts(
+        &paths.outer_layout,
+        &[],
+        &[traversal],
+        post_handoff(),
+        |_| None,
+    )
+    .expect_err("a path into a non-closed member names no interior carrier");
+    assert!(
+        error.0.contains("has no supplied inner layout for `log`"),
+        "{error:?}"
+    );
+}
+
+fn data_target() -> RelocationTarget {
+    RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x1234).expect("nonzero identity"),
+    )
+}
+
+fn post_handoff() -> MaterializationContext {
+    MaterializationContext {
+        consumption: ConsumptionInstant::AfterOmegaHandoff,
+        byte_order: ByteOrder::LittleEndian,
+        native_pointer_relocation_bits: None,
+        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+    }
 }

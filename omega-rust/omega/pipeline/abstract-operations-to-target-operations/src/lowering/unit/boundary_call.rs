@@ -85,6 +85,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                         shape_cache,
                         active,
                         native_callback,
+                        operations.as_slice(),
                     )?;
                 let structural_parameter_shapes = structural_arguments
                     .iter()

@@ -113,6 +113,7 @@ pub struct NativeOptimizationProjection {
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
+    dynamic_call_occurrences: Vec<OptimizedOperatorOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 }
 
@@ -127,6 +128,14 @@ impl NativeOptimizationProjection {
 
     pub fn operator_occurrences(&self) -> &[OptimizedOperatorOccurrence] {
         &self.operator_occurrences
+    }
+
+    /// Surviving dynamic-call occurrences (`CallDynamic*` operations). They
+    /// carry descriptor or parameter ordinals rather than a boundary
+    /// application, so they cannot join the D29 coverage roster; they still
+    /// bind one physical child each through their emitted dispatch rows.
+    pub fn dynamic_call_occurrences(&self) -> &[OptimizedOperatorOccurrence] {
+        &self.dynamic_call_occurrences
     }
 
     pub const fn identity(&self) -> NativeOptimizationProjectionIdentity {
@@ -319,6 +328,7 @@ impl BoundaryTraitSettlement {
 pub enum PhysicalChildParent {
     OperatorApplicationCoverage(OperatorApplicationCoverageRef),
     BoundaryTraitSettlement(BoundaryTraitSettlement),
+    DynamicCallDispatch(DynamicCallDispatch),
 }
 
 impl PhysicalChildParent {
@@ -326,6 +336,7 @@ impl PhysicalChildParent {
         match self {
             Self::OperatorApplicationCoverage(reference) => *reference.coverage().as_bytes(),
             Self::BoundaryTraitSettlement(settlement) => *settlement.identity(),
+            Self::DynamicCallDispatch(dispatch) => *dispatch.identity(),
         }
     }
 
@@ -333,6 +344,54 @@ impl PhysicalChildParent {
         match self {
             Self::OperatorApplicationCoverage(_) => 1,
             Self::BoundaryTraitSettlement(_) => 2,
+            Self::DynamicCallDispatch(_) => 3,
+        }
+    }
+}
+
+/// Semantic parent of one surviving dynamic-call occurrence's physical
+/// child: the exact dispatch catalog row the Terminal operation names. The
+/// identity commits the operation's owner, dispatch family coordinates, and
+/// requirement/realization identities; `occurrence` retains which surviving
+/// occurrence the row dispatched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicCallDispatch {
+    occurrence: OptimizedOperatorOccurrence,
+    identity: [u8; 32],
+}
+
+impl DynamicCallDispatch {
+    pub const fn occurrence(&self) -> &OptimizedOperatorOccurrence {
+        &self.occurrence
+    }
+
+    pub const fn identity(&self) -> &[u8; 32] {
+        &self.identity
+    }
+
+    pub fn into_parts(self) -> DynamicCallDispatchParts {
+        DynamicCallDispatchParts {
+            occurrence: self.occurrence,
+            identity: self.identity,
+        }
+    }
+
+    pub fn from_replayed_parts(parts: DynamicCallDispatchParts) -> Self {
+        parts.into()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicCallDispatchParts {
+    pub occurrence: OptimizedOperatorOccurrence,
+    pub identity: [u8; 32],
+}
+
+impl From<DynamicCallDispatchParts> for DynamicCallDispatch {
+    fn from(parts: DynamicCallDispatchParts) -> Self {
+        Self {
+            occurrence: parts.occurrence,
+            identity: parts.identity,
         }
     }
 }
@@ -552,12 +611,17 @@ impl NormalizedForeignCallRelocation {
 pub enum NativePhysicalOccurrence {
     Operator(OptimizedOperatorOccurrenceIdentity),
     Boundary(OptimizedBoundaryOccurrenceIdentity),
+    /// A surviving `CallDynamic*` operation occurrence. Dynamic dispatches
+    /// carry no boundary or D29 application row, so their physical children
+    /// join under [`PhysicalChildParent::DynamicCallDispatch`] rather than a
+    /// coverage reference or boundary settlement.
+    DynamicCall(OptimizedOperatorOccurrenceIdentity),
 }
 
 impl NativePhysicalOccurrence {
     pub const fn identity(self) -> [u8; 32] {
         match self {
-            Self::Operator(identity) => identity.bytes(),
+            Self::Operator(identity) | Self::DynamicCall(identity) => identity.bytes(),
             Self::Boundary(identity) => identity.bytes(),
         }
     }
@@ -566,6 +630,7 @@ impl NativePhysicalOccurrence {
         match self {
             Self::Operator(_) => 1,
             Self::Boundary(_) => 2,
+            Self::DynamicCall(_) => 3,
         }
     }
 }
@@ -757,6 +822,11 @@ pub enum NativePhysicalEvidenceGapSubject {
     UnsupportedOperatorSpan {
         occurrence: OptimizedOperatorOccurrence,
     },
+    /// A surviving dynamic-call occurrence produced no exact dispatch call
+    /// record for its span arm to bind.
+    UnsupportedDynamicCallSpan {
+        occurrence: OptimizedOperatorOccurrence,
+    },
     /// A retained privileged port effect was consumed by no exact
     /// `MetadataOnlyPort` settlement join.
     UnownedPortEffect {
@@ -798,6 +868,9 @@ impl NativePhysicalEvidenceGap {
             }
             NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
                 Some(NativePhysicalOccurrence::Operator(occurrence.identity()))
+            }
+            NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan { occurrence } => {
+                Some(NativePhysicalOccurrence::DynamicCall(occurrence.identity()))
             }
         }
     }
@@ -859,6 +932,15 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                 write!(
                     formatter,
                     "operator occurrence on machine {} operation {} ordinal {} has no supported physical span",
+                    occurrence.machine(),
+                    occurrence.operation(),
+                    occurrence.operation_ordinal(),
+                )
+            }
+            NativePhysicalEvidenceGapSubject::UnsupportedDynamicCallSpan { occurrence } => {
+                write!(
+                    formatter,
+                    "dynamic-call occurrence on machine {} operation {} ordinal {} has no supported physical span",
                     occurrence.machine(),
                     occurrence.operation(),
                     occurrence.operation_ordinal(),
@@ -996,6 +1078,18 @@ pub(super) fn optimized_boundary_occurrence(
     }
 }
 
+/// Construction stays derivation-owned: callers assemble a dispatch parent
+/// only from an identity this module issued.
+pub(crate) fn dynamic_call_dispatch(
+    occurrence: OptimizedOperatorOccurrence,
+    identity: [u8; 32],
+) -> DynamicCallDispatch {
+    DynamicCallDispatch {
+        occurrence,
+        identity,
+    }
+}
+
 pub(super) fn optimized_operator_occurrence(
     terminal: TerminalPsiIdentity,
     machine: MachineId,
@@ -1016,12 +1110,14 @@ pub(super) fn native_optimization_projection(
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
+    dynamic_call_occurrences: Vec<OptimizedOperatorOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 ) -> NativeOptimizationProjection {
     NativeOptimizationProjection {
         terminal,
         operator_occurrences,
         boundary_occurrences,
+        dynamic_call_occurrences,
         identity,
     }
 }

@@ -500,7 +500,11 @@ pub(in crate::execution) fn build_call_operation(
         } {
             return None;
         }
-        if !signature_contracts_are_exact_parameter_qualifications(program, signature) {
+        if !signature_contracts_are_exact_parameter_qualifications(
+            program,
+            definition.symbol,
+            signature,
+        ) {
             return None;
         }
         // Suspension parks the activation, which this synchronous call
@@ -561,7 +565,11 @@ pub(in crate::execution) fn build_call_operation(
             .any(|candidate_state| candidate_state.symbol == target_state.symbol)
     })?;
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
-    let boundary = target_machine.supply_mode.is_boundary_declaration();
+    // A bodied `boundary machine` is a checked adapter: callers reach its
+    // authored body as an ordinary callee; only the bodyless declaration is
+    // a boundary edge.
+    let boundary =
+        target_machine.supply_mode.is_boundary_declaration() && !target_machine.body_is_present;
     // Boundary results currently carry identity/claims, not an array payload.
     // Ordinary calls get their payload from the independently checked body.
     if boundary && validation::is_closed_primitive_array_type(program, target_state.return_type) {
@@ -600,7 +608,11 @@ pub(in crate::execution) fn build_call_operation(
     } {
         return None;
     }
-    if !boundary && target_machine.supply_mode != MachineSupplyMode::CheckedBody {
+    if !boundary
+        && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
+            || (target_machine.supply_mode == MachineSupplyMode::Boundary
+                && target_machine.body_is_present))
+    {
         return None;
     }
     let structural_arguments = structural_call_arguments(

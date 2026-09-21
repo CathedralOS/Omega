@@ -16,7 +16,6 @@ use calling_conventions::{EntryControl, validate_boundary_entry_plan};
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
-use semantic_vocabulary::ScalarType;
 use target_operations::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
 
 /// Scalar rows retain their native ordinals; the remaining ordered slots
@@ -34,14 +33,19 @@ pub(crate) fn structural_parameter_positions(
 }
 
 /// The exact operand roster one evaluated plan requires: register-resident
-/// parameter banks in authored order, then the scalar result definition.
+/// parameters in canonical bank order, then the scalar result definition.
 fn plan_operand_views(
     call: &LegalizedNormalizedForeignCall,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<Vec<(register_model::RegisterViewId, RegisterOperandAccess)>> {
     let plan = &call.binding.boundary_entry_plan.call;
     let mut views = Vec::new();
-    for placement in &plan.parameters {
+    // The plan keeps authored identity; only explicit instruction operands are
+    // bank-ordered, avoiding a catalog row for every source-type permutation.
+    let mut parameters = plan.parameters.iter().collect::<Vec<_>>();
+    parameters
+        .sort_by_key(|placement| placement.shape.class == calling_conventions::ValueClass::Float);
+    for placement in parameters {
         match placement.locations.as_slice() {
             [
                 ValueLocation::Register {
@@ -89,7 +93,7 @@ fn plan_operand_views(
 
 /// The unique selected foreign-call row for this exact evaluated plan. Zero
 /// or multiple matching rows are both custody failures: the catalog must hold
-/// exactly one row per (integer bank, register arity, scalar result) plan.
+/// exactly one row per (input register banks, scalar result bank) plan.
 pub(crate) fn call_key(
     call: &LegalizedNormalizedForeignCall,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -157,13 +161,9 @@ pub(crate) fn validate(
     let pointer_alignment =
         u16::try_from(environment.target().pointer_alignment).map_err(|_| invalid())?;
     // Each scalar argument keeps its authored plan position, its source's own
-    // fixed-integer scalar type, and the exact placement the plan assigned.
+    // scalar type, and the exact placement the plan assigned.
     for (index, argument) in call.scalar_arguments.iter().enumerate() {
-        let ScalarType::Integer(integer) = argument.source.scalar_type() else {
-            return Err(invalid());
-        };
-        if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+        if scalar_shape(argument.source.scalar_type()).is_none()
             || index.checked_sub(1).is_some_and(|previous| {
                 call.scalar_arguments[previous].parameter_index >= argument.parameter_index
             })
@@ -256,11 +256,7 @@ pub(crate) fn validate(
     match (&call.result_home, &plan.call.result, instruction.result) {
         (None, None, None) => {}
         (Some(home), Some(placement), Some(result)) => {
-            let ScalarType::Integer(integer) = result.scalar_type else {
-                return Err(invalid());
-            };
-            if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-                || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+            if scalar_shape(result.scalar_type).is_none()
                 || home.defining_operation != instruction.operation
                 || home.source_value != result.value
                 || home.scalar_type != result.scalar_type

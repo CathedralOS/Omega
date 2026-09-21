@@ -104,7 +104,11 @@ fn exact_cast_argument_without_positive_evidence_rejects_during_checking() {
         "value: i32",
         "self.lexer.append_source_byte(value as u8)",
     );
-    let typed = crate::tests::parse_typed_trees_with_core_service(&source);
+    let mut typed = crate::tests::parse_typed_trees_with_core_service(&source);
+    // The `Service<Host>` field needs the settled fused-service erasure
+    // authorizations `settle_checked_providers` binds in real builds; without
+    // them the carrier stays unshaped and the machine's unit plan fails closed.
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
     let diagnostics = crate::lower_typed_trees(typed)
         .expect_err("unproven narrowing is a checking error, not a Unit omission");
     assert!(

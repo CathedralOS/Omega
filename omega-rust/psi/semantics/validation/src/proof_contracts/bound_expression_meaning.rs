@@ -208,6 +208,95 @@ pub(super) fn builtin_boolean_equality(
     )
 }
 
+/// Whether `comparison` unambiguously selects the exact sealed toolchain
+/// `Float::<relation>` boundary machine — the IEEE relation its `ensures`
+/// contract names through the canonical `FloatSemantics` row. Selection
+/// evidence uses the same operand-driven resolution authority as the builtin
+/// gate, narrowed to one declared candidate with exact toolchain custody: the
+/// hermetic `toolchain::Float::<name>` identity and the sealed
+/// `float_operations.omg` source. A selected trait meaning, a same-spelled
+/// lookalike, or more than one matching candidate all fail closed and leave
+/// the builtin-meaning gate authoritative. This grants only the comparison
+/// relation; the float fact readers still owe their own operand checks.
+pub(super) fn sealed_float_comparison(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> bool {
+    let spelling = match comparison.operator {
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        _ => return false,
+    };
+    let operand_types = [
+        operand_type(program, machine, state, comparison.left),
+        operand_type(program, machine, state, comparison.right),
+    ];
+    if !typed_trees::operator::selected_trait_operator_meanings(
+        program,
+        machine.symbol,
+        spelling,
+        &operand_types,
+    )
+    .is_empty()
+    {
+        return false;
+    }
+    let candidates =
+        typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types);
+    let [candidate] = candidates.as_slice() else {
+        return false;
+    };
+    let operator = candidate.operator;
+    if !operator.is_boundary
+        || !matches!(
+            typed_trees::operator::primitive_float_binary_semantics(program, operator),
+            Some((operation, _)) if operation == comparison.operator
+        )
+    {
+        return false;
+    }
+    let [namespace, name] = program.operator_path_members(operator.name) else {
+        return false;
+    };
+    program
+        .normalized_hermetic_symbol_identity(operator.symbol)
+        .is_ok_and(|identity| {
+            identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
+        })
+        && crate::proof_contracts::float_projection_bindings::semantic_operations::
+            symbol_is_declared_in_sealed_source(
+                program,
+                operator.symbol,
+                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
+            )
+        && program
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .all(|occurrence| {
+                match program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .map(|selection| selection.target())
+                {
+                    Some(AuthoredDeclarationSelectionTarget::LateBound(
+                        language_semantics::declaration_selection::
+                            AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                    )) => true,
+                    Some(AuthoredDeclarationSelectionTarget::Resolved(selection)) => {
+                        selection.selected_symbol() == operator.symbol
+                    }
+                    _ => false,
+                }
+            })
+}
+
 /// Rejoin authored or explicitly generated case membership with its exact
 /// subject and carrier. This distinguishes tag observation from ordinary value
 /// equality; it does not admit the operands or their declarations.

@@ -28,6 +28,7 @@ use crate::deployment_plan::{
 use crate::verified_components::{
     AdmittedComponent, ComponentBindingFailure, check_instance_binding,
 };
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -41,7 +42,7 @@ use std::fmt;
 pub fn verify_plan(
     plan_bytes: &[u8],
     request_bytes: &[u8],
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
 ) -> Result<CheckedPlan, PlanRejection> {
     let request = decode_request(request_bytes).map_err(PlanRejection::MalformedRequest)?;
     let plan = decode_plan(plan_bytes).map_err(|error| match error {

@@ -2,7 +2,7 @@
 
 use super::{
     BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, MachineId, ModuleError,
-    OperationKind, OperationResult, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
+    OperationKind, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind,
     StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, is_partial_affine_path,
@@ -397,7 +397,6 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
         .rev()
         .collect::<Vec<_>>();
     let mut target_ids = BTreeSet::new();
-    let mut helper_ids = BTreeSet::new();
     for (cleanup, parameter) in cleanups.iter().zip(expected_parameters) {
         if parameter.place != cleanup.place
             || parameter.structural_type != cleanup.structural_type
@@ -421,117 +420,79 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
             return Err(invalid(block.id));
         };
         target_ids.insert(target.id);
-        let [target_block] = target.blocks.as_slice() else {
-            return Err(invalid(block.id));
+        // The hook body is ordinary terminal control — it is verified as an
+        // ordinary machine elsewhere. What stays exact here is the selection
+        // pairing: the target is owned by the consumed type, returns `Unit`,
+        // takes no scalar arguments, and carries at most the borrowed `self`
+        // receiver the edge lends.
+        let borrowed_receiver = |parameter: &terminal_psi::StructuralParameterDeclaration| {
+            parameter.is_self
+                && parameter.structural_type == cleanup.structural_type
+                && parameter.access != StructuralAccess::Owned
         };
         if target.id == machine.id
             || cleanup.requirement_obligations.len() != target.contract.requires.len()
             || target.attachment != Some(cleanup.structural_type)
             || target.result != TerminalMachineResult::Unit
             || !target.parameters.is_empty()
-            || !target.structural_parameters.is_empty()
-            || !target.structural_places.is_empty()
-            || !target.entry_claims.is_empty()
-            || !target.published_service_ceiling.is_empty()
-            || !target.content_entry_claims.is_empty()
-            || !target.content_identity_reshuffles.is_empty()
-            || !target.content_partition_compositions.is_empty()
-            || target.entry != target_block.id
-            || !target_block.parameters.is_empty()
-            || !matches!(target_block.terminator, Terminator::ReturnUnit { ref trivial_affine_discards, .. } if trivial_affine_discards.is_empty())
+            || target.structural_parameters.len() > 1
+            || target
+                .structural_parameters
+                .iter()
+                .any(|parameter| !borrowed_receiver(parameter))
             || !target.contract.crash_routes.is_empty()
-            || !target.contract.ensures.is_empty()
             || !valid_nominal_cleanup_requirements(module, target, cleanup)
         {
             return Err(invalid(block.id));
         }
-        let mut target_helper_ids = BTreeSet::new();
-        for operation in &target_block.operations {
-            let OperationKind::CallUnit {
-                callee,
-                arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } = &operation.kind
-            else {
-                return Err(invalid(block.id));
-            };
-            if operation.result != OperationResult::Unit
-                || *callee == machine.id
-                || *callee == target.id
-                || cleanups
-                    .iter()
-                    .any(|candidate| candidate.cleanup_machine == *callee)
-                || !target_helper_ids.insert(*callee)
-                || !arguments.is_empty()
-                || !erased_arguments.is_empty()
-                || !erased_proof_arguments.is_empty()
-                || !structural_arguments.is_empty()
-                || !claim_transfers.is_empty()
-                || !requirement_obligations.is_empty()
-                || !crash_continuations.is_empty()
-            {
-                return Err(invalid(block.id));
-            }
-            helper_ids.insert(*callee);
-            let Some(helper) = machines.get(callee).copied() else {
-                return Err(invalid(block.id));
-            };
-            let Some(helper_attachment) = helper.attachment else {
-                return Err(invalid(block.id));
-            };
-            let helper_attachment_is_empty = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == helper_attachment)
-                .is_some_and(|declaration| {
-                    matches!(
-                        &declaration.shape,
-                        StructuralTypeShape::Record { fields } if fields.is_empty()
-                    )
-                });
-            let [helper_block] = helper.blocks.as_slice() else {
-                return Err(invalid(block.id));
-            };
-            if !helper_attachment_is_empty
-                || helper.result != TerminalMachineResult::Unit
-                || !helper.parameters.is_empty()
-                || !helper.structural_parameters.is_empty()
-                || !helper.structural_places.is_empty()
-                || !helper.entry_claims.is_empty()
-                || !helper.published_service_ceiling.is_empty()
-                || !helper.content_entry_claims.is_empty()
-                || !helper.content_identity_reshuffles.is_empty()
-                || !helper.content_partition_compositions.is_empty()
-                || helper.entry != helper_block.id
-                || !helper_block.parameters.is_empty()
-                || !helper_block.operations.is_empty()
-                || !matches!(
-                    helper_block.terminator,
-                    Terminator::ReturnUnit {
-                        ref trivial_affine_discards,
-                        ..
-                    } if trivial_affine_discards.is_empty()
-                )
-                || !helper.contract.crash_routes.is_empty()
-                || !helper.contract.requires.is_empty()
-                || !helper.contract.ensures.is_empty()
-            {
-                return Err(invalid(block.id));
-            }
+        // A declared `self` receiver is exactly the place the edge lends —
+        // `cleanup_receiver` names it. A contextual proof root without a
+        // declared parameter keeps its validity-scoped identity.
+        if let Some(receiver) = target.structural_parameters.first()
+            && cleanup.cleanup_receiver != Some(receiver.place)
+        {
+            return Err(invalid(block.id));
         }
     }
-    // On the dispatched entry lane the module is exactly the entry machine plus
-    // its cleanup targets and helpers. A `drop<T>` specialization member shares
-    // its caller's module, so the closure count applies only to the entry.
-    if machine.id == module.entry
-        && module.machines.len() != 1 + target_ids.len() + helper_ids.len()
-    {
-        return Err(invalid(block.id));
+    // On the dispatched entry lane the module is the transitive call closure
+    // of the entry machine plus each cleanup target: whatever ordinary
+    // machines the hook bodies reach are carried with them. A `drop<T>`
+    // specialization member shares its caller's module, so the closure check
+    // applies only to the entry.
+    if machine.id == module.entry {
+        let mut reachable = BTreeSet::new();
+        reachable.insert(machine.id);
+        reachable.extend(target_ids.iter().copied());
+        let mut pending: Vec<MachineId> = reachable.iter().copied().collect();
+        while let Some(current) = pending.pop() {
+            let Some(current_machine) = machines.get(&current).copied() else {
+                return Err(invalid(block.id));
+            };
+            for current_block in &current_machine.blocks {
+                for operation in &current_block.operations {
+                    let callee = match &operation.kind {
+                        OperationKind::Call { callee, .. }
+                        | OperationKind::CallUnit { callee, .. }
+                        | OperationKind::CallStructuralScalar { callee, .. }
+                        | OperationKind::CallStructural { callee, .. }
+                        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
+                            *callee
+                        }
+                        _ => continue,
+                    };
+                    if reachable.insert(callee) {
+                        pending.push(callee);
+                    }
+                }
+            }
+        }
+        if module
+            .machines
+            .iter()
+            .any(|candidate| !reachable.contains(&candidate.id))
+        {
+            return Err(invalid(block.id));
+        }
     }
     Ok(())
 }
@@ -564,18 +525,43 @@ pub(super) fn valid_nominal_cleanup_requirements(
     cleanup: &terminal_psi::NominalAffineCleanup,
 ) -> bool {
     if target.contract.requires.is_empty() {
-        return cleanup.cleanup_receiver.is_none() && cleanup.requirement_obligations.is_empty();
+        // The receiver is still allowed to name the hook's borrowed `self`
+        // parameter — that place doubles as the proof root — but no
+        // obligations may exist without requirement clauses.
+        return cleanup.requirement_obligations.is_empty();
     }
 
     let Some(receiver) = cleanup.cleanup_receiver else {
         return false;
     };
+    // A receiver may name the target's own borrowed `self` parameter — the
+    // place the edge lends — but never any other declared structural place.
+    let receiver_is_self_parameter = target.structural_parameters.iter().any(|parameter| {
+        parameter.is_self
+            && parameter.access != StructuralAccess::Owned
+            && parameter.place == receiver
+    });
     if cleanup.requirement_obligations.len() != target.contract.requires.len()
         || module
             .machines
             .iter()
             .flat_map(|machine| &machine.structural_places)
-            .any(|place| place.id == receiver)
+            .any(|place| {
+                place.id == receiver
+                    && !(receiver_is_self_parameter
+                        && place.kind
+                            == StructuralPlaceKind::Parameter {
+                                position: target
+                                    .structural_parameters
+                                    .first()
+                                    .map_or(0, |parameter| parameter.position),
+                                is_self: true,
+                            }
+                        && target
+                            .structural_places
+                            .iter()
+                            .any(|candidate| candidate.id == receiver))
+            })
         || module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
                 nominal_cleanups(&block.terminator).any(|candidate| {

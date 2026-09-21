@@ -38,6 +38,31 @@ fn type_reference_symbol(
     }
 }
 
+/// Whether `symbol` is the toolchain `core/service.omg` `Service` carrier
+/// declaration. The full carrier shape is classified later by typed-trees;
+/// resolution needs only the exact source identity to route receiver calls
+/// through the carrier's closed requirement.
+fn exact_service_carrier_data(symbols: &SymbolTable, symbol: SymbolHandle) -> bool {
+    if !symbol.is_valid()
+        || symbols.get(symbol).kind != SymbolKind::Data
+        || symbols.name(symbol) != "Service"
+    {
+        return false;
+    }
+    let Some(span) = symbols.symbol_source_span(symbol) else {
+        return false;
+    };
+    let Some(source) = symbols.source_file(span) else {
+        return false;
+    };
+    source.origin == source::SourceOrigin::Toolchain
+        && source
+            .path
+            .strip_prefix(&source.package_root)
+            .ok()
+            .is_some_and(|path| path == std::path::Path::new("service.omg"))
+}
+
 pub(in crate::symbols) fn call_target_for_type_reference(
     machine: &MachineScope<'_>,
     symbols: &SymbolTable,
@@ -45,6 +70,21 @@ pub(in crate::symbols) fn call_target_for_type_reference(
     type_reference: &symbol_resolved_trees::types::TypeReference,
     target: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
+    // The exact `Service<R>` carrier owns no call surface: a receiver call
+    // resolves against the closed boundary requirement `R` it carries, the
+    // same target a bare requirement receiver would select.
+    if let symbol_resolved_trees::types::TypeReference::Generic(generic) = type_reference
+        && generic.arguments.len() == 1
+        && exact_service_carrier_data(symbols, generic.base_symbol)
+    {
+        return call_target_for_type_reference(
+            machine,
+            symbols,
+            child_type_references,
+            child_type_references.get(generic.arguments.start()),
+            target,
+        );
+    }
     let type_symbol = type_reference_symbol(child_type_references, type_reference);
     let direct_child =
         child_symbol_by_kinds(symbols, type_symbol, &[SymbolKind::State], target.as_str());

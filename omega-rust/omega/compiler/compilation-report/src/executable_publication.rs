@@ -174,15 +174,11 @@ fn publish_exact_bytes(
         let _ = std::fs::remove_file(&staged);
         return Err("staged native output bytes failed exact replay".to_owned());
     }
-    if path.exists() {
-        std::fs::remove_file(path)
-            .map_err(|error| format!("failed to replace {}: {error}", path.display()))?;
+    if executable && let Err(error) = make_executable(&staged) {
+        let _ = std::fs::remove_file(&staged);
+        return Err(error);
     }
-    std::fs::rename(&staged, path)
-        .map_err(|error| format!("failed to publish {}: {error}", path.display()))?;
-    if executable {
-        make_executable(path)?;
-    }
+    install_staged(&staged, path)?;
     let installed = std::fs::read(path)
         .map_err(|error| format!("failed to replay {}: {error}", path.display()))?;
     if installed != bytes {
@@ -190,6 +186,26 @@ fn publish_exact_bytes(
         return Err("published native output bytes failed exact replay".to_owned());
     }
     Ok(())
+}
+
+/// Install the staged file at its destination. Unix `rename` replaces an
+/// existing file atomically; platforms whose rename refuses an occupied
+/// destination remove it first. Either way the staged bytes were already
+/// replayed, and on Unix the prior output survives a failed rename.
+#[cfg(unix)]
+fn install_staged(staged: &std::path::Path, path: &std::path::Path) -> Result<(), String> {
+    std::fs::rename(staged, path)
+        .map_err(|error| format!("failed to publish {}: {error}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn install_staged(staged: &std::path::Path, path: &std::path::Path) -> Result<(), String> {
+    if path.exists() {
+        std::fs::remove_file(path)
+            .map_err(|error| format!("failed to replace {}: {error}", path.display()))?;
+    }
+    std::fs::rename(staged, path)
+        .map_err(|error| format!("failed to publish {}: {error}", path.display()))
 }
 
 #[cfg(unix)]
@@ -428,5 +444,342 @@ impl ExecutablePublicationReceipt {
                     self.container_byte_count,
                     self.container_digest,
                 )
+    }
+
+    /// Replay the published file against this receipt: length, content digest
+    /// and executable mode must all still match — the publication contract's
+    /// byte- and mode-drift detection.
+    pub fn validate_published_file(&self) -> Result<(), String> {
+        let bytes = std::fs::read(&self.output_path).map_err(|error| {
+            format!(
+                "cannot replay published executable {}: {error}",
+                self.output_path.display()
+            )
+        })?;
+        if bytes.len() != self.container_byte_count {
+            return Err(format!(
+                "published executable {} has {} bytes; the receipt recorded {}",
+                self.output_path.display(),
+                bytes.len(),
+                self.container_byte_count
+            ));
+        }
+        if executable_container_digest(&bytes) != self.container_digest {
+            return Err(format!(
+                "published executable {} no longer matches its receipt's content digest",
+                self.output_path.display()
+            ));
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = std::fs::metadata(&self.output_path)
+                .map_err(|error| {
+                    format!(
+                        "cannot stat published executable {}: {error}",
+                        self.output_path.display()
+                    )
+                })?
+                .permissions()
+                .mode();
+            if mode & 0o777 != 0o755 {
+                return Err(format!(
+                    "published executable {} drifted to mode {:o}; the receipt expects 755",
+                    self.output_path.display(),
+                    mode & 0o7777
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Filesystem legs of the publication operation itself: stage,
+    //! staged-replay, rename, installed-replay, executable-bit, staged-name
+    //! hygiene, companion naming, and stale-companion removal. The receipt
+    //! chain above this is covered by `compile_report/custody_tests.rs`.
+    use super::{
+        ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
+        publish_exact_executable_bytes, publish_exact_file_bytes, remove_stale_companion,
+    };
+    use std::path::{Path, PathBuf};
+
+    /// A fresh per-test destination directory under the system temp root.
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new(name: &str) -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "omega-publication-test-{name}-{}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(&root).expect("create test directory");
+            Self(root)
+        }
+
+        fn path(&self, name: impl AsRef<Path>) -> PathBuf {
+            self.0.join(name)
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn directory_entries(dir: &Path) -> Vec<String> {
+        std::fs::read_dir(dir)
+            .expect("read test directory")
+            .map(|entry| entry.expect("read directory entry").file_name())
+            .map(|name| name.into_string().expect("utf-8 file name"))
+            .collect()
+    }
+
+    #[test]
+    fn published_executable_replays_exact_bytes_and_leaves_no_staged_file() {
+        let dir = TestDir::new("executable-exact");
+        let output = dir.path("product");
+        let bytes = b"\x7fELF-pinned-bytes".to_vec();
+
+        publish_exact_executable_bytes(&output, &bytes).expect("publish executable");
+
+        assert_eq!(std::fs::read(&output).expect("replay output"), bytes);
+        assert_eq!(
+            directory_entries(&dir.0),
+            vec!["product".to_owned()],
+            "publication leaves exactly the installed name; the staged .tmp is renamed, not copied"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn published_executable_carries_the_executable_bit() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TestDir::new("executable-mode");
+        let output = dir.path("product");
+
+        publish_exact_executable_bytes(&output, b"bytes").expect("publish executable");
+
+        let mode = std::fs::metadata(&output)
+            .expect("read output metadata")
+            .permissions()
+            .mode();
+        assert_eq!(
+            mode & 0o777,
+            0o755,
+            "installed executable is world-readable, owner-writable"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn published_plain_file_stays_non_executable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TestDir::new("plain-mode");
+        let output = dir.path("product.psi");
+
+        publish_exact_file_bytes(&output, b"psi-bytes").expect("publish file");
+
+        assert_eq!(std::fs::read(&output).expect("replay output"), b"psi-bytes");
+        let mode = std::fs::metadata(&output)
+            .expect("read output metadata")
+            .permissions()
+            .mode();
+        assert_eq!(
+            mode & 0o111,
+            0,
+            "a data companion never acquires the executable bit"
+        );
+    }
+
+    #[test]
+    fn republication_replaces_an_installed_file_with_exact_new_bytes() {
+        let dir = TestDir::new("republish");
+        let output = dir.path("product");
+        std::fs::write(&output, b"old-bytes").expect("install prior output");
+
+        publish_exact_executable_bytes(&output, b"new-bytes").expect("republish");
+
+        assert_eq!(std::fs::read(&output).expect("replay output"), b"new-bytes");
+    }
+
+    #[test]
+    fn publication_clears_a_leftover_staged_file_before_writing() {
+        let dir = TestDir::new("stale-staged");
+        let output = dir.path("product");
+        let staged = dir.path(format!(".product.{}.tmp", std::process::id()));
+        std::fs::write(&staged, b"junk-from-an-aborted-attempt").expect("plant stale staged file");
+
+        publish_exact_executable_bytes(&output, b"pinned").expect("publish over stale staged file");
+
+        assert_eq!(std::fs::read(&output).expect("replay output"), b"pinned");
+        assert!(!staged.exists(), "staged name is consumed by the rename");
+    }
+
+    #[test]
+    fn publication_into_a_missing_directory_refuses() {
+        let dir = TestDir::new("missing-parent");
+        let output = dir.path("absent-parent/product");
+
+        let error =
+            publish_exact_executable_bytes(&output, b"bytes").expect_err("parent is absent");
+
+        assert!(
+            error.contains("failed to stage"),
+            "staging failure names its step, got: {error}"
+        );
+        assert!(!output.exists());
+    }
+
+    #[test]
+    fn companion_path_appends_to_the_complete_file_name() {
+        let dir = TestDir::new("companion-path");
+        let output = dir.path("nested/product");
+
+        assert_eq!(
+            appended_file_name_path(&output, ".psi"),
+            dir.path("nested/product.psi")
+        );
+        assert_eq!(
+            appended_file_name_path(&appended_file_name_path(&output, ".psi"), ".proof"),
+            dir.path("nested/product.psi.proof"),
+            "companion suffixes append to the full artifact name, never replace it"
+        );
+    }
+
+    #[test]
+    fn stale_companion_removal_is_absent_tolerant() {
+        let dir = TestDir::new("companion-absent");
+
+        remove_stale_companion(&dir.path("product.proof"))
+            .expect("an absent companion is the common case");
+    }
+
+    #[test]
+    fn stale_companion_removal_deletes_the_file() {
+        let dir = TestDir::new("companion-present");
+        let companion = dir.path("product.proof");
+        std::fs::write(&companion, b"stale").expect("install stale companion");
+
+        remove_stale_companion(&companion).expect("remove stale companion");
+
+        assert!(!companion.exists());
+    }
+
+    #[test]
+    fn stale_companion_removal_refuses_a_non_file() {
+        let dir = TestDir::new("companion-directory");
+        let companion = dir.path("product.proof");
+        std::fs::create_dir_all(&companion).expect("install directory at companion path");
+
+        let error = remove_stale_companion(&companion).expect_err("directories refuse removal");
+
+        assert!(
+            error.contains("failed to remove stale proof companion"),
+            "removal failure names its step, got: {error}"
+        );
+    }
+
+    /// A receipt whose container commitment matches `bytes` at `output`; the
+    /// evidence chains are unrelated to the filesystem replay under test.
+    fn receipt_for(output: &Path, bytes: &[u8]) -> ExecutablePublicationReceipt {
+        use super::{
+            ExecutableInstallationEvidenceDigest, NativePublicationCertificateDigest,
+            NativePublicationEvidenceDigest,
+        };
+
+        ExecutablePublicationReceipt::new(
+            output.to_path_buf(),
+            [0; 32],
+            NativePublicationCertificateDigest::from_digest([0; 32]),
+            0,
+            None,
+            image::PlacedExecutableRegionInventoryDigest::from_digest([0; 32]),
+            0,
+            image::CompilerTextDerivationDigest::from_digest([0; 32]),
+            image::CompilerFunctionValidationDigest::from_digest([0; 32]),
+            0,
+            NativePublicationEvidenceDigest::from_digest([0; 32]),
+            bytes.len(),
+            executable_container_digest(bytes),
+            ExecutableInstallationEvidenceDigest::from_digest([0; 32]),
+        )
+    }
+
+    #[test]
+    fn receipt_replay_accepts_the_published_executable_unchanged() {
+        let dir = TestDir::new("receipt-clean");
+        let output = dir.path("product");
+        let bytes = b"\x7fELF-pinned-bytes".to_vec();
+        publish_exact_executable_bytes(&output, &bytes).expect("publish executable");
+
+        receipt_for(&output, &bytes)
+            .validate_published_file()
+            .expect("unchanged published file replays");
+    }
+
+    #[test]
+    fn receipt_replay_detects_byte_drift() {
+        let dir = TestDir::new("receipt-byte-drift");
+        let output = dir.path("product");
+        publish_exact_executable_bytes(&output, b"original").expect("publish executable");
+        std::fs::write(&output, b"mutated!").expect("drift the installed bytes");
+
+        let error = receipt_for(&output, b"original")
+            .validate_published_file()
+            .expect_err("drifted bytes must not replay");
+
+        assert!(
+            error.contains("no longer matches its receipt's content digest"),
+            "byte drift names the digest mismatch, got: {error}"
+        );
+    }
+
+    #[test]
+    fn receipt_replay_detects_length_drift() {
+        let dir = TestDir::new("receipt-length-drift");
+        let output = dir.path("product");
+        publish_exact_executable_bytes(&output, b"exact").expect("publish executable");
+        std::fs::write(&output, b"exact-but-longer").expect("drift the installed length");
+
+        let error = receipt_for(&output, b"exact")
+            .validate_published_file()
+            .expect_err("length drift must not replay");
+
+        assert!(
+            error.contains("the receipt recorded"),
+            "length drift names the recorded count, got: {error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn receipt_replay_detects_mode_drift() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TestDir::new("receipt-mode-drift");
+        let output = dir.path("product");
+        publish_exact_executable_bytes(&output, b"mode").expect("publish executable");
+        let mut permissions = std::fs::metadata(&output)
+            .expect("read output metadata")
+            .permissions();
+        permissions.set_mode(0o644);
+        std::fs::set_permissions(&output, permissions).expect("drift the executable bit");
+
+        let error = receipt_for(&output, b"mode")
+            .validate_published_file()
+            .expect_err("mode drift must not replay");
+
+        assert!(
+            error.contains("drifted to mode"),
+            "mode drift names the observed mode, got: {error}"
+        );
     }
 }

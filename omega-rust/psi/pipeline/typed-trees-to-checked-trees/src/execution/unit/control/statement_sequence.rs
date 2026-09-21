@@ -341,6 +341,9 @@ fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> 
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index, ..
+        }
+        | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+            statement_index, ..
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
@@ -1977,6 +1980,7 @@ fn consume_value_places(
                 }
             }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
+            | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }

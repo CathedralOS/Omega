@@ -44,6 +44,11 @@ pub use placements::owned_atomic_resident_custody::{
     OwnedAtomicResidentRetirementError, OwnedAtomicResidentViewEstablishmentError,
     adopt_owned_atomic,
 };
+pub use placements::owned_external_correspondence::{
+    EstablishedOwnedExternalPlacement, OwnedCorrespondedExternalAdmission,
+    OwnedExternalAdoptionError, OwnedExternalRetirementError, OwnedExternalViewEstablishmentError,
+    adopt_owned_external,
+};
 pub use placements::owned_placement_lifecycle::{
     DormantOwnedResident, EstablishedOwnedPlacement, OwnedPlacementAdmission,
     OwnedPlacementRejection, OwnedResidentRetirementError, OwnedResidentViewEstablishmentError,
@@ -97,11 +102,11 @@ pub use primitive_access::primitive_specialization::{
     StablePrimitiveAccessRejection, StablePrimitiveAccessRequest, StablePrimitiveOperation,
 };
 pub use resources::device_operation_requirements::{
-    DeviceOperation, DeviceOperationProviderPlanId, DeviceOperationRequirement,
-    DeviceOperationRequirementId, DeviceOperationStructuralClosureError, DeviceOrderingScopeId,
-    DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
-    ProviderAssertedDeviceOperationClaim, StructurallyClosedDeviceOperationRequirement,
-    StructurallyClosedDeviceOperationRequirements,
+    DeviceOperation, DeviceOperationCoordinates, DeviceOperationProviderPlanId,
+    DeviceOperationRequirement, DeviceOperationRequirementId,
+    DeviceOperationStructuralClosureError, DeviceOrderingScopeId, DeviceOrderingScopeOccurrence,
+    DeviceOrderingScopeOccurrenceId, ProviderAssertedDeviceOperationClaim,
+    StructurallyClosedDeviceOperationRequirement, StructurallyClosedDeviceOperationRequirements,
     structurally_close_device_operation_requirements,
 };
 pub use resources::resource_compatibility::validate_placement_resources;
@@ -110,8 +115,8 @@ pub use resources::resource_compatibility::{
 };
 pub use resources::resource_profile::{
     AtomicCapability, AtomicTransferRule, ExternalCapability, ExternalReadBehavior,
-    ResourceProfile, ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
-    ValidatedResourceProfile,
+    PeerWritability, ResourceProfile, ResourceProfileId, ResourceRegion, StableCapability,
+    TransferRule, ValidatedResourceProfile,
 };
 pub use resources::resource_profile_admission::{
     AdmittedResourceProfile, ResourceProfileAdmissionError, ResourceProfileGrant,

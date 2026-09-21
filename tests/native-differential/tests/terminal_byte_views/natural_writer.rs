@@ -79,9 +79,12 @@ fn writer() -> lowered_psi::LoweredPsi {
         2
     );
     assert_eq!(lowered.proof_bundle.control_cycles.len(), 1);
+    // A slice-length rank rides the u64 carrier, so the composed cycle bound
+    // exists mathematically but cannot fit a u64 ceiling: the writer reports
+    // an analysis limit rather than fabricating a certificate.
     assert!(matches!(
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::ControlCycle(_))
+        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));
     lowered
 }

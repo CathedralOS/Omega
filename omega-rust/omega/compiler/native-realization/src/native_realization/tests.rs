@@ -143,6 +143,7 @@ fn executable_entry_rejects_lost_source_receiver_projection() {
     let diagnostics = super::validate_executable_entry_receiver(
         &plan,
         input.context().module(),
+        &[],
         artifact,
         &request(
             &signature,
@@ -321,6 +322,7 @@ fn erased_provisioned_receiver_must_retain_its_attached_type() {
     let diagnostics = super::validate_executable_entry_receiver(
         &plan,
         input.context().module(),
+        &[],
         produced.artifact(),
         &request(
             &signature,
@@ -372,6 +374,7 @@ fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
     if let Err(diagnostics) = super::validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
+        &[],
         &artifact,
         &request,
     ) {
@@ -421,6 +424,7 @@ fn retained_receiver_entry_must_preserve_its_checked_receiver_identity() {
         let diagnostics = super::validate_executable_entry_receiver(
             &plan,
             input.context().module(),
+            &[],
             &artifact,
             &request,
         )
@@ -463,6 +467,7 @@ fn free_source_entry_cannot_acquire_a_receiver() {
     let diagnostics = super::validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
+        &[],
         artifact,
         &request(
             &free_signature,
@@ -576,6 +581,64 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
     }
 }
 
+/// A provisioned hosted receiver keeps its private-stack boundary: a request
+/// that still carries callback or thunk occupancy rejects instead of
+/// publishing an entry whose callback custody nobody could provision.
+#[test]
+fn admitted_receiver_entry_rejects_callback_occupancy() {
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::WindowsX64);
+    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let target = signature.target_slot().owner.native_target();
+    let (thunk_artifact, lowering_receipt) =
+        crate::tests::native_realization::callback_custody::callback_thunk_artifact();
+    let boundary =
+        crate::tests::native_realization::callback_custody::callback_boundary_entry_plan(target);
+    let thunks = [
+        crate::tests::native_realization::callback_custody::callback_thunk_settlement(
+            &thunk_artifact,
+            boundary.plan(),
+            lowering_receipt,
+            0,
+            "__omega_private_callback_0",
+        ),
+    ];
+    let rejected = crate::realize_native_artifact(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+            .expect("replay the canonical artifact"),
+        NativeRealizationRequest {
+            checked_scope: Some(&scope),
+            callback_thunks: &thunks,
+            program_entry: NativeProgramEntrySettlement::new(
+                &signature,
+                plans
+                    .as_ref()
+                    .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                &[],
+            )
+            .with_checked_entry(&receipt),
+            ..request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            )
+        },
+    )
+    .expect_err("a provisioned hosted receiver does not admit callback occupancy");
+    assert!(
+        rejected.diagnostics().iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not yet admit callback occupancy")),
+        "{:?}",
+        rejected.diagnostics(),
+    );
+}
+
 #[test]
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     let (produced, signature, plans) =
@@ -636,6 +699,7 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
         physical_calling_application: None,
         storage_entry: None,
         fused_service_establishments: Vec::new(),
+        placed_view_establishments: Vec::new(),
     };
     let diagnostics = super::validate_emitted_receiver_binding(&emitted.object, Some(&settlement))
         .expect_err("an admitted receiver that never reached the object must reject");
@@ -742,6 +806,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         physical_calling_application: None,
         storage_entry: None,
         fused_service_establishments: Vec::new(),
+        placed_view_establishments: Vec::new(),
     };
     let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
         .expect_err("a settlement without the emitted contract must reject");
@@ -947,5 +1012,166 @@ fn program_entry_adapter_does_not_ignore_supplied_scope() {
         diagnostics[0]
             .message
             .contains("checked boundary-operator scope")
+    );
+}
+
+/// A bound placed-view establishment fixture: executable-input custody shape
+/// only — the joining admission boundary is exercised by the compiler's
+/// placed-view replay test; here the settlement carry and the receiverless
+/// rejection are what matter.
+fn bound_placed_view_establishment() -> terminal_interpreter::TerminalPlacedViewEstablishment {
+    let policy_identity = "package:test::Uart".to_string();
+    let schema_identity = "package:test::Registers".to_string();
+    terminal_interpreter::TerminalPlacedViewEstablishment {
+        input: terminal_psi::TerminalPlacedViewInput {
+            machine: semantic_vocabulary::MachineId::new(7).expect("nonzero machine id"),
+            position: 1,
+            source_machine_identity: "package:test::inspect".into(),
+            source_state_identity: "package:test::inspect::entry".into(),
+            source_parameter_identity: "package:test::inspect::entry::view".into(),
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            binding_is_const: false,
+            binding_is_mutable: true,
+            view_identity: terminal_psi::canonical_placed_view_identity(
+                &policy_identity,
+                &schema_identity,
+            ),
+            policy_identity,
+            policy_plan_machine_identity: "package:test::Uart::plan".into(),
+            schema_identity,
+            placement_report_fingerprint: 41,
+            placement_commitment: [0x5a; 32],
+        },
+        referent: terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 0x5a17,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(11)
+                .expect("nonzero structural type"),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    }
+}
+
+#[test]
+fn bound_placed_view_establishments_ride_the_admitted_entry_settlement() {
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::MacosArm64);
+    let (artifact, receipt, _, _, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked receiver input");
+    let establishments = [bound_placed_view_establishment()];
+    let settlement = super::validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        &establishments,
+        &artifact,
+        &NativeRealizationRequest {
+            program_entry: NativeProgramEntrySettlement::new(
+                &signature,
+                plans
+                    .as_ref()
+                    .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                &[],
+            )
+            .with_checked_entry(&receipt),
+            ..request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            )
+        },
+    )
+    .expect("the hosted entry boundary retains the bound placed-view loans")
+    .expect("a retained receiver admits the hosted boundary");
+    assert_eq!(
+        settlement.placed_view_establishments(),
+        establishments.as_slice(),
+    );
+}
+
+#[test]
+fn receiverless_entry_boundaries_reject_bound_placed_view_establishments() {
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let establishments = [bound_placed_view_establishment()];
+
+    // A free entry emits no boundary that could lend the referent.
+    let (produced, signature, plans) = entry_fixture(
+        "data Main {} machine Main::launch() {}",
+        target::TargetProfile::WindowsX64,
+    );
+    let artifact = produced.artifact();
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked free-entry input");
+    let diagnostics = super::validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        &establishments,
+        artifact,
+        &request(
+            &signature,
+            plans.as_ref(),
+            &profile,
+            &optimizations,
+            &providers,
+        ),
+    )
+    .expect_err("a free entry cannot lend bound placed-view referents");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("ProgramEntry placed-view custody")
+        }),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+
+    // A provisioned receiver erased before realization emits no bridge either:
+    // the bound set still has nothing that can lend it.
+    let (produced, signature, plans) =
+        entry_fixture(ERASED_RECEIVER, target::TargetProfile::WindowsX64);
+    let (artifact, receipt, _, _, _, _) = produced.into_parts();
+    let input =
+        super::lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), &profile)
+            .expect("checked erased-receiver input");
+    let diagnostics = super::validate_executable_entry_receiver(
+        input.plan(),
+        input.context().module(),
+        &establishments,
+        &artifact,
+        &NativeRealizationRequest {
+            program_entry: NativeProgramEntrySettlement::new(
+                &signature,
+                plans
+                    .as_ref()
+                    .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                &[],
+            )
+            .with_checked_entry(&receipt),
+            ..request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            )
+        },
+    )
+    .expect_err("an erased receiver emits no bridge that could lend referents");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("ProgramEntry placed-view custody")
+        }),
+        "unexpected diagnostics: {diagnostics:?}"
     );
 }

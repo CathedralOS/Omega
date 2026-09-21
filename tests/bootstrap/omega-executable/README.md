@@ -1,10 +1,25 @@
 # Omega source to an Alpha executable
 
 This gate connects the complete manifested Epsilon-written Omega compiler to
-its existing parser and Alpha tape encoder. The input is
-[ordinary Omega source](program.omg), not a hand-authored tape. Its selected
-machine returns a byte; the diagnostic entry adapter calls that machine and
-halts Alpha with its return value. The expected result is [42](expected.txt).
+its existing parser and Alpha tape encoder through the real request route:
+the gate frames the canonical OCREQ V1 request (one application package
+snapshotting [program.omg](program.omg) as a single `.omg` regular file,
+empty edges, `alpha_bootstrap_tape` product on the `alpha_bootstrap` profile,
+bound SHA-256 subject commitment), and
+[main_ocreq.epsilon](main_ocreq.epsilon) runs D's own
+`OmegaRequestStructure::check` shape passes, extracts the root package's single
+`.omg` member, compiles it, and publishes the unwrapped artifact on `Complete`
+or exactly one OCOUT V1 frame on failure. The admitted slice is
+`alpha_bootstrap_tape` plus a single-source application root; shape-valid
+requests outside it refuse `malformed_request` at the first out-of-slice
+coordinate. The target's ProgramEntry contract names the entry machine `main`,
+so entry selection is bound by the route, not by an adapter-supplied spelling.
+The emitted tape halts Alpha with the selected machine's return value. The
+expected result is [42](expected.txt).
+
+`--diagnostic` keeps the retired raw-source adapter
+([main.epsilon](main.epsilon)) reachable for refusal coverage:
+`python3 gate.py "$OUTPUT_DIR" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" --diagnostic`.
 
 From the repository root on macOS arm64, or Windows x64 with Git Bash:
 
@@ -15,8 +30,9 @@ sh tests/bootstrap/omega-executable/run.sh
 The gate requires Python 3, the selected checked-in Alpha seed and the existing
 shell tools; macOS also requires `codesign`. It reconstructs the Epsilon
 execution receipt through the selected Gamma-written Delta compiler, checks
-the complete Epsilon-written Omega compiler plus its diagnostic harness, feeds
-it the source bytes, and stamps and executes only the actual successful output.
+the complete Epsilon-written Omega compiler plus its request-route entry,
+seals the source into the canonical request, and stamps and executes only the
+actual successful output.
 No Rust compiler, host parser, host typechecker, or host code generator supplies
 the program's meaning. Python frames, invokes, compares, and stores bytes.
 
@@ -41,8 +57,9 @@ different output directory. These are host controls, not language semantics.
 [Scalar compilation](../../../bootstrap/5_omega/scalar_compilation.epsilon)
 accepts ordinary nullary free machines returning a `u8` terminal expression:
 unsuffixed nonnegative decimal literals without digit separators joined by the
-`+ - * / % << >> & | ^` binary operators, folded under the default Exact policy
-so every intermediate node must stay representable in `u8`. It checks every
+`+ - * / % << >> & | ^` binary operators and the `~` bitwise-complement
+prefix, folded under the default Exact policy so every intermediate node
+must stay representable in `u8`. It checks every
 admitted declaration, detects duplicate names,
 resolves an explicitly supplied entry name, checks the result range before
 emission, and uses the shared encoder's labels, call/return and finalization.
@@ -64,15 +81,16 @@ specifies. Receivers, `self` paths, machine or runtime arguments,
 parameterized states, locals, assignments, `let` bindings, and non-literal
 guards stay `Incomplete` coverage refusals.
 
-The harness selects `answer`. Another source can be exercised without changing
-compiler code:
+The route selects `main` — the machine name `alpha_bootstrap::ProgramEntry`
+binds. Another source can be exercised without changing compiler code:
 
 ```sh
 sh tests/bootstrap/omega-executable/run.sh --source path/to/program.omg --expect 7
 ```
 
 `--expect-compile 1` expects a compiler rejection; `--expect-compile 2` expects
-an unsupported form. Both require an exact failure outcome without a tape prefix.
+an unsupported form. Both require an exact failure outcome: the request route
+publishes one closed OCOUT frame, the diagnostic lane publishes no tape.
 The harness owns those diagnostic statuses; they are not new OCOUT wire numbers.
 Resource and internal failures remain distinct from successful compilation.
 
@@ -95,7 +113,7 @@ sh tests/bootstrap/omega-executable/run.sh --controls-g
 sh tests/bootstrap/omega-executable/run.sh --controls-h
 ```
 
-The ordinary Epsilon controls reuse one compiler across sixty-three
+The ordinary Epsilon controls reuse one compiler across sixty-six
 invocations split among [controls.epsilon](controls.epsilon),
 [controls_b.epsilon](controls_b.epsilon),
 [controls_c.epsilon](controls_c.epsilon),
@@ -109,7 +127,7 @@ multiple declarations and selection of a non-first entry, duplicate names,
 missing entry, out-of-range and oversized decimal values, an out-of-range
 expression operand, overflow, underflow, division and modulo by zero,
 out-of-width and overflowing shifts, an invalid unselected body, unsupported
-comparison, path, unary and other expressions and return types, a
+comparison, path, `!`/`-` unary, and other expressions and return types, a
 named-state-only machine, digit separators, malformed syntax, and successful
 reuse after failures; then checked control flow: call statements and grouped
 terminal calls between machines with exact emitted-tape assertions,
@@ -134,21 +152,22 @@ checks the same observation and executes the same emitted program.
 
 ## Bound customer entries
 
-Every entry the harness may select is bound: `main.epsilon` and the eight
-controls files are gate-local inputs packed on top of the bound member
-closure, never part of the manifested members.
+Every entry the harness may select is bound: `main_ocreq.epsilon`,
+`main.epsilon`, and the eight controls files are gate-local inputs packed on
+top of the bound member closure, never part of the manifested members.
 
 | Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
 | --- | ---: | --- | ---: | --- |
-| `main.epsilon` | 1,759 | `4fb023e60c166d5700fddc343a8ee8f3242d3c2915e7a7556ec36bef19aded9b` | 559,824 | `c3b86f71eba1e0f7317c9c4cd1b3afc8d26e2d80a1e114322c84beb20234548d` |
-| `controls.epsilon` | 3,339 | `44b8f0d15df414a80728918560ef988341537cfa25c0e21d6240a52c7f72f91b` | 561,404 | `a30e4e007367669e90e6356407eb0647552ec4415947b34629c4ce8601c3865a` |
-| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 561,149 | `ebbab1f132eafc5d3910d7ca7b90f1d7280caad9bad9c6d0f2f0b818bf559748` |
-| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 560,889 | `dcca542508d8a5c8406b0cbeacb53ef9f2d17c5d43cc16a0c3d5aecefa17ef8a` |
-| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 560,915 | `9ea9b0abca75b330fbbde43fc40e801a85a9fca184f79324849ff94d79c71e23` |
-| `controls_e.epsilon` | 2,703 | `42090d41fbfa2068e1063bebfa7caae4373ac7b5825ede94b8edbc8877338248` | 560,768 | `a62270323e17dea5fef4da69fb2042c1c690a5cbb36ca471cf5d7709a6c84ed1` |
-| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 562,490 | `be615c94a9f7812e33743580758e4bc66b2439f2e267dcec35ad68c285ce8822` |
-| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 561,192 | `3d2ebf05e91b6357d971acf291d8f04dec2e96444f17365339869ce787d4554a` |
-| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 561,258 | `4414e832300e9cc352a02b53e01baf1d1bb8cc3dd7dbf7d342e968a27b8f9e0e` |
+| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 563,551 | `fe6429f9607ac796ff4e0eacc4a93308775555982279ffec9d454e10b4262523` |
+| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 581,047 | `6fc80d60c99d345ebdc4ecb51ef29a397ffda745704e934b570c414141da7e39` |
+| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 565,425 | `19723460df970ba0b93b7bfcab8552cca4f6a1ac308ecc747b624db449fa19d4` |
+| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 564,878 | `9c8d4f04677ac112a7166f1f9901a7b02d197af5301651b1d6852e6a89ad5d47` |
+| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 564,618 | `e53add24891b8f00c632f36c2ee989e6464478571a213458a005f37aaf8332cc` |
+| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 564,644 | `d301154c9b067bd93686ae39f235457e7a8e588a1aeb826b4794fc73bf44183e` |
+| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 564,591 | `a6e9efa4622d87253f904a6e4e2166232cc5361375ebbf2f98a967e1f2515286` |
+| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 566,219 | `b1d0bd4a7608367c56f2473d86d45541b7471ac799bff3e2438b54a2bf5db460` |
+| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 564,921 | `89c1c23ef356f3875db54645cbccfe17ea9977dc80814013d0eee4da7e07cbf0` |
+| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 564,987 | `a409990e78c521a20aff59ccfbb69666318a35ec983edf953c581b036135877b` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and
@@ -159,8 +178,9 @@ verifies each packed customer, compiler bytes plus entry, against this table.
 This is a component-level source-to-executable regression, not the final
 [standalone compiler interface](../../../wiki/spec/build/compiler_request.md).
 It uses the existing private Epsilon execution observation format. It does not
-implement package resolution, Build evaluation, ProgramEntry selection, general
-Omega checking, or a compiler-refinement proof. The scalar invocation adapter
-is explicit test machinery, not a claim to implement the target's final entry
-contract. Retire it when the real sealed request and target entry route cover
-the same source, selection and failure controls.
+implement package resolution, Build evaluation, general ProgramEntry
+selection beyond the target's bound `main` name, general Omega checking, or a
+compiler-refinement proof. `main_ocreq.epsilon` is the gate's entry: the real
+OCREQ/OCOUT route for the `alpha_bootstrap_tape` slice, bound like every
+other selectable entry. `main.epsilon` remains bound for the `--diagnostic`
+raw-source lane.

@@ -374,6 +374,19 @@ pub enum CheckedUnitEffectOperationPlan {
         path: Vec<CheckedUnitStructuralPathSegment>,
         value: crate::CheckedCallScalarArgument,
     },
+    /// Replace one primitive element of a declared fixed array selected by a
+    /// retained runtime scalar index. `path` resolves from the exclusive
+    /// destination root to the fixed array itself; `index` is the retained
+    /// checked scalar the producer admitted only under a retained proof of
+    /// `index < declared extent`. The Terminal operation carries the bounds
+    /// obligation; the runtime index is an operand, never a path segment.
+    WriteOnlyIndexedPrimitiveStore {
+        statement_index: u32,
+        destination: CheckedPrimitiveStoreDestination,
+        path: Vec<CheckedUnitStructuralPathSegment>,
+        index: CheckedScalarExpression,
+        value: crate::CheckedCallScalarArgument,
+    },
     /// Replace one relevant primitive field through an exact common-field
     /// path, optionally followed by one literal fixed-array index, below an
     /// exclusive structural parameter. This shares the same checked
@@ -386,6 +399,23 @@ pub enum CheckedUnitEffectOperationPlan {
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),
+    /// Move one whole structural field out of exclusive borrowed storage into
+    /// a fresh owned binding, opening a repair window the body must close.
+    /// The source is a parameter-rooted exact field chain; the result binding
+    /// names the authored local that receives the moved value.
+    MoveStructuralField {
+        result: CheckedUnitStructuralResultBindingPlan,
+        source: CheckedUnitStructuralArgumentPlan,
+    },
+    /// Restore one open borrowed window by storing a whole owned structural
+    /// binding into the exact absent place. The checked multiplicity gate
+    /// proved the destination is an open hole and the value carries its type.
+    StoreStructuralField {
+        statement_index: u32,
+        destination: CheckedUnitStructuralArgumentPlan,
+        /// Whole owned place carrying the hole's declared type.
+        value: CheckedUnitStructuralArgumentPlan,
+    },
     /// Finish the body after cleanup, yielding its retained structural/scalar
     /// binding or scalar control result when present, and Unit otherwise.
     Complete {

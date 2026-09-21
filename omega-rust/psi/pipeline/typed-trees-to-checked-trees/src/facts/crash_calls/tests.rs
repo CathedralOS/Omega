@@ -516,6 +516,102 @@ fn missing_call_actual_provenance_widens_instead_of_retaining_callee_parameter()
     }
 }
 
+/// The checked scalar annotation is an independent provenance lane, retained
+/// separately from entry custody. When the identity substitution cannot run
+/// at all, an annotation that still decides the guard false must kill the
+/// alternative instead of widening the route to `Truth`; only a true or
+/// undecided fold may keep the unconditional ceiling.
+#[test]
+fn unsubstituted_identity_still_discharges_through_scalar_evidence() {
+    use checked_trees::{
+        CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+        CheckedScalarExpression,
+    };
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let literal = |text: &str| CheckedScalarExpression::IntegerLiteral {
+        literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, text)
+            .unwrap()
+            .with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U64,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+    };
+    // `input + 1 == 5`: the domain-free identity cannot fold the arithmetic,
+    // so only the checked annotation decides the guard once `input` is
+    // closed.
+    let identity = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Add as u8,
+            left: Box::new(CrashPredicateExpression::Parameter(0)),
+            right: Box::new(CrashPredicateExpression::Integer("1".into())),
+        }),
+        right: Box::new(CrashPredicateExpression::Integer("5".into())),
+    };
+    let scalar = CheckedBooleanExpression::IntegerComparison {
+        kind: CheckedIntegerComparisonKind::Equal,
+        left: Box::new(CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::ExactAdd,
+            primitive_type: PrimitiveType::U64,
+            left: Box::new(CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::U64,
+            }),
+            right: Box::new(literal("1")),
+        }),
+        right: Box::new(literal("5")),
+    };
+    let bucket = |builtin_meaning| SummaryCrashBucket {
+        cause: checked_trees::CrashCause::Trap,
+        alternative_guards: vec![SummaryCrashRouteGuard::Predicate(SummaryCrashPredicate {
+            identity: identity.clone(),
+            builtin_meaning,
+            scalar: Some(scalar.clone()),
+        })],
+    };
+    let substitute = |scalar: Option<CheckedScalarExpression>, builtin_meaning: bool| {
+        let mut substitution = identity_substitution(vec![None]);
+        substitution.scalar = vec![scalar];
+        normalize_summary_buckets(vec![bucket(builtin_meaning).substitute(&substitution)])
+    };
+    // `44 + 1 == 5` is decided false: the alternative dies rather than
+    // widening the cause to an unconditional route.
+    assert!(substitute(Some(literal("44")), true).is_empty());
+    // `4 + 1 == 5` is decided true: the unconditional ceiling stands.
+    assert_eq!(
+        substitute(Some(literal("4")), true),
+        vec![SummaryCrashBucket::unconditional(
+            checked_trees::CrashCause::Trap
+        )],
+    );
+    // An annotation that cannot decide — a non-closed actual or no retained
+    // annotation — keeps the same ceiling a missing scalar lane did before.
+    let undecided = CheckedScalarExpression::Local {
+        position: 0,
+        primitive_type: PrimitiveType::U64,
+    };
+    for scalar in [None, Some(undecided)] {
+        assert_eq!(
+            substitute(scalar, true),
+            vec![SummaryCrashBucket::unconditional(
+                checked_trees::CrashCause::Trap
+            )],
+            "an undecided annotation must keep the widened ceiling"
+        );
+    }
+    // Without the route's own builtin meaning the annotation never folds, so
+    // even a closed false retains the ceiling.
+    assert_eq!(
+        substitute(Some(literal("44")), false),
+        vec![SummaryCrashBucket::unconditional(
+            checked_trees::CrashCause::Trap
+        )],
+    );
+}
+
 #[test]
 fn unreferenced_unknown_actual_does_not_erase_exact_guard_substitution() {
     let route = SummaryCrashBucket {
@@ -814,6 +910,47 @@ fn unknown_written_mutable_actual_stays_conservative() {
         single_surviving_bucket(&buckets),
         &checked_trees::CrashRouteGuard::Truth,
         "an unproven mutable actual must not silently discharge the route"
+    );
+}
+
+/// A non-total cast actual keeps no entry operand, and the literal value the
+/// call's entry contexts prove cannot fold the arithmetic guard's identity —
+/// but the checked scalar annotation substitutes on its own lane and decides
+/// the guard concretely, so the route dies instead of widening to `Truth`.
+#[test]
+fn unnameable_actual_discharges_route_through_scalar_evidence() {
+    assert!(
+        call_site_buckets(
+            "machine inner(input: u8 in Wrapping) -> bool crashes Trap input + 1 == 5 { true }
+             machine outer() -> bool crashes Trap { inner((300 as u64) as u8 in Wrapping) }",
+            "outer",
+        )
+        .is_empty(),
+        "`44 + 1 == 5` is closed-false: the guarded route discharges"
+    );
+    // The same fold deciding true keeps the unconditional ceiling.
+    let buckets = call_site_buckets(
+        "machine inner(input: u8 in Wrapping) -> bool crashes Trap input + 1 == 5 { true }
+         machine outer() -> bool crashes Trap { inner((4 as u64) as u8 in Wrapping) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "`4 + 1 == 5` decides true: the cause survives unconditionally"
+    );
+    // An actual whose scalar stays unclosed — a place read behind the same
+    // non-total cast — cannot decide the guard, so the widened ceiling is
+    // retained rather than inventing evidence.
+    let buckets = call_site_buckets(
+        "machine inner(input: u8 in Wrapping) -> bool crashes Trap input + 1 == 5 { true }
+         machine outer(seed: u64) -> bool crashes Trap { inner(seed as u8 in Wrapping) }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "an undecided annotation must keep the widened ceiling"
     );
 }
 

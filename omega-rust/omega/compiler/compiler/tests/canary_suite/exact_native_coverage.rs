@@ -10,6 +10,15 @@ pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
 pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 31;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 
+/// Product identities of the release matrix's required platform runs
+/// (wiki/drafts/rust_compiler_completion.md, "Required platform runs").
+pub(super) const REQUIRED_PLATFORM_RUNNER_TARGETS: &[&str] = &[
+    "linux_x86_64",
+    "linux_arm64",
+    "macos_arm64",
+    "windows_x86_64",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ExactNativeCanaryOwner {
     pub(super) test_name: String,
@@ -210,6 +219,26 @@ impl ExactNativeCanaryCoverageIndex {
 
     pub(super) fn rooted_target_owner_count(&self, canary: &str, target: &str) -> usize {
         target_owner_count(&self.rooted_target_owners, canary, target)
+    }
+
+    /// Qualifying compile legs naming this target across both exact-target
+    /// cohorts (cross-target and rooted-target owners).
+    pub(super) fn target_compile_owner_count(&self, target: &str) -> usize {
+        let count_for = |owners: &BTreeMap<(String, String), Vec<ExactTargetCanaryOwner>>| {
+            owners
+                .iter()
+                .filter(|((_, owner_target), _)| owner_target == target)
+                .map(|(_, owners)| owners.len())
+                .sum::<usize>()
+        };
+        count_for(&self.cross_target_owners) + count_for(&self.rooted_target_owners)
+    }
+
+    /// Host-executed exact owners: the cohort a required runner row's native
+    /// observation exercises.
+    pub(super) fn native_execution_owner_count(&self) -> usize {
+        self.rooted_owners.values().map(Vec::len).sum::<usize>()
+            + self.direct_owners.values().map(Vec::len).sum::<usize>()
     }
 
     pub(super) const fn source_file_count(&self) -> usize {
@@ -855,6 +884,11 @@ fn exact_native_source_index_is_strict_and_ambiguity_fails_closed() {
         ("checked_report", 72)
     );
     assert_eq!(index.direct_owner_count("demo/rooted"), 0);
+    assert_eq!(
+        index.native_execution_owner_count(),
+        3,
+        "rooted, direct, and checked-report each contribute one host-executed owner"
+    );
 
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
     assert_eq!(ambiguous.direct_owner_count("demo/direct"), 2);
@@ -962,6 +996,12 @@ fn exact_target_source_index_preserves_entry_semantics_and_fails_closed() {
         index.cross_target_owner_count("demo/rooted-target", "linux_x86_64"),
         0
     );
+
+    assert_eq!(index.target_compile_owner_count("linux_x86_64"), 2);
+    assert_eq!(index.target_compile_owner_count("linux_arm64"), 1);
+    assert_eq!(index.target_compile_owner_count("uefi_x86_64"), 1);
+    assert_eq!(index.target_compile_owner_count("windows_x86_64"), 0);
+    assert_eq!(index.native_execution_owner_count(), 0);
 
     let ambiguous = ExactNativeCanaryCoverageIndex::from_sources(&[("ambiguous.rs", &ambiguous)]);
     assert_eq!(

@@ -70,11 +70,12 @@
 //! Every other memory-capable instruction without a row, every call, and every
 //! hosted effect conservatively blocks forwarding.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the forwarded-instruction constructor. Validation consumes the proposed
-//! program, requires the rewritten instruction to equal the independently
-//! reconstructed copy, requires the roster to be the source roster minus the
-//! load's read row, and restores the complete source by content.
+//! Proposal and validation share only the contract: the validator never
+//! calls the producer's admission. It re-derives the pair's legality from
+//! the source records — the load's roster row, the backward walk, the
+//! register and edge audits, the target's copy row — rebuilds the demanded
+//! function itself, requires the proposed program to equal it, and restores
+//! the complete source by content.
 
 mod admission;
 mod rewrite;

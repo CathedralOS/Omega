@@ -5,7 +5,10 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
+
+require_seed_execution_host "Gamma composed artifact"
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM

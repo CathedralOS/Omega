@@ -1,6 +1,7 @@
 //! Building one checked machine from its typed states and statements.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
+use crate::execution::terminal_unit::borrowed_windows;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::{
@@ -389,6 +390,19 @@ fn build_checked_machine_with_trace(
             )
         })
         .flatten();
+    let borrowed_window = write_only_store
+        .is_none()
+        .then(|| {
+            borrowed_windows::borrowed_window_shape(
+                program,
+                shapes,
+                state,
+                &structural_parameters,
+                statements,
+                &binders,
+            )
+        })
+        .flatten();
     // Construction remains owned by the existing prefix builders. The shared
     // statement sequence receives their exact local identities, not a synthetic
     // structural result or a second establishment operation.
@@ -426,6 +440,7 @@ fn build_checked_machine_with_trace(
         && construction.is_none()
         && write_only_store.is_none()
         && structural_scalar_field_store.is_none()
+        && borrowed_window.is_none()
         && statement_sequence::has_statement_shape(
             program,
             facts,
@@ -521,13 +536,20 @@ fn build_checked_machine_with_trace(
     } else {
         &statements[local_count..]
     };
-    if write_only_store.is_some() || structural_scalar_field_store.is_some() {
+    if write_only_store.is_some()
+        || structural_scalar_field_store.is_some()
+        || borrowed_window.is_some()
+    {
         trace.phase("call statement shape: store route statement count");
         if construction.is_some()
             || if scalar_result_local.is_some() {
                 local_count != 1 || calls.len() != 1 || statements.len() != 2
             } else if selected_scalar_result_local.is_some() {
                 local_count != 1 || !calls.is_empty() || statements.len() != 2
+            } else if let Some(window) = &borrowed_window {
+                !calls.is_empty()
+                    || local_count != window.local_count
+                    || statements.len() != window.operations.len()
             } else {
                 local_count != 0 || !calls.is_empty()
             }
@@ -674,6 +696,7 @@ fn build_checked_machine_with_trace(
     }
     trace.phase("trivial affine locals");
     let local_rows = match (has_scalar_result_local, construction, borrow_alias_prefix) {
+        _ if borrowed_window.is_some() => Vec::new(),
         (true, None, None) => sequence_trivial_locals.unwrap_or_default(),
         (false, Some((rows, _)), None) => rows,
         (false, None, Some(_)) => Vec::new(),
@@ -836,6 +859,8 @@ fn build_checked_machine_with_trace(
         operations.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
             store,
         ));
+    } else if let Some(window) = borrowed_window {
+        operations.extend(window.operations);
     } else {
         let mut structural_result_bindings = Vec::new();
         let call_offset =
@@ -1016,10 +1041,13 @@ fn build_checked_machine_with_trace(
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
@@ -1332,6 +1360,11 @@ fn operation_observes_primitive_carrier(
         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } => {
             scalar_argument(value)
         }
+        // The runtime index is a scalar operand too: a store selecting through
+        // a carrier read observes that storage exactly like its value does.
+        CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+            scalar_argument(value) || scalar_expression_reads_carrier(index, symbols)
+        }
         CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } => {
             scalar_expression_reads_carrier(value, symbols)
         }
@@ -1404,6 +1437,12 @@ fn operation_observes_primitive_carrier(
                 .any(|expression| scalar_expression_reads_carrier(expression, symbols))
                 || structural_arguments.iter().any(&structural_argument)
         }
+        CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. } => {
+            structural_argument(source)
+        }
+        CheckedUnitEffectOperationPlan::StoreStructuralField {
+            destination, value, ..
+        } => structural_argument(destination) || structural_argument(value),
         CheckedUnitEffectOperationPlan::ReleaseReference { .. }
         | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
@@ -1553,6 +1592,7 @@ fn structural_value_observes_primitive_carrier(
     visited.push(handle);
     match &plans.nodes.get(handle).kind {
         checked_trees::CheckedStructuralValueKind::Reference { source }
+        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
         | checked_trees::CheckedStructuralValueKind::Place(source) => source
             .source_parameter_index()
             .is_some_and(|index| positions.contains(&index)),
@@ -1647,6 +1687,7 @@ fn scalar_expression_reads_carrier(
         | checked_trees::CheckedScalarExpression::IntegerWiden { operand, .. }
         | checked_trees::CheckedScalarExpression::IntegerExactCast { operand, .. }
         | checked_trees::CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | checked_trees::CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | checked_trees::CheckedScalarExpression::IntegerTrappingCast { operand, .. }
         | checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
             index: operand,
@@ -1679,7 +1720,10 @@ fn boolean_expression_reads_carrier(
             boolean_expression_reads_carrier(left, symbols)
                 || boolean_expression_reads_carrier(right, symbols)
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            left, right, ..
+        } => {
             scalar_expression_reads_carrier(left, symbols)
                 || scalar_expression_reads_carrier(right, symbols)
         }

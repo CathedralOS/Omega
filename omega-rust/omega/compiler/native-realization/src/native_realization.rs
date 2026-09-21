@@ -28,7 +28,10 @@ pub use callback_custody::{
     CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
     realize_native_artifact_with_callback_custody,
 };
-pub use input_preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
+pub use input_preparation::{
+    PreparedNativeRealizationInput, prepare_native_realization_input,
+    prepare_native_realization_input_with_placed_view_establishments,
+};
 pub use program_entry::realize_program_entry_native_artifact;
 pub use realization_request::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
@@ -137,6 +140,7 @@ fn realize_image(
     let receiver_settlement = validate_executable_entry_receiver(
         input.plan(),
         input.context().module(),
+        input.placed_view_establishments(),
         &artifact,
         request,
     )?;
@@ -188,9 +192,15 @@ fn realize_image(
 fn validate_executable_entry_receiver(
     plan: &abstract_operations::AbstractOperationPlan,
     terminal: &terminal_psi::TerminalModule,
+    placed_view_establishments: &[terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment],
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<Option<crate::ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
+    // The provider establishments bound into the input are loans the emitted
+    // entry boundary must carry for the invocation's duration. Only the
+    // hosted receiver bridge is such a boundary: an admission that retains
+    // none cannot lend the referents and fails closed rather than publishing
+    // an entry that observes custody nobody supplied.
     // Settlement retains the entry declaration, not an installed receiver.
     // Every route through realize_image emits an executable image; callable
     // lowering and explicit semantic wrappers retain their own boundaries.
@@ -226,7 +236,7 @@ fn validate_executable_entry_receiver(
                 "lowered entry does not preserve the source-selected receiver mode",
             ));
         }
-        return Ok(None);
+        return entry_boundary_without_receiver(placed_view_establishments);
     }
     let lowered_entry = plan
         .functions
@@ -305,7 +315,7 @@ fn validate_executable_entry_receiver(
         // Source ZII/no-code disposal and the exact erased projection have
         // been replayed. No physical receiver argument or storage is needed;
         // Fused establishment is still checked independently before this call.
-        return Ok(None);
+        return entry_boundary_without_receiver(placed_view_establishments);
     }
     if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
         return Err(realization_error(
@@ -314,10 +324,29 @@ fn validate_executable_entry_receiver(
         ));
     }
     // This only permits physical construction to begin. The validated
-    // settlement is the demand the object binder must satisfy exactly, and the
-    // final image replay must still prove the disjoint backing, exact entry
-    // pointer, stack switch, and normal-return continuation before publication.
-    Ok(Some(settled))
+    // settlement is the demand the object binder must satisfy exactly — the
+    // bound placed-view establishments ride on it so the emitted entry
+    // boundary is what must lend each referent — and the final image replay
+    // must still prove the disjoint backing, exact entry pointer, stack
+    // switch, and normal-return continuation before publication.
+    Ok(Some(settled.with_placed_view_establishments(
+        placed_view_establishments,
+    )))
+}
+
+/// An admission that retains no hosted receiver boundary emits no shim that
+/// can lend a placed-view referent; bound establishments reaching it reject
+/// rather than publishing an entry whose custody was never supplied.
+fn entry_boundary_without_receiver(
+    placed_view_establishments: &[terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment],
+) -> Result<Option<crate::ValidatedNativeProgramEntrySettlement>, Vec<Diagnostic>> {
+    if placed_view_establishments.is_empty() {
+        return Ok(None);
+    }
+    Err(realization_error(
+        "ProgramEntry placed-view custody",
+        "bound placed-view establishments require the hosted entry boundary that lends each referent; this admission retains none",
+    ))
 }
 
 /// Admission is demand, not construction. The emitted object must carry a

@@ -11,6 +11,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import re
 import sys
 import unittest
 
@@ -19,6 +20,11 @@ ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK = ROOT / "tools" / "benchmark" / "benchmark.py"
 README = ROOT / "tools" / "benchmark" / "README.md"
 RECORDS = ROOT / "tools" / "benchmark" / "records"
+MATRIX_DOC = ROOT / "wiki" / "drafts" / "benchmarks.md"
+TARGET_SOURCE = (
+    ROOT / "omega-rust" / "omega" / "representations" / "target"
+    / "src" / "lib.rs"
+)
 
 
 def load_benchmark():
@@ -206,6 +212,125 @@ class SelectionIdentity(unittest.TestCase):
             root = Path(directory) / "main.omg"
             root.write_text("")
             self.assertEqual(benchmark.authored_selection(root), [])
+
+
+def catalogued_target_names():
+    """Profile names from TargetProfile::target_name() — the catalog the
+    matrix's host-leg table must stay in step with."""
+    text = TARGET_SOURCE.read_text()
+    section = text[text.index("const fn target_name"):]
+    section = section[: section.index("\n    }\n")]
+    return set(re.findall(r'=> "([a-z][a-z0-9_]*)",', section))
+
+
+class HostRowMatrix(unittest.TestCase):
+    def matrix(self):
+        return benchmark.matrix_markdown(benchmark.load_records(RECORDS))
+
+    def test_host_legs_cover_the_catalogued_targets(self):
+        self.assertEqual(
+            {leg["target"] for leg in benchmark.HOST_LEGS},
+            catalogued_target_names(),
+        )
+
+    def test_unmeasured_host_legs_stay_explicit(self):
+        output = self.matrix()
+        # windows_x86_64, linux_arm64, and macos_arm64 carry committed
+        # records now; cross_platform_cli and local_unchecked remain the
+        # unrecorded build-host legs that must stay explicit.
+        cli = next(
+            line for line in output.splitlines() if "cross_platform_cli" in line
+        )
+        self.assertIn("measurable", cli)
+        self.assertNotIn("unavailable", cli)
+        unchecked = next(
+            line for line in output.splitlines() if "local_unchecked" in line
+        )
+        self.assertIn("measurable", unchecked)
+        self.assertNotIn("unavailable", unchecked)
+        # The leg's own row is the one with no subject: a committed
+        # non-applicable pairing sits beside it and must not retire it.
+        uefi = next(
+            line for line in output.splitlines()
+            if "uefi_x86_64" in line and "QEMU or UEFI hardware" in line
+        )
+        self.assertIn("unavailable (needs QEMU or UEFI hardware)", uefi)
+
+    def test_non_applicable_pairing_renders_beside_its_host_leg(self):
+        output = self.matrix()
+        pairing = next(
+            line for line in output.splitlines()
+            if "uefi_x86_64" in line and "wrapping_square_sum" in line
+        )
+        self.assertIn("non-applicable", pairing)
+        self.assertIn("no bound required root slot", pairing)
+        # Its host leg keeps its own explicit row.
+        self.assertTrue(any(
+            "uefi_x86_64" in line and "QEMU or UEFI hardware" in line
+            for line in output.splitlines()))
+
+    def test_measured_records_render_measured_cells(self):
+        row = next(
+            line for line in self.matrix().splitlines() if "cli_mvp" in line
+        )
+        self.assertIn("measured", row)
+        self.assertIn("default", row)
+
+    def test_doc_embeds_the_current_matrix(self):
+        lines = MATRIX_DOC.read_text().splitlines()
+        start = lines.index("<!-- benchmark-matrix:start -->")
+        end = lines.index("<!-- benchmark-matrix:end -->")
+        self.assertEqual("\n".join(lines[start + 1 : end]), self.matrix())
+
+
+class Applicability(unittest.TestCase):
+    def test_absent_applicability_still_validates(self):
+        record = minimal_record()
+        self.assertNotIn("applicability", record)
+        self.assertEqual(benchmark.validate_record(record, "<fixture>"), [])
+
+    def test_non_applicable_record_validates(self):
+        record = minimal_record()
+        reason = "no bound required root slot `uefi_x86_64::ProgramEntry`"
+        record["applicability"] = {
+            "status": "non_applicable", "reason": reason}
+        for name in benchmark.METRIC_NAMES:
+            unit = "bytes" if "bytes" in name else "ms"
+            record["metrics"][name] = benchmark.unavailable(unit, reason)
+        self.assertEqual(benchmark.validate_record(record, "<fixture>"), [])
+
+    def test_non_applicable_rejects_an_unknown_status(self):
+        record = minimal_record()
+        record["applicability"] = {"status": "maybe", "reason": "x"}
+        problems = benchmark.validate_record(record, "<fixture>")
+        self.assertTrue(any("non_applicable" in p for p in problems))
+
+    def test_non_applicable_requires_a_reason(self):
+        record = minimal_record()
+        record["applicability"] = {"status": "non_applicable", "reason": ""}
+        problems = benchmark.validate_record(record, "<fixture>")
+        self.assertTrue(any("reason is required" in p for p in problems))
+
+    def test_non_applicable_cannot_carry_a_measured_metric(self):
+        record = minimal_record()
+        record["applicability"] = {
+            "status": "non_applicable", "reason": "unbound root"}
+        problems = benchmark.validate_record(record, "<fixture>")
+        self.assertTrue(
+            any("cannot carry a measured metric" in p for p in problems))
+
+    def test_settlement_rejection_becomes_a_non_applicable_signal(self):
+        text = ("error: no bound required root slot "
+                "`uefi_x86_64::ProgramEntry`\n")
+        found = benchmark.UNBOUND_ROOT_SLOT.search(text)
+        self.assertIsNotNone(found)
+        self.assertEqual(
+            found.group(0),
+            "no bound required root slot `uefi_x86_64::ProgramEntry`")
+
+    def test_an_ordinary_settlement_failure_is_not_non_applicable(self):
+        self.assertIsNone(
+            benchmark.UNBOUND_ROOT_SLOT.search("error: package acceptance is missing"))
 
 
 class ReviewSettlement(unittest.TestCase):

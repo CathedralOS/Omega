@@ -1,9 +1,11 @@
 //! Inline assembly tests.
 
 use super::{
-    AsmAuthorityRequirement, AsmCatalogEntry, AsmControlRegister, AsmFenceKind, AsmFlagsDataFlow,
-    AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape, AsmInterruptFlagEffect,
-    AsmMemoryOrdering, AsmOperandAccess, AsmTargetApplicability, asm_catalog_entry,
+    AsmAuthorityRequirement, AsmCacheOperationKind, AsmCatalogEntry, AsmControlRegister,
+    AsmFenceKind, AsmFlagsDataFlow, AsmInstructionAvailability, AsmInstructionRefusal,
+    AsmInstructionSerializationKind, AsmInstructionShape, AsmInterruptFlagEffect,
+    AsmMemoryOrdering, AsmOperandAccess, AsmSchedulingHintKind, AsmTargetApplicability,
+    asm_catalog_entry,
 };
 
 #[test]
@@ -204,20 +206,104 @@ fn control_register_contracts_pin_exact_u64_flow_and_machine_authority() {
 }
 
 #[test]
+fn register_move_contracts_delegate_operand_checking_to_the_assignment() {
+    for mnemonic in ["mov", "movq"] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("register-move contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::RegisterMove);
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
+        assert_eq!(contract.target, AsmTargetApplicability::Any);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
 fn catalog_names_semantic_refusal_classes() {
-    assert_eq!(
-        asm_catalog_entry("ret"),
-        Some(AsmCatalogEntry::Refused(
-            AsmInstructionRefusal::HiddenControlExit
-        ))
-    );
-    assert_eq!(
-        asm_catalog_entry("ldr"),
-        Some(AsmCatalogEntry::Refused(
-            AsmInstructionRefusal::UnmodeledMemoryAccess
-        ))
-    );
-    assert_eq!(asm_catalog_entry("db"), None);
+    for mnemonic in [
+        "ret", "retq", "call", "br", "blr", "retf", "jmpq", "b", "bl", "bx", "cbz", "tbz", "loop",
+        "loopne", "jcxz", "jrcxz", "int", "int3", "je", "jne", "jz", "jae", "jbe", "jng", "jnle",
+        "jo", "js", "jpe", "jnp", "jc", "jnc",
+    ] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::HiddenControlExit
+            )),
+            "{mnemonic} stays a hidden-exit refusal"
+        );
+    }
+    for mnemonic in [
+        "ldr",
+        "str",
+        "ldp",
+        "stp",
+        "push",
+        "pop",
+        "pushq",
+        "enter",
+        "leave",
+        "ldrb",
+        "ldrsw",
+        "strh",
+        "ldur",
+        "sturh",
+        "ldtrb",
+        "sttr",
+        "ldxr",
+        "stxrh",
+        "ldaxr",
+        "stlxrb",
+        "ldxp",
+        "stlxp",
+        "ldar",
+        "stlrh",
+        "swp",
+        "swpal",
+        "cas",
+        "caspal",
+        "ldadd",
+        "ldeor",
+        "ldsmax",
+        "ldumin",
+        "xchg",
+        "xadd",
+        "cmpxchg",
+        "cmpxchg8b",
+        "xlatb",
+        "movsb",
+        "lodsq",
+        "stosw",
+        "scasb",
+        "cmpsq",
+        "insb",
+        "outsw",
+    ] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            Some(AsmCatalogEntry::Refused(
+                AsmInstructionRefusal::UnmodeledMemoryAccess
+            )),
+            "{mnemonic} stays an unmodeled-memory refusal"
+        );
+    }
+    // Supervisor traps are service-admission candidates, not hidden exits;
+    // address arithmetic and ordering barriers access no memory. Each keeps
+    // the unknown-mnemonic failure rather than borrowing a semantic refusal.
+    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dmb", "dsb"] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            None,
+            "{mnemonic} stays an unknown mnemonic"
+        );
+    }
 }
 
 #[test]
@@ -235,6 +321,93 @@ fn fence_contracts_pin_ordering_without_invented_clobbers() {
         assert_eq!(contract.memory_ordering, AsmMemoryOrdering::Fence(kind));
         assert_eq!(contract.target, AsmTargetApplicability::X86_64);
         assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
+fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
+    for (mnemonic, kind, target) in [
+        (
+            "serialize",
+            AsmInstructionSerializationKind::Serialize,
+            AsmTargetApplicability::X86_64,
+        ),
+        (
+            "isb",
+            AsmInstructionSerializationKind::InstructionSynchronizationBarrier,
+            AsmTargetApplicability::Aarch64,
+        ),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("serialization contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(
+            contract.shape,
+            AsmInstructionShape::InstructionSerialization(kind)
+        );
+        assert_eq!(contract.target, target);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+
+    for (mnemonic, kind, target) in [
+        (
+            "pause",
+            AsmSchedulingHintKind::SpinPause,
+            AsmTargetApplicability::X86_64,
+        ),
+        (
+            "yield",
+            AsmSchedulingHintKind::Yield,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "nop",
+            AsmSchedulingHintKind::Nop,
+            AsmTargetApplicability::Any,
+        ),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("scheduling-hint contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::SchedulingHint(kind));
+        assert_eq!(contract.target, target);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
+fn cache_operation_contracts_pin_machine_owner_and_no_operands() {
+    for (mnemonic, kind) in [
+        ("wbinvd", AsmCacheOperationKind::WriteBackInvalidate),
+        ("invd", AsmCacheOperationKind::Invalidate),
+        ("wbnoinvd", AsmCacheOperationKind::WriteBackNoInvalidate),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("cache-operation contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::CacheOperation(kind));
+        assert_eq!(contract.target, AsmTargetApplicability::X86_64);
+        assert_eq!(
+            contract.required_authority,
+            AsmAuthorityRequirement::MachineOwner
+        );
+        assert_eq!(
+            contract.availability,
+            AsmInstructionAvailability::UserChecked
+        );
         assert!(contract.operands.is_empty());
         assert!(contract.clobbers.is_empty());
     }

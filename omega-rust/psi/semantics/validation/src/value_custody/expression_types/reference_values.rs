@@ -70,6 +70,18 @@ pub(super) fn reference_type_matches(
                 *required_referee,
                 substitutions,
             ))
+        // The same forget covers a constrained referee that is not an owned
+        // array: `&[u8] in D` spells `Reference { Constrained { Slice } }`, so
+        // unwrapping the qualification leaves the identical slice a shared
+        // parameter asks for. Only the actual side strips — the required
+        // referee's own constraints remain the callee's claim.
+        || (*required_access == ReferenceAccess::Shared
+            && constrained_referee_forgets_qualification(
+                program,
+                *actual_referee,
+                *required_referee,
+                substitutions,
+            ))
         || fixed_array_binds_open_length(
             program,
             *actual_referee,
@@ -301,6 +313,32 @@ fn owned_array_projects_to_slice(
             substitutions,
             ..TypeIdentityRequest::ordinary(*actual_element)
         }) == program.normalized_type_identity(*required_element)
+}
+
+/// The shared-view forget for a constrained referee that is not an owned
+/// array. A declared `&[u8] in D` spells `Reference { Constrained { Slice } }`:
+/// unwrapping the qualification leaves the identical slice a shared parameter
+/// asks for, and the callee simply cannot rely on the dropped predicate. Only
+/// the actual side strips — the required referee's own constraints remain the
+/// callee's claim, so an unqualified view still cannot satisfy `&[u8] in D`.
+fn constrained_referee_forgets_qualification(
+    program: &TypedTrees,
+    mut actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let mut constrained = false;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(actual)
+    {
+        constrained = true;
+        actual = *base_type;
+    }
+    return constrained
+        && program.type_identity(TypeIdentityRequest {
+            substitutions,
+            ..TypeIdentityRequest::ordinary(actual)
+        }) == program.normalized_type_identity(required);
 }
 
 fn substituted_reference(

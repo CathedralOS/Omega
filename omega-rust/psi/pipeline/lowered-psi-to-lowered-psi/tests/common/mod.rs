@@ -680,6 +680,7 @@ pub fn coercion_edge_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -693,6 +694,7 @@ pub fn coercion_edge_fixture() -> LoweredPsi {
             destination: v31,
         }],
         float_entry_ranges: Vec::new(),
+        integer_entry_ranges: Vec::new(),
     };
     lowered
 }
@@ -760,6 +762,7 @@ pub fn coercion_region_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -773,6 +776,7 @@ pub fn coercion_region_fixture() -> LoweredPsi {
             destination: v51,
         }],
         float_entry_ranges: Vec::new(),
+        integer_entry_ranges: Vec::new(),
     };
     lowered
 }
@@ -925,6 +929,7 @@ pub fn dead_machine_coercion_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -938,6 +943,7 @@ pub fn dead_machine_coercion_fixture() -> LoweredPsi {
             destination: value(121),
         }],
         float_entry_ranges: Vec::new(),
+        integer_entry_ranges: Vec::new(),
     };
     lowered
 }

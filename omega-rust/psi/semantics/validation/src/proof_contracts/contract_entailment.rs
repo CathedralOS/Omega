@@ -101,7 +101,7 @@ pub use arithmetic_judgment::integer_embedding_sources_equal;
 pub use call_requirements::structural_call_requirement_entailed;
 pub(crate) use const_ranges::{
     const_range_bound_is_supported, selected_const_call_result_bounds, symbolic_range_contains,
-    validate_const_range_call,
+    validate_const_range_call, validate_const_range_call_in_environment,
 };
 pub(crate) use exit_coverage::entailment_covers_all_exits;
 pub use law_conformance::{
@@ -808,6 +808,23 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 requires_fully_visible,
                 engine.parameter_atoms
             );
+        }
+        // A fact already folded to a Boolean constant carries the constant
+        // arithmetic's verdict directly: `true` is proven and `false` is
+        // disproved. Recording either as an unjudged stand-down would both
+        // inflate the admission ledger and, on `false`, let a refuted
+        // postcondition pass `--check` silently.
+        if let ExpressionNode::Boolean(constant) = program.expression_table.expression(*fact) {
+            if *constant {
+                proven.push(*fact);
+            } else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic",
+                    machine.name,
+                    program.expression_table.display_name(*fact)
+                )));
+            }
+            continue;
         }
         match engine.judge(*fact) {
             Judgment::Proven => proven.push(*fact),

@@ -2,6 +2,8 @@
 // it through a boundary is a service invocation whatever the selected
 // provider does. `log_quiet` merely retains the conservative allowance; its
 // verified body never invokes the service.
+module main;
+
 use omega::language::core::service;
 
 pub boundary trait Sink {

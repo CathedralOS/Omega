@@ -436,16 +436,22 @@ fn checked_uefi_os_handoff_invocation_retains_edge_binding() {
 }
 
 #[test]
-fn native_uefi_os_handoff_invocation_reports_missing_boundary_plan() {
+fn native_uefi_os_handoff_invocation_reports_cyclic_control_frontier() {
     // The checked canary pins the invocation surface; this pins the authored
     // handoff route's first refusing emission stage. The cycle's Boot Services
     // calls live on `UefiOsHandoffLegs` `boundary machine`s — scalar-returning
     // boundary calls carry no state-graph custody admission in the checked
     // unit lane, so each leg owns one firmware call and lands its status on
-    // the legs record — and attached-Unit closure refuses them today: a
-    // bodied boundary machine carries no boundary plan for a unit caller.
-    // Once bodied boundary machines lower as callees, this canary becomes the
-    // PE32+ emission assertion.
+    // the legs record. Bodied boundary machines now lower as ordinary Unit
+    // callees and `&mut` boundary requirements carry caller-side plans, so the
+    // whole call chain — entry, cycle, legs, termination — emits to Terminal.
+    // The next fence is cyclic-machine custody: the verifier admits a cycle
+    // only when every call receiver is the bare persistent `self` and every
+    // pinned claim stays on owned entry parameters — `self.legs.*`/`self.
+    // terminal.*`/`self.cycle` receivers and `retain`'s granted extents stay
+    // outside that envelope today. Once cyclic machines admit projected
+    // receivers (and claim-carrying block parameters), this canary becomes
+    // the PE32+ emission assertion.
     let canary = pass_canary(fixture_roster::BUILD_UEFI_OS_HANDOFF_INVOCATION);
     let build_dir = std::env::temp_dir().join(format!("omega-uefi-handoff-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -455,17 +461,16 @@ fn native_uefi_os_handoff_invocation_reports_missing_boundary_plan() {
         target_name: Some("uefi_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
-    .expect_err("the authored cycle must stay pinned at the missing boundary plan");
+    .expect_err("the authored cycle must stay pinned at the cyclic-control fence");
     let messages: Vec<&str> = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect();
     assert!(
-        messages.iter().any(|message| {
-            message
-                .contains("calls boundary `UefiOsHandoffLegs::acquire`, which has no boundary plan")
-        }),
-        "expected the pinned boundary-plan refusal, got {messages:?}"
+        messages
+            .iter()
+            .any(|message| message.contains("ControlCycle")),
+        "expected the pinned cyclic-control refusal, got {messages:?}"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -614,32 +619,24 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
 }
 
 #[test]
-fn immediate_port_io_is_bound_in_final_image_validation() {
+fn immediate_port_io_rejects_without_provider_custody() {
+    // A direct-root `out` is a privileged port effect with no selected
+    // provider requirement to settle under; the closure review rejects before
+    // any final-image evidence can be emitted.
     let canary = pass_canary(fixture_roster::INLINE_ASM_ASM_PORT_OUT_FINAL_VALIDATION);
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CanaryCompileSpec {
+    let diagnostics = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
+        build_dir: None,
         target_name: Some("linux_x86_64".into()),
         product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
-    .expect("immediate-port checked assembly should emit final-byte evidence");
-
-    let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
-        .expect("final executable-region inventory should be written");
+    .expect_err("direct-root port writes have no provider custody to settle under");
     assert!(
-        executable_regions.contains("\"checked_instruction_validation_count\": 1")
-            && executable_regions
-                .contains("\"checked_instruction_validation_report_fingerprint\": \"0x")
-            && executable_regions
-                .contains("\"checked_instruction_footprint_report_fingerprint\": \"0x"),
-        "final image evidence should bind the immediate port instruction:\n{executable_regions}"
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("no selected provider requirement custody")),
+        "direct-root privileged port effects must reject at the custody review:\n{diagnostics:#?}"
     );
-
-    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

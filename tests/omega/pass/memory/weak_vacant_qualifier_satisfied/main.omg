@@ -1,0 +1,19 @@
+// Pass sibling of `tests/omega/fail/memory/weak_vacant_qualifier_drop`: a
+// `Granted & Vacant` value carries the dormant-content qualification into a
+// `Vacant`-qualified field, so the construction is admitted. Only the
+// qualifier-free source shape is an implicit strengthening.
+use omega::language::core::extent;
+
+data Held {
+    e: Extent in Granted & Vacant;
+}
+
+machine keep(whole: Extent in Granted & Vacant) -> Extent
+{
+    let held: Held = Held { e: whole };
+    held.e as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

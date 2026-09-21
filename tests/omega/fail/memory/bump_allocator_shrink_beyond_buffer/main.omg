@@ -1,0 +1,194 @@
+// Shrinking a live buffer past its own length is refused: `shrink` requires
+// `kept <= vec.buffer.length`, and a 64-byte demand on a 32-byte buffer has
+// no derivation — `allocate`'s ensures fix `buffer.length` to the opened
+// reservation, so the caller cannot substitute tail residual for buffer
+// geometry. The pass-side sibling
+// (`tests/omega/pass/memory/bump_allocator_canary`, `exercise_shrink`)
+// shrinks a 32-byte buffer to 16 and reuses the restored residual.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    ensures
+        result.taken.length == length,
+        embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+
+    machine merge(parts: Split) -> Extent
+    ensures
+        embed(result.length) == embed(parts.taken.length) + embed(parts.rest.length),
+        result in Granted & Vacant,
+        separate(
+            Granted::content(old(&parts.taken)),
+            Granted::content(old(&parts.rest)),
+        )
+        == Granted::content(&result);
+}
+
+data Bump {
+    tail: Extent in Granted & Vacant;
+    remaining: u64;
+}
+
+data Issued {
+    strategy: Bump;
+    allocation: Extent in Granted & Vacant;
+}
+
+data BumpVec {
+    strategy: Bump;
+    buffer: Extent in Granted & Vacant;
+    retained_buffer: RetiredSlot;
+}
+
+data RetiredSlot {
+    case Empty;
+    case Held(storage: Extent in Granted & Vacant);
+}
+
+data Recomposed {
+    backing: Extent in Granted & Vacant;
+}
+
+machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Issued
+requires
+    length <= strategy.remaining
+ensures
+    result.strategy.remaining == strategy.remaining - length;
+    result.allocation.length == length
+reaches ExtentPartition
+{
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let parts: Split = partition.split(tail, length);
+    Issued {
+        strategy: Bump {
+            tail: parts.rest,
+            remaining: strategy.remaining - length,
+        },
+        allocation: parts.taken,
+    }
+}
+
+machine open(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64,
+    residual: u64
+) -> BumpVec
+requires
+    capacity <= residual;
+    residual == whole.length
+ensures
+    result.buffer.length == capacity
+reaches ExtentPartition
+{
+    let issued: Issued = allocate(
+        partition,
+        Bump { tail: whole, remaining: residual },
+        capacity,
+    );
+    BumpVec {
+        strategy: issued.strategy,
+        buffer: issued.allocation,
+        retained_buffer: RetiredSlot::Empty,
+    }
+}
+
+// The same `shrink` as the pass fixture: split the live buffer at `kept` and
+// fold the freed suffix into the tail. The requires is the only guard the
+// caller must satisfy — the freed region is partitioned out of the buffer
+// itself, never out of the residual.
+machine shrink(partition: &ExtentPartition, vec: BumpVec, kept: u64) -> BumpVec
+requires
+    kept <= vec.buffer.length
+reaches ExtentPartition
+{
+    let parts: Split = partition.split(vec.buffer, kept);
+    let shrunk: Extent in Granted & Vacant = parts.taken;
+    let freed: Extent in Granted & Vacant = parts.rest;
+    let grown_tail: Extent in Granted & Vacant = partition.merge(Split {
+        taken: freed,
+        rest: vec.strategy.tail,
+    });
+    BumpVec {
+        strategy: Bump {
+            tail: grown_tail,
+            remaining: grown_tail.length,
+        },
+        buffer: shrunk,
+        retained_buffer: vec.retained_buffer,
+    }
+}
+
+machine reset_retired(
+    partition: &ExtentPartition,
+    strategy: Bump,
+    retired: RetiredSlot
+) -> Bump
+reaches ExtentPartition
+{
+    transition retired {
+        RetiredSlot::Empty -> strategy
+        RetiredSlot::Held { storage } -> restore(partition, strategy, storage)
+    }
+
+    state restore(
+        partition: &ExtentPartition,
+        strategy: Bump,
+        storage: Extent in Granted & Vacant
+    ) -> Bump {
+        let whole: Extent in Granted & Vacant = partition.merge(Split {
+            taken: storage,
+            rest: strategy.tail,
+        });
+        Bump { tail: whole, remaining: whole.length }
+    }
+}
+
+machine close(partition: &ExtentPartition, vec: BumpVec) -> Recomposed
+reaches ExtentPartition
+{
+    let strategy: Bump = vec.strategy;
+    let whole: Extent in Granted & Vacant = partition.merge(Split {
+        taken: vec.buffer,
+        rest: strategy.tail,
+    });
+    let restored: Bump = reset_retired(
+        partition,
+        Bump { tail: whole, remaining: whole.length },
+        vec.retained_buffer,
+    );
+    Recomposed { backing: restored.tail }
+}
+
+// Open a 32-byte reservation, then demand a 64-byte shrink: the caller knows
+// `buffer.length == 32` exactly, so `64 <= vec.buffer.length` is unprovable.
+machine exercise(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition
+{
+    let vec: BumpVec = open(partition, whole, 32, capacity);
+    let shrunk: BumpVec = shrink(partition, vec, 64);
+    let recomposed: Recomposed = close(partition, shrunk);
+    recomposed.backing as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -590,6 +590,8 @@ impl<'a> TerminalProductionRequest<'a> {
     fn lower_and_optimize(
         self,
     ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
+        crate::checked_ledger::verify(self.checked)
+            .map_err(TerminalArtifactProductionError::Lowering)?;
         let lowered = match self.machine {
             TerminalMachineSelection::Name(name) => lower_machine(self.checked, name),
             TerminalMachineSelection::Symbol(machine) => {

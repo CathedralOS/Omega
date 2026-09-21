@@ -19,6 +19,12 @@ pub enum AsmInstructionShape {
     Halt,
     PortOut,
     PortIn,
+    /// A data move between a writable Omega place and a readable value. The
+    /// accepted form carries no memory-addressing operand: it lowers to an
+    /// ordinary checked assignment, so provenance, permission and exact-type
+    /// obligations are the assignment's own. Bracketed `[address]` spellings
+    /// are not expressions and refuse before this shape applies.
+    RegisterMove,
     MemoryFence(AsmFenceKind),
     InterruptControl(AsmInterruptControlKind),
     FlagsSnapshot,
@@ -27,8 +33,135 @@ pub enum AsmInstructionShape {
     MsrWrite,
     ControlRegisterRead(AsmControlRegister),
     ControlRegisterWrite(AsmControlRegister),
+    /// Serializes the instruction stream itself rather than memory traffic:
+    /// every prior instruction completes and instruction fetch re-synchronizes
+    /// before the next instruction executes.
+    InstructionSerialization(AsmInstructionSerializationKind),
+    /// A scheduler/pipeline hint the core may legally elide; it never changes
+    /// program semantics or machine-state obligations.
+    SchedulingHint(AsmSchedulingHintKind),
+    /// Cache/TLB maintenance on the machine's own caches: serializing and
+    /// privileged, with no modeled operand place — the operation's subject is
+    /// the cache hierarchy itself, not an addressable value. Members needing a
+    /// memory operand (`invlpg`, `clflush`) stay refused until the catalog has
+    /// a modeled memory operand contract.
+    CacheOperation(AsmCacheOperationKind),
     DescriptorTableLoad,
     DerivedExit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmInstructionSerializationKind {
+    /// x86_64 `serialize`: drains speculative execution and forces fetch to
+    /// re-start after the instruction, bounding code-update races.
+    Serialize,
+    /// AArch64 `isb`: flushes the pipeline so later instructions re-fetch
+    /// updated context (the AArch64 serialization barrier).
+    InstructionSynchronizationBarrier,
+}
+
+impl AsmInstructionSerializationKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::Serialize => "serialize",
+            Self::InstructionSynchronizationBarrier => "isb",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::Serialize => "asm#serialize",
+            Self::InstructionSynchronizationBarrier => "asm#isb",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::Serialize, Self::InstructionSynchronizationBarrier]
+            .into_iter()
+            .find(|kind| kind.intrinsic_name() == name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmCacheOperationKind {
+    /// x86_64 `wbinvd`: writes back and invalidates all internal caches, then
+    /// serializes the instruction stream. Ring-0 privileged; it carries no
+    /// operand because its subject is the cache hierarchy, not a place.
+    WriteBackInvalidate,
+    /// x86_64 `invd`: invalidates all internal caches WITHOUT writing back
+    /// modified lines — cached writes are dropped rather than committed.
+    /// Serializing and ring-0 privileged; zero operands for the same reason
+    /// `wbinvd` carries none.
+    Invalidate,
+    /// x86_64 `wbnoinvd`: writes back modified lines to memory but leaves
+    /// them valid in the caches. Serializing and ring-0 privileged, zero
+    /// operands.
+    WriteBackNoInvalidate,
+}
+
+impl AsmCacheOperationKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::WriteBackInvalidate => "wbinvd",
+            Self::Invalidate => "invd",
+            Self::WriteBackNoInvalidate => "wbnoinvd",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::WriteBackInvalidate => "asm#wbinvd",
+            Self::Invalidate => "asm#invd",
+            Self::WriteBackNoInvalidate => "asm#wbnoinvd",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [
+            Self::WriteBackInvalidate,
+            Self::Invalidate,
+            Self::WriteBackNoInvalidate,
+        ]
+        .into_iter()
+        .find(|kind| kind.intrinsic_name() == name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmSchedulingHintKind {
+    /// x86_64 `pause`: spin-wait pipeline hint; improves a polling loop's
+    /// sibling-thread behavior without changing its result.
+    SpinPause,
+    /// AArch64 `yield`: scheduling hint; the core may deschedule this thread.
+    Yield,
+    /// `nop` on both supported ISAs: a pipeline no-op the core may elide; it
+    /// occupies an instruction slot without changing program semantics or
+    /// machine-state obligations.
+    Nop,
+}
+
+impl AsmSchedulingHintKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::SpinPause => "pause",
+            Self::Yield => "yield",
+            Self::Nop => "nop",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::SpinPause => "asm#pause",
+            Self::Yield => "asm#yield",
+            Self::Nop => "asm#nop",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::SpinPause, Self::Yield, Self::Nop]
+            .into_iter()
+            .find(|kind| kind.intrinsic_name() == name)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -414,9 +547,11 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     };
     use AsmInstructionAvailability::{DeriverOnly, UserChecked};
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
+    use AsmInstructionSerializationKind::{InstructionSynchronizationBarrier, Serialize};
     use AsmInstructionShape::{
-        DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt, InterruptControl,
-        JumpState, MemoryFence, MsrRead, MsrWrite, PortIn, PortOut,
+        CacheOperation, DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
+        InstructionSerialization, InterruptControl, JumpState, MemoryFence, MsrRead, MsrWrite,
+        PortIn, PortOut, RegisterMove, SchedulingHint,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
@@ -424,6 +559,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         RestoreFromOperand as RestoreInterruptFlag,
     };
     use AsmMemoryOrdering::{Fence, None as NoOrdering};
+    use AsmSchedulingHintKind::{Nop, SpinPause, Yield};
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
 
     if let Some(register) = AsmControlRegister::from_read_mnemonic(mnemonic) {
@@ -610,6 +746,104 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: MSR_WRITE_CLOBBERS,
         }),
 
+        // Instruction-stream serialization and scheduling-hint directives.
+        // Neither reads nor mutates modeled machine state, so they carry no
+        // authority requirement -- `serialize`/`isb` bound reordering (the
+        // realized sequence is the instruction itself), while `pause`/`yield`
+        // are legal to elide entirely.
+        "serialize" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: InstructionSerialization(Serialize),
+            target: X86_64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "isb" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: InstructionSerialization(InstructionSynchronizationBarrier),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "pause" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(SpinPause),
+            target: X86_64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "yield" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(Yield),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "nop" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(Nop),
+            target: Any,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        // Cache maintenance acts on the machine's own caches rather than a
+        // modeled place: serializing, machine-owner operations whose operand
+        // list and clobber list are both empty. `invd` drops modified lines
+        // without writeback; `wbnoinvd` writes back without invalidating.
+        "wbinvd" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: CacheOperation(AsmCacheOperationKind::WriteBackInvalidate),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "invd" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: CacheOperation(AsmCacheOperationKind::Invalidate),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "wbnoinvd" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: CacheOperation(AsmCacheOperationKind::WriteBackNoInvalidate),
+            target: X86_64,
+            required_authority: MachineOwner,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+
         // This remains deriver-only: an admitted provider supplies the
         // descriptor operand under the instruction's checked authority
         // contract, never as an unrestricted source address.
@@ -652,15 +886,103 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 
         // These spell control edges which cannot be represented by the current
         // source form. Direct state jumps use the checked `jmp state(...)` arm.
-        "ret" | "retq" | "retaa" | "retab" | "call" | "callq" | "br" | "blr" => {
-            Refused(HiddenControlExit)
-        }
+        // The list covers the common return/call/branch spellings on both
+        // supported ISAs — x86 near/far/AT&T and operand-size forms including
+        // the interrupt-return spellings (`iret*` separate from the contracted
+        // `iretq` deriver), the whole conditional-branch (`j*`) and `loop`
+        // families, software interrupts, and the AArch64
+        // branch/compare-and-branch/test-and-branch family including the
+        // branch-consistent `bc.cond` head and the pointer-authenticated
+        // branch/return spellings (`b.cond` spellings already refuse at their
+        // `b` mnemonic head) — so each refuses for the semantic reason rather
+        // than as arbitrary unknown text. Supervisor traps (`svc`/`hvc`/`smc`/
+        // `brk` and the x86 `syscall`/`sysenter`/`sysexit` ring calls) are
+        // service-admission candidates, not hidden exits, and stay
+        // unrecognized here.
+        "ret" | "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
+        | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
+        | "ljmp" | "ljmpl" | "br" | "blr" | "b" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
+        | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
+        | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
+        | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"
+        | "jne" | "jz" | "jnz" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe"
+        | "jg" | "jge" | "jl" | "jle" | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js"
+        | "jns" | "jp" | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
 
-        // Recognize common target spellings so they refuse for the semantic
-        // reason, not as arbitrary unknown text. `mov` is included because its
-        // operand mode may access memory; structured operand decoding will
-        // eventually distinguish its register-only form.
-        "mov" | "movq" | "ldr" | "str" | "ldp" | "stp" | "push" | "pop" => {
+        // The register-only move is the structured decoding of `mov`: both
+        // operands are ordinary Omega expressions (a writable destination place
+        // and a readable value), so the copy's provenance, permission and
+        // exact-type contract is the ordinary assignment's. A bracketed
+        // `[address]` operand still refuses as unmodeled memory access, and
+        // an authorized view spells its access as an ordinary indexed place.
+        "mov" | "movq" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: RegisterMove,
+            target: Any,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+
+        // Recognize common memory-addressing spellings so they refuse for the
+        // semantic reason, not as arbitrary unknown text. The list covers the
+        // AArch64 width/signed/unscaled/unprivileged variants, the non-temporal
+        // pair forms, the RCpc/limited-ordering acquire-release spellings, the
+        // complete exclusive and LSE read-modify-write ordering grids, the
+        // 64-byte accelerator block forms, the NEON structure load/store
+        // spells, x86 exchange and compare-exchange forms, the implicit-operand
+        // string and port-string instructions (bare and width-suffixed — the
+        // `movsd`/`cmpsd` SSE scalar spellings stay unrecognized since those
+        // mnemonics have a register-only form), the AT&T stack and flag-store
+        // forms, the far-pointer loads, the xsave/fxsave state families, the
+        // descriptor-table memory operands, the memory-destination
+        // non-temporal stores, and frame setup — each always reads or writes
+        // memory, so no spelling here is a register-only contract candidate.
+        // Address-arithmetic (`lea`), ordering (`dmb`/`dsb`), cache/TLB
+        // maintenance (`cl*`/`tlbi`/`ic`/`dc`), and SIMD register-only moves
+        // do not access memory or belong to a different contract family, and
+        // stay unrecognized rather than borrowing this refusal.
+        "ldr" | "str" | "ldp" | "stp" | "ldnp" | "stnp" | "push" | "pop" | "pushq" | "popq"
+        | "pushw" | "pushl" | "pushf" | "pushfd" | "pusha" | "pushal" | "pushad" | "popa"
+        | "popal" | "popad" | "popw" | "popl" | "popf" | "popfd" | "enter" | "leave" | "ldrb"
+        | "ldrh" | "ldrsb" | "ldrsh" | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb"
+        | "ldurh" | "ldursb" | "ldursh" | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb"
+        | "ldtrh" | "ldtrsb" | "ldtrsh" | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldapr"
+        | "ldaprb" | "ldaprh" | "ldaprsb" | "ldaprsh" | "ldaprsw" | "ldapur" | "ldapurb"
+        | "ldapurh" | "ldapursb" | "ldapursh" | "ldapursw" | "stlur" | "stlurb" | "stlurh"
+        | "ldlar" | "ldlarb" | "ldlarh" | "stllr" | "stllrb" | "stllrh" | "ldxr" | "ldxrb"
+        | "ldxrh" | "stxr" | "stxrb" | "stxrh" | "ldax" | "ldaxr" | "ldaxrb" | "ldaxrh"
+        | "stlxr" | "stlxrb" | "stlxrh" | "ldxp" | "stxp" | "ldaxp" | "stlxp" | "ldar"
+        | "ldarb" | "ldarh" | "stlr" | "stlrb" | "stlrh" | "ld64b" | "st64b" | "st64bv"
+        | "st64bv0" | "ld1" | "st1" | "ld2" | "st2" | "ld3" | "st3" | "ld4" | "st4" | "ld1r"
+        | "ld2r" | "ld3r" | "ld4r" | "swp" | "swpb" | "swph" | "swpa" | "swpal" | "swpl"
+        | "swpab" | "swpah" | "swpalb" | "swpalh" | "swplb" | "swplh" | "cas" | "casb" | "cash"
+        | "casa" | "casal" | "casl" | "casab" | "casah" | "caslb" | "caslh" | "casalb"
+        | "casalh" | "casp" | "caspa" | "caspal" | "caspl" | "ldadd" | "ldaddb" | "ldaddh"
+        | "ldadda" | "ldaddab" | "ldaddah" | "ldaddl" | "ldaddlb" | "ldaddlh" | "ldaddal"
+        | "ldaddalb" | "ldaddalh" | "ldclr" | "ldclrb" | "ldclrh" | "ldclra" | "ldclrab"
+        | "ldclrah" | "ldclrl" | "ldclrlb" | "ldclrlh" | "ldclral" | "ldclralb" | "ldclralh"
+        | "ldeor" | "ldeorb" | "ldeorh" | "ldeora" | "ldeorab" | "ldeorah" | "ldeorl"
+        | "ldeorlb" | "ldeorlh" | "ldeoral" | "ldeoralb" | "ldeoralh" | "ldset" | "ldsetb"
+        | "ldseth" | "ldseta" | "ldsetab" | "ldsetah" | "ldsetl" | "ldsetlb" | "ldsetlh"
+        | "ldsetal" | "ldsetalb" | "ldsetalh" | "ldsmax" | "ldsmaxb" | "ldsmaxh" | "ldsmaxa"
+        | "ldsmaxab" | "ldsmaxah" | "ldsmaxl" | "ldsmaxlb" | "ldsmaxlh" | "ldsmaxal"
+        | "ldsmaxalb" | "ldsmaxalh" | "ldsmin" | "ldsminb" | "ldsminh" | "ldsmina" | "ldsminab"
+        | "ldsminah" | "ldsminl" | "ldsminlb" | "ldsminlh" | "ldsminal" | "ldsminalb"
+        | "ldsminalh" | "ldumax" | "ldumaxb" | "ldumaxh" | "ldumaxa" | "ldumaxab" | "ldumaxah"
+        | "ldumaxl" | "ldumaxlb" | "ldumaxlh" | "ldumaxal" | "ldumaxalb" | "ldumaxalh"
+        | "ldumin" | "lduminb" | "lduminh" | "ldumina" | "lduminab" | "lduminah" | "lduminl"
+        | "lduminlb" | "lduminlh" | "lduminal" | "lduminalb" | "lduminalh" | "xchg" | "xadd"
+        | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat" | "xlatb" | "lds" | "les" | "lss"
+        | "lfs" | "lgs" | "sgdt" | "sidt" | "lgdt" | "movnti" | "movntq" | "movntdq"
+        | "movntdqa" | "bound" | "fxsave" | "fxrstor" | "xsave" | "xsavec" | "xsaves"
+        | "xsaveopt" | "xrstor" | "xrstors" | "movs" | "movsb" | "movsw" | "movsq" | "lods"
+        | "lodsb" | "lodsw" | "lodsq" | "lodsd" | "stos" | "stosb" | "stosw" | "stosq"
+        | "stosd" | "scas" | "scasb" | "scasw" | "scasq" | "scasd" | "cmps" | "cmpsb" | "cmpsw"
+        | "cmpsq" | "ins" | "outs" | "insb" | "insw" | "insd" | "outsb" | "outsw" | "outsd" => {
             Refused(UnmodeledMemoryAccess)
         }
         _ => return None,

@@ -88,10 +88,37 @@ pub(super) fn validate(
         {
             return Err(replay.invalid());
         }
-        let output = replay.result_register(value, site, scalar_type)?;
-        replay.check_instruction(
+        let (kind, transfer_key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
+            scalar_type,
+            &replay.constraints.keys,
+        )
+        .unwrap_or((
             SelectedInstructionKind::CopyI64,
             replay.constraints.keys.copy_i64,
+        ));
+        let class = environment
+            .constraint(transfer_key)
+            .and_then(|row| row.operands.get(1))
+            .ok_or_else(|| replay.invalid())?
+            .class;
+        let output = replay.check_register_class(
+            class,
+            site,
+            scalar_type,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(
+                    replay
+                        .instruction_cursor
+                        .try_into()
+                        .map_err(|_| replay.invalid())?,
+                ),
+                source_value: value,
+            },
+            None,
+        )?;
+        replay.check_instruction(
+            kind,
+            transfer_key,
             &[input, output],
             &SelectedInstructionProvenance {
                 operations: vec![operation.operation],
@@ -174,7 +201,15 @@ pub(super) fn validate(
             _ => return Err(replay.invalid()),
         }
     }
-    operands.sort_by_key(|(position, _)| *position);
+    operands.sort_by_key(|(position, _)| {
+        (
+            call.binding.boundary_entry_plan.call.parameters[*position as usize]
+                .shape
+                .class
+                == calling_conventions::ValueClass::Float,
+            *position,
+        )
+    });
     let mut operands: Vec<_> = operands.into_iter().map(|(_, register)| register).collect();
     let short_result = if let Some(result) = operation.result {
         let class = constraint
@@ -255,9 +290,17 @@ pub(super) fn validate(
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
         let output =
             replay.result_register(result.value, result.definition_site, result.scalar_type)?;
-        replay.check_instruction(
+        let (kind, transfer_key) = crate::selection::scalar_call_abi::incoming_float_transfer(
+            result.scalar_type,
+            &replay.constraints.keys,
+        )
+        .unwrap_or((
             crate::selection::scalar_call_abi::integer_carrier_normalization(result.scalar_type),
             replay.constraints.keys.copy_i64,
+        ));
+        replay.check_instruction(
+            kind,
+            transfer_key,
             &[short_result, output],
             &SelectedInstructionProvenance {
                 operations: vec![operation.operation],

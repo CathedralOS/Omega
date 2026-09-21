@@ -486,8 +486,8 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     // Authored requires clauses lead the roster; parameter-range rows follow
     // as a derived tail so consumers can publish the authored block alone.
     let authored_requires_len = requires.len();
-    // One constraint walk produces the requires tail and the floating roster
-    // together so a `FloatRange` clause and its retained evidence can never
+    // One constraint walk produces the requires tail and the retained
+    // rosters together so a range clause and its retained evidence can never
     // disagree about which authored range they describe.
     let ranges = crate::values::lower_scalar_parameter_range_requirements(program, machine);
     requires.extend(ranges.scalar_clauses);
@@ -499,4 +499,5 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     )
     .with_authored_requires_len(authored_requires_len)
     .with_float_entry_ranges(ranges.float_entry_ranges)
+    .with_integer_entry_ranges(ranges.integer_entry_ranges)
 }

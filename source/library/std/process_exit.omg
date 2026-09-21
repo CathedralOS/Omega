@@ -9,6 +9,7 @@
 use omega::language::core::process_exit;
 use targets::windows_x86_64::process_exit_impl;
 use targets::macos_arm64::process_exit_impl;
+use targets::macos_x86_64::process_exit_impl;
 use targets::linux_x86_64::process_exit_impl;
 use targets::linux_arm64::process_exit_impl;
 

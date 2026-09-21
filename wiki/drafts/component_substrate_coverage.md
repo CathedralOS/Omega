@@ -1,94 +1,85 @@
-# Component-substrate producer/replay coverage inventory
+# Component substrate: producer/replay coverage inventory
 
-Purpose: the COMPONENT-SUBSTRATE item (TASKS.md) sequences "first inventory
-actual producer/replay coverage" before exposing the verified-description
-consumer to independent admission/replacement and TOPOLOGY-PLAN-VERIFICATION.
-This note records that inventory as surveyed at `b855ed85c8`. It is a coverage
-map, not a design proposal; delete or rewrite when the consumer exposure leg
-lands.
+Census of the `COMPONENT-SUBSTRATE` carrier (TASKS.md): which description
+facts have a producer, which have an independent replayer, and which the
+`Remaining work` bullets still owe. Audited on `9e80227d2b`, linux x86-64.
 
-The carrier, codec, and source-free consumer live in
-`omega-rust/omega/backend/artifacts/component-description/`:
-`describe_component_facts` builds the canonical `ComponentDescription` from
-independently supplied facts; `verify_component` re-verifies one against a
-`ComponentVerificationRequest` (subject, admission profile, accepted
-assumptions) and yields `VerifiedComponent`; the wire codec round-trips every
-roster in canonical order.
+## Carrier and producers
 
-## Producers
+`component-description` (schema `COMPONENT_DESCRIPTION_SCHEMA_V2 = 2`) is the
+one canonical description. Two producers share one entrypoint,
+`describe_component_facts(ComponentDescriptionFacts)`:
 
-| Producer | Crate | Facts supplied |
+| Producer | Path | Supplies |
 | --- | --- | --- |
-| `describe_component` | `backend/artifacts/component-candidate` | Full: embedded artifact, selected provider plans, progress manifest, `stack_demand` (emitter-derived `StackDemandFacts`), `realization_identity` (native artifact digest) |
-| `published_independent_component_description` | `compiler` (`compiler/package.rs`) | Psi capsule: artifact, selected provider plans, progress manifest; `stack_demand`/`realization_identity` absent (no native realization yet) |
+| Psi capsule | `compiler::published_independent_component_description` (`compiler/package.rs`), driven by `compile_dependency_closure`'s retry with the `IndependentComponentDiscovery` write-beside output | artifact, selected-provider plans, optional progress manifest; `stack_demand: None`, `realization_identity: None` |
+| Native candidate | `component-candidate/src/lib.rs::describe_component` | the same facts **plus** `StackDemandFacts` and the bound native-realization identity |
 
-Both producers funnel through `describe_component_facts`, which derives the
-module-side inventory (`derive_component_inventory`) and emits imports,
-exports, entries, outgoing authority, service bounds, custody, retained
-providers, obligations, and assumptions in canonical order.
+The native producer is behind the runtime quarantine
+(`tests/architecture/layering.rs` forbids `component-candidate` —
+which joins a native artifact to component policy — inside compilation
+closures). That quarantine, not missing machinery, is why Psi-published
+descriptions leave `stack_demand`/`realization_identity` absent.
 
-The `component-candidate` producer sits behind the runtime quarantine pinned
-by `tests/architecture/layering.rs`
-(`ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners`,
-`component_description_stays_below_the_runtime_quarantine`): only
-`component-deployment` reaches it; compiler/package closures may not.
+## Per-roster replay coverage
 
-## Consumers and replay
+`verify_component` (`component_verification.rs`) re-derives the module
+inventory (`derive_component_inventory` — the shared producer/verifier
+derivation) on its own decode, so no producer row is trusted rather than
+replayed. Consumers: `provider-planning` closes each `Independent` plan via
+`VerifiedComponent::realizes_selected_plan`; `build-evaluation`'s
+`provider_settlement/independent_components.rs` re-verifies attached
+descriptions at settlement; the package-evidence replay re-verifies under the
+build's admission profile; `terminal_artifact/composition_modes.rs` fences
+every settled `Independent` edge out of both product routes.
 
-| Consumer | Location | What it binds |
+| Roster | Producer source | Replayer coverage |
 | --- | --- | --- |
-| `verify_component` | `component-description` | Subject/profile/schema, entries, exports, outgoing authority, custody, providers, service bounds, obligations, assumptions; re-runs `terminal-verifier` on the embedded module under `admission_profile`; authority scan enumerates every `OperationKind` |
-| `realizes_selected_plan` | `provider-planning` (`selection_provenance.rs`, `provider_planning/independent_components.rs`) | Joins each `Independent` selection to exactly one verified component; unmatched rows reject at the fence pinned by `independent_provider_selection_reaches_the_componentization_fence` |
-| `verify_independent_component_descriptions` | `build-evaluation` (`provider_settlement/independent_components.rs`) | Settlement re-verifies attached descriptions under the build's admission profile and authored `accepted_assumptions` roster |
-| Package-evidence replay | `packages/review/evidence` (`capture/providers/policy/replay.rs`) | Re-verifies the settled compilation's retained descriptions instead of hitting the fence again |
-| `verified_components` | `packages/topology` | `AdmittedComponent` binds `verify_component` output to a request; `verified_instance`/`verified_instance_facts`/`check_instance_binding` reconstruct roster entries for `plan_composition`/`plan_verification` — the TOPOLOGY-PLAN-VERIFICATION exposure already exists |
-| Emission fence | `terminal_artifact/composition_modes.rs` via `produce_retained_terminal_artifact`/`produce_program_entry_terminal_artifact` | Rejects a settled `Independent` edge rather than emitting a silently fused artifact |
+| `artifact_bytes` | sealed Terminal artifact | canonical decode + subject re-derivation (`terminal_psi_identity` vs `expected_subject`) + `terminal_verifier` under `admission_profile` + `EarlyFrontier` gate |
+| `imports` | called requirements minus provider-sealed | `check_imports`: only unsealed requirements may slot, contract identity re-derived, no slot omission |
+| `exports` | `inventory.exports` | `check_exports`: exact set equality |
+| `entries` (7 kinds) | `inventory.entries` + assumption-bound declarations | `check_entries`: module-derived exact cover + `AssumptionBound` rows must name an accepted assumption |
+| `outgoing` (3 classes) | called boundaries, port writes, concrete service reach | `check_outgoing`: exact cover; `ProviderSealed` must name a roster provider sealing that requirement; `PhysicalMechanism`/`AssumptionBound` digests must be accepted |
+| `service_bounds` | `inventory.service_bounds` | `check_service_bounds` — exact cover, never folded into `ServiceCeiling` |
+| `custody` (8 kinds) | `inventory.custody` | `check_custody` |
+| `providers` + `provider_closure_digest` | `SelectedProviderPlanFacts` | `check_providers` against inventory + seal map; native side additionally cross-checks closure report/digest |
+| `obligations` (5 kinds) | stack facts, unsealed imports, providers, `ProgramLocalRootIntroduction` custody rows, progress manifest | `check_obligations`: import/provider-occurrence/resource-admission rows are required-presence; stack and progress rows are declared facts the artifact cannot re-derive |
+| `assumptions` | port-mechanism digests | every row must be in the request's accepted roster |
+| `realization_identity` | native candidate only | artifact evidence only; never installation authority |
 
-## Coverage gaps found
+## Gaps this census confirms
 
-- **No admission/replacement consumer of `verify_component` exists.**
-  `component-deployment::begin_component_deployment` takes a
-  `ComponentCandidate` and binds installed-code custody directly (preflight
-  checks target architecture and exact materialized image bytes); it never
-  verifies a description. `component-publication` (`stack_provision.rs`,
-  `callback_registration.rs`) and `executable-installation` likewise never
-  call `verify_component`. The "same consumer" the item wants exposed to
-  independent admission/replacement is today only reached by build-time
-  settlement, evidence replay, and topology.
-- **`stack_demand` and `realization_identity` are Psi-absent by design**:
-  only the quarantined native producer can fill them; compiler-published
-  descriptions leave them unset and nothing invents stand-ins.
-- **No mapping or lease row in the obligation/custody vocabulary.**
-  `ObligationKind` = {StackProvision, ProviderOccurrence, ImportBinding,
-  ProgressDemand, ResourceAdmission}; `CustodyKind` = {PlacedViewInput,
-  ReborrowRootHandoff, ReborrowRestoredCall, CompletionReceipt,
-  ProgramLocalRootIntroduction, BoundaryContentGuarantee,
-  DynamicDescriptorCustody, SuspensionFrontier}. The spec's "mappings" and
-  "leases" (mapping cohorts, code leases — `component_publication.md`) have
-  no row in either enum yet, so no description can demand or carry them.
-  `check_obligations` requires only artifact-derived rows; declared extras
-  pass through, so new kinds are a carrier extension plus whichever Psi /
-  component / provider owner produces the fact — not a consumer change.
-- **The settled `Independent` edge carries nothing into the product** past
-  the emission fence: no symbolic import/export rows, entry/leave or
-  resource demands, or installation/replacement obligations reach the
-  artifact.
-- **Retired-domain and host boundaries**: `describe_component` evidence is
-  publication-only; it grants no callable authority and satisfies none of
-  its obligations. Reading a description grants no callable authority.
+1. **Native facts absent on the Psi path.** `stack_demand` and
+   `realization_identity` stay `None` for compiler-published descriptions —
+   so a Psi-published description emits **no `StackProvision` obligation**
+   either. Delivering them is `component-candidate`'s native route, gated by
+   the runtime quarantine and the native-realization delivery chain, not by
+   missing description machinery.
+2. **No mapping or lease rows can even be spelled.** `ObligationKind` =
+   {StackProvision, ProviderOccurrence, ImportBinding, ProgressDemand,
+   ResourceAdmission}; `CustodyKind` has eight variants — neither enum has a
+   mapping or lease arm, so the row's "ObligationKind and CustodyKind carry
+   no mapping or lease row yet" is a schema-level gap, not a producer gap.
+3. **No carrier into the product for a settled `Independent` edge.** The
+   `composition_modes` fence rejects rather than emitting a silent Fused
+   artifact — symbolic imports/exports, entry/leave, resource demands, and
+   installation/replacement obligations have no product-side representation
+   yet.
+4. **No installation/replacement consumer.** `component-deployment`,
+   `component-publication`, `executable-installation`, `external-roots` are
+   all inside the runtime quarantine; the only consumer of
+   `verify_component` today is the settle-time join. An
+   admission/replacement route and the TOPOLOGY-PLAN-VERIFICATION join do
+   not exist.
 
-## Implications for the exposure leg
+## Consequence for the row's named legs
 
-- Exposing `verify_component` to independent admission means wiring a
-  consumer that currently has none — `component-deployment` (candidate →
-  description → verified admission at `begin_component_deployment`) or a
-  `component-publication` join — not adding a second census inside the
-  verifier.
-- Replacement exposure has no producer of "superseded description" facts at
-  all; `executable-installation` owns generic executable custody, and
-  WIRE-RUNTIME-AND-INSTALLATION still has no provider performing the
-  write-to-execute transition, so component replacement obligations would
-  initially be declared-only rows.
-- Topology's existing `AdmittedComponent` binding is the reference shape for
-  "consumer takes exactly `verify_component` output plus the request it
-  verified under".
+- "Supply the native facts" is blocked on getting a native artifact into a
+  compilation-adjacent closure — the producer exists but is quarantined by
+  design.
+- "Realize the settled edge" is the carrier design: new product-side
+  representation for the obligations/symbolic rows the description already
+  publishes.
+- "Expose the consumer to independent admission/replacement" needs the
+  runtime-quarantined deployment/publication owners as consumers — new
+  admission plumbing, not description changes.

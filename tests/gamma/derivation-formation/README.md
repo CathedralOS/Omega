@@ -9,7 +9,11 @@ selected checked-in Alpha seed; macOS also requires `codesign`. Windows runtime
 validation is not implied by the portable entrypoint.
 
 The gate materializes the complete canonical checker source with one explicit
-diagnostic entry and verifies its `source.tsv` identity. The selected Gamma
+diagnostic entry and verifies its `source.tsv` identity. That entry is the
+bound `main.gamma` prefix packed on the bound member bytes: 1,584 bytes,
+SHA-256 `b5b807031d22f118977edbd63f05cdffa4cf5bd1d2d63c3334c8361e69d43cb4`,
+recorded in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_derivation_formation_entry_identity` before packing. The selected Gamma
 evaluator calls the actual `form_derivation_theory()`. No production functions
 are extracted and no host decoder, sort checker, termination checker, proof
 producer, or replacement implementation is used. `theory_wire.py` reuses only

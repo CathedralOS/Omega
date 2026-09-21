@@ -5,7 +5,10 @@ use super::{
     unit_module, validate_module, verify_module,
 };
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarQualificationSetId};
-use terminal_psi::{ScalarDomainDeclaration, ScalarQualificationCoercion, ScalarQualificationSet};
+use terminal_psi::{
+    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarQualificationCoercion,
+    ScalarQualificationSet,
+};
 
 fn value(raw: u64, set: u64) -> ValueDeclaration {
     ValueDeclaration {
@@ -48,6 +51,7 @@ fn module() -> TerminalModule {
         semantic_domain: DomainSemanticId::new(1).unwrap(),
         identity: "test::Km<u64>".into(),
         carrier: value(1, 0).scalar_type,
+        establishment_routes: Vec::new(),
     }];
     module.scalar_qualifications.sets = vec![ScalarQualificationSet {
         id: ScalarQualificationSetId::new(1),
@@ -286,6 +290,32 @@ fn scalar_membership_cannot_be_forged_on_an_operation_or_consumed_by_arithmetic(
         },
     };
     assert!(validate_module(&forged).is_err());
+}
+
+#[test]
+fn scalar_domain_establishment_routes_require_a_retained_issuer() {
+    let mut module = module();
+    module.scalar_qualifications.domains[0].establishment_routes =
+        vec![ScalarDomainEstablishmentRoute::CheckedRequirement {
+            requirement_identity: "test::Requirement<1>".into(),
+        }];
+    // No boundary, provider, conformance, or dispatch row carries the named
+    // requirement: the forged issuer has nothing to resolve against.
+    assert!(validate_module(&module).is_err());
+    module.scalar_qualifications.domains[0].establishment_routes = vec![
+        ScalarDomainEstablishmentRoute::ExactMachine {
+            machine_identity: "test::issuer".into(),
+        },
+        ScalarDomainEstablishmentRoute::CheckedRequirement {
+            requirement_identity: "test::Requirement<1>".into(),
+        },
+    ];
+    assert!(validate_module(&module).is_err());
+    module.scalar_qualifications.domains[0].establishment_routes =
+        vec![ScalarDomainEstablishmentRoute::CheckedRequirement {
+            requirement_identity: String::new(),
+        }];
+    assert!(validate_module(&module).is_err());
 }
 
 #[test]

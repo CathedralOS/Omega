@@ -16,6 +16,9 @@ use crate::installation_record::codec::internal_unit_call_codec::{
 use crate::installation_record::codec::internal_unit_scalar_call_codec::{
     decode_internal_unit_scalar_calls, encode_internal_unit_scalar_calls,
 };
+use crate::installation_record::codec::opaque_application_codec::{
+    decode_boundary_opaque_applications, encode_boundary_opaque_applications,
+};
 use crate::installation_record::codec::port_effect_codec::{
     decode_port_effects, encode_port_effects,
 };
@@ -116,6 +119,7 @@ pub fn encode_installation_record(
     )?;
     encode_port_effects(&mut bytes, port_effect_count, &record.port_effects)?;
     encode_boundary_settlements(&mut bytes, settlement_count, &record.boundary_settlements)?;
+    encode_boundary_opaque_applications(&mut bytes, &record.boundary_opaque_applications);
     Ok(bytes)
 }
 
@@ -150,6 +154,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
+    let boundary_opaque_applications = decode_boundary_opaque_applications(&mut reader)?;
     if reader.remaining() != 0 {
         return Err(InstallationError::TrailingBytes(reader.remaining()));
     }
@@ -177,6 +182,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
+        boundary_opaque_applications,
         image,
         image_sections,
         compiler_text_validation,

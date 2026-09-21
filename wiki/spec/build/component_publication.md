@@ -361,6 +361,8 @@ Deployment transactions, durable journals, storage synchronization, and restart
 recovery belong to an ordinary runtime/library package or the OS. Omega does not
 define their record format, phase protocol, or rollback/roll-forward procedure,
 and neither compilation nor component installation requires a deployment journal.
+This includes journal fact vocabularies and restart reconstruction of era rosters;
+moving them into a compiler representation does not make them compiler-owned.
 
 Those implementations remain subject to ordinary authority and lifetime rules.
 Reading a stored record cannot manufacture an installed-code capability or

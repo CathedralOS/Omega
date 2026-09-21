@@ -552,10 +552,13 @@ fn retain_available_reference(
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                    | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

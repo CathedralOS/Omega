@@ -10,8 +10,9 @@ cannot drift from the documented format.
 Requires Python 3.9+ and a built ``omega`` binary. No third-party
 packages and no shell-specific runtime; the same file runs on Windows,
 macOS, and Linux. Per-leg peak RSS uses ``os.wait4`` where the platform
-provides it (POSIX); elsewhere the memory metric records ``unavailable``
-rather than omitting the leg silently.
+provides it (POSIX) and a fresh job object's kernel-tracked
+``PeakJobMemoryUsed`` on Windows; elsewhere the memory metric records
+``unavailable`` rather than omitting the leg silently.
 
 Typical use from the repository root of a checkout:
 
@@ -25,6 +26,7 @@ Typical use from the repository root of a checkout:
 """
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -53,14 +55,108 @@ REVIEW_LINE = re.compile(r"^review: (.+)$", re.M)
 PENDING_DECISION = re.compile(r"(?m)^(decision .*) pending$")
 
 
+# Windows peak-RSS accounting: the spawned child is assigned to a fresh job
+# object whose PeakJobMemoryUsed is read after exit. The job counter tracks
+# the peak of the summed working sets of every member, which matches the
+# wait4 rollup the POSIX path reports (the child plus its reaped
+# descendants). Both helpers fail closed to None so the caller keeps
+# recording `unavailable` rather than a wrong number.
+_PROCESS_SET_QUOTA = 0x0100
+_PROCESS_TERMINATE = 0x0001
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
+if sys.platform == "win32":
+    class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", ctypes.c_uint32),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", ctypes.c_uint32),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", ctypes.c_uint32),
+            ("SchedulingClass", ctypes.c_uint32),
+        ]
+
+    class _IO_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_uint64),
+            ("WriteOperationCount", ctypes.c_uint64),
+            ("OtherOperationCount", ctypes.c_uint64),
+            ("ReadTransferCount", ctypes.c_uint64),
+            ("WriteTransferCount", ctypes.c_uint64),
+            ("OtherTransferCount", ctypes.c_uint64),
+        ]
+
+    class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+            ("IoInfo", _IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+
+def _windows_job_assign(proc):
+    """Assign a running child to a fresh job object; return its HANDLE.
+
+    Returns None when the job route is unavailable (no kernel handle,
+    OpenProcess denied, or the child is already bound to a non-nesting job).
+    """
+    kernel = ctypes.windll.kernel32
+    job = kernel.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    process_handle = kernel.OpenProcess(
+        _PROCESS_SET_QUOTA | _PROCESS_TERMINATE
+        | _PROCESS_QUERY_LIMITED_INFORMATION,
+        False,
+        proc.pid,
+    )
+    assigned = bool(process_handle) and bool(
+        kernel.AssignProcessToJobObject(job, process_handle)
+    )
+    if process_handle:
+        kernel.CloseHandle(process_handle)
+    if not assigned:
+        kernel.CloseHandle(job)
+        return None
+    return job
+
+
+def _windows_job_peak_bytes(job):
+    """Read an exited child's job peak in bytes; None when unknown."""
+    if job is None:
+        return None
+    kernel = ctypes.windll.kernel32
+    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    ok = kernel.QueryInformationJobObject(
+        job,
+        _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+        ctypes.byref(info),
+        ctypes.sizeof(info),
+        None,
+    )
+    kernel.CloseHandle(job)
+    if not ok or not info.PeakJobMemoryUsed:
+        return None
+    return info.PeakJobMemoryUsed
+
+
 def run_measured(argv, cwd, stdin_path=None, env=None):
     """Run argv once; return (exit_code, wall_ms, max_rss_bytes|None).
 
     On POSIX the child is waited on with os.wait4 so its own
     max-resident-set is reported, normalized to bytes (Linux reports
-    kilobytes, macOS bytes). Where wait4 is absent (Windows) the wall
-    clock is still measured and the RSS field returns None so the
-    caller records the metric as unavailable rather than guessing.
+    kilobytes, macOS bytes). On Windows the child runs inside a fresh job
+    object and the job's peak working set is reported in bytes. On hosts
+    with neither route the wall clock is still measured and the RSS field
+    returns None so the caller records the metric as unavailable rather
+    than guessing.
     """
     if stdin_path is None:
         stdin_path = os.devnull
@@ -84,6 +180,19 @@ def run_measured(argv, cwd, stdin_path=None, env=None):
             rss *= 1024
         wall_ms = (time.monotonic() - started) * 1000.0
         return exit_code, wall_ms, rss
+    if sys.platform == "win32":
+        stdin = open(stdin_path, "rb")
+        proc = subprocess.Popen(
+            argv, cwd=cwd, stdin=stdin,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=env,
+        )
+        stdin.close()
+        job = _windows_job_assign(proc)
+        proc.wait()
+        peak = _windows_job_peak_bytes(job)
+        wall_ms = (time.monotonic() - started) * 1000.0
+        return proc.returncode, wall_ms, peak
     stdin = open(stdin_path, "rb")
     completed = subprocess.run(
         argv, cwd=cwd, stdin=stdin, env=env,
@@ -125,6 +234,16 @@ def capture_compile(argv, cwd):
         wall_ms = (time.monotonic() - started) * 1000.0
         text = b"".join(chunks).decode("utf-8", "replace")
         return os.waitstatus_to_exitcode(status), wall_ms, rss, text
+    if sys.platform == "win32":
+        proc = subprocess.Popen(
+            argv, cwd=cwd, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        job = _windows_job_assign(proc)
+        text = proc.communicate()[0].decode("utf-8", "replace")
+        peak = _windows_job_peak_bytes(job)
+        wall_ms = (time.monotonic() - started) * 1000.0
+        return proc.returncode, wall_ms, peak, text
     completed = subprocess.run(
         argv, cwd=cwd, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -227,6 +346,23 @@ def accept_pending_decisions(document):
     return settled, count
 
 
+# Review settlement rejects a `(subject, target)` whose build binds no root
+# for that target. That is a property of the pairing, not a failed compile:
+# the subject never reaches a compile at all. `benchmarks.md` asks twice for
+# these to be recorded as non-applicable rows rather than omitted, so the
+# settlement raises this instead of exiting and `measure` writes the row.
+UNBOUND_ROOT_SLOT = re.compile(
+    r"no bound required root slot `[^`]*ProgramEntry`")
+
+
+class SubjectNotApplicable(Exception):
+    """The (subject, target) pairing cannot produce a measurement at all."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
 def settle_package_review(omega, project_dir, target):
     """Accept the generated package review so the project compiles.
 
@@ -263,6 +399,9 @@ def settle_package_review(omega, project_dir, target):
              "--project", str(project_dir)], cwd=str(project_dir))
     lock = project_dir / "omega.lock"
     if code != 0 or not lock.is_file():
+        unbound = UNBOUND_ROOT_SLOT.search(text)
+        if unbound:
+            raise SubjectNotApplicable(unbound.group(0))
         sys.stderr.write(text)
         raise SystemExit(
             f"package-review settlement failed; omega.lock missing in "
@@ -272,6 +411,92 @@ def settle_package_review(omega, project_dir, target):
 
 def unavailable(unit, reason):
     return {"status": "unavailable", "unit": unit, "reason": reason}
+
+
+def non_applicable_record(args, root, repository, omega, selection,
+                          revision, reason):
+    """A committed row for a pairing that cannot be measured at all.
+
+    Every metric is `unavailable` carrying the settlement reason, which is
+    the shape the validator and the matrix already understand; the
+    row-level `applicability` block is what distinguishes "this pairing
+    does not apply" from "a host that could measure it has not yet run".
+    """
+    record = {
+        "schema": SCHEMA,
+        "recorded_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "subject": {
+            "name": args.name or root.parent.name,
+            "root": root.resolve().relative_to(repository).as_posix()
+                    if root.resolve().is_relative_to(repository)
+                    else str(root.resolve()),
+            "source_revision": revision,
+        },
+        "key": {
+            "target": args.target,
+            "selection": selection,
+            "selection_source": "build.omg enable calls plus --enable/--disable",
+        },
+        "applicability": {"status": "non_applicable", "reason": reason},
+        "host": {
+            "os": sys.platform,
+            "machine": platform.machine(),
+            "cpu": cpu_name(),
+            "logical_cpus": os.cpu_count(),
+            "python": platform.python_version(),
+            "rustc": rustc_version(),
+            "omega_binary": str(omega.relative_to(repository))
+                            if omega.is_relative_to(repository)
+                            else str(omega),
+            "omega_profile": "dev" if "debug" in omega.parts else "unknown",
+        },
+        "metrics": {
+            "compile_time_ms": unavailable("ms", reason),
+            "peak_memory_bytes": unavailable("bytes", reason),
+            "code_size_bytes": unavailable("bytes", reason),
+            "runtime_ms": unavailable("ms", reason),
+        },
+        "notes": args.note,
+    }
+    return record
+
+
+# One entry per catalogued deployment profile, in TargetProfile catalog
+# order (omega-rust/omega/representations/target/src/lib.rs). Each entry
+# is the host leg the profile's runtime leg needs; committed records
+# supply measured rows, and these declarations keep legs no matching
+# host has run yet explicit in the matrix rather than absent. `blocked`
+# marks every metric unavailable with one reason; `expect` overrides
+# single legs where a host that can participate still cannot report a
+# metric (UEFI artifacts need QEMU or hardware to run).
+# tools/tests/test_benchmark.py rejects drift from
+# TargetProfile::target_name().
+HOST_LEGS = (
+    {"target": "linux_arm64", "host": "Linux ARM64 host"},
+    {"target": "linux_x86_64", "host": "Linux x86-64 host"},
+    {"target": "macos_arm64", "host": "macOS ARM64 host"},
+    {
+        "target": "macos_x86_64",
+        "host": "macOS x86-64 host",
+        "blocked": "native realization pending; see MACOS-X64-HOST-PROFILE",
+    },
+    {"target": "windows_x86_64", "host": "Windows x86-64 host"},
+    {
+        "target": "uefi_x86_64",
+        "host": "QEMU or UEFI hardware",
+        "expect": {
+            "peak_memory_bytes": "pending (run leg needs a UEFI runtime)",
+            "runtime_ms": "unavailable (needs QEMU or UEFI hardware)",
+        },
+    },
+    {"target": "cross_platform_cli", "host": "build host"},
+    {"target": "local_unchecked", "host": "build host"},
+    {
+        "target": "alpha_bootstrap",
+        "host": "bootstrap chain",
+        "blocked": "realized by the bootstrap chain's own compilers, not this compiler",
+    },
+)
 
 
 def measure(args):
@@ -309,7 +534,12 @@ def measure(args):
         sys.stderr.write(
             "omega.lock missing; settling package review via omega update "
             "(records project acceptance, not an audit)\n")
-        settle_package_review(omega, project_dir, args.target)
+        try:
+            settle_package_review(omega, project_dir, args.target)
+        except SubjectNotApplicable as not_applicable:
+            return non_applicable_record(
+                args, root, repository, omega, selection, revision,
+                not_applicable.reason)
 
     compile_wall = []
     compile_rss = []
@@ -427,8 +657,9 @@ def measure(args):
     }
     if metrics["peak_memory_bytes"]["status"] == "unavailable":
         metrics["peak_memory_bytes"]["reason"] = (
-            "os.wait4 is absent on this host (Windows); per-leg peak RSS "
-            "was not measured"
+            "no peak-RSS accounting route on this host (neither POSIX "
+            "os.wait4 nor Windows job-object accounting reported); per-leg "
+            "peak RSS was not measured"
         )
     if run_status == "skipped":
         metrics["runtime_ms"]["reason"] = "--no-run was passed"
@@ -497,6 +728,21 @@ def validate_record(record, path):
              and all(isinstance(n, str) and RULE_NAME.match(n) for n in names)
              and names == sorted(set(names)),
              f"key.selection.{leg} must be sorted unique exact rule names")
+    # Optional: absent means the pairing applies, so every record written
+    # before this field keeps validating unchanged.
+    if "applicability" in record:
+        applicability = record["applicability"]
+        need(isinstance(applicability, dict),
+             "applicability must be an object when present")
+        if isinstance(applicability, dict):
+            need(applicability.get("status") == "non_applicable",
+                 "applicability.status must be non_applicable")
+            need(isinstance(applicability.get("reason"), str)
+                 and applicability["reason"],
+                 "applicability.reason is required")
+            need(all(record.get("metrics", {}).get(name, {}).get("status")
+                     != "measured" for name in METRIC_NAMES),
+                 "a non-applicable row cannot carry a measured metric")
     host = record.get("host", {})
     for field in ("os", "machine", "omega_binary"):
         need(isinstance(host.get(field), str) and host[field],
@@ -537,6 +783,112 @@ def write_record(record, records_dir):
     path = records_dir / name
     path.write_text(json.dumps(record, indent=2, sort_keys=False) + "\n")
     return path
+
+
+def load_records(records_dir):
+    """Committed records under ``records_dir``; unreadable files skip."""
+    records = []
+    for path in sorted(Path(records_dir).glob("*.json")):
+        try:
+            record = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(record, dict) and record.get("schema") == SCHEMA:
+            records.append(record)
+    return records
+
+
+def measured_cell(name, metric):
+    """One matrix cell's text for a committed record's metric leg."""
+    status = metric.get("status")
+    if status == "measured":
+        if name == "peak_memory_bytes":
+            return f"measured {metric['compile_max_rss']} B compile"
+        if name == "code_size_bytes":
+            return f"measured {metric['value']} B"
+        median = metric.get("median_ms")
+        if median is not None:
+            return f"measured {median:.6g} ms"
+        return "measured"
+    reason = metric.get("reason")
+    if reason:
+        return f"{status} ({reason})"
+    return str(status)
+
+
+def projected_cell(leg, name):
+    """Expected status text for a leg no committed record covers.
+
+    Compile legs run on whichever build host invokes ``measure``;
+    ``runtime_ms`` (and the run side of ``peak_memory_bytes``) needs the
+    leg's named runtime environment. `measurable`/`pending` describe
+    leg availability, never a guessed number.
+    """
+    if "blocked" in leg:
+        return f"unavailable ({leg['blocked']})"
+    expect = leg.get("expect", {})
+    if name in expect:
+        return expect[name]
+    if name == "runtime_ms":
+        return f"pending {leg['host']}"
+    return "measurable"
+
+
+def matrix_rows(records):
+    """Host-row matrix: one row per committed record plus one explicit
+    row per host leg no record covers yet."""
+    by_target = {}
+    for record in records:
+        by_target.setdefault(record["key"]["target"], []).append(record)
+    rows = []
+
+    def measured_row(record):
+        host = record["host"]
+        applicability = record.get("applicability")
+        if applicability:
+            reason = applicability["reason"]
+            cells = [f"non-applicable ({reason})" for _ in METRIC_NAMES]
+        else:
+            cells = [measured_cell(name, record["metrics"][name])
+                     for name in METRIC_NAMES]
+        return [record["key"]["target"],
+                f"{host['os']} {host['machine']}",
+                record["subject"]["name"],
+                selection_label(record["key"]["selection"])] + cells
+
+    for leg in HOST_LEGS:
+        covered = sorted(
+            by_target.pop(leg["target"], []),
+            key=lambda record: (record["subject"]["name"],
+                                selection_label(record["key"]["selection"])),
+        )
+        rows.extend(measured_row(record) for record in covered)
+        # A non-applicable record speaks for one (subject, target) pairing,
+        # not for the leg: it says this subject binds no root there, which
+        # leaves the leg itself as unrun as it was. Only a measurable record
+        # retires the leg's own projected row.
+        measurable = [record for record in covered
+                      if not record.get("applicability")]
+        if not measurable:
+            cells = [projected_cell(leg, name) for name in METRIC_NAMES]
+            rows.append([leg["target"], leg["host"], "—", "—"] + cells)
+    for target in sorted(by_target):
+        for record in sorted(
+                by_target[target],
+                key=lambda record: (record["subject"]["name"],
+                                    selection_label(record["key"]["selection"]))):
+            rows.append(measured_row(record))
+    return rows
+
+
+def matrix_markdown(records):
+    header = ["Target", "Host leg", "Subject", "Selection",
+              "compile_time_ms", "peak_memory_bytes",
+              "code_size_bytes", "runtime_ms"]
+    lines = ["| " + " | ".join(header) + " |",
+             "| " + " | ".join("---" for _ in header) + " |"]
+    lines += ["| " + " | ".join(row) + " |" for row in matrix_rows(records)]
+    return "\n".join(lines)
 
 
 def main():
@@ -584,6 +936,10 @@ def main():
                                 help="path to the omega binary")
     validate_parser = commands.add_parser("validate", help="check record files")
     validate_parser.add_argument("records", nargs="+")
+    matrix_parser = commands.add_parser(
+        "matrix", help="render the host-row coverage matrix as markdown")
+    matrix_parser.add_argument("--records-dir",
+                               default="tools/benchmark/records")
     args = parser.parse_args()
 
     if args.command == "prepare":
@@ -606,6 +962,9 @@ def main():
             return 0
         path = write_record(record, Path(args.records_dir))
         print(f"wrote {path}")
+        return 0
+    if args.command == "matrix":
+        print(matrix_markdown(load_records(Path(args.records_dir))))
         return 0
     problems = []
     for name in args.records:

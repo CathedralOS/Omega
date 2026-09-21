@@ -33,12 +33,18 @@ pub(crate) fn canonical_artifact(
         .unwrap()
 }
 
-/// Reseal a proof section's bundle against a mutated module. The seal binds a
-/// section to the exact module offered beside it, so fixtures that change a
-/// decoded module must restate the seal rather than replay stale bytes.
-pub(crate) fn reseal_proof(module: &TerminalModule, proof: &[u8]) -> Vec<u8> {
-    let bundle = terminal_codec::decode_proof_bundle(proof).unwrap();
-    terminal_codec::encode_proof_section(module, &bundle).unwrap()
+/// Encode a fixture's module and proof sections together. The seal binds the
+/// proof section to the exact module offered beside it, so fixtures that build
+/// or mutate a typed module seal once here rather than restating a stale
+/// section.
+pub(crate) fn encode_fixture_sections(
+    module: &TerminalModule,
+    proof: &ProofBundle,
+) -> (Vec<u8>, Vec<u8>) {
+    (
+        terminal_codec::encode_module(module).unwrap(),
+        terminal_codec::encode_proof_section(module, proof).unwrap(),
+    )
 }
 
 /// Build certificates for exact integer operations in a fixture.

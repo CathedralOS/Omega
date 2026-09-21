@@ -1,0 +1,1 @@
+asm instruction `wbnoinvd`, which requires a FREESTANDING boundary root

@@ -374,8 +374,9 @@ fn closed_indexed_domain_canaries() {
     let uses = &checked.facts.qualifications.vacuous_uses;
     assert_eq!(
         uses.len(),
-        3,
-        "closed qualification plus both concrete generic instances should be retained"
+        4,
+        "the concrete closed qualification, the open `retag_i64` template, \
+         and both concrete generic instances should each be retained"
     );
     for use_fact in uses {
         let machine = checked
@@ -394,10 +395,19 @@ fn closed_indexed_domain_canaries() {
         else {
             panic!("indexed qualification canary result should remain constrained");
         };
-        let [typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
-            checked.type_reference_table.constraints(*constraints)
-        else {
-            panic!("indexed qualification canary result should carry one domain");
+        // The bounded carrier may add a range constraint beside the declared
+        // domain; the evidence check selects exactly the domain member.
+        let domain_constraints = checked
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .filter_map(|constraint| match constraint {
+                typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [result_domain] = domain_constraints.as_slice() else {
+            panic!("indexed qualification canary result should carry exactly one domain");
         };
         assert_eq!(
             use_fact.semantic_domain, result_domain.semantic_id,

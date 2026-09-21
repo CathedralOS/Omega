@@ -38,6 +38,10 @@ mod claims_and_effects;
 mod cyclic_receiver;
 #[path = "unit/effect_modules.rs"]
 mod effect_modules;
+#[path = "unit/embedding_lifetimes.rs"]
+mod embedding_lifetimes;
+#[path = "unit/evidence_substitution.rs"]
+mod evidence_substitution;
 #[path = "unit/ieee_float_comparisons.rs"]
 mod ieee_float_comparisons;
 #[path = "unit/indexed_primitive_stores.rs"]

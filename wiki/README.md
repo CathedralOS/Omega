@@ -66,12 +66,14 @@ beside code; completed work belongs in Git, not current reference material.
   [placed access](spec/resources/placed_access.md),
   [device custody and ordering](spec/resources/device_access.md),
   [carry demands](spec/resources/carry.md),
+  [runtime-sized activation storage](spec/resources/activation_storage.md),
   [allocation strategies](spec/resources/allocation.md),
   [bounded byte input](spec/resources/bounded_input.md), and
   [bounded growth](spec/resources/bounded_growth.md).
 - Build: [declarations and package identity](spec/build/declarations.md),
   [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
+  [requirement-based test groups](spec/build/testing.md),
   [selected-product behavior exclusions](spec/build/behavior_exclusions.md),
   [optimization selection and validation](spec/build/optimizations.md),
   [target slots and entry roots](spec/build/entry_roots.md),
