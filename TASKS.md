@@ -2876,111 +2876,81 @@ syntax and other terminal services are not prerequisites.
   missing-evidence controls. Native FMA transport belongs to
   **X86-FMA-PROVIDER-TRANSPORT**; constants to **FLOAT-IDENTITY-LITERAL-CARRIER**.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
-  descriptor invocation and forwarding, beginning with a non-entry helper that
-  receives one borrowed two-word descriptor, forwards it once, invokes a
-  requirement, and uses its result across computations and branches. The
-  dependency is an ordinary indirect-call operand and its ABI, clobber, effect,
-  and reach contract, not another whole-body recognizer. Do not resume
-  target-only descriptor composition: two such milestones left this native
-  customer unsupported.
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Finish ordinary native
+  borrowed-descriptor invocation and forwarding under
+  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
+  Start with the non-entry helper that forwards a descriptor, dispatches
+  through it, and uses the result across calculations and branches.
+  `forwarded_descriptor_calculations_execute_through_verified_artifact`
+  establishes source-to-artifact interpreter execution; Target/Legalized
+  descriptor ABI replay also exists. Instruction selection still rejects
+  `LegalizedScalarInstructionKind::DynamicParameterCall`.
+  The next milestone must advance this native customer, not repeat
+  target-only descriptor composition.
 
-  Source helpers retain scalar bindings around forwarding/dispatch and their
-  actual returning control through the shared scalar evaluator
-  (`checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit/forwarded_helpers.rs`).
-  The source-to-verified-artifact interpreter regression
-  `forwarded_descriptor_calculations_execute_through_verified_artifact` observes
-  both branches and a computation after final dispatch; substituted helper
-  bodies and disagreeing join rosters reject (verified at `87102d60aa` on
-  macOS ARM64). Resume on macOS with
-  `RUST_MIN_STACK=67108864 cargo nextest run -p checked-trees-to-lowered-psi --lib --no-fail-fast -E 'test(dynamic_composed_unit)'`.
-  This establishes semantic execution, not native publication. Extra effects,
-  mutable helper locals, and differing helper/requirement result carriers still
-  need composition through their ordinary operation owners.
+  Connect the ordinary indirect-call operand through selected construction/
+  replay, register allocation, ISA encoding and emission, then exact immutable
+  table, relocation and final-image custody. Preserve the requirement-owned
+  erased caller shape, ABI/clobber/effect/reach obligations, original referent
+  and selected table through joins; Unit calls have no invented result home.
+  Tables, zero trap slots and nonoverlapping descriptor/result storage must
+  remain independently reconstructible. Remove superseded forwarded-call
+  recognizers/records as the ordinary route replaces them, rather than adding
+  another whole-body pattern or unproved devirtualization.
+  Complete source composition through ordinary ordered-operation/storage
+  owners: `unit/dynamic_composed_unit/forwarded_helpers.rs` still rejects
+  extra effects, mutable helper locals and different helper/requirement result
+  carriers. Retain their own call/result identities and access/effect evidence.
 
-  `abstract-operations-to-target-operations` lowers the descriptor parameter
-  to `DynamicParameter{Scalar,Unit}Call` with two pointer
-  words per descriptor, and independently replays roster binding, requirement
-  slot, dispatch plan, table offset, obligations and result home
-  (`lowering/unit/parameter_dynamic.rs`, `tests/dynamic_parameters.rs`). The
-  next stage names them and stops at instruction selection.
+  Acceptance: a source-rooted closed-conformance fixture publishes and
+  independently replays Linux x86-64/AArch64, executes on matching hosts,
+  selects distinct implementations at runtime, and preserves surrounding
+  calculations and writes to the original referent. Reject substituted
+  instance/table/slot/ABI/access/relocation/code-span evidence. Retain the
+  interpreter and legalization mutation controls; include an additional
+  ordered effect, mutable local and differing helper/requirement scalar result.
+  Receiver-entry provisioning is a separate dependency of that entry customer,
+  not of a non-entry helper.
+  Owned erased cleanup remains with
+  **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
 
-  Remaining work, by owner:
+- **TARGET-SEMANTIC-APPLICATIONS.** Complete the portable
+  [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)
+  and artifact-qualified
+  [application closure](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
+  Provider-dependent const applications already defer and fold under exact
+  selected execution. Preserve named/token, field/let/return, alternate-provider
+  and unselected-provider controls rather than rebuild that route.
 
-  - `target-operations-to-selected-instructions`: the legalized
-    `DynamicParameterCall` representation, legalization admission, and
-    target-side plus legalized replay custody are restored for
-    `DynamicParameter{Scalar,Unit}Call` — the descriptor ABI row, requirement
-    slot, erased dispatch plan, table offset, and result home recompute from
-    the roster and target ABI. Selection still names no
-    `SelectedInstructionKind` for it: remaining work is the selected call
-    representation and its construction/validation replay.
-  - ISA crates: selected encoding/decoding and post-allocation emission.
-  - `native-artifact` and image crates: table and relocation custody.
-  - Delete the superseded Unit/scalar parameter recognizers with that closure.
-    Candidates: `machine_code::ForwardedDynamicParameterCallRecord`, which no
-    non-test producer fills, and image-emission's
-    `object_artifact/replay/dynamic/forwarded_{descriptor,parameter}.rs`, which
-    admit at most one forwarded call per function. Do not substitute raw
-    function pointers or unproved devirtualization.
+  Retain sealed versioned target semantics, exact selected plans,
+  implementations and arguments as replayable inputs shared with realization.
+  Typed observations name their actual address-space/layout/format/profile
+  subject and reject unresolved subjects; compiler-host state supplies none.
+  Reuse ordinary typed arguments and compiler-materialized target data where
+  they express the customer. The spec does not approve a general
+  `TargetSemantics::*` source API; do not add one merely to implement the
+  capsule. A genuinely missing observation capability needs a concrete
+  customer and the normal owner-escalation audit.
 
-  Acceptance: a source-rooted closed-conformance native differential fixture
-  publishes and independently replays Linux x86-64/AArch64, executes on matching
-  hosts, selects distinct table implementations at runtime, and preserves the
-  original referent and surrounding calculations. Reject substituted instance,
-  table, slot, ABI, access, and code-span custody. Receiver-backed executable
-  entry provisioning remains a separate dependency for the existing
-  receiver-entry canary.
+  Extend package manager review's `symbolic_boundary_applications` beyond
+  explicitly supplied direct-type-binder requests to the complete reachable
+  specialization set, preserving original mappings and complete canonical
+  arguments for replay. Recheck actual reach, transitive proof obligations,
+  target facts, admission and selected realization after substitution.
+  A reviewed closed demand alone grants no Terminal/native, coverage or
+  installation authority; complete-set composition is not an install/update
+  prerequisite. Preserve the distinction between an operator's canonical
+  empty telescope and a boundary-trait call with no telescope. Physical-child
+  binding stays with TRANSLATION-VALIDATION in `TASKS_OPTIMIZER.md`.
 
-  Lane status (re-verified at `479ceb0e68`, linux x86-64 — see
-  `wiki/drafts/restore_dynamic_descriptor_and_table_custody.md`): the two
-  landed legs stay green — `checked-trees-to-lowered-psi --lib
-  -E 'test(dynamic_composed_unit)'` 46/46 and
-  `abstract-operations-to-target-operations --lib
-  -E 'test(dynamic_parameters)'` 9/9 — and the residual is unchanged: no
-  `SelectedInstructionKind` names `DynamicParameterCall` (selection
-  construction/validation still fall to `Err(invalid())`), and the
-  superseded `ForwardedDynamicParameterCallRecord` and
-  `forwarded_{descriptor,parameter}.rs` recognizers still stand. The
-  remaining-work surfaces are live-fenced this wave:
-  `selection/construction` + `machine_code/calls` under
-  CALLBACK-PRIVATE-MATERIALIZATION (~09:13Z), `legalization/` under
-  X86-FMA-PROVIDER-TRANSPORT (~09:07Z), `isa-aarch64/src` under
-  NATIVE-WRAPPER-ENCODING-AARCH64 (~12:04Z), `isa-x86_64` partials under
-  UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z), `image-emission` lib +
-  hosted_receiver under PLAN-LAID-VIEWS (~09:25Z). The selection-stage arm
-  that gates every later leg sits inside the live selection fence, so no
-  unfenced implementable slice exists.
-
-- **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
-  hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  Connect provider-dependent const-generic arguments (fields, `let`
-  annotations, return types) to Omega's actual provider plan through the
-  [semantic evaluation owner](omega-rust/psi/semantics/build-time-evaluation/README.md#semantic-admission-boundary).
-  `const_evaluation/const_generic_calls.rs` runs before Build and currently
-  rejects these uses; it cannot choose a body by scanning visible satisfiers.
-  Preserve the dependent application until selected execution is available,
-  using `machine_execution/selected_operators.rs` and independently checked
-  fold custody, as the fixed-array-length continuation does. If Build itself
-  depends on that pending application, report the dependency cycle.
-  Acceptance: the same const application selects either of two authored
-  provider bodies through distinct build plans and materializes their distinct
-  results; adding an unselected satisfier changes neither result nor admission.
-  Cover named and token calls, reject absent/substituted selection and forged
-  results, and preserve provider-free const application evaluation
-  (`tests/omega/pass/generics/authored_const_application_local_destination`).
-  Complete the
-  portable target capsule and its application identity; a checked
-  source fold alone does not establish cross-artifact closure. Finish
-  artifact-qualified symbolic substitution for separately compiled generics;
-  recheck the reachable specialization's actual capability reach, proof
-  obligations, target facts, and selected realization after closing every
-  argument. Boundary-operator empty telescopes remain distinct from
-  boundary-trait calls with no telescope. Acceptance: cross-artifact canaries
-  preserve actual reach and transitive open obligations, reject stale or
-  substituted applications, and grant no coverage to unresolved arguments.
-  Physical-child binding belongs to `TRANSLATION-VALIDATION` in
-  `TASKS_OPTIMIZER.md`.
+  Acceptance: source-free cross-artifact customers reproduce exact selected
+  application/target identity and all reachable obligations; missing, extra,
+  stale, substituted or unresolved mappings cannot acquire coverage.
+  Retain provider-free evaluation, distinct selected const results and
+  false-result/unselected controls. Reject a build dependency cycle rather
+  than searching visible satisfiers or silently choosing a body.
+  Checked-source folding or a manually supplied closure request alone does
+  not close this acceptance.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish explicit public
   `boundary requirement Owner::name(...);` declarations under
