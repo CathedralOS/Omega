@@ -7545,7 +7545,47 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   pass_canaries_compile still fails identically ("selected ProgramEntry
   establishment rejoins 0 Terminal attachment identities; expected one",
   47s compile) — the moved-failure persists; no in-fence slice exists.
-- **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION.** — mined candidate; verify scope then implement.
+- **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION.** Mined candidate — scope
+  verified at `bc0ed1f0f5` (linux x86-64): the name re-mines the deferred
+  Cathedral-side clause in
+  [cathedral_alignment.md](wiki/drafts/cathedral_alignment.md) ("Atomics
+  retain actual ordering events in terminal Psi. Portable protocol
+  verification remains blocked until the event model and target refinements
+  are settled; target-specific checked operations may land earlier"). Every
+  named dependency is still gated upstream and no implementable slice exists
+  on this host:
+
+  - The event model exists only inside one activation and only above
+    Terminal Psi — `abstract-operations`' `AtomicEvent` operations retain
+    `reads_from`/`modification_after` edges replayed by
+    `optimization-unit-semantics`' `happens_before_atomic_coherence_violation`
+    — while the cross-activation content (`synchronizes_with`,
+    `global_sequential_order`, fence-pair synchronization) has no checkable
+    form until a concurrent-execution route exists. Re-verified: no atomic
+    operation or ordering-event type exists in `terminal-psi`,
+    `target-operations`, `selected-instructions`, or
+    `abstract-operations-to-target-operations` — there is nothing for a
+    portable protocol check to consume.
+  - That route is TR3-TR8's: its static carriers (sealed `StackPlan`,
+    nonmoving `StackLease`, `TaskRuntimeAdmission`, routed `Task<T>`
+    establishment) are landed, but a real selected runtime executing the
+    ledger's transitions still does not exist (`backend/runtime/` hosts no
+    task executor), and ATOMIC-MEMORY-MODEL records "Nothing implementable
+    remains ahead of that route; re-dispatch only once TR3-TR8 publishes
+    it."
+  - The Cathedral-side consumers named "portable protocol verification"
+    (serialized/revocable capability protocols, partition-tolerant leases)
+    are deferred customer asks in the same doc — they carry no source
+    semantics or acceptance tests yet.
+
+  All three legs reduce to the same published gate: a protocol-verification
+  check needs normalized atomic events in Terminal Psi plus the
+  concurrent-execution route those events verify under; both are owned by
+  ATOMIC-MEMORY-MODEL/TR3-TR8 and explicitly unlanded. The one early-landing
+  lane the clause allows — target-specific checked operations — is already
+  the ATOMIC-MEMORY-MODEL serial surface (matrix pins + coherence replay,
+  still green). No residual slice exists under this name; re-dispatch when
+  TR3-TR8's selected runtime exists.
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
   main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):
