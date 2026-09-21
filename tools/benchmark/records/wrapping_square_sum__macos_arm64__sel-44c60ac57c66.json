@@ -1,0 +1,101 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-21T16:52:54Z",
+  "subject": {
+    "name": "wrapping_square_sum",
+    "root": "samples/cli/arithmetic/wrapping_square_sum/main.omg",
+    "source_revision": "aaecfe21013f06d03b459ca73367c5ce776be193"
+  },
+  "key": {
+    "target": "macos_arm64",
+    "selection": {
+      "enabled": [
+        "ControlFlowCleanup",
+        "CopyPropagation",
+        "DeadPureScalarElimination",
+        "GlobalValueNumbering",
+        "ProofCheckElision",
+        "SparseConditionalConstantPropagation"
+      ],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M4",
+    "logical_cpus": 10,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        19903.218333,
+        19725.203792,
+        19684.581583000003
+      ],
+      "median_ms": 19725.203792,
+      "min_ms": 19684.581583000003,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 17.186,
+        "compile: sources -> requested product": 19581.015,
+        "publish: retained product -> published product": 81.118,
+        "Stage 01: SourceFiles -> TokenStreams": 5.668,
+        "Stage 02: TokenStreams -> SyntaxTrees": 4.055,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 84.753,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 14.792,
+        "Stage 05: TypedTrees -> CheckedTrees": 15326.68,
+        "total elapsed": 19679.817
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 123535360,
+      "run_max_rss": 1359872
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        16640,
+        16640,
+        16640
+      ],
+      "value": 16640,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        6.500833999993461,
+        2.847500000001446,
+        2.882249999998976,
+        2.782958000011604,
+        2.6709170000032145
+      ],
+      "median_ms": 2.847500000001446,
+      "min_ms": 2.6709170000032145,
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "exit_code_expected": 0,
+      "stdin": "devnull",
+      "exit_code_match": true
+    }
+  },
+  "notes": [
+    "macOS arm64 host row: native target, runtime leg measured rather than skipped"
+  ]
+}

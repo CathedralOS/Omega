@@ -65,6 +65,7 @@ when this block drifts.
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-b936e1ff6607 | measured 32298.3 ms | measured 156192768 B compile | measured 8192 B | measured 4.47536 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-bacb0af6ca52 | measured 32416.8 ms | measured 156332032 B compile | measured 8192 B | measured 4.61253 ms |
 | macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
+| macos_arm64 | darwin arm64 | wrapping_square_sum | sel-44c60ac57c66 | measured 19725.2 ms | measured 123535360 B compile | measured 16640 B | measured 2.8475 ms |
 | macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
 | windows_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 24117.5 ms | measured 147505152 B compile | measured 1024 B | skipped (--no-run was passed) |
