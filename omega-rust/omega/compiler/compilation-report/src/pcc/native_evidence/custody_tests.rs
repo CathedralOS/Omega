@@ -2690,9 +2690,9 @@ const COFF_TEXT_FILE_OFFSET: u64 = 0x200;
 fn pe32_plus_header(image_base: u64, entry_rva: u32) -> Vec<u8> {
     const PE_OFFSET: usize = 0x80;
     let mut header = vec![0u8; COFF_TEXT_FILE_OFFSET as usize];
-    header[..2].copy_from_slice(&[b'M', b'Z']);
+    header[..2].copy_from_slice(b"MZ");
     header[0x3c..0x40].copy_from_slice(&(PE_OFFSET as u32).to_le_bytes());
-    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(&[b'P', b'E', 0, 0]);
+    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(b"PE\0\0");
     let optional = PE_OFFSET + 24;
     header[optional..optional + 2].copy_from_slice(&0x20bu16.to_le_bytes());
     header[optional + 16..optional + 20].copy_from_slice(&entry_rva.to_le_bytes());
@@ -2863,12 +2863,10 @@ fn container_declared_entry_lands_on_a_committed_region_boundary() {
     }
     // A null entry and a container that does not parse as ELF64 both leave
     // the leg silent.
-    for entry in [0] {
-        let (evidence, executable) = elf_entry_pair(entry);
-        evidence
-            .replay_against(&executable)
-            .expect("a null e_entry declares no checkable entry");
-    }
+    let (evidence, executable) = elf_entry_pair(0);
+    evidence
+        .replay_against(&executable)
+        .expect("a null e_entry declares no checkable entry");
     let (evidence, executable) = honest_pair();
     evidence
         .replay_against(&executable)
