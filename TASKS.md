@@ -21,7 +21,11 @@ paragraph it makes stale, so an open item states its current frontier once.
 A confirmation that changes nothing is not board evidence: record it on the
 claim's notes (`claims.py note`) and in the session verdict instead — a row
 carries at most one current verification line, and a resolved or covered row
-is not stamped again. Reopen a closed row only when the new evidence changes
+is not stamped again. A rerun that reproduces the recorded verdict at a newer
+revision is such a confirmation: it lands no restamp. Serial witness
+paragraphs ("re-verified a second/third time", "fourth witness") are noise —
+fold a materially new observation into the row's single verification line and
+drop the rest. Reopen a closed row only when the new evidence changes
 its frontier.
 Cite revisions as published on `main` (landing rewrites worktree SHAs) and
 prefer symbol or test names over line numbers, which drift.
