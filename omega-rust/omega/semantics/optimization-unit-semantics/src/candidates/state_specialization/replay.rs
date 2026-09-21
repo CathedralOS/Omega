@@ -264,9 +264,14 @@ fn comparison_operands(
 /// through an in-block integer comparison against a literal — no globally
 /// proven constant for that parameter, and only constant-supplied incoming
 /// edges with empty affine and structural custody — an unconditional `Jump`
-/// successor or one arm of a `Conditional` predecessor. When every incoming
-/// edge qualifies the dispatch would be orphaned, so the plan reports no rows.
+/// successor or one arm of a `Conditional` predecessor. The bound argument's
+/// constant is proven by the replayed lattice, or by the result
+/// specialization: the argument is the scalar result of an in-function direct
+/// `Call` whose callee carries exactly one `Return` with a constant the
+/// callee's own replayed lattice proves. When every incoming edge qualifies
+/// the dispatch would be orphaned, so the plan reports no rows.
 fn plan_dispatch(
+    input: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     dispatch: BlockId,
     constants: &BTreeMap<ValueId, ScalarConstantValue>,
@@ -382,10 +387,17 @@ fn plan_dispatch(
         else {
             continue;
         };
-        let Some(constant) = constants
-            .get(&binding.argument)
-            .and_then(|constant| condition_kind.resolve(constant))
-        else {
+        // The replayed lattice proves the argument's own value, or the
+        // argument resolves to the proven-constant scalar result of an
+        // in-function direct call — recomputed here from the callee's own
+        // function. An evaluated state-call argument is delivered through
+        // forwarding-block parameters, so the delivered value is resolved
+        // before the call proof.
+        let constant = constants.get(&binding.argument).copied().or_else(|| {
+            let delivered = delivered_argument(function, *owner_block, binding.argument);
+            call_result_constant(input, function, delivered)
+        });
+        let Some(constant) = constant.and_then(|constant| condition_kind.resolve(&constant)) else {
             continue;
         };
         let (resolved, rejected) = if constant {
@@ -425,6 +437,102 @@ fn plan_dispatch(
         edges.clear();
     }
     Some(edges)
+}
+
+/// The value actually delivered to the dispatch parameter by `argument`,
+/// replayed identically to the producer's resolution: the lowering delivers
+/// an evaluated state-call argument through single-predecessor forwarding
+/// blocks, so while `argument` is a parameter of `owner_block` and that
+/// block has exactly one incoming edge, the unique binding supplies the
+/// delivered value. A multi-predecessor join or a non-parameter produced
+/// value stops the merge-free walk; the block count bounds it because the
+/// replayed machine is acyclic at admission.
+fn delivered_argument(
+    function: &PsiOptimizationFunction,
+    owner_block: BlockId,
+    argument: ValueId,
+) -> ValueId {
+    let mut owner_block = owner_block;
+    let mut argument = argument;
+    for _ in 0..function.blocks.len() {
+        let Some(block) = function.blocks.iter().find(|block| block.id == owner_block) else {
+            break;
+        };
+        if !block
+            .parameters
+            .iter()
+            .any(|parameter| parameter.value == argument)
+        {
+            break;
+        }
+        let mut incoming = function.blocks.iter().flat_map(|candidate| {
+            candidate.nodes.iter().flat_map(move |node| {
+                node.successors
+                    .iter()
+                    .filter(move |successor| successor.target == owner_block)
+                    .map(move |successor| (candidate.id, successor))
+            })
+        });
+        let (Some((predecessor_block, predecessor_edge)), None) =
+            (incoming.next(), incoming.next())
+        else {
+            break;
+        };
+        let Some(binding) = predecessor_edge
+            .bindings
+            .iter()
+            .find(|binding| binding.parameter == argument)
+        else {
+            break;
+        };
+        argument = binding.argument;
+        owner_block = predecessor_block;
+    }
+    argument
+}
+
+/// The result-specialization proof replayed for one delivered argument: the
+/// argument is the scalar `result` of an in-function direct `Call` whose
+/// callee's function contains exactly one `Return` node, and the returned
+/// value is constant under the callee's own independently recomputed
+/// lattice — never trusted from the candidate. The call still executes at
+/// the predecessor, so no callee purity is required and a cyclic callee is
+/// harmless; dynamic, structural, and boundary calls produce results through
+/// different operations and never match, nor does a callee with several
+/// `Return` nodes or a non-constant return.
+fn call_result_constant(
+    input: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    argument: ValueId,
+) -> Option<ScalarConstantValue> {
+    let callee = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::Call { result, callee, .. } if *result == argument => Some(*callee),
+            _ => None,
+        })?;
+    let callee_function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)?;
+    let mut returned = callee_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::Return { value, .. } => Some(*value),
+            _ => None,
+        });
+    let value = returned.next()?;
+    if returned.next().is_some() {
+        return None;
+    }
+    validator_scalar_constant_facts(input.identity, callee_function)
+        .into_iter()
+        .find(|(fact_value, _, _)| *fact_value == value)
+        .map(|(_, constant, _)| constant)
 }
 
 /// The fused node a specialization admits at one predecessor site: every
@@ -800,7 +908,7 @@ pub(super) fn validate(
         .into_iter()
         .map(|(value, constant, _)| (value, constant))
         .collect::<BTreeMap<ValueId, ScalarConstantValue>>();
-    let replayed = plan_dispatch(function, patch.dispatch, &constants)
+    let replayed = plan_dispatch(input, function, patch.dispatch, &constants)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if replayed.is_empty() {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);

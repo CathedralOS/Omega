@@ -1739,6 +1739,505 @@ fn replay_rejects_forged_integer_arm_rows() {
     );
 }
 
+/// The result specialization: `warm` binds the dispatch parameter `f` to the
+/// scalar result of a direct `Root::flag()` call, spelled inline as the edge
+/// argument. `flag` carries exactly one `Return` whose value the callee's
+/// own lattice proves `true`, so the call's result is a proven constant even
+/// though the sparse lattice leaves every call result overdefined — the
+/// bound argument's constant is the callee's proven result. `warm`'s jump
+/// edge fuses with the `when_true` arm while the entry's `_` arm keeps the
+/// still-variable parameter and the dispatch reachable.
+const CALL_RESULT_TAKEN_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::flag() -> bool { true }
+
+    machine Root::run(mode: u32 in Wrapping, pick: bool)
+    {
+        transition pick {
+            true -> warm(mode)
+            _ -> choose(pick, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            transition { _ -> choose(Root::flag(), m) }
+        }
+        state choose(f: bool, m: u32 in Wrapping) {
+            transition f {
+                true -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// The integer member of the result specialization: `warm` binds `i` to the
+/// `u64` result of `Root::size()` — a constant-result callee — and the
+/// dispatch reads `i` through `i < 4`. The proven `3` satisfies the bound,
+/// so `warm`'s edge resolves the `when_true` arm.
+const CALL_RESULT_INTEGER_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::size() -> u64 { 3 }
+
+    machine Root::run(idx: u64, mode: u32 in Wrapping)
+    {
+        transition idx {
+            0 -> warm(mode)
+            _ -> choose(idx, mode)
+        }
+        state warm(m: u32 in Wrapping) {
+            transition { _ -> choose(Root::size(), m) }
+        }
+        state choose(i: u64, m: u32 in Wrapping) {
+            transition i < 4 { true -> left(m) _ -> right(m) }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// A callee whose result is not a single proven constant: `pick` carries two
+/// `Return` nodes across its `yes`/`no` states, so its result is not one
+/// exact constant and `warm`'s call-result edge cannot specialize.
+const CALL_RESULT_MULTI_RETURN_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::pick(b: bool) -> bool {
+        transition b {
+            true -> yes()
+            _ -> no()
+        }
+        state yes() -> bool { true }
+        state no() -> bool { false }
+    }
+
+    machine Root::run(mode: u32 in Wrapping, sel: bool)
+    {
+        transition sel {
+            true -> warm(mode, sel)
+            _ -> choose(sel, mode)
+        }
+        state warm(m: u32 in Wrapping, b: bool) {
+            transition { _ -> choose(Root::pick(b), m) }
+        }
+        state choose(f: bool, m: u32 in Wrapping) {
+            transition f {
+                true -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// A callee whose single `Return` carries a still-variable parameter: `echo`
+/// returns exactly what it is given, so its result is not a proven constant
+/// and `warm`'s call-result edge cannot specialize.
+const CALL_RESULT_VARIABLE_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::echo(b: bool) -> bool { b }
+
+    machine Root::run(mode: u32 in Wrapping, sel: bool)
+    {
+        transition sel {
+            true -> warm(mode, sel)
+            _ -> choose(sel, mode)
+        }
+        state warm(m: u32 in Wrapping, b: bool) {
+            transition { _ -> choose(Root::echo(b), m) }
+        }
+        state choose(f: bool, m: u32 in Wrapping) {
+            transition f {
+                true -> left(m)
+                _ -> right(m)
+            }
+        }
+        state left(x: u32 in Wrapping) {}
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+/// The result specialization inside a machine carrying an authenticated
+/// cyclic component: `warm`'s call-result edge would fuse the proven `true`
+/// result to the `when_true` arm, but `spin`'s self-recursion freezes the
+/// whole machine byte-exact — the constant-result callee `flag` stays
+/// acyclic and unaffected.
+const CALL_RESULT_CYCLIC_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::flag() -> bool { true }
+
+    machine Root::spin(seed: bool, mode: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition seed {
+            true -> warm(mode, remaining)
+            _ -> choose(seed, mode, remaining)
+        }
+        state warm(m: u32 in Wrapping, r: u32 [0..=5]) {
+            transition { _ -> choose(Root::flag(), m, r) }
+        }
+        state choose(f: bool, m: u32 in Wrapping, r: u32 [0..=5]) {
+            transition f {
+                true -> again(f, m, r)
+                _ -> right(m)
+            }
+        }
+        state again(go: bool, s: u32 in Wrapping, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> spin(go, s, pending - 1)
+                _ -> right(s)
+            }
+        }
+        state right(x: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn call_result_state_argument_specializes_the_dispatch() {
+    let session = lowered_session(CALL_RESULT_TAKEN_SOURCE, "call-result specialization");
+    let unit = session.unit().clone();
+    let (machine, dispatch, parameter) = unit
+        .functions
+        .iter()
+        .find_map(|function| {
+            parameter_dispatch(&unit, function.machine)
+                .map(|(dispatch, parameter)| (function.machine, dispatch, parameter))
+        })
+        .expect("dispatch state exists");
+    let incoming_edge =
+        jump_edge_to(&unit, machine, dispatch).expect("unconditional incoming edge");
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    assert_eq!(candidate.machine(), machine);
+    assert_eq!(candidate.dispatch(), dispatch);
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    assert_eq!(row.incoming_edge(), incoming_edge.psi_edge);
+    assert_eq!(row.parameter(), parameter);
+    assert_eq!(row.argument(), bound_argument(incoming_edge, parameter));
+    // The bound argument reaches the dispatch through a single-predecessor
+    // forwarding block: it is the owner block's own parameter, bound by the
+    // unique incoming edge to the `Call` result — the specialization is
+    // driven by the callee's proven result, not a caller-local literal.
+    let input_function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let predecessor = edge_owner(&unit, machine, incoming_edge.psi_edge);
+    let owner_block = input_function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .expect("owner block exists");
+    assert!(
+        owner_block
+            .parameters
+            .iter()
+            .any(|parameter| parameter.value == row.argument()),
+        "the bound argument is delivered through the forwarding block's parameter"
+    );
+    let delivered_by_call = input_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| edge.target == predecessor.block)
+        .flat_map(|edge| &edge.bindings)
+        .filter(|binding| binding.parameter == row.argument())
+        .any(|binding| {
+            input_function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .any(|node| {
+                    matches!(
+                        &node.operation,
+                        AbstractOperation::Call { result, .. } if *result == binding.argument
+                    )
+                })
+        });
+    assert!(delivered_by_call, "the delivered value is a call result");
+    assert!(row.constant());
+    let (taken_edge, rejected_edge, resolved_target) =
+        dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+    assert_eq!(row.resolved_target(), taken_edge.target);
+    assert_eq!(row.predecessor(), predecessor);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let output_function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+
+    // The fused edge keeps its own Psi identity, targets the resolved arm's
+    // block directly, and carries both source edges' custody in order — the
+    // call still executes at the predecessor; only its proven result moved.
+    let fused = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)
+        .and_then(|block| {
+            block.nodes[usize::try_from(predecessor.node).expect("index")]
+                .successors
+                .first()
+        })
+        .expect("fused edge exists");
+    assert_eq!(fused.psi_edge, incoming_edge.psi_edge);
+    assert_eq!(fused.target, taken_edge.target);
+    assert_eq!(
+        fused.provenance,
+        vec![
+            PsiProvenance::Edge(incoming_edge.psi_edge),
+            PsiProvenance::Edge(taken_edge.psi_edge),
+        ]
+    );
+    assert_eq!(
+        fused.fuel,
+        vec![
+            optimization_unit::FuelSettlement {
+                site: PsiProvenance::Edge(incoming_edge.psi_edge),
+                units: 1,
+            },
+            optimization_unit::FuelSettlement {
+                site: PsiProvenance::Edge(taken_edge.psi_edge),
+                units: 1,
+            },
+        ]
+    );
+    let resolved_block = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == resolved_target)
+        .expect("resolved target retained");
+    assert_eq!(fused.bindings.len(), resolved_block.parameters.len());
+
+    // The dispatch and both arms survive unchanged for the variable path.
+    let remaining_incoming = output_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| edge.target == dispatch)
+        .count();
+    assert_eq!(remaining_incoming, 1);
+    assert!(
+        propose_state_argument_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn integer_call_result_specializes_the_comparison_dispatch() {
+    let session = lowered_session(
+        CALL_RESULT_INTEGER_SOURCE,
+        "integer call-result specialization",
+    );
+    let unit = session.unit().clone();
+    let (machine, dispatch, parameter) = unit
+        .functions
+        .iter()
+        .find_map(|function| {
+            integer_dispatch(&unit, function.machine)
+                .map(|(dispatch, parameter)| (function.machine, dispatch, parameter))
+        })
+        .expect("integer dispatch exists");
+    let incoming_edge =
+        jump_edge_to(&unit, machine, dispatch).expect("unconditional incoming edge");
+
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let [row] = candidate.specializations() else {
+        panic!("one specialized incoming edge")
+    };
+    assert_eq!(row.incoming_edge(), incoming_edge.psi_edge);
+    assert_eq!(row.parameter(), parameter);
+    // `n := 3` satisfies `i < 4`, so the when_true arm is taken.
+    assert!(row.constant());
+    let (taken_edge, rejected_edge, resolved_target) =
+        dispatch_arms(&unit, machine, dispatch, row.constant());
+    assert_eq!(row.taken_edge(), taken_edge.psi_edge);
+    assert_eq!(row.rejected_edge(), rejected_edge.psi_edge);
+    assert_eq!(row.resolved_target(), resolved_target);
+
+    let validated =
+        validate_state_argument_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_state_argument_specialization(session, validated).expect("apply");
+    let predecessor = edge_owner(&unit, machine, incoming_edge.psi_edge);
+    let fused = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .and_then(|function| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == predecessor.block)
+        })
+        .and_then(|block| {
+            block.nodes[usize::try_from(predecessor.node).expect("index")]
+                .successors
+                .first()
+        })
+        .expect("fused edge exists");
+    assert_eq!(fused.target, taken_edge.target);
+    assert_eq!(
+        fused.provenance,
+        vec![
+            PsiProvenance::Edge(incoming_edge.psi_edge),
+            PsiProvenance::Edge(taken_edge.psi_edge),
+        ]
+    );
+}
+
+#[test]
+fn multi_return_callee_result_yields_no_candidate() {
+    let session = lowered_session(
+        CALL_RESULT_MULTI_RETURN_SOURCE,
+        "multi-return callee decline",
+    );
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "a callee with two Return nodes is not one exact constant result"
+    );
+}
+
+#[test]
+fn variable_callee_result_yields_no_candidate() {
+    let session = lowered_session(
+        CALL_RESULT_VARIABLE_SOURCE,
+        "variable callee result decline",
+    );
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "a callee returning its own parameter is not a proven constant result"
+    );
+}
+
+#[test]
+fn call_result_specialization_stays_frozen_in_cyclic_machines() {
+    let session = lowered_session_entry(
+        CALL_RESULT_CYCLIC_SOURCE,
+        "cyclic call-result decline",
+        "Root::spin",
+    );
+    assert!(
+        !session.cycle_components().components().is_empty(),
+        "the fixture carries an authenticated cyclic component"
+    );
+    assert!(
+        propose_state_argument_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty(),
+        "the call-result edge inside frozen territory does not specialize"
+    );
+    let unit = session.unit();
+    let (machine, dispatch, _) = unit
+        .functions
+        .iter()
+        .find_map(|function| {
+            parameter_dispatch(unit, function.machine)
+                .map(|(dispatch, parameter)| (function.machine, dispatch, parameter))
+        })
+        .expect("spin's dispatch state exists");
+    let forged = StateArgumentSpecializationCandidate {
+        identity: optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(
+            b"forged-cyclic-result-candidate",
+        ),
+        input: unit.identity,
+        output: unit.identity,
+        machine,
+        dispatch,
+        specializations: Vec::new(),
+    };
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::UnknownDispatch)
+    );
+}
+
+#[test]
+fn replay_rejects_forged_call_result_rows() {
+    let session = lowered_session(CALL_RESULT_TAKEN_SOURCE, "call-result specialization");
+    let candidates = propose_state_argument_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+
+    // A forged constant verdict — `on` really is the proven `true` result of
+    // `flag`, so flipping the resolved arm cannot replay.
+    let mut forged = candidate.clone();
+    forged.specializations[0].constant = !forged.specializations[0].constant;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged bound argument — the replayed plan re-derives the call
+    // result's own value identity, so a drifted argument cannot match.
+    let mut forged = candidate.clone();
+    forged.specializations[0].argument = forged.specializations[0].parameter;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged resolved arm edge.
+    let mut forged = candidate.clone();
+    forged.specializations[0].taken_edge = forged.specializations[0].rejected_edge;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged supplying edge.
+    let mut forged = candidate.clone();
+    forged.specializations[0].incoming_edge = forged.specializations[0].rejected_edge;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // A forged predecessor coordinate.
+    let mut forged = candidate.clone();
+    forged.specializations[0].predecessor.node += 1;
+    assert_eq!(
+        validate_state_argument_specialization(&session, &forged).err(),
+        Some(StateArgumentSpecializationError::CandidateMismatch)
+    );
+
+    // The untampered candidate still validates.
+    assert!(
+        validate_state_argument_specialization(&session, candidate).is_ok(),
+        "the exact candidate still validates"
+    );
+}
+
 /// The integer-comparison dispatch block and the own scalar parameter its
 /// condition compares against a literal.
 fn integer_dispatch(unit: &PsiOptimizationUnit, machine: MachineId) -> Option<(BlockId, ValueId)> {
