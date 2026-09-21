@@ -136,16 +136,18 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | structural multiplicity | `u8`: 1 unrestricted, 2 affine, 3 linear |
 | structural argument | place id + structural access + structural path |
 | value declaration | value id + scalar type + `u64` qualification-set identity |
+| erased proof formal | `u32` source position + type identity string |
 | projected qualification | structural path + domain id |
-| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted claims (claim id + structural path) |
+| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
 | structural parameter | place id + `u32` position + `u8` self flag + structural type id + multiplicity + access + counted domain ids + counted projected qualifications |
 | scalar term list | counted scalar terms |
+| proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
 | claim transfer | claim id + `u32` argument index |
 | returned claim transfer | callee claim id + caller claim id |
 | completion receipt | claim id + `u32` argument index |
 | crash routes | counted buckets, each `u8` cause (1 Trap, 2 Abort) + counted guards; each guard `u8`: 0 truth, 1 + proposition |
-| successor edge | edge id + target block id + counted value ids + scalar term list + counted structural arguments + counted trivial discards |
+| successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
 | trivial discard | place id; appears only inside a counted roster |
 | residual discard | place id + structural path + structural type id |
 | affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural type id + machine id + optional identity + obligation id list |
@@ -220,6 +222,20 @@ semantic module and the proof bundle.
 | 5 | Multiply | integer math term + integer math term |
 | 6 | ShiftLeft | integer math term + integer math term |
 
+## Proof terms
+
+A proof term is a `u8` form tag followed by its fields. Proof terms are
+proof-only erased actuals — they carry semantic identities for the erased
+proof-formal lane, not runtime values. They appear only inside a proof term
+list in the semantic module, and their nesting shares the scalar-term depth
+bound.
+
+<!-- proof-term-tags -->
+| Tag | Proof term | Fields after the tag |
+| --- | --- | --- |
+| 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted fields (field identity string + proof term) |
+| 2 | Formal | `u32` position |
+
 ## Content terms and places
 
 The conservation algebra and content-place grammar used by proposition 9,
@@ -265,8 +281,8 @@ and the proof bundle share this grammar byte for byte.
 ## Operation rows
 
 A block row is a block id, counted parameter value declarations, counted erased
-scalar formal declarations, counted structural parameters, counted operation
-rows, and one terminator row.
+scalar formal declarations, counted erased proof formals, counted structural
+parameters, counted operation rows, and one terminator row.
 
 An operation row is an operation id, a `u8` static-reach flag (1 adds a `u32`
 argument binding; 0 records none), a `u8` result tag (0 unit; 1 + value
@@ -309,13 +325,13 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 30 | WrappingIntegerRemainder | left value id + right value id + obligation id |
 | 31 | SaturatingIntegerDivide | left value id + right value id + obligation id |
 | 32 | SaturatingIntegerRemainder | left value id + right value id + obligation id |
-| 33 | Call | callee machine id + counted value ids + scalar term list + obligation id list + crash routes |
-| 34 | CallUnit | callee machine id + counted value ids + scalar term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 33 | Call | callee machine id + counted value ids + scalar term list + proof term list + obligation id list + crash routes |
+| 34 | CallUnit | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 35 | BoundaryCall | boundary machine id + counted value ids + counted structural arguments + counted completion receipts |
 | 36 | PortWrite | service id + `u16` port + `u8` value |
 | 37 | EstablishTrivialAffineLocal | place id |
 | 38 | BooleanStructuralField | source place id + scalar field carrier path + field id |
-| 39 | CallStructuralScalar | callee machine id + counted value ids + scalar term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 39 | CallStructuralScalar | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 40 | EstablishByteSequenceLiteral | destination place id + counted bytes |
 | 41 | CallStructural | callee machine id + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes + counted selected evidence bindings |
 | 42 | EstablishScalarCase | case id + counted fields (field id + value id + optional obligation id) |
@@ -326,7 +342,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 47 | IntegerStructuralField | source place id + scalar field carrier path + field id |
 | 48 | CallDynamicScalar | `u32` descriptor ordinal + obligation id list + crash routes |
 | 49 | CallDynamicParameterScalar | `u32` parameter ordinal + `u32` requirement slot + obligation id list + crash routes |
-| 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes |
+| 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + counted returned claim transfers + obligation id list + crash routes |
 | 52 | CallDynamicUnit | `u32` descriptor ordinal + obligation id list + crash routes |
 | 53 | CallDynamicParameterUnit | `u32` parameter ordinal + `u32` requirement slot + obligation id list + crash routes |
 | 54 | StoreDynamicDescriptor | `u32` descriptor ordinal |
@@ -374,7 +390,7 @@ A terminator row is a `u8` tag followed by its fields.
 <!-- terminator-tags -->
 | Tag | Terminator | Fields after the tag |
 | --- | --- | --- |
-| 1 | Jump | edge id + target block id + counted value ids + scalar term list + counted structural arguments + counted trivial discards |
+| 1 | Jump | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
 | 10 | Jump | the tag-1 fields + counted residual discards; residual list must be nonempty |
 | 2 | Return | edge id + value id + counted affine cleanup actions |
 | 3 | Conditional | condition value id + successor edge + successor edge |
@@ -458,7 +474,7 @@ counted block rows, and the machine contract.
 | service ceiling | counted service ids; the published ceiling is strictly ordered |
 | structural result declaration | place id + structural type id + structural multiplicity + counted domain identities + counted projected qualifications + counted reference result sources |
 | reference result source | result structural path + source structural argument; strictly ordered by result path |
-| machine contract | contract id + crash routes + counted erased scalar formal declarations + counted requires propositions + counted ensures clauses + counted outcome-specific ensures |
+| machine contract | contract id + crash routes + counted erased scalar formal declarations + counted erased proof formals + counted requires propositions + counted ensures clauses + counted outcome-specific ensures |
 | ensures clause | obligation id + proposition |
 | outcome-specific ensure | result type id + result case id + `u32` outcome position + obligation id + proposition + outcome evidence |
 | outcome evidence | `u8`: 0 absent; 1 + evidence term id + output field string |
