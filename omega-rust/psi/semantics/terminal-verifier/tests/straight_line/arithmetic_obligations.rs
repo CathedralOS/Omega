@@ -1124,24 +1124,19 @@ fn structural_return_rejects_inexact_custody_and_scalar_content_carriers() {
     ));
 
     let mut wrong_signature = module.clone();
-    let result = wrong_signature.machines[0]
-        .result
-        .structural()
-        .unwrap()
-        .clone();
+    let source_type = wrong_signature.machines[0].structural_parameters[0].structural_type;
     wrong_signature
         .structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
             id: semantic_vocabulary::StructuralDomainId::new(91).unwrap(),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(91).unwrap(),
             identity: "Other".into(),
-            carrier: result.structural_type,
+            carrier: source_type,
             content_projection: None,
         });
-    let TerminalMachineResult::Structural(result) = &mut wrong_signature.machines[0].result else {
-        unreachable!()
-    };
-    result
+    // A return source may not carry a qualification the declared result does
+    // not name: introduction runs source-subset-of-result, not the reverse.
+    wrong_signature.machines[0].structural_parameters[0]
         .qualifications
         .push(semantic_vocabulary::StructuralDomainId::new(91).unwrap());
     assert!(matches!(
