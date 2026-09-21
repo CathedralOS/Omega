@@ -11909,6 +11909,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   twin still rejects when the cited subject is not the call's exact subject
   (as `fail/proofs/case_call_wrong_subject` does for the concrete case), and
   `cargo nextest run -p validation` stays green.
+
+  Re-assigned stub PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION verified at
+  `138ed79a677`: the retired row's residual still routes here verbatim —
+  landed half stands (`specification_calls.rs` exact-subject attribution at
+  `1fc01bb690`), and the residual list is still upstream-gated: abstract
+  signatures need contract-position grammar (struct literals do not parse
+  there), induction sits under PROOF-CERTIFICATION-BRIDGE's live claim
+  (`checks/contracts/exits` + `scalar_block_invariants`, ~10:52Z), and
+  `contract_entailment/ranking_range` is under TERMINATION-RANKING-CHECKS
+  (~10:50Z). The `specification_calls`/`refuted_requires`/`call_requirements`
+  surfaces are unfenced but carry no authorized leg. No independent slice.
 - **PROOF-CACHE-DEPENDENCY-INVALIDATION.** Mined candidate — scope
   verified, mechanism landed. The draft's rule "dependency changes
   invalidate affected entries" is implemented by key embedding, not a
