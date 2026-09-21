@@ -1120,6 +1120,13 @@ Package policy and orchestration stay in ordinary Omega libraries, with native
 details in providers. A topology-specific IR or new trusted graph axiom is not
 an implementation shortcut.
 
+  **macOS arm64 leg recorded 2026-09-21: GREEN.** This row asks for the
+  provider/installation controls on each available Windows/macOS host, and every
+  prior run was Linux-only.
+  `cargo nextest run -p compiler --test behavior_exclusions --test
+  build_behavior_exclusions` is **31/31** on macOS arm64 (Apple M4). The Windows
+  leg stays host-blocked.
+
 - **TOPOLOGY-PLAN-VERIFICATION.** Deliver the ordinary Omega build-only topology
   package and payment composition project under the
   [reference contract](wiki/spec/packages/topology.md). Reuse the Rust reference in
@@ -10578,6 +10585,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p compiler --test canary_suite -E
   'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
   there and record the result on this row.
+  **macOS arm64 witness recorded 2026-09-21 — and it FAILS.** This row's only
+  deliverable was a macOS arm64 run, and this is that host, so the leg is no
+  longer host-blocked: it is a measured red.
+  `cargo nextest run -p compiler --test native_filesystem_canaries -E
+  'test(/native_wrapper_write_all_result/)'` fails after 121 s with
+  "selected ProgramEntry establishment rejoins 0 Terminal attachment identities;
+  expected one; the machine's unit plan was omitted at local construction at
+  `state graph: state signature: parameter signature: attached data shape`
+  (state 0)".
+
+  That omission phase is a recorded member of the attached-Unit-plan family
+  (`known_baseline_failures.md`), whose producer site is
+  `t2c/src/execution/unit/calls/signatures.rs` — NOT the record-literal store
+  phase whose guard was repaired at `238ff31237c0c`, which is why that repair
+  does not close this one. Build note for whoever re-runs it: `-p compiler` with
+  only an `-E` filter still links every test binary in the crate and exhausts
+  the disk; name `--test native_filesystem_canaries` to build one.
+
 - **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT.** Mined candidate — resolved (fenced residual): scope verified
   2026-09-20 (z164): re-mines `tests/omega/pass/host/runtime_gui_foreground_window_exit`
   — the fixture exists, is authored correctly (intrinsic `Service<Gui>` field,
