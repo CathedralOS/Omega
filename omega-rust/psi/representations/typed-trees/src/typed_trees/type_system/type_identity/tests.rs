@@ -1381,3 +1381,125 @@ fn named_machine_identity_normalizes_binders_and_collapses_predicate_only_result
     assert!(unqualified_identity.parameters().contains("$T0"));
     assert!(!unqualified_identity.identity().is_empty());
 }
+
+#[test]
+fn rejected_index_expression_shapes_keep_distinct_structural_identities() {
+    use crate::expression::{
+        MatchPattern, TableIndexedExpression, TableMatchArm, TableMatchExpression,
+        TableRangeExpression,
+    };
+    use crate::typed_trees::type_system::type_identity::identity_context::{
+        TypeIdentityContext, normalize_index_expression,
+    };
+    use numerics::literals::IntegerLiteral;
+
+    let mut program = TypedTrees::default();
+    let integer = |program: &mut TypedTrees, value: i64| {
+        program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(value)))
+    };
+    let one = integer(&mut program, 1);
+    let two = integer(&mut program, 2);
+    let array_one = {
+        let elements = program.expression_table.insert_expression_handles([one]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(elements))
+    };
+    let array_two = {
+        let elements = program.expression_table.insert_expression_handles([two]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(elements))
+    };
+    let boolean = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let match_expression = {
+        let arms = program.expression_table.insert_match_arms([TableMatchArm {
+            pattern: MatchPattern::Wildcard,
+            value: two,
+            source_span: SourceSpan::default(),
+        }]);
+        program
+            .expression_table
+            .insert(ExpressionNode::Match(TableMatchExpression {
+                subject: one,
+                arms,
+            }))
+    };
+    let indexed_one =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection: array_one,
+                index: one,
+            }));
+    let indexed_two =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection: array_one,
+                index: two,
+            }));
+    let range = program
+        .expression_table
+        .insert(ExpressionNode::Range(TableRangeExpression {
+            start: one,
+            end: two,
+            end_inclusive: false,
+        }));
+    let range_inclusive =
+        program
+            .expression_table
+            .insert(ExpressionNode::Range(TableRangeExpression {
+                start: one,
+                end: two,
+                end_inclusive: true,
+            }));
+    let i32_reference = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("i32"),
+        });
+    let i64_reference = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("i64"),
+        });
+    let zero_i32 = program
+        .expression_table
+        .insert(ExpressionNode::ZeroValue(i32_reference));
+    let zero_i64 = program
+        .expression_table
+        .insert(ExpressionNode::ZeroValue(i64_reference));
+
+    let context = TypeIdentityContext::default();
+    let identity = |expression| normalize_index_expression(&program, expression, &context);
+
+    // Same-shape distinct content stays distinct: an index-identity dedup can
+    // never alias two different rejected arguments.
+    assert_ne!(identity(array_one), identity(array_two));
+    assert_ne!(identity(indexed_one), identity(indexed_two));
+    assert_ne!(identity(range), identity(range_inclusive));
+    assert_ne!(identity(zero_i32), identity(zero_i64));
+    // Different kinds never collapse onto one shared atom either.
+    for (tag, expression) in [
+        ("array-literal", array_one),
+        ("match", match_expression),
+        ("indexed", indexed_one),
+        ("range-exclusive", range),
+        ("zero-value", zero_i32),
+    ] {
+        let identity = identity(expression);
+        assert!(
+            identity.starts_with(&format!("{tag}(")),
+            "{tag} provisional identity starts with its kind tag, got {identity}"
+        );
+        assert!(!identity.contains("unsupported"));
+    }
+    assert_ne!(identity(boolean), identity(array_one));
+}
