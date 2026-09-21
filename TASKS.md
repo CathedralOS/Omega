@@ -12116,6 +12116,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   refreshed: `samples/apps/squalr` wholesale under SQUALR-WINDOWS-GEOMETRY-
   VALIDATION (exp 05:49Z), SQUALR-GEOMETRY-PARITY-RESIDUE live (03:32Z),
   SQUALR-NAMED-TRAIT-OPERATORS item claim (10:24Z).
+  Fence re-audit at `94b395ea9c6` for retired sibling stub
+  GEOMETRY-DEBUG-ASSERTIONS (same gap; its mined row was swept, name
+  survives only in the parity-gaps sibling list): submodule pin unchanged
+  at `5b0307c`, so the gap evidence stands verbatim. Live fences rotated —
+  `samples/apps/squalr` is still wholesale dir-fenced by
+  REGION-ALIGNMENT-EXPANSION (zergling-z68, exp 07:25Z);
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION drained and re-upped as
+  GEOMETRY-WINDOWS-VALIDATION (item claim, exp 13:53Z);
+  SQUALR-NAMED-TRAIT-OPERATORS item claim still live (exp 10:24Z);
+  SQUALR-GEOMETRY-PARITY-RESIDUE drained. The lane stays closed until the
+  directory fence opens.
 - **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
   `10d93dd448`, re-verified at `3533f7d0e8` — the `samples/apps/squalr`
   wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
