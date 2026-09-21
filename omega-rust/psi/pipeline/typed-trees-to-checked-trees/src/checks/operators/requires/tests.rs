@@ -182,6 +182,95 @@ fn named_call_requires_read_the_referent_under_a_reference_formal() {
 }
 
 #[test]
+fn named_call_requires_read_a_referent_fact_established_by_a_later_operand() {
+    // `&value` reads current storage at invocation: `prepare` ends the
+    // operand-time context, but its own `ensures` republishes the fact on the
+    // same referent — exact referent custody, not a retained snapshot.
+    check(
+        "boundary operator == Reference::equal(left: &i32, right: i32) -> bool
+         requires left >= 0;
+         machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
+         machine compare(mut value: i32) -> bool {
+             Reference::equal(&value, prepare(&mut value))
+         }",
+    )
+    .expect("the later operand's referent fact discharges the view's clause");
+}
+
+#[test]
+fn named_call_requires_cannot_use_a_revoked_referent_fact() {
+    // `reset` writes the referent without an `ensures` — the captured
+    // `value >= 0` is dead at invocation and custody resurrects nothing.
+    let diagnostics = check(
+        "boundary operator == Reference::equal(left: &i32, right: i32) -> bool
+         requires left >= 0;
+         machine reset(value: &mut i32) -> i32 { value = -1; 0 }
+         machine compare(mut value: i32) -> bool requires value >= 0 {
+             Reference::equal(&value, reset(&mut value))
+         }",
+    )
+    .expect_err("a referent fact that died with its context cannot discharge the clause");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn named_call_referent_custody_has_no_snapshot_fallback() {
+    // Clearing the referent custody row drops the operand onto the old
+    // context-identity transport, where the dead captured context no longer
+    // discharges the clause.
+    let checked = check(
+        "boundary operator == Reference::equal(left: &i32, right: i32) -> bool
+         requires left >= 0;
+         machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
+         machine compare(mut value: i32) -> bool {
+             Reference::equal(&value, prepare(&mut value))
+         }",
+    )
+    .unwrap();
+    let invocation = checked
+        .facts
+        .flow
+        .control
+        .operator_invocations
+        .iter()
+        .next()
+        .unwrap()
+        .1;
+    let mut facts = checked.facts.clone();
+    let operand_count = facts
+        .flow
+        .control
+        .operator_operands
+        .span_or_empty(invocation.operands)
+        .len();
+    for ordinal in 0..operand_count as u32 {
+        let handle = arena::Handle::from_parts(
+            invocation.operands.start().arena_index() + ordinal,
+            invocation.operands.start().generation(),
+        );
+        facts
+            .flow
+            .control
+            .operator_operands
+            .get_mut(handle)
+            .referents = arena::HandleSpan::empty();
+    }
+    let diagnostics = crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect_err("without custody the retained snapshot no longer discharges the clause");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn named_call_operand_custody_rejects_missing_duplicate_or_reordered_records() {
     let checked = check(
         "boundary operator == Comparison::equal(left: i32, right: i32) -> bool
