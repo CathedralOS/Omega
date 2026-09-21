@@ -7881,6 +7881,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   committed exe), the wine de-risk is not repeatable on this host, and
   both residuals stay owned (audited-seed lane; ALPHA-WINDOWS-
   CONFORMANCE-HOST's literal Windows x64 run).
+  Re-audited at `82741ec439` (linux x86-64): the mechanism note above is
+  stale in one detail — `seed_env.sh` now admits Linux-x86_64 as a
+  seed-execution host (`ALPHA_SEED_EXECUTABLE=1`; it selects and runs the
+  static ELF seed `alpha_x64_linux`, refusal message now reads "macOS
+  arm64, Linux x86-64, or Windows x64"), so the edge gate's seed-executing
+  legs do run natively here — against the Linux container. The
+  Windows-specific residual is unchanged: the PE32+ seed
+  `alpha_x64_windows.exe` executes only under `MINGW*-x86_64|MSYS*-x86_64`
+  on a real Windows x64 host, which is not producible from this VM.
+  Fences drained: neither recorded claim
+  (BOOTSTRAP-SEED-EXECUTION-HOSTS, ALPHA-SEED-CONTAINER-NATIVE-VALIDATION)
+  is live in the registry; resolution unchanged — host-gated on Windows
+  x64 for the PE leg.
+- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
