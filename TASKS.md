@@ -16368,7 +16368,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   migration is in flight under CUSTODY-MATRIX-HARNESS-MIGRATION, exp 09:19Z)
   and `glob_self_imports` on `validation/.../result_type.rs` (fenced to
   MATCH-SELECTIVE-LOWERING, exp 07:39Z).
-  Re-measured at `f72122f71e` ([z70 ledger](wiki/drafts/repository_baseline_gate_z70.md)):
+  Re-measured at `f72122f71e` (z70 ledger, retired as a row-duplicate draft):
   `python tools/fmt.py --check` still GREEN; the architecture pair narrowed
   — `glob_self_imports` down to 2 offenders (`extents`, `validation`; both
   fenced, the two unfenced ones repaired at `e2cbbf7f21`) and
