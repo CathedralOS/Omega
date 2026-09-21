@@ -12451,6 +12451,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   still claim-fences the kernel substrate (z177 ~09:49Z registry), while
   the PROOF-CONTRACT-MIGRATION and MATH-FOUNDATION-BINDINGS fences have
   drained. No independent slice exists under this name.
+- **MATH-PROOFS-DECLARATION-SELECTION.** — mined candidate; scope verified,
+  resolved — eighth re-mine of the adjudicated
+  TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS surface (chapter 14's recorded gap:
+  predicate parameters on trait requirements; PROOF-CONTRACT-MIGRATION owns).
+  This leg names binding a requirement's predicate parameter
+  (`P: A -> core::Strict<v>`) to a selected mathematical declaration. The
+  substrate is landed and green at `90df29812c00` — s2t lowering into
+  `typed_trees::mathematical`, t2c `proof/mathematical_declarations.rs`
+  records, `proof/mathematical_signature.rs` kernel signature checking and
+  applications (`nextest -p typed-trees-to-checked-trees -E
+  'test(~mathematical)'` → 68/68). The selection leg is absent by
+  construction: `TraitRequirement` carries only `lifetime_arguments` +
+  `arguments: HandleSpan<TypeReferenceHandle>` — no mathematical parameter
+  slot — so it is the canonical item's design surface, not a bounded slice.
+  All fences prior rows named (PROOF-CONTRACT-MIGRATION, PROOF-KERNEL-CORE,
+  MATH-FOUNDATION-BINDINGS) have drained. Record:
+  `wiki/drafts/math_proofs_declaration_selection.md`.
 - **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** Resolved — duplicate of the
   already-adjudicated custody-expectation slice. The stub re-mines the
