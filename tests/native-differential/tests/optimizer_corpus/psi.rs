@@ -147,6 +147,7 @@ pub(super) fn atomic_establishment_artifact(
     };
     let literal = |id, result, value: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::IntegerConstant {
@@ -204,8 +205,10 @@ pub(super) fn atomic_establishment_artifact(
         }
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: establish_op,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: case_place,
                 structural_type: sum_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -220,6 +223,7 @@ pub(super) fn atomic_establishment_artifact(
         });
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: member_op,
             result: OperationResult::Scalar(declaration(result_value, ScalarType::Boolean)),
             kind: OperationKind::StructuralCaseMembership {
@@ -237,8 +241,10 @@ pub(super) fn atomic_establishment_artifact(
         }
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: array_op,
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: array_place,
                 structural_type: array_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -350,6 +356,7 @@ pub(super) fn atomic_establishment_artifact(
                     id: entry,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition,
@@ -359,6 +366,7 @@ pub(super) fn atomic_establishment_artifact(
                             target: when_true,
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -367,6 +375,7 @@ pub(super) fn atomic_establishment_artifact(
                             target: when_false,
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     },
@@ -376,6 +385,7 @@ pub(super) fn atomic_establishment_artifact(
                     id: when_true,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations: true_operations,
                     terminator: true_terminator,
                 },
@@ -384,6 +394,7 @@ pub(super) fn atomic_establishment_artifact(
                     id: when_false,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations: false_operations,
                     terminator: false_terminator,
                 },
@@ -392,6 +403,7 @@ pub(super) fn atomic_establishment_artifact(
                 id: ContractId::new(base + 23).unwrap(),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
@@ -519,6 +531,7 @@ pub(super) fn transition_artifact(
         (
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation(),
                 result: OperationResult::Scalar(declaration(result)),
                 kind: OperationKind::IntegerConstant {
@@ -545,6 +558,7 @@ pub(super) fn transition_artifact(
         (
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation(),
                 result: OperationResult::Scalar(declaration(result)),
                 kind,
@@ -558,6 +572,7 @@ pub(super) fn transition_artifact(
             (
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: ids.operation(),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -576,11 +591,13 @@ pub(super) fn transition_artifact(
             target,
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         };
     let jump =
         |ids: &mut TransitionIds, target: BlockId, arguments: Vec<ValueId>| Terminator::Jump {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             edge: ids.edge(),
             target,
             arguments,
@@ -662,6 +679,7 @@ pub(super) fn transition_artifact(
         }
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters,
@@ -704,6 +722,7 @@ pub(super) fn transition_artifact(
                 let leaf_terminator = relay(ids, leaf_result);
                 leaf_blocks.push(Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: leaf,
                     parameters: vec![leaf_parameter],
@@ -736,6 +755,7 @@ pub(super) fn transition_artifact(
         (
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters,
@@ -752,6 +772,7 @@ pub(super) fn transition_artifact(
         id: entry,
         parameters: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: entry_operations,
         terminator: Terminator::Conditional {
             condition,
@@ -793,6 +814,7 @@ pub(super) fn transition_artifact(
         let parameter = declaration(ids.value());
         blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: final_block,
             parameters: vec![parameter],
@@ -853,6 +875,7 @@ pub(super) fn transition_artifact(
             blocks,
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract,
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -967,6 +990,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     };
     let literal = |id, result, value: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::IntegerConstant {
@@ -975,6 +999,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     };
     let wrapping_add = |id, result, left, right| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::WrappingIntegerAdd { left, right },
@@ -985,6 +1010,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     // cleanup lane's observation a pure two-operand scalar deterministic fold.
     let saturating_add = |id, result, left, right| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, integer_scalar_type)),
         kind: OperationKind::SaturatingIntegerAdd { left, right },
@@ -992,6 +1018,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     let float_scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
     let ieee_literal = |id, result, bits| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, float_scalar_type)),
         kind: OperationKind::IeeeFloatConstant {
@@ -1000,6 +1027,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
     };
     let ieee_compare = |id, result, comparison, left, right| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, ScalarType::Boolean)),
         kind: OperationKind::IeeeFloatCompare {
@@ -1044,6 +1072,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     literal(right_operation, right_id, right),
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: combine_operation,
                         result: OperationResult::Scalar(declaration(
                             result_id,
@@ -1057,6 +1086,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 literal(left_operation, left_id, left),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: right_operation,
                     result: OperationResult::Scalar(declaration(
                         right_id,
@@ -1069,6 +1099,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: combine_operation,
                     result: OperationResult::Scalar(declaration(result_id, integer_scalar_type)),
                     kind: OperationKind::IntegerWiden { operand: right_id },
@@ -1201,8 +1232,10 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 let false_records = records(base + 51, base + 61, false_records);
                 let establish = |(place, producer): (PlaceId, OperationId)| Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: producer,
                     result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place,
                         structural_type: record_type,
                         multiplicity: StructuralMultiplicity::Affine,
@@ -1316,8 +1349,10 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         literal(left_operation, left_value, initial),
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: establish_local,
                             result: OperationResult::Structural(StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
                                 place: local_place,
                                 structural_type: local_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1346,6 +1381,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         ));
                         operations.push(Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(arm_base + 16 + u64::from(index)).unwrap(),
                             result: OperationResult::Unit,
                             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -1358,6 +1394,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     operations.extend([
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: read,
                             result: OperationResult::Scalar(declaration(
                                 loaded,
@@ -1371,8 +1408,10 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         literal(right_operation, right_value, field),
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: establish_record,
                             result: OperationResult::Structural(StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
                                 place: record_place,
                                 structural_type: record_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1392,6 +1431,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: field_read,
                             result: OperationResult::Scalar(declaration(
                                 field_value,
@@ -1506,6 +1546,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     id: entry,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition,
@@ -1515,6 +1556,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                             target: when_true,
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -1523,6 +1565,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                             target: when_false,
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     },
@@ -1532,6 +1575,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     id: when_true,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations: true_operations,
                     terminator: Terminator::Return {
                         edge: EdgeId::new(base + 21).unwrap(),
@@ -1544,6 +1588,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                     id: when_false,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     operations: false_operations,
                     terminator: Terminator::Return {
                         edge: EdgeId::new(base + 22).unwrap(),
@@ -1556,6 +1601,7 @@ fn build_artifact(ordinal: usize, lane_base: u64, leaf: Leaf) -> CorpusArtifact 
                 id: ContractId::new(base + 23).unwrap(),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),

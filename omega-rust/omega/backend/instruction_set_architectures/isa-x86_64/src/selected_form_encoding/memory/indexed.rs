@@ -97,7 +97,7 @@ fn request(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<[u8; 3], X86_64SelectedFormEncodingError> {
-    if physical.model() != &crate::x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if displacement != 0

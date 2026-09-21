@@ -19,12 +19,15 @@ fn repository_root() -> &'static Path {
 }
 
 fn fixture(name: &str) -> String {
+    // `use calling` would import the now-public standard `calling` module,
+    // colliding with the package-local copy checked() writes beside it.
     fs::read_to_string(
         repository_root()
             .join("source/library/std/tests")
             .join(name),
     )
     .unwrap()
+    .replace("use calling;\n", "")
 }
 
 fn procedure_source() -> String {
@@ -37,17 +40,16 @@ fn procedure_source() -> String {
 
 fn checked(source: &str) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
-    package.write("main.omg", source);
     package.write(
-        "calling.omg",
-        &fs::read_to_string(repository_root().join("source/library/std/calling.omg")).unwrap(),
+        "main.omg",
+        &source.replace("use calling;", "use omega_language_std::calling;"),
     );
     package.write(
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
+        package_inputs: Some(package_inputs_with_std(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
     .expect("source calling policy should check without native emission");
@@ -239,8 +241,8 @@ data Main { }
 #[test]
 fn concrete_boundary_arguments_distinguish_equal_physical_calling_policies() {
     let source = procedure_source().replace(
-        "pub boundary trait HookProcedure:",
-        "pub boundary trait HookProcedure<Tag>:",
+        "boundary trait HookProcedure:",
+        "boundary trait HookProcedure<Tag>:",
     );
     let source = format!(
         r#"{source}
@@ -272,9 +274,8 @@ machine Provider::call(message: u64) -> u64
 #[test]
 fn inherited_requirement_retains_declaring_trait_and_concrete_parent_application() {
     let source = procedure_source().replace(
-        "pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {\n    machine call(message: u64) -> u64;\n}",
-        "use omega::language::core::service;
-pub boundary trait ProcedureBase<Value> {\n    machine call(message: Value) -> Value;\n}\n\nboundary trait HookProcedure: Service<ProcedureBase><u64> + Calling<HookProcedurePolicy> {}",
+        "boundary trait HookProcedure: Calling<HookProcedurePolicy> {\n    machine call(message: u64) -> u64;\n}",
+        "pub boundary trait ProcedureBase<Value> {\n    machine call(message: Value) -> Value;\n}\n\nboundary trait HookProcedure: ProcedureBase<u64> + Calling<HookProcedurePolicy> {}",
     );
     assert!(source.contains("pub boundary trait ProcedureBase<Value>"));
     let (_first_package, first) = checked(&source);

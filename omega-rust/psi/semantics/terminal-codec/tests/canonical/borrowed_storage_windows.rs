@@ -50,6 +50,7 @@ fn envelope() -> terminal_psi::StructuralTypeDeclaration {
 
 fn structural_result(place: u64, structural_type: u64) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(place),
         structural_type: structural_type_id(structural_type),
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -102,6 +103,7 @@ fn window_module() -> terminal_psi::TerminalModule {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: structural_result(2, 1),
             kind: OperationKind::MoveStructuralField {
@@ -112,6 +114,7 @@ fn window_module() -> terminal_psi::TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -122,6 +125,7 @@ fn window_module() -> terminal_psi::TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: structural_result(3, 1),
             kind: OperationKind::EstablishRecord {
@@ -136,6 +140,7 @@ fn window_module() -> terminal_psi::TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Unit,
             kind: OperationKind::StoreStructuralField {

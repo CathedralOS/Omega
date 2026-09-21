@@ -102,16 +102,22 @@ pub data SubmitOutcome<T, Arguments> {
 }
 
 // One executor instance: its bounded submission queue, the wait word
-// producers and workers park on, and the routed worker-provider service
-// worker activations run under. `Service<WorkerProvider>` is the
-// held selected capability — established by build composition, never
-// package-authored (service.omg), matching the spec rule that selection
-// grants no ambient authority: the executor must hold the capability.
+// producers and workers park on, the routed worker-provider service worker
+// activations run under, and the count of vended claims not yet settled.
+// `Service<WorkerProvider>` is the held selected capability — established
+// by build composition, never package-authored (service.omg), matching the
+// spec rule that selection grants no ambient authority: the executor must
+// hold the capability. `outstanding` is the outstanding-claim ledger:
+// every `Accepted` vends one `Ticket` claim against this executor, and
+// `settle` retires exactly one — an executor must not die while claims it
+// vended are still live, because a `Ticket` can only be settled against
+// the executor that issued it.
 pub data Executor<T, Arguments, const N: u64> [linear] {
     queue: BoundedQueue<Submission<T, Arguments>, N>;
     wait_word: u64;
     runtime: Service<WorkerProvider>;
     open: bool;
+    outstanding: u64;
 }
 
 // Admit this submission into `executor`. Linear values must move through
@@ -148,17 +154,23 @@ pub boundary requirement Ticket::request_cancel<T>(&self);
 // Terminally consume this claim against the executor that vended it;
 // blocks until the worker reports a lifecycle outcome. Same shape as
 // `Task::finish(self)`: settlement is the only discharge of the claim.
+// The executor is borrowed mutably so a satisfying body can retire the
+// claim on `outstanding` — an immutable borrow would leave `close`'s
+// provable zero-claims obligation unreachable.
 pub boundary requirement Ticket::settle<T, Arguments, const N: u64>(
     self,
-    executor: &Executor<T, Arguments, N>
+    executor: &mut Executor<T, Arguments, N>
 ) -> ExecutorOutcome<T>
 suspends; blocks;
 
-// Terminally consume an executor with a provably empty queue — reclaiming
-// it requires reconciliation of every outstanding claim first, so close
-// cannot proceed while queued submissions survive.
+// Terminally consume an executor with a provably empty queue and no live
+// completion claims — reclaiming it requires reconciliation of every
+// outstanding claim first, so close cannot proceed while queued
+// submissions or vended tickets survive (a `Ticket` has no other
+// discharge route once its executor is gone).
 pub boundary requirement Executor::close<T, Arguments, const N: u64>(
     self
 ) -> ()
 requires
     self.queue.length == 0;
+    self.outstanding == 0;

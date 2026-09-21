@@ -57,9 +57,10 @@ fn replay_structural_shape(
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
             semantic_vocabulary::IeeeFloatFormat::Binary64,
         )) => ValueShape::float(8),
-        // First-class byte views are not Boolean-field aggregates and have no
-        // native condition layout in this consumer.
-        terminal_psi::StructuralTypeShape::ByteSequence(_) => return None,
+        // First-class byte and element views are not Boolean-field aggregates
+        // and have no native condition layout in this consumer.
+        terminal_psi::StructuralTypeShape::ByteSequence(_)
+        | terminal_psi::StructuralTypeShape::ElementView { .. } => return None,
         terminal_psi::StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;

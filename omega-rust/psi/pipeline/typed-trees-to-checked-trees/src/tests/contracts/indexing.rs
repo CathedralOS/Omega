@@ -252,6 +252,8 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         conformance_bounds: Vec::new(),
         requires: Default::default(),
         machines: Default::default(),
+        refines: None,
+        refinement_clauses: Vec::new(),
     };
     let mut signature = StateSignature {
         symbol: signature_symbol,
@@ -488,6 +490,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         conformance_bounds: Vec::new(),
         requires: Default::default(),
         machines: Default::default(),
+        refines: None,
+        refinement_clauses: Vec::new(),
     };
     let mut signature = StateSignature {
         symbol: signature_symbol,
@@ -1087,4 +1091,113 @@ fn value_vs_value_endpoint_one_past_the_region_refuses() {
             .contains("cannot prove index `self.i` is within length 8")),
         "expected the index refusal, got {diagnostics:#?}"
     );
+}
+#[test]
+fn indexed_write_through_a_pinned_selector_records_the_selected_element() {
+    // `rooms[from_index]` with `from_index` provably 0 is the same store as
+    // `rooms[0]`. The requires-side read narrows the selector to the element
+    // it names, so the write must land its facts on that element too: the
+    // store below replaces the constructed `exit_count: 5` with 1, and the
+    // call proves `room.exit_count < 4` only if the write recorded it.
+    let source = r#"
+        data Exit { destination: u32; }
+        data Room { exits: [Exit; 4]; exit_count: u32; }
+        machine append_exit(room: &mut Room, destination: u32)
+        requires room.exit_count < 4 {
+            room.exit_count = destination;
+        }
+        machine establish() {
+            let mut rooms: [Room; 1] = [Room {
+                exits: [
+                    Exit { destination: 0 },
+                    Exit { destination: 0 },
+                    Exit { destination: 0 },
+                    Exit { destination: 0 }
+                ],
+                exit_count: 5
+            }];
+            let from_index: u64 = 0;
+            rooms[from_index].exit_count = 1;
+            append_exit(&mut rooms[from_index], 7);
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn indexed_write_through_an_unproven_or_moved_selector_records_nothing() {
+    for body in [
+        // `slot` is bounded but has no exact value, so `rooms[slot]` names
+        // some element; the write cannot be attributed to any one of them.
+        "rooms[slot].exit_count = 1; append_exit(&mut rooms[slot], 7);",
+        // The selector was pinned at the store but moved before the call:
+        // the fact correctly landed on `rooms[0]` and must not follow the
+        // selector to `rooms[1]`.
+        "let mut at: u64 [0..=3] = 0; rooms[at].exit_count = 1; at = 1; \
+         append_exit(&mut rooms[at], 7);",
+        // A pinned selector overwritten by a call-site value is unproven
+        // again at the store.
+        "let mut at: u64 [0..=3] = 0; at = unknown; \
+         rooms[at].exit_count = 1; append_exit(&mut rooms[at], 7);",
+    ] {
+        let source = format!(
+            r#"
+            data Exit {{ destination: u32; }}
+            data Room {{ exits: [Exit; 4]; exit_count: u32; }}
+            machine append_exit(room: &mut Room, destination: u32)
+            requires room.exit_count < 4 {{
+                room.exit_count = destination;
+            }}
+            machine establish(slot: u64 [0..=3], unknown: u64 [0..=3]) {{
+                let mut rooms: [Room; 4] = [
+                    Room {{
+                        exits: [
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }}
+                        ],
+                        exit_count: 5
+                    }},
+                    Room {{
+                        exits: [
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }}
+                        ],
+                        exit_count: 5
+                    }},
+                    Room {{
+                        exits: [
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }}
+                        ],
+                        exit_count: 5
+                    }},
+                    Room {{
+                        exits: [
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }},
+                            Exit {{ destination: 0 }}
+                        ],
+                        exit_count: 5
+                    }}
+                ];
+                {body}
+            }}
+        "#
+        );
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove requires")),
+            "{body}: {diagnostics:#?}"
+        );
+    }
 }

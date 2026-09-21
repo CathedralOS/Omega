@@ -6,9 +6,9 @@ use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -25,41 +25,7 @@ use super::{
     ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation,
     relocate_scheduled_run, validate_scheduled_relocation,
 };
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const MOVING: SelectedInstructionId = SelectedInstructionId(3);
@@ -1161,4 +1127,318 @@ fn scheduled_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![MOVING, T_HEAD, TRAIL, T_TAIL]
     );
+}
+
+/// The mirror image: the run hoists out of a downstream block onto a
+/// dominating destination — `[T_HEAD; T_TAIL]` leave T's head, cross C's
+/// tail and terminator and the C->T edge, and land inside C —
+/// `C = [C_HEAD, T_HEAD, T_TAIL, C_TAIL]` — with every other position
+/// keeping its order and the replayed proposal restoring the source
+/// bit-identically.
+#[test]
+fn run_hoists_through_a_sole_successor_chain() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = chain_fixture(target);
+        let result = relocate(&source, &environment, &[T_HEAD, T_TAIL], C_TAIL).unwrap();
+        let original = &source.transformed().functions[0];
+        let moved = &result.transformed().functions[0];
+        assert_eq!(
+            moved.blocks[1]
+                .instructions
+                .iter()
+                .map(|instruction| instruction.id)
+                .collect::<Vec<_>>(),
+            vec![C_HEAD, T_HEAD, T_TAIL, C_TAIL]
+        );
+        assert!(moved.blocks[2].instructions.is_empty());
+        assert_eq!(
+            moved.blocks[0].instructions,
+            original.blocks[0].instructions
+        );
+        assert_eq!(
+            moved.blocks[3].instructions,
+            original.blocks[3].instructions
+        );
+        for index in 0..4 {
+            assert_eq!(
+                moved.blocks[index].terminator,
+                original.blocks[index].terminator
+            );
+        }
+        validate_scheduled_relocation(
+            &source,
+            0,
+            &[T_HEAD, T_TAIL],
+            C_TAIL,
+            &environment,
+            budget(),
+            result.transformed().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// A hoist out of a join crosses every arm path back to the dominating
+/// fork head: `[HEAD]` leaves J, crosses A's, T's, and F's streams, both
+/// fork edges, and B's branch, and lands on TRAIL's position in B —
+/// `B = [LEAD, MOVING, HEAD, TRAIL]`.
+#[test]
+fn run_hoists_out_of_a_join() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fork_deep_fixture(target);
+    let result = relocate(&source, &environment, &[HEAD], TRAIL).unwrap();
+    let original = &source.transformed().functions[0];
+    let moved = &result.transformed().functions[0];
+    assert_eq!(
+        moved.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![LEAD, MOVING, HEAD, TRAIL]
+    );
+    assert!(moved.blocks[4].instructions.is_empty());
+    assert_eq!(
+        moved.blocks[1].instructions,
+        original.blocks[1].instructions
+    );
+    assert_eq!(
+        moved.blocks[2].instructions,
+        original.blocks[2].instructions
+    );
+    assert_eq!(
+        moved.blocks[3].instructions,
+        original.blocks[3].instructions
+    );
+    validate_scheduled_relocation(
+        &source,
+        0,
+        &[HEAD],
+        TRAIL,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A hoist naming the terminator-carried instruction lands at the body
+/// end, and one naming a mid-body position lands there.
+#[test]
+fn hoist_lands_at_the_named_position() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = chain_fixture(target);
+    let body_end = relocate(&source, &environment, &[C_HEAD], JUMP_B).unwrap();
+    assert_eq!(
+        body_end.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![LEAD, MOVING, SECOND, TRAIL, C_HEAD]
+    );
+    let mid = relocate(&source, &environment, &[C_HEAD], MOVING).unwrap();
+    assert_eq!(
+        mid.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![LEAD, C_HEAD, MOVING, SECOND, TRAIL]
+    );
+}
+
+/// A hoist's destination must dominate the run's block: a landing inside
+/// the fork's F arm is reachable from the A arm without it, so the run
+/// would go missing on traversals through A.
+#[test]
+fn undominated_hoist_landings_refuse() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fork_deep_fixture(target);
+    assert_eq!(
+        relocate(&source, &environment, &[HEAD], F_TAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+    // J does not dominate F either: the request bounds no window.
+    assert_eq!(
+        relocate(&source, &environment, &[F_HEAD], J_HEAD).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+}
+
+/// A continuation off the destination that can exit without the run's
+/// block gains a run the source never executed on that traversal.
+#[test]
+fn hoist_refuses_continuations_that_exit() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Point the fork's F arm at a return instead of the join.
+    let exiting = mutated(target, true, |function, environment| {
+        let parts = parts(target);
+        function.blocks[2].terminator = SelectedTerminator::Return {
+            instruction: instruction(
+                F_JUMP,
+                SelectedInstructionKind::ReturnUnit,
+                &parts.return_row,
+                &[],
+            ),
+            psi_return_edge: EdgeId::new(36).unwrap(),
+        };
+        let _ = environment;
+    });
+    assert_eq!(
+        relocate(&exiting, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+}
+
+/// A continuation off the destination that can cycle without the run's
+/// block would run the relocated member again before the source position
+/// arrived once.
+#[test]
+fn hoist_refuses_continuations_that_cycle() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Let T branch back to A, closing an A -> T -> A loop beside the join.
+    let cycling = mutated(target, true, |function, environment| {
+        let parts = parts(target);
+        function.blocks[3].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                T_JUMP,
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                &parts.branch_row,
+                &[],
+            ),
+            when_nonzero: successor(BLOCK_J, BlockId::new(5).unwrap(), 34),
+            when_zero: successor(BLOCK_A, BlockId::new(2).unwrap(), 37),
+        };
+        let _ = environment;
+    });
+    assert_eq!(
+        relocate(&cycling, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+}
+
+/// A run block re-enterable from its own successors without crossing the
+/// destination again would execute the relocated member once where the
+/// source ran it per entry.
+#[test]
+fn hoist_refuses_a_run_block_reenterable_beside_the_landing() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Give J a branch back into A: J -> A -> T -> J re-enters J while B's
+    // landing ran the member once.
+    let reentering = mutated(target, true, |function, environment| {
+        let parts = parts(target);
+        function.blocks[4].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                JUMP_B,
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                &parts.branch_row,
+                &[],
+            ),
+            when_nonzero: successor(BLOCK_A, BlockId::new(2).unwrap(), 38),
+            when_zero: successor(BLOCK_A, BlockId::new(2).unwrap(), 39),
+        };
+        let _ = environment;
+    });
+    assert_eq!(
+        relocate(&reentering, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+}
+
+/// The hoist crosses positions behind the landing and ahead of the run's
+/// old position: a write to the member's register on a crossed arm
+/// refuses, while a read of it before the landing index stays uncrossed.
+#[test]
+fn hoist_crossed_hazards_keep_order() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // F_TAIL writing R_HEAD trades order with the hoisted member.
+    let crossed_waw = mutated(target, true, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.blocks[2].instructions[1] = instruction(
+            F_TAIL,
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[R_HEAD, R_FHEAD],
+        );
+    });
+    assert_eq!(
+        relocate(&crossed_waw, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+    // A_TAIL reads R_HEAD inside a crossed intermediate: refused.
+    let crossed_raw = mutated(target, true, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.blocks[1].instructions[1] = instruction(
+            A_TAIL,
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[R_ATAIL, R_HEAD],
+        );
+    });
+    assert_eq!(
+        relocate(&crossed_raw, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+    // LEAD reads R_HEAD but sits before the landing index: it keeps the
+    // run on the side it always had, so the hoist stays admitted.
+    let early_read = mutated(target, true, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[0] = instruction(
+            LEAD,
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[R_LEAD, R_HEAD],
+        );
+    });
+    relocate(&early_read, &environment, &[HEAD], TRAIL).unwrap();
+}
+
+/// A settlement inside the run's old block past the vacated position, or
+/// past the landing index in the destination, observes a changed executed
+/// prefix; one at the landing boundary keeps its own executed set.
+#[test]
+fn hoist_boundary_settlements_bound_the_window() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let inside_run_block = mutated(target, true, |function, _| {
+        function.boundary_settlements = vec![settlement(BLOCK_J, 1, 40)];
+    });
+    assert_eq!(
+        relocate(&inside_run_block, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+    let past_landing = mutated(target, true, |function, _| {
+        function.boundary_settlements = vec![settlement(BLOCK_B, 3, 40)];
+    });
+    assert_eq!(
+        relocate(&past_landing, &environment, &[HEAD], TRAIL).unwrap_err(),
+        ScheduledRelocationError::UnsupportedPair
+    );
+    let at_landing = mutated(target, true, |function, _| {
+        function.boundary_settlements = vec![settlement(BLOCK_B, 2, 40)];
+    });
+    relocate(&at_landing, &environment, &[HEAD], TRAIL).unwrap();
 }

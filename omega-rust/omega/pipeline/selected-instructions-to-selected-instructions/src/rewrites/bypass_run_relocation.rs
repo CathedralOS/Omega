@@ -51,21 +51,28 @@
 //! the run, at or after the landing index, and in every other block
 //! keep the run on the side they always had, so they are never crossed.
 //!
-//! The hazard audit is the in-block run relocation's applied across the
-//! triangle: a register or condition-state unit any member writes and a
-//! crossed instruction reads or writes, or any member reads and a
-//! crossed instruction writes, refuses in either direction. Every
-//! crossed edge's register transports join the audit per member rather
-//! than through an instruction: a `Registers` transport writes its
-//! parameter at the boundary, so a member defining the transported
-//! argument, defining the parameter, or reading the parameter would
-//! observe or feed a different value after the move and refuses. Calls,
-//! hosted effects, terminator kinds, and call-roster entries are
-//! barriers anywhere in the window — the branch terminator and the
-//! arms' `Jump` terminators are the crossed edges, not window members —
-//! and a boundary settlement refuses where the run changes sides with
-//! its block's executed prefix: past the run's first index in its own
-//! block, or past the landing index in the join block.
+//! The hazard audit is the shared run-relocation audit applied across
+//! the triangle: `block_edges::crossed_window` derives the positions
+//! and edges every acyclic path between the head and the join crosses —
+//! the run's block tail, the branch terminator with its two edges, each
+//! arm's whole body with its `Jump` edge, and the join head before the
+//! landing index — and `window_hazards::admit_run_relocation` proves
+//! the window independent. A register or condition-state unit any
+//! member writes and a crossed instruction reads or writes, or any
+//! member reads and a crossed instruction writes, refuses in either
+//! direction. Every crossed edge's register transports join the audit
+//! per member rather than through an instruction: a `Registers`
+//! transport writes its parameter at the boundary, so a member defining
+//! the transported argument, defining the parameter, or reading the
+//! parameter would observe or feed a different value after the move and
+//! refuses. Calls, hosted effects, terminator kinds, and call-roster
+//! entries are barriers anywhere in the window — the branch terminator
+//! and the arms' `Jump` terminators are the crossed edges, not window
+//! members — and a boundary settlement refuses where the run changes
+//! sides with its block's executed prefix: past the run's first index
+//! in its own block, past the landing index in the join block, or
+//! anywhere inside a crossed arm — every member runs before each arm
+//! point before the move and after it once the run lands in the join.
 //!
 //! Memory ordering keeps the validated `memory_accesses` roster's
 //! completeness discipline at run granularity: a memory-capable member

@@ -11,23 +11,22 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedSuccessor, SelectedTerminator,
+    SelectedBlock, SelectedBlockOrigin, SelectedInstruction, SelectedInstructionId,
+    SelectedSuccessor, SelectedTerminator,
 };
 
 use super::ForkRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    all_edges, edge_surface, plain_edge, terminator_instruction, terminator_successors,
-    transport_conflict,
+    PathEdge, RelocationCrossing, all_edges, edge_surface, terminator_instruction,
+    terminator_successors,
 };
 use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
 };
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the fork's branching head.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -89,14 +88,14 @@ fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -
         })
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, ForkRelocationError> {
+) -> Result<Admission, ForkRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ForkRelocationError::SourceMismatch);
@@ -207,11 +206,6 @@ pub(super) fn admit<'source>(
             skipped_edges.push(*edge);
         }
     }
-    for edge in &landing_edges {
-        if !plain_edge(edge) || transport_conflict(member_instruction, edge) {
-            return Err(ForkRelocationError::UnsupportedPair);
-        }
-    }
     // The member's execution becomes conditional on the landing edge: only
     // pure register and condition-state work may sink — a roster-carrying
     // or unaccounted memory access that ran on every traversal would run
@@ -220,39 +214,42 @@ pub(super) fn admit<'source>(
     if schedulable(function, member_instruction) != Some(false) || !sinkable(member_instruction) {
         return Err(ForkRelocationError::UnsupportedInstruction);
     }
-    // The branch terminator is the crossed edge's position: it is exempt
-    // from the barrier-kind rule but not from the call or hazard audit.
-    if has_call_contract(function, terminator.id) {
-        return Err(ForkRelocationError::UnsupportedInstruction);
-    }
-    if coupled(member_instruction, terminator) {
-        return Err(ForkRelocationError::UnsupportedPair);
-    }
-    // The member trades order with the positions behind it in its own body
-    // and the positions before the landing index in the arm. Every other
-    // position keeps the member on the side it always had.
-    for crossed in block.instructions[member_index + 1..]
-        .iter()
-        .chain(target.instructions[..landing_index].iter())
-    {
-        schedulable(function, crossed).ok_or(ForkRelocationError::UnsupportedInstruction)?;
-        if coupled(member_instruction, crossed) {
-            return Err(ForkRelocationError::UnsupportedPair);
+    // The fork's window is structural: the member's block tail, the arm's
+    // head before the landing index, and the landing edges — each carried
+    // by the branch terminator as the edge's own position. The shared
+    // run-level audit proves the window independent once: schedulability
+    // and coupling against every crossed position and edge, plain-edge and
+    // transport checks, and the boundary-settlement refusal — replacing
+    // the per-shape spelling of the same checks.
+    let crossing = RelocationCrossing {
+        reachable: true,
+        positions: vec![
+            (
+                block_index,
+                (member_index + 1..block.instructions.len()).collect(),
+            ),
+            (target_index, (0..landing_index).collect()),
+        ],
+        edges: landing_edges
+            .iter()
+            .map(|successor| PathEdge {
+                block: block.id,
+                instruction: terminator,
+                successor,
+            })
+            .collect(),
+        run_block: block_index,
+        run_start: member_index,
+        run_end: member_index,
+        destination_block: target_index,
+        landing_index,
+    };
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(|rejection| {
+        match rejection {
+            RunRelocationRejection::Unschedulable => ForkRelocationError::UnsupportedInstruction,
+            _ => ForkRelocationError::UnsupportedPair,
         }
-    }
-    // A settlement positioned past the member's index observed it inside
-    // the source block's executed prefix; a settlement positioned past the
-    // landing index observes it inside the arm's. Both refuse; positions at
-    // or before either boundary keep the executed set they always had.
-    // Blocks on the skipped paths are unaffected: the member was never in
-    // their streams, so no prefix there ever contained or loses it.
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > member_index)
-            || (settlement.block == target.id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(ForkRelocationError::UnsupportedPair);
-    }
+    })?;
     // The dead-path audit: every location the member writes must be dead —
     // unread until rewritten — along every path leaving the branch's other
     // edges.
@@ -353,7 +350,6 @@ pub(super) fn admit<'source>(
         return Err(ForkRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,

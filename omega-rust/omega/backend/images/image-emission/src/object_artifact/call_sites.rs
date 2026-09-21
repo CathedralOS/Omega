@@ -963,7 +963,10 @@ mod tests {
     //! call facet, and the boundary plan's state facet are each re-derived at
     //! image custody, so a retained row that drifts on any of them rejects.
 
-    use super::*;
+    use super::{
+        CallSiteOwner, MachineId, NativeTarget, ObjectError, SemanticCodeAttribution,
+        SemanticCodeSite, validate_foreign_scalar_arguments,
+    };
     use machine_code::{
         ForeignCallRelocation, MachineCodeFunction, ProviderExecutionRecord, UnitCallStackEvidence,
     };

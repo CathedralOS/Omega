@@ -53,11 +53,15 @@
 //! the same remap the dead family applies — while positions at or before it
 //! are untouched. The compare's register uses simply disappear.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the function to equal the independently computed removal, and restores
-//! the complete source by content — every other instruction, register,
-//! roster row, call, and settlement included.
+//! Validation consumes the proposed program, requires the function to
+//! equal the independently computed removal, and restores the complete
+//! source by content — every other instruction, register, roster row,
+//! call, and settlement included. The validator re-derives the removal's
+//! preconditions on its own audit — the flag-equivalent shadow each
+//! published unit's reaching events must resolve to and the operand
+//! interval no shared-register write may cross — never consulting the
+//! producer's `admission` routine; only the module's shared
+//! condition-state walk and edge vocabulary are common to both sides.
 
 mod admission;
 mod rewrite;

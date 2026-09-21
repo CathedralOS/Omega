@@ -66,10 +66,13 @@
 //! only the dead-path audit's boundary reading where loops carry the
 //! foreign set back around.
 //!
-//! The hazard audit is the in-block relocation's applied across the
-//! boundary downstream: a register or condition-state unit the member
-//! writes and a crossed instruction reads or writes, or the member reads
-//! and a crossed instruction writes, refuses in either direction — which
+//! The hazard audit is the shared run relocation's applied across the
+//! boundary downstream — `block_edges::crossed_window` derives the lone
+//! `Jump` edge's positions and `window_hazards::admit_run_relocation`
+//! proves the window independent once: a register or condition-state
+//! unit the member writes and a crossed instruction reads or writes, or
+//! the member reads and a crossed instruction writes, refuses in either
+//! direction — which
 //! also pins the member's inputs, so the execution at the landing index
 //! on this inflow's path computes the values the old position computed.
 //! The edge's register transports join the audit directly rather than
@@ -90,10 +93,14 @@
 //! terminator record changes: the member keeps its own id, kind,
 //! operands, provenance, and implicit surface while only its position in
 //! the program moves. Proposal and independent replay share only the
-//! admission predicates. Validation consumes the proposed program,
-//! requires the member to sit at the landing index, and restores the
-//! complete source by content — every other block, instruction,
-//! register, roster row, call, and settlement is retained bit-identical.
+//! window primitives — `crossed_window`, the run audit, and the
+//! dead-path walk — while each derives the family's legality decision
+//! itself. Validation consumes the proposed program, re-derives the
+//! member, join, and landing index from the source without the
+//! producer's admission routine, requires the member to sit at the
+//! landing index, and restores the complete source by content — every
+//! other block, instruction, register, roster row, call, and settlement
+//! is retained bit-identical.
 
 mod admission;
 mod rewrite;

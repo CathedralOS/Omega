@@ -8,6 +8,29 @@ carry, and provider evidence keep their own judgments.
 
 ## Declaration and membership
 
+Explicit value refinements use domain qualifications. Scalar types have no
+bracketed range-annotation suffix. Bounds learned from `requires`, `ensures`,
+guards, or arithmetic remain ordinary subject-bound proof facts; they need not
+be repeated on a local's type. A call's checked postconditions apply to its exact
+result even when the receiving local is declared with the bare carrier.
+
+To publish a reusable bound in a type, declare a predicate domain and return or
+accept its qualified carrier:
+
+```omega
+domain u64::AlignmentSize
+    requires self >= 1 && self <= 8;
+```
+
+A result may be declared `u64 in AlignmentSize`. Alternatively, return plain
+`u64` with `ensures result >= 1 && result <= 8`; the receiving local needs no
+qualification to use those established facts.
+
+Data and case `where` couplings remain their ordinary
+[default-domain obligations](dependent_values.md#default-domains-and-zero-initialization).
+Range expressions, range membership, slices, fixed arrays, and bracketed
+multiplicity properties are separate facilities and are unchanged.
+
 ```omega
 domain i32::Positive
     requires self > 0;

@@ -32,6 +32,7 @@ pub(crate) fn structural_argument_canonical_prefix(
                         StructuralTypeShape::PrimitiveScalar(_)
                         | StructuralTypeShape::Reference { .. }
                         | StructuralTypeShape::ByteSequence(_)
+                        | StructuralTypeShape::ElementView { .. }
                         | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::Sum { .. } => None,
                     })?;

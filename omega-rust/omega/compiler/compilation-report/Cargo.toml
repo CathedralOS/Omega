@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+artifacts = { path = "../../tooling/artifacts" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 build-evaluation = { path = "../../build/build-evaluation" }
