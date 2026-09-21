@@ -6769,6 +6769,25 @@ moved to the termination-catalog fence (see that row's refresh note).
   is unfenced but joins through the settled dispatch facts boundary_dispatch.rs
   produces — fenced upstream. No uncontested landable slice this pass.
 
+  Re-verified at `53817f8759e5` (linux x86-64) — surfaces unmoved
+  (`MachineSupplyMode::Boundary` still assigned at
+  `lowering/machine.rs:148,163`; `is_directly_callable_top_level_requirement`
+  still gates `boundary_dispatch.rs:751`), and the fence map rotated but the
+  slice ledger is unchanged: `selected-dispatch/boundary_dispatch.rs` stays
+  under NEW-NFF-FILESYSTEM-HOST-PLAN-JOIN-REGRESSION (~16:27Z) covering the
+  parameterized-requirement gate, deeper projections and
+  statement/FlowCallFact surfaces; `execution/unit/{providers.rs,
+  types/mod.rs}` stays under PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z);
+  `external-roots` program_local legs under EPOCH-RESOURCE-SNAPSHOTS
+  (~11:32Z). Two recorded leases drained since `72fc66d6c32`
+  (NEW-BI-PROVIDER-PLANNING-ISSUANCE-JOIN on provider-planning and
+  FILESYSTEM-RELEASE-CONTRACT on `boundary_operator_custody`), but the
+  conformances.rs Terminal-identity leg still joins through fenced
+  boundary_dispatch facts, and the remaining legs (tokenless respell,
+  `MachineSupplyMode::Boundary` removal, interrupt completion, macOS
+  external-satisfier control) stay delegated/upstream/host-gated exactly as
+  recorded. No uncontested landable slice this pass either.
+
 - **BUILD-ADMISSION-CHECKPOINT.** Execute an admitted build machine against one
   coherent frontend/source/authority snapshot and append generated source in a
   later resolution stratum; authored source may not resolve forward into output
