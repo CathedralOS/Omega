@@ -4,7 +4,7 @@ mod read_byte;
 mod scalar_calls;
 use crate::{LegalizedCallSourceError, LegalizedScalarCall};
 use optimization_unit::OwnershipEvent;
-pub use scalar_calls::LegalizedScalarCallShapeError;
+pub use scalar_calls::{LegalizedDynamicParameterCallShapeError, LegalizedScalarCallShapeError};
 impl LegalizedScalarCall {
     /// Check representation-owned call origin and ownership invariants.
     /// Upstream source, target and installation replay remain required.

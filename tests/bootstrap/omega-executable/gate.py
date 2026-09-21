@@ -37,6 +37,38 @@ def evaluate(directory, program, sealed_input, limit, label):
     return output
 
 
+def ocreq_request(source, path):
+    """Frame the canonical OCREQ V1 request for this gate's single-source
+    program: one application package whose snapshot is exactly `path` as a
+    non-executable regular file, an empty edge table, and an invocation
+    selecting the alpha_bootstrap_tape product on the alpha_bootstrap
+    target profile with the bound SHA-256 subject commitment."""
+    def u32(value):
+        return struct.pack("<I", value)
+
+    def field(payload):
+        return u32(len(payload)) + payload
+
+    snapshot_row = u32(2) + field(path) + u32(0) + field(source)
+    package_row = (
+        field(b"program")        # name
+        + u32(1)                 # lineage_kind: external_local
+        + field(b"")             # lineage
+        + field(b"")             # revision
+        + field(b"")             # tree
+        + field(b"")             # content
+        + field(b"")             # member projection
+        + u32(2)                 # role: application
+        + u32(1) + snapshot_row  # snapshot table
+    )
+    subject = u32(1) + package_row + u32(0) + u32(0) + u32(2)
+    commitment = hashlib.sha256(
+        b"omega.ocreq.subject.sha256.v1\x00" + subject).digest()
+    invocation = u32(4) + field(b"alpha_bootstrap") + u32(0) + commitment
+    return (b"OCREQ\x01\x00\x00" + u32(len(subject)) + u32(len(invocation))
+            + subject + invocation)
+
+
 def main():
     arguments = argparse.ArgumentParser()
     arguments.add_argument("directory", type=Path)
@@ -44,6 +76,8 @@ def main():
     arguments.add_argument("--source", type=Path)
     arguments.add_argument("--expect", type=int)
     arguments.add_argument("--expect-compile", type=int, choices=range(5), default=0)
+    arguments.add_argument("--ocreq", action="store_true")
+    arguments.add_argument("--diagnostic", action="store_true")
     arguments.add_argument("--controls", action="store_true")
     arguments.add_argument("--controls-b", action="store_true")
     arguments.add_argument("--controls-c", action="store_true")
@@ -66,6 +100,10 @@ def main():
         arguments.error("controls cannot be combined with source or expected-outcome options")
     expected_exit = options.expect if options.expect is not None else int((gate / "expected.txt").read_text())
     controls = any(selected)
+    if options.ocreq and options.diagnostic:
+        arguments.error("--ocreq and --diagnostic select different entries")
+    if options.diagnostic and controls:
+        arguments.error("the diagnostic adapter does not drive the controls")
     source = b"" if controls else (options.source or gate / "program.omg").read_bytes()
     limit = int(os.environ.get("OMEGA_EXECUTABLE_OBSERVATION_SECONDS", "14400"))
     if limit <= 0:
@@ -110,12 +148,30 @@ def main():
                     "controls_f.epsilon" if options.controls_f else
                     "controls_g.epsilon" if options.controls_g else
                     "controls_h.epsilon" if options.controls_h else
-                    "controls_i.epsilon" if options.controls_i else "main.epsilon")
+                    "controls_i.epsilon" if options.controls_i else
+                    "main.epsilon" if options.diagnostic else
+                    "main_ocreq.epsilon")
     customer = (directory / "omega_compiler.epsilon").read_bytes() + entry.read_bytes()
     print(f"Compiler customer: {len(customer)} bytes, sha256 {hashlib.sha256(customer).hexdigest()}", flush=True)
     print(f"Omega source: {len(source)} bytes, sha256 {hashlib.sha256(source).hexdigest()}", flush=True)
+    # The gate's entry is the real compiler request route: an OCREQ V1 frame
+    # whose subject carries one application package snapshotting the source
+    # file, and whose invocation selects the alpha_bootstrap_tape product on
+    # the alpha_bootstrap profile with the SHA-256 subject commitment bound.
+    # --diagnostic keeps the raw-source adapter lane for refusal coverage.
+    request_route = not (controls or options.diagnostic)
+    if request_route:
+        snapshot_path = Path(options.source).name.encode() if options.source \
+            else b"program.omg"
+        sealed_input = ocreq_request(source, snapshot_path)
+        print(f"OCREQ request: {len(sealed_input)} bytes, "
+              f"sha256 {hashlib.sha256(sealed_input).hexdigest()}", flush=True)
+    else:
+        sealed_input = source
+        print(f"Omega source: {len(sealed_input)} bytes, "
+              f"sha256 {hashlib.sha256(sealed_input).hexdigest()}", flush=True)
     observation = evaluate(directory, receipt,
-                           struct.pack("<I", len(customer)) + customer + source,
+                           struct.pack("<I", len(customer)) + customer + sealed_input,
                            limit, "Omega source to Alpha tape")
     if controls:
         expected_tape = bytes.fromhex("13 0b00000000000000 00 00 01 00 2a00000000000000 14")
@@ -127,7 +183,19 @@ def main():
     if observation[:5] != expected_prefix:
         raise SystemExit(f"Unexpected compiler outcome: {observation[:40].hex()}")
     if options.expect_compile:
-        if observation != expected_prefix:
+        refusal = observation[5:]
+        if request_route:
+            # The request route publishes exactly one closed OCOUT V1 frame
+            # on every refusal: identity, matching outcome tag, and the
+            # 40/48-byte extents the contract defines.
+            if len(refusal) not in (40, 48) or \
+                    refusal[:8] != b"\xffOCOUT\x01\x00" or \
+                    refusal[8] != options.expect_compile:
+                raise SystemExit(
+                    f"Refusal did not publish its OCOUT frame: {refusal[:40].hex()}")
+            print("Expected compiler refusal with its OCOUT frame", flush=True)
+            return
+        if refusal:
             raise SystemExit("Failed compilation published a partial tape")
         print("Expected compiler refusal with no artifact", flush=True)
         return

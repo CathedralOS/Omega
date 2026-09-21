@@ -37,6 +37,7 @@ fn scalar_field_initializer(field: u64, value: u64) -> RecordFieldInitializer {
 
 fn record_result(place: u64, structural_type: StructuralTypeId) -> OperationResult {
     OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: id(place, PlaceId::new),
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -89,6 +90,7 @@ fn record_establishment(
 ) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation, OperationId::new),
         result: record_result(place, structural_type),
         kind: OperationKind::EstablishRecord { fields },

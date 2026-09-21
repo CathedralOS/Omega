@@ -15,33 +15,55 @@ use crate::SelectedInstructionError;
 use calling_conventions::{EntryControl, validate_boundary_entry_plan};
 use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
-use semantic_vocabulary::ScalarType;
+use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId};
 use target_operations::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
 
 /// Scalar rows retain their native ordinals; the remaining ordered slots
-/// belong to the structural lane. Validation below requires a complete,
-/// strictly ordered scalar roster and rejects private callback slots.
+/// belong to the structural lane except the retained callback row's private
+/// slot, which selection emits as materialization bytes rather than an
+/// argument operand.
 pub(crate) fn structural_parameter_positions(
     call: &LegalizedNormalizedForeignCall,
 ) -> impl Iterator<Item = usize> + '_ {
-    (0..call.binding.boundary_entry_plan.call.parameters.len()).filter(|position| {
-        !call
-            .scalar_arguments
-            .iter()
-            .any(|argument| argument.parameter_index as usize == *position)
+    let callback_ordinal = call
+        .callback
+        .as_ref()
+        .map(|callback| callback.application.native_ordinal as usize);
+    (0..call.binding.boundary_entry_plan.call.parameters.len()).filter(move |position| {
+        Some(*position) != callback_ordinal
+            && !call
+                .scalar_arguments
+                .iter()
+                .any(|argument| argument.parameter_index as usize == *position)
     })
 }
 
 /// The exact operand roster one evaluated plan requires: register-resident
-/// parameter banks in authored order, then the scalar result definition.
+/// parameters in canonical bank order, then the scalar result definition.
 fn plan_operand_views(
     call: &LegalizedNormalizedForeignCall,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<Vec<(register_model::RegisterViewId, RegisterOperandAccess)>> {
     let plan = &call.binding.boundary_entry_plan.call;
     let mut views = Vec::new();
-    for placement in &plan.parameters {
+    // The plan keeps authored identity; only explicit instruction operands are
+    // bank-ordered, avoiding a catalog row for every source-type permutation.
+    // The callback's private slot is written by materialization bytes emitted
+    // inside the call encoding, so it never becomes an operand view.
+    let callback_ordinal = call
+        .callback
+        .as_ref()
+        .map(|callback| callback.application.native_ordinal as usize);
+    let mut parameters = plan
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(position, _)| Some(*position) != callback_ordinal)
+        .collect::<Vec<_>>();
+    parameters.sort_by_key(|(_, placement)| {
+        placement.shape.class == calling_conventions::ValueClass::Float
+    });
+    for (_, placement) in parameters {
         match placement.locations.as_slice() {
             [
                 ValueLocation::Register {
@@ -87,18 +109,55 @@ fn plan_operand_views(
     Some(views)
 }
 
+/// The complete implicit unit set a normalized foreign call's selected row
+/// must declare: the family baseline carried by every plain row, plus the
+/// pinned register units of a register-resident private callback slot. A
+/// stack-resident private slot has no register pin to declare.
+fn expected_implicit_uses(
+    call: &LegalizedNormalizedForeignCall,
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Option<Vec<RegisterUnitId>> {
+    let keys = environment.selected_keys();
+    let mut expected = keys.call_normalized_foreign.iter().find_map(|key| {
+        environment
+            .constraint(*key)
+            .filter(|row| row.operands.is_empty())
+            .map(|row| row.implicit_uses.clone())
+    })?;
+    if let Some(callback) = &call.callback {
+        let [ValueLocation::Register { register, .. }] =
+            callback.application.placement.locations.as_slice()
+        else {
+            return Some(expected);
+        };
+        let view_id = environment.fixed_register_view(*register)?;
+        let view = environment
+            .physical()
+            .model()
+            .views
+            .iter()
+            .find(|view| view.id == view_id)?;
+        expected.extend(view.units.iter().copied());
+        expected.sort_unstable();
+        expected.dedup();
+    }
+    Some(expected)
+}
+
 /// The unique selected foreign-call row for this exact evaluated plan. Zero
 /// or multiple matching rows are both custody failures: the catalog must hold
-/// exactly one row per (integer bank, register arity, scalar result) plan.
+/// exactly one row per (input register banks, scalar result bank) plan.
 pub(crate) fn call_key(
     call: &LegalizedNormalizedForeignCall,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     let views = plan_operand_views(call, environment)?;
+    let implicit_uses = expected_implicit_uses(call, environment)?;
     let keys = environment.selected_keys();
     let mut matches = keys.call_normalized_foreign.iter().filter(|key| {
         environment.constraint(**key).is_some_and(|row| {
-            row.operands.len() == views.len()
+            row.implicit_uses == implicit_uses
+                && row.operands.len() == views.len()
                 && row
                     .operands
                     .iter()
@@ -138,7 +197,6 @@ pub(crate) fn validate(
     if call.binding.locator.target().native_target() != environment.target()
         || plan.call.policy != CallingPolicy::native_for_target(environment.target())
         || plan.call.entry_control != EntryControl::CallReturn
-        || !plan.call.callback_materializations.is_empty()
         || call
             .binding
             .same_stack_contribution
@@ -150,23 +208,57 @@ pub(crate) fn validate(
     {
         return Err(invalid());
     }
-    if plan.call.parameters.len() != call.scalar_arguments.len() + call.structural_arguments.len() {
-        return Err(invalid());
-    }
     let pointer_size = u16::try_from(environment.target().pointer_size).map_err(|_| invalid())?;
     let pointer_alignment =
         u16::try_from(environment.target().pointer_alignment).map_err(|_| invalid())?;
+    // A retained callback roster row consumes exactly one private parameter
+    // slot in the registrar plan. Its native ordinal, pointer-shape
+    // placement, thunk identity, and owning operation are exact custody; a
+    // materialized call without the retained row, a roster row without the
+    // materialization, and a duplicated ordinal all fail closed.
+    let callback_ordinal = match &call.callback {
+        None => {
+            if !plan.call.callback_materializations.is_empty() {
+                return Err(invalid());
+            }
+            None
+        }
+        Some(callback) => {
+            let ordinal =
+                usize::try_from(callback.application.native_ordinal).map_err(|_| invalid())?;
+            let [_] = plan.call.callback_materializations.as_slice() else {
+                return Err(invalid());
+            };
+            if callback.terminal_operation != instruction.operation
+                || callback.registrar_boundary_entry_plan != *plan
+                || !callback.callback_function.is_valid()
+                || callback.callback_function.callback_thunk_placement_index()
+                    != Some(callback.placement_index)
+                || callback.application.shape != callback.application.placement.shape
+                || callback.application.shape
+                    != ValueShape::integer(pointer_size, pointer_alignment)
+                || plan.call.parameters.get(ordinal) != Some(&callback.application.placement)
+            {
+                return Err(invalid());
+            }
+            Some(ordinal)
+        }
+    };
+    if plan.call.parameters.len()
+        != call.scalar_arguments.len()
+            + call.structural_arguments.len()
+            + usize::from(call.callback.is_some())
+    {
+        return Err(invalid());
+    }
     // Each scalar argument keeps its authored plan position, its source's own
-    // fixed-integer scalar type, and the exact placement the plan assigned.
+    // scalar type, and the exact placement the plan assigned.
     for (index, argument) in call.scalar_arguments.iter().enumerate() {
-        let ScalarType::Integer(integer) = argument.source.scalar_type() else {
-            return Err(invalid());
-        };
-        if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+        if scalar_shape(argument.source.scalar_type()).is_none()
             || index.checked_sub(1).is_some_and(|previous| {
                 call.scalar_arguments[previous].parameter_index >= argument.parameter_index
             })
+            || Some(argument.parameter_index as usize) == callback_ordinal
             || plan.call.parameters.get(argument.parameter_index as usize)
                 != Some(&argument.placement)
             || scalar_shape(argument.source.scalar_type()) != Some(argument.placement.shape)
@@ -256,11 +348,7 @@ pub(crate) fn validate(
     match (&call.result_home, &plan.call.result, instruction.result) {
         (None, None, None) => {}
         (Some(home), Some(placement), Some(result)) => {
-            let ScalarType::Integer(integer) = result.scalar_type else {
-                return Err(invalid());
-            };
-            if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-                || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+            if scalar_shape(result.scalar_type).is_none()
                 || home.defining_operation != instruction.operation
                 || home.source_value != result.value
                 || home.scalar_type != result.scalar_type
@@ -300,9 +388,17 @@ pub(crate) fn validate(
         parameters,
         result: call.result_home.as_ref().map(|home| home.shape),
     };
-    let Ok(validated) = validate_boundary_entry_plan(plan.clone(), &signature) else {
-        return Err(invalid());
-    };
+    let validated = match &call.callback {
+        Some(callback) => {
+            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                plan.clone(),
+                &signature,
+                &callback.registrar_context,
+            )
+        }
+        None => validate_boundary_entry_plan(plan.clone(), &signature),
+    }
+    .map_err(|_| invalid())?;
     if validated.plan() != plan {
         return Err(invalid());
     }
@@ -312,6 +408,8 @@ pub(crate) fn validate(
     if call_key(call, environment) != Some(key)
         || environment.constraint(key) != Some(constraint)
         || constraint.key != key
+        || constraint.implicit_uses
+            != expected_implicit_uses(call, environment).ok_or_else(invalid)?
         || constraint.operands.len() != views.len()
         || constraint
             .operands

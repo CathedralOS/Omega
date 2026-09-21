@@ -87,12 +87,14 @@ pub(super) fn verified_exact_add_unit_with_right(
             entry: block,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(416).unwrap(),
                         result: OperationResult::Scalar(declaration(left)),
                         kind: OperationKind::IntegerConstant {
@@ -101,6 +103,7 @@ pub(super) fn verified_exact_add_unit_with_right(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(417).unwrap(),
                         result: OperationResult::Scalar(declaration(right)),
                         kind: OperationKind::IntegerConstant {
@@ -109,6 +112,7 @@ pub(super) fn verified_exact_add_unit_with_right(
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(418).unwrap(),
                         result: OperationResult::Scalar(declaration(computed)),
                         kind: OperationKind::ExactIntegerAdd {
@@ -126,6 +130,7 @@ pub(super) fn verified_exact_add_unit_with_right(
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(421).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

@@ -35,7 +35,8 @@ impl Budget {
         match value {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 self.scalar(left, depth + 1)?;
                 self.scalar(right, depth + 1)?;
             }

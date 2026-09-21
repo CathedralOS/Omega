@@ -396,6 +396,7 @@ fn is_material_write_only_type(
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. } => return false,
         }

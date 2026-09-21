@@ -46,7 +46,7 @@ fn clear_sealed_modes(root: &Path) {
                 clear_sealed_modes(&child.path());
             }
         }
-    } else {
+    } else if !metadata.file_type().is_symlink() {
         let _ = std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o644));
     }
 }
@@ -390,6 +390,91 @@ fn materialization_rejects_an_unrepresentable_executable_mode() {
             .next()
             .is_none(),
         "an unrepresentable inventory rejects before any write"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn discard_never_rewrites_modes_through_planted_aliases() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let input = ordinary_input();
+    let fixture = Fixture::new("discard-alias");
+    let backing = fixture.0.join("snapshot");
+    std::fs::create_dir(&backing).expect("create empty backing");
+    input
+        .materialize_into(&backing)
+        .expect("materialize captured source input");
+
+    let sentinel = fixture.0.join("sentinel");
+    std::fs::write(&sentinel, b"x").expect("write outside sentinel");
+    std::fs::set_permissions(&sentinel, std::fs::Permissions::from_mode(0o600))
+        .expect("seal sentinel mode");
+    std::fs::set_permissions(&backing, std::fs::Permissions::from_mode(0o755))
+        .expect("unseal the sealed backing for the planted entry");
+    std::os::unix::fs::symlink(&sentinel, backing.join("planted"))
+        .expect("plant an alias inside the private tree");
+    let linked = fixture.0.join("linked-sentinel");
+    std::fs::write(&linked, b"y").expect("write linked sentinel");
+    std::fs::set_permissions(&linked, std::fs::Permissions::from_mode(0o600))
+        .expect("seal linked sentinel mode");
+    std::fs::hard_link(&linked, backing.join("shared"))
+        .expect("plant a hard link inside the private tree");
+
+    super::discard_materialized_snapshot(&backing).expect("discard snapshot");
+
+    assert_eq!(
+        std::fs::symlink_metadata(&sentinel)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600,
+        "discard must never chmod through a symlink alias out of the tree"
+    );
+    assert_eq!(
+        std::fs::symlink_metadata(&linked)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600,
+        "discard must never chmod through a hard-link alias out of the tree"
+    );
+    assert!(
+        std::fs::symlink_metadata(&backing).is_err(),
+        "the private tree is still removed"
+    );
+
+    let victim = fixture.0.join("victim");
+    std::fs::create_dir(&victim).expect("create outside victim directory");
+    std::fs::write(victim.join("kept"), b"keep").expect("write kept file");
+    let victim_mode = std::fs::symlink_metadata(&victim)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    let alias = fixture.0.join("alias-destination");
+    std::os::unix::fs::symlink(&victim, &alias).expect("plant alias destination");
+
+    super::discard_materialized_snapshot(&alias).expect("discard alias destination");
+
+    assert_eq!(
+        std::fs::symlink_metadata(&victim)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        victim_mode,
+        "an aliased destination never rewrites the target directory's mode"
+    );
+    assert!(
+        victim.join("kept").exists(),
+        "the aliased directory's contents survive"
+    );
+    assert!(
+        std::fs::symlink_metadata(&alias).is_err(),
+        "the alias itself is unlinked rather than followed"
     );
 }
 

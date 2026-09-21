@@ -2,10 +2,10 @@
 // implementations satisfy it; neither edits the public ceiling. Which one an
 // application composes is ordinary build provider selection.
 //
-// The checking body routes its verdict through a scalar helper: a Unit
-// machine whose own state crashes has no checked Unit plan today, so the
-// crash site lives in `verify` and `CheckingAssert::check` keeps the
-// requirement's allowance.
+// The scalar helper keeps this fixture executable while direct Unit crash
+// planning is incomplete; the separate direct-unit control pins that gap.
+module main;
+
 use omega::language::core::service;
 
 pub boundary trait Assert {

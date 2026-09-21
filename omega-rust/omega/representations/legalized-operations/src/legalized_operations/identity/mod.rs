@@ -2,6 +2,7 @@
 
 mod calling;
 mod canonical;
+mod dynamic_calls;
 mod normalized_foreign;
 mod plan;
 mod scalar;

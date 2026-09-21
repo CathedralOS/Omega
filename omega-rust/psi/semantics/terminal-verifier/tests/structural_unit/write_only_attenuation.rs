@@ -135,6 +135,7 @@ pub(super) fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
     });
     operation.kind = OperationKind::CallStructuralScalar {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: Vec::new(),
         structural_arguments,
@@ -150,6 +151,7 @@ pub(super) fn give_receiver_call_scalar_result(module: &mut TerminalModule) {
     });
     callee.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

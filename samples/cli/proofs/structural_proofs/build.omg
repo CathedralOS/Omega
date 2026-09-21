@@ -1,0 +1,11 @@
+// Structural proofs sample build sketch. No package dependencies: proof
+// machines emit no runtime code, so the bound entry remains inert while the
+// subject selects a ProgramEntry for native artifact production.
+
+machine build(builder: &mut Build) {
+    builder.application("structural-proofs");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

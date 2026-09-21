@@ -1,4 +1,4 @@
-//! Closed float range requirements and closed scalar value contracts.
+//! Closed float/integer range requirements and closed scalar value contracts.
 
 use numerics::literals::IntegerLiteral;
 
@@ -18,6 +18,24 @@ pub struct ClosedFloatRangeRequirement {
     pub maximum_inclusive: bool,
 }
 
+/// One authored integer range constraint retained on an entry scalar
+/// parameter. `position` names the dense entry scalar parameter position,
+/// the same namespace `ClosedScalarContractValue` positions use, and
+/// `primitive_type` is the parameter's declared fixed-width integer carrier
+/// (an address carrier is not an entry-range carrier). The endpoints are the
+/// normalized inclusive bounds landed in that carrier — an authored
+/// exclusive maximum already became its predecessor — so the row always
+/// reads `minimum <= x <= maximum`. Each endpoint literal keeps its exact
+/// landing, the same identity the requires-tail `Predicate` conjunction
+/// carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosedIntegerRangeRequirement {
+    pub position: usize,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+    pub minimum: IntegerLiteral,
+    pub maximum: IntegerLiteral,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClosedScalarContractValue {
     Boolean(bool),
@@ -34,6 +52,17 @@ pub enum ClosedScalarContractValue {
     /// roster and its terminal catalog rows, not through `Predicate`
     /// propositions, so it may only appear in the requires tail.
     FloatRange(ClosedFloatRangeRequirement),
+    /// One authored `FloatMeaning` equality clause over float-semantics
+    /// catalog results. `expression` keeps the authored `==` contract node
+    /// verbatim; `equality` starts empty and the lowering preparation rejoins
+    /// it to the checked float-meaning equality roster — recording the dense
+    /// row coordinate the clause discharges through — before the contract
+    /// lowers to a terminal proposition. It may only appear in the ensures
+    /// tail.
+    FloatMeaningEquality {
+        expression: typed_trees::expression::ExpressionHandle,
+        equality: Option<crate::CheckedProofPropositionId>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -54,6 +83,16 @@ pub struct ClosedScalarValueContractPlan {
     /// closed scalar vocabulary itself carries the authored IEEE window and
     /// no requires row is left unsupported by a range.
     float_entry_ranges: Option<Vec<ClosedFloatRangeRequirement>>,
+    /// Integer entry range evidence: one row per retained authored integer
+    /// range constraint in dense scalar-parameter order. `None` records an
+    /// incomplete roster (a present integer range whose normalized endpoints
+    /// could not be retained exactly); consumers must fail closed on `None`
+    /// and never read an empty roster as "no ranges". Unlike the floating
+    /// roster these rows duplicate no clause position: the requires tail
+    /// already carries each integer range as a `Predicate` conjunction, and
+    /// this roster preserves the same landed endpoints as exact evidence for
+    /// consumers that cannot read predicate structure.
+    integer_entry_ranges: Option<Vec<ClosedIntegerRangeRequirement>>,
 }
 
 impl ClosedScalarValueContractPlan {
@@ -72,9 +111,11 @@ impl ClosedScalarValueContractPlan {
             ensures,
             has_crash_clauses,
             has_outcome_specific_clauses,
-            // Rebuilding callers cannot reconstruct the retained roster; it
-            // must ride back on through `with_float_entry_ranges`.
+            // Rebuilding callers cannot reconstruct the retained rosters;
+            // they must ride back on through `with_float_entry_ranges` and
+            // `with_integer_entry_ranges`.
             float_entry_ranges: None,
+            integer_entry_ranges: None,
         }
     }
 
@@ -96,6 +137,19 @@ impl ClosedScalarValueContractPlan {
         self.float_entry_ranges.as_deref()
     }
 
+    pub fn with_integer_entry_ranges(
+        mut self,
+        integer_entry_ranges: Option<Vec<ClosedIntegerRangeRequirement>>,
+    ) -> Self {
+        self.integer_entry_ranges = integer_entry_ranges;
+        self
+    }
+
+    /// The retained integer entry roster, or `None` when it is incomplete.
+    pub fn integer_entry_ranges(&self) -> Option<&[ClosedIntegerRangeRequirement]> {
+        self.integer_entry_ranges.as_deref()
+    }
+
     pub fn requires(&self) -> &[Option<ClosedScalarContractValue>] {
         &self.requires
     }
@@ -108,6 +162,31 @@ impl ClosedScalarValueContractPlan {
 
     pub fn ensures(&self) -> &[Option<ClosedScalarContractValue>] {
         &self.ensures
+    }
+
+    /// Rejoin each retained float-meaning equality clause to its checked
+    /// equality row. `resolve` maps the authored `==` contract expression to
+    /// that row's dense coordinate; an unresolved clause reports the authored
+    /// expression so the caller can reject it without silent erasure.
+    pub fn resolve_float_meaning_equalities(
+        &mut self,
+        mut resolve: impl FnMut(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<crate::CheckedProofPropositionId>,
+    ) -> Result<(), typed_trees::expression::ExpressionHandle> {
+        for clause in self.ensures.iter_mut().flatten() {
+            let ClosedScalarContractValue::FloatMeaningEquality {
+                expression,
+                equality,
+            } = clause
+            else {
+                continue;
+            };
+            if equality.is_none() {
+                *equality = Some(resolve(*expression).ok_or(*expression)?);
+            }
+        }
+        Ok(())
     }
 
     pub const fn has_crash_clauses(&self) -> bool {

@@ -5,7 +5,7 @@ use crate::facts::crash_calls::private_summaries::crash_route_expressions_by_ide
 use crate::facts::crash_calls::summary_predicates::{
     CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
     concrete_guard_scalar_value, normalize_summary_buckets, normalize_summary_guards,
-    scalar_guard_is_integer_comparison, summary_boolean_value,
+    scalar_guard_is_integer_comparison, scalar_guard_proves_false, summary_boolean_value,
 };
 use checked_trees::CrashPredicateExpression;
 use symbols::SymbolHandle;
@@ -212,10 +212,27 @@ pub(crate) fn call_argument_substitution(
         // actual against the validation-only `exact_integer_casts` facts.
         if let Some(expected) = program.primitive_type_reference(parameter.type_reference) {
             scalar.push(argument.and_then(|argument| {
+                let (machine, state) = owner?;
+                // Checked scalar evidence folds and annotates under builtin
+                // laws. An actual whose own operator occurrence selected an
+                // authored meaning cannot supply this lane: lowering could
+                // launder that occurrence into a builtin-shaped node, and
+                // neither the fold nor a retained annotation may read it
+                // under semantics its selection rejected. This is the same
+                // custody gate the `values` channel applies before
+                // evaluating an actual.
+                if !validation::has_builtin_bound_expression_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    argument,
+                ) {
+                    return None;
+                }
                 let lowered = crate::values::lower_unit_scalar_argument(
                     program,
                     operators,
-                    owner?.1,
+                    state,
                     before_statement,
                     argument,
                     expected,
@@ -224,7 +241,7 @@ pub(crate) fn call_argument_substitution(
                     crate::values::lower_state_scalar_expression(
                         program,
                         operators,
-                        owner?.1,
+                        state,
                         before_statement,
                         argument,
                         expected,
@@ -379,8 +396,9 @@ fn structural_actual_root(
 /// `IeeeFloatLiteral` and `IntegerTrappingCast` leaves stay admissible — the
 /// contract namespace refuses them, so they widen rather than pin an
 /// unlowering-able term. Wrapping and trapping cast leaves cannot ride this
-/// boundary at all: a cast actual carries no entry identity, so the guard it
-/// would annotate widens before the scalar is read.
+/// boundary into a retained annotation at all: a cast actual carries no entry
+/// identity, so its scalar can only discharge a closed-false guard in the
+/// missing-identity arm and is never kept where the route survives.
 fn scalar_evidence_is_crash_lane_lowerable(
     expression: &checked_trees::CheckedScalarExpression,
 ) -> bool {
@@ -396,6 +414,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
             scalar_evidence_is_crash_lane_lowerable(operand)
         }
@@ -417,7 +436,8 @@ fn boolean_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedBooleanExpression;
     match expression {
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_evidence_is_crash_lane_lowerable(left)
                 && scalar_evidence_is_crash_lane_lowerable(right)
         }
@@ -606,6 +626,17 @@ pub(crate) fn substitute_checked_boolean_expression(
                 )?),
             }
         }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            CheckedBooleanExpression::ScalarIeeeFloatComparison {
+                kind: *kind,
+                left: Box::new(substitute_checked_scalar_expression(
+                    left, arguments, fields,
+                )?),
+                right: Box::new(substitute_checked_scalar_expression(
+                    right, arguments, fields,
+                )?),
+            }
+        }
         CheckedBooleanExpression::And { left, right } => CheckedBooleanExpression::And {
             left: Box::new(substitute_checked_boolean_expression(
                 left, arguments, fields,
@@ -666,6 +697,7 @@ fn substitute_checked_scalar_expression(
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         // A standalone integer field leaf is the same frozen structural leaf
         // the Boolean channel carries: the callee position binds the actual's
@@ -886,10 +918,6 @@ pub(crate) fn refine_published_crash_routes(
                                 }
                                 continue;
                             }
-                            let Some(predicate) = entry_predicate else {
-                                guards.push(SummaryCrashRouteGuard::Truth);
-                                continue;
-                            };
                             let scalar = identity.scalar_expression().and_then(|scalar| {
                                 substitute_checked_boolean_expression(
                                     scalar,
@@ -897,6 +925,19 @@ pub(crate) fn refine_published_crash_routes(
                                     &substitution.fields,
                                 )
                             });
+                            let Some(predicate) = entry_predicate else {
+                                // A current storage read with no entry-value
+                                // custody cannot become a caller Parameter.
+                                // The annotation still substitutes on its own
+                                // lane, so a guard it proves false dies here
+                                // instead of widening; an undecided one keeps
+                                // the unconditional ceiling without inventing
+                                // a guard in the caller namespace.
+                                if !scalar_guard_proves_false(builtin_meaning, scalar.as_ref()) {
+                                    guards.push(SummaryCrashRouteGuard::Truth);
+                                }
+                                continue;
+                            };
                             let folded = if builtin_meaning {
                                 summary_boolean_value(&predicate)
                             } else {

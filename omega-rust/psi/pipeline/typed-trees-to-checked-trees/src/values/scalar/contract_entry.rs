@@ -205,6 +205,7 @@ impl EntryOperands<'_> {
             | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IntegerTrappingCast { .. }
             | CheckedScalarExpression::IntegerWrappingCast { .. }
+            | CheckedScalarExpression::IntegerSaturatingCast { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;
@@ -242,7 +243,8 @@ impl EntryOperands<'_> {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }

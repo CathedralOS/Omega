@@ -89,6 +89,9 @@ pub(super) fn template_argument_is_supported(
     let TypeReference::Named { symbol, name } = argument else {
         return false;
     };
+    // An owner `Value` binder is a runtime subject: it may flow through call
+    // positions, but a seeded data instance's argument list is static type
+    // identity, so only a `const` owner binder may fill it here.
     symbol.is_valid()
         && source.symbols.get(*symbol).kind == SymbolKind::TypeParameter
         && source.symbols.get(*symbol).parent == owner
@@ -98,7 +101,6 @@ pub(super) fn template_argument_is_supported(
                 && matches!(
                     &candidate.kind,
                     TypeParameterKind::Const { type_reference }
-                        | TypeParameterKind::Value { type_reference }
                         if type_reference == required_carrier
                 )
         })

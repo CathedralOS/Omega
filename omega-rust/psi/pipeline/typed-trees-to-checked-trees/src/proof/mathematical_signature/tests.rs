@@ -901,15 +901,243 @@ fn matches_intern_at_the_common_arm_carrier() {
     );
 }
 
+/// `f32`/`f64` bodies denote at a per-width float carrier: the binder
+/// domain interns `f64 : Type 0` once, open machine operations the
+/// composing vocabulary does not name (`x * y`, `x / 3.0f32`) key
+/// opaquely at the float carrier, and the widths stay distinct.
 #[test]
-fn negated_equality_refuses() {
-    let diagnostics = refuse("let different(x: u64, y: u64): core::Strict<0> = x != y;");
+fn float_operations_intern_at_their_format_carrier() {
+    let source = "let scale(x: f64, y: f64): f64 = x * y;\n\
+                  let third(x: f32): f32 = x / 3.0f32;";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("float operations check");
+
+    let declarations = signature.signature().declarations();
+    // `f64` carrier, scale's `x * y`, `scale`, `f32` carrier,
+    // third's `x / 3.0f32`, `third`.
+    assert_eq!(declarations.len(), 6);
+    assert_eq!(signature.authored(), &[2, 5]);
+    for opaque in [1usize, 4] {
+        assert!(declarations[opaque].is_assumption());
+    }
+    assert_eq!(
+        signature.term(declarations[1].ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(
+        signature.term(declarations[4].ty),
+        Term::Constant {
+            declaration: 3,
+            levels: Vec::new()
+        }
+    );
+    // The f32 and f64 carriers are distinct assumptions.
+    assert_eq!(
+        signature.term(declarations[0].ty),
+        Term::Sort(Sort::Type(Level::Constant(0)))
+    );
+    assert_eq!(
+        signature.term(declarations[3].ty),
+        signature.term(declarations[0].ty)
+    );
+}
+
+/// A float literal interns by exact value at its format carrier:
+/// `x == 1.5f64` denotes `Id f64 x lit`, and a differently spelled
+/// literal of the same value (`1.50f64`) names the same constant.
+#[test]
+fn float_equality_interns_literals_by_exact_value() {
+    let source = "let same(x: f64): core::Strict<0> = x == 1.5f64;\n\
+                  let also(x: f64): core::Strict<0> = x == 1.50f64;";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("float equality checks");
+
+    let declarations = signature.signature().declarations();
+    // `f64` carrier, the `1.5` literal, `same`, `also`.
+    assert_eq!(declarations.len(), 4);
+    assert_eq!(signature.authored(), &[2, 3]);
+    assert!(declarations[1].is_assumption());
+    assert_eq!(
+        signature.term(declarations[1].ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    for index in [2usize, 3] {
+        let mut body = declarations[index].body.expect("declaration body");
+        while let Term::Lambda { body: inner, .. } = signature.term(body) {
+            body = inner;
+        }
+        let Term::Squash { ty } = signature.term(body) else {
+            panic!("expected Squash, got {:?}", signature.term(body));
+        };
+        let Term::Id { left, right, .. } = signature.term(ty) else {
+            panic!("expected Id, got {:?}", signature.term(ty));
+        };
+        // `x` (Variable 0) sorts before the literal constant.
+        assert_eq!(signature.term(left), Term::Variable(0));
+        assert_eq!(
+            signature.term(right),
+            Term::Constant {
+                declaration: 1,
+                levels: Vec::new()
+            }
+        );
+    }
+}
+
+/// An unlanded float literal defers to the demanded carrier, so
+/// `x / 2.0` denotes one opaque `f64` constant.
+#[test]
+fn unlanded_float_literals_adopt_the_demanded_carrier() {
+    let source = "let half(x: f64): f64 = x / 2.0;";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("unlanded operand checks");
+
+    let declarations = signature.signature().declarations();
+    // `f64` carrier, the `x / 2.0` opaque constant, `half`.
+    assert_eq!(declarations.len(), 3);
+    assert_eq!(signature.authored(), &[2]);
+    assert_eq!(
+        signature.term(declarations[1].ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+}
+
+/// Float order relations keep refusing: the bounded vocabulary's order
+/// constants are fixed non-address integers only.
+#[test]
+fn float_order_relations_refuse() {
+    let diagnostics = refuse("let lt(x: f64, y: f64): core::Strict<0> = x < y;");
 
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("no negation")),
+            .any(|diagnostic| diagnostic.message.contains("non-address integers")),
         "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+/// A whole-body float literal without a landing cannot name a carrier —
+/// it refuses rather than guess a width.
+#[test]
+fn unlanded_float_literal_body_refuses() {
+    let diagnostics = refuse("let c(): f64 = 1.5;");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot determine")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+/// `x != y` denotes `Squash (Not (Id Int y x))` — the negated
+/// proposition stays at `Type 0` through the interned `Not` assumption,
+/// so it composes with `&&`/`||` exactly like `x == y`.
+#[test]
+fn machine_inequality_denotes_not_of_id() {
+    let signature = signature("let ne(a: u64, b: u64): core::Strict<0> = a != b;");
+    crate::lower_typed_trees(typed_program(
+        "let ne(a: u64, b: u64): core::Strict<0> = a != b;",
+    ))
+    .expect("machine inequality body checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int` carrier, `Not` assumption, `ne`.
+    assert_eq!(declarations.len(), 3);
+    let mut body = declarations[2].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Apply {
+        function: negation,
+        argument: equality,
+    } = signature.term(ty)
+    else {
+        panic!("expected Not application, got {:?}", signature.term(ty));
+    };
+    assert_eq!(
+        signature.term(negation),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    let Term::Id { ty, left, right } = signature.term(equality) else {
+        panic!("expected Id under Not, got {:?}", signature.term(equality));
+    };
+    assert_eq!(
+        signature.term(ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(left), Term::Variable(0));
+    assert_eq!(signature.term(right), Term::Variable(1));
+}
+
+/// `x != y && p` nests under `Σ` — inequality composes with the
+/// conjunction vocabulary at `Type 0`.
+#[test]
+fn machine_inequality_composes_with_conjunction() {
+    let signature =
+        signature("let both(a: u64, b: u64, c: u64): core::Strict<0> = a != b && b < c;");
+    crate::lower_typed_trees(typed_program(
+        "let both(a: u64, b: u64, c: u64): core::Strict<0> = a != b && b < c;",
+    ))
+    .expect("inequality inside conjunction checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `IntLt`, `Not`, `both`.
+    assert_eq!(declarations.len(), 4);
+    let mut body = declarations[3].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Sigma { domain, codomain } = signature.term(ty) else {
+        panic!("expected Sigma, got {:?}", signature.term(ty));
+    };
+    let _ = (domain, codomain);
+}
+
+/// A `()` binder domain interns the dedicated `Unit` carrier rather
+/// than refusing or claiming a fixed-integer position.
+#[test]
+fn unit_carrier_in_binder_domain() {
+    let signature = signature("let one(x: ()): u64 = 1;");
+    crate::lower_typed_trees(typed_program("let one(x: ()): u64 = 1;"))
+        .expect("unit-carried binder checks");
+
+    let declarations = signature.signature().declarations();
+    // `Unit` carrier, `Int` carrier, literal `1`, `one`.
+    assert_eq!(declarations.len(), 4);
+    let Term::Pi { domain, .. } = signature.term(declarations[3].ty) else {
+        panic!(
+            "expected Pi telescope, got {:?}",
+            signature.term(declarations[3].ty)
+        );
+    };
+    assert_eq!(
+        signature.term(domain),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
     );
 }
 

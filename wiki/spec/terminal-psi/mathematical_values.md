@@ -79,6 +79,7 @@ provenance; dense producer IDs alone establish no correspondence.
 | Block parameter | Owner, unique block, exact direct scalar parameter membership, and format. |
 | Call result | Owner, producing scalar-result call, exact declared result, and format. |
 | Structural float leaf | Owner, direct structural-parameter root, canonical relevant path, and exact IEEE leaf format. |
+| Semantic application | Catalog contract identity (row ordinal, catalog version, signature commitment), declared result format, and operands position by position, each a sealed IEEE format or the meaning ID of an earlier row. |
 
 The classes are disjoint. A parameter cannot stand in for a result, nor a block
 parameter for a machine parameter. Unit/structural results cannot replace scalar
@@ -87,6 +88,17 @@ results. Wrong owner, producer, membership, path, source class, or format reject
 Scalar call-result sources include ordinary, structural-argument, dynamic
 descriptor, dynamic-parameter, and boundary scalar calls. Non-call operations
 use the separate operation-result class.
+
+A semantic application has no runtime coordinate: it is a `FloatMeaning`
+value justified by one sealed `FloatSemantics` catalog row. The verifier
+rejoins the contract identity to that row independently; the row's result must
+be a meaning, the operands must spell the row's complete signature in order, a
+format operand must equal the declared result format, and each meaning operand
+must name a strictly earlier row of the same table (on rows without a format
+parameter, of the declared format). When every meaning operand reconstructs a
+literal, the row's kernel is discharged and its result must agree with the
+named contract. Rows whose catalog result is Boolean, a class, or an integer
+cannot occupy this carrier.
 
 A structural leaf path may traverse relevant record/mixed fields, fixed-array
 indexes, and sum-case payloads. Its root must belong to the owner's direct

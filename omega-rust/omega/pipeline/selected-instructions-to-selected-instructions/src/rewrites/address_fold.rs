@@ -45,10 +45,13 @@
 //! Calls, boundary settlements, transports, and every other function,
 //! register, and instruction are retained bit-identical.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the rewritten-instruction constructor. Validation re-derives the admitted
-//! pair from the source, requires the proposed instruction to equal the
-//! reconstructed form, and restores the complete source by content.
+//! Proposal and independent replay share only the small leaf predicates
+//! (`consumer_shape`, `admitted_offset`, `last_definition_before`).
+//! Validation locates the one changed instruction by comparing the proposal
+//! to the source, audits that position's fold legality itself — never
+//! consulting the producer's admission — requires the proposed instruction
+//! to equal the independently derived folded form, and restores the complete
+//! source by content.
 
 mod admission;
 mod rewrite;

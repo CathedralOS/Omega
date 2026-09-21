@@ -1,8 +1,8 @@
 use crate::{POLICY_SOURCE, extent_identity, provider_issuance, write_program};
 use access_plans::{
     AtomicCapability, AtomicTransferRule, BoundaryReach, ExternalCapability, FieldAccess,
-    PlacedOccurrenceId, PlacementAdmissionId, ResourceProfile, ResourceProfileGrant,
-    ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule,
+    PeerWritability, PlacedOccurrenceId, PlacementAdmissionId, ResourceProfile,
+    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule,
     admit_owned_placement, admit_placement, adopt_owned_atomic, place,
 };
 use compiler::{CheckedCompileRequest, compile_to_checked};
@@ -319,6 +319,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 8,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {
@@ -590,6 +591,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 8,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {

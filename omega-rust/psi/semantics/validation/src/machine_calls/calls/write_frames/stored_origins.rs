@@ -11,6 +11,7 @@ use super::{Machine, SymbolHandle, TopLevelSymbols, TypedTrees};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use facts::PlaceSegment;
 use typed_trees::statement::TableLocalData;
+use typed_trees::types::TypeReferenceNode;
 
 mod assignments;
 mod frozen_bindings;
@@ -185,6 +186,44 @@ pub(super) fn expression_borrows_carrier_binding(
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     super::local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
+        // An exclusive borrow of an exclusively-referenced place is a
+        // reborrow: it reaches the referent the binding already names and
+        // cannot write the slot itself. When the borrowed place is exactly a
+        // stored-local reference leaf (a field-only member chain), the leaf's
+        // declared origin is the load evidence and the borrow does not expose
+        // the binding for replacement. Shared leaves, parameter roots,
+        // indexed members, and non-reference places keep their exposure
+        // fence: `&mut` on a shared leaf can only borrow the slot.
+        let reborrows_proven_leaf = crate::value_custody::places::declared_place_type_raw(
+            program,
+            machine,
+            Some(state),
+            target,
+        )
+        .is_some_and(|reference| {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { access, .. } => access.is_exclusive(),
+                _ => false,
+            }
+        }) && frozen_bindings::binding_source(program, target, aliases)
+            .is_some_and(|source| {
+                source
+                    .segments
+                    .iter()
+                    .all(|segment| matches!(segment, PlaceSegment::Field { .. }))
+                    && stored.iter().any(|local| {
+                        local.local_symbol == source.root
+                            && program.symbols.get(local.local_symbol).kind
+                                == symbols::SymbolKind::Local
+                            && local
+                                .references
+                                .iter()
+                                .any(|leaf| leaf.local_segments == source.segments)
+                    })
+            });
+        if reborrows_proven_leaf {
+            return false;
+        }
         if frozen_bindings::target_replaces_case_binding(program, target, stored, aliases)
             || frozen_bindings::target_replaces_reference_binding(
                 program, target, stored, aliases, true,

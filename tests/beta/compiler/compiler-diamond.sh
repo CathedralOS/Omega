@@ -23,6 +23,12 @@ fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "compiler-diamond SKIP — no python3"; exit 0; }
+
+# The materialized assembler runs inside the audited Alpha container. Hosts
+# that cannot exec the selected container refuse (exit 2) rather than crash on
+# the exec below; the audited host matrix lives in seed_env.sh.
+require_seed_execution_host "Beta compiler diamond"
+
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 materialize_beta_compiler "$T/assembler" >/dev/null
 ASM="$T/assembler"

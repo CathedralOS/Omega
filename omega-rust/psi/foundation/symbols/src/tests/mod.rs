@@ -4,6 +4,7 @@
 mod filtered_lookup;
 mod hierarchy;
 mod module_namespaces;
+mod package_scope_separation;
 mod paths;
 mod provenance;
 mod source_scoped_bindings;

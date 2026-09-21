@@ -165,6 +165,7 @@ fn scalar_case_constructor_call_accepts_only_available_exact_borrowed_block_view
         0,
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(1),
             parameters: vec![],
             structural_parameters: vec![],
@@ -174,6 +175,7 @@ fn scalar_case_constructor_call_accepts_only_available_exact_borrowed_block_view
                 target: block_id(4),
                 arguments: vec![],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: place_id(5),
                     path: vec![],
@@ -301,6 +303,7 @@ fn scalar_case_call_module() -> TerminalModule {
     result.multiplicity = StructuralMultiplicity::Affine;
     caller.blocks[0].operations[0].kind = OperationKind::CallStructuralWithScalarArguments {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: vec![value_id(10), value_id(11)],
         structural_arguments: vec![],
@@ -324,6 +327,7 @@ fn scalar_case_call_module() -> TerminalModule {
     };
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(3),
         structural_parameters: vec![],
         parameters: vec![
@@ -605,6 +609,7 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
                     target: block_id(3),
                     arguments: vec![value_id(10), value_id(11)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: vec![],
                     trivial_affine_discards: vec![place_id(3)],
                     residual_affine_discards: vec![],
@@ -613,6 +618,7 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
             3 => {
                 caller.blocks[0].operations.push(Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(3),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -626,6 +632,7 @@ fn scalar_case_constructor_result_disposes_on_ordinary_returns_and_edges() {
                     target: block_id(3),
                     arguments: vec![value_id(10), value_id(11)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: vec![],
                     trivial_affine_discards: vec![place_id(3)],
                 };
@@ -673,6 +680,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
     fields[1].value = value_id(22);
     let jump = |edge, target, arguments| Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(target),
         arguments,
@@ -682,6 +690,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
     };
     let constant = |operation, value, integer| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(operation),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -697,12 +706,14 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
         target: block_id(target),
         arguments: vec![],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
     };
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(2),
             parameters: vec![],
             structural_parameters: vec![],
@@ -711,6 +722,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(4),
             structural_parameters: vec![],
             parameters: vec![
@@ -729,6 +741,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
                 constant(3, 24, 0),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(4),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -749,6 +762,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(5),
             structural_parameters: vec![],
             parameters: vec![],
@@ -756,6 +770,7 @@ fn scalar_case_constructor_returns_from_a_checked_unranked_loop() {
                 constant(5, 26, 1),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(6),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

@@ -2,15 +2,20 @@
 use super::{
     CodecError, decode_counted,
     scalar_wire::{
-        decode_ieee_float_value, decode_scalar_type, encode_ieee_float_value, encode_scalar_type,
+        decode_ieee_float_value, decode_integer_type, decode_integer_value, decode_scalar_type,
+        encode_ieee_float_value, encode_integer_type, encode_integer_value, encode_scalar_type,
     },
     wire::{Reader, Writer},
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarFloatRange, ScalarQualificationCatalog,
-    ScalarQualificationCoercion, ScalarQualificationSet,
+    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
+    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
 };
+
+const ROUTE_CHECKED_REQUIREMENT: u8 = 0;
+const ROUTE_BOUNDARY_REQUIREMENT: u8 = 1;
+const ROUTE_EXACT_MACHINE: u8 = 2;
 
 pub(crate) fn encode(
     writer: &mut Writer,
@@ -22,6 +27,30 @@ pub(crate) fn encode(
         writer.id(domain.semantic_domain);
         writer.string("scalar domain identity", &domain.identity)?;
         encode_scalar_type(writer, domain.carrier);
+        writer.len(
+            "scalar domain establishment routes",
+            domain.establishment_routes.len(),
+        )?;
+        for route in &domain.establishment_routes {
+            match route {
+                ScalarDomainEstablishmentRoute::CheckedRequirement {
+                    requirement_identity,
+                } => {
+                    writer.u8(ROUTE_CHECKED_REQUIREMENT);
+                    writer.string("establishment requirement", requirement_identity)?;
+                }
+                ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                    requirement_identity,
+                } => {
+                    writer.u8(ROUTE_BOUNDARY_REQUIREMENT);
+                    writer.string("establishment requirement", requirement_identity)?;
+                }
+                ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
+                    writer.u8(ROUTE_EXACT_MACHINE);
+                    writer.string("establishment machine", machine_identity)?;
+                }
+            }
+        }
     }
     writer.len("scalar qualification sets", catalog.sets.len())?;
     for set in &catalog.sets {
@@ -50,6 +79,17 @@ pub(crate) fn encode(
         encode_ieee_float_value(writer, range.maximum);
         writer.boolean(range.maximum_inclusive);
     }
+    writer.len(
+        "scalar integer entry ranges",
+        catalog.integer_entry_ranges.len(),
+    )?;
+    for range in &catalog.integer_entry_ranges {
+        writer.id(range.machine);
+        writer.id(range.parameter);
+        encode_integer_type(writer, range.integer_type);
+        encode_integer_value(writer, range.minimum);
+        encode_integer_value(writer, range.maximum);
+    }
     Ok(())
 }
 
@@ -64,6 +104,25 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 semantic_domain: reader.id("DomainSemanticId")?,
                 identity: reader.string("scalar domain identity")?,
                 carrier: decode_scalar_type(reader)?,
+                establishment_routes: decode_counted(reader, |reader| match reader.u8()? {
+                    ROUTE_CHECKED_REQUIREMENT => {
+                        Ok(ScalarDomainEstablishmentRoute::CheckedRequirement {
+                            requirement_identity: reader.string("establishment requirement")?,
+                        })
+                    }
+                    ROUTE_BOUNDARY_REQUIREMENT => {
+                        Ok(ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                            requirement_identity: reader.string("establishment requirement")?,
+                        })
+                    }
+                    ROUTE_EXACT_MACHINE => Ok(ScalarDomainEstablishmentRoute::ExactMachine {
+                        machine_identity: reader.string("establishment machine")?,
+                    }),
+                    tag => Err(CodecError::InvalidTag(
+                        "ScalarDomainEstablishmentRoute",
+                        tag,
+                    )),
+                })?,
             })
         })?,
         sets: decode_counted(reader, |reader| {
@@ -90,6 +149,15 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 maximum_inclusive: reader.boolean()?,
             })
         })?,
+        integer_entry_ranges: decode_counted(reader, |reader| {
+            Ok(ScalarIntegerRange {
+                machine: reader.id("MachineId")?,
+                parameter: reader.id("ValueId")?,
+                integer_type: decode_integer_type(reader)?,
+                minimum: decode_integer_value(reader)?,
+                maximum: decode_integer_value(reader)?,
+            })
+        })?,
     })
 }
 
@@ -100,6 +168,24 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
         .any(|pair| pair[0].id >= pair[1].id)
     {
         return Err(CodecError::NonCanonicalOrder("scalar domains"));
+    }
+    for domain in &catalog.domains {
+        if domain
+            .establishment_routes
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(CodecError::NonCanonicalOrder(
+                "scalar domain establishment routes",
+            ));
+        }
+        if domain
+            .establishment_routes
+            .iter()
+            .any(|route| route.identity().is_empty())
+        {
+            return Err(CodecError::NonCanonicalEncoding);
+        }
     }
     if catalog.sets.windows(2).any(|pair| pair[0].id >= pair[1].id) {
         return Err(CodecError::NonCanonicalOrder("scalar qualification sets"));
@@ -141,6 +227,23 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
         .float_entry_ranges
         .iter()
         .any(|range| range.minimum.format() != range.maximum.format())
+    {
+        return Err(CodecError::NonCanonicalEncoding);
+    }
+    if catalog
+        .integer_entry_ranges
+        .windows(2)
+        .any(|pair| (pair[0].machine, pair[0].parameter) >= (pair[1].machine, pair[1].parameter))
+    {
+        return Err(CodecError::NonCanonicalOrder("scalar integer entry ranges"));
+    }
+    // An integer entry range is canonical only on a fixed-width carrier with
+    // both endpoints admitted and ordered; an address carrier, a
+    // sign-mismatched endpoint, or a reversed interval is malformed wire.
+    if catalog
+        .integer_entry_ranges
+        .iter()
+        .any(|range| !range.ordered())
     {
         return Err(CodecError::NonCanonicalEncoding);
     }

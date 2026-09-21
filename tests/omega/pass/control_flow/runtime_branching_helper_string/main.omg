@@ -1,3 +1,9 @@
+// Respelled from the retired nested self-call shape (`self.out = self.pick(flag)`);
+// the direct let-call root is the admitted surface. Still red on the persistent-loan
+// fence: storing a borrow-carrying local into a persistent field waits on loan
+// propagation through graph-state transitions (checks/borrows/persistent.rs). The
+// `&[u8]` persistent-field store beneath it is unadmitted for every source shape —
+// identical twin domains/utf8_value_call_field_write is red on the same boundary.
 domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -7,7 +13,8 @@ data Main {
 
 machine Main::main(&mut self) {
     let flag: bool = true;
-    self.out = self.pick(flag);
+    let picked: &[u8] in Utf8 = self.pick(flag);
+    self.out = picked;
 }
 
 machine Main::pick(&mut self, flag: bool) -> &[u8] in Utf8 {

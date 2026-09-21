@@ -284,13 +284,15 @@ fn module_spans(encoded: &[u8]) -> ModuleSpans {
     walker.take(2); // format marker
     walker.take(2); // vocabulary marker
     walker.take(8); // entry machine identity
-    // The scalar-qualification catalog encodes four counted rosters even when
-    // empty: domains, qualification sets, coercions, and float entry ranges.
+    // The scalar-qualification catalog encodes five counted rosters even when
+    // empty: domains, qualification sets, coercions, and the float and integer
+    // entry ranges.
     for label in [
         "scalar domains",
         "scalar qualification sets",
         "scalar qualification coercions",
         "scalar float entry ranges",
+        "scalar integer entry ranges",
     ] {
         walker.expect_empty_count(label);
     }
@@ -390,6 +392,7 @@ fn declaration(raw: u64, scalar_type: ScalarType) -> ValueDeclaration {
 fn operation(raw: u64, result: u64, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Scalar(declaration(result, ScalarType::Boolean)),
         kind,
@@ -466,6 +469,7 @@ fn crash_module() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
@@ -496,6 +500,7 @@ fn crash_module() -> TerminalModule {
                     ),
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(4),
                         result: OperationResult::Scalar(declaration(CONSTANT, integer_type)),
                         kind: OperationKind::IntegerConstant {
@@ -511,6 +516,7 @@ fn crash_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: vec![
                     guarded(CrashCause::Trap, negative(RIGHT)),

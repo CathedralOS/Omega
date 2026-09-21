@@ -217,7 +217,22 @@ Checked instructions retain separate service identities, not a catch-all
 | --- | --- |
 | `MachineControl` | Halting, interrupt enable/disable, control-register and MSR operations. |
 | `PortIo` | Port input/output, potentially mediated by hardware permission maps. |
-| `Mmio` | Volatile device access under admitted mapping authority. |
+
+These two are the whole vocabulary: `source/library/core/assembly.omg`
+declares `MachineControl` and `PortIo` and no third identity. Interrupt-table
+publication is not a service of its own -- it is an authority requirement
+(`AsmAuthorityRequirement::IdtControl`) discharged by the
+`Build.privileged_services.interrupt_table` flag described below.
+
+A build supplies authority two ways. The evaluated `Build.freestanding`
+selection is machine-owner admission and covers every defined class, including
+the mediated ones. A hosted build begins with no class and widens per class
+through the authored `Build.privileged_services` flags: `port_io` admits port
+I/O without machine control, and `interrupt_table` admits interrupt-table
+publication without port I/O. The grants are independent, and machine-owner
+authority has no granular grant — it stays `freestanding`-only. A flag widens
+admission only for its own class; it never claims machine ownership, and
+consumer-defined publication authority stays receiver-side.
 
 Machine-control authority normally belongs to the trusted boot/kernel domain;
 listing its service does not establish ownership of the machine. Each exact

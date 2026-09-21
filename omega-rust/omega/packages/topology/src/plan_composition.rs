@@ -25,6 +25,7 @@ use crate::deployment_plan::{
 use crate::verified_components::{
     AdmittedComponent, ComponentBindingFailure, check_instance_binding,
 };
+use std::borrow::Borrow;
 use std::fmt;
 
 /// Compose a deployment plan. On success returns the canonical plan plus the
@@ -37,7 +38,7 @@ pub fn compose_plan(
     instances: Vec<PlanInstance>,
     bindings: Vec<Binding>,
     verifier: Identity,
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
 ) -> Result<(DeploymentPlan, Vec<PolicyOutcome>), CompositionError> {
     // The producer's selected verifier must be the owner's selected one —
     // otherwise the plan would name an unselected executable by construction.

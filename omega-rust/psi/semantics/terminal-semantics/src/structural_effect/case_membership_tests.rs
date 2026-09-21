@@ -13,6 +13,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, ValueDecla
 fn operation() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(2).unwrap(),
@@ -95,6 +96,7 @@ fn case_membership_rejects_non_boolean_results() {
             qualifications: Default::default(),
         }),
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: PlaceId::new(5).unwrap(),
             structural_type: StructuralTypeId::new(6).unwrap(),
             multiplicity: StructuralMultiplicity::Unrestricted,

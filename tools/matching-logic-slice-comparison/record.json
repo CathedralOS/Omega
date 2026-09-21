@@ -1,0 +1,1107 @@
+{
+  "record": "matching-logic-slice-comparison/v1",
+  "generated_utc": "2026-09-20T21:33:19Z",
+  "checklist_source": "wiki/drafts/matching_logic.md#possible-bounded-comparison",
+  "versions": {
+    "repository_revision": "7176821bc6b9c7404d9cda02235ce486000cf1d3",
+    "toolchain_channel": "nightly-2026-09-04",
+    "omega_binary_sha256_prefix": null,
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "python": "3.10.12"
+    },
+    "omega_binary": "target/debug/omega",
+    "omega_binary_bytes": 324265008
+  },
+  "omega_route": {
+    "surface_lines": {
+      "receiver_terminal_verifier": {
+        "files": 153,
+        "lines": 52221,
+        "nonblank_lines": 50741,
+        "missing": []
+      },
+      "receiver_pcc_codec": {
+        "files": 16,
+        "lines": 11738,
+        "nonblank_lines": 11265,
+        "missing": []
+      },
+      "admission_kernel": {
+        "files": 21,
+        "lines": 5873,
+        "nonblank_lines": 5598,
+        "missing": []
+      },
+      "theory_surface": {
+        "files": 50,
+        "lines": 32632,
+        "nonblank_lines": 31302,
+        "missing": []
+      },
+      "derivation_support": {
+        "files": 31,
+        "lines": 13849,
+        "nonblank_lines": 13052,
+        "missing": []
+      },
+      "trusted_check_total": {
+        "lines": 63959,
+        "nonblank_lines": 62006,
+        "note": "receiver-side verification surface only; producer derivation and admission machinery are reported separately"
+      }
+    },
+    "rule_inventory": {
+      "rules": {
+        "Assumption": "Constructive",
+        "ConjunctionElimination": "Constructive",
+        "ConjunctionIntroduction": "Constructive",
+        "DisjunctionElimination": "Constructive",
+        "DisjunctionIntroduction": "Constructive",
+        "EqualitySymmetry": "Constructive",
+        "EqualityTransitivity": "Constructive",
+        "ImplicationElimination": "Constructive",
+        "ImplicationIntroduction": "Constructive",
+        "IntegerAffineBound": "ConstructiveDecidable",
+        "IntegerCastBound": "ConstructiveDecidable",
+        "IntegerCorrelatedForbiddenRoots": "ConstructiveDecidable",
+        "IntegerExactAddDefinitionBound": "ConstructiveDecidable",
+        "IntegerLessOrEqualTransitivity": "Constructive",
+        "IntegerOrderDiscreteness": "ConstructiveDecidable",
+        "IntegerOrderSubstitution": "Constructive",
+        "IntegerOrderWeakening": "Constructive",
+        "IntegerStrictOrderTransitivity": "Constructive",
+        "IntegerSubtractOrder": "ConstructiveDecidable",
+        "PredicateDenotation": "ConstructiveDecidable",
+        "Primitive": "ConstructiveDecidable",
+        "SemanticAxiom": "TrustedAdmission",
+        "ValueEqualityTransport": "Constructive"
+      },
+      "counts_by_foundation": {
+        "ConstructiveDecidable": 8,
+        "TrustedAdmission": 1,
+        "Constructive": 14
+      },
+      "declared_rule_count": 23,
+      "declared_rules": [
+        "Primitive",
+        "SemanticAxiom",
+        "Assumption",
+        "ConjunctionIntroduction",
+        "ConjunctionElimination",
+        "DisjunctionIntroduction",
+        "DisjunctionElimination",
+        "ImplicationIntroduction",
+        "ImplicationElimination",
+        "EqualityTransitivity",
+        "EqualitySymmetry",
+        "PredicateDenotation",
+        "ValueEqualityTransport",
+        "IntegerOrderWeakening",
+        "IntegerOrderDiscreteness",
+        "IntegerSubtractOrder",
+        "IntegerLessOrEqualTransitivity",
+        "IntegerStrictOrderTransitivity",
+        "IntegerOrderSubstitution",
+        "IntegerAffineBound",
+        "IntegerExactAddDefinitionBound",
+        "IntegerCastBound",
+        "IntegerCorrelatedForbiddenRoots"
+      ],
+      "unclassified_declared": []
+    },
+    "translation_lines": 0,
+    "certificate": "pending: no --native-sidecar supplied",
+    "pinned_cases": [
+      {
+        "subject": "add_comm",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_addition_commutativity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 90.9,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_addition_commutativity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/addition_commutativity_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 14.5,
+          "output": "error: machine `false_add_commutative` ensures contract proof fact `embed(a) + embed(b) == embed(b) + embed(a) + 1` is disproved by constant arithmetic",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved by constant arithmetic"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "bag_view",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_bag_view_reflexivity/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 15.9,
+          "output": "error: authored Call declaration selection occurrence 0 remained unresolved after successful checking (CheckedCall)",
+          "accepted": false
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/bag_view_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 13.7,
+          "output": "error: cannot prove ensures contract for exit from false_bag_distinct at statement 0: Bag(items) != Bag(before)",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract for exit from false_bag_distinct"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "congruence",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_congruence_add_constant/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 14.7,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_congruence_add_constant/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/congruence_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 11.4,
+          "output": "error: machine `false_add_congruence` ensures contract proof fact `embed(a) + 1 == embed(b) + 2` is disproved by constant arithmetic",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved by constant arithmetic"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "constant_equation",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_constant_arithmetic_identity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 12.8,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_constant_arithmetic_identity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/constant_equation_refuted/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 11.6,
+          "output": "error: cannot prove ensures contract for exit from false_constant_equation at statement 0: false",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract for exit from false_constant_equation at statement 0: false"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "climbing_sum_step",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 30.4,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_climbing_sum_step_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 12.8,
+          "output": "error: exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\nerror: exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\nerror: machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit == true`",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit == true`"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "climbing_sum_unbounded",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 27.2,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_climbing_sum_unbounded_accumulator/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 15.8,
+          "output": "error: exact arithmetic in machine `Main::climb` state `climb` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+          "rejected": true,
+          "expected_fragments": [
+            "transition argument may overflow `u64`: the operands are not provably in range"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "gauss_sum",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 20.8,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_gauss_sum_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 14.3,
+          "output": "error: machine `Main::gauss_sum` ensures contract proof fact `result * 2 == acc * 2 + n * n + 1 + 1` is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "gauss_sum_step",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 19.9,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_gauss_sum_step_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 13.4,
+          "output": "error: machine `Main::gauss_sum` ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` is disproved on the transition arm guarded by `n > 0 == true`: the arm's facts entail its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved on the transition arm guarded by `n > 0 == true`"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "kernel_theorem_equality",
+        "positive": {
+          "path": "tests/omega/pass/proofs/kernel_theorem_equality_certificates/main.omg",
+          "skipped": "heavy"
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/kernel_theorem_equality_false_twin/main.omg",
+          "skipped": "heavy"
+        }
+      },
+      {
+        "subject": "linear_range_sum",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_linear_range_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 14.7,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_linear_range_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/linear_range_sum_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.6,
+          "output": "error: machine `false_sum_of_bounded` cannot prove ensures contract proof fact `a + b >= 2 && a + b <= 19` from the requires contract",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "nonlinear_square_range",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_nonlinear_square_range/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 14.0,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_nonlinear_square_range/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/nonlinear_square_range_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.9,
+          "output": "error: machine `false_square_bounded` cannot prove ensures contract proof fact `a * a >= 0 && a * a <= 99` from the requires contract",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "order_antisymmetry",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_order_antisymmetry/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 12.9,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_order_antisymmetry/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/order_antisymmetry_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 11.2,
+          "output": "error: machine `false_antisymmetric_distinct` ensures contract proof fact `a != b` is disproved: the requires contract entails its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved: the requires contract entails its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "order_asymmetry",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_order_transitivity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 13.1,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_order_transitivity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/order_asymmetry_refuted/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 9.5,
+          "output": "error: machine `false_order_asymmetry` ensures contract proof fact `j < i` is disproved: the requires contract entails its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved: the requires contract entails its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "order_transitivity",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_order_transitivity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 13.7,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_order_transitivity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/order_transitivity_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.2,
+          "output": "error: machine `false_transitive_order` ensures contract proof fact `c < a` is disproved: the requires contract entails its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved: the requires contract entails its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "ranked_accumulator",
+        "positive": {
+          "path": "tests/omega/pass/proofs/runtime_ranked_accumulator_guarantee_exit/main.omg",
+          "skipped": "heavy"
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/ranked_accumulator_guarantee_wrong_step_twin/main.omg",
+          "skipped": "heavy"
+        }
+      },
+      {
+        "subject": "remainder_range",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_remainder_range/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 14.7,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/tests/omega/pass/proofs/proof_remainder_range/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/remainder_range_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.1,
+          "output": "error: machine `false_remainder_bounded` cannot prove ensures contract proof fact `a % 2 >= 0 && a % 2 <= 0` from the requires contract",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact"
+          ],
+          "fragment_observed": true
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "status": "measured",
+    "slice": {
+      "status": "measured",
+      "tool": "tools/matching-logic-slice/slice_checker.py",
+      "schema": "omega-matching-logic-slice-record/1",
+      "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+      "semantics_doc": "wiki/drafts/matching_logic.md",
+      "recorded_utc": "2026-09-20T21:33:19Z",
+      "checker": {
+        "path": "tools/matching-logic-slice/slice_checker.py",
+        "physical_lines": 553,
+        "sha256_prefix": "424c6c8b10aef2fa",
+        "rules": [
+          "axiom",
+          "assumption",
+          "hypothesis",
+          "implies_intro",
+          "modus_ponens",
+          "and_intro",
+          "and_elim_left",
+          "and_elim_right",
+          "or_intro_left",
+          "or_intro_right",
+          "or_elim",
+          "exists_intro",
+          "exists_elim",
+          "forall_intro",
+          "forall_elim",
+          "eq_refl",
+          "eq_sym",
+          "eq_trans",
+          "eq_subst",
+          "membership_intro",
+          "defined_closed",
+          "defined_membership"
+        ]
+      },
+      "theory": "per-case axiom inventory; every clause is an admission",
+      "cases": [
+        {
+          "case": "eq_subst_side",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.024,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "premise ['in', ['sym', 'counter', [['sym', 's1', []]]], 'Nat'] is not ['in', ['var', 'm'], 'Nat'] with ['sym', 'succ', [['sym', 'counter', [['sym', 's0', []]]]]] for m",
+            "rule": "eq_subst"
+          }
+        },
+        {
+          "case": "membership_gap",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.017,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "premise ['pred', 'is_integer', [['sym', 'counter', [['sym', 's1', []]]]]] is not the Nat refinement for ['sym', 'counter', [['sym', 's1', []]]]",
+            "rule": "membership_intro"
+          }
+        },
+        {
+          "case": "quantifier_escape",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.007,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "eigenvariable s escapes into ['pred', 'reached', [['var', 's']]]",
+            "rule": "exists_elim"
+          }
+        },
+        {
+          "case": "reference",
+          "expect": "accept",
+          "verdict": "accept",
+          "elapsed_ms": 0.041,
+          "certificate_bytes": 1256,
+          "admissions": [
+            "axiom:step_s0_s1",
+            "axiom:counter_step",
+            "axiom:step_s0_s1",
+            "axiom:nat_succ",
+            "axiom:counter_s0_nat",
+            "axiom:counter_s0_nat"
+          ],
+          "diagnostic": null
+        },
+        {
+          "case": "transition_reversed",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.018,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "premise ['and', ['pred', 'step', [['sym', 's1', []], ['sym', 's0', []]]], ['in', ['sym', 'counter', [['sym', 's1', []]]], 'Nat']] is not ['and', ['pred', 'step', [['sym', 's0', []], ['var', \"s'\"]]], ['in', ['sym', 'counter', [['var', \"s'\"]]], 'Nat']][s':=['sym', 's1', []]]",
+            "rule": "exists_intro"
+          }
+        },
+        {
+          "case": "undeclared_axiom",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.008,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "undeclared axiom 'counter_s1_nat'",
+            "rule": "axiom"
+          }
+        },
+        {
+          "case": "undefined_witness",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.006,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "open term needs evidence: ['var', 'ghost']",
+            "rule": "defined_closed"
+          }
+        },
+        {
+          "case": "weaker_goal",
+          "expect": "reject",
+          "verdict": "reject",
+          "elapsed_ms": 0.007,
+          "certificate_bytes": null,
+          "admissions": [],
+          "diagnostic": {
+            "detail": "certificate proves ['exists', \"s'\", ['pred', 'step', [['sym', 's0', []], ['var', \"s'\"]]]], goal is ['exists', \"s'\", ['and', ['pred', 'step', [['sym', 's0', []], ['var', \"s'\"]]], ['in', ['sym', 'counter', [['var', \"s'\"]]], 'Nat']]]",
+            "rule": "goal"
+          }
+        }
+      ],
+      "imported_admissions": [
+        "axiom:counter_s0_nat",
+        "axiom:counter_step",
+        "axiom:nat_succ",
+        "axiom:step_s0_s1"
+      ],
+      "trusted_bridge": "none \u2014 every consumed clause is an axiom admission",
+      "summary": {
+        "divergences": [],
+        "negative": 7,
+        "positive": 1,
+        "total": 8
+      },
+      "divergence_free": true
+    },
+    "sort_encoding": {
+      "status": "measured",
+      "tool": "tools/matching-logic-sort-encoding/sort_encoding.py",
+      "schema": "omega-sort-encoding-record/1",
+      "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+      "rule_version": "omega-sort-encoding-record/1",
+      "translation_surface": {
+        "files": 1,
+        "lines": 392,
+        "nonblank_lines": 338,
+        "missing": []
+      },
+      "cases": [
+        {
+          "case": "exclusive_loan_conflict.json",
+          "exit_code": 1,
+          "elapsed_ms": 24.6,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "exclusive-loan-duplicated",
+              "detail": "region 'buf' carries 2 live loans including exclusive kind(s) ['mut']"
+            }
+          ],
+          "admissions": [
+            {
+              "clause": "Addr(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Loan_mut(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Loan_shared(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Loan_mut(x) over region r -> no other live Loan over r",
+              "kind": "disjointness"
+            }
+          ],
+          "declared_memberships": 1,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: exclusive and shared loans live over one region",
+            "case_digest": "6abe2ce142b92141e88f6269d83a17cc2a2ec9efb7403b31144561fd87cf220f"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Addr",
+            "Loan_mut",
+            "Loan_shared"
+          ]
+        },
+        {
+          "case": "missing_definedness.json",
+          "exit_code": 1,
+          "elapsed_ms": 24.8,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "missing-definedness-precondition",
+              "detail": "operation 'exact_divide' is partial but carries no definedness precondition; the encoded obligation is unprovable or vacuously satisfiable"
+            }
+          ],
+          "admissions": [
+            {
+              "clause": "Integer(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Nat(x) == Integer(x) & 0 <= x",
+              "kind": "refinement"
+            },
+            {
+              "clause": "Int64(x) == Integer(x) & -2^63 <= x & x < 2^63",
+              "kind": "refinement"
+            }
+          ],
+          "declared_memberships": 3,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: partial op without a definedness precondition",
+            "case_digest": "7f2bd267a8986d7177b671678ff9ac8b91180d85750cd75ec244b1482434707e"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Int64",
+            "Integer",
+            "Nat"
+          ]
+        },
+        {
+          "case": "non_injective_pair.json",
+          "exit_code": 1,
+          "elapsed_ms": 24.3,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "pair-constructor-not-injective",
+              "detail": "slices/sums are encoded through the pair constructor but the case does not assert injectivity"
+            }
+          ],
+          "admissions": [
+            {
+              "clause": "Integer(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Nat(x) == Integer(x) & 0 <= x",
+              "kind": "refinement"
+            },
+            {
+              "clause": "UInt8(x) == Integer(x) & 0 <= x & x < 2^8",
+              "kind": "refinement"
+            },
+            {
+              "clause": "Addr(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "x = <b, l>",
+              "kind": "pair"
+            },
+            {
+              "clause": "Bytes(x) <-> exists b l. x = <b, l> & Addr(b) & Nat(l) & forall i. (0 <= i & i < l) -> UInt8(b + i)",
+              "kind": "membership"
+            }
+          ],
+          "declared_memberships": 5,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: slice encoding without an injective pair constructor",
+            "case_digest": "552737efde7501e53bb6ee1d90fcd3551f27472698cdfb41c31d0482713f652a"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Addr",
+            "Bytes",
+            "Integer",
+            "Nat",
+            "UInt8"
+          ]
+        },
+        {
+          "case": "reference.json",
+          "exit_code": 0,
+          "elapsed_ms": 23.9,
+          "check_clean": true,
+          "diagnostics": [],
+          "admissions": [
+            {
+              "clause": "Integer(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Nat(x) == Integer(x) & 0 <= x",
+              "kind": "refinement"
+            },
+            {
+              "clause": "Int64(x) == Integer(x) & -2^63 <= x & x < 2^63",
+              "kind": "refinement"
+            },
+            {
+              "clause": "UInt8(x) == Integer(x) & 0 <= x & x < 2^8",
+              "kind": "refinement"
+            },
+            {
+              "clause": "U3(x) == Integer(x) & 0 <= x & x <= 3",
+              "kind": "refinement"
+            },
+            {
+              "clause": "Addr(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "x = <b, l>",
+              "kind": "pair"
+            },
+            {
+              "clause": "Bytes(x) <-> exists b l. x = <b, l> & Addr(b) & Nat(l) & forall i. (0 <= i & i < l) -> UInt8(b + i)",
+              "kind": "membership"
+            },
+            {
+              "clause": "MaybeI64(x) <-> (Tag_MaybeI64_Some(x) & Int64(payload(x))) | Tag_MaybeI64_None(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Tag_MaybeI64_Some(x) -> not Tag_MaybeI64_None(x)",
+              "kind": "disjointness"
+            },
+            {
+              "clause": "exact_divide: precondition [divisor != 0]",
+              "kind": "definedness"
+            },
+            {
+              "clause": "bytes_index: precondition [i < l on b + i]",
+              "kind": "definedness"
+            },
+            {
+              "clause": "Loan_mut(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Loan_shared(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Loan_mut(x) over region r -> no other live Loan over r",
+              "kind": "disjointness"
+            },
+            {
+              "clause": "ChildOf(x, y)",
+              "kind": "lineage"
+            }
+          ],
+          "declared_memberships": 8,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "doc-table: Nat, Int64, addr, u3 slice, user sum",
+            "case_digest": "4fc76135b979cb0e2b1c13bffe57053669d42237d85c0fbf5006080ffea45bad"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Addr",
+            "Bytes",
+            "Int64",
+            "Integer",
+            "Loan_mut",
+            "Loan_shared",
+            "MaybeI64",
+            "Nat",
+            "Tag_MaybeI64_None",
+            "Tag_MaybeI64_Some",
+            "U3",
+            "UInt8"
+          ]
+        },
+        {
+          "case": "sum_payload_unknown.json",
+          "exit_code": 1,
+          "elapsed_ms": 23.8,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "vacuous-membership",
+              "detail": "membership class Handle has no inhabitant in the intended model; universals over it are vacuously true"
+            },
+            {
+              "rule": "unknown-payload-membership",
+              "detail": "sum 'MaybeHandle' arm 'Some' has payload 'Handle' outside every declared membership"
+            }
+          ],
+          "admissions": [
+            {
+              "clause": "x = <b, l>",
+              "kind": "pair"
+            },
+            {
+              "clause": "MaybeHandle(x) <-> (Tag_MaybeHandle_Some(x) & Handle(payload(x))) | Tag_MaybeHandle_None(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Tag_MaybeHandle_Some(x) -> not Tag_MaybeHandle_None(x)",
+              "kind": "disjointness"
+            }
+          ],
+          "declared_memberships": 1,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: sum arm payload outside every declared membership",
+            "case_digest": "87a2c3d14272963a94d0360ef0153b5f45ccc2b57d203faca2df258d91a8aa07"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Handle",
+            "MaybeHandle",
+            "Tag_MaybeHandle_None",
+            "Tag_MaybeHandle_Some"
+          ]
+        },
+        {
+          "case": "uncertified_fixpoint.json",
+          "exit_code": 1,
+          "elapsed_ms": 24.3,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "unguarded-fixpoint",
+              "detail": "fixpoint symbol 'mu_list' appears without a bounded certificate; the fragment admits none"
+            }
+          ],
+          "admissions": [],
+          "declared_memberships": 0,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: fixpoint symbol without a bounded certificate",
+            "case_digest": "7fe737239c5c769e9c2d55bab8fe1394ac5141c42c18e1be0d100bf1e4d5e9e7"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": []
+        },
+        {
+          "case": "uninhabited_membership.json",
+          "exit_code": 1,
+          "elapsed_ms": 24.0,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "vacuous-membership",
+              "detail": "membership class UInt8 has no inhabitant in the intended model; universals over it are vacuously true"
+            }
+          ],
+          "admissions": [
+            {
+              "clause": "Integer(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Nat(x) == Integer(x) & 0 <= x",
+              "kind": "refinement"
+            },
+            {
+              "clause": "UInt8(x) == Integer(x) & 0 <= x & x < 2^8",
+              "kind": "refinement"
+            }
+          ],
+          "declared_memberships": 3,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: quantified membership uninhabited in the intended model",
+            "case_digest": "84370d206c321cad584193c43c872f567d0586e8cfb91b45d13fa00b1251dd9e"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Integer",
+            "Nat",
+            "UInt8"
+          ]
+        },
+        {
+          "case": "widening_revision.json",
+          "exit_code": 1,
+          "elapsed_ms": 23.7,
+          "check_clean": false,
+          "diagnostics": [
+            {
+              "rule": "revision-not-refinement",
+              "detail": "revision of 'x' raises the bound 3 -> 7; a revision retains the weaker assertion, it does not substitute a new one"
+            }
+          ],
+          "admissions": [
+            {
+              "clause": "Integer(x)",
+              "kind": "membership"
+            },
+            {
+              "clause": "Nat(x) == Integer(x) & 0 <= x",
+              "kind": "refinement"
+            },
+            {
+              "clause": "U3(x) == Integer(x) & 0 <= x & x <= 3",
+              "kind": "refinement"
+            }
+          ],
+          "declared_memberships": 3,
+          "schema": "omega-sort-encoding-record/1",
+          "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+          "rule_version": "omega-sort-encoding-record/1",
+          "semantics_version": "sha256:60a7179a6d7dce969db827009c6071198cda2ce6d642374d5d70bc170d9cfff9",
+          "subject": {
+            "name": "negative: a revision that widens instead of refining",
+            "case_digest": "c5ee8ee873dccae59badb7ccfb2e9665531f8f9407572dbfe071685937ef2f34"
+          },
+          "target_capsule": {
+            "capsule": "linux_x86_64",
+            "address_model": "flat_u64"
+          },
+          "observation_profile": [
+            "clause inventory emission",
+            "definedness precondition coverage",
+            "intended-model inhabitedness (junk guard)",
+            "revision refinement",
+            "loan disjointness and reborrow lineage",
+            "pair-constructor injectivity",
+            "sum tag disjointness and payload membership",
+            "fixpoint admission"
+          ],
+          "bridge_graph": [
+            "Integer",
+            "Nat",
+            "U3"
+          ]
+        }
+      ],
+      "clean_cases": 1,
+      "violation_pinning_cases": 7
+    },
+    "blocked_on": [
+      "MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics)"
+    ],
+    "note": "the bounded slice's checker/theory/certificate columns and pinned-case verdicts are measured under `slice`; the typed-to-one-sorted translation leg is measured under sort_encoding \u2014 translation surface lines plus per-case clause admissions, diagnostics, and checklist provenance"
+  }
+}

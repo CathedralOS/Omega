@@ -7,10 +7,11 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
-case "$(uname -sm)" in
-  "Darwin arm64") ;;
-  *) echo "Beta addressed regression: skipped (requires Darwin arm64)"; exit 0 ;;
-esac
+# The materialized compiler and every stamped program run inside the audited
+# Alpha container. Hosts that cannot exec the selected container refuse
+# (exit 2) rather than crash on the execs below; the audited host matrix lives
+# in seed_env.sh.
+require_seed_execution_host "Beta addressed regression"
 command -v python3 >/dev/null 2>&1 || {
   echo "Beta addressed regression: skipped (python3 absent)"
   exit 0

@@ -12,12 +12,15 @@ use checked_trees::types::{
     TypeReferenceNode,
 };
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarDispatchPattern, CheckedTrees};
-use language_semantics::SemanticDomainId;
+use language_semantics::{DomainEstablishmentRoute, SemanticDomainId};
 use semantic_vocabulary::{
     DomainSemanticId, QualifiedScalarType, ScalarDomainId, ScalarQualificationSetId,
 };
 use symbols::SymbolHandle;
-use terminal_psi::{ScalarDomainDeclaration, ScalarQualificationCatalog, ScalarQualificationSet};
+use terminal_psi::{
+    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarQualificationCatalog,
+    ScalarQualificationSet,
+};
 
 pub(crate) struct PreparedScalarQualifications {
     catalog: ScalarQualificationCatalog,
@@ -142,7 +145,7 @@ impl PreparedScalarQualifications {
             let (primitive, atoms) = type_atoms(checked, reference)?;
             let scalar_type = terminal_scalar_type(primitive)?;
             let mut identities = Vec::new();
-            for (_, semantic_id) in atoms {
+            for (symbol, semantic_id) in atoms {
                 let identity = checked
                     .semantic_domains
                     .name(semantic_id)
@@ -155,6 +158,7 @@ impl PreparedScalarQualifications {
                         "scalar qualification has an invalid semantic identity",
                     ),
                 )?;
+                let establishment_routes = scalar_domain_establishment_routes(checked, symbol)?;
                 if let Some(existing) = catalog
                     .domains
                     .iter()
@@ -162,6 +166,7 @@ impl PreparedScalarQualifications {
                 {
                     if existing.carrier != scalar_type
                         || existing.semantic_domain != semantic_domain
+                        || existing.establishment_routes != establishment_routes
                     {
                         return unsupported(
                             "scalar qualification identity has conflicting declarations",
@@ -175,6 +180,7 @@ impl PreparedScalarQualifications {
                         semantic_domain,
                         identity: identity.clone(),
                         carrier: scalar_type,
+                        establishment_routes,
                     });
                 }
                 identities.push(identity);
@@ -341,6 +347,60 @@ impl PreparedScalarQualifications {
     }
 }
 
+/// The canonical issuer routes one declared domain carries into the
+/// artifact, resolved to the requirement and machine identities the
+/// checked-side evidence vocabulary produces and the module's own rows name.
+fn scalar_domain_establishment_routes(
+    checked: &CheckedTrees,
+    symbol: SymbolHandle,
+) -> Result<Vec<ScalarDomainEstablishmentRoute>, LoweringError> {
+    let domain = checked
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == symbol)
+        .ok_or(LoweringError::Unsupported(
+            "scalar qualification lost its domain declaration",
+        ))?;
+    let mut routes = Vec::new();
+    for route in &domain.establishment_routes {
+        routes.push(match *route {
+            DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            } => ScalarDomainEstablishmentRoute::CheckedRequirement {
+                requirement_identity:
+                    crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
+                        checked,
+                        trait_definition,
+                        requirement,
+                    )?,
+            },
+            DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait,
+                requirement,
+            } => ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                requirement_identity:
+                    crate::proofs::evidence_lowering::checked_evidence_requirement_identity(
+                        checked,
+                        boundary_trait,
+                        requirement,
+                    )?,
+            },
+            DomainEstablishmentRoute::ExactMachine { machine } => {
+                ScalarDomainEstablishmentRoute::ExactMachine {
+                    machine_identity:
+                        crate::proofs::evidence_lowering::checked_evidence_machine_identity(
+                            checked, machine,
+                        )?,
+                }
+            }
+        });
+    }
+    routes.sort();
+    routes.dedup();
+    Ok(routes)
+}
+
 pub(crate) fn type_atoms(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
@@ -399,8 +459,7 @@ pub(crate) fn type_atoms(
                         | TypeConstraintNode::Range { .. } => {}
                         TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
-                                && !domain.predicate_body.is_present()
-                                && domain.establishment_routes.is_empty() =>
+                                && !domain.predicate_body.is_present() =>
                         {
                             declared_atoms(
                                 checked,
@@ -482,7 +541,6 @@ pub(crate) fn declared_atoms(
     if declarations.next().is_some()
         || domain.predicate_body.is_present()
         || !domain.facts.is_empty()
-        || !domain.establishment_routes.is_empty()
         || (!checked_trees::domain::has_generic_carrier(checked, domain)
             && checked.primitive_type_reference(domain.target_type) != Some(primitive))
     {

@@ -1,0 +1,16 @@
+// A const-generic application call `size(4)` may only land on a declared
+// `const` parameter. `Wrapper<T>` declares a type parameter, so the
+// application in `Wrapper<size(4)>` has no const destination to fold into
+// and must reject rather than be deferred or silently dropped.
+
+machine size(n: u64) -> u64 {
+    transition { _ -> n }
+}
+
+data Wrapper<T> {
+    value: T;
+}
+
+machine Main::main(&mut self) {
+    let folded: Wrapper<size(4)>;
+}

@@ -1,7 +1,7 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
 use super::{LoweredAffineLocal, LoweringError};
 use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
 
@@ -14,6 +14,24 @@ pub(super) fn lower_terminator(
     lowered_unit_affine_locals: &[LoweredAffineLocal],
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {
+    // Entry-established locals stay live until a return consumes or
+    // disposes them, so their return-time roster section is the exact
+    // reverse-declaration remainder. A local established inside a cyclic
+    // member carries edge-scoped custody — the verifier's frontier replay
+    // already proved its disposal positions — and is exempt from the entry
+    // sequence's return-roster obligation.
+    let entry_establishments = machine
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == machine.entry)
+        .map(|entry| {
+            entry
+                .operations
+                .iter()
+                .map(|operation| operation.id)
+                .collect::<BTreeSet<OperationId>>()
+        })
+        .unwrap_or_default();
     match &block.terminator {
         Terminator::Jump {
             edge,
@@ -22,8 +40,9 @@ pub(super) fn lower_terminator(
             trivial_affine_discards,
             residual_affine_discards,
             structural_arguments,
-            // Proof-only lane; runtime lowering has no erased actuals to read.
+            // Proof-only lanes; runtime lowering has no erased actuals to read.
             erased_arguments: _,
+            erased_proof_arguments: _,
         } => {
             let target_block =
                 blocks
@@ -211,13 +230,26 @@ pub(super) fn lower_terminator(
                     _ => Vec::new(),
                 })
                 .collect::<BTreeSet<_>>();
+            let entry_places = lowered_unit_affine_locals
+                .iter()
+                .filter(|(operation, _, _)| entry_establishments.contains(operation))
+                .map(|(_, place, _)| place.id)
+                .collect::<BTreeSet<_>>();
             let expected_locals = lowered_unit_affine_locals
                 .iter()
                 .rev()
-                .filter(|(_, place, _)| !consumed_locals.contains(&place.id))
+                .filter(|(_, place, _)| {
+                    entry_places.contains(&place.id) && !consumed_locals.contains(&place.id)
+                })
                 .map(|(_, place, _)| place.id)
                 .collect::<Vec<_>>();
-            if !trivial_affine_discards.starts_with(&expected_locals) {
+            if trivial_affine_discards
+                .iter()
+                .filter(|place| entry_places.contains(place))
+                .copied()
+                .collect::<Vec<_>>()
+                != expected_locals
+            {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
                     edge: *edge,
@@ -240,12 +272,24 @@ pub(super) fn lower_terminator(
             if result.is_some() {
                 return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
             }
+            let entry_places = lowered_unit_affine_locals
+                .iter()
+                .filter(|(operation, _, _)| entry_establishments.contains(operation))
+                .map(|(_, place, _)| place.id)
+                .collect::<BTreeSet<_>>();
             let expected_locals = lowered_unit_affine_locals
                 .iter()
                 .rev()
+                .filter(|(_, place, _)| entry_places.contains(&place.id))
                 .map(|(_, place, _)| place.id)
                 .collect::<Vec<_>>();
-            if !trivial_affine_discards.starts_with(&expected_locals) {
+            if trivial_affine_discards
+                .iter()
+                .filter(|place| entry_places.contains(place))
+                .copied()
+                .collect::<Vec<_>>()
+                != expected_locals
+            {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
                     edge: *edge,

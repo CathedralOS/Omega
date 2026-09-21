@@ -96,6 +96,7 @@
 // domains through the same four-line newtype.
 #[macro_use]
 mod executable_publication;
+mod batch_manifest;
 mod build_outputs;
 mod compile_report;
 mod optimization_rollback;
@@ -104,6 +105,10 @@ mod pcc;
 mod production_manifest;
 mod terminal_product;
 
+pub use batch_manifest::{
+    BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
+    BatchCompilationManifestIdentity,
+};
 pub use build_outputs::RetainedBuildOutputs;
 pub use compile_report::{CompileOutputKind, CompileReport};
 pub use executable_publication::{

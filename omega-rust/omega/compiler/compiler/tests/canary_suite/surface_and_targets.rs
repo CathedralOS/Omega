@@ -1015,14 +1015,19 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
 #[test]
 fn duplicate_overload_and_visibility_admissions_reject() {
     // Duplicate-admission pins: identical free-machine overloads, the same
-    // machine name arriving through two sibling-module `use`s, a local data
-    // declaration colliding with an imported name, and the original
-    // recursive-argument collision shape. Each fixture pins its expected.txt
-    // fragment through checked semantics.
+    // machine name arriving through two sibling-module `use`s, colliding
+    // trait machine requirements, a local data declaration colliding with
+    // an imported name, a requester-local source colliding with the bundled
+    // `omega::language` namespace, and the original recursive-argument
+    // collision shape.
+    // Each fixture pins its expected.txt fragment through checked semantics.
     for name in [
         fixture_roster::DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::DUPLICATE_ATTACHED_MACHINE_OVERLOAD_REJECTED,
         fixture_roster::DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED,
         fixture_roster::IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,
+        fixture_roster::BUNDLED_CORE_NAME_COLLISION_REJECTED,
         fixture_roster::RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED,
     ] {
         let canary = fail_canary(name);
@@ -1041,4 +1046,16 @@ fn duplicate_overload_and_visibility_admissions_reject() {
             expected.trim()
         );
     }
+}
+
+#[test]
+fn repeated_exact_declaration_selection_compiles() {
+    // The legal half of the duplicate-admission rule (modules.md import
+    // scope): repeating one exact `use`, reaching a member through its
+    // module's exposure, and repeating a data-member selection all resolve
+    // to the same declaration and add no competing candidate. Distinct
+    // visible declarations keep rejecting in
+    // duplicate_overload_and_visibility_admissions_reject.
+    let canary = pass_canary(fixture_roster::REPEATED_EXACT_DECLARATION_SELECTION_COMPILE);
+    check_canary(&canary).expect("repeated selection of one exact declaration must stay legal");
 }

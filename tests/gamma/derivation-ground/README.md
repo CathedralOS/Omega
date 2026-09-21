@@ -1,7 +1,7 @@
 # Sorted ground terms gate
 
 Run `sh tests/gamma/derivation-ground/run.sh` from the repository root on macOS
-arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha seed
+arm64 or Linux x86-64, or Windows x64 in Git Bash. Python 3 and the selected checked-in Alpha seed
 are required; macOS additionally requires `codesign`. A portable entrypoint does
 not establish Windows runtime validation.
 
@@ -9,7 +9,11 @@ The contract is [GROUND.md](../../../bootstrap/proofs/checker/GROUND.md),
 following [formation](../../../bootstrap/proofs/checker/FORMATION.md)
 and [physical layout](../../../bootstrap/proofs/checker/LAYOUT.md).
 The gate materializes the complete canonical checker implementation with its
-explicit diagnostic entry, checks the `source.tsv` identity, and calls the real
+explicit diagnostic entry — the bound `main.gamma` prefix, 1,777 bytes,
+SHA-256 `31c3cfe92700850c39b9bf2caeab75e41027538298612cf8128f40cd4c72da5d`,
+recorded in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_derivation_ground_entry_identity` before it packs on the bound member
+bytes — checks the `source.tsv` identity, and calls the real
 `check_derivation_ground()` through the selected Gamma evaluator. It never
 extracts production functions or substitutes a host checker. The host reuses
 only the layout gate's literal field encoder, frames bytes, and compares exact

@@ -82,7 +82,8 @@ pub use interrupts::interrupt_table::{
     INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES, InterruptDescriptorTableState,
     InterruptTableAdmissionError, InterruptTableClose, InterruptTableCompletionError,
     InterruptTableDescriptorOperand, InterruptTableEstablishedMember, InterruptTableGateDescriptor,
-    InterruptTableLedger, InterruptTableMember, InterruptTableMemberPlan, InterruptTableObligation,
+    InterruptTableLedger, InterruptTableMember, InterruptTableMemberAdmission,
+    InterruptTableMemberFacts, InterruptTableMemberPlan, InterruptTableObligation,
     InterruptTableProfile, InterruptTableProviderError, InterruptTablePublication,
     InterruptTablePublicationAuthority, InterruptTablePublicationError,
     InterruptTablePublicationOutcome, InterruptTablePublicationReceipt,
@@ -155,10 +156,10 @@ pub use platform_bringup::uefi_bootstrap::{
 };
 pub use program_local::program_local_extents::{
     ProgramLocalExtentAggregateRetirementError, ProgramLocalExtentMaterializationError,
-    ProgramLocalExtentRegistry, ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument,
-    RetainedForeignAccess, RetainedForeignArgument, RetainedForeignArgumentDisposition,
-    RetainedForeignArgumentError, RetainedForeignArgumentId, RetainedForeignArgumentRange,
-    RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
+    ProgramLocalExtentRegistry, ProgramLocalExtentRemapError, ProgramLocalExtentRetirementError,
+    ReleasedRetainedForeignArgument, RetainedForeignAccess, RetainedForeignArgument,
+    RetainedForeignArgumentDisposition, RetainedForeignArgumentError, RetainedForeignArgumentId,
+    RetainedForeignArgumentRange, RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
 };
 pub use program_local::program_local_roots::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,

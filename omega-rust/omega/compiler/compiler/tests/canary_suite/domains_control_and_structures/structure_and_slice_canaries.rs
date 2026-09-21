@@ -1,7 +1,7 @@
 use super::fixture_roster;
 use crate::{
-    Command, compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, fs,
-    interpret, pass_canary,
+    Command, check_canary, compile_reviewed_repository_fixture,
+    compile_rooted_canary_for_native_host, fail_canary, fs, interpret, pass_canary,
 };
 use compiler::CheckedCompileRequest;
 
@@ -1258,4 +1258,106 @@ fn runtime_indexed_write_const_read_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn zero_length_byte_array_is_admitted_at_check() {
+    // `[u8; 0]` is a first-class empty value: it is admitted in locals,
+    // constants, parameters, returns, record fields, and nested arrays, and it
+    // is constructed exactly by `[]` or `""`. The use-site fences (no provable
+    // index, exact-length literals) are pinned by
+    // fail/data/zero_length_byte_array_*.
+    let canary = pass_canary(fixture_roster::ZERO_LENGTH_BYTE_ARRAY_ADMISSION);
+    check_canary(&canary).expect("a zero-length byte array should be admitted at check");
+}
+
+#[test]
+fn zero_length_scalar_array_is_admitted_at_check() {
+    // The admission is element-generic: every closed scalar leaf declares an
+    // empty fixed array, not just bytes. `[u16; 0]` and `[u64; 0]` admit in
+    // the same structural positions; `==`/`!=` stay byte-array-only and the
+    // non-scalar-leaf refusal is pinned separately.
+    let canary = pass_canary(fixture_roster::ZERO_LENGTH_SCALAR_ARRAY_ADMISSION);
+    check_canary(&canary).expect("a zero-length non-byte scalar array should be admitted at check");
+}
+
+#[test]
+fn zero_length_scalar_array_use_fences_reject_at_check() {
+    // The use-site fences are element-generic too: a `[u16; 0]` index is as
+    // unprovable as a byte array's. The fixture carries its pinned diagnostic
+    // in expected.txt.
+    let canary = fail_canary(fixture_roster::ZERO_LENGTH_SCALAR_ARRAY_INDEX_REJECTED);
+    let expected_fragment = fs::read_to_string(canary.join("expected.txt"))
+        .expect("fail canary should carry expected.txt")
+        .trim()
+        .to_owned();
+    let diagnostics = match check_canary(&canary) {
+        Ok(()) => panic!("zero-length scalar array index must reject at check"),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(&expected_fragment),
+        "missing expected fragment {expected_fragment:?}:\n{combined}"
+    );
+}
+
+#[test]
+fn zero_length_byte_array_use_fences_reject_at_check() {
+    // `[u8; 0]` is admitted, but using it is fenced: no element exists so no
+    // index is provable, and construction must supply exactly 0 elements or
+    // bytes. Each fixture carries its pinned diagnostic in expected.txt.
+    for &name in fixture_roster::ZERO_LENGTH_BYTE_ARRAY_USE_FENCE_FAIL_CANARIES {
+        let canary = fail_canary(name);
+        let expected_fragment = fs::read_to_string(canary.join("expected.txt"))
+            .expect("fail canary should carry expected.txt")
+            .trim()
+            .to_owned();
+        let diagnostics = match check_canary(&canary) {
+            Ok(()) => panic!("{name} must reject at check"),
+            Err(diagnostics) => diagnostics,
+        };
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(&expected_fragment),
+            "{name} missing expected fragment {expected_fragment:?}:\n{combined}"
+        );
+    }
+}
+
+#[test]
+fn zero_length_non_scalar_array_rejects_on_native_route() {
+    // Check admits `[T; 0]` for every element, so the remaining zero-length
+    // fence sits on the native route: the checked-unit structural shape
+    // refuses a non-scalar-leaf element, unadmitting the machines that carry
+    // it before terminal verification can fire
+    // `InvalidStructuralArrayLength`. Pin the observed rejection surface.
+    for &name in fixture_roster::ZERO_LENGTH_NON_SCALAR_ARRAY_NATIVE_FAIL_CANARIES {
+        let canary = fail_canary(name);
+        let expected_fragment = fs::read_to_string(canary.join("expected.txt"))
+            .expect("fail canary should carry expected.txt")
+            .trim()
+            .to_owned();
+        let diagnostics = match crate::compile_native_canary_without_output(&canary) {
+            Ok(report) => panic!("{name} compiled natively: {}", report.summary()),
+            Err(diagnostics) => diagnostics,
+        };
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(&expected_fragment),
+            "{name} missing expected fragment {expected_fragment:?}:\n{combined}"
+        );
+    }
 }

@@ -6,6 +6,7 @@
 //! one subordinate admission: re-verifying the component descriptions the
 //! package inputs attached before provider planning joins them.
 
+mod canonical_filesystem_host;
 mod independent_components;
 
 pub use independent_components::verify_independent_component_descriptions;
@@ -67,7 +68,7 @@ pub fn settle_checked_providers(
         &settled_target_machines.origins,
     )
     .map(|derivation| derive_satisfies_plans(typed, derivation))?;
-    let provider_plans = derived_provider_plans
+    let mut provider_plans = derived_provider_plans
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
@@ -85,7 +86,27 @@ pub fn settle_checked_providers(
         &target_provider_defaults,
         build_provider_selections,
     )?;
+    // The canonical `FilesystemHost` slot admits no authored conformance or
+    // selection row; the toolchain mints the per-target realization plan
+    // itself. It joins extraction, fused-service erasure, closure facts, the
+    // retained candidate inventory, and the post-derivation review provenance
+    // below without entering the pre-selection derivation provenance.
+    let toolchain_filesystem_plan = canonical_filesystem_host::mint_canonical_filesystem_host_plan(
+        typed,
+        package_inputs,
+        target_name,
+        &selected_provider_plans
+            .iter()
+            .map(|selected| selected.derived.plan.clone())
+            .collect::<Vec<_>>(),
+    )?;
     let mut fused_service_erasures = Vec::new();
+    if let Some(minted) = &toolchain_filesystem_plan {
+        fused_service_erasures.push(typed_trees::typed_trees::FusedServiceErasureAuthorization {
+            requirement: minted.trait_symbol,
+            provider_plan_digest: *minted.plan.identity_digest().as_bytes(),
+        });
+    }
     for selected in &selected_provider_plans {
         let composition_mode = selected
             .selected_by
@@ -111,14 +132,22 @@ pub fn settle_checked_providers(
     typed
         .bind_fused_service_erasures(fused_service_erasures)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let selected_semantic_plans = selected_provider_plans
+    let mut selected_semantic_plans = selected_provider_plans
         .iter()
         .map(|selected| selected.derived.plan.clone())
         .collect::<Vec<_>>();
+    // Cycle review only walks authored `invokes` edges and requires every
+    // schema method to bind a plan row. The toolchain-settled plan covers
+    // only its honestly realizable leaves and its syscall rows can never
+    // invoke, so it joins after the authored-plan cycle check, before the
+    // external-binding extraction that binds its syscall numbers.
     provider_planning::validate_selected_synchronous_invocation_cycles(
         typed,
         &selected_semantic_plans,
     )?;
+    if let Some(minted) = &toolchain_filesystem_plan {
+        selected_semantic_plans.push(minted.plan.clone());
+    }
     let external_binding_rows = provider_planning::extract_native_external_binding_rows(
         target_name,
         provider_selection_target,
@@ -137,13 +166,57 @@ pub fn settle_checked_providers(
         package_inputs,
         accepted_component_assumptions,
     )?;
-    let (selected_provider_plan_facts, selected_provider_provenance) =
+    let (mut selected_provider_plan_facts, mut selected_provider_provenance) =
         provider_planning::selected_provider_plan_facts_with_independent_components(
             typed,
             &evaluated_via_bindings,
             selected_provider_plans,
             &independent_components,
         )?;
+    if let Some(minted) = toolchain_filesystem_plan {
+        selected_provider_plan_facts = selected_provider_plan_facts
+            .with_toolchain_settled_plan(minted.plan.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // Review provenance stays index-aligned with `facts.plans()` (the
+        // intrinsic-review join zips them positionally); splice the toolchain
+        // row at the same slot the sorted insert landed on. Its realization
+        // symbols are `invalid` because the settlement table, not an authored
+        // machine, realizes each row.
+        let index = selected_provider_plan_facts
+            .plans()
+            .iter()
+            .position(|plan| *plan == minted.plan)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "toolchain-settled `FilesystemHost` plan missing from selected facts after join",
+                )]
+            })?;
+        selected_provider_provenance.insert(
+            index,
+            SelectedProviderReviewProvenance {
+                plan: minted.plan.clone(),
+                provider: provider_planning::ProviderPlanProvenance {
+                    schema: provider_planning::ProviderSchemaDeclaration::BoundaryTrait(
+                        minted.trait_symbol,
+                    ),
+                    provider_type: None,
+                    row_requirements: minted.requirement_symbols,
+                    row_realizations: vec![
+                        symbols::SymbolHandle::invalid();
+                        minted.plan.rows.len()
+                    ],
+                    row_target_machine_origins: vec![None; minted.plan.rows.len()],
+                },
+                selected_by:
+                    provider_planning::ProviderSelectionProvenance::UniqueCoveringCandidate,
+                row_compiler_intrinsic_executions: Vec::new(),
+            },
+        );
+        // The trust report replays every selected plan against exactly one
+        // retained candidate; the toolchain-settled plan is a real retained
+        // candidate for the slot even though no package authored it.
+        provider_plans.push(minted.plan);
+    }
     Ok(CheckedProviderSelection {
         provider_plans,
         evaluated_via_bindings,

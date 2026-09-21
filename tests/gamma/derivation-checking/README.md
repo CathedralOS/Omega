@@ -1,7 +1,7 @@
 # Supplied-theory derivation checking
 
 Run `sh tests/gamma/derivation-checking/run.sh` from the repository root.
-The gate uses the selected Gamma evaluator on macOS arm64 or Windows x64 Git
+The gate uses the selected Gamma evaluator on macOS arm64, Linux x86-64, or Windows x64 Git
 Bash. An unavailable Python installation explicitly skips; other hosts report
 unsupported. Host availability is not evidence of cross-platform execution.
 
@@ -22,6 +22,11 @@ proposition, and artifact custody remain separate requirements.
 
 [run.sh](run.sh) resolves bootstrap roles and materializes the complete
 canonical implementation closure with the explicit diagnostic entry. The
+closure prefixes the bound checker member bytes with this gate's
+`main.gamma` entry, bound at 1,155 bytes, SHA-256
+`8601e23955e3054eba95a2b5e7e2dd2a92d4ae47c8cb9bf49d9ce77c295a16a2`; the pin
+lives in `tools/bootstrap/proofs/sources_env.sh` and
+`require_derivation_checking_entry_identity` runs before the pack. The
 composition's line count, byte count, and SHA-256 must match
 [source.tsv](source.tsv). No production functions are extracted or replaced.
 [gate.py](gate.py) only frames those exact bytes, invokes the evaluator, and
@@ -71,10 +76,12 @@ one row yields `4P+8`. The 163,838-row fixture therefore completes at exactly
 
 A 262,143-row table consumes 262,144 units during setup and the remaining
 393,216 in 131,072 Ref rows. The next row reservation refuses at byte 2,097,268
-with the full limit/requested values. A fresh proof-index reservation cannot
-exhaust this larger work provision: the 8 MiB envelope permits fewer than
-524,288 minimum-size proof rows. Substitution's bulk controls separately cover
-exact and adjacent reservation refusal in an already consumed session.
+with the full limit/requested values. The 130 MiB request extent also admits a
+fresh proof-index reservation exhaustion directly: a 655,360-row table of
+minimum-size Reflexivity rows requests 655,361 units during setup and refuses
+on the table itself (`fresh_proof_index_reservation_exhaustion`). Substitution's
+bulk controls separately cover exact and adjacent reservation refusal in an
+already consumed session.
 The 32,768-row backward Symmetry chain costs `6P+3 = 196,611`; it checks logical
 proof depth without expanding the chain or recursively traversing premises.
 

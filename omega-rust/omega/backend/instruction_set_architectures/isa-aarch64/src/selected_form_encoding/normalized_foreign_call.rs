@@ -15,8 +15,8 @@ use selected_instructions::{
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
+use crate::aarch64_register_constraint_catalog_for;
 use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
-use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
 
 pub const AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
 pub const AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
@@ -159,7 +159,7 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
 > {
     let abi = aarch64_selected_abi(target)
         .map_err(|_| Aarch64NormalizedForeignCallTemplateError::UnsupportedTarget)?;
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64NormalizedForeignCallTemplateError::NonCanonicalPhysicalModel);
     }
     let (boundary, ordinal) = match kind {
@@ -179,7 +179,7 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
         Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_normalized_foreign_call_keys(),
         Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
     };
-    let catalog = aarch64_register_constraint_catalog(physical);
+    let catalog = aarch64_register_constraint_catalog_for(physical);
     let row = catalog
         .constraints
         .iter()
@@ -275,8 +275,8 @@ mod tests {
 
     fn inputs(
         darwin: bool,
-        arity: usize,
-        has_result: bool,
+        input_layout: usize,
+        result: usize,
     ) -> (
         ValidatedPhysicalRegisterModel,
         SelectedInstructionKind,
@@ -299,7 +299,7 @@ mod tests {
             crate::aarch64_darwin_normalized_foreign_call_keys()
         } else {
             crate::aarch64_aapcs64_normalized_foreign_call_keys()
-        }[arity * 2 + usize::from(has_result)];
+        }[input_layout * 3 + result];
         let row = catalog
             .constraints
             .iter()
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn template_has_exact_bytes_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects) = inputs(true, 1, true);
+        let (physical, kind, alternative, operands, accesses, effects) = inputs(true, 1, 1);
         let template = encode_aarch64_selected_normalized_foreign_call_template(
             NativeTarget::macos_arm64(),
             &physical,
@@ -368,10 +368,10 @@ mod tests {
 
     #[test]
     fn every_plan_row_selects_its_exact_operands_and_effects() {
-        let (physical, kind, alternative, _, _, _) = inputs(false, 0, false);
-        for arity in 0..=8usize {
-            for has_result in [false, true] {
-                let (_, _, _, operands, accesses, effects) = inputs(false, arity, has_result);
+        let (physical, kind, alternative, _, _, _) = inputs(false, 0, 0);
+        for input_layout in 0..81 {
+            for result in 0..3 {
+                let (_, _, _, operands, accesses, effects) = inputs(false, input_layout, result);
                 let template = encode_aarch64_selected_normalized_foreign_call_template(
                     NativeTarget::linux_arm64(),
                     &physical,
@@ -383,23 +383,24 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(template.operand_views(), operands.as_slice());
-                // A different plan's operand roster selects that plan's row,
-                // whose canonical effects reject this row's effects.
-                if arity > 0 {
-                    let (_, _, _, wrong, wrong_accesses, _) = inputs(false, arity - 1, has_result);
-                    assert!(
-                        encode_aarch64_selected_normalized_foreign_call_template(
-                            NativeTarget::linux_arm64(),
-                            &physical,
-                            kind,
-                            alternative,
-                            &wrong,
-                            &wrong_accesses,
-                            &effects,
-                        )
-                        .is_err()
-                    );
-                    // A view outside the integer argument bank matches no row.
+                // A different result choice is a valid row, but cannot retain
+                // this row's external writes and remaining caller-save effects.
+                let (_, _, _, wrong, wrong_accesses, _) =
+                    inputs(false, input_layout, (result + 1) % 3);
+                assert_eq!(
+                    encode_aarch64_selected_normalized_foreign_call_template(
+                        NativeTarget::linux_arm64(),
+                        &physical,
+                        kind,
+                        alternative,
+                        &wrong,
+                        &wrong_accesses,
+                        &effects,
+                    ),
+                    Err(Aarch64NormalizedForeignCallTemplateError::EffectMismatch)
+                );
+                if !operands.is_empty() {
+                    // This view belongs to neither the input nor result bank.
                     let mut substituted = operands.clone();
                     substituted[0] = physical.model().view_named("x8").unwrap().id;
                     assert_eq!(
@@ -414,9 +415,15 @@ mod tests {
                         ),
                         Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)
                     );
-                    // A swapped operand role selects no row for this plan.
+                    // Flip the actual role: result-only rows start with Def,
+                    // whereas nonempty input layouts start with Use. If the
+                    // new roles describe another valid row, stale effects reject.
                     let mut swapped_accesses = accesses.clone();
-                    swapped_accesses[0] = RegisterOperandAccess::Def;
+                    swapped_accesses[0] = match accesses[0] {
+                        RegisterOperandAccess::Use => RegisterOperandAccess::Def,
+                        RegisterOperandAccess::Def => RegisterOperandAccess::Use,
+                        RegisterOperandAccess::UseDef => unreachable!(),
+                    };
                     assert!(
                         encode_aarch64_selected_normalized_foreign_call_template(
                             NativeTarget::linux_arm64(),
@@ -436,7 +443,7 @@ mod tests {
 
     #[test]
     fn rejects_wrong_kind_target_alternative_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects) = inputs(true, 1, true);
+        let (physical, kind, alternative, operands, accesses, effects) = inputs(true, 1, 1);
         assert_eq!(
             encode_aarch64_selected_normalized_foreign_call_template(
                 NativeTarget::macos_arm64(),

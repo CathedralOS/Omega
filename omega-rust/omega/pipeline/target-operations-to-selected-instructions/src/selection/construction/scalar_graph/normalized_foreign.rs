@@ -81,8 +81,9 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
-    // Scalar arguments copy their resolved source register; a stack-placed
-    // argument is outgoing frame custody rather than a call operand.
+    // Durable scalars retain their bits in GPR storage. Transfer floating
+    // arguments into short ABI-bank homes only at the call boundary; stack
+    // arguments store those same bits directly into their exact-width slots.
     let mut operands = Vec::new();
     for argument in &call.scalar_arguments {
         let value = argument.source.source_value();
@@ -103,9 +104,22 @@ pub(super) fn emit(
             return Err(invalid());
         }
         let output = builder.register(value, site, scalar_type)?;
-        builder.emit(
+        let (kind, transfer_key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
+            scalar_type,
+            &builder.constraints.keys,
+        )
+        .unwrap_or((
             SelectedInstructionKind::CopyI64,
             builder.constraints.keys.copy_i64,
+        ));
+        builder.registers[output.0 as usize].class = row(builder.catalog, transfer_key)?
+            .operands
+            .get(1)
+            .ok_or_else(invalid)?
+            .class;
+        builder.emit(
+            kind,
+            transfer_key,
             &[input, output],
             SelectedInstructionProvenance {
                 operations: vec![operation.operation],
@@ -187,7 +201,17 @@ pub(super) fn emit(
             _ => return Err(invalid()),
         }
     }
-    operands.sort_by_key(|(position, _)| *position);
+    // Preserve authored order within each physical bank, without changing
+    // native parameter ordinals or the semantic provenance roster.
+    operands.sort_by_key(|(position, _)| {
+        (
+            call.binding.boundary_entry_plan.call.parameters[*position as usize]
+                .shape
+                .class
+                == calling_conventions::ValueClass::Float,
+            *position,
+        )
+    });
     let mut operands: Vec<VirtualRegisterId> =
         operands.into_iter().map(|(_, register)| register).collect();
     let short_result = if let Some(result) = operation.result {
@@ -254,13 +278,21 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
-    // The ABI result register carries the raw scalar carrier; the durable
-    // definition is its signed/unsigned normalization, like internal calls.
+    // After restoring machine controls, retain the exact result bits in the
+    // ordinary scalar home. Integer and Boolean carriers normalize as before.
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-        builder.emit(
+        let (kind, transfer_key) = crate::selection::scalar_call_abi::incoming_float_transfer(
+            result.scalar_type,
+            &builder.constraints.keys,
+        )
+        .unwrap_or((
             crate::selection::scalar_call_abi::integer_carrier_normalization(result.scalar_type),
             builder.constraints.keys.copy_i64,
+        ));
+        builder.emit(
+            kind,
+            transfer_key,
             &[short_result, output],
             SelectedInstructionProvenance {
                 operations: vec![operation.operation],

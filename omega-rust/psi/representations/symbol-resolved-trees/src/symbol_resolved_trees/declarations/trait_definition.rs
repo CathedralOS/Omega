@@ -22,6 +22,30 @@ pub struct TraitStorage {
     pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
     pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
+    /// The `= Base` head of a transparent refinement. A refinement is a
+    /// structural bound over an existing base conformance, never a nominal
+    /// conformance target; `None` marks an ordinary trait.
+    pub refines: Option<TraitRequirement>,
+    /// `machine *` / `machine Base::requirement` narrowing clauses. Each
+    /// signature retains only operational axes (`reaches`, `suspends`,
+    /// `blocks`, `terminates`); a refinement narrows, never widens, the base.
+    pub refinement_clauses: Vec<TraitRefinementClause>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TraitRefinementClause {
+    /// The authored base requirement name; `None` for the `machine *`
+    /// wildcard covering every base requirement.
+    pub requirement: Option<DiagnosticName>,
+    /// Operational axes only.
+    pub signature: StateSignature,
+    /// Exact authored `reaches` keyword occurrences on this clause. An
+    /// authored `reaches;` (empty names with a keyword span) is a narrowed
+    /// empty row; an omitted clause inherits the base row.
+    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
+    /// Authored `reaches` names retained until row binding; clause reach rows
+    /// intern against the bound fit check, not the signature pending pass.
+    pub service_reaches: Vec<DiagnosticName>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
