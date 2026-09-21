@@ -899,22 +899,57 @@ pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
 }
 
 /// The authored `[erased]` scalar formals in authored order, each retaining
-/// its authored parameter position. Erased formals with non-primitive types
-/// refuse the plan: a proof-only structural formal has no erased scalar
-/// representation this slice defines.
+/// its authored parameter position. Proof-only erased formals belong to the
+/// proof lane (`erased_proof_parameter_plans`), so this plan skips them.
+/// Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
+    let proof_only = typed_trees::proof_only::classify(program);
     program
         .state_parameters(state)
         .iter()
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .filter(|(_, parameter)| {
+            proof_only
+                .proof_only_mention(program, parameter.type_reference)
+                .is_none()
+        })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+            })
+        })
+        .collect()
+}
+
+/// The authored `[erased]` proof-only formals in authored order, each
+/// retaining its authored parameter position and canonical semantic type
+/// identity (`Nat`). These carriers admit no scalar lane; the contract term
+/// lane carries them by identity instead.
+pub(crate) fn erased_proof_parameter_plans(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
+    let proof_only = typed_trees::proof_only::classify(program);
+    program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .filter(|(_, parameter)| {
+            proof_only
+                .proof_only_mention(program, parameter.type_reference)
+                .is_some()
+        })
+        .map(|(position, parameter)| {
+            Some(checked_trees::CheckedErasedProofParameterPlan {
+                source_position: u32::try_from(position).ok()?,
+                parameter_symbol: parameter.symbol,
+                type_identity: base_type_identity(program, parameter.type_reference, &[])?,
             })
         })
         .collect()
@@ -1549,6 +1584,36 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(identity.clone(), plan);
             return Some(identity);
         }
+        if let Some(element) =
+            borrowed_slice_view_element(self.program, type_reference, substitutions)
+        {
+            let identity = borrowed_slice_view_type_identity(
+                self.program,
+                type_reference,
+                binders,
+                substitutions,
+            );
+            if !self.in_progress.insert(identity.clone()) {
+                return None;
+            }
+            let element_type_identity = self.add_type(element, binders, substitutions);
+            self.in_progress.remove(&identity);
+            let plan = CheckedUnitStructuralTypePlan {
+                identity: identity.clone(),
+                shape: CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity: element_type_identity?,
+                },
+            };
+            if self
+                .types
+                .get(&identity)
+                .is_some_and(|existing| existing != &plan)
+            {
+                return None;
+            }
+            self.types.insert(identity.clone(), plan);
+            return Some(identity);
+        }
         let mut type_reference = type_reference;
         loop {
             match self
@@ -1889,7 +1954,7 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Structural {
                 type_identity: self.add_reference_type(field.type_reference, binders)?,
             }
-        } else if let Some(fused_service_erasure) =
+        } else if let Some((fused_service_erasure, provider_node)) =
             provider_backed_field(self.program, field.type_reference)
         {
             let provider_type_identity = self
@@ -1897,7 +1962,7 @@ impl<'program> ShapeCollector<'program> {
                 .type_identity(TypeIdentityRequest {
                     binders,
                     substitutions,
-                    ..TypeIdentityRequest::ordinary(field.type_reference)
+                    ..TypeIdentityRequest::ordinary(provider_node)
                 })
                 .into_string();
             match fused_service_erasure {
@@ -2038,6 +2103,9 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity,
                         ..
+                    }
+                    | CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                        element_type_identity,
                     } => {
                         retained.insert(element_type_identity.clone());
                     }
@@ -2074,29 +2142,53 @@ impl<'program> ShapeCollector<'program> {
     }
 }
 
+/// A provider-backed field's erasure receipt (when the carrier is an exact
+/// `Service<R>` requirement) plus the type node whose identity names the
+/// provider — the carrier itself for a fused service, the unwrapped
+/// boundary-trait referent for a `&'a mut <boundary trait>` field.
 fn provider_backed_field(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<Option<checked_trees::CheckedFusedServiceErasureReceipt>> {
+) -> Option<(
+    Option<checked_trees::CheckedFusedServiceErasureReceipt>,
+    TypeReferenceHandle,
+)> {
     if let Some(requirement) =
         typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
         let authorization = program.fused_service_erasure(requirement)?;
-        return Some(Some(checked_trees::CheckedFusedServiceErasureReceipt {
-            requirement,
-            provider_plan_digest: authorization.provider_plan_digest,
-        }));
+        return Some((
+            Some(checked_trees::CheckedFusedServiceErasureReceipt {
+                requirement,
+                provider_plan_digest: authorization.provider_plan_digest,
+            }),
+            type_reference,
+        ));
     }
-    let provider_symbol = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. }
-        | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
-        _ => return None,
+    // Attached data stores a provider as `&'a mut <boundary trait>`: look
+    // through the reference (and any qualifications wrapped around it) to the
+    // trait symbol before deciding the field is not a provider handle.
+    let mut unwrapped = type_reference;
+    let provider_symbol = loop {
+        match program.type_reference_table.type_reference(unwrapped) {
+            TypeReferenceNode::Constrained {
+                base_type: inner, ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Reference {
+                referee: inner,
+                access: language_core::ReferenceAccess::Mutable,
+                ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => break *symbol,
+            _ => return None,
+        }
     };
     program
         .traits()
         .iter()
         .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
-        .then_some(None)
+        .then_some((None, unwrapped))
 }
 
 pub(super) fn scalar_type(
@@ -2168,6 +2260,73 @@ pub(crate) fn projected_move_residuals(
         &[(moved_path.to_vec(), moved_identity.clone())],
     )?;
     Some((moved_identity, residuals))
+}
+
+/// The element of a borrowed `&[T]` view. Fixed arrays and vectors own
+/// contiguous storage and a slice borrows it, carrying its own extent as a
+/// stored runtime length rather than a declared constant, so the view's shape
+/// names only its element. One leading reference shell is the borrow itself;
+/// arithmetic-domain and other constraint shells qualify the carrier without
+/// changing it. The byte element keeps its established `ByteSequence` carrier,
+/// whose length, read and subslice obligations are already reconstructed.
+pub(crate) fn borrowed_slice_view_element(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    let mut borrowed = false;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                let (_, replacement) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)?;
+                // A substitution can bind a parameter to its own reference;
+                // rewriting it again only loops.
+                if *replacement == type_reference {
+                    return None;
+                }
+                type_reference = *replacement;
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } if !borrowed => {
+                borrowed = true;
+                type_reference = *referee;
+            }
+            TypeReferenceNode::Slice { element_type } if borrowed => {
+                return (program.primitive_type_reference(*element_type)
+                    != Some(PrimitiveType::U8))
+                .then_some(*element_type);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// The view's own identity is the borrowed `[T]` carrier, with the reference
+/// and constraint shells peeled exactly as the borrowed byte view peels them:
+/// borrow access belongs to the plan carrying the view, not to its shape.
+pub(crate) fn borrowed_slice_view_type_identity(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> String {
+    while let TypeReferenceNode::Reference { referee, .. }
+    | TypeReferenceNode::Constrained {
+        base_type: referee, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *referee;
+    }
+    program
+        .type_identity(TypeIdentityRequest {
+            binders,
+            substitutions,
+            ..TypeIdentityRequest::ordinary(type_reference)
+        })
+        .into_string()
 }
 
 pub(crate) fn byte_sequence_carrier(

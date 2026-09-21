@@ -114,7 +114,7 @@ builder.pcc.psi = true;
 builder.pcc.native = true;
 ```
 
-These fields remain implementation work. Psi PCC retains the Psi artifact and
+Both requests are implemented. Psi PCC retains the Psi artifact and
 its `.proof` sidecar; native PCC supplies a standalone sidecar next to the final
 executable. Neither enables ordinary checking—it already runs—and neither
 selects the receiver's trust policy. See

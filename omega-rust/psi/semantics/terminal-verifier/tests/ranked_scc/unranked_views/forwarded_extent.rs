@@ -26,11 +26,13 @@ fn forwarded(join: bool) -> TerminalModule {
         target: id(target, BlockId::new),
         arguments: vec![id(2, ValueId::new)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![argument(2)],
         trivial_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(5, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -48,6 +50,7 @@ fn forwarded(join: bool) -> TerminalModule {
                 target: edge.target,
                 arguments: edge.arguments,
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: edge.structural_arguments,
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
@@ -70,6 +73,7 @@ fn forwarded(join: bool) -> TerminalModule {
         });
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(block, BlockId::new),
             parameters: vec![ValueDeclaration {
                 qualifications: Default::default(),
@@ -83,6 +87,7 @@ fn forwarded(join: bool) -> TerminalModule {
                 target: id(3, BlockId::new),
                 arguments: vec![id(scalar, ValueId::new)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![argument(place)],
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
@@ -207,6 +212,7 @@ fn forwarded_extent_rejects_mutation_through_an_intermediate_binding() {
     helper.entry = id(20, BlockId::new);
     helper.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: helper.entry,
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -223,6 +229,7 @@ fn forwarded_extent_rejects_mutation_through_an_intermediate_binding() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: id(2, MachineId::new),
             arguments: Vec::new(),
             structural_arguments: vec![argument(4)],

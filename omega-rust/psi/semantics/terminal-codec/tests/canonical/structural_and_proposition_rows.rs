@@ -697,6 +697,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
         1, 0, 0, 0, 0, 0, 0, 0, // ContractId(1)
         0, 0, 0, 0, // zero crash route buckets
         0, 0, 0, 0, // zero erased scalar formals
+        0, 0, 0, 0, // zero erased proof formals
         8, 0, 0, 0, // eight requirements
         1, 2, 3, // Truth, Falsehood, Atom
     ];
@@ -704,7 +705,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
         .windows(contract_prefix.len())
         .position(|window| window == contract_prefix)
         .expect("fixture contract prefix should be unique");
-    reordered_requirements.swap(contract_offset + 20, contract_offset + 21);
+    reordered_requirements.swap(contract_offset + 24, contract_offset + 25);
     assert_eq!(
         decode_module(&reordered_requirements),
         Err(CodecError::NonCanonicalOrder("requires propositions"))
@@ -1018,6 +1019,7 @@ fn ordinary_inline_byte_module(
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: callee.id,
         arguments: Vec::new(),
         structural_arguments,

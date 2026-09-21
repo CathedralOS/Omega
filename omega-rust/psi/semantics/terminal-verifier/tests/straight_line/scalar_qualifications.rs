@@ -1,13 +1,16 @@
 use super::{
-    AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
-    MachineId, Operation, OperationId, OperationKind, OperationResult, ProofBundle, ScalarType,
-    SuccessorEdge, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
-    unit_module, validate_module, verify_module,
+    AdmissionProfile, Block, BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign,
+    IntegerType, IntegerValue, MachineId, ModuleError, Operation, OperationId, OperationKind,
+    OperationResult, ProofBundle, ScalarType, StructuralTypeId, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, unit_module,
+    validate_module, verify_module,
 };
 use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, ScalarQualificationSetId};
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarQualificationCoercion,
-    ScalarQualificationSet,
+    BoundaryMachineDeclaration, BoundaryMachineResult, MachineContract,
+    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ScalarDomainDeclaration,
+    ScalarDomainEstablishmentRoute, ScalarQualificationCoercion, ScalarQualificationSet,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 fn value(raw: u64, set: u64) -> ValueDeclaration {
@@ -28,12 +31,14 @@ fn module() -> TerminalModule {
         target: BlockId::new(2).unwrap(),
         arguments: vec![value(1, 0).id],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
         residual_affine_discards: vec![],
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(2).unwrap(),
         parameters: vec![value(2, 1)],
         structural_parameters: vec![],
@@ -177,6 +182,7 @@ fn observing_a_qualified_boolean_preserves_its_membership() {
         target: BlockId::new(3).unwrap(),
         arguments: vec![result.id],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
     };
@@ -189,6 +195,7 @@ fn observing_a_qualified_boolean_preserves_its_membership() {
     destination.id = ValueId::new(5).unwrap();
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(3).unwrap(),
         parameters: vec![destination],
         structural_parameters: vec![],
@@ -314,6 +321,190 @@ fn scalar_domain_establishment_routes_require_a_retained_issuer() {
     assert!(validate_module(&module).is_err());
 }
 
+// A boundary requirement, its provider candidate, and a second machine
+// carrying its own introduction coercion: every issuer route for the
+// fixture domain resolves to a machine this module binds — never to the
+// fixture machine that also introduces the domain.
+fn routed_issuer(module: &mut TerminalModule) -> MachineId {
+    module.scalar_qualifications.domains[0].establishment_routes = vec![
+        ScalarDomainEstablishmentRoute::CheckedRequirement {
+            requirement_identity: "test::observe".into(),
+        },
+        ScalarDomainEstablishmentRoute::ExactMachine {
+            machine_identity: "test::issuer".into(),
+        },
+    ];
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: BoundaryMachineId::new(1).unwrap(),
+        identity: "test::observe".into(),
+        attachment: None,
+        parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar],
+        scalar_parameters: vec![value(951, 0).scalar_type],
+        crash_routes: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    });
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "test::Issuer".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let issuer = MachineId::new(950).unwrap();
+    module.machines.push(TerminalMachine {
+        closed_reach_application: None,
+        declared_service_reach: Vec::new(),
+        id: issuer,
+        attachment: Some(StructuralTypeId::new(1).unwrap()),
+        structural_parameters: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        parameters: vec![value(951, 0)],
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: BlockId::new(951).unwrap(),
+        blocks: vec![
+            Block {
+                erased_proof_formals: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                id: BlockId::new(951).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Jump {
+                    erased_proof_arguments: Vec::new(),
+                    edge: EdgeId::new(951).unwrap(),
+                    target: BlockId::new(952).unwrap(),
+                    arguments: vec![value(951, 0).id],
+                    erased_arguments: Vec::new(),
+                    structural_arguments: vec![],
+                    trivial_affine_discards: vec![],
+                    residual_affine_discards: vec![],
+                },
+            },
+            Block {
+                erased_proof_formals: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                id: BlockId::new(952).unwrap(),
+                parameters: vec![value(952, 1)],
+                structural_parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(952).unwrap(),
+                    trivial_affine_discards: vec![],
+                },
+            },
+        ],
+        contract: MachineContract {
+            erased_proof_formals: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            id: ContractId::new(950).unwrap(),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    });
+    module
+        .provider_candidates
+        .push(ProviderCandidateConformance {
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            requirement_identity: "test::observe".into(),
+            provider_identity: "test::Issuer::observe".into(),
+            candidate_identity: "test::issuer".into(),
+            candidate: issuer,
+            signature: ProviderSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        });
+    module
+        .scalar_qualifications
+        .coercions
+        .push(ScalarQualificationCoercion {
+            machine: issuer,
+            edge: EdgeId::new(951).unwrap(),
+            argument_ordinal: 0,
+            source: value(951, 0).id,
+            destination: value(952, 1).id,
+        });
+    issuer
+}
+
+#[test]
+fn routed_domain_introduction_requires_an_issuer_bound_to_the_machine() {
+    let mut module = module();
+    let issuer = routed_issuer(&mut module);
+    // The fixture machine's own introduction edge now gains a routed domain
+    // while binding to no issuer row — a caller cannot mint membership on the
+    // provider's authority.
+    let outcome = validate_module(&module);
+    assert!(
+        matches!(
+            outcome,
+            Err(ModuleError::InvalidScalarQualification(reason))
+                if reason
+                    == "scalar qualification introduction has no issuer route bound to this machine"
+        ),
+        "unexpected outcome: {outcome:?}"
+    );
+    // The bound issuer machine's own introduction edge admits both routes.
+    module
+        .scalar_qualifications
+        .coercions
+        .retain(|coercion| coercion.machine == issuer);
+    module.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(0);
+    module.machines[0].blocks[1].parameters[0].qualifications = ScalarQualificationSetId::new(0);
+    module.machines[0]
+        .result
+        .scalar_mut()
+        .unwrap()
+        .qualifications = ScalarQualificationSetId::new(0);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    // Erasure is not establishment: dropping the routed domain's membership
+    // needs no issuer authority.
+    let mut erased = erasure_module();
+    erased.scalar_qualifications.domains[0].establishment_routes =
+        module.scalar_qualifications.domains[0]
+            .establishment_routes
+            .clone();
+    erased.structural_types.clone_from(&module.structural_types);
+    erased
+        .boundary_machines
+        .clone_from(&module.boundary_machines);
+    erased
+        .provider_candidates
+        .clone_from(&module.provider_candidates);
+    erased.machines.push(module.machines[1].clone());
+    erased
+        .scalar_qualifications
+        .coercions
+        .extend(module.scalar_qualifications.coercions.iter().cloned());
+    verify_module(
+        &erased,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+}
+
 #[test]
 fn scalar_membership_calls_transport_both_arguments_and_results() {
     let mut module = module();
@@ -335,6 +526,7 @@ fn scalar_membership_calls_transport_both_arguments_and_results() {
         result: OperationResult::Scalar(value(3, 1)),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![value(2, 1).id],
             requirement_obligations: vec![],
@@ -384,6 +576,7 @@ fn scalar_membership_join_requires_qualification_on_every_arrival() {
             target: BlockId::new(2).unwrap(),
             arguments: vec![value(1, 0).id],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },
@@ -392,6 +585,7 @@ fn scalar_membership_join_requires_qualification_on_every_arrival() {
             target: BlockId::new(2).unwrap(),
             arguments: vec![value(1, 0).id],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },

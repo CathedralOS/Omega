@@ -181,6 +181,7 @@ pub(super) fn successor(
         transfers,
         scalar_arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

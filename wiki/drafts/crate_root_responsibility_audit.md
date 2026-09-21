@@ -27,14 +27,15 @@ Counts: 117 crate roots (116 lib.rs + 1 main.rs), all under `omega-rust/`.
 - **F1 — doc-less root, fixed.** `omega/src/main.rs` (the CLI binary root)
   opened directly on `mod cli;`. It now documents its dispatch role.
 
-- **F2 — implementation details in a stage root.**
-  `psi/pipeline/typed-trees-to-checked-trees/src/lib.rs` defines 22 free
+- **F2 — implementation details in a stage root, REPAIRED.**
+  `psi/pipeline/typed-trees-to-checked-trees/src/lib.rs` defined 22 free
   helper functions at the crate root (`typed_operator_has_no_authored_selection`,
   `typed_build_provider_selection`, `late_bound_member_declaration_from_exact_owner`,
   `resolve_checked_builtin_float_operator_requirement`, …) beside the stage
-  re-exports. These are selection-helper plumbing — the exact "implementation
-  details belong in named modules" case. Candidate fix: move them into a named
-  `selection`/`helpers` module and re-export, preserving call sites.
+  re-exports — the exact "implementation details belong in named modules"
+  case. They are all compiler-internal package-review seams, so they now live
+  in `src/package_review.rs`, re-exported by name from the root; call sites
+  are unchanged.
 
 - **F3 — representation vocabulary lives in `lib.rs`.** Three representation
   roots carry their defining types at the root instead of a named domain file:

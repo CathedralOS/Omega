@@ -105,6 +105,7 @@ fn fixture() -> (
             block,
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: block,
                 structural_parameters: Vec::new(),
                 parameters: Vec::new(),

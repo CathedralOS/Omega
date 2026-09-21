@@ -822,7 +822,7 @@ impl Denotation {
     /// fixed-carrier fact, interned once per `(operand, direction)`;
     /// quantifying it as a law would range over every `Int`, which the
     /// membership fact does not survive.
-    fn carrier_bound(
+    pub(super) fn carrier_bound(
         &mut self,
         operand: &ScalarTerm,
         lower: bool,

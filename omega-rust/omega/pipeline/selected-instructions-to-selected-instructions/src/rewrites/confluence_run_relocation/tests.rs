@@ -2368,15 +2368,17 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+5+3+4 = 15), and again for this function's
-    // blocks (15). The crossed surfaces pair each member (1) against
-    // `T_TAIL` (1) and the `Jump` terminator (2 uses + defs on x86-64):
-    // (2+3) per member = 10 steps. The dead-path bound prices each
+    // blocks (15); the path walk pushes the lone `Jump` edge once (1).
+    // The crossed surfaces pair each member (1) against `T_TAIL` (1) —
+    // 2 per member — and each member against the `Jump` terminator (2
+    // uses + defs on x86-64) plus the plain edge's empty surface — 3 per
+    // member: (2+3)*2 = 10 steps. The dead-path bound prices each
     // block's body, terminator, and edge surfaces once per run location
     // plus the initial scan: on x86-64 the materializations cost 1 each,
     // the jumps 2, the branch 3, and the return 9 — (2+3)+(4+2)+(2+2)+
     // (3+9) = 27 — times two written member registers plus one:
     // 27*3 = 81.
-    let steps: u64 = 15 + 15 + 10 + 81;
+    let steps: u64 = 15 + 15 + 1 + 10 + 81;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_run_into_confluence(&source, 0, RUN_A, RUN_B, HEAD, &environment, exact)
         .unwrap();
@@ -2395,8 +2397,9 @@ fn measured_validation_step_boundary() {
         ConfluenceRunRelocationError::WorkBudgetExceeded
     );
     // Landing at the body end crosses the whole join body: each member
-    // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the terminator.
-    let steps_end: u64 = 15 + 15 + 22 + 81;
+    // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the `Jump`
+    // terminator's edge — (2+2+2+2+3) per member = 22.
+    let steps_end: u64 = 15 + 15 + 1 + 22 + 81;
     let exact = OptimizationWorkBudget::new(1, 1, steps_end, 1, 1).unwrap();
     relocate_selected_run_into_confluence(&source, 0, RUN_A, RUN_B, RET, &environment, exact)
         .unwrap();
@@ -2500,4 +2503,297 @@ fn confluence_run_relocation_is_deterministic_and_re_admitted() {
         block_order(&swapped.transformed().functions[0].blocks[3]),
         vec![RUN_A, RUN_B, HEAD, TAIL, MID]
     );
+}
+
+mod independence_tests {
+    use super::{
+        BLOCK_J, ConfluenceRunRelocationError, HEAD, IntegerValue, MID, NativeTarget, POINTER,
+        R_MOVE_A, R_MOVE_B, R_TAIL, R_TTAIL, RUN_A, RUN_B, SelectedInstructionKind,
+        SelectedInstructionPlan, T_TAIL, TAIL, ValidatedConfluenceRunRelocation,
+        baseline_target_register_environment, budget, fixture, instruction, mutated, settlement,
+        validate_confluence_run_relocation,
+    };
+
+    /// Move the run at `run` inside the source's T block onto
+    /// `landing_index` inside the J block — the edit a producer emitting
+    /// that relocation would publish — without asking admission whether
+    /// the window is legal. The indices are block-body positions in the
+    /// fixture's T (index 1) and J (index 3) blocks.
+    fn forged(
+        source: &ValidatedConfluenceRunRelocation,
+        run: std::ops::RangeInclusive<usize>,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let members: Vec<_> = function.blocks[1]
+            .instructions
+            .drain(*run.start()..=*run.end())
+            .collect();
+        function.blocks[3]
+            .instructions
+            .splice(landing_index..landing_index, members);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates at both ends of the join's body: the `RUN_A; RUN_B` run
+    /// taking `HEAD`'s leading position and `MID`'s interior position —
+    /// the members pure register work, the crossed `Jump` and `T_TAIL`
+    /// carrying no hazard, every member-written location dead from the
+    /// landing index forward, and the content comparison accepting the
+    /// move.
+    #[test]
+    fn forged_relocation_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_confluence_run_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            HEAD,
+            &environment,
+            budget(),
+            forged(&source, 1..=2, 0),
+        )
+        .unwrap();
+        validate_confluence_run_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            MID,
+            &environment,
+            budget(),
+            forged(&source, 1..=2, 1),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted an impure run anyway would publish the
+    /// run sunk into the join with a member whose memory effect newly
+    /// runs on the other inflows' arrivals — here `RUN_B` mutated to a
+    /// row-less `Load8`. The validator's own purity audit refuses with
+    /// `UnsupportedInstruction`, not a replay mismatch, because it
+    /// reconstructs the members' effects instead of trusting the
+    /// producer's admission record.
+    #[test]
+    fn forged_relocation_with_an_impure_member_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[2] = instruction(
+                RUN_B,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, R_MOVE_B],
+            );
+        });
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::UnsupportedInstruction
+        );
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the run sunk past a crossed position reading a register a
+    /// member writes — here `T_TAIL` mutated to read `R_MOVE_A`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`
+    /// because it reconstructs the window's hazards instead of trusting
+    /// the producer's admission record.
+    #[test]
+    fn forged_relocation_across_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[3] = instruction(
+                T_TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE_A, R_TTAIL],
+            );
+        });
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a live member write anyway would publish
+    /// the run sunk while a join position past the landing index still
+    /// reads what a member writes — here `TAIL` mutated to read
+    /// `R_MOVE_B`. The validator's own dead-path audit refuses with
+    /// `UnsupportedPair`: on the other inflows' arrivals the write is
+    /// new, so its readers may not observe it before a rewrite.
+    #[test]
+    fn forged_relocation_with_a_live_member_write_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[3].instructions[2] = instruction(
+                TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE_B, R_TAIL],
+            );
+        });
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a settled window anyway would publish the
+    /// run sunk across a boundary settlement past the landing index — the
+    /// settlement would observe the run inside the join's executed prefix
+    /// on the other inflows' arrivals, so the validator's own audit
+    /// refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_relocation_past_a_settlement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function
+                .boundary_settlements
+                .push(settlement(BLOCK_J, 1, 41));
+        });
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal that leaves the named run unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the run on
+    /// the derived landing index, so the window content comparison
+    /// rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged relocation landing off the derived index — the run
+    /// spliced past `MID` while the destination names `HEAD` — publishes
+    /// a window whose content is not the admitted move and fails the
+    /// content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_relocation_off_the_derived_index_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 2),
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged relocation plus an unrelated extra edit still fails
+    /// restore: the run's placement is right, but the drifted instruction
+    /// in the other inflow keeps the restore-by-content comparison from
+    /// reproducing the source.
+    #[test]
+    fn forged_window_with_drifted_content_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, 1..=2, 0);
+        proposed.functions[0].blocks[2].instructions[0].kind =
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(10),
+            };
+        assert_eq!(
+            validate_confluence_run_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            ConfluenceRunRelocationError::ReplayMismatch
+        );
+    }
 }

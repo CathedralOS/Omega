@@ -192,6 +192,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         } else if scalar {
             OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 structural_arguments,
@@ -202,6 +203,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         } else {
             OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 structural_arguments,
@@ -418,6 +420,7 @@ fn shared_views_of_owned_block_parameters_preserve_exact_edge_custody() {
             caller.blocks[0].operations.clear();
             successor.operations.last_mut().unwrap().kind = OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -461,6 +464,7 @@ fn shared_views_of_owned_block_parameters_preserve_exact_edge_custody() {
                 target: block_id(10),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: place_id(1),
                     path: Vec::new(),

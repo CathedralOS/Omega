@@ -396,6 +396,7 @@ fn build_checked_machine_with_trace(
             borrowed_windows::borrowed_window_shape(
                 program,
                 shapes,
+                machine,
                 state,
                 &structural_parameters,
                 statements,
@@ -549,7 +550,7 @@ fn build_checked_machine_with_trace(
             } else if let Some(window) = &borrowed_window {
                 !calls.is_empty()
                     || local_count != window.local_count
-                    || statements.len() != window.operations.len()
+                    || statements.len() != window.operations.len() + window.reference_locals
             } else {
                 local_count != 0 || !calls.is_empty()
             }
@@ -1139,6 +1140,8 @@ fn build_checked_machine_with_trace(
     trace.phase("service reach");
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some(CheckedUnitEffectMachinePlan {
         scalar_result,
         scalar_control,
@@ -1149,6 +1152,7 @@ fn build_checked_machine_with_trace(
         structural_parameters,
         scalar_parameters,
         erased_scalar_parameters,
+        erased_proof_parameters,
         provider_attachment_requirements,
         trivial_affine_locals,
         entry_claims,
@@ -1589,6 +1593,7 @@ fn structural_value_observes_primitive_carrier(
     visited.push(handle);
     match &plans.nodes.get(handle).kind {
         checked_trees::CheckedStructuralValueKind::Reference { source }
+        | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
         | checked_trees::CheckedStructuralValueKind::Place(source) => source
             .source_parameter_index()
             .is_some_and(|index| positions.contains(&index)),

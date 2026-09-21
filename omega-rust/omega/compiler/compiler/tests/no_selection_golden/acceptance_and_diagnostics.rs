@@ -6,6 +6,7 @@ use optimization_core::OptimizationReportRequest;
 
 use super::support::{
     HOSTED_NATIVE_TARGETS, diagnostic_snapshots, fail_canary, interpreter_canary,
+    interpreter_package_inputs,
 };
 
 #[test]
@@ -19,11 +20,16 @@ fn source_acceptance_diagnostics_and_interpreter_are_stable_on_every_target() {
     let expected_diagnostics = [format!("Error|{expected_message}|none")];
 
     for target in HOSTED_NATIVE_TARGETS {
-        let checked = compile_to_checked(CheckedCompileRequest::new(
-            &pass.join("main.omg"),
-            Some(target),
-        ))
-        .unwrap_or_else(|diagnostics| {
+        let mut request = CheckedCompileRequest::new(&pass.join("main.omg"), Some(target));
+        request.package_inputs = Some(interpreter_package_inputs(target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "no-selection package inputs for {target}: {:#?}",
+                    diagnostic_snapshots(&diagnostics)
+                )
+            },
+        ));
+        let checked = compile_to_checked(request).unwrap_or_else(|diagnostics| {
             panic!(
                 "no-selection source acceptance changed for {target}: {:#?}",
                 diagnostic_snapshots(&diagnostics)

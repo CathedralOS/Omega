@@ -39,6 +39,7 @@ pub use model::{
     StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
 };
+pub(crate) use validation::{bind_semantic_contract, receiver_layout};
 pub use validation::{
     validate_installed_program_storage_continuation_evidence,
     validate_optimized_program_storage_semantic_wrapper_object,
@@ -68,10 +69,11 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     validate_retained_installed_provider_continuation(&source)?;
     validate_optimized_program_storage_semantic_wrapper_encoding(&encoding)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Encoding)?;
-    let contract = replay_semantic_contract(&settlement, &encoding)?;
+    let contract = replay_semantic_contract(&settlement, &encoding, &source)?;
     validate_entry_shape(&source, &settlement, &contract)?;
     let object = construct_object(&settlement, &source, &encoding)?;
-    let container = encode_optimized_program_storage_semantic_wrapper_object(&object)?;
+    let container =
+        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding.template())?;
     let manifest = construct_manifest(&object, &container)?;
     let custody = custody(&object, &container, &manifest);
     let staged = StagedValidatedOptimizedProgramStorageSemanticWrapperObject {

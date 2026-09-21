@@ -372,6 +372,26 @@ fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
             AsmSchedulingHintKind::Nop,
             AsmTargetApplicability::Any,
         ),
+        (
+            "wfe",
+            AsmSchedulingHintKind::WaitForEvent,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "wfi",
+            AsmSchedulingHintKind::WaitForInterrupt,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "sev",
+            AsmSchedulingHintKind::SendEvent,
+            AsmTargetApplicability::Aarch64,
+        ),
+        (
+            "sevl",
+            AsmSchedulingHintKind::SendEventLocal,
+            AsmTargetApplicability::Aarch64,
+        ),
     ] {
         let AsmCatalogEntry::Contract(contract) =
             asm_catalog_entry(mnemonic).expect("scheduling-hint contract")

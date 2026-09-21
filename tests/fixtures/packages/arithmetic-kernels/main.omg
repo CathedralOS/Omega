@@ -1,4 +1,4 @@
 // Pure helper package used to test source identity and empty capability reach.
-pub machine add_u64(left: u64, right: u64) -> u64 {
+pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
     right + left
 }

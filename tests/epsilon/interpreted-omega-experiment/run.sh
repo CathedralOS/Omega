@@ -25,6 +25,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
+require_seed_execution_host "Interpreted Omega experiment"
+
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 EPSILON="$TMP/epsilon_compiler.delta"

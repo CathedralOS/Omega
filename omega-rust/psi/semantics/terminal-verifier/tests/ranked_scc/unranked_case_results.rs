@@ -74,6 +74,7 @@ fn fixture() -> TerminalModule {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -117,6 +118,7 @@ fn fixture() -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(2, BlockId::new),
             parameters: vec![ValueDeclaration {
                 qualifications: Default::default(),
@@ -130,6 +132,7 @@ fn fixture() -> TerminalModule {
                 target: id(1, BlockId::new),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
@@ -137,6 +140,7 @@ fn fixture() -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(3, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -194,6 +198,7 @@ fn unranked_case_result_cannot_reuse_a_preheader_value() {
     module.machines[0].entry = id(4, BlockId::new);
     module.machines[0].blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -203,6 +208,7 @@ fn unranked_case_result_cannot_reuse_a_preheader_value() {
             target: id(1, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),

@@ -186,6 +186,6 @@ the [cost review](../../../wiki/drafts/bootstrap_cost_review.md) records the
 named reduction levers and confirms the remaining shortfall is structural.
 
 Windows runtime validation is unavailable in this session. The gate documents
-the same Git Bash/Python entrypoint for Windows x64 and macOS arm64.
+the same shell/Python entrypoint for Windows x64 (Git Bash), macOS arm64, and Linux x86-64.
 Full-source certificate acceptance remains open on the resource routes named
 in the cost review.
