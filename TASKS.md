@@ -12526,27 +12526,34 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   target unbuildable on that revision), linux_arm64 cross-emit only
   (real execution needs a linux/arm64 host), macos_arm64 unrecorded
   (no runner), windows_x86_64 procedure recorded but unexecuted. The
-  execution leg itself is partitioned per host and every row is separately
-  owned and live: RC-NATIVE-MATRIX-LINUX-X86-64, RC-NATIVE-MATRIX-LINUX-ARM64,
+  recorded linux-x86_64 execution itself lives in
+  `wiki/drafts/rc_native_matrix_host_execution.md` (4dbdaa9bc3):
+  558 pass / 112 fail / 1 expected skip across 670 legs in ~1695 s, with
+  the pipeline_ownership and abstract_publication binaries excluded as
+  uncompilable at that revision and the failure families attributed
+  (Service<R>-carrier spelling, checked-body exact-arithmetic/service-
+  reach obligations, bundled-std `omega_language_std`→`platform` shim
+  rename, proof-decode fingerprint drift, natural-writer fuel,
+  ProgramEntry receiver provisioning, one pinned terminal-bytes drift).
+  The execution leg is partitioned per host and every row is separately
+  owned: RC-NATIVE-MATRIX-LINUX-X86-64, RC-NATIVE-MATRIX-LINUX-ARM64,
   RC-NATIVE-MATRIX-MACOS-ARM64 (plus per-suite slice claims), and
   RC-NATIVE-MATRIX-WINDOWS-X64; coordination siblings RC-NATIVE-MATRIX-HOSTS
-  (recorded), -HOST-RUNS and -HOST-LEGS (live claims) name the same
-  requirement. Re-verified at `a4d396d0de46` (linux x86-64): the
-  harness-compiles blocker is cleared — `cargo check -p
-  omega-native-differential-test --all-targets` finishes clean and the
-  previously-unbuildable `pipeline_ownership` target runs 392/392 pass
-  (the f3d0d1748e-era `optimized_target()` custody drift,
-  `LegalizedScalarTerminator::Crash` arm, and missing
-  `produce_checked_canonical_integer_proof` errors are gone under the
-  landed fixture migrations). What remains is per-host execution
-  evidence: linux_x86_64 needs a fresh full sweep under the compiling
-  harness (its record file is fenced to RC-NATIVE-MATRIX-LINUX-X86-64),
-  and the other three host rows still need foreign runners
-  (RC-NATIVE-MATRIX-LINUX-ARM64/-MACOS-ARM64/-WINDOWS-X64, all
-  live-claimed). Fixture surfaces stay fenced to
-  BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP and
-  SERVICE-CARRIER-FIXTURE-MIGRATION; no independent slice exists under
-  this name.
+  (recorded), -HOST-RUNS and -HOST-LEGS name the same requirement.
+  Re-verified at `758e8ad9e24` (linux x86-64): the harness-compiles
+  blocker stays cleared per `a4d396d0de46` (`cargo check -p
+  omega-native-differential-test --all-targets` clean, `pipeline_ownership`
+  392/392 after the landed fixture migrations). What remains is per-host
+  execution evidence: linux_x86_64 needs a fresh full sweep under the
+  compiling harness (its record file is fenced to
+  RC-NATIVE-MATRIX-LINUX-X86-64, live ~11:30Z), linux_arm64's record file
+  is fenced to RC-NATIVE-MATRIX-LINUX-ARM64 (~15:33Z), and macos_arm64 /
+  windows_x86_64 still need foreign runners (windows x86_64 leg is live
+  under RC-WINDOWS-X64-NATIVE-ROW ~08:36Z; RC-NATIVE-MATRIX-CLOSURE and
+  RC-LINUX-X86-64-GATE-LEDGER also hold ~08:06Z/~15:27Z). Fixture repairs
+  belong to BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP and
+  SERVICE-CARRIER-FIXTURE-MIGRATION as owning lanes; no independent slice
+  exists under this name.
 - **RC-NATIVE-MATRIX-HOSTS.** — recorded at
   `wiki/drafts/rc_native_matrix_hosts.md` (revision 0977a4249e): all four
   required runner rows enumerated. linux_x86_64 red on a full
@@ -12913,16 +12920,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOST-EXECUTION** — recorded at
-  `wiki/drafts/rc_native_matrix_host_execution.md` (revision 4dbdaa9bc3,
-  linux-x86_64): 558 pass / 112 fail / 1 expected skip across 670 legs of
-  omega-native-differential-test in ~1695 s; two binaries (pipeline_ownership,
-  abstract_publication) do not compile at this revision and are excluded
-  under sibling fences. Failures reduce to the Service<R>-carrier spelling,
-  checked-body exact-arithmetic/service-reach obligations, the
-  omega_language_std → platform shim rename, proof-decode fingerprint drift,
-  natural-writer fuel expectations, ProgramEntry receiver provisioning, and
-  one pinned terminal-bytes drift. Re-run when those families close.
+- **RC-NATIVE-MATRIX-HOST-EXECUTION** — adjudicated: scope verified, covered
+  (see the resolved row at ~:12519; recorded run kept at
+  `wiki/drafts/rc_native_matrix_host_execution.md`, revision 4dbdaa9bc3).
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-RUNS.** Mined candidate — sibling stub naming the
   recorded RC-NATIVE-MATRIX surface (canonical row item:
