@@ -214,6 +214,45 @@ restores `unit_state_graph::bindings::structural_successors_reject_missing_and_s
 which asserts the arity diagnostic from the producer side. The other 24 are
 not attributed here.
 
+Fresh member-by-member reading at 6ef64f6dd6 (2026-09-20, Linux x86-64,
+`cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast`): 2152
+run, 2093 passed, 59 failed; the PROOF-SEARCH-MEASUREMENT blowup member
+SIGTERM'd at ~892s. Prior family owners reconfirmed at identical panic
+sites: 33 bare `Service<R>` spellings, 16 missing transitive machine plans,
+3 site_guard crash rejections, 4 scalar-return custody cases, and the
+blowup above. The `established by` call-result qualification family closed
+in-window (`registered_callback_lifetime` green; 851052b4f8f, 1fc01bb6907).
+C2L-UNATTRIBUTED-FAILURE-TAIL's census at 23392bc467 attributes all 56
+remaining reds onto owned families with identical diagnostics.
+
+Two families opened by that reading, bisected at c267df86acb8 (Linux
+x86-64):
+
+- **Ranked safe-point segment bounds** (2 tests, still red):
+  `structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
+  reads per-edge segments `0x600000000` instead of 3
+  (`src/tests/structural_control_cases.rs:1497`), and
+  `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64` rejects
+  `BoundOverflow` (`src/tests/structural_control_cases.rs:1890`). First-bad
+  commit 7591b2607c77 ("bound segments through ranked cyclic components") —
+  green at its parent, red at the commit; recorded suspect 39e156c73a0 is
+  green at itself, cleared by test. The break is the derivation rewrite's
+  own component-scale charging (`natural_component_geometry` in
+  terminal-fixed-fuel `fuel_certification/outcome_bounds.rs`), not its
+  inputs. Owning lane: ranked-cycle/fuel.
+- **Closed-projection replay admission** (1 test, closed):
+  `expression_preparation::bindings::tests::closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
+  admitted invalid/foreign member symbols. First-bad 090802e8a790
+  ("evaluate member-read leaves of computed aggregate constants in
+  constant position"); recorded suspects 39e156c73a0 and 143636cec8a both
+  green, cleared by test. Fixed by 7af30a1f839a ("replay the complete
+  closed record projection for scalar member sources"); green at
+  c267df86acb8.
+
+The four scalar-return custody failures
+(`tests/owned_record_return_source.rs`) are owned by
+C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.
+
 ## compiler build-target activation
 
 `mbx nextest run -p compiler --test build_target_activation` — 49/51 pass; 2
