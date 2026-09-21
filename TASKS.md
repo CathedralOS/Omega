@@ -14592,7 +14592,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PSI-DOMAIN-FACT-SELECTION-COVERAGE** — mined candidate; verify scope then implement.
 - **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
   fresh (per-edge constructed) selection results is already implemented and
-  pinned. `checks/multiplicity/claim_outcomes.rs`
+  pinned (re-verified at `5fdd41efd879`). `checks/multiplicity/claim_outcomes.rs`
   `claim_outcomes_for_owned_selection` mints the fresh product's claim inside
   the selection as `Established{claim_identity: Unknown, provenance:
   Unknown}` — its origin intentionally untracked — while parameter sources
