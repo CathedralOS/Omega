@@ -336,6 +336,7 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
                     StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_)
+                    | StructuralTypeShape::ElementView { .. }
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
                     | StructuralTypeShape::Mixed { .. } => None,
@@ -640,6 +641,7 @@ fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> 
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
         | CheckedUnitStructuralTypeShape::Sum { .. }
         | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
     }

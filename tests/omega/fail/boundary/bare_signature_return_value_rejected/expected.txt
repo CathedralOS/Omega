@@ -1,0 +1,1 @@
+return type of signature `Notifier.current` names bare boundary trait `Console` in value position

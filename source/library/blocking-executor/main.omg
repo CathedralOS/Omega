@@ -14,7 +14,7 @@
 //     capacity; `push` requires a discharged spare-room obligation, so
 //     queue admission failure is a proof error, not a trap or realloc.
 //   * Moved custody — submissions and queue payloads move by value on every
-//     edge; `Executor::submit` either accepts custody (vending a linear
+//     edge; `Submission::submit` either accepts custody (vending a linear
 //     `Ticket<T>`) or returns the whole `Submission` in `Rejected`, matching
 //     `StartOutcome::Rejected(arguments, reason)`: no linear value
 //     disappears in a refused call.

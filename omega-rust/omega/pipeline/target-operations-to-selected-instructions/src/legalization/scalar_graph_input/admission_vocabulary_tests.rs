@@ -65,8 +65,10 @@ fn refused_families_classify_as_unsupported_family() {
         Err(NodeRejection::UnsupportedFamily)
     ));
 
-    // The audit's named hole class: FMA is ingest-refused upstream, but a
-    // fabricated node reaching admission still classifies, never panics.
+    // FMA now has a target-unit ingest arm (control_flow/sources.rs and
+    // unit/ieee_float.rs); the abstract node still classifies here as an
+    // unsupported scalar-graph family rather than panicking, because the
+    // graph admits only settled target-unit forms, not abstract FMA.
     let fused_multiply_add = node(AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
         psi_operation: OperationId::new(3).expect("operation"),
         result: ValueId::new(4).expect("result"),

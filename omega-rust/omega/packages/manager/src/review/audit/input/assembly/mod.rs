@@ -8,6 +8,7 @@ use crate::review::candidate::PackageReviewEvidence;
 use crate::review::candidate::validation::{
     validate_review_only_closure, validate_review_only_records,
 };
+use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReviewSet, triage_initial_install};
 
 use super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};
@@ -25,6 +26,7 @@ pub fn assemble_initial_source_review(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
+    let _stage = timings::stage("source_review_assembly");
     validate_review_only_closure(candidate_sources, candidate_reviews).map_err(|error| {
         map_closure_validation_error(PackageSourceReviewCustodyRole::Candidate, error)
     })?;
@@ -44,6 +46,7 @@ pub fn assemble_update_source_review(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
+    let _stage = timings::stage("source_review_assembly");
     assemble_update_source_review_records(
         baseline_reviews.reviews(),
         candidate_reviews,

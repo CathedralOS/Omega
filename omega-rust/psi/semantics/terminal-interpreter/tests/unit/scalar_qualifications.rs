@@ -27,12 +27,14 @@ fn module() -> TerminalModule {
         target: block_id(2),
         arguments: vec![value_id(1)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
         residual_affine_discards: vec![],
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(2),
         parameters: vec![value(2, true)],
         structural_parameters: vec![],

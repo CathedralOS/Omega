@@ -6,6 +6,7 @@ pub const ASM_FLAGS_COMPILE: &str = "inline_asm/asm_flags_compile";
 pub const ASM_MSR_COMPILE: &str = "inline_asm/asm_msr_compile";
 pub const ASM_CONTROL_REGISTERS_COMPILE: &str = "inline_asm/asm_control_registers_compile";
 pub const ASM_REGISTER_MOVE_COMPILE: &str = "inline_asm/asm_register_move_compile";
+pub const ASM_MEMORY_TRANSFER_COMPILE: &str = "inline_asm/asm_memory_transfer_compile";
 pub const ASM_X86_PIPELINE_DIRECTIVES_COMPILE: &str =
     "inline_asm/asm_x86_pipeline_directives_compile";
 pub const ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE: &str =
@@ -27,6 +28,7 @@ pub const PASS_CANARIES: &[&str] = &[
     ASM_MSR_COMPILE,
     ASM_CONTROL_REGISTERS_COMPILE,
     ASM_REGISTER_MOVE_COMPILE,
+    ASM_MEMORY_TRANSFER_COMPILE,
     ASM_X86_PIPELINE_DIRECTIVES_COMPILE,
     ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE,
     ASM_CACHE_MAINTENANCE_COMPILE,

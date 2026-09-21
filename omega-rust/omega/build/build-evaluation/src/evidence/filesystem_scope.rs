@@ -49,6 +49,12 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
+    /// The write root's overlap key as admission resolved it. Establishment
+    /// re-resolves the same spelling and compares against this baseline: an
+    /// ancestor swapped to a host alias after admission changes the
+    /// resolution, so a key computed at establishment would admit the
+    /// redirect self-consistently.
+    admitted_build_dir_key: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
@@ -129,7 +135,27 @@ fn overlap_key(path: &Path) -> PathBuf {
 fn roots_overlap(left: &Path, right: &Path) -> bool {
     let left = overlap_key(left);
     let right = overlap_key(right);
-    left == right || left.starts_with(&right) || right.starts_with(&left)
+    left.starts_with(&right) || right.starts_with(&left)
+}
+
+/// The root-overlap fence each scoped directory must clear before binding:
+/// `roots_overlap` already covers `..`, relative, and host-alias spellings,
+/// so every root pairing routes through this one diagnostic shape rather
+/// than duplicating the check per pair.
+fn reject_overlapping_roots(
+    candidate: &Path,
+    fenced: &Path,
+    candidate_role: &str,
+    fenced_role: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    if roots_overlap(candidate, fenced) {
+        return Err(vec![Diagnostic::error(format!(
+            "{candidate_role} `{}` must not overlap the {fenced_role} `{}`",
+            candidate.display(),
+            fenced.display()
+        ))]);
+    }
+    Ok(())
 }
 
 /// Release handle for one occurrence's private captured-source backing.
@@ -180,10 +206,12 @@ impl BuildMachineFilesystemScope {
             .filter(|parent| !parent.as_os_str().is_empty())
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
+        let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,
             canonical_source_metadata: None,
             canonical_source_metadata_required: false,
+            admitted_build_dir_key,
             build_dir,
             sponsor,
             root_package_identity: None,
@@ -203,10 +231,12 @@ impl BuildMachineFilesystemScope {
         sponsor: Option<BuildMachineFilesystemSponsor>,
         metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
     ) -> Self {
+        let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
             source_root,
             canonical_source_metadata: metadata,
             canonical_source_metadata_required: true,
+            admitted_build_dir_key,
             build_dir,
             sponsor,
             root_package_identity: None,
@@ -293,20 +323,18 @@ impl BuildMachineFilesystemScope {
         input: CapturedBuildSourceInput,
         snapshot_dir: PathBuf,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if roots_overlap(&snapshot_dir, &self.build_dir) {
-            return Err(vec![Diagnostic::error(format!(
-                "captured source snapshot directory `{}` must not overlap the build write root `{}`",
-                snapshot_dir.display(),
-                self.build_dir.display()
-            ))]);
-        }
-        if roots_overlap(&snapshot_dir, &self.source_root) {
-            return Err(vec![Diagnostic::error(format!(
-                "captured source snapshot directory `{}` must not overlap the source root `{}`",
-                snapshot_dir.display(),
-                self.source_root.display()
-            ))]);
-        }
+        reject_overlapping_roots(
+            &snapshot_dir,
+            &self.build_dir,
+            "captured source snapshot directory",
+            "build write root",
+        )?;
+        reject_overlapping_roots(
+            &snapshot_dir,
+            &self.source_root,
+            "captured source snapshot directory",
+            "source root",
+        )?;
         self.captured_source_input = Some(input);
         self.snapshot_dir = Some(snapshot_dir);
         Ok(self)
@@ -509,9 +537,11 @@ impl BuildMachineFilesystemScope {
         // of its ancestors — through any spelling — or Source's read-only
         // contract would grant writes over every captured member. The
         // default layout nests the write root inside the read root, which
-        // stays admitted: writes reach only the build directory itself.
-        let admitted_build_dir_key = overlap_key(&self.build_dir);
-        if overlap_key(&self.source_root).starts_with(&admitted_build_dir_key) {
+        // stays admitted: writes reach only the build directory itself. The
+        // baseline is admission's recorded key, not a fresh resolution — an
+        // ancestor aliased after admission must still compare against it.
+        let admitted_build_dir_key = &self.admitted_build_dir_key;
+        if overlap_key(&self.source_root).starts_with(admitted_build_dir_key) {
             return Err(vec![Diagnostic::error(format!(
                 "build write root `{}` must not cover the source root `{}`",
                 self.build_dir.display(),
@@ -523,13 +553,22 @@ impl BuildMachineFilesystemScope {
         // fence never sees, so the write root is rechecked here after the
         // inventory is bound.
         for input in &self.named_inputs {
-            if roots_overlap(&input.snapshot_dir, &self.build_dir) {
-                return Err(vec![Diagnostic::error(format!(
-                    "build write root `{}` must not overlap named input snapshot directory `{}`",
-                    self.build_dir.display(),
-                    input.snapshot_dir.display()
-                ))]);
-            }
+            reject_overlapping_roots(
+                &self.build_dir,
+                &input.snapshot_dir,
+                "build write root",
+                "named input snapshot directory",
+            )?;
+        }
+        // Compare against admission's recorded key before any mutation: an
+        // ancestor aliased between them must refuse here, not after
+        // `create_dir_all` has already followed the alias. The post-creation
+        // check below keeps covering the narrower window inside establishment.
+        if overlap_key(&self.build_dir) != *admitted_build_dir_key {
+            return Err(vec![Diagnostic::error(format!(
+                "build write root `{}` resolves to a different directory than admission checked",
+                self.build_dir.display()
+            ))]);
         }
         if let Some(sponsor) = &self.sponsor {
             let path = sponsor
@@ -540,7 +579,7 @@ impl BuildMachineFilesystemScope {
                 .map_err(|error| self.sponsor_diagnostic(error))?
             {
                 Some(FilesystemSponsorEntry::Directory) => {
-                    return self.ensure_established_write_root(&admitted_build_dir_key);
+                    return self.ensure_established_write_root(admitted_build_dir_key);
                 }
                 Some(_) => {
                     return Err(vec![Diagnostic::error(format!(
@@ -564,7 +603,7 @@ impl BuildMachineFilesystemScope {
                 let _ = std::fs::remove_dir(&self.build_dir);
                 return Err(self.sponsor_diagnostic(error));
             }
-            if let Err(diagnostics) = self.ensure_established_write_root(&admitted_build_dir_key) {
+            if let Err(diagnostics) = self.ensure_established_write_root(admitted_build_dir_key) {
                 let _ = std::fs::remove_dir(&self.build_dir);
                 return Err(diagnostics);
             }
@@ -576,7 +615,7 @@ impl BuildMachineFilesystemScope {
                 self.build_dir.display()
             ))]
         })?;
-        self.ensure_established_write_root(&admitted_build_dir_key)
+        self.ensure_established_write_root(admitted_build_dir_key)
     }
 
     /// Re-check the write root now that it exists. The overlap fences above
@@ -807,7 +846,7 @@ fn captured_inventory(input: &CapturedBuildSourceInput) -> BuildCapturedSourceIn
 
 #[cfg(test)]
 mod tests {
-    use super::BuildMachineFilesystemScope;
+    use super::{BuildMachineFilesystemScope, overlap_key};
     use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
     use build_time_evaluation::BuildMachineFilesystemAccess;
     use checked_interpreter::{
@@ -1478,6 +1517,52 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn write_root_establishment_rejects_an_ancestor_alias_planted_after_admission() {
+        let session_root = temporary_staging_root("write-root-ancestor-alias");
+        let ancestor = session_root.join("real-ancestor");
+        fs::create_dir_all(&ancestor).expect("create the ancestor directory");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        let build_dir = ancestor.join("build");
+
+        // Admission records the write root's key while the ancestor is real;
+        // a host alias planted on that ancestor before establishment must not
+        // become the baseline establishment checks against.
+        let scope = BuildMachineFilesystemScope::for_root(
+            &session_root.join("source/main.omg"),
+            build_dir.clone(),
+            None,
+        );
+        fs::remove_dir(&ancestor).expect("remove the admitted ancestor");
+        std::os::unix::fs::symlink(&redirect_target, &ancestor)
+            .expect("plant the host alias on an admitted ancestor");
+
+        let diagnostics = scope
+            .ensure_write_roots()
+            .expect_err("an ancestor swapped to a host alias after admission redirects writes outside the fenced root");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("different directory than admission checked"),
+            "{diagnostics:?}"
+        );
+        assert_eq!(
+            fs::read_link(&ancestor).expect("the host alias is host-owned, not ours to remove"),
+            redirect_target
+        );
+        assert_eq!(
+            fs::read_dir(&redirect_target)
+                .expect("read redirect target")
+                .count(),
+            0,
+            "the refusal must precede any write through the alias"
+        );
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn write_root_establishment_rejects_resolution_drift() {
         let session_root = temporary_staging_root("write-root-drift");
         fs::create_dir(&session_root).expect("create session root");
@@ -1498,6 +1583,45 @@ mod tests {
         .ensure_write_roots()
         .expect_err("a write root spelled through a link is not the directory admission checked");
         assert!(diagnostics[0].to_string().contains("symbolic link"));
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_root_establishment_rejects_a_host_alias_on_an_ancestor() {
+        let session_root = temporary_staging_root("write-root-ancestor-alias");
+        fs::create_dir(&session_root).expect("create session root");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        let ancestor = session_root.join("build");
+        let build_dir = ancestor.join("inner");
+
+        let scope = BuildMachineFilesystemScope::for_root(
+            &session_root.join("source/main.omg"),
+            build_dir.clone(),
+            None,
+        );
+        // The key admission computed while the not-yet-created ancestor was
+        // still a real component spelling.
+        let admitted_build_dir_key = overlap_key(&build_dir);
+
+        // A host alias planted on the ancestor inside the window redirects
+        // the spelling; the leaf materializes through it as a real
+        // directory, so a symlink check on the write root alone sees nothing.
+        std::os::unix::fs::symlink(&redirect_target, &ancestor)
+            .expect("plant the host alias on the ancestor");
+        fs::create_dir(redirect_target.join("inner"))
+            .expect("materialize the leaf through the alias");
+
+        let diagnostics = scope
+            .ensure_established_write_root(&admitted_build_dir_key)
+            .expect_err("a symlinked ancestor redirects output writes outside the fenced root");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("different directory than admission checked")
+        );
 
         fs::remove_dir_all(session_root).expect("remove session root");
     }
@@ -1545,5 +1669,142 @@ mod tests {
         );
 
         fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[test]
+    fn captured_snapshot_rejects_content_planted_after_admission() {
+        // The admission fences compare root spellings once; a hostile tree
+        // can still plant an alias at the backing path inside the window
+        // before the first write. Materialization re-inspects the leaf and
+        // rejects rather than following it.
+        let fixture = temporary_staging_root("planted-backing");
+        let source = fixture.join("source");
+        fs::create_dir_all(&source).expect("create source dir");
+        let snapshot = fixture.join("snapshot");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            source.clone(),
+            fixture.join("build"),
+            None,
+            None,
+        )
+        .with_captured_source_input(captured_input(), snapshot.clone())
+        .expect("a clean backing path is admitted");
+
+        // A regular file occupying the backing path rejects; the failure
+        // release cannot remove it, so its bytes stay intact.
+        fs::write(&snapshot, b"planted").expect("plant a file at the backing");
+        let diagnostics = scope
+            .ensure_captured_snapshot()
+            .expect_err("a planted file must not become the snapshot backing");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory"),
+            "unexpected diagnostic: {diagnostics:?}"
+        );
+        assert_eq!(fs::read(&snapshot).unwrap(), b"planted");
+        fs::remove_file(&snapshot).expect("remove the planted file");
+
+        // With the window back to clean the same scope materializes.
+        scope
+            .ensure_captured_snapshot()
+            .expect("a clean backing path materializes");
+        assert!(snapshot.join("template.tmpl").is_file());
+
+        fs::remove_dir_all(&fixture).expect("remove fixture");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn captured_snapshot_rejects_a_symlink_planted_after_admission() {
+        // Same window through a symlink: the leaf check rejects the link
+        // itself, and the failure release removes the link without writing
+        // captured content into the target.
+        let fixture = temporary_staging_root("planted-link");
+        let source = fixture.join("source");
+        fs::create_dir_all(&source).expect("create source dir");
+        let target = fixture.join("target");
+        fs::write(&target, b"decoy").expect("create the link target file");
+        let snapshot = fixture.join("snapshot");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            source.clone(),
+            fixture.join("build"),
+            None,
+            None,
+        )
+        .with_captured_source_input(captured_input(), snapshot.clone())
+        .expect("a clean backing path is admitted");
+
+        std::os::unix::fs::symlink(&target, &snapshot).expect("plant a symlink at the backing");
+        let diagnostics = scope
+            .ensure_captured_snapshot()
+            .expect_err("a planted symlink must not redirect the snapshot backing");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory"),
+            "unexpected diagnostic: {diagnostics:?}"
+        );
+        assert!(
+            snapshot.symlink_metadata().is_err(),
+            "the failed run's release removes the planted link"
+        );
+        assert_eq!(
+            fs::read(&target).unwrap(),
+            b"decoy",
+            "the link target is untouched"
+        );
+
+        fs::remove_dir_all(&fixture).expect("remove fixture");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn named_input_snapshot_rejects_a_symlink_planted_after_admission() {
+        // A named input's read root derives as `<snapshot>.input-N` — a
+        // spelling the source and write-root fences never see — so the same
+        // write-time re-inspection is the only guard on that path.
+        let fixture = temporary_staging_root("planted-input-link");
+        let source = fixture.join("source");
+        fs::create_dir_all(&source).expect("create source dir");
+        let target = fixture.join("target");
+        fs::write(&target, b"decoy").expect("create the link target file");
+        let snapshot = fixture.join("snapshot");
+        let input_backing = snapshot.with_extension("input-0");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            source.clone(),
+            fixture.join("build"),
+            None,
+            None,
+        )
+        .with_captured_source_input(captured_input(), snapshot.clone())
+        .expect("a clean backing path is admitted")
+        .with_named_inputs(&std::collections::BTreeMap::from([(
+            b"template".to_vec(),
+            captured_input(),
+        )]));
+
+        std::os::unix::fs::symlink(&target, &input_backing)
+            .expect("plant a symlink at the named input's backing");
+        let diagnostics = scope
+            .ensure_captured_snapshot()
+            .expect_err("a planted symlink must not redirect the named input backing");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory"),
+            "unexpected diagnostic: {diagnostics:?}"
+        );
+        assert_eq!(
+            fs::read(&target).unwrap(),
+            b"decoy",
+            "the link target is untouched"
+        );
+        assert!(
+            input_backing.symlink_metadata().is_err(),
+            "the failed run's release removes the planted link"
+        );
+
+        fs::remove_dir_all(&fixture).expect("remove fixture");
     }
 }

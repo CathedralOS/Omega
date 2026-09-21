@@ -1,1 +1,1 @@
-carrier
+domain `u32::Small` has carrier `u32`, but the const value has carrier `u64`

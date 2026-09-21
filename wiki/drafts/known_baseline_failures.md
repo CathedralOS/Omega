@@ -11,6 +11,14 @@ failure in affected behavior, and this file is not validation policy (see
 Rows verified by independent stash-baseline reproduction at revision
 `8220f55febc1` on 2026-09-13, macOS arm64, unless noted otherwise.
 
+> **Whole-doc caveat at `2dbfecd98e` (2026-09-21):** the workspace does not
+> compile — `StructuralTypeShape::ElementView` (`04f2fdbb853`, merged via
+> `48873065b72`) left every `StructuralTypeShape` match non-exhaustive
+> (terminal-verifier ×8, optimization-unit, image-emission codec, downstream
+> lowering). Every row below that names a nextest/cargo witness is
+> unmeasurable at this HEAD until the ElementView consumer legs land;
+> per-row memberships are carried from their last measurable readings.
+
 ## typed-trees-to-checked-trees
 
 `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
@@ -80,6 +88,25 @@ jump-edge repair, and 732 run, 729 passed, 3 failed after the byte-field
 repair beside this row. Only two of the six non-ledger failures were
 `InvalidPartialAffineCleanup`; each of the others had its own cause.
 
+Re-measured at 7b224763615 (2026-09-21, linux x86-64), same command: 846
+run, 841 passed, 5 failed. The ledger row below continues — the drifted
+set now covers `proof-admission`'s `mathematical_core/subtraction` and
+`validation`'s `affine_cleanup.rs`, `frontier.rs`,
+`scalar_qualifications.rs`, and `argument_checks.rs` — and one new family
+appeared:
+
+- New — nominal affine-cleanup rejection loss (4 tests):
+  `structural_unit::nominal_affine_cleanup::two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers`,
+  `...::one_call_nominal_affine_cleanup_rejects_nonexact_closures`,
+  `...::nominal_affine_cleanup_rejects_contract_carrying_members_and_self`,
+  and
+  `...::executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers`
+  each assert `Err(ModuleError::InvalidNominalAffineCleanup { .. })`
+  (tests/structural_unit/nominal_affine_cleanup.rs:161/235/427/470) and
+  the rejection no longer fires — the modules validate. In-window suspect
+  `4d34752d7e4` ("cleanup: lower and invoke the real owner-attached drop
+  hook body"), which moved the cleanup lane's owner hook; not bisected.
+
 - `trusted_surface::recorded_digests_match_the_working_tree` (and its
   `source_coverage_fires_on_a_changed_implementation` sibling): the ledger
   in `trusted_surface/sites.rs` records digests for twelve implementations
@@ -88,7 +115,8 @@ repair beside this row. Only two of the six non-ledger failures were
   `kernel.rs`, `lib.rs`, `evidence.rs`) that have since changed; the ledger
   needs re-recording by the lane that changed them, after review. It also
   reports `proof-admission/src/mathematical_core/tests/strict_layer.rs` as
-  an unregistered source file under a trusted root.
+  an unregistered source file under a trusted root. Fix leaf: the standing
+  **TRUSTED-SURFACE-DIGEST-RE-RECORDING** item on the board.
 - Repaired: `unranked_bindings::cyclic_scalar_targets_and_reachability_are_checked_before_dominance`
   and `unranked_views::every_cyclic_view_jump_checks_exact_arity` saw
   `InvalidPartialAffineCleanup` in place of `UnknownTargetBlock(BlockId(99))`
@@ -158,13 +186,24 @@ group as: 18 under `objc/`, 6 under `terminal_psi/`, 5 under `filesystem/`,
 this way before the pattern was measured, so the check is worth repeating
 after a wave of fixture work.
 
+Re-measured on 2026-09-21 at 7b224763615 (linux x86-64), same comparison
+(fixture directories holding `.omg` files, counted unrostered when no
+roster string covers the directory or an ancestor): 42 fixture
+directories remain uncovered — 18 under `objc/`, 6 under `terminal_psi/`,
+5 under `filesystem/`, 3 under `float/`, 2 each under `arithmetic/`,
+`control_flow/`, `domains/`, and `termination/`, and one each under
+`generics/` and `progress/`. The recorded `borrows/` pair is rostered
+now; `termination/` and the second `domains/` entry are the new names.
+
 Registering one is not automatically the repair. A fixture on
 `CHECKED_ONLY_PASS_CANARIES` is compiled only through checking: forcing the
 lowering custody validation to reject unconditionally leaves those canaries
 green, so a checked-only registration pins checked semantics and cannot
 exercise a lowering repair. Where the subject is lowering or native
 realization, the fixture needs an executing roster that reaches that stage,
-or a crate-level test beside the code.
+or a crate-level test beside the code. Fix leaf: roster registration and
+the repeat-the-measurement sweep are corpus maintenance — **CANARY-CORPUS**
+on the board.
 
 ## compiler canary suite (pass canaries)
 
@@ -204,7 +243,7 @@ older reading:
   arithmetic-policy lane (**ARITHMETIC-POLICY-REALIZATION**).
 - `atomics/atomic_field_declared`: "macOS hosted receiver bridge lost exact
   contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**; migrate the bare
-  receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#service-bindings-and-era-entry)).
+  receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#bindings-and-era-entry)).
   **Retired from this cluster as host-bound**: verified green on Linux
   x86-64 at 4607987316 and re-confirmed on bbfda8bc2e under
   `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared`; the recorded
@@ -251,6 +290,43 @@ keeps the `native_*` family off native realization.
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,
 fail-canary fragments, and umbrella membership are all consistent.
+
+The recorded set was re-measured at 7b224763615 (2026-09-21, linux
+x86-64) by filtering `pass_canaries_compile` to the 22 recorded members
+plus the `control_flow/runtime_` prefix group: the family attribution is
+unchanged but the dominant surface moved. Several recorded
+`Lowering(InvalidUnitMachinePlan)` members now stop one gate earlier at
+"selected ProgramEntry establishment rejoins 0 Terminal attachment
+identities; expected one; the machine's unit plan was omitted at local
+construction at <phase>" (`float/float_trapping_*` ×5,
+`expressions/arithmetic_domain_trapping_*` ×3,
+`control_flow/runtime_{integer,string}_literal_dispatch_exit`,
+`wire/runtime_wire_exact_array_without_count_exit`, and others) — the
+same missing transitive checked machine plan, now reported by the
+selected-entry rejoin. `core/numeric_*` keeps its split: three members
+still end at `Lowering(Unsupported("checked trapping conversion requires
+runtime policy realization"))` (ARITHMETIC-POLICY-REALIZATION), while
+`numeric_conversion_surface` now reports `Lowering(Unsupported("Unit
+graph has unreachable states"))` and
+`numeric_cross_signed_conversion_surface` stays an InvalidUnitMachinePlan
+("scalar callee has no checked executable body").
+`capabilities/acquires_through_helper_return` now passes.
+`host/runtime_gui_foreground_window_exit` moved to "selected ProgramEntry
+Service field `Main::gui` requires a selected Fused provider for boundary
+`Gui`". The filter additionally caught ten `control_flow/runtime_*`
+fixtures in the same missing-plan/entry classes
+(`runtime_branching_helper_{guard,string,struct}`,
+`runtime_branching_helper_local_guard_value`,
+`runtime_nested_branch_{value,prelude_value,assignment_prelude_value}`,
+`runtime_multi_assignment_value_calls`,
+`runtime_guarded_leaf_ordering_call` — the last on "native-artifact
+production requires one exact selected program entry"); whether they
+were added since the recorded reading or regressed is unbisected, but
+every diagnostic is one of the owned families above.
+`runtime_compare_pair_dispatch_exit` left this set when composed-control
+admission learned the checker's exact guard complements — builtin `==`/`!=`
+over identical operands and opposite Boolean labels in either authored
+order — so the pair no longer stops at a missing unit plan.
 
 ## compiler canary suite (fail-canary diagnostic fragments)
 
@@ -338,6 +414,20 @@ True failures the audit found (not wording drift):
   `borrows/borrow_proposition_opaque_mut`,
   `operators/mismatched_operand_tuple`,
   `generics/authored_const_call_operator_unselected_provider`.
+
+Re-measured at 7b224763615 (2026-09-21, linux x86-64): every member named
+above now passes its expected rejection — the six stale `expected.txt`
+fragments were re-pinned, the two masked `closed_indexed_qualification`
+members agree, the `relational_invariants` `INDEX_REJECTION` constant pin
+is repaired, and the seven true failures reject for their intended
+reasons again (`OMEGA_FAIL_CANARY_FILTER` covering all named members on
+`fail_canaries_reject_with_expected_diagnostic_fragment`, plus the two
+`relational_invariants` tests). Two of the three roster-gap fixtures
+(`borrows/borrow_proposition_opaque_mut`,
+`operators/mismatched_operand_tuple`) are registered in `canary_suite.rs`
+now; `generics/authored_const_call_operator_unselected_provider` is still
+unregistered. Section closed pending the next audit.
+
 
 ## checked-trees-to-lowered-psi
 
@@ -430,7 +520,8 @@ Service<R> family). The current failure set attributes to six families:
   `machine_symbol` is not rejected by
   `terminal_production::TerminalProductionRequest::produce_artifact`, a
   source-replay verification gap. This is the continuing "scalar-return
-  pure source custody" group.
+  pure source custody" group; its fix leaf on the board is
+  **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES**.
 - `established by` call-result qualification (1 test).
   `registered_callback_lifetime::interpreted_register_unregister_round_trip_drives_the_ledger`
   fails at source check with ``cannot establish call-result qualification
@@ -628,6 +719,78 @@ PROOF-SEARCH-MEASUREMENT.
   218s — still slow-flagged, still not a failure. The unattributed tail
   remains empty: all 24 failures (23 FAIL + the blowup member) are owned.
 
+Residual attribution at b8d336adcf21 (2026-09-21, Linux x86-64), same
+command: 2203 run, 2179 passed (14 slow), 24 failed — 23 FAIL plus
+`mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+SIGTERM'd at 1431s (~570% CPU, the same blowup, still
+PROOF-SEARCH-MEASUREMENT's). The five tests added since 71fb20485e all pass
+and every red member re-fails at an identical panic site with an identical
+diagnostic — the 19 missing transitive machine plans
+(`provider_attachment_source` ×6, `unit_state_graph::provider_attachments`
+×9, `unit_plan_omissions` ×3,
+`guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`),
+the 3 scalar-return custody members, and the fixed-fuel unranked-loop
+verdict. `owned_match_nested_record_replays_every_selected_payload` passed
+slow-flagged at 300s+. Ownership delta only: the bindings.rs verdict member
+now sits inside the live FIXED-FUEL-CONTROL-CYCLE-REPIN claim on
+`tests/unit_state_graph/bindings.rs`. The unattributed tail remains empty.
+
+Residual attribution at 7b224763615 (2026-09-21, linux x86-64), same
+command with the blowup member filtered out and run alone under a 150s
+bound: 2203 run, 2180 passed, 23 failed, 1 skipped — the identical
+23-member set as the 71fb20485e reading (19 missing transitive machine
+plans, 3 scalar-return custody, 1 fixed-fuel unranked-loop verdict); the
+five tests added since all pass. The blowup member did not finish at 150s
+— still nonterminating/pathological, still PROOF-SEARCH-MEASUREMENT's.
+
+Residual attribution at e7c0099cb2b7 (2026-09-21, linux x86-64), same
+command with the blowup member filtered out: 2206 run, 2183 passed, 23
+failed, 1 skipped — same headline count as 7b224763615, different
+composition. Every member still attributes to an owned family:
+
+- Missing checked transitive machine plan (18 tests, same
+  `InvalidUnitMachinePlan` "attached Unit closure is missing a checked
+  transitive machine plan" diagnostic). The family's membership shifted
+  without changing shape: `provider_attachment_source` ×6,
+  `unit_plan_omissions` ×3, and
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
+  all pass now (10 members drained), while `unit_state_graph::
+  provider_attachments` remains at 9 members (the same nine under the
+  reworked `*_rejects_*_with_unchanged_plan` spellings; the omission now
+  reads "local construction stopped at structural field store: record
+  literal field, state 0") and nine new members joined with the
+  identical diagnostic — `retention::conformance_applications` ×3
+  (panicking at `src/retention/conformance_applications.rs:477`),
+  `tests::composed_operand_catalogs` ×5 (the `dynamic_unit` trio plus
+  `dynamic_continuation_operands_preserve_forwarding_and_helper_identities`
+  and `dynamic_result_continuation_calls_an_observable_ordinary_unit_body`,
+  panicking at `src/tests/composed_operand_catalogs.rs:11`), and
+  `tests::composed_unit_internal_calls::
+  composed_caller_lowers_a_retained_scalar_graph_call_result` (`Main::main`
+  calls scalar `Main::rot`, "neither a registered target nor an ordinary
+  body"). Still the provider-attachment lane's claim.
+- Scalar-return custody (1 test): only
+  `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`
+  remains (`Lowering(Unsupported("composed Unit scalar call requires
+  structural call custody"))`); `discarded_scalar_invocation_precedes_whole_owned_return`
+  and `source_replay_rejects_return_parameter_and_carrier_substitution`
+  pass since the 7b224763615 reading.
+- New — cyclic scalar-array establishment panic (4 tests):
+  `scalar_array_source::cyclic::cyclic_{affine_empty_record,
+  trivial_affine_local}_{reestablishes_inside_the_component,
+  rejects_when_an_edge_drops_its_disposal}` all panic `index out of
+  bounds: the len is 1 but the index is 3` at
+  `src/scalar_graph/scalar_graph_lowering/call_lowering.rs:419` (the
+  erased-proof-argument roster zip). The members entered with
+  f0f808f419989's affine empty-record admission and the
+  member-established relocation work at 576b9a76dc49a; an index panic
+  is a lowering bug, not an authored rejection. Candidate lane:
+  scalar-graph call lowering / LICM relocation.
+- Closed since 7b224763615: the fixed-fuel unranked-loop verdict member
+  `unit_state_graph::bindings::unranked_self_bindings_validate_without_claiming_finite_fuel`
+  passes again; the unattributed tail remains empty — all 23 failures
+  sit on owned families.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
@@ -635,6 +798,59 @@ macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
 terminal-verifier section it is 1999 passed, 24 failed: that repair also
 restores `unit_state_graph::bindings::structural_successors_reject_missing_and_surplus_arguments`,
 which asserts the arity diagnostic from the producer side.
+
+Fresh member-by-member reading at 6ef64f6dd6 (2026-09-20, Linux x86-64,
+`cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast`): 2152
+run, 2093 passed, 59 failed; the PROOF-SEARCH-MEASUREMENT blowup member
+SIGTERM'd at ~892s. Prior family owners reconfirmed at identical panic
+sites: 33 bare `Service<R>` spellings, 16 missing transitive machine plans,
+3 site_guard crash rejections, 4 scalar-return custody cases, and the
+blowup above. The `established by` call-result qualification family closed
+in-window (`registered_callback_lifetime` green; 851052b4f8f, 1fc01bb6907).
+C2L-UNATTRIBUTED-FAILURE-TAIL's census at 23392bc467 attributes all 56
+remaining reds onto owned families with identical diagnostics.
+
+Two families opened by that reading, bisected at c267df86acb8 (Linux
+x86-64):
+
+- **Ranked safe-point segment bounds** (2 tests, still red):
+  `structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
+  reads per-edge segments `0x600000000` instead of 3
+  (`src/tests/structural_control_cases.rs:1497`), and
+  `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64` rejects
+  `BoundOverflow` (`src/tests/structural_control_cases.rs:1890`). First-bad
+  commit 7591b2607c77 ("bound segments through ranked cyclic components") —
+  green at its parent, red at the commit; recorded suspect 39e156c73a0 is
+  green at itself, cleared by test. The break is the derivation rewrite's
+  own component-scale charging (`natural_component_geometry` in
+  terminal-fixed-fuel `fuel_certification/outcome_bounds.rs`), not its
+  inputs. Owning lane: ranked-cycle/fuel.
+- **Closed-projection replay admission** (1 test, closed):
+  `expression_preparation::bindings::tests::closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
+  admitted invalid/foreign member symbols. First-bad 090802e8a790
+  ("evaluate member-read leaves of computed aggregate constants in
+  constant position"); recorded suspects 39e156c73a0 and 143636cec8a both
+  green, cleared by test. Fixed by 7af30a1f839a ("replay the complete
+  closed record projection for scalar member sources"); green at
+  c267df86acb8.
+
+The four scalar-return custody failures
+(`tests/owned_record_return_source.rs`) are owned by
+C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.
+
+Scoped residual re-verification at `59e0b5ec22d` (2026-09-21, Linux
+x86-64; `cargo nextest run -p checked-trees-to-lowered-psi -E
+'test(~owned_record_return_source) or test(~scalar_array_source)'` — 80
+run, 75 passed, 5 failed): the residual set is unchanged. The single
+scalar-return custody member still fails at
+`Lowering(Unsupported("composed Unit scalar call requires structural call
+custody"))`, and all four `scalar_array_source::cyclic` members still
+panic `index out of bounds: the len is 1 but the index is 3` at
+`src/scalar_graph/scalar_graph_lowering/call_lowering.rs:419`. Ownership
+stands as recorded above: scalar-return custody under
+C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES and the cyclic establishment
+panic under the scalar-graph call-lowering lane; the unattributed tail
+remains empty.
 
 ## compiler build-target activation
 
@@ -645,7 +861,29 @@ and
 `x86_feature_admission::terminal_product_retains_exact_fma_operation_plan_and_x86_admission`,
 both with `native artifact native instruction selection failed: FMA provider
 transport is not implemented in the common instruction pipeline`. x86 FMA
-provider transport is unimplemented; the failure is not host-specific.
+provider transport is unimplemented; the failure is not host-specific. Fix
+leaf: **FMA-PROVIDER-PIPELINE-TRANSPORT** on the board.
+
+Re-measured at 7b224763615 (2026-09-21, linux x86-64): 118 run, 112
+passed, 6 failed — the suite grew and two members joined the FMA pair.
+The two recorded members persist verbatim (same FMA-transport message).
+New in-window:
+`x86_feature_admission::admitted_x86_fma_demand_retains_exact_plan_associations`
+and `x86_feature_admission::aarch64_fma_demand_is_not_an_x86_feature_association`
+fail one gate earlier on the ProgramEntry rejoin diagnostic from the
+canary refresh above ("rejoins 0 Terminal attachment identities …
+omitted at local construction at `outer calls: statement window`");
+`x86_feature_admission::exact_x86_fma_demand_fails_closed_without_feature_admission`
+fails on a windows_x86_64 entry-schema mismatch ("require either the
+exact bundled Windows x86-64 contract or one accepted package-owned
+Windows x86-64 binding, not `<std>/targets/windows_x86_64/entry.omg`");
+and
+`x86_feature_admission::boundary_operator_and_float_adapters_retain_terminal_execution`
+fails at fixture compile on the `Service<R>` gate ("field `console` on
+data `Main` names bare boundary trait `Console` in value position; the
+intrinsic `Service<R>` carrier is the only service value spelling") —
+fixture drift, same migration family as the c2l `tests::*` cluster that
+was repaired for the library sources.
 
 
 ## compiler `package_compilation_inputs`
@@ -670,11 +908,25 @@ regression rather than eight rows. The remainder are
 authored call-selection occurrence left unresolved after successful
 checking, one generated-dependency handoff, and
 `one_root_source_cannot_join_both_dependency_scopes`, whose noncanonical
-directory mode is bound to the macOS temp directory. Not bisected.
+directory mode is bound to the macOS temp directory. Not bisected. Fix
+leaf: **BASELINE-PACKAGE-COMPILATION-INPUTS** on the board — its newer
+reading at `1f7301b71020` (linux x86-64) already shows the tail down to
+three failures, so this section's 13-failure macOS census is stale.
 
 The three composition-mode admission failures earlier recorded on the
 COMPONENT-SUBSTRATE board item are closed (0e6c25c4dc attributed, fixed at
 65d71153a9).
+
+Re-measured at 7b224763615 (2026-09-21, linux x86-64), same command: 196
+run, 194 passed, 2 failed — the 13-member set shrank to two. The
+eight-member provider-selection family is down to one:
+`artifact_identities_and_entries::free_process_exit_helper_lowers_without_a_synthetic_attachment`
+("provider selection operand does not resolve to one visible product
+declaration", same message); the other is
+`artifact_identities_and_entries::accepted_package_uefi_binding_selects_exact_ordinary_schema`
+("authored Call declaration selection occurrence 1673 remained
+unresolved after successful checking (CheckedCall)"). The recorded
+fused-provider and macOS-temp-dir members are closed.
 
 ## package-evidence
 
@@ -692,9 +944,65 @@ and `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirem
 program-wide, filtered only by resolution stratum, so the package's trait and
 `core`'s collide as `TraitNotUnique`. Per wiki/spec/language/modules.md a
 package's declarations are not in `core`'s scope, so the fixture is valid and
-the resolver over-collects; the fix is scoping candidates to the occurrence's
-module/dependency scope, whose predicate lives under the live
-MODULE-NAMESPACE-RESOLUTION claim.
+the resolver over-collected. Repaired at `9898f252ec` ("psi: signature-free
+trait routes scope candidates to the occurrence's package") with
+`0d51bad72a`: `signature_free_trait_candidates` and
+`signature_free_machine_candidates` now select through
+`lookup_signature_free_top_level_from_source_matching(..., use_span, ...)`
+rather than collecting every same-named top level program-wide, and
+`tests/module_namespace_residuals.rs::signature_free_route_keeps_the_imported_trait_with_an_unimported_competitor`
+pins the imported trait winning over an unimported competitor. This paragraph
+is retained for the diagnostic's history; the over-collection it describes is
+closed.
+
+Re-measured at 7b224763615 (2026-09-21, linux x86-64), same command: 662
+run, 616 passed, 46 failed — the recorded member passes, but the suite
+carries a large in-window regression tail. The failures cluster by
+diagnostic, not by module:
+
+- `Service<R>` routing gates — "places the routed `Service<R>` carrier
+  outside the first direct field/owned concrete-machine-parameter rung",
+  "the core `Service` carrier is closed; it admits no authored
+  [supplements]", and "no `domain` named `Bound` is declared for
+  `Service<ClockHost>`" — hit the `callable_policy::{flows,mutation}`
+  fixtures (`reachable_flow_keeps_private_authority_without_including_unreachable_helpers`,
+  `transitive_capability_flow_retains_all_five_verbs_without_helper_coordinates`,
+  `float_and_boundary_source_views_restore_both_nesting_orders`,
+  `selected_service_receiver_write_frame_rejoins_checked_source`) and
+  `operational::authored_sources::authored_service_reaches_retain_exact_review_sources_and_empty_ceiling_presence`
+  ("trait `Child` requires unknown trait `Service`"), plus several
+  `terminal_permission_policy` members.
+- "canonical `FilesystemHost` realization table names `close`, which the
+  accepted service schema does not declare" — 10 diagnostic instances,
+  the largest single-message family
+  (`boundary_supply::boundary_bodies::empty_boundary_body_is_checked_callable_and_remains_directly_invocable`
+  among them).
+- "cannot prove requires contract for specification call `observes`" —
+  8 instances.
+- "reviewed callable `…` contract-call intrinsic identity disagrees with
+  its exact checked call-selection row or is not yet represented by
+  package review" — the whole
+  `contract_expressions::evidence_calls`/`collection_views` cluster (9
+  members) plus `obligation_ledger` ×2.
+- "authored Operator/Call declaration selection occurrence … remained
+  unresolved after successful checking" — `public_api` ×3.
+- `calling_policy_{source,substitution}` ×6 panic on
+  `Option::unwrap()` on `None` at
+  tests/calling_policy_substitution.rs:17 — a fixture helper returning
+  None, likely fixture shape drift rather than a verdict change.
+- `boundary_calling_plan_realizations().is_empty()` pins now observe
+  rows: `representation_policy::unused_placement_and_semantic_copy_selections_both_remain_visible`,
+  `selected_provider_policy::families::unused_selected_plan_retains_its_explicit_grant`,
+  `selected_provider_policy::signatures::source_qualified_service_types_do_not_require_a_calling_policy`.
+- Provider-selection operand refusal ("does not resolve to one visible
+  product declaration") in `source_custody` and `terminal_permission_policy`
+  members; a `CheckedMath::convert` static-telescope arity (0 vs 2)
+  mismatch in `selected_provider_policy::signatures::empty_static_service_rejects_changed_authored_lifetime_binders`;
+  `exact_contract_identity`'s `builtin_function_review_rejects_checked_target_symbol_tamper`
+  (projection shape drift), `trait_contracts` ×2, and
+  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`
+  complete the set. Unbisected; none of the 46 names overlap the recorded
+  row.
 
 ## native-differential `terminal_psi_source`
 
@@ -707,8 +1015,12 @@ that commit and the repair; 51f21bb168 moved the emptied-scalar-contract
 rejection to the earlier `scalar contract lost authored requirements` gate
 and the expectation now names it.)
 
+Partial refresh at `d6a0625f6ba4` (2026-09-21, linux x86-64): the staged-local
+member below now passes. The hosted-receiver custody five remain live; two of
+the original eight failures were never itemized here.
+
 - Hosted-receiver custody (5): `control_flow_cleanup_source_reaches_the_publication_gate`,
-  `retired_selected_lowering_rejects_before_native_publication`,
+  `unimplemented_post_terminal_phase_rejects_before_native_publication`,
   `selected_preterminal_optimizers_rejoin_one_native_pipeline`,
   `selected_progress_free_source_stages_non_visible_terminal_candidate`,
   `selected_source_entry_retains_build_bound_progress_for_terminal_publication`
@@ -719,10 +1031,18 @@ and the expectation now names it.)
   builds the native request by hand and never supplies the checked entry the
   production route attaches through `with_checked_entry`. Repair is a harness
   migration onto the stage crate's route (**ENTRY-CONTENT-ROOTS** area).
-- `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
+- ~~`locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
   (1): `UnsupportedControlFlow(MachineId(1))` from
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
-  expectation from 2694d433d3, not bisected.
+  expectation from 2694d433d3, not bisected.~~ Verified stale: the member
+  now passes end to end at `d6a0625f6ba4` (linux x86-64, 9.9 s) — staged
+  local sequences lower through the target-operation route.
+
+Closed at 7b224763615 (2026-09-21, linux x86-64): the target compiles and
+all six recorded members pass — the five hosted-receiver members (the
+harness migrated onto the checked-entry route) plus
+`checked_source_staged_local_sequences_before_an_explicit_crash` (the
+`UnsupportedControlFlow(MachineId(1))` verdict is gone).
 
 ## native-differential `pipeline_ownership`
 
@@ -767,6 +1087,18 @@ losing it.
   files are under a live CML4 claim and the image-emission area under
   WIRE-RUNTIME-AND-INSTALLATION.
 
+  Closed at 7b224763615 (2026-09-21, linux x86-64): all five members pass.
+  The qualification gate no longer stops `lower()` —
+  `structural_extent_unit_leaf_reaches_canonical_object_artifact`,
+  `installed_structural_provider_call_reaches_shared_publication`,
+  `structural_call_publication_preserves_owned_indirect_arguments`, and
+  `structural_unit_call_reaches_post_allocation_machine_custody` all run
+  end to end, and the recorded `claim_completion_prefixes_...` member
+  appears renamed to
+  `claim_completion_machines_fail_closed_at_native_lowering`, which also
+  passes. The `UnsupportedControlFlow` and `InvalidInternalUnitCall`
+  verdicts are gone.
+
 ## checked-interpreter integration tests
 
 `cargo nextest run -p checked-interpreter --test borrowed_subslices` at
@@ -780,6 +1112,55 @@ areas, both under live claims when recorded). This historical diagnosis does not
 endorse the removed source syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
 [board](../../TASKS.md) tracks migration of the compiler and unchanged fixture;
 no replacement-syntax validation is claimed here.
+
+Closed at 7b224763615 (2026-09-21, linux x86-64):
+`inline_const_generic_selectors_execute_distinct_inferred_extents`
+passes; the `borrowed_subslices` members now live under the crate's
+`--test suite` target.
+
+## workspace `--lib` red cluster
+
+> Refresh at `2dbfecd98e` (2026-09-21, linux x86-64, NEW-KBF-LIB-CLUSTER-AND-
+> STALE-ROWS-REFRESH leg): the gate is **unmeasurable** — the workspace does
+> not compile. `StructuralTypeShape::ElementView` (`04f2fdbb853`, merged via
+> `48873065b72`) makes every exhaustive match non-exhaustive;
+> `terminal-verifier` (8 sites: `validation/foundation.rs:555`,
+> `foundation/structural_types.rs:55/:114`, `references.rs:119`,
+> `affine_cleanup.rs:581`, `structural_operations/structural_arguments.rs:307`,
+> `structural_paths.rs:25`, `structural_result_contracts.rs:174`) and
+> `optimization-unit` (`identity/structural_encoding.rs:379`) fail E0004,
+> and the `image-emission` structural-type codec encode match needs the new
+> variant plus a wire tag. Every named member below depends on that chain and
+> is unwitnessable — unwitnessable is not green; membership pending the
+> consumer legs is carried from the last measurable reading.
+
+`cargo nextest run --workspace --lib --no-fail-fast` members that fail on
+linux x86-64 at `0f75a052f09` (2026-09-21), carried into this doc by exact
+name per **KNOWN-BASELINE-FAILURES-REFRESH**; the owning row is
+**RC-REPOSITORY-CLOSURE** (TASKS.md), whose macOS reading at `5958706064`
+recorded a superset — 13 of 16,169 — with different membership: the
+checked-trees-to-lowered-psi `structural_control_cases::ranked_*` pair, the
+compilation-report `pcc::native_evidence` member, the compiler
+`native_publication_writes_only_declared_products` member and the
+external-roots `stack_and_fuel::fixed_fuel` member all pass on linux here,
+while four terminal-codec members fail only on macOS
+(`sections::structural_block_wire_tests::{primitive_local_operations_round_trip_with_exact_result_and_operand_identities,structural_block_bindings_round_trip_and_bind_each_argument_order}`,
+`sections::trust_graph::tests::{canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation,current_graph_is_closed_canonical_and_explicitly_not_fully_derived}`).
+Neither host reading alone is the baseline.
+
+- package-manager (6):
+  `operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`,
+  `operations::compile_project::tests::receiving_admission::accepted_console_customer_receives_admission_only_under_a_sufficient_policy`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_exit_permission_as_a_blocking_row`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_output_and_input_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::review_publishes_the_named_component_description_for_an_independent_selection`
+  (witnessed: 335 run, 6 failed at `0f75a052f09` — the same membership as
+  the macOS row's reading).
+- native-realization (1):
+  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`.
+- package-evidence (1):
+  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`.
 
 ## Host note (macOS)
 
@@ -808,3 +1189,84 @@ On this host, route `omega` invocations through an explicit `--target` (for
 example `linux_x86_64`) and report native-host coverage as unavailable rather
 than re-running the baseline; a `MacosX64` host profile is open board work,
 not a fix to inline into a task.
+
+## workspace `--lib` cluster (RC-REPOSITORY-CLOSURE)
+
+The `cargo nextest run --workspace --lib --no-fail-fast` leg of
+**RC-REPOSITORY-CLOSURE** ([TASKS.md](../../TASKS.md)) measured RED 13 of 16,169
+on linux x86-64 at `5958706064` (2026-09-20, cargo, no mbx). That row owns the
+live measurement; the names are carried here so an exact-name search finds the
+attribution. Every member below reproduces at that revision without a task
+diff:
+
+- `package-manager` 6:
+  `operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`,
+  `operations::compile_project::tests::receiving_admission::accepted_console_customer_receives_admission_only_under_a_sufficient_policy`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_exit_permission_as_a_blocking_row`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_console_output_and_input_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf`,
+  `review::candidate::compilation::tests::review_publishes_the_named_component_description_for_an_independent_selection`.
+- `checked-trees-to-lowered-psi` 2 — both green at `42759dd5295`
+  (2026-09-21, linux x86-64, direct nextest re-run):
+  `tests::structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`,
+  `tests::structural_control_cases::ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`.
+- `compilation-report` 1 — green at `42759dd5295`:
+  `pcc::native_evidence::tests::section_round_trips_canonically`.
+- `compiler` 1 — green at `42759dd5295`:
+  `compiler::tests::native_publication_writes_only_declared_products`.
+- `external-roots` 1 — still red at `55f2c09f15699` (2026-09-21, linux
+  x86-64, direct re-run); current signature is the ranked component-scale
+  segment-bound family (per-edge segments read `3 << 33` instead of `3`,
+  `[1, 25769803776, 25769803776, 25769803776, 1]` vs expected
+  `[1, 3, 3, 3, 1]`), the same family the
+  CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET bisect pinned to first-bad
+  `7591b2607c77` — owned by the ranked-cycle/fuel lane:
+  `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`.
+- `native-realization` 1:
+  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`.
+- `package-evidence` 1 — a superseded assertion owned by
+  **QUOTIENT-THEOREM-LIFT**: the test asserts
+  `typed_trees_to_checked_trees::lower_typed_trees` rejects the proof-only
+  `Quotient::define` request, which that row now admits through checked
+  lowering (termination-gated `admit_checked_quotient_requests`); the
+  compiler is behaving as landed and the fixture needs a respell there:
+  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`.
+
+Host divergence: a macOS aarch64 reading of the same gate at `7b7d0fa8d5`
+(12 failed of 16,290) reproduces the package-manager 6 and the
+native-realization and package-evidence singletons, passes the
+checked-trees-to-lowered-psi 2 and the compilation-report, compiler and
+external-roots singletons, and adds four terminal-codec members that pass on
+linux — `sections::structural_block_wire_tests::{primitive_local_operations_round_trip_with_exact_result_and_operand_identities,structural_block_bindings_round_trip_and_bind_each_argument_order}`
+and `sections::trust_graph::tests::{canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation,current_graph_is_closed_canonical_and_explicitly_not_fully_derived}`
+(the two trust_graph members fail on a missing graph root and were confirmed
+pre-existing by re-running at `50559da3ab`). Neither reading alone is the
+baseline; cite the row for the matching host.
+
+Re-verified at `42759dd5295` (2026-09-21, linux x86-64, per-name nextest
+re-runs rather than the full suite): the live linux set is the 9 names not
+marked green above — the `package-manager` 6 plus the `external-roots`,
+`native-realization` and `package-evidence` singletons all reproduce; the
+`checked-trees-to-lowered-psi` pair and the `compilation-report` and
+`compiler` singletons now pass and are marked accordingly. The failure
+signatures on this host are `Service<R>`-spelling stale fixtures
+(`0e1977994b9`'s bare-boundary-trait rejection — the package-manager 6 and
+the `native-realization` member are stale fixtures under the
+**ENTRY-CONTENT-ROOTS** migration, not checker regressions; the
+receiving-admission member instead names
+`select_provider<Console, ConsoleNativeProvider>` unqualified and fails
+operand resolution), the unqualified
+`select_provider` operand spelling (`4406917695b`), a quotient-capture
+refusal, and the ranked component-scale segment-bound family
+(`7591b2607c77`'s component-scale charging; the external-roots member now
+exhibits it — re-run at `55f2c09f15699`) — no unexplained failures.
+
+Refresh at `2dbfecd98e` (2026-09-21, linux x86-64): superseded by the
+build-break — `04f2fdbb853`'s `StructuralTypeShape::ElementView` vocabulary
+addition (merged `48873065b72`) left every consumer match non-exhaustive
+(terminal-verifier ×8, optimization-unit ×1, image-emission codec, plus
+downstream lowering crates), so `cargo nextest run -p package-manager --lib`
+cannot even link the dep chain. The 9 live names above are **unwitnessable
+at this HEAD, not repaired** — re-run them once the consumer legs land
+(ElementView arms + codec tag + the checked-trees-to-lowered-psi emission
+flip for `borrowed slice view has no Terminal descriptor`).

@@ -41,6 +41,7 @@ fn fixture(scalar: ScalarType) -> AbstractOperationPlan {
         AbstractOperation::EstablishPrimitiveLocal {
             psi_operation: OperationId::new(2).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type: identity,
                 multiplicity: StructuralMultiplicity::Unrestricted,

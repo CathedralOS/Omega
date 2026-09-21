@@ -13,9 +13,7 @@
 //! observed executed prefix changes.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedTerminator,
-};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator};
 
 use super::PredecessorRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -25,8 +23,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block — the edge's successor.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -48,7 +45,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, PredecessorRelocationError> {
+) -> Result<Admission, PredecessorRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(PredecessorRelocationError::SourceMismatch);
@@ -204,7 +201,6 @@ pub(super) fn admit<'source>(
         return Err(PredecessorRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,

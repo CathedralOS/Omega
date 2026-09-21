@@ -48,6 +48,7 @@ fn scalar_case_unit() -> PsiOptimizationUnit {
     node.operation = AbstractOperation::EstablishScalarCase {
         psi_operation: operation,
         result: terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

@@ -362,8 +362,10 @@ pub(super) fn emit(
     )?;
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -375,6 +377,7 @@ pub(super) fn emit(
             callee: lookup_machine_id(machine_ids, *target_machine)?,
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments,
             claim_transfers: Vec::new(),
             returned_claim_transfers: Vec::new(),

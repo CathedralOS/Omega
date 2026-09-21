@@ -144,6 +144,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 structural_parameters: entry.structural_parameters.to_vec(),
                 id,
                 erased_scalar_formals: declaration.contract.erased_scalar_formals.clone(),
+                erased_proof_formals: declaration.contract.erased_proof_formals.clone(),
                 requires: declaration.contract.requires.clone(),
                 scalar_parameters: declaration
                     .parameters

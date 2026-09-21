@@ -112,13 +112,9 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if program.machines().iter().any(|machine| {
-                machine.body_is_present
-                    && program
-                        .machine_states(machine)
-                        .iter()
-                        .any(|state| state.symbol == call.target_symbol)
-            }) {
+            if crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+                .is_some_and(|(machine, _)| machine.body_is_present)
+            {
                 return Some(());
             }
 

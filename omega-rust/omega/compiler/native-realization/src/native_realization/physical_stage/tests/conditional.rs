@@ -223,9 +223,10 @@ fn publish(
         .unwrap_or_else(|error| panic!("{target:?} {selections:?}: {error:?}"))
     };
     let physical = build();
-    let (published, _scope) = emit_optimized_fragments(
+    let (published, _scope, _wrapper) = emit_optimized_fragments(
         physical,
         OptimizedFragmentPublicationRequest {
+            terminal: None,
             hosted_receiver: None,
             boundary_application_coverage: None,
             private_functions: &[],

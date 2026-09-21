@@ -169,12 +169,14 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(2_010).unwrap(),
                             result: OperationResult::Scalar(declaration(left)),
                             kind: OperationKind::IntegerConstant {
@@ -183,6 +185,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(2_011).unwrap(),
                             result: OperationResult::Scalar(declaration(right)),
                             kind: OperationKind::IntegerConstant {
@@ -191,6 +194,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: OperationId::new(2_012).unwrap(),
                             result: OperationResult::Scalar(declaration(computed)),
                             kind: OperationKind::ExactIntegerAdd {
@@ -202,6 +206,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
                     ],
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(2_013).unwrap(),
                         target: exit,
@@ -212,6 +217,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: exit,
                     parameters: vec![declaration(forwarded), declaration(also_forwarded)],
@@ -225,6 +231,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(2_015).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -373,6 +380,7 @@ pub(crate) fn conditional_u64_integer_not_equal_parameters_machine(
     let not_equal = ValueId::new(base + 19).unwrap();
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(base + 20).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -479,11 +487,13 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
         blocks: vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(base + 11).unwrap(),
                     result: OperationResult::Scalar(declaration(condition, ScalarType::Boolean)),
                     kind: OperationKind::IntegerEqual { left, right },
@@ -492,6 +502,7 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
                     condition,
                     when_true: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(base + 14).unwrap(),
                         target: when_true,
@@ -500,6 +511,7 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
                     },
                     when_false: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(base + 15).unwrap(),
                         target: when_false,
@@ -510,11 +522,13 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: when_true,
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(base + 12).unwrap(),
                     result: OperationResult::Scalar(declaration(true_value, scalar_type)),
                     kind: OperationKind::IntegerConstant {
@@ -529,11 +543,13 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: when_false,
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(base + 13).unwrap(),
                     result: OperationResult::Scalar(declaration(false_value, scalar_type)),
                     kind: OperationKind::IntegerConstant {
@@ -549,6 +565,7 @@ pub(crate) fn conditional_u64_integer_equal_parameters_machine(
         ],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(base + 18).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -568,6 +585,7 @@ pub(crate) fn conditional_u64_equal_zero_parameter_machine(
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(base + 19).unwrap(),
             result: OperationResult::Scalar(zero),
             kind: OperationKind::IntegerConstant {
@@ -587,6 +605,7 @@ pub(crate) fn conditional_u64_not_equal_zero_parameter_machine(
     let not_equal = ValueId::new(base + 21).unwrap();
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(base + 20).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -640,6 +659,7 @@ pub(crate) fn conditional_immediate_machine(
         blocks: vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -648,6 +668,7 @@ pub(crate) fn conditional_immediate_machine(
                     condition,
                     when_true: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(base + 11).unwrap(),
                         target: when_true,
@@ -656,6 +677,7 @@ pub(crate) fn conditional_immediate_machine(
                     },
                     when_false: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(base + 12).unwrap(),
                         target: when_false,
@@ -666,11 +688,13 @@ pub(crate) fn conditional_immediate_machine(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: when_true,
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(base + 9).unwrap(),
                     result: OperationResult::Scalar(declaration(true_value, scalar_type)),
                     kind: OperationKind::IntegerConstant {
@@ -685,11 +709,13 @@ pub(crate) fn conditional_immediate_machine(
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: when_false,
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(base + 10).unwrap(),
                     result: OperationResult::Scalar(declaration(false_value, scalar_type)),
                     kind: OperationKind::IntegerConstant {
@@ -705,6 +731,7 @@ pub(crate) fn conditional_immediate_machine(
         ],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(base + 15).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

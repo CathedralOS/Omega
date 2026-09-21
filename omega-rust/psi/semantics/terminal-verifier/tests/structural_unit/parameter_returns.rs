@@ -85,10 +85,12 @@ fn module() -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: vec![value_id(1)],
                 structural_arguments: vec![StructuralArgument {
@@ -140,6 +142,7 @@ fn branch(module: &mut TerminalModule) {
         target: block_id(ordinal),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -170,6 +173,7 @@ fn consume(module: &mut TerminalModule, block: usize) {
     callee.result = TerminalMachineResult::Unit;
     callee.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -182,10 +186,12 @@ fn consume(module: &mut TerminalModule, block: usize) {
     module.machines.push(callee);
     module.machines[0].blocks[block].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -281,6 +287,7 @@ fn unrestricted_record_parameter_return_preserves_exact_owned_custody() {
     changed
         .structural_domains
         .push(StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain_id(1),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "QualifiedRecord".into(),
@@ -351,6 +358,7 @@ fn affine_parameter_return_rejects_disagreeing_join_custody() {
             target: block_id(6),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),

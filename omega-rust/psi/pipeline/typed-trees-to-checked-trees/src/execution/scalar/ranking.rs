@@ -12,10 +12,7 @@ pub(super) fn plan(
     graph: &CheckedScalarMachineGraph,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Option<CheckedStructuralRankedSccPlan>> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == graph.machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     if machine.termination_plan.implementation_witness.is_none() {
         return Some(None);
     }

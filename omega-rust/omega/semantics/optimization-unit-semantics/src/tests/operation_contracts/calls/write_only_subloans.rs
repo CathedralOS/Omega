@@ -323,6 +323,7 @@ fn projected_unit_call_rejects_callee_root_qualification_even_when_supplied() {
     );
     let domain = id(9_020, semantic_vocabulary::StructuralDomainId::new);
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: id(9_021, semantic_vocabulary::DomainSemanticId::new),
         identity: "validation::qualified-subloan".into(),
@@ -352,6 +353,7 @@ fn composed_projected_qualifications_require_the_exact_subloan_suffix() {
     arguments(&mut unit)[0].path = vec![StructuralPathSegment::FixedIndex(1)];
     let domain = id(9_020, semantic_vocabulary::StructuralDomainId::new);
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: id(9_021, semantic_vocabulary::DomainSemanticId::new),
         identity: "validation::qualified-subloan-child".into(),

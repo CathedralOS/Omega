@@ -370,6 +370,7 @@ impl Expansion<'_> {
             structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
             erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: vec![LoweredScalarBinding::Expression(
                 LoweredDirectExpression::Boolean {
                     expression: Box::new(
@@ -386,6 +387,7 @@ impl Expansion<'_> {
                 target,
                 arguments: outgoing,
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: if slot.multiplicity == StructuralMultiplicity::Affine {
                     vec![slot.place]
@@ -398,6 +400,7 @@ impl Expansion<'_> {
             structural_parameters: Vec::new(),
             parameter_types: completed_types.clone(),
             erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(Construction {
                 place: slot.place,
@@ -410,6 +413,7 @@ impl Expansion<'_> {
                 target: observation,
                 arguments: parameters(&completed_types),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -446,8 +450,10 @@ pub(crate) fn emit(
     let id = operations.allocate();
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: effect.place,
             structural_type: effect.structural_type,
             multiplicity: effect.multiplicity,

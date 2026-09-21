@@ -14,6 +14,7 @@ mod evidence_codec;
 mod proof_node_codec;
 mod proposition_codec;
 mod scalar_term_codec;
+pub(crate) mod signature_codec;
 mod synopsis;
 mod validation;
 mod wire;

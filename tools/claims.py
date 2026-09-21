@@ -81,13 +81,41 @@ def normalize_path(value):
     normalized = candidate.as_posix()
     if normalized == ".":
         raise ClaimsError(f"Claim path must name a file or directory: {value!r}")
+    # A comma means the value was a joined list that escaped split_path_values;
+    # storing it literally would void the path fence below.
+    if "," in normalized:
+        raise ClaimsError(f"Claim path must not contain a comma: {value!r}")
     return normalized
 
 
+def split_path_values(values):
+    """Flatten repeated or comma-joined --path values into individual paths.
+
+    Intake is strict about empty segments: a doubled or trailing comma usually
+    means a mistyped list, and silently dropping it would under-fence the
+    claim."""
+    pieces = [piece for value in values for piece in value.split(",")]
+    if any(not piece.strip() for piece in pieces):
+        raise ClaimsError("--path entries must not be empty; check for a "
+                          "leading, trailing, or doubled comma.")
+    return pieces
+
+
+def path_atoms(value):
+    """Explode one stored path field into the individual paths it carries.
+
+    A field holding comma-joined paths is the malformed form recorded before
+    intake learned to split them; reading each segment independently keeps
+    those existing claims fencing until they are renewed or expire. Empty
+    segments are skipped here rather than rejected — reading a record must
+    tolerate the malformed entries it repairs."""
+    return [PurePosixPath(piece.strip().replace("\\", "/"))
+            for piece in value.split(",") if piece.strip()]
+
+
 def paths_overlap(first, second):
-    a, b = (PurePosixPath(value.strip().replace("\\", "/"))
-            for value in (first, second))
-    return a == b or a in b.parents or b in a.parents
+    return any(a == b or a in b.parents or b in a.parents
+               for a in path_atoms(first) for b in path_atoms(second))
 
 
 def board_items(repository, board):
@@ -551,7 +579,8 @@ def main(argv=None):
                 raise ClaimsError("Supply a short, recognizable --owner.")
             options.ticket = options.ticket or uuid.uuid4().hex
             ticket_id(options.ticket)
-            options.paths = [normalize_path(path) for path in options.paths]
+            options.paths = [normalize_path(piece)
+                             for piece in split_path_values(options.paths)]
             if options.board and options.item not in board_items(options.repository,
                                                                  options.board):
                 raise ClaimsError(f"Item {options.item} not found in {options.board} "

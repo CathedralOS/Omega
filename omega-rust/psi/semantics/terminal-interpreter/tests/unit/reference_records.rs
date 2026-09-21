@@ -45,8 +45,10 @@ fn record_reference_module() -> TerminalModule {
     caller.blocks[0].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(96),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(96),
                 structural_type: structural_type_id(95),
                 multiplicity: StructuralMultiplicity::Affine,
@@ -67,10 +69,12 @@ fn record_reference_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(97),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(92),
                 arguments: vec![],
                 structural_arguments: vec![StructuralArgument {
@@ -89,6 +93,7 @@ fn record_reference_module() -> TerminalModule {
         target: block_id(96),
         arguments: vec![],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![place_id(96)],
         residual_affine_discards: vec![],
@@ -101,11 +106,13 @@ fn record_reference_module() -> TerminalModule {
     });
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(96),
         structural_parameters: vec![],
         parameters: vec![],
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(98),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(98),
@@ -430,8 +437,10 @@ fn owned_record_repacking_preserves_captured_ingress_after_parameter_moves() {
     );
     forward.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(406),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(406),
             structural_type: structural_type_id(405),
             multiplicity: StructuralMultiplicity::Affine,
@@ -708,12 +717,14 @@ fn returned_child_record_restores_its_parent_only_after_disposal() {
         target: block_id(216),
         arguments: vec![],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![place_id(216)],
         residual_affine_discards: vec![],
     };
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(216),
         parameters: vec![],
         structural_parameters: vec![],
@@ -831,6 +842,7 @@ fn record_reference_supports_a_child_reborrow_after_the_owned_move() {
     caller.blocks[0].operations.insert(2, child);
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(100),
         result: OperationResult::Unit,
         kind: OperationKind::ReleaseReference {

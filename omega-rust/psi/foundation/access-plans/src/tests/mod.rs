@@ -42,8 +42,8 @@ use extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
     ExtentProvenanceId, ExtentRights, MappedRangeReceiptContext, MappingEraId, MappingGrant,
     MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationObligations,
-    TranslationActivationReceipt, TranslationInstallObligations,
-    TranslationReleaseObligations, map_owned,
+    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+    map_owned,
 };
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 

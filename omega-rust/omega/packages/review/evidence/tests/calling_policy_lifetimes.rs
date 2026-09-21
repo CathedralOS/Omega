@@ -12,10 +12,13 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
         repository_root().join("source/library/std/tests/direct_callback_parameter.omg"),
     )
     .unwrap();
+    // `use calling` would import the now-public standard `calling` module,
+    // colliding with the package-local copy written beside main.omg.
     let prefix = fixture
         .split_once("boundary trait HookProcedure:")
         .unwrap()
-        .0;
+        .0
+        .replace("use calling;\n", "");
     let package = TempPackage::new();
     package.write(
         "main.omg",

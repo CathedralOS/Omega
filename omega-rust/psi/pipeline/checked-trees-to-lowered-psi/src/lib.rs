@@ -50,6 +50,12 @@ pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
 // The native-differential optimizer corpus proves trap obligations through
 // the checked canonical certificate producer from outside this crate.
 pub use proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
+// Crash entry-requirement certificates are produced here but attached to the
+// artifact by the Terminal assembly stage, which runs in a downstream crate.
+pub use proofs::entry_requirement_certificates::{
+    EntryRequirementCertificate, check_entry_requirement_certificate,
+    produce_entry_requirement_certificates,
+};
 
 #[cfg(test)]
 mod tests;

@@ -1,0 +1,174 @@
+// macos_arm64 foreign leaves for the macos_gui module's raw seams: one
+// bodyless `via` leaf per boundary machine — the leaf's signature IS the
+// boundary signature; the MachODylibSymbol locator is the foreign
+// realization. `MacosGui`/`MacosInput`/`MacosClock` call these as ordinary
+// free machines; the satisfies edges keep each leaf named by its boundary
+// requirement.
+
+use omega::language::core::external_binding;
+
+// ---- libobjc (ObjectiveC) --------------------------------------------------
+// Every text argument is the raw `const char*` shape: callers stage a
+// NUL-terminated buffer and pass `&buf[0]` (`&u8` lowers to the pointer word).
+
+pub macos_arm64 machine objc_get_class_binding() -> Binding<24, 14, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib",
+            symbol: "_objc_getClass",
+        },
+    }
+}
+pub macos_arm64 machine objc_register_selector_binding() -> Binding<24, 17, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib",
+            symbol: "_sel_registerName",
+        },
+    }
+}
+pub macos_arm64 machine objc_msg_send_binding() -> Binding<24, 13, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib",
+            symbol: "_objc_msgSend",
+        },
+    }
+}
+pub macos_arm64 machine objc_pool_push_binding() -> Binding<24, 25, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib",
+            symbol: "_objc_autoreleasePoolPush",
+        },
+    }
+}
+pub macos_arm64 machine objc_pool_pop_binding() -> Binding<24, 24, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib",
+            symbol: "_objc_autoreleasePoolPop",
+        },
+    }
+}
+
+pub macos_arm64 machine objc_get_class(name: &u8) -> u64
+    satisfies ObjectiveC::get_class via objc_get_class_binding();
+pub macos_arm64 machine objc_register_selector(name: &u8) -> u64
+    satisfies ObjectiveC::register_selector via objc_register_selector_binding();
+pub macos_arm64 machine objc_send(recv: u64, sel: u64) -> u64
+    satisfies ObjectiveC::send via objc_msg_send_binding();
+pub macos_arm64 machine objc_send_scalar(recv: u64, sel: u64, arg: u64) -> u64
+    satisfies ObjectiveC::send_scalar via objc_msg_send_binding();
+pub macos_arm64 machine objc_send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
+    satisfies ObjectiveC::send_rect via objc_msg_send_binding();
+pub macos_arm64 machine objc_send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64
+    satisfies ObjectiveC::send_image_size via objc_msg_send_binding();
+pub macos_arm64 machine objc_send_string(recv: u64, sel: u64, text: &u8) -> u64
+    satisfies ObjectiveC::send_string via objc_msg_send_binding();
+pub macos_arm64 machine objc_send_byte_string(recv: u64, sel: u64, text: &u8) -> u64
+    satisfies ObjectiveC::send_byte_string via objc_msg_send_binding();
+pub macos_arm64 machine objc_send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64
+    satisfies ObjectiveC::send_scalar4 via objc_msg_send_binding();
+pub macos_arm64 machine objc_pool_push() -> u64
+    satisfies ObjectiveC::pool_push via objc_pool_push_binding();
+pub macos_arm64 machine objc_pool_pop(pool: u64) -> u64
+    satisfies ObjectiveC::pool_pop via objc_pool_pop_binding();
+
+// ---- CoreGraphics ----------------------------------------------------------
+
+pub macos_arm64 machine cg_color_space_rgb_binding() -> Binding<62, 28, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGColorSpaceCreateDeviceRGB",
+        },
+    }
+}
+pub macos_arm64 machine cg_bitmap_context_binding() -> Binding<62, 22, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGBitmapContextCreate",
+        },
+    }
+}
+pub macos_arm64 machine cg_bitmap_context_image_binding() -> Binding<62, 27, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGBitmapContextCreateImage",
+        },
+    }
+}
+pub macos_arm64 machine cg_context_release_binding() -> Binding<62, 17, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGContextRelease",
+        },
+    }
+}
+pub macos_arm64 machine cg_image_release_binding() -> Binding<62, 15, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGImageRelease",
+        },
+    }
+}
+pub macos_arm64 machine cg_event_source_key_state_binding() -> Binding<62, 22, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+            symbol: "_CGEventSourceKeyState",
+        },
+    }
+}
+
+pub macos_arm64 machine cg_color_space_rgb() -> u64
+    satisfies CoreGraphics::color_space_rgb via cg_color_space_rgb_binding();
+pub macos_arm64 machine cg_bitmap_context(data: &i32, w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64
+    satisfies CoreGraphics::bitmap_context via cg_bitmap_context_binding();
+pub macos_arm64 machine cg_bitmap_context_image(ctx: u64) -> u64
+    satisfies CoreGraphics::bitmap_context_image via cg_bitmap_context_image_binding();
+pub macos_arm64 machine cg_context_release(ctx: u64) -> u64
+    satisfies CoreGraphics::context_release via cg_context_release_binding();
+pub macos_arm64 machine cg_image_release(image: u64) -> u64
+    satisfies CoreGraphics::image_release via cg_image_release_binding();
+pub macos_arm64 machine cg_event_source_key_state(state_id: u64, keycode: u64) -> u64
+    satisfies CoreGraphics::event_source_key_state via cg_event_source_key_state_binding();
+
+// ---- libSystem clock (DarwinClock) ----------------------------------------
+
+pub macos_arm64 machine darwin_clock_ns_binding() -> Binding<26, 22, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_clock_gettime_nsec_np",
+        },
+    }
+}
+pub macos_arm64 machine darwin_mach_absolute_time_binding() -> Binding<26, 19, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_mach_absolute_time",
+        },
+    }
+}
+pub macos_arm64 machine darwin_poll_binding() -> Binding<26, 5, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_poll",
+        },
+    }
+}
+
+pub macos_arm64 machine darwin_clock_ns(clock_id: u32) -> u64
+    satisfies DarwinClock::clock_ns via darwin_clock_ns_binding();
+pub macos_arm64 machine darwin_mach_absolute_time() -> u64
+    satisfies DarwinClock::mach_absolute_time via darwin_mach_absolute_time_binding();
+pub macos_arm64 machine darwin_poll(fds: u64, nfds: u64, timeout_ms: i32) -> i32
+    satisfies DarwinClock::poll via darwin_poll_binding();
