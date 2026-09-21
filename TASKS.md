@@ -12302,6 +12302,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ~16:2x-16:45Z, elapsed at this check), with SQUALR-SEED-PARITY on the
   seed draft (~15:14Z); GEOMETRY-PARITY coordination still applies.
   Still no independent slice under this name.
+  Re-verified at `32a6a7fa33` (linux x86-64): adjudication unchanged —
+  the surface is still an edit inside the `samples/apps/squalr`
+  submodule (pin now `ef6682f7`, rotated from the `5b0307c` recorded
+  earlier this wave). The recorded fences drained and re-formed:
+  SQUALR-DEBUG-ASSERTIONS (z35) now holds the `samples/apps/squalr`
+  dir-fence and SQUALR-DEBUG-ASSERTION-PARITY an item claim (both
+  ~16:2x-16:45Z, elapsed at this check), with SQUALR-SEED-PARITY on the
+  seed draft (~15:14Z); GEOMETRY-PARITY coordination still applies.
+  Still no independent slice under this name.
 - **GEOMETRY-EVIDENCE-REFRESH.** Scope verified — no independent slice.
   The name re-mines the evidence-retention clause of the squalr
   application acceptance (:143): "retain results under the app's ignored
