@@ -12400,20 +12400,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **WORKLOAD-MULTIVERSIONING.** Scope verified, authorization gate recorded (re-verified at `2e1db3ba3e2`; source doc unchanged since `f3be428d4ae`). Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's multiversioning leg (specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: multiversing is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE — still in flight under a live claim) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. Same verdict already recorded on siblings WORKLOAD-CORPUS and GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WRITE-ONLY-BORROW-RESIDUE.** Verified scope: re-mines
   **WRITE-ONLY-BORROW**'s enumerated remaining work
-  (TASKS.md:2323): aggregate/[copy]-sum replacement, domain-qualified
-  byte-field stores, runtime indexes (`WriteOnlyIndexedPrimitiveStore` has a
-  Terminal representation and interpreter but no Psi producer and Omega
-  rejects it with `UnsupportedIndexedPrimitiveStore`), `&mut dyn` dispatch,
+  (TASKS.md:2981): aggregate/[copy]-sum replacement, domain-qualified
+  byte-field stores, runtime indexes, `&mut dyn` dispatch,
   and computed IEEE stores (the 135-file draft for that leg was parked on an
-  unpublished `write-only-borrow` branch, not on `origin` — confirm with the
-  coordinator before re-implementing). The implementation surfaces are under
-  live claims: the parent WRITE-ONLY-BORROW row itself is live-claimed by
-  `dev-l3-wobstore` (exp ~01:30Z) and STRUCTURAL-BORROW-IDENTITY is
-  live-claimed (until 21:38Z; recheck before treating any receiver_calls
-  leg as free). The maintained integration target is
+  unpublished `write-only-borrow` branch `71a647f464` — still absent from
+  `origin` at re-verification; confirm with the
+  coordinator before re-implementing). Re-verified at `39317a770b1f`
+  (linux x86-64): the runtime-index leg has narrowed since this row's
+  recording — a Psi producer now exists
+  (`typed-trees-to-checked-trees` emits `WriteOnlyIndexedPrimitiveStore`
+  when a retained declared scalar range discharges `index < extent`,
+  `primitive_store.rs`), the abstract inventory carries it through the
+  optimization mirrors, and the recorded `UnsupportedIndexedPrimitiveStore`
+  rejection no longer exists; the remaining hole is native target lowering
+  (`abstract-operations-to-target-operations` rejects with
+  `LoweringError::UnsupportedWriteOnlyPrimitiveStore` until
+  **PLACED-ACCESS-NATIVE-OPS** realizes parameter-address recovery,
+  element-width scaling and the proof-aware bounds step). Fence map
+  refreshed: the recorded live claims have expired (dev-l3-wobstore
+  ~01:30Z, STRUCTURAL-BORROW-IDENTITY ~21:38Z); at re-verification only
+  BORROW-PROOF-CONVERGENCE holds related surface
+  (`typed-trees-to-checked-trees/src/checks/borrows`, ~06:46Z) and
+  STATE-LOCAL-VALUE-FRONTIER is unclaimed. The maintained integration
+  target is
   `terminal_psi_indexed_receivers`, not a store-specific emitter; the
   shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
-  independent slice exists here.
+  independent slice exists here — the enumerated legs are the parent row's
+  own remaining-work list.
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
