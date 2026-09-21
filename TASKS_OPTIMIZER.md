@@ -19,184 +19,66 @@ needed for independent replay through publication.
 
 These are separately schedulable follow-ups, not an ongoing cleanup run.
 The [ownership contract](omega-rust/pipeline.md)
-governs all three: replace obstructive implementations, preserve semantics and
+governs these tasks: replace obstructive implementations, preserve semantics and
 independent validation, and keep empty/nonempty optimization selections on one
 physical route. Unsupported cases reject rather than restoring a fallback.
 
-- **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership in
-  `omega-rust/{omega,psi}/pipeline/` and their compiler/backend coordinators.
-  Every pipeline crate is already a literal `X-to-Y` or `X-to-X` stage and the
-  folders match the [connected route](omega-rust/pipeline.md#connected-program-route);
-  `tests/architecture/representation_ownership.rs` pins the `X-to-X` phase
-  directories and keeps native coordination and target setup out of the stage
-  list. That does not establish the acceptance below: validated owners with
-  public entrances still sit beside the route without being called from it.
+- **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership and executable consumption
+  under the [connected pipeline contract](omega-rust/pipeline.md). Selected
+  rewrites need the stage catalog routes owned by EXACT-MACHINE-SIMPLIFICATIONS,
+  ALIAS-AWARE-MEMORY, and DECLARATIVE-PEEPHOLES, or deletion when superseded.
+  SPILL-REALIZATION owns joining retained logical spill/coloring evidence to
+  physical recovery and retiring unused spill boundaries with their consumers.
 
-  Remaining work:
+  The semantic-wrapper encoding and object stages under
+  `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
+  have production callers in `native_realization/optimized_fragment_projection.rs`.
+  Move their coupled record, codec, validation, and backend responsibilities
+  out of the coordinator without breaking that route. UEFI/provider/ABI gaps
+  remain with their native owners, not another wrapper implementation.
 
-  - `selected-instructions-to-selected-instructions/src/rewrites/` holds about
-    38 rewrite modules (`copy_removal`, `dead_store`, `load_forwarding`,
-    `store_motion`, `address_fold`, `literal_minuend`, `redundant_extension`,
-    the relocation and interchange families) whose entrances, such as
-    `remove_selected_copy` and `eliminate_selected_dead_store`, are called only
-    from their own tests. `literal_compare` and `literal_arithmetic` were
-    deleted as second producers of folds the cataloged pair rules already
-    produce (their general-case nomination leg stays with
-    `DECLARATIVE-PEEPHOLES`). `optimize_selected_instructions` runs
-    `run_selected_lowering_optimizations` and nothing else, and none of these
-    rewrites has an exact name in
-    [rules.md](omega-rust/omega/representations/optimization-core/rules.md).
-    Give each retained rewrite a catalog entry executed by the stage entrance,
-    or delete it. Their behavior stays with `EXACT-MACHINE-SIMPLIFICATIONS`,
-    `DECLARATIVE-PEEPHOLES` and `ALIAS-AWARE-MEMORY`.
-  - `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
-    holds the remaining spill families outside executable allocation.
-    Logical spill planning has moved to `assignment/logical_spill_operations`
-    and is called, retained and replayed, but recovery still chooses the actual
-    spill rewrites independently. `SPILL-REALIZATION` owns that join and
-    sequencing the ones it needs; delete or merge the ones the executable
-    `assignment/runtime_spill` route has superseded.
-  - `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
-    keeps a staged record, codec and validator inside a coordinator crate.
-    `select_optimized_program_storage_semantic_wrapper_encoding` and
-    `stage_validated_optimized_program_storage_semantic_wrapper_object` have no
-    caller outside their own tests. Move the live part to its backend or
-    representation owner, or delete it.
-    Disposition verified at `25709a6870`: the two modules are one coupled
-    chain — the encode stage's product is a typed parameter of the object
-    stage's entrance (`stage_..._object(settlement, object, encoding)`) and
-    its only non-test consumer — so the encoding leg cannot be deleted or
-    moved independently. Neither end of the chain is wired:
-    `plan_optimized_program_storage_semantic_wrapper` has no production
-    caller and `StagedValidatedOptimizedProgramStorageSemanticWrapperObject`
-    has no emission or installation consumer (`native_pipeline/report.rs`
-    still reports "wrapper bytes: unavailable"). The coupled disposition —
-    wiring the chain into the entry-realization route or joint removal —
-    is claimed this wave under OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION;
-    the surface stays off the locally-schedulable list until it settles.
-  - Audit the remaining stage and coordinator crates the same way: a public
-    stage entrance that no coordinator or successor stage calls is an orphan
-    output.
+  Audit surviving public entrances using qualified identities and repository-wide
+  consumers, including native-differential tests; a common name such as
+  `encode` does not identify a caller. Acceptance: the connected route has no
+  competing entrances or orphan outputs, coordinators sequence typed stages,
+  and retained plans constrain the physical operations they describe.
+  An isolated validator or retained-but-unused plan does not close the join.
 
-  Acceptance: folders expose the connected program sequence, no competing
-  entrances or orphan outputs remain, and coordinators only sequence typed
-  stages. Renaming a helper or adding a wrapper is not completion.
+- **REPRESENTATION-OWNERSHIP.** Finish durable representation ownership for
+  the semantic-wrapper record and codec under
+  `native-realization/src/optimized_semantic_wrapper_object/`, coordinated
+  with PIPELINE-OWNER-CONSOLIDATION's coupled wrapper disposition.
+  Follow [representation ownership](omega-rust/omega/representations/README.md):
+  current program data outlives its producer; historical inputs remain explicit
+  replay evidence, not the route to current data.
 
-  Flag: validation, replay and mutation tests do not establish an executable
-  consumer. The selected rewrites, remaining unsequenced spill families and
-  ProgramStorage wrapper need that consumer or deletion. Calling and retaining
-  a logical plan without using it for the physical transformation is also an
-  unfinished join. Reuse the stage ownership and catalogs described in
-  [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay).
-
-  Wave ownership at `54e321bdf0` (re-check `tools/claims.py status` before
-  scheduling a leg): rewrites under PIPELINE-REWRITE-CATALOG-WIRING +
-  SELECTED-REWRITE-CATALOG-ROUTE/-WIRING (allocation_recovery slice under
-  DURABLE-CODEC-EXTRACTION); `unsequenced_spill_stages/` under
-  POC-SPILL-FAMILY-SEQUENCING with UNSEQUENCED-SPILL-STAGE-TRIAGE and
-  UNSEQUENCED-SPILL-DISPOSITION; the wrapper disposition under
-  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION / SEMANTIC-WRAPPER-OWNER-RESOLUTION
-  (`native-realization` additionally under OPAQUE-BY-VALUE-BOUNDARY-ABI);
-  the audit bullet is executed — STAGE-ENTRANCE-ORPHAN-AUDIT's sweep landed
-  `280c4a83b6` and its findings route to the legs above.
-
-- **REPRESENTATION-OWNERSHIP.** Finish
-  `omega-rust/{omega,psi}/representations/` under
-  [native representation ownership](omega-rust/omega/representations/README.md):
-  one named program-root file beside `lib.rs`, concept-owned subdirectories,
-  and current data independent of producer history.
-  `tests/architecture/representation_ownership.rs` enforces the named root
-  for all ten Psi representations and the Omega program representations
-  (abstract, boundary, target, legalized and selected operations, register
-  homes, physical instructions, machine code, representation selections,
-  optimization unit) and rejects `StagedOptimized` ancestry inside them. The
-  shared-vocabulary table pins the root sets of optimization-core,
-  register-model, task-plans, effects, calling-conventions,
-  function-identity, installation-evidence and `target`. Consumers in the
-  selected stages still reach current data through producer history; the
-  allocation stage reads its own staged accessors directly.
-
-  Remaining work:
-
-  - Replace stage-ancestry walks with direct reads of the current program.
-    Both selected-stage legs are done: the staged types expose
-    `selected`/`register_environment`/`selections`/`budget_per_pass`/
-    `liveness`/`ranges`/`legality` directly (`allocator_availability` too on
-    the legality stage) and consumers read current data through them.
-    `register_home_stages_read_current_data_not_producer_ancestry` and
-    `selected_stages_read_current_data_not_producer_ancestry` pin the
-    contract per crate — the only surviving ancestry walk is
-    `optimized_target_owner`, which returns the retained proof-input `Arc`
-    custody checks compare by identity, while the named input hops
-    (`live_range_stage`/`liveness_stage`/`selected_stage`/
-    `source_legality_stage`/`source_segment_home_stage`/`transformation_stage`)
-    survive only inside custody validators receiving the retained stage
-    objects as evidence.
-  - `representations/optimization-unit` settled as a named representation at
-    `11eaa140cb`: `optimization_unit.rs` is the one root beside `lib.rs` and
-    every concept area — including the `construction/` projection entrance —
-    nests under `optimization_unit/`. The projection stays with the
-    representation because validation replay and test fixtures outside the
-    producer stage consume `reconstruct_psi_optimization_unit_seed` directly.
-  - Move durable codecs out of transforms and coordinators with their
-    consuming stage changes. `rewrites/allocation_recovery/fixed_view_copy/codec`
-    is already relocated (`2e3c662c32e` — now
-    `register-homes/src/register_homes/recovery/fixed_view_copy/codec`).
-    Remaining: `post_allocation_manifest/codec` in
-    `selected-instructions-to-register-homes`, and
-    `optimized_semantic_wrapper_object/codec` in
-    `native-realization` (see `PIPELINE-OWNER-CONSOLIDATION` for whether that
-    owner survives). Re-verified at `c1e0b085375`: both sites still sit in
-    their transform/compiler homes under live claims.
-  - `representations/target` is shared vocabulary, not a program: its
-    deployment profiles, entry schemas and UEFI/ELF/foreign-locator
-    structures have no current-program aggregate, and the guard's
-    shared-vocabulary table now pins its `target_semantics.rs` root.
-
-  Acceptance: current programs outlive their producers; ordinary consumers
-  read current data directly; historical inputs remain separate replay
-  evidence; the architecture guard names every program representation.
+  Acceptance: durable records/codecs live with their representation owners,
+  ordinary consumers read current data directly, replay inputs remain distinct,
+  and `tests/architecture/representation_ownership.rs` covers the resulting
+  named roots and ownership. Preserve direct-read controls and legitimate
+  retained proof-input identity checks. The post-allocation manifest and
+  fixed-view-copy codecs already live in register-homes; do not relocate again.
 
 ## Product pruning and rollout
 
-- **WORKSPACE-ROLLOUT.** Keep every rule explicit opt-in and `Experimental` in
-  the [exact-rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
-  until the frozen-tree command `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test
-  --workspace --no-fail-fast` passes. Do not replace it with `--all-targets`,
-  which omits doctests. The command cannot pass today: `AGENTS.md` records a
-  full `canary_suite` run as red, and
-  [known baseline failures](wiki/drafts/known_baseline_failures.md) lists open
-  library and native-differential failures. Six staged records now exist —
-  the complete Psi-phase selection vocabulary in
-  [promotions/](omega-rust/omega/representations/optimization-core/promotions/),
-  one per rule — each recording that rule's coverage state. Every record now
-  carries a completed `Rollback evidence` field (the every-target rejoin legs
-  in
-  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`
-  cover each selected rule under `--disable-optimization` rejoining the
-  byte-identical ordinary artifact on all four hosted targets). `Approved
-  status`, owner approval, and measurement evidence stay `PENDING` on all
-  six — the measurement leg waits on the native realization failure the
-  BENCHMARKS item records (every `depend()`-ing subject rejects at the
-  integer-comparison-occurrence gate). `omega-architecture-test`'s
-  `exact_rule_rollout_is_complete_and_promotion_gated` keeps the inventory and
-  every staged record in step, requires the `Rollback evidence` field for
-  promotion, confines every `path`/`path::subject` citation to
-  repository-relative names with nonempty subjects, and requires every schema
-  label exactly once with no contradictory value, so a promotion leg passes
-  only on the contract's full evidence set. Re-verified at `b8d336adcf2`
-  (linux x86-64): `exact_rule_rollout_is_complete_and_promotion_gated` green;
-  all six records still carry completed `Rollback evidence` with `Approved
-  status`, `Owner approval`, and `Measurement evidence` PENDING — the
-  remaining legs are owner/product decisions plus the BENCHMARKS-gated
-  measurement leg, not implementable slices. Re-witnessed at `90df29812c0`
-  (linux x86-64): `exact_rule_rollout_is_complete_and_promotion_gated` still
-  green; the six records still carry completed `Rollback evidence` and the
-  same three PENDING legs.
-  Acceptance: the command passes from a clean checkout and every promoted
-  exact rule has the evidence the
-  [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
-  requires.
+- **WORKSPACE-ROLLOUT.** Keep exact rules opt-in and Experimental in the
+  [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
+  until the frozen-tree command
+  `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast`
+  passes and promotion receives the separate owner decision required by the
+  [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion).
+  Do not substitute `--all-targets`, which omits doctests.
+
+  The six [staged promotion records](omega-rust/omega/representations/optimization-core/promotions/)
+  contain rollback and Linux measurement evidence; Approved status and Owner
+  approval remain PENDING. Review evidence against the contract rather than
+  treating populated fields or a schema-gate pass as approval or broader host
+  coverage. Keep inventory and records consistent under
+  `exact_rule_rollout_is_complete_and_promotion_gated`.
+
+  Acceptance: the command passes from a clean checkout, and each promoted exact
+  rule has the required reviewed evidence and owner decision. No broad
+  optimization level or automatic default is introduced.
 
 ## Validation, translation, and publication
 
@@ -359,62 +241,27 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   restore them to recover arithmetic, crash, cleanup or borrowed-call coverage;
   extend ordinary graph operations and their receiving checks instead.
 
-- **CUSTODY-MUTATION-COVERAGE.** Complete authenticated one-field mutation
-  tests for every remaining manifest, receipt, codec, and artifact-custody
-  family, as
-  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
-  requires. `*_rejects_every_one_field_substitution` and field-substitution
-  legs now cover the image-emission installation records, executable
-  installation and its wire container, component publication and description,
-  external-root admission, the compiler's object-artifact, object-container,
-  realization, text-section, callable-entry and fragment-emission custody, the
-  production compilation manifest, the post-allocation machine staged plan,
-  build and package records, the Terminal codec sections including the
-  reconstruction trust graph bound into the obligation ledger and artifact
-  manifest, and every `Staged*CustodyReceipt` family in
-  `omega-rust/omega/pipeline/` — selection,
-  liveness, live ranges, allocation legality, selected reanalysis,
-  fixed-precolored segment homes, fixed-view copies, the literal-fold
-  sequence, the selected-lowering run, baseline/post-copy/post-literal-fold/
-  post-selected-lowering register homes, active-resident rematerialization
-  and its pressure receipt — plus the machine plan receipt. Each leg mutates
-  one field through a declared `*FieldForTest` inventory, recomputes the containing identity
-  honestly where the record carries one, and requires the family's named
-  independent checker to reject; each hook names its checker and lists the
-  fields closed by single-variant vocabularies instead of leaving them
-  unlisted.
+- **CUSTODY-MUTATION-COVERAGE.** Finish migrating legacy custody mutation
+  matrices to `psi/foundation/mutation-matrix`'s inventory and substitution
+  driver, preserving each family's independent checker.
+  Remaining surfaces include component-publication tests, executable-installation
+  tests, topology custody substitutions, and Terminal codec artifact matrices
+  not yet using the driver. `optimization-core` re-exports the foundation
+  harness; Psi consumers use its foundation owner directly.
 
-  Acceptance: each representable field of a family changes independently, its
-  containing identity recomputes honestly, and independent replay still rejects
-  the substitution; a field that cannot be represented is rejected at canonical
-  encoding and named as such. A new record family lands with its matrix rather
-  than acquiring one later.
+  Reuse `custody_field_inventory!`, `run_one_field_substitution_matrix`, and
+  the `custody_mutation_matrix` architecture gate. Nested installation,
+  optimization-execution custody, and trust-graph custody already use the driver;
+  do not repeat those migrations.
 
-  Mechanism: `optimization-core`'s `test-support` feature now carries the
-  shared substitution harness. `custody_field_inventory!` declares a family's
-  `*FieldForTest` vocabulary once and derives its `INVENTORY`, so the covered
-  field set comes from the record's declared inventory rather than a parallel
-  handwritten list; `run_one_field_substitution_matrix` consumes a
-  `OneFieldSubstitutionMatrix` naming the honest builder, foreign donor,
-  retained-custody view, honest-recomputation hook, and independent checker,
-  with `MutationOutcome` selecting exact-error versus rebuilt-custody
-  rejection and an optional `joined_replay` leg for wrapper replay errors.
-  `OptimizedRegisterHomeCustodyFieldForTest` is converted as the in-memory
-  proof — the canonical-encoding proof converted beside it,
-  `OfflinePolicyRegressionManifestFieldForTest`, retired upstream with the
-  offline trainer in `55ba7f6ab3`. The `custody_mutation_matrix`
-  architecture test fails when a declared `*FieldForTest` inventory has no
-  matrix consumer — or when a derived `INVENTORY` never reaches the shared
-  driver.
-
-  Flag: most matrices still predate the harness — handwritten loops over
-  per-family field lists. `image-emission/tests/artifacts/installation_function_nested_custody.rs`
-  alone holds 18 of them in 6,942 lines, and six such files run 15,157 lines
-  together; only the wrapper-object matrix under
-  `native-realization/src/optimized_semantic_wrapper_object/tests/` is
-  factored into a reusable shape. Converting a family is now mechanical —
-  declare the enum through `custody_field_inventory!`, hand the driver the
-  hook and checker — but the legacy matrices have not moved to it yet.
+  Acceptance: every representable field changes independently, the containing
+  identity recomputes honestly, and independent replay rejects the substitution.
+  Unrepresentable fields reject at canonical encoding and are named explicitly.
+  Audit record families for missing inventories separately: the gate rejects
+  declared inventories without matrix consumers and macro-derived inventories
+  without shared-driver consumers. New record families arrive with matrices under
+  [stage-extension validation](omega-rust/optimization.md#validation-when-extending-a-stage).
+  Shared fixtures must not replace the independent check with producer admission.
 
 ## Psi optimization and loops
 
@@ -525,15 +372,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   [Register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
   chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
   `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
-  inserts and independently replays the private stores and reload pairs. That
-  route already spills instruction results, block parameters and entry-bound
-  registers in acyclic and cyclic functions — including IEEE-scalar victims
-  whose class the frame rows cannot carry, by wrapping every store and
-  reload in the target's inert `Float*ToBits`/`BitsToFloat*` pair — serves
-  body, terminator, edge-transport and stored-snapshot uses; keeps an ABI
-  pin on its own reload pair; carries a reload across a call onto a
-  surviving view; and composes after fixed-view copies and active-resident
-  rematerialization. It does not establish the cases below.
+  inserts and independently replays the private stores and reload pairs.
 
   Remaining work:
 
@@ -550,11 +389,8 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     foreign-class IEEE scalar reaches its slot through the frame rows'
     shared carrier class: stores prepend `Float*ToBits`, reloads append
     `BitsToFloat*`, and a missing or impure conversion row keeps the victim
-    a candidate-local rejection. Address-defined victims
-    (`FrameAddress`, `AddressOffset`, `ByteViewAddress`) admit at
-    `3ab7564c05`; redefining `Def` operands admit at `58c5089231`; and tied
-    Def+use and `UseDef` operands admit at `f8d6064244`. Still rejected: a
-    foreign-class victim without that transport pair (vector-class values,
+    a candidate-local rejection. Still rejected: a foreign-class victim without
+    that transport pair (vector-class values,
     non-IEEE scalars); an early-clobber write tied to a victim use; an
     entry-bound victim when an edge targets the entry block; and a
     multi-chunk stored snapshot whose chunk loads are pinned or separated by
@@ -712,7 +548,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rewritten kinds, operand shape, immediate bound, result disposition, unit
   effects and machine effects, and the
   [exact-rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
-  lists the 23 landed `SelectedIncoming*` selections. Every landed pair
+  lists the implemented `SelectedIncoming*` selections. Every landed pair
   eliminates an effect-isolated `MaterializeI64` that immediately precedes its
   single consumer in the same block. The candidate is one pressure-recovery
   `ImmediateU64RematerializationCandidate` per function and fixed-point
@@ -726,21 +562,21 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   - Unit roles. `PairUnitEffects` requires a rewritten row with no implicit
     uses or clobbers and rejects every `tied_to` operand, and every
-    `PairMachineEffects` variant rejects a consumer with implicit unit uses.
+    `PairMachineEffects` composition rejects a consumer with implicit unit uses.
     Landed relationships cover implicit definitions as the result channel,
-    retired dead definitions (`DeadConsumerUnitDefs`) and operand-swapped
-    definitions kept for equality readers (`OperandSwappedUnitDefs`).
+    retired dead definitions and operand-swapped definitions kept for equality
+    readers, as declared by `PairUnitDefRelation`.
     Flag-consuming forms, clobbering rewritten rows and tied operands have no
     declaration.
-  - Traps. `FaultDischargedByLiteral`, `FaultDischargedByObligation` and
-    their two `...DeadUnitDefs` forms retire a consumer fault that the folded
-    literal or a carried obligation makes unreachable. None admits trap
-    preservation, where the rewritten form keeps the consumer's
-    `MayArchitecturalFaultV1` surface, or hosted-trap effects.
-  - Memory. `IndexedPointerReadFold` is the only memory relationship: one
+  - Traps. `PairFaultDischarge` composes with the independent unit-definition
+    disposition to retire faults discharged by a literal or carried obligation.
+    This isolated arithmetic fault axis has no trap-preservation or hosted-trap
+    relationship. The indexed-read relation already preserves its matching
+    trap surface.
+  - Memory. `PairNonUnitSurface::IndexedPointerRead` is the only memory relationship: one
     indexed pointer read folded to an offset read of the same bytes. A pair
     whose consumer or rewritten form writes memory has no declaration.
-  - Stack and control flow. No relationship exists. Every variant requires
+  - Stack and control flow. No relationship exists. Every composition requires
     alternatives that leave the stack unchanged and fall through, and neither
     instruction of a pair may be a terminator or sit in another block.
 
@@ -753,175 +589,88 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   be replayed independently stays rejected. Another literal identity over
   already-declared dimensions does not advance this item.
 
-  Flag: the descriptor grows by enumeration, not composition.
-  `PairOperandShape` has 12 variants that are hand-written products of literal
-  position, result kind and tail-operand custody (for example
-  `BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs`).
-  `PairMachineEffects` spells fault discharge times dead definitions as
-  `FaultDischargedByLiteralDeadUnitDefs` and
-  `FaultDischargedByObligationDeadUnitDefs`. The validator's `SourceShape` has
-  30 variants, one per identity and operand position. Each of the 23
-  selections also takes an `Optimization` tag and a `LiteralFoldPolicy` bit,
-  and the per-identity test files run 566 to 1,292 lines. More than 20
-  commits each added one identity or operand position while stack, control
-  flow and trap preservation stayed at zero relationships. The general
-  mechanism is independent descriptor axes
-  (literal position, result kind, tail custody, fault discharge,
-  implicit-definition disposition) that compose, so that a new identity is a
-  catalog row and not a new variant, policy bit, validator shape and
-  vocabulary tag.
+  Generalize candidate nomination beyond the single pressure-recovery candidate;
+  retired literal producers covered ordinary non-pressure materializations too.
+  Preserve the retired left-zero CompareI64Zero refinement: the current
+  COMPARE_LEFT_IMMEDIATE_U12 descriptor chooses an immediate compare, not the
+  zero-specific form. Add that behavior through the common descriptor/catalog
+  route rather than restoring `literal_minuend`.
 
-- **EXACT-MACHINE-SIMPLIFICATIONS.** Execute copy removal, redundant-extension
-  removal, address folding, compare/test selection, and scheduling on
-  compiler-produced selected programs, each as an
-  [atomic candidate with independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation).
+  Extend the existing independent axes in `PairOperandShape`, `PairUnitEffects`,
+  and `PairMachineEffects` for these remaining relationships; do not reintroduce
+  a product-of-axes variant for each combination. Independent replay still
+  reconstructs the relationship from instructions rather than trusting the
+  descriptor. Distinct mathematical identities still need checked semantics;
+  another identity over existing axes does not close the missing dimensions.
+  Separate repeated operand-position mechanics in replay's `SourceShape` from
+  identity-specific mathematics without making the validator consume producer
+  descriptors. Exact selection identities remain explicit.
+
+- **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
+  compare/test, and scheduling rewrites on compiler-produced selected programs.
   Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
-  `src/rewrites/` already holds 35 modules for these transformations:
-  `copy_removal`, `redundant_extension`, `address_fold`, six compare and flag
-  rewrites (`literal_minuend`, `constant_*`, `boundary_*`, `dead_compare`),
-  and 26 interchange and relocation families. The `literal_compare` and
-  `literal_arithmetic` modules were deleted as second producers of the
-  cataloged pair-rule folds. Each entrance
-  takes caller-named instruction identities and replays by
-  restore-by-content. None is an `Optimization` member, has a catalog row or
-  candidate discovery, or has a caller outside its own tests, which
-  hand-build `SelectedInstructionPlan` fixtures. `src/selected_optimization.rs`
-  runs only the identity route or the selected-lowering literal folds, so
-  none of them has changed a compiled program.
+  Its public stage executes selected-lowering literal folds, not the remaining
+  helper rewrite families.
 
-  Remaining work:
+  Add exact selection names, ordered catalog descriptors, candidate discovery
+  binding source/selection identities, and execution from
+  `optimize_analyzed_selected_instructions`. Retain rule/validator, policy,
+  analysis/invalidation, budget, and applicability identities through allocation
+  and publication under [catalogs and independent replay](omega-rust/optimization.md#catalogs-and-independent-replay).
+  Preserve independently reconstructed legality; restore-by-content alone
+  detects incorrect edits, not incorrect admission.
 
-  - Give the stage an execution route under
-    [catalogs and independent replay](omega-rust/optimization.md#catalogs-and-independent-replay):
-    exact selection names, one ordered catalog whose descriptors retain rule,
-    validator, policy, analyses, invalidations, budgets and applicability,
-    candidate discovery that binds source and selection identities, and the
-    call from `optimize_analyzed_selected_instructions`. Empty and nonempty
-    selections stay on one physical route. Decision rows and receipts must
-    survive replay through allocation and emission. Naming a rule needs an
-    `Optimization` member in `representations/optimization-core`, claimed by
-    WORKSPACE-ROLLOUT in wave w9 — arrange the handoff there before the
-    catalog work proceeds.
-  - Separate validation from proposal: `copy_removal`, `redundant_extension`,
-    `load_forwarding`, `constant_boolean`, `constant_branch`, the scheduling
-    relocation family, and the `dead_compare` families now re-derive the
-    legality contract without the producer's `admission` routine — a wrong
-    legality decision fails their validators even when the proposal matches
-    the emitted edit, and each validator proves it on a forged proposal in
-    its own `independence_tests`. Every other module's `validation.rs` still
-    calls the same `admission::admit` as its `rewrite.rs`, then checks that
-    undoing the edit restores the source. That detects a wrong edit, not a
-    wrong legality decision. The validator must reconstruct the preconditions
-    without the producer's admission routine.
-  - Scheduling refuses any window containing a call, hosted effect, barrier
-    kind or call-roster entry, any cross-block move through a block that is
-    not a plain `Source` block, and any control-flow shape without its own
-    family. Replace the per-shape families with one relocation admission
-    before covering more shapes (see Flag).
-  - Compare/test selection: `SelectedInstructionKind` has three compare kinds
-    and no bit-test kind, and `literal_minuend` admits only equality readers
-    because no reversed ordering predicate exists. `copy_removal` substitutes
-    within one block only. `address_fold` needs the `AddressOffset` producer
-    in the consumer's block and now applies the plan architecture's
-    displacement bound — AArch64's scaled 12-bit immediate or x86-64's
-    disp32 — rather than sharing the scaled bound on every target.
+  Consolidate scheduling through the member-run/destination mechanism where
+  semantics match. Commuting variants need their commutation premise: blindly
+  using the common MemoryOrdering refusal disables valid cases. Fork migration
+  must preserve admission when skipped-arm traversal consumes the path budget.
+  Interchange swaps two runs and is not one relocation. Retain real call,
+  effect, settlement, register, and memory hazards; do not delete checks to
+  admit more source shapes.
 
-  Acceptance: source-produced programs select each rule by exact name through
-  `optimize_selected_instructions`, execute natively on a supported host, and
-  replay independently after publication. The empty selection and each
-  disabled rule reproduce identity output. Include one valid window that no
-  current shape enumerates, and rejections for a register or condition-state
-  hazard, a crossed call or hosted effect, a non-commuting memory access, a
-  boundary settlement inside the window, a stale candidate, an exhausted
-  budget, and a legality error the producer accepts but the validator must
-  refuse. A hand-built plan passing its own module's test is not the customer.
+  Remaining capability boundaries include cross-block copy substitution and
+  compare/test vocabulary. Preserve target-specific displacement bounds.
+  DECLARATIVE-PEEPHOLES owns general nomination of retired literal folds and
+  left-zero compare refinement; ALIAS-AWARE-MEMORY owns memory rewrites.
 
-  Flag: scheduling has grown one family per window shape: five in-block
-  moves, each repeated as a commuting variant, ten cross-block shapes
-  (`edge`, `predecessor`, `diamond`, `join`, `fork`, `arm`, `bypass`,
-  `triangle`, `confluence`, `inflow`), and six of those repeated for runs.
-  That is about 64,000 lines, 49,000 of them tests, and the product of shape,
-  member or run, and plain or commuting is still open. The families share
-  `window_hazards.rs`, `block_edges.rs`, `dead_path.rs` and
-  `commuting_accesses.rs` and differ only in how they locate the window. The
-  general mechanism is one relocation rule over a member run and a
-  destination point that derives the crossed positions and edges on every
-  path between them and the traversals that gain or lose the run, then
-  applies the hazard, dead-path and commutation audits once. Separately,
-  `literal_compare` and `literal_arithmetic` re-implemented folds the
-  cataloged pair rules already produce and were deleted; widen candidate
-  nomination for those descriptors under DECLARATIVE-PEEPHOLES to cover the
-  general (non-pressure-nominated) materialization the deleted modules
-  admitted.
-
-  DECLARATIVE-PEEPHOLES owns the cataloged
-  pair-rule folds. ALIAS-AWARE-MEMORY owns the load, store and mutation
-  rewrites in the same directory. PER-RULE-COVERAGE owns the disabled and
-  downstream-replay legs once these rules are selectable.
+  Acceptance: source-produced programs select each retained rule by exact name,
+  execute on a supported host, and independently replay after publication.
+  Empty/disabled selections reproduce identity output. Include a valid window
+  not covered by existing shape families, plus register/condition-state hazards,
+  crossed calls/effects, noncommuting memory, boundary settlements, stale
+  candidates, exhausted budgets, and a producer legality error that independent
+  validation refuses. Hand-built helper plans do not close this customer.
 
 ## Proof-, ownership-, and state-aware optimization
 
-- **ALIAS-AWARE-MEMORY.** Execute borrow-aware load forwarding, dead-store
-  elimination, and mutation motion on compiler-produced selected programs,
-  with non-aliasing justified by retained ownership evidence under
-  [evidence and control flow](wiki/spec/build/optimizations.md#evidence-and-control-flow).
-  Owner: `load_forwarding`, `dead_store` and `store_motion` in
-  `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/`.
-  Each entrance takes one caller-named load or store, decides interference
-  from the validated `memory_accesses` roster, walks across edges, and replays
-  by restore-by-content. They handle exact-width `Store` and `StorePacked`,
-  the place's own local slot, byte-sequence stores, indexed byte loads, and
-  constant-count `CopyBytes` covers. None is an `Optimization` member, has a
-  catalog row or candidate discovery, or has a caller outside its own tests,
-  which hand-build `SelectedInstructionPlan` fixtures.
+- **ALIAS-AWARE-MEMORY.** Execute load forwarding, dead-store elimination,
+  and store motion through the selected-stage catalog with source-bound
+  candidates, independently checked receipts, and publication replay.
+  Owners: `load_forwarding`, `dead_store`, and `store_motion` under
+  `selected-instructions-to-selected-instructions/src/rewrites/`;
+  EXACT-MACHINE-SIMPLIFICATIONS owns their shared stage-execution join.
 
-  Remaining work:
+  Bind distinct-place non-aliasing to retained fact identities, or independently
+  establish at the access-roster producer that the distinct places cannot
+  overlap. SelectedMemoryAccess and rewrite receipts do not yet carry the
+  loan/compatibility/fact identities used to justify that premise. Exclusive
+  ownership alone does not establish projection disjointness; follow
+  [loan semantics](wiki/spec/terminal-psi/loans.md), not differing PlaceIds.
 
-  - Bind the non-aliasing premise to evidence. `interferes` in each
-    `admission.rs` treats a row naming another `PlaceId` as unable to observe
-    or disturb the subject, on the documented premise that exclusivity was
-    enforced before selection. `SelectedMemoryAccess` and the three receipts
-    carry no loan, compatibility-certificate or accepted-fact identity for
-    that premise, and [loans](wiki/spec/terminal-psi/loans.md) states that a
-    live exclusive loan does not prove projections disjoint. Either retain
-    the consumed fact identities in candidate and receipt, or establish at
-    the roster's producer, under independent validation, that distinct
-    `PlaceId`s in one function never overlap. `AnalysisKind::PlaceAliases`
-    and `MemoryVersions` are declared in `optimization-core` and have no
-    producer.
-  - Add the execution route and separate validation from proposal as
-    EXACT-MACHINE-SIMPLIFICATIONS describes. All three `validation.rs` files
-    call their own rewrite's `admission::admit`.
-  - Remaining refusals: forwarding into a join whose legs stored different
-    registers, which needs a merged value on the edges; store motion through
-    a fork or into a join, where the store lands at the last proven position;
-    a dynamic dead extent without the byte-exact sequence write; a span whose
-    count is not a materialized literal; a constant-index sequence row that
-    lands off the dead byte still interferes; stores into `Structural`
-    staging slots are not candidates.
+  Preserve shared storage-route and extent semantics in `place_storage` across
+  the rewrites and commutation checking. Remaining control-flow work includes
+  forwarding where incoming stored registers differ and store motion across
+  forks/joins without adding or dropping writes. Unsupported dynamic geometry
+  must reject until justified; do not equate storage routes or reuse stale
+  evidence. Existing off-range constant-index, Structural-slot, and same-extent
+  CopyBytes cases are controls, not new implementation tasks.
 
-  Acceptance: source-produced programs select each rule by exact name through
-  `optimize_selected_instructions`, execute natively on a supported host, and
-  replay independently after publication. The empty selection and each
-  disabled rule reproduce identity output. Negative controls: a read through
-  a shared reborrow or field projection of the stored place between two
-  stores (the first store survives), an intervening call or hosted effect, a
-  volatile or placed access, a partial overlap, a stale candidate, an
-  exhausted budget, and one-field corruption of the receipt's fact
-  identities. A hand-built plan is not the customer.
-
-  Flag: byte-extent reasoning has one copy per rewrite. `intersects`,
-  `reached_by` and `interferes` are defined in all three `admission.rs`
-  files (the `dead_store` and `store_motion` copies of `interferes` differ
-  only in the subject's name), the place, packed and local store-shape
-  recognizers twice, and `commuting_accesses.rs` holds a fourth disjointness
-  decision. Each access kind (packed, local slot, byte sequence, byte span)
-  was then added to each rewrite as its own role-by-route case. The general
-  mechanism is one owner that maps a roster row to place, storage route and
-  extent (exact range, lower-bounded dynamic reach, or base plus index value)
-  with may-overlap, must-cover and must-equal relations, consumed by the
-  three rewrites and the commutation audit. `place_storage.rs` is the start
-  of that owner.
+  Acceptance: source-produced exact selections execute natively and replay
+  after publication; empty/disabled selections retain identity output. Preserve
+  reads through shared reborrows or field projections, intervening calls/effects,
+  volatile/placed accesses, partial overlap, stale candidates, exhausted budgets,
+  and corrupted fact-identity negatives. Source admission and the independent
+  validator must each establish the required alias and byte-extent facts.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
   invariant-window specialization. The bounded representation families in
   `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`
@@ -985,52 +734,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 ## Verification and rollout
 
-- **PER-RULE-COVERAGE.** Keep positive, negative, boundary, disabled, budget,
-  determinism, fixed-point/idempotence, and corruption coverage complete for
-  every exact rule, as
-  [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
-  requires. Do not call repeated reconstruction idempotence when the published
-  artifact is not a legal second input. Every row of the checked
-  [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
-  has those legs beside its rule, as do the mandatory `runtime_spill` and
-  `runtime_rematerialization` recovery rewrites, which have no disabled axis
-  by design. The 38 uncalled rewrite modules under
-  `selected-instructions-to-selected-instructions/src/rewrites/` (the
-  EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY families) have
-  positive, negative, boundary, budget, determinism, fixed-point and
-  corruption legs on hand-built plans only. They have no disabled,
-  exact-selection, empty-identity, unsupported-composition or
-  downstream-replay leg, because none has a selection name or a stage caller.
-  An isolated applied-rule test does not establish compiler-generated
-  application or publication support.
+- **PER-RULE-COVERAGE.** Complete exact-selection, disabled/empty identity,
+  rollback, unsupported-composition, and downstream-replay coverage as
+  EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY connect rules to their
+  public stage entrance. Factor duplicated rule-fixture matrices through shared
+  support without weakening positive, negative, boundary, budget, determinism,
+  fixed-point, or corruption axes.
 
-  Remaining work:
+  Keep [inventory rows](omega-rust/omega/representations/optimization-core/rules.md)
+  resolving to actual tests under
+  `tests/architecture/optimizer_rollout/coverage.rs`. New exact rules land with
+  the full [stage-extension matrix](omega-rust/optimization.md#validation-when-extending-a-stage);
+  mandatory runtime recovery retains its explicit no-disabled-axis distinction.
 
-  - As those two items give a module a catalog row, add the missing legs
-    through `optimize_selected_instructions` and the native-differential
-    suites: exact selection, disabled and empty selection producing identity
-    output, rollback by `--disable-optimization`, unsupported composition,
-    and replay after allocation and emission.
-  - New exact rules in any phase land with the full matrix; this item does
-    not list them. `TargetOperations` and `PreAllocation` are empty identity
-    boundaries today.
-
-  Acceptance: every inventory row and every rewrite reachable from a stage
-  exercises each axis through its stage's public entrance, with the published
-  artifact as the second input for the fixed-point leg. No rule counts as
-  covered while an axis is recorded as absent.
-
-  Flag: the checked per-rule axis table landed at
-  `tests/architecture/optimizer_rollout/coverage.rs`: the gate derives the
-  rule set from `Optimization::ALL` and the stage catalogs, reconciles names,
-  phase, applicability and rollback, and fails when a row lacks an axis
-  without a closed absent-reason. The rewrite-side corpus is still
-  hand-maintained: under `rewrites/`, 48 test files define their own
-  `budget()`, 55 their own `instruction()` fixture, and 41 modules their own
-  measured-boundary test, about 128,000 test lines in total. The shared
-  matrix harness parameterised by a rule fixture remains open; it must keep
-  leg rows resolving against real files so a missing axis still fails the
-  gate.
+  Acceptance: every executable rule exercises each applicable axis through its
+  public stage entrance. Fixed-point tests use the published artifact as a legal
+  second input, not repeated reconstruction. Absent axes need the gate's explicit
+  justified disposition; hand-built helper tests do not establish
+  compiler-produced execution or publication.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target. The format
