@@ -388,17 +388,18 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) reaches Co
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
-    // 10 apply calls.
-    self.apply(0, Transaction::Deposit { amount: 100 });
-    self.apply(1, Transaction::Deposit { amount: 200 });
-    self.apply(1, Transaction::Withdraw { amount: 80 });
-    self.apply(2, Transaction::Freeze);
-    self.apply(2, Transaction::Deposit { amount: 50 });
-    self.apply(0, Transaction::Transfer { to: 3, amount: 40 });
-    self.apply(2, Transaction::Unfreeze);
-    self.apply(2, Transaction::Deposit { amount: 30 });
-    self.apply(1, Transaction::Query);
-    self.apply(0, Transaction::Withdraw { amount: 20 });
+    // 10 apply calls. `apply` acknowledges `block` transitively (its failure
+    // arms call `block console.read_line`), so each call site repeats it.
+    block self.apply(0, Transaction::Deposit { amount: 100 });
+    block self.apply(1, Transaction::Deposit { amount: 200 });
+    block self.apply(1, Transaction::Withdraw { amount: 80 });
+    block self.apply(2, Transaction::Freeze);
+    block self.apply(2, Transaction::Deposit { amount: 50 });
+    block self.apply(0, Transaction::Transfer { to: 3, amount: 40 });
+    block self.apply(2, Transaction::Unfreeze);
+    block self.apply(2, Transaction::Deposit { amount: 30 });
+    block self.apply(1, Transaction::Query);
+    block self.apply(0, Transaction::Withdraw { amount: 20 });
 
     // Layer 1: raw field guards (bypass value-call entirely).
     transition self.accounts[0].balance == 40 {
