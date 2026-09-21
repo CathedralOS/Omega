@@ -25,13 +25,8 @@ pub(crate) fn bind_proof_output_call_facts(
             ));
             continue;
         };
-        let machine_target = program.machines().iter().find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == call.target_symbol)
-                .map(|state| (machine, state))
-        });
+        let machine_target =
+            crate::semantic_calls::find_state_with_machine(program, call.target_symbol);
         let open_requirement = program
             .machines()
             .iter()
@@ -285,12 +280,9 @@ pub(crate) fn bind_proof_output_call_facts(
         }
 
         let runtime_call = if let Some(statement_index) = package.runtime_call_statement_index {
-            let Some(caller_state) = program.machines().iter().find_map(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == package.state_symbol)
-            }) else {
+            let Some(caller_state) =
+                crate::semantic_calls::find_state(program, package.state_symbol)
+            else {
                 diagnostics.push(diagnostics::Diagnostic::error(
                     "proof-output binding has no caller state",
                 ));
@@ -994,19 +986,18 @@ pub(crate) fn intake_call_ensures_propositions(
     call: &typed_trees::statement::TableCall,
     known: &mut std::collections::BTreeSet<String>,
 ) {
-    let Some((callee, state)) = program.machines().iter().find_map(|machine| {
-        if machine.symbol == call.target_symbol {
-            return program
+    let Some((callee, state)) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == call.target_symbol)
+        .and_then(|machine| {
+            program
                 .machine_states(machine)
                 .first()
-                .map(|state| (machine, state));
-        }
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == call.target_symbol)
-            .map(|state| (machine, state))
-    }) else {
+                .map(|state| (machine, state))
+        })
+        .or_else(|| crate::semantic_calls::find_state_with_machine(program, call.target_symbol))
+    else {
         return;
     };
     let parameters = program.state_parameters(state);
