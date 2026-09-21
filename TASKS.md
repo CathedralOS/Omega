@@ -10792,7 +10792,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   0f5ae41e7d), authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg (the versioned workload corpus that GRAPH-COST-MODEL-STUDY's `predicted_cost_delta` comparison is missing). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records. Same verdict already recorded on sibling GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WORKLOAD-MULTIVERSIONING.** Scope verified, authorization gate recorded (re-verified at `2e1db3ba3e2`; source doc unchanged since `f3be428d4ae`). Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's multiversioning leg (specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: multiversing is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE — still in flight under a live claim) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. Same verdict already recorded on siblings WORKLOAD-CORPUS and GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WORKSPACE-ROLLOUT** — mined candidate; verify scope then implement.
-- **WR-REJOIN-LEGS** — mined candidate; verify scope then implement.
+- **WR-REJOIN-LEGS.** Mined candidate; scope verified at `2bbe4727a2ce`,
+  covered — the "rejoin legs" are the WORKSPACE-ROLLOUT row's
+  rollback-evidence legs (TASKS_OPTIMIZER.md): every-target
+  `--disable-optimization` rejoin coverage in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`
+  (per-rule `*_rollback_rejoins_exact_ordinary_path_on_every_target` for
+  CopyPropagation, GlobalValueNumbering, ProofCheckElision,
+  SparseConditionalConstantPropagation, plus the empty-selection and
+  dead-scalar legs), and all six `optimization-core/promotions/` records
+  already carry completed `Rollback evidence` fields citing those tests
+  across `HOSTED_NATIVE_TARGETS`, re-verified by the parent row at
+  `b8d336adcf2`. The promotion contract's remaining legs — `Approved
+  status`, owner approval, `Measurement evidence` (gated on the
+  BENCHMARKS native-realization failure), and the frozen-tree
+  `mbx test --workspace --no-fail-fast` command — are owner/product
+  decisions, not implementable slices. Sibling stubs on the same covered
+  surface: PROMOTION-REJOIN-EVIDENCE, RULE-PROMOTION-EVIDENCE,
+  RULE-PROMOTION-EVIDENCE-COMPLETION.
 - **WRITE-ONLY-BORROW-RESIDUE.** Verified scope: re-mines
   **WRITE-ONLY-BORROW**'s enumerated remaining work
   (TASKS.md:2323): aggregate/[copy]-sum replacement, domain-qualified
