@@ -14479,6 +14479,96 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
   (~07:39Z at this check); no independent slice exists under this name.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
+||||||| parent of 66f9426258b7 (board: re-witness SEMANTIC-WRAPPER-OBJECT-OWNERSHIP covered annotation)
+- **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
+- **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE.** Mined candidate; scope verified
+  at `a3ab15b761`, covered — same settled orphan-owner surface as resolved
+  siblings SEMANTIC-WRAPPER-OWNERSHIP (adjacent row),
+  SEMANTIC-WRAPPER-OWNER-RELOCATION (above), and WRAPPER-OBJECT-OWNERSHIP
+  (9184): the `native-realization/src/optimized_semantic_wrapper_{encoding,
+  object}/` keep/move/delete decision is an enumerated bullet of
+  PIPELINE-OWNER-CONSOLIDATION (TASKS_OPTIMIZER.md), the codec-move leg is
+  deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that
+  decision, and the first real caller of
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
+  UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. "Coordinator residue" names the same
+  caller-absence residue already cataloged — no independent slice exists.
+  Re-verified at `5b3caaf337c`: both module entrances still have no caller
+  outside their own mod.rs/tests.rs (lib.rs re-export only),
+  PIPELINE-OWNER-CONSOLIDATION stays open (TASKS_OPTIMIZER.md:26), and the
+  object dir remains under PIPELINE-WRAPPER-OBJECT-ORPHAN's live claim
+  (exit 2, Jarod / swarm-w9-ffival, ~22:46Z). Sibling stubs on the same surface:
+  SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION,
+  OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-
+  DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
+- **SEMANTIC-WRAPPER-OBJECT-OWNERSHIP** — mined candidate; scope verified at
+  `5b3caaf337c`, covered — same settled surface as resolved sibling
+  OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (TASKS.md:6904) and the four adjacent
+  covered siblings (SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-
+  RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION): the
+  `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
+  keep/move/delete decision is an enumerated bullet of
+  PIPELINE-OWNER-CONSOLIDATION (TASKS_OPTIMIZER.md); the codec leg is
+  deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that
+  owner decision; the first real caller of
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
+  UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. Re-verified: both wrapper modules
+  still sit under `native-realization/src/` unrelocated with no caller
+  outside their own modules and the lib.rs re-export (the
+  `program-entry-plan/src/optimized_semantic_wrapper/` module is the
+  distinct planning-side wrapper, not this surface). No independent slice
+  exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-
+  OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-
+  RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-
+  WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION,
+  OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
+- **SEMANTIC-WRAPPER-OWNER-RELOCATION** — mined candidate; scope verified, covered — same settled surface as resolved sibling SEMANTIC-WRAPPER-OWNERSHIP (adjacent row): the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete decision is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION; the codec-move leg this stub's name asks for is exactly the leg deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. No independent slice exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
+- **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
+- **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE.** Mined candidate; scope verified
+  at `a3ab15b761`, covered — same settled orphan-owner surface as resolved
+  siblings SEMANTIC-WRAPPER-OWNERSHIP (adjacent row),
+  SEMANTIC-WRAPPER-OWNER-RELOCATION (above), and WRAPPER-OBJECT-OWNERSHIP
+  (9184): the `native-realization/src/optimized_semantic_wrapper_{encoding,
+  object}/` keep/move/delete decision is an enumerated bullet of
+  PIPELINE-OWNER-CONSOLIDATION (TASKS_OPTIMIZER.md), the codec-move leg is
+  deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that
+  decision, and the first real caller of
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
+  UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. "Coordinator residue" names the same
+  caller-absence residue already cataloged — no independent slice exists.
+  Re-verified at `5b3caaf337c`: both module entrances still have no caller
+  outside their own mod.rs/tests.rs (lib.rs re-export only),
+  PIPELINE-OWNER-CONSOLIDATION stays open (TASKS_OPTIMIZER.md:26), and the
+  object dir remains under PIPELINE-WRAPPER-OBJECT-ORPHAN's live claim
+  (exit 2, Jarod / swarm-w9-ffival, ~22:46Z). Sibling stubs on the same surface:
+  SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION,
+  OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-
+  DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
+- **SEMANTIC-WRAPPER-OBJECT-OWNERSHIP** — mined candidate; scope verified at
+  `5b3caaf337c`, covered — same settled surface as resolved sibling
+  OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (TASKS.md:6904) and the four adjacent
+  covered siblings (SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-
+  RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION): the
+  `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
+  keep/move/delete decision is an enumerated bullet of
+  PIPELINE-OWNER-CONSOLIDATION (TASKS_OPTIMIZER.md); the codec leg is
+  deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that
+  owner decision; the first real caller of
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
+  UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. Re-verified: both wrapper modules
+  still sit under `native-realization/src/` unrelocated with no caller
+  outside their own modules and the lib.rs re-export (the
+  `program-entry-plan/src/optimized_semantic_wrapper/` module is the
+  distinct planning-side wrapper, not this surface); re-witnessed again
+  at `2133ca0e63` (linux x86-64): the only reference to
+  `optimized_semantic_wrapper_{encoding,object}` outside their own
+  directories is the lib.rs re-export. No independent slice
+  exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-
+  OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-
+  RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-
+  WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION,
+  OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
+- **SEMANTIC-WRAPPER-OWNER-RELOCATION** — mined candidate; scope verified, covered — same settled surface as resolved sibling SEMANTIC-WRAPPER-OWNERSHIP (adjacent row): the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete decision is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION; the codec-move leg this stub's name asks for is exactly the leg deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. No independent slice exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
 - **SEMANTIC-WRAPPER-OWNER-RESOLUTION.** Mined candidate — scope verified,
   covered. Same settled surface as the resolved siblings on either side of
   this row: the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
