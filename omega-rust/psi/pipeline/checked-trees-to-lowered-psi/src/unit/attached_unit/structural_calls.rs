@@ -375,6 +375,7 @@ pub(super) fn emit(
             callee: lookup_machine_id(machine_ids, *target_machine)?,
             arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments,
             claim_transfers: Vec::new(),
             returned_claim_transfers: Vec::new(),

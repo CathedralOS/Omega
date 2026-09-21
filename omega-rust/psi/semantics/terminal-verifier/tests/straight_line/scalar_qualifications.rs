@@ -28,12 +28,14 @@ fn module() -> TerminalModule {
         target: BlockId::new(2).unwrap(),
         arguments: vec![value(1, 0).id],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
         residual_affine_discards: vec![],
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(2).unwrap(),
         parameters: vec![value(2, 1)],
         structural_parameters: vec![],
@@ -177,6 +179,7 @@ fn observing_a_qualified_boolean_preserves_its_membership() {
         target: BlockId::new(3).unwrap(),
         arguments: vec![result.id],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
     };
@@ -189,6 +192,7 @@ fn observing_a_qualified_boolean_preserves_its_membership() {
     destination.id = ValueId::new(5).unwrap();
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(3).unwrap(),
         parameters: vec![destination],
         structural_parameters: vec![],
@@ -335,6 +339,7 @@ fn scalar_membership_calls_transport_both_arguments_and_results() {
         result: OperationResult::Scalar(value(3, 1)),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: vec![value(2, 1).id],
             requirement_obligations: vec![],
@@ -384,6 +389,7 @@ fn scalar_membership_join_requires_qualification_on_every_arrival() {
             target: BlockId::new(2).unwrap(),
             arguments: vec![value(1, 0).id],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },
@@ -392,6 +398,7 @@ fn scalar_membership_join_requires_qualification_on_every_arrival() {
             target: BlockId::new(2).unwrap(),
             arguments: vec![value(1, 0).id],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },

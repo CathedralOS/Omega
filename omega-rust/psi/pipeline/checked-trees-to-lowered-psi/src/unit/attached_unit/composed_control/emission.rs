@@ -18,6 +18,7 @@ use super::{
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
 
 pub(crate) fn emit_call_leaf(
     checked: &CheckedTrees,
@@ -73,6 +74,7 @@ pub(crate) fn emit_call_leaf(
         structural_cases: Vec::new(),
         structural_parameters: Vec::new(),
         erased_scalar_formals: erased_parameters.to_vec(),
+        erased_proof_formals: state.erased_proof_parameters.clone(),
         entry: block,
         current: block,
         parameters: scalar_parameters.to_vec(),
@@ -134,6 +136,7 @@ pub(crate) fn emit_call_leaf(
         id: evaluation.current,
         parameters: evaluation.parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: erased_proof_formal_declarations(&state.erased_proof_parameters),
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::ReturnUnit {
             edge: edge_id(allocate_dense(next_edge)?),
@@ -236,6 +239,7 @@ pub(super) fn emit_call_operations(
                         evaluated,
                         &operand_values,
                         erased_parameters,
+                        &state.erased_proof_parameters,
                         parameters,
                         &[],
                         &earlier,
@@ -897,6 +901,7 @@ fn emit_scalar_call_operation(
         target_machine,
         target_state,
         erased_scalar_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
         ..
@@ -946,6 +951,21 @@ fn emit_scalar_call_operation(
                 expression,
                 values.as_slice(),
                 caller_erased_formals,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if erased_proof_arguments.len() != target.erased_proof_parameters().len() {
+        return unsupported(
+            "composed Unit scalar call erased proof lane disagrees with its target roster",
+        );
+    }
+    let erased_proof_arguments = erased_proof_arguments
+        .iter()
+        .map(|term| {
+            crate::scalar_graph::scalar_contracts::checked_proof_term(
+                checked,
+                term,
+                &state.erased_proof_parameters,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -1090,6 +1110,7 @@ fn emit_scalar_call_operation(
             callee,
             arguments: argument_ids,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments: lower_structural_arguments(
                 structural_arguments,
                 parameters,
@@ -1113,6 +1134,7 @@ fn emit_scalar_call_operation(
             callee,
             arguments: argument_ids,
             erased_arguments,
+            erased_proof_arguments,
             requirement_obligations,
             crash_continuations,
         }

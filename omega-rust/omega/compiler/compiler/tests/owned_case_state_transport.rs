@@ -205,6 +205,7 @@ machine evaluate(selected: bool) -> u64 {{ helper(selected) }}
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments: Vec::new(),
             requirement_obligations,
             crash_continuations,
         };

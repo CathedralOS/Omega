@@ -72,6 +72,7 @@ impl StateGraphEmission<'_, '_> {
                 .map(|(source, parameter)| (source.position, parameter.clone()))
                 .collect(),
             erased_scalar_formals: self.state_erased[position].clone(),
+            erased_proof_formals: state.erased_proof_parameters.clone(),
             entry: self.state_ids[position],
             block_structural_parameters: Vec::new(),
             current: self.state_ids[position],
@@ -482,6 +483,23 @@ impl StateGraphEmission<'_, '_> {
                     )
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
+            // Proof actuals keep the same rule: each checked term resolves
+            // against the emitting state's roster and must land in the
+            // target state's roster order.
+            if edge.erased_proof_arguments.len() != self.state_erased_proof[target].len() {
+                return unsupported("Unit graph successor erased proof arity drifted");
+            }
+            let erased_proof_arguments = edge
+                .erased_proof_arguments
+                .iter()
+                .map(|term| {
+                    crate::scalar_graph::scalar_contracts::checked_proof_term(
+                        checked,
+                        term,
+                        &self.state_erased_proof[position],
+                    )
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
             let arriving_rank = if current_rank.is_some() {
                 if let Some(position) = ranking::scalar_parameter_position(plan, target_state) {
                     arguments.get(position).copied()
@@ -568,6 +586,10 @@ impl StateGraphEmission<'_, '_> {
                     // The forwarding block redeclares the emitting state's
                     // erased roster so forwarded proof terms stay in scope.
                     erased_scalar_formals: self.state_erased[position].clone(),
+                    erased_proof_formals:
+                        crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                            &self.state_erased_proof[position],
+                        ),
                     structural_parameters: edge_evaluation.block_structural_parameters,
                     operations: operations[edge_evaluation.operation_start..].to_vec(),
                     terminator: Terminator::Jump {
@@ -576,6 +598,7 @@ impl StateGraphEmission<'_, '_> {
                         arguments,
                         structural_arguments,
                         erased_arguments,
+                        erased_proof_arguments,
                         trivial_affine_discards,
                         residual_affine_discards: Vec::new(),
                     },
@@ -585,6 +608,12 @@ impl StateGraphEmission<'_, '_> {
                     target: staged,
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: (0..self.state_erased_proof[position].len())
+                        .map(|position| semantic_vocabulary::ProofTerm::Formal {
+                            position: u32::try_from(position)
+                                .expect("erased-proof roster positions fit u32"),
+                        })
+                        .collect(),
                     structural_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 })
@@ -606,6 +635,7 @@ impl StateGraphEmission<'_, '_> {
                     arguments,
                     structural_arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     trivial_affine_discards,
                 })
             }
@@ -720,6 +750,7 @@ impl StateGraphEmission<'_, '_> {
                     target: edge.target,
                     arguments: edge.arguments,
                     erased_arguments: edge.erased_arguments,
+                    erased_proof_arguments: edge.erased_proof_arguments,
                     structural_arguments: edge.structural_arguments,
                     trivial_affine_discards: edge.trivial_affine_discards,
                     residual_affine_discards: Vec::new(),
@@ -749,6 +780,10 @@ impl StateGraphEmission<'_, '_> {
                             id,
                             parameters: Vec::new(),
                             erased_scalar_formals: self.state_erased[position].clone(),
+                            erased_proof_formals:
+                                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                                    &self.state_erased_proof[position],
+                                ),
                             structural_parameters: Vec::new(),
                             operations: Vec::new(),
                             terminator: Terminator::Jump {
@@ -756,6 +791,7 @@ impl StateGraphEmission<'_, '_> {
                                 target: successor.target,
                                 arguments: successor.arguments,
                                 erased_arguments: successor.erased_arguments,
+                                erased_proof_arguments: successor.erased_proof_arguments.clone(),
                                 structural_arguments: successor.structural_arguments,
                                 trivial_affine_discards: successor.trivial_affine_discards,
                                 residual_affine_discards: Vec::new(),
@@ -819,6 +855,7 @@ impl StateGraphEmission<'_, '_> {
                         target: decision_block,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                         residual_affine_discards: Vec::new(),
@@ -1014,6 +1051,7 @@ impl StateGraphEmission<'_, '_> {
             id: evaluation.current,
             parameters: evaluation.parameters,
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: evaluation.block_structural_parameters,
             operations: operations[evaluation.operation_start
                 ..if condition.is_some()
@@ -1054,6 +1092,10 @@ impl StateGraphEmission<'_, '_> {
             // The authored state's own erased roster rides on its root block;
             // a plain entry's formals already live on the machine contract.
             root.erased_scalar_formals = self.state_erased[position].clone();
+            root.erased_proof_formals =
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &self.state_erased_proof[position],
+                );
         }
         if let Some(rank) = current_rank {
             self.block_ranks

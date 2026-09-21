@@ -405,6 +405,7 @@ impl Builder<'_, '_> {
             let (source_call, call_ordinal) = self.call_ordinal(expression, call.target_symbol)?;
             self.record_call_arguments(
                 pure,
+                values,
                 u32::try_from(self.statement_index).ok()?,
                 call_ordinal,
                 call.target_symbol,

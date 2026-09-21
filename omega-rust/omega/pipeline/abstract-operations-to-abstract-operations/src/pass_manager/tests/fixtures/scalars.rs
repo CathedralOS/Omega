@@ -7,6 +7,7 @@ fn empty_contract(id: u64) -> terminal_psi::MachineContract {
     use semantic_vocabulary::ContractId;
     terminal_psi::MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(id).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -101,6 +102,7 @@ pub(in crate::pass_manager::tests) fn verified_dead_literals_unit() -> VerifiedP
             block,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -165,6 +167,7 @@ pub(in crate::pass_manager::tests) fn verified_half_dead_literals_unit()
             block,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -228,6 +231,7 @@ pub(in crate::pass_manager::tests) fn verified_parameter_add_unit() -> VerifiedP
             block,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),

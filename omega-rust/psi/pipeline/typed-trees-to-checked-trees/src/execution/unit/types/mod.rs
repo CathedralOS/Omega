@@ -899,22 +899,57 @@ pub(super) fn abi_parameter_count(parameters: &[StateParameter]) -> usize {
 }
 
 /// The authored `[erased]` scalar formals in authored order, each retaining
-/// its authored parameter position. Erased formals with non-primitive types
-/// refuse the plan: a proof-only structural formal has no erased scalar
-/// representation this slice defines.
+/// its authored parameter position. Proof-only erased formals belong to the
+/// proof lane (`erased_proof_parameter_plans`), so this plan skips them.
+/// Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
+    let proof_only = typed_trees::proof_only::classify(program);
     program
         .state_parameters(state)
         .iter()
         .enumerate()
         .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .filter(|(_, parameter)| {
+            proof_only
+                .proof_only_mention(program, parameter.type_reference)
+                .is_none()
+        })
         .map(|(position, parameter)| {
             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+            })
+        })
+        .collect()
+}
+
+/// The authored `[erased]` proof-only formals in authored order, each
+/// retaining its authored parameter position and canonical semantic type
+/// identity (`Nat`). These carriers admit no scalar lane; the contract term
+/// lane carries them by identity instead.
+pub(crate) fn erased_proof_parameter_plans(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
+    let proof_only = typed_trees::proof_only::classify(program);
+    program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.relevance.is_erased())
+        .filter(|(_, parameter)| {
+            proof_only
+                .proof_only_mention(program, parameter.type_reference)
+                .is_some()
+        })
+        .map(|(position, parameter)| {
+            Some(checked_trees::CheckedErasedProofParameterPlan {
+                source_position: u32::try_from(position).ok()?,
+                parameter_symbol: parameter.symbol,
+                type_identity: base_type_identity(program, parameter.type_reference, &[])?,
             })
         })
         .collect()

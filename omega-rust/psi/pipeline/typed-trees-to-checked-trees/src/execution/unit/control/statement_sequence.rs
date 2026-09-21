@@ -588,7 +588,11 @@ pub(in crate::execution::terminal_unit) fn build(
                     // retain their result identity without a cleanup action.
                     let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
                     operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result, value: root.root, calls, discard_result_on_return,
+                        result,
+                        value: root.root,
+                        calls,
+                        operand_source: None,
+                        discard_result_on_return,
                     });
                     continue;
                 }
@@ -826,6 +830,61 @@ pub(in crate::execution::terminal_unit) fn build(
                     structural_results.push((result.clone(), facts::PlaceRoot::Expression(array.expression)));
                     operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
                         source: array.source, result, elements,
+                    });
+                    continue;
+                }
+                structural_operands::Operand::Value {
+                    root,
+                    parameter_position,
+                } => {
+                    // The checker retained this inline case construction as a
+                    // structural value; establish it as a state-local operand
+                    // before the consuming call, mirroring the local-binding
+                    // lane without a source local.
+                    let calls = structural_operands::value_calls(
+                        program,
+                        facts,
+                        scalar_callees,
+                        shapes,
+                        machine,
+                        state,
+                        structural_parameters,
+                        trivial_affine_locals,
+                        entry_claims,
+                        &structural_results,
+                        &mut structural_count,
+                        root.root,
+                    )?;
+                    consume_value_places(
+                        facts,
+                        root.root,
+                        &structural_results,
+                        &mut operations,
+                    )?;
+                    for call in &calls {
+                        consume_results(&mut operations, call.operation())?;
+                    }
+                    let multiplicity = program.type_multiplicity(root.type_reference);
+                    let result = CheckedUnitStructuralResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(structural_count).ok()?,
+                        type_identity: shapes.add_type(root.type_reference, &binders, &[])?,
+                        multiplicity,
+                    };
+                    structural_count = structural_count.checked_add(1)?;
+                    structural_results
+                        .push((result.clone(), facts::PlaceRoot::Expression(root.expression)));
+                    operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result,
+                        value: root.root,
+                        calls,
+                        operand_source: Some(
+                            checked_trees::CheckedArrayConstructionSource::CallArgument {
+                                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                                parameter_position,
+                            },
+                        ),
+                        discard_result_on_return: multiplicity == Multiplicity::Affine,
                     });
                     continue;
                 }
@@ -1169,6 +1228,7 @@ pub(in crate::execution::terminal_unit) fn build(
             result: result.clone(),
             value: root.root,
             calls,
+            operand_source: None,
             discard_result_on_return: false,
         });
         let mut returned: CheckedUnitStructuralReturnPlan = result.into();
