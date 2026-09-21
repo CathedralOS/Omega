@@ -10324,7 +10324,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DURABLE-CODEC-EXTRACTION (~07:34Z). Sibling cluster rows:
   SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
-  PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
+  PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION. Re-verified at `beaa8e1c1b`: `module_catalog.rs` still carries 44
+  `Orphaned` rows routed to EXACT-MACHINE-SIMPLIFICATIONS ("invoked only
+  from their own tests"), and `selected_optimization.rs` has since gained
+  the catalog-as-admission-authority refinement —
+  `slice_executes_at_stage` admits only `SelectedLowering`, executor-less
+  selections alone compose to identity, and alongside executed ones they
+  fail `UnsupportedComposition`; the executed-partition conclusion is
+  unchanged.
 - **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
   and fenced — "placement" is the move leg of the
   `optimized_semantic_wrapper_{encoding,object}` orphan-owner question,
