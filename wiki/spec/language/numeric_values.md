@@ -109,6 +109,14 @@ crash predicate. An overflow policy does not invent a result for undefined
 operands such as an integer zero divisor. Any number of value qualifications
 may compose, but at most one arithmetic policy governs an operation.
 
+Trapping's language contract is settled — the executable operation owns its
+crash site under the primitive's exact predicate — while its Terminal encoding
+remains unsettled: the reconstructed
+[observation profile](../terminal-psi/observations.md) keys crash sites only by
+edge or by `BoundaryCall` route, and an operation-level trap carries neither.
+The profile row shape such a trap joins awaits the named
+`terminal-operation-level-trap-crash-site` decision.
+
 ### Integer quotient and remainder
 
 Builtin `%` needs at least one already-integer-typed operand. The other operand
