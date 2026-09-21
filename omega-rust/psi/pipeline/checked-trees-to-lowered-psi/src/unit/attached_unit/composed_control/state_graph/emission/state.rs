@@ -174,6 +174,44 @@ impl StateGraphEmission<'_, '_> {
                         calls.next_obligation_identity;
                     Some(condition.id)
                 }
+            } else if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+                &state.terminator
+            {
+                // Only the first guard is observed on the entry path. Every
+                // later guard is staged below into its own private block.
+                let Some(first) = arms.first() else {
+                    return unsupported("guarded jump chain lost its first arm");
+                };
+                if arms.len() < 2 {
+                    return unsupported("guarded jump chain lost its ordered arms");
+                }
+                if evaluation
+                    .branch_guard(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        first.successor.statement_ordinal,
+                        &values,
+                    )?
+                    .is_some()
+                {
+                    return unsupported("guarded jump chain has a short-circuit guard");
+                }
+                let mut calls = self.catalogs.scalar_calls.emission_context();
+                let condition = evaluation.guard_value(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    first.successor.statement_ordinal,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &mut calls,
+                )?;
+                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                Some(condition.id)
             } else {
                 None
             };
@@ -212,10 +250,86 @@ impl StateGraphEmission<'_, '_> {
         )?;
         let is_guarded_return = guarded_return.is_some();
         let inherited_lengths = operations.byte_lengths.clone();
+        // Ordered multi-arm guards: every later guard is observed inside its
+        // own private block reached only along the previous decision's false
+        // edge. Their evaluation drafts are staged before the successor-edge
+        // closure exists; the terminator match below assembles the chain.
+        let mut guarded_decisions = Vec::new();
+        let mut guarded_drafts = Vec::new();
+        let mut guarded_first_namespace = Vec::new();
+        if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+            &state.terminator
+        {
+            guarded_first_namespace = values.clone();
+            for _ in 1..arms.len() {
+                guarded_decisions.push(block_id(allocate_dense(&mut next_block)?));
+            }
+            let (resume_current, resume_start, entry_parameters, entry_structural) = (
+                evaluation.current,
+                evaluation.operation_start,
+                std::mem::take(&mut evaluation.parameters),
+                std::mem::take(&mut evaluation.block_structural_parameters),
+            );
+            for (index, arm) in arms.iter().enumerate().skip(1) {
+                let decision = guarded_decisions[index - 1];
+                evaluation.current = decision;
+                evaluation.operation_start = operations.len();
+                evaluation.parameters = Vec::new();
+                evaluation.block_structural_parameters = Vec::new();
+                if evaluation
+                    .branch_guard(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        arm.successor.statement_ordinal,
+                        &values,
+                    )?
+                    .is_some()
+                {
+                    return unsupported("guarded jump chain has a short-circuit guard");
+                }
+                let mut calls = self.catalogs.scalar_calls.emission_context();
+                let guard = evaluation.guard_value(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    arm.successor.statement_ordinal,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &mut calls,
+                )?;
+                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let expanded = evaluation.current != decision;
+                guarded_drafts.push((
+                    evaluation.current,
+                    if expanded {
+                        std::mem::take(&mut evaluation.parameters)
+                    } else {
+                        Vec::new()
+                    },
+                    if expanded {
+                        std::mem::take(&mut evaluation.block_structural_parameters)
+                    } else {
+                        Vec::new()
+                    },
+                    operations[evaluation.operation_start..].to_vec(),
+                    guard.id,
+                    values.clone(),
+                ));
+            }
+            evaluation.current = resume_current;
+            evaluation.operation_start = resume_start;
+            evaluation.parameters = entry_parameters;
+            evaluation.block_structural_parameters = entry_structural;
+        }
         let mut edge_blocks = Vec::new();
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
-                             case_edge: bool|
+                             case_edge: bool,
+                             values: &[ValueDeclaration]|
          -> Result<SuccessorEdge, LoweringError> {
             // Every edge retains its local remainder until selected operands
             // finish. A case edge has already consumed only its subject.
@@ -278,7 +392,7 @@ impl StateGraphEmission<'_, '_> {
             };
             let mut edge_evaluation = evaluation.branch(staged, operation_start);
             edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
-            let mut edge_values = values.clone();
+            let mut edge_values = values.to_vec();
             let mut arguments = Vec::new();
             let mut structural_arguments = Vec::new();
             let target_state = &plan.states[target];
@@ -744,7 +858,7 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
-                let edge = successor(edge, &[], false)?;
+                let edge = successor(edge, &[], false, &values)?;
                 Terminator::Jump {
                     edge: edge.edge,
                     target: edge.target,
@@ -761,8 +875,8 @@ impl StateGraphEmission<'_, '_> {
                 when_false,
                 ..
             } => {
-                let when_true = successor(when_true, &[], false)?;
-                let when_false = successor(when_false, &[], false)?;
+                let when_true = successor(when_true, &[], false, &values)?;
+                let when_false = successor(when_false, &[], false, &values)?;
                 if let Some(expression) = &branch_guard {
                     // Successor staging runs only after selection. Its length
                     // observations cannot be reused while evaluating the guard.
@@ -870,6 +984,110 @@ impl StateGraphEmission<'_, '_> {
                     }
                 }
             }
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+                // Every arm's successor edge is staged exactly like a
+                // conditional edge; each decision namespace is the one left
+                // by that arm's guard evaluation.
+                let mut selected = Vec::with_capacity(arms.len());
+                for (index, arm) in arms.iter().enumerate() {
+                    let namespace = if index == 0 {
+                        guarded_first_namespace.as_slice()
+                    } else {
+                        guarded_drafts[index - 1].5.as_slice()
+                    };
+                    selected.push(successor(&arm.successor, &[], false, namespace)?);
+                }
+                let mut selected = selected.into_iter();
+                let first = selected.next().ok_or(LoweringError::Unsupported(
+                    "guarded jump chain lost its first successor",
+                ))?;
+                let mut fallback_edge = Some(successor(fallback, &[], false, &values)?);
+                for (index, (id, parameters, structural_parameters, operations, guard, _)) in
+                    guarded_drafts.into_iter().enumerate()
+                {
+                    let when_false = if index + 2 == arms.len() {
+                        fallback_edge.take().ok_or(LoweringError::Unsupported(
+                            "guarded jump chain lost its fallback edge",
+                        ))?
+                    } else {
+                        let edge = edge_id(allocate_dense(&mut next_edge)?);
+                        if let Some(rank) = current_rank {
+                            self.rank_edges.insert(
+                                edge,
+                                (
+                                    rank,
+                                    terminal_psi::TerminalNaturalRankComparison::Preserving,
+                                ),
+                            );
+                        }
+                        SuccessorEdge {
+                            edge,
+                            target: guarded_decisions[index + 1],
+                            arguments: Vec::new(),
+                            erased_arguments: Vec::new(),
+                            erased_proof_arguments: (0..self.state_erased_proof[position].len())
+                                .map(|position| semantic_vocabulary::ProofTerm::Formal {
+                                    position: u32::try_from(position)
+                                        .expect("erased-proof roster positions fit u32"),
+                                })
+                                .collect(),
+                            structural_arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        }
+                    };
+                    if let Some(rank) = current_rank {
+                        self.block_ranks.insert(id, rank);
+                    }
+                    edge_blocks.push(Block {
+                        id,
+                        parameters,
+                        erased_scalar_formals: self.state_erased[position].clone(),
+                        erased_proof_formals:
+                            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                                &self.state_erased_proof[position],
+                            ),
+                        structural_parameters,
+                        operations,
+                        terminator: Terminator::Conditional {
+                            condition: guard,
+                            when_true: selected.next().ok_or(LoweringError::Unsupported(
+                                "guarded jump chain lost an ordered successor",
+                            ))?,
+                            when_false,
+                        },
+                    });
+                }
+                let edge = edge_id(allocate_dense(&mut next_edge)?);
+                if let Some(rank) = current_rank {
+                    self.rank_edges.insert(
+                        edge,
+                        (
+                            rank,
+                            terminal_psi::TerminalNaturalRankComparison::Preserving,
+                        ),
+                    );
+                }
+                Terminator::Conditional {
+                    condition: condition.ok_or(LoweringError::Unsupported(
+                        "guarded jump chain lost its first guard",
+                    ))?,
+                    when_true: first,
+                    when_false: SuccessorEdge {
+                        edge,
+                        target: guarded_decisions[0],
+                        arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: (0..self.state_erased_proof[position].len())
+                            .map(|position| semantic_vocabulary::ProofTerm::Formal {
+                                position: u32::try_from(position)
+                                    .expect("erased-proof roster positions fit u32"),
+                            })
+                            .collect(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }
+            }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } => {
                 let prepared = prepared_cases.as_ref().ok_or(LoweringError::Unsupported(
                     "Unit graph case terminator lost its prepared payloads",
@@ -878,7 +1096,7 @@ impl StateGraphEmission<'_, '_> {
                     .cases
                     .iter()
                     .map(|case| {
-                        let edge = successor(case.successor, &case.values, true)?;
+                        let edge = successor(case.successor, &case.values, true, &values)?;
                         Ok(StructuralCaseSuccessorEdge {
                             edge: edge.edge,
                             target: edge.target,

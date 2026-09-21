@@ -106,7 +106,7 @@ use checked_trees::{
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseSuccessorPlan,
     CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedGuardedJumpPlan, CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
     CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,

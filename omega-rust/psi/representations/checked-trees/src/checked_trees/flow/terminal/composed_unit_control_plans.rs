@@ -126,6 +126,15 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
     },
+    /// Ordered Boolean guards each select a named-state edge. Guards evaluate
+    /// in authored order — the same sequencing the shared scalar tail roster
+    /// records — and the authored `_` arm is the fallback edge holding where
+    /// every guard fails. Each successor carries the same per-edge custody
+    /// plan as a conditional edge.
+    GuardedJumps {
+        arms: Vec<CheckedGuardedJumpPlan>,
+        fallback: CheckedStructuralControlSuccessorPlan,
+    },
     /// Consume one whole owned parameter or exact result from this state's
     /// operation prefix and transfer control through the exact closed case
     /// roster. Payload scalars are introduced only on their selected edge;
@@ -147,6 +156,16 @@ impl CheckedComposedUnitControlStatePlan {
         };
         self.operations.iter().chain(selected)
     }
+}
+
+/// One guarded arm of an ordered transition chain: the exact checked scalar
+/// expression the authored guard selected and the selected edge's custody plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedGuardedJumpPlan {
+    /// Exact checked scalar expression at `successor.statement_ordinal` under
+    /// the `Guard` role. The current family admits pure Boolean expressions.
+    pub guard: CheckedScalarExpression,
+    pub successor: CheckedStructuralControlSuccessorPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
