@@ -1514,6 +1514,222 @@ mod machine_bounds {
         );
     }
 
+    /// A codec-valid `Natural` component {2,3,8,9} with an upstream
+    /// member the entry cannot reach once the endpoint edge is
+    /// excluded: entry 1 passes machine parameter `initial` into
+    /// header 2's rank parameter `rank`; 2 conditionally enters work 3
+    /// (preserving) or exits to return block 4; 3 returns to 2 (strict)
+    /// or forwards to 8 (preserving); 8 jumps into 9 (preserving); 9
+    /// returns to 8 (strict) or back to 2 (strict). Removing endpoint
+    /// edge 2 leaves the 8 <-> 9 inner cycle intact beside member 3,
+    /// which an entry at 9 can no longer reach.
+    fn upstream_member_cyclic_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let successor =
+            |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                edge: id::<EdgeId>(edge),
+                target: id::<BlockId>(target),
+                arguments,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300)],
+                    Terminator::Conditional {
+                        condition: id(9_000),
+                        when_true: successor(4, 2, vec![id(300)]),
+                        when_false: successor(5, 8, Vec::new()),
+                    },
+                ),
+                block(4, Vec::new(), return_unit(40)),
+                block(8, vec![rank_constant(80, 800)], jump_with(6, 9, Vec::new())),
+                block(
+                    9,
+                    vec![rank_constant(90, 900)],
+                    Terminator::Conditional {
+                        condition: id(9_000),
+                        when_true: successor(7, 8, Vec::new()),
+                        when_false: successor(8, 2, vec![id(900)]),
+                    },
+                ),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3, 8, 9]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(5),
+                        source: id(3),
+                        target: id(8),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(6),
+                        source: id(8),
+                        target: id(9),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(7),
+                        source: id(9),
+                        target: id(8),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(8),
+                        source: id(9),
+                        target: id(2),
+                        successor_rank: id(900),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic
+    }
+
+    /// The interior pass is charged over the members the entry block can
+    /// actually traverse, not every member that can still reach the
+    /// endpoint. In the `cyclic_tail_machine` component {2,3,8},
+    /// removing endpoint edge 2 disconnects member 3 from an entry at
+    /// 8, so segment (8, edge 2) bounds walks 8 -> 2 -> commit at
+    /// visit(8) + visit(2); the same endpoint from member 3 — which can
+    /// still reach tail 8 — keeps the longer 3 -> 8 -> 2 -> commit
+    /// pass, and an entry edge arriving at member 2 bounds that
+    /// member's traversal alone. Uses the internal surface because the
+    /// verifier requires discharged rank obligations that a hand-built
+    /// module cannot carry.
+    #[test]
+    fn mid_component_segment_bounds_only_members_reachable_from_entry() {
+        let module = module(1, vec![cyclic_tail_machine()]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(8), id(2), &mut BTreeMap::new())
+                .expect("tail-to-header segment derives")
+                .ceiling_units,
+            4,
+            "visit(8) + visit(2): member 3 cannot be reached from the \
+             entry member once the endpoint edge is excluded"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(2), &mut BTreeMap::new())
+                .expect("work-to-header segment derives")
+                .ceiling_units,
+            6,
+            "from member 3 the longer 3 -> 8 -> 2 -> commit pass still bounds"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(2), &mut BTreeMap::new())
+                .expect("entry-to-header segment derives")
+                .ceiling_units,
+            3,
+            "an entry edge arriving at member 2 bounds that member alone"
+        );
+    }
+
+    /// The same entry restriction applies when the surviving interior
+    /// keeps a cycle: segment (9, edge 2) bounds the re-enterable
+    /// members reachable from 9 — the surviving 8 <-> 9 inner cycle —
+    /// at the rank ceiling plus once-only member 2, while upstream
+    /// member 3 drops out of the bound entirely.
+    #[test]
+    fn mid_component_cyclic_interior_drops_members_behind_the_entry() {
+        let module = module(1, vec![upstream_member_cyclic_machine()]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(9), id(2), &mut BTreeMap::new())
+                .expect("inner-cycle entry segment derives")
+                .ceiling_units,
+            4 * 256 + 2,
+            "the surviving 8 <-> 9 cycle at rank scale plus once-only \
+             member 2 — member 3 stays unreachable from the entry member"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(2), &mut BTreeMap::new())
+                .expect("work-to-header segment derives")
+                .ceiling_units,
+            4 * 256 + 4,
+            "from member 3 every member stays reachable, so the interior \
+             keeps member 3's own once-only charge"
+        );
+    }
+
     /// A `Natural` countdown whose work member calls a callee that can only
     /// crash: entry 1 passes machine parameter `initial` into header 2's
     /// rank parameter `rank`; 2 conditionally enters work 3 (preserving) or
@@ -1790,13 +2006,14 @@ mod machine_bounds {
     /// leaves the component through an exit edge — so the interior bound
     /// covers only the members a committing walk can still traverse, at the
     /// segment's normal-return accounting. Work member 3 invokes a callee
-    /// that can only crash, so it contributes nothing; the bound keeps
-    /// header 2 at the rank scale rather than charging both members' visit
-    /// units the way the old whole-component charge did: segment
-    /// (2, edge 5) is rank * visit(2) + the exit block, not
-    /// rank * (visit 2 + visit 3). Uses the internal surface because the
-    /// verifier requires discharged rank obligations that a hand-built
-    /// module cannot carry.
+    /// that can only crash, so it contributes nothing — and its strict
+    /// back-edge can never be taken either, since no traversal of 3
+    /// completes: header 2 is crossed at most once before the walk exits
+    /// or dies inside 3's call, so segment (2, edge 5) is visit(2) + the
+    /// exit block, not rank * (visit 2 + visit 3) the way the old
+    /// whole-component charge billed it. Uses the internal surface
+    /// because the verifier requires discharged rank obligations that a
+    /// hand-built module cannot carry.
     #[test]
     fn natural_cycle_exit_segment_drops_members_that_cannot_return() {
         // callee 5 always crashes (returned: None, crashed: Some(1)); the
@@ -1825,16 +2042,16 @@ mod machine_bounds {
                 .segment_certificate(id(2), id(5), &mut BTreeMap::new())
                 .expect("mid-component exit segment derives")
                 .ceiling_units,
-            2 * 256 + 1,
-            "re-enterable header 2 at the u8 rank scale plus the exit block; \
-             member 3 never returns from its call"
+            3,
+            "once-only header 2 plus the exit block; member 3's dead \
+             traversal removes its back-edge along with its visit units"
         );
         assert_eq!(
             prepared
                 .segment_certificate(id(1), id(5), &mut BTreeMap::new())
                 .expect("entry-to-exit segment derives")
                 .ceiling_units,
-            1 + 2 * 256 + 1,
+            4,
             "entry edge plus the tightened interior"
         );
     }
