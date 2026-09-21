@@ -85,9 +85,11 @@ pub struct CheckedCrashSite {
     /// this site.
     pub(crate) guard_covering_buckets: Vec<CrashRouteBucketId>,
     /// Stable identities of claims proved live at this exact machine-local
-    /// crash site. This is deliberately a lower bound: conditionally live sum
-    /// payloads and obligations outside this activation are absent until a
-    /// later analysis can prove their membership.
+    /// crash site. This is deliberately a lower bound: a conditionally live
+    /// sum payload joins only when incoming-edge case evidence proves every
+    /// case segment on its claim path; payloads without that proof and
+    /// obligations outside this activation remain absent until a later
+    /// analysis can prove their membership.
     pub(crate) frontier_lower_bound: Vec<language_semantics::PermissionClaimIdentity>,
 }
 
