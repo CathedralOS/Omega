@@ -12128,6 +12128,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   package-compilation --all-targets` clean; `nextest -p target` 55/55,
   `-p build-evaluation` 90/90.
 - **TASK-RUNTIME-NATIVE-SUPPORT.** — mined candidate; verify scope then implement.
+- **TERMINAL-SOURCE-CUSTODY-GATE-ORDER.** — mined candidate; resolved and
+  re-verified — re-instantiated name of the row board sweep B retired at
+  `41a7bde098`. The landed custody-ordering surface it named is unchanged:
+  every successor-bearing edge still closes in the canonical order
+  documented in `terminal-verifier` `validation/frontier/terminators.rs`'s
+  module header — owned successor sources consumed first (phase one of
+  `block_parameters.rs`), then that edge's residual and trivial discard
+  rosters, then the target's parameters (phase two) — and return-style
+  terminators keep their `close_*` order (cleanup rosters, no partial
+  custody or pending restoration debt, reference release, terminal
+  self-receiver). `40ff9ad791` pinned the diagnostic order and
+  `d96a0fda39` repinned
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
+  on `EdgeAffineDiscardsInvalid`; STALE-CUSTODY-GATE-EXPECTATIONS already
+  verified the repinning touched no custody-gate fixture. Re-verified at
+  `a84ebca9720c` (linux x86-64): `cargo nextest run -p terminal-verifier
+  structural_scalar_fields` 62/62 green including the pinning test. No
+  independent slice exists here. Sibling stubs on the same landed order:
+  TERMINAL-SOURCE-CUSTODY-ORDER, EDGE-CLEANUP-ERROR-PRECEDENCE,
+  SUCCESSOR-DISCARD-ORDER, FRONTIER-EDGE-ERROR-ORDERING,
+  OWNED-SUCCESSOR-DISCARD-ORDER.
 - **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
   names the three `rank_ranges` field-endpoint failures recorded in
   `wiki/drafts/known_baseline_failures.md` at `660f5af762`
