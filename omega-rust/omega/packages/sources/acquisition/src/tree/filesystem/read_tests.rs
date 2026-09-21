@@ -255,3 +255,16 @@ fn bounded_copy_rejects_executable_mode_changes_and_preserves_stable_modes() {
         );
     }
 }
+
+/// The link-retarget, in-place-restore, and mode-change rejection legs above
+/// depend on unix symlink spelling, kernel change time, and permission bits;
+/// none exist on this host. Record the absent coverage explicitly rather
+/// than letting a non-unix run drop it silently.
+#[cfg(not(unix))]
+#[test]
+fn unix_mutable_copy_drift_legs_recorded_as_unavailable_on_this_host() {
+    eprintln!(
+        "SKIP: link-retarget/in-place-restore/mode-change rejection coverage \
+         requires a unix host (symlink spelling and kernel change time)"
+    );
+}

@@ -690,7 +690,18 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   and require its computed-result branch to execute; a passing Unit-forwarding
   case does not close that acceptance.
 
-- **BUILD-SNAPSHOT-OUTPUTS.** Finish the
+- **BUILD-SNAPSHOT-OUTPUTS.** z151 leg (2026-09-20, claim 060aeeae):
+  repaired two regressions inside this row's named acceptance tests and
+  recorded non-unix coverage gaps. `completed_build_outputs` collapsed the
+  sibling-build scan into each root's own `--build-dir` (12dea522b2 binds a
+  build dir to one canonical source root) — per-occurrence dirs under the
+  shared publication parent restore it; and 20af184aca's private-staging move
+  left each occurrence's empty `omega-captured-source-session-*` parent in
+  TMPDIR — `CapturedSnapshotRelease::release` now removes an owned session
+  parent once every backing it held is discarded. Non-unix hosts record the
+  seven unix-only link/mode/drift legs as SKIP via `#[cfg(not(unix))]`
+  companions (verified compile-clean under
+  `cargo check --tests --target x86_64-pc-windows-msvc`). Finish the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
   across ordinary compilation, not only package review. Snapshot reads,
   required-output settlement, private-staging cleanup, and audit reporting

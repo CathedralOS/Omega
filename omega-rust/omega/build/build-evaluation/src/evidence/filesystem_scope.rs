@@ -143,8 +143,28 @@ impl CapturedSnapshotRelease {
     /// An already-absent backing is not an error, so the release may run on
     /// the settlement path and again on the occurrence's final exit.
     pub(crate) fn release(&self) {
+        let mut parents = Vec::new();
         for snapshot_dir in &self.snapshot_dirs {
             let _ = discard_materialized_snapshot(snapshot_dir);
+            if let Some(parent) = snapshot_dir.parent()
+                && !parents.iter().any(|known| *known == parent)
+            {
+                parents.push(parent.to_path_buf());
+            }
+        }
+        // The create-exclusive `omega-captured-source-session-*` parent is
+        // this occurrence's own private staging root: once every backing it
+        // held is discarded, an empty parent is removable. `remove_dir` only
+        // succeeds on an empty directory, so a parent still holding anything
+        // is left for the host's temp reaper instead of being forced.
+        for parent in parents {
+            let owned_session = parent.file_name().is_some_and(|name| {
+                name.to_string_lossy()
+                    .starts_with("omega-captured-source-session-")
+            });
+            if owned_session {
+                let _ = std::fs::remove_dir(parent);
+            }
         }
     }
 }

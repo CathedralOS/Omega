@@ -463,7 +463,9 @@ fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
 
 #[cfg(test)]
 mod close_tests {
-    use std::ffi::{OsStr, OsString};
+    #[cfg(unix)]
+    use std::ffi::OsStr;
+    use std::ffi::OsString;
     use std::path::PathBuf;
 
     use cap_std::ambient_authority;
@@ -724,6 +726,19 @@ mod close_tests {
             fixture.close(&observation),
             Err(SourceResolveError::LocalSourceChanged { .. })
         ));
+    }
+
+    /// The link-retarget and in-place-restore rejection legs above depend on
+    /// unix symlink spelling and kernel change time; neither exists on this
+    /// host. Record the absent coverage explicitly rather than letting a
+    /// non-unix run drop it silently.
+    #[cfg(not(unix))]
+    #[test]
+    fn unix_close_recheck_legs_recorded_as_unavailable_on_this_host() {
+        eprintln!(
+            "SKIP: link-retarget and in-place-restore close-recheck coverage \
+             requires a unix host (symlink spelling and kernel change time)"
+        );
     }
 }
 
