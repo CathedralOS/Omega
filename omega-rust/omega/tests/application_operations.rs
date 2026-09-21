@@ -76,10 +76,14 @@ fn declared_target_when_host_is_unprofiled() -> Option<String> {
         .then(|| "linux_x86_64".to_owned())
 }
 
-// Same provision as the CLI until recursive compiler paths have bounded stack use.
-fn on_compiler_stack(test: impl FnOnce() + Send + 'static) {
+/// Compile-bearing operations provision their own large worker inside
+/// `run_on_compile_thread`, so callers need only an ordinary thread stack.
+/// Exercising the API on a small stack keeps that contract under test: an
+/// operation that stops self-provisioning overflows here rather than inside
+/// an embedder on a 1MiB main-thread stack.
+fn on_embedder_stack(test: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
-        .stack_size(256 * 1024 * 1024)
+        .stack_size(1024 * 1024)
         .spawn(test)
         .unwrap()
         .join()
@@ -88,7 +92,7 @@ fn on_compiler_stack(test: impl FnOnce() + Send + 'static) {
 
 #[test]
 fn compilation_returns_failure_then_success_without_terminating_the_caller() {
-    on_compiler_stack(|| {
+    on_embedder_stack(|| {
         let project = Project::new();
         assert!(compile_project(project.check_request()).is_err());
         project.write("main.omg", "machine main() {}\n");
@@ -107,7 +111,7 @@ fn compilation_returns_failure_then_success_without_terminating_the_caller() {
 
 #[test]
 fn unsettled_admissions_remain_structured_and_do_not_publish_or_rewrite_policy() {
-    on_compiler_stack(|| {
+    on_embedder_stack(|| {
         let project = Project::new();
         project.write("main.omg", "machine main() {}\n");
         let stale = format!("{}  accepted fact: stale\n", "1".repeat(64));
@@ -132,7 +136,7 @@ fn unsettled_admissions_remain_structured_and_do_not_publish_or_rewrite_policy()
 
 #[test]
 fn inspection_returns_verified_data_not_console_text() {
-    on_compiler_stack(|| {
+    on_embedder_stack(|| {
         let project = Project::new();
         project.write(
             "main.omg",
@@ -169,7 +173,7 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
         eprintln!("skipping: this host admits no catalogued Omega deployment profile");
         return;
     };
-    on_compiler_stack(move || {
+    on_embedder_stack(move || {
         let project = Project::new();
         project.application();
         // The reusable run operation must not bypass ordinary project acceptance.
