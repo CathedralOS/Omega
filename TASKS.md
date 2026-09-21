@@ -16952,7 +16952,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ERROR-PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER, SUCCESSOR-DISCARD-ORDER,
   VERIFIER-EDGE-CLEANUP-PHASE-ORDER.
 - **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
-- **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
+- **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT.** Scope verified at
+  `b8d336adcf2` — re-mines the supervised-startup obligation in
+  `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
+  §checked-topology (:523-525): "Partial startup failure requires
+  supervised cleanup, not a false success receipt or a claim to roll back
+  external side effects… runtime enforcement remains an acceptance
+  obligation, not an existing feature demonstrated by graph tests." The
+  spec itself names the first implementation customer — three checked
+  processes with private pipes on Windows and macOS — so the producing
+  leg is host-bound there, not on linux x86-64. Adjacent surface fenced
+  at verification time: `representations/task-plans` is wholesale-claimed
+  by TASK-RUNTIME-NATIVE-SUPPORT (dev-88738, exp 03:53Z). No independent
+  slice exists on this host.
 - **SUPPLIED-BYTES-SCAN.** Scope verified — real item, no bounded slice exists inside this repo's board. The stub names the Squalr submodule's ordered execution row (`samples/apps/squalr/TASKS.md`): port the scalar scan, snapshot storage, comparison dispatch, RLE encoder and query path through squalr-engine-api + squalr-engine-scanning — a multi-session port inside a submodule whose own AGENTS.md forbids placeholder bodies and requires the unchanged application command as outer acceptance. The submodule path is additionally wholesale-fenced at verification time (SQUALR-TARGETS-AND-THROUGHPUT, exp 21:39Z) and per the submodule's ordering it precedes CLI-COMMANDS, which gates on this row landing first. Execution belongs to the submodule's own lane under its pin — not a parent-repo slice; SQUALR-SUPPLIED-BYTES-SCAN is a sibling stub naming the same row.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
