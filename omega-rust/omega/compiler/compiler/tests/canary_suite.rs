@@ -474,6 +474,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "slices/guarded_slice_parameter_empty_false_index_compile",
     "slices/guarded_slice_parameter_empty_false_tail_compile",
     "slices/guarded_slice_parameter_bounded_subslice_compile",
+    "slices/callee_non_byte_view_len_index_subslice",
     "slices/guarded_slice_parameter_end_subslice_compile",
     "slices/guarded_slice_parameter_end_equals_len_subslice_compile",
     "slices/guarded_slice_parameter_index_compile",
@@ -562,6 +563,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_boundary_trait_satisfied_by_caller_requires",
     "domains/call_requires_boundary_satisfied_by_caller_requires",
     "domains/slice_carrier_domain",
+    "domains/predicate_domain_local_initializer_established",
     "domains/slice_domain_validator",
     "domains/utf8_slice_ops",
     "domains/utf8_literal_arg",
@@ -797,7 +799,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
     // Graduated from fail/: normalized claim outcome maps now publish for
-    // path-aligned multi-claim results, so the source checks cleanly.
+    // path-aligned multi-claim results, so the source checks cleanly. Its
+    // build.omg binds only `linux_x86_64::ProgramEntry`, so the native route
+    // is refused on every other host (`selected target `macos_arm64` has no
+    // bound required root slot`); checked semantics is the executing owner.
     "ownership/linear_ambiguous_state_result_mapping",
     "ownership/move_keyword_field_assignment",
     "ownership/compound_assign_add_field",
@@ -991,6 +996,14 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // local may be its receiver; proof machines emit no runtime code, so this
     // stays Check.
     "relevance/erased_receiver_proof_machine_call",
+    // Authored as a RUN canary (exit 70), but the native route is refused
+    // today: `selected ProgramEntry establishment rejoins 0 Terminal
+    // attachment identities; expected one; the machine's unit plan was
+    // omitted at local construction at `structural field store: record
+    // literal field` (state 0)`. Checked semantics admits the erased case
+    // payload; promote to ROOTED_BACKEND/ACTIVE once native production
+    // plans the record-literal field store.
+    "relevance/erased_case_payload_field_exit",
     // The `filesystem/native_*` family: authored as native canaries but never
     // runnable, with no `build.omg` and the retired `omega::language::std`
     // import spelling. With an ordinary build declaration and the
@@ -1088,6 +1101,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "operators/mismatched_operand_tuple",
     "proofs/mathematical_call_missing_premise",
     "proofs/contract_call_missing_premise",
+    "proofs/alignment_contract_zero_return",
+    "domains/predicate_domain_local_initializer_unproved",
     "proofs/case_call_wrong_subject",
     "proofs/case_call_premise_consumed_before_discharge",
     "proofs/signature_call_wrong_subject",
@@ -1097,6 +1112,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
     "relevance/erased_state_parameter_runtime_read",
+    "relevance/erased_case_payload_runtime_read",
     // A statement call's receiver is a runtime place: erased locals,
     // parameters, fields, and projections through erased fields all reject
     // when they receive a runtime method call.
@@ -1352,6 +1368,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "targets/target_machine_duplicate_rejected",
     "collections/triple_runtime_indexed_read_rejected",
     "collections/nested_three_level_index_rejected",
+    "collections/vec_duplicate_cleanup",
+    "collections/vec_invalidated_loan_after_growth",
     "tasks/task_runtime_machine_selection_effect_mismatch",
     "build/repeated_evaluated_root_binding",
     "build/static_machine_parameter_contract_mismatch",
@@ -1627,6 +1645,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "ownership/borrowed_storage_boundary_call",
     "ownership/borrowed_storage_contained_loan",
     "ownership/borrowed_storage_recoverable_failure",
+    "ownership/borrowed_storage_missing_repair_on_branch",
+    "ownership/borrowed_storage_repeated_extraction",
+    "ownership/borrowed_storage_stale_read_in_hole",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
     "ownership/linear_transparent_record_sibling_scope_loss",
@@ -1677,6 +1698,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/quotient_define_transport_role_rejected",
     "proofs/quotient_lift_congruence_missing_rejected",
     "proofs/quotient_lift_surplus_role_rejected",
+    "proofs/quotient_lift_invalid_law_rejected",
+    "proofs/quotient_lift_nonhermetic_identity_rejected",
     "proofs/quotient_congruence_substituted_rejected",
     "proofs/quotient_representative_admitted_closure_rejected",
     "proofs/quotient_theorem_admitted_closure_rejected",
@@ -2137,6 +2160,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "wire/reserved_spelling_retired",
     "wire/legacy_numbered_field_spelling",
     "wire/unnumbered_field_in_numbered_data",
+    "wire/preserve_unknown_demand_unsatisfiable",
     "wire/duplicate_field_number",
     "wire/field_reuses_reserved_number",
     "wire/unknown_field_type",
