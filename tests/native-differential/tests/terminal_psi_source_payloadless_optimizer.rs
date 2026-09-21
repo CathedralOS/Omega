@@ -22,6 +22,7 @@ use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
@@ -62,7 +63,7 @@ fn lowered_source(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     lower_machine(&checked, machine).expect("lower exact payloadless source")
 }
 

@@ -1,10 +1,12 @@
 use super::{rendered_rejection, typed};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
 fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Leaf [copy] {
                 value: u16;
                 enabled: bool;
@@ -17,7 +19,9 @@ fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
                 outer.other.leaf = Leaf { value: 9, enabled: true };
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("an eligible unrestricted record leaf is one content-independent whole store");
 }
 
@@ -27,8 +31,9 @@ fn plain_domain_qualified_record_leaves_are_wholly_replaceable() {
     // value: whole-leaf replacement displaces the complete carrier, and the
     // ordinary write-side domain check discharges `in Valid` against the
     // stored value exactly as it does for a `&mut` target.
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Leaf [copy] { value: u16; }
             domain Leaf::Valid
             requires
@@ -39,14 +44,17 @@ fn plain_domain_qualified_record_leaves_are_wholly_replaceable() {
                 holder.leaf = replacement;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a domain-proven whole-leaf store into a plain domain leaf should lower");
 }
 
 #[test]
 fn closed_material_copy_sums_are_wholly_replaceable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Choice [copy] {
                 case Empty;
                 case Value(value: u16);
@@ -71,7 +79,9 @@ fn closed_material_copy_sums_are_wholly_replaceable() {
                 direct = replacement;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a closed material copy sum is one atomic whole-value store");
 }
 
@@ -211,7 +221,7 @@ fn qualified_scalar_and_carrier_roots_are_wholly_replaceable() {
             "#,
         ),
     ] {
-        lower_typed_trees(typed(source)).unwrap_or_else(|errors| {
+        lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|errors| {
             panic!("{name}: a qualified `&write` root should be wholly replaceable: {errors:?}")
         });
     }
@@ -330,7 +340,7 @@ fn zero_gate_independently_fences_copy_sum_replacement() {
         });
     assert!(found, "Choice definition");
 
-    let rendered = lower_typed_trees(program)
+    let rendered = lower_typed_trees(program, &CheckingRequest::settled())
         .expect_err("the retained zero gate must reject after invariant rows are removed")
         .iter()
         .map(ToString::to_string)
@@ -398,8 +408,9 @@ fn unrestricted_record_leaf_observation_and_read_modify_write_remain_rejected() 
 
 #[test]
 fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner {
                 bytes: [u8; 4];
                 spare: u8;
@@ -413,14 +424,17 @@ fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
                 outer.inner.bytes = [1, 2, 3, 4];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a whole fixed byte-array leaf behind a common-field path should lower");
 }
 
 #[test]
 fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { words: [u16; 2]; }
             data Outer { inner: Inner; }
 
@@ -439,7 +453,9 @@ fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
                 outer.inner.words[nested_index] = 4;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect(
         "literal fixed arrays of unrestricted primitive scalars support whole and element stores",
     );
@@ -447,8 +463,9 @@ fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
 
 #[test]
 fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Leaf [copy] { value: u16; enabled: bool; }
             data Holder { leaves: [Leaf; 4]; sibling: u8; }
 
@@ -473,14 +490,17 @@ fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
                 holder.leaves[1..=2] = [first, second];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("material plain copy records stay atomic across the closed fixed-array operations");
 }
 
 #[test]
 fn fixed_arrays_of_material_copy_sums_support_the_closed_operation_set() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Choice [copy] {
                 case Empty;
                 case Value(value: u16);
@@ -508,14 +528,17 @@ fn fixed_arrays_of_material_copy_sums_support_the_closed_operation_set() {
                 holder.choices[1..=2] = [first, second];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("material copy sums stay atomic across the closed fixed-array operations");
 }
 
 #[test]
 fn recursively_literal_fixed_arrays_support_atomic_outer_operations() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Holder { grids: [[u16; 2]; 4]; sibling: u8; }
 
             machine fill(
@@ -541,7 +564,9 @@ fn recursively_literal_fixed_arrays_support_atomic_outer_operations() {
                 holder.grids[1..=2] = [[5, 6], [7, 8]];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("nested fixed arrays remain atomic across the outer closed operation set");
 }
 
@@ -611,8 +636,9 @@ fn fixed_array_record_elements_do_not_expose_child_places() {
 
 #[test]
 fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { words: [u32; 4]; }
             data Outer { inner: Inner; }
 
@@ -621,14 +647,17 @@ fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
                 outer.inner.words[1..=2] = [70000, 80000];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("closed primitive-array ranges are content-independent exact stores");
 }
 
 #[test]
 fn immutable_local_copy_bounds_are_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine fill(values: &write [u16; 4]) {
                 let first: u64 = 1;
                 let first_alias: u64 = first;
@@ -637,7 +666,9 @@ fn immutable_local_copy_bounds_are_writable() {
                 values[first_alias..=last_alias] = [7, 8];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("finite immutable local-copy bounds should normalize without observing the referent");
 }
 

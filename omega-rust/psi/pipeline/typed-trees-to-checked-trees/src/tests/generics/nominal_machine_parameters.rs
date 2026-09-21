@@ -1,4 +1,5 @@
 use super::typed_source;
+use crate::CheckingRequest;
 use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -35,7 +36,8 @@ fn exact_requirement_lifetime_application_retains_raw_machine_ordinals() {
         ),
         [0, 1],
     );
-    lower_typed_trees(typed).expect("declared lifetime substitution should validate");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("declared lifetime substitution should validate");
 }
 
 #[test]
@@ -66,7 +68,8 @@ fn exact_requirement_lifetime_application_accepts_repeated_realizer_binder() {
         ),
         [0, 0],
     );
-    lower_typed_trees(typed).expect("repeated lifetime substitution should validate");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("repeated lifetime substitution should validate");
 }
 
 #[test]
@@ -83,7 +86,8 @@ fn exact_requirement_lifetime_application_rejects_signature_substitution_drift()
         }
     "#;
     let typed = typed_source(source).expect("typed mismatched lifetime application");
-    let diagnostics = lower_typed_trees(typed).expect_err("lifetime drift must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("lifetime drift must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -104,7 +108,8 @@ fn exact_requirement_lifetime_application_requires_complete_in_scope_arguments()
         }
     "#;
     let typed = typed_source(missing).expect("typing retains missing application for validation");
-    let diagnostics = lower_typed_trees(typed).expect_err("missing lifetime must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("missing lifetime must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -146,7 +151,8 @@ fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed).expect("subjectless evidence rows should validate");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("subjectless evidence rows should validate");
 }
 
 /// MP1: the machine-parameter requirement is semantic tree data. It is
@@ -239,7 +245,8 @@ fn nested_structural_machine_parameter_emits_exact_checked_evidence() {
     let nested_owner = nested.symbol;
     let nested_state = nested_signature.symbol;
 
-    let checked = lower_typed_trees(typed).expect("nested structural evidence should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("nested structural evidence should check");
 
     assert!(checked.facts.proof.contract_facts.iter().any(|(_, fact)| {
         fact.kind == ContractProofFactKind::Requires
@@ -308,7 +315,8 @@ fn nested_nominal_machine_parameter_uses_trait_evidence_without_binder_expansion
     ));
     let nested_owner = nested.symbol;
 
-    let checked = lower_typed_trees(typed).expect("nested nominal reference should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("nested nominal reference should check");
 
     assert!(!checked.facts.proof.contract_facts.iter().any(|(_, fact)| {
         matches!(
@@ -402,7 +410,7 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
             _ => unreachable!("Selected has a nominal contract"),
         };
 
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("an explicitly satisfied exact nominal requirement should specialize");
     assert!(
         checked
@@ -491,7 +499,8 @@ fn public_installation_wrapper_keeps_upper_bound_separate_from_concrete_reach() 
             resolve(ResolutionRequest::new(&syntax)).expect("resolve public installation wrapper");
         let typed =
             lower_symbol_resolved_trees(&resolved).expect("type public installation wrapper");
-        let checked = lower_typed_trees(typed).expect("check public installation wrapper");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect("check public installation wrapper");
         let wrapper = checked
             .machines()
             .iter()
@@ -613,7 +622,8 @@ fn bounded_installation_reach_retains_exact_unresolved_requirement_through_check
         .expect("outer machine")
         .symbol;
 
-    let checked = lower_typed_trees(typed).expect("bounded reach closure should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("bounded reach closure should check");
     let reach = checked
         .facts
         .service_reaches
@@ -728,7 +738,8 @@ fn top_level_bounded_reach_is_unresolved_not_concrete() {
     let upper_bound = complete.service_reach_row;
     assert!(complete.service_reach_is_installation_bound);
 
-    let checked = lower_typed_trees(typed).expect("bounded reach closure should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("bounded reach closure should check");
     let complete_reach = checked
         .facts
         .service_reaches
@@ -773,7 +784,7 @@ fn bounded_installation_reach_rejects_provider_outside_upper_bound() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("provider reach outside an installation bound must reject");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -833,7 +844,8 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         ),
     });
 
-    let checked = lower_typed_trees(typed).expect("nominal callback selection should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("nominal callback selection should check");
     let [nominal_use] = checked.facts.nominal_machine_uses.uses.as_slice() else {
         panic!("one nominal callback use")
     };
@@ -952,7 +964,8 @@ fn checked_resource_envelopes_cover_entries_in_declaration_order() {
         .map(|entry| entry.symbol)
         .collect::<Vec<_>>();
 
-    let checked = lower_typed_trees(typed).expect("multi-entry resource anchors should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("multi-entry resource anchors should check");
     let realized = checked
         .facts
         .contract_plans
@@ -1021,7 +1034,7 @@ fn nominal_machine_use_identity_survives_forwarded_specialization_rounds() {
         .expect("chosen machine")
         .symbol;
 
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("a forwarded exact nominal requirement should specialize transitively");
     let selected_uses = checked
         .facts
@@ -1090,7 +1103,8 @@ fn nominal_machine_uses_keep_distinct_authored_call_sites() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    let checked = lower_typed_trees(typed).expect("both nominal uses should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("both nominal uses should specialize");
     let uses = &checked.facts.nominal_machine_uses.uses;
 
     assert_eq!(uses.len(), 2);
@@ -1126,7 +1140,8 @@ fn structural_machine_selection_publishes_no_nominal_use_row() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    let checked = lower_typed_trees(typed).expect("the structural use should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("the structural use should specialize");
 
     assert!(checked.facts.nominal_machine_uses.uses.is_empty());
 }
@@ -1159,7 +1174,8 @@ fn nominal_machine_parameter_rejects_structural_coincidence() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("structural coincidence must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("structural coincidence must reject");
     let rendered = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -1202,7 +1218,8 @@ fn nominal_machine_parameter_rejects_a_different_authored_requirement() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("wrong satisfaction row must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("wrong satisfaction row must reject");
     let rendered = diagnostics
         .iter()
         .map(ToString::to_string)
@@ -1347,5 +1364,6 @@ fn generic_body_call_is_accepted_modularly_by_checked_lowering() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed).expect("generic body should check from F's authored contract");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("generic body should check from F's authored contract");
 }

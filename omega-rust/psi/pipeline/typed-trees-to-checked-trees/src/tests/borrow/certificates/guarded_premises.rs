@@ -74,7 +74,8 @@ fn assert_conflict(source: &str) {
     let syntax = parse_syntax_trees(&tokens).expect("parse guard control");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve guard control");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type guard control");
-    let diagnostics = crate::lower_typed_trees(typed).expect_err("overlapping loan must reject");
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("overlapping loan must reject");
     assert!(
         diagnostics
             .iter()

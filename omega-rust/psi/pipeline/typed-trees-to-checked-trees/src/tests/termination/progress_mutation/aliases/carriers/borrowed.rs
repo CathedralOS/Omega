@@ -3,6 +3,7 @@ use super::super::super::{
     parse_syntax_trees, resolve,
 };
 
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::CONTEXT_FIXTURE;
 use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
@@ -110,7 +111,7 @@ fn a_borrowed_carrier_load_cannot_establish_a_missing_state_qualification() {
         );
         assert_input_premise(&check_source(&source));
         let missing = source.replace("requires carrier.context.scheduler in WeakFair", "");
-        let diagnostics = lower_typed_trees(typed_source(&missing))
+        let diagnostics = lower_typed_trees(typed_source(&missing), &CheckingRequest::settled())
             .expect_err("reference identity cannot establish the scheduler qualification");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic

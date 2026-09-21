@@ -43,7 +43,7 @@ fn supplied_fields_follow_exact_renamed_referents_across_borrow_modes() {
             "",
             "",
         );
-        let result = crate::lower_typed_trees(typed(&source));
+        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
         assert!(
             result.is_ok(),
             "{access}: {}",
@@ -61,7 +61,7 @@ fn supplied_fields_follow_exact_renamed_referents_across_borrow_modes() {
             consume(&container.inner);
         }
     "#;
-    crate::lower_typed_trees(typed(source))
+    crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled())
         .expect("projected actual prepends its exact nominal path");
 }
 
@@ -86,7 +86,9 @@ fn missing_wrong_and_invalidated_field_facts_cannot_supply_call_requirements() {
         ),
     ] {
         let source = source("&write", argument, requirement, before, after);
-        let Err(errors) = crate::lower_typed_trees(typed(&source)) else {
+        let Err(errors) =
+            crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled())
+        else {
             panic!("unproven field requirement accepted: {source}");
         };
         assert!(
@@ -164,7 +166,7 @@ fn instantiated_postcondition_field_keeps_its_substituted_call_place() {
             consume(cell);
         }
     "#;
-    let result = crate::lower_typed_trees(typed(source));
+    let result = crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled());
     assert!(
         result.is_ok(),
         "exact post-call field fact: {:?}",
@@ -193,7 +195,7 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(typed(&source));
+        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
     let source = r#"
@@ -207,7 +209,7 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
             consume(cell);
         }
     "#;
-    assert!(crate::lower_typed_trees(typed(source)).is_err());
+    assert!(crate::lower_typed_trees(typed(source), &crate::CheckingRequest::settled()).is_err());
 
     for (actual, accepted) in [("container.inner", true), ("container.other", false)] {
         let source = format!(
@@ -224,7 +226,7 @@ fn substituted_postcondition_subjects_keep_complete_paths_and_invalidation() {
             }}
         "#
         );
-        let result = crate::lower_typed_trees(typed(&source));
+        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
 }
@@ -241,7 +243,7 @@ fn implicit_receiver_requirements_keep_the_selected_receiver_owner() {
             {{ other.restricted() }}
         "#
         );
-        let result = crate::lower_typed_trees(typed(&source));
+        let result = crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}: {:?}", result.err());
     }
 }

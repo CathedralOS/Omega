@@ -30,7 +30,11 @@ fn checked_source(source: &str) -> CheckedTrees {
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked")
 }
 
 #[test]
@@ -307,7 +311,11 @@ fn case_membership_rejects_substituted_case_subject_and_erasure() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let membership = |parameter_position, case: &str| {
         CheckedScalarExpression::Boolean(Box::new(
             CheckedBooleanExpression::StructuralCaseMembership {

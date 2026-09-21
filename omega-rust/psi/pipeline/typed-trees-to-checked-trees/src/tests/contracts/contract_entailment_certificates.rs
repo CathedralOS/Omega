@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use checked_trees::{CheckedContractEntailmentAssumptionDischarge, MachineContractCommitment};
@@ -17,7 +18,8 @@ fn checked_with_contracts(requires: &str, ensures: &str) -> checked_trees::Check
         }}
         "#
     );
-    lower_typed_trees(parse_typed_trees(&source)).expect("checked contract fixture")
+    lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect("checked contract fixture")
 }
 
 fn one_certificate(
@@ -186,8 +188,10 @@ fn duplicate_matching_assumptions_choose_lowest_position_deterministically() {
             retained
         }
     "#;
-    let first = lower_typed_trees(parse_typed_trees(source)).expect("first checked fixture");
-    let second = lower_typed_trees(parse_typed_trees(source)).expect("second checked fixture");
+    let first = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("first checked fixture");
+    let second = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("second checked fixture");
     let first_certificate = one_certificate(&first);
     let second_certificate = one_certificate(&second);
     assert_eq!(first_certificate.assumptions().len(), 2);

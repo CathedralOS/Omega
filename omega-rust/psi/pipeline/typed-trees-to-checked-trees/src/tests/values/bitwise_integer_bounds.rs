@@ -1,13 +1,14 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::values::typed_trees;
 
 fn accepts(source: &str) {
-    lower_typed_trees(typed_trees(source))
+    lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn rejects(source: &str, expected: &str) {
-    let diagnostics = match lower_typed_trees(typed_trees(source)) {
+    let diagnostics = match lower_typed_trees(typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => panic!("unsafe integer bitwise bounds were accepted: {source}"),
         Err(diagnostics) => diagnostics,
     };

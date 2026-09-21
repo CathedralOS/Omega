@@ -1,4 +1,5 @@
 use super::specialized_machine;
+use crate::CheckingRequest;
 use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
@@ -48,7 +49,8 @@ fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("higher-order schema should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("higher-order schema should specialize");
 
     for name in ["forward_schema", "identity_schema"] {
         assert!(
@@ -157,7 +159,7 @@ fn generic_body_must_discharge_machine_parameter_preconditions() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("an unconstrained generic body must not assume F's precondition");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("item > 0")
@@ -188,7 +190,7 @@ fn generic_body_can_discharge_machine_parameter_precondition_from_own_contract()
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("the generic body's own requires fact should discharge F's precondition");
 }
 
@@ -213,7 +215,8 @@ fn generic_body_can_discharge_machine_parameter_precondition_from_call_value() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed).expect("the call argument should discharge F's precondition");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("the call argument should discharge F's precondition");
 }
 
 #[test]
@@ -290,7 +293,8 @@ fn static_machine_selection_respects_guarded_crash_ceiling() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("an identical crash route should refine the machine slot");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("an identical crash route should refine the machine slot");
 }
 
 #[test]
@@ -320,7 +324,7 @@ fn generic_body_can_consume_machine_parameter_ensures() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("Establish's authored ensures should discharge Consume's requires");
 }
 
@@ -362,7 +366,8 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
         .map(|state| state.symbol)
         .expect("power entry symbol");
 
-    let checked = lower_typed_trees(typed).expect("static specialization should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("static specialization should check");
     let apply = specialized_machine(&checked, "apply");
     assert!(checked.machine_type_parameters(apply).is_empty());
     assert_eq!(checked.machine_specializations.len(), 1);
@@ -441,7 +446,8 @@ fn free_static_machine_specialization_preserves_authored_target_name() {
         .map(|state| state.symbol)
         .expect("chosen entry symbol");
 
-    let checked = lower_typed_trees(typed).expect("free static selection should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("free static selection should specialize");
     let direct_call = checked
         .expression_table
         .iter_expressions()
@@ -469,7 +475,7 @@ fn static_machine_specialization_identity_is_reproducible() {
         let resolved =
             resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        lower_typed_trees(typed)
+        lower_typed_trees(typed, &CheckingRequest::settled())
             .expect("specialization should check")
             .machine_specializations[0]
             .report_fingerprint
@@ -511,7 +517,8 @@ fn specialization_commitment_replays_and_rejects_compact_equal_substitution() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("specialization should check");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("specialization should check");
     let specialization = &checked.machine_specializations[0];
     assert!(!specialization.commitment.is_zero());
     assert_eq!(
@@ -620,7 +627,7 @@ fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("the borrowed place should select and materialize T := Light");
 
     let specialization = checked
@@ -661,7 +668,8 @@ fn public_visibility_survives_value_type_specialization() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("public specialization should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("public specialization should check");
     let specialization = checked
         .machine_specializations
         .iter()
@@ -729,7 +737,7 @@ fn distinct_static_machine_specializations_clone_the_template() {
     );
     assert_eq!(typed_apply.suspends_keyword_source_spans.len(), 1);
     assert_eq!(typed_apply.blocks_keyword_source_spans.len(), 1);
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("each concrete machine tuple should receive its own specialization");
     let apply_specializations: Vec<_> = checked
         .machine_specializations
@@ -809,7 +817,7 @@ fn attached_machine_specialization_clones_inherited_field_symbols() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("each attached specialization should retain its inherited field coordinates");
 
     let pick = checked
@@ -876,7 +884,7 @@ fn forwarded_generic_calls_specialize_after_their_caller() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("specializing the generic caller should expose its forwarded concrete type");
 
     let specialization_count = |name: &str| {
@@ -919,7 +927,7 @@ fn concrete_specialization_must_satisfy_nominal_conformance_bound() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the Bad specialization has no authored nominal conformance");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -958,7 +966,8 @@ fn bounded_generic_call_specializes_to_concrete_attached_state() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("the nominal bound should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("the nominal bound should specialize");
 
     let step = specialized_machine(&checked, "step");
     assert!(checked.machine_type_parameters(step).is_empty());
@@ -1031,8 +1040,8 @@ fn named_conformance_bound_rejects_a_different_concrete_carrier() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the selected conformance belongs only to Good");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the selected conformance belongs only to Good");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -1064,7 +1073,7 @@ fn named_conformance_bound_rejects_a_name_owned_by_another_carrier() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the package-scoped conformance name still retains its carrier");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -1100,7 +1109,7 @@ fn underivable_generic_statement_calls_reject_instead_of_passing_unspecialized()
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing");
-        let diagnostics = lower_typed_trees(typed)
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
             .expect_err("an underivable generic call must not pass unspecialized");
         assert!(
             diagnostics
@@ -1133,7 +1142,8 @@ fn derivable_generic_statement_calls_still_specialize() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("derivable calls should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("derivable calls should specialize");
     assert_eq!(checked.machine_specializations.len(), 2);
 }
 
@@ -1162,8 +1172,8 @@ fn statement_call_completing_in_a_later_round_still_specializes() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked =
-        lower_typed_trees(typed).expect("a late-completing statement call should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("a late-completing statement call should specialize");
     assert_eq!(checked.machine_specializations.len(), 2);
 }
 
@@ -1190,7 +1200,8 @@ fn explicit_builtin_type_arguments_bind_without_an_ambient_carrier() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("an explicit builtin tuple should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("an explicit builtin tuple should specialize");
     assert_eq!(checked.machine_specializations.len(), 1);
 }
 
@@ -1215,8 +1226,8 @@ fn attached_statement_call_completing_in_a_later_round_still_specializes() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked =
-        lower_typed_trees(typed).expect("a late-completing statement call should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("a late-completing statement call should specialize");
     assert_eq!(checked.machine_specializations.len(), 2);
 }
 
@@ -1252,7 +1263,7 @@ fn attached_generic_self_evidence_specializes_statement_calls() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("self-carried evidence should specialize both statement calls");
     assert_eq!(checked.machine_specializations.len(), 2);
 }

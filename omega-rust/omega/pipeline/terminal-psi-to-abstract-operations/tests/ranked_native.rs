@@ -7,6 +7,7 @@ use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, lower_artifact, lower_artifact_for_native_realization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const COUNTDOWN_SOURCE: &str = r#"
@@ -29,7 +30,7 @@ fn artifact(source: &str) -> (Vec<u8>, Vec<u8>, terminal_psi::TerminalModule) {
     let syntax = parse_syntax_trees(&tokens).expect("parse fixture");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fixture");
-    let checked = lower_typed_trees(typed).expect("check fixture");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check fixture");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::countdown")
         .expect("lower ranked fixture");
     let semantic =

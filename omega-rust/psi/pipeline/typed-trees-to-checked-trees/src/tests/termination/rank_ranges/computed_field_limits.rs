@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -25,8 +26,11 @@ fn computed_field_limits_check_through_ordinary_lowering() {
         "countdown.limit + (1 / 2 * 2)",
         "countdown.limit + (0.5 * 2)",
     ] {
-        lower_typed_trees(typed(&COUNTDOWN.replace("countdown.limit + 1", endpoint)))
-            .expect(endpoint);
+        lower_typed_trees(
+            typed(&COUNTDOWN.replace("countdown.limit + 1", endpoint)),
+            &CheckingRequest::settled(),
+        )
+        .expect(endpoint);
     }
 }
 

@@ -47,7 +47,11 @@ fn mixed_fixture() -> (CheckedTrees, SelectedProviderPlanFacts) {
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     assert_eq!(plans.len(), 2);
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let uses = checked
         .facts
         .operators

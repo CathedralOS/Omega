@@ -21,7 +21,10 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     )?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
 }
 
 /// The toolchain core service declaration, resident so `Service<R>` spellings
@@ -72,7 +75,10 @@ fn check_with_service(
     )?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
 }
 
 // The smallest program that calls the generic TaskRuntime::start boundary

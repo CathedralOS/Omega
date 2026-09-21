@@ -4,6 +4,7 @@ use super::super::{
     TableCall, TraitConformance, TraitDefinition,
 };
 
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
@@ -19,7 +20,7 @@ machine read(candidate: Large, index: u64 [0..=511]) -> u64 {
     candidate.entries[index]
 }
 "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the unrelated 32-element field must not shorten Large.entries");
     let invalid = r#"
 data Large { entries: [u64; 512]; }
@@ -28,7 +29,7 @@ machine read(candidate: Small, index: u64 [0..=511]) -> u64 {
     candidate.entries[index]
 }
 "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(invalid))
+    let diagnostics = lower_typed_trees(parse_typed_trees(invalid), &CheckingRequest::settled())
         .expect_err("the unrelated 512-element field must not enlarge Small.entries");
     assert!(
         diagnostics
@@ -44,7 +45,7 @@ data Fixed { entries: [u64; 512]; }
 data Dynamic { entries: [u64]; }
 machine read(candidate: &Dynamic) -> u64 { candidate.entries[31] }
 "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a slice does not inherit an unrelated fixed array's length");
     assert!(
         diagnostics
@@ -775,8 +776,11 @@ fn boundary_out_param_ensures_discharges_index_bounds() {
             self.buf[self.n] = 7;
         }
     "#;
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("the ensures witness should discharge the index bound");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("the ensures witness should discharge the index bound");
 }
 
 #[test]
@@ -791,8 +795,11 @@ fn boundary_out_param_without_ensures_keeps_index_refusal() {
             self.buf[self.n] = 7;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("without the ensures the index must stay unproven");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("without the ensures the index must stay unproven");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -816,8 +823,11 @@ fn boundary_out_param_ensures_bound_too_wide_keeps_index_refusal() {
             self.buf[self.n] = 7;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("a bound admitting the length itself must stay unproven");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("a bound admitting the length itself must stay unproven");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -845,8 +855,11 @@ fn boundary_ensures_transport_through_transition_arguments() {
             }
         }
     "#;
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("the transported ensures bound should discharge the param index");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("the transported ensures bound should discharge the param index");
 }
 
 #[test]
@@ -871,8 +884,11 @@ fn boundary_ensures_transport_poisoned_by_unbounded_edge() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("an unbounded sibling edge must poison the transported bound");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("an unbounded sibling edge must poison the transported bound");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -900,8 +916,11 @@ fn boundary_ensures_transport_rebind_before_transition_kills_the_fact() {
             }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("the rebound place must lose the transported bound");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("the rebound place must lose the transported bound");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -925,8 +944,11 @@ fn boundary_ensures_witness_discharges_bounded_assignment() {
             self.m = self.n + 1;
         }
     "#;
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("the ensures witness should discharge the bounded assignment");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("the ensures witness should discharge the bounded assignment");
 }
 
 #[test]
@@ -943,8 +965,11 @@ fn boundary_ensures_witness_wide_bounded_assignment_refuses() {
             self.m = self.n + 2;
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect_err("a fold past the target must refuse");
+    let diagnostics = lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("a fold past the target must refuse");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -970,8 +995,11 @@ fn boundary_ensures_witness_survives_unrelated_later_call() {
             self.m = self.n + 1;
         }
     "#;
-    lower_typed_trees(parse_typed_trees_with_service(source))
-        .expect("a disjoint resolved boundary call must preserve the witness");
+    lower_typed_trees(
+        parse_typed_trees_with_service(source),
+        &CheckingRequest::settled(),
+    )
+    .expect("a disjoint resolved boundary call must preserve the witness");
 }
 
 #[test]
@@ -989,7 +1017,7 @@ fn value_vs_value_guard_transfers_the_range_endpoint() {
             state done(&mut self) { }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the transferred endpoint should discharge the index");
 }
 
@@ -1023,7 +1051,7 @@ fn transitive_guard_survives_disjoint_pure_value_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a disjoint pure value-call frame should preserve the transitive index guard");
 }
 
@@ -1058,7 +1086,7 @@ fn transitive_guard_dies_when_value_call_writes_guarded_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an overlapping value-call frame must invalidate the transitive guard");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -1083,7 +1111,7 @@ fn value_vs_value_endpoint_one_past_the_region_refuses() {
             state done(&mut self) { }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an endpoint reaching the length must refuse");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -1121,7 +1149,7 @@ fn indexed_write_through_a_pinned_selector_records_the_selected_element() {
             append_exit(&mut rooms[from_index], 7);
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -1192,7 +1220,9 @@ fn indexed_write_through_an_unproven_or_moved_selector_records_nothing() {
             }}
         "#
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err(body);
         assert!(
             diagnostics
                 .iter()

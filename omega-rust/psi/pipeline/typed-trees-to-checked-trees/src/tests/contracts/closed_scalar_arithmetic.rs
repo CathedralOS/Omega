@@ -4,6 +4,7 @@
 //! non-arithmetic shapes stay outside the closed language.
 
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
@@ -17,7 +18,7 @@ fn ensures_clauses(machine_source: &str) -> Vec<Option<ClosedScalarContractValue
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let machine = checked
         .machines()
         .iter()

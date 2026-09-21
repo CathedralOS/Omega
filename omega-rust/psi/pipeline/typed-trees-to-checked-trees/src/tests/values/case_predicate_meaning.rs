@@ -16,7 +16,7 @@ fn generated_case_equality_checks_single_tag_and_payload_expansions() {
              ChoiceEquatable: Choice satisfies Equatable;
              machine equal(choice: Choice) -> bool {{ {value} }}"
         ));
-        crate::lower_typed_trees(program)
+        crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{value}: {diagnostics:?}"));
     }
 }

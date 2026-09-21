@@ -37,7 +37,11 @@ fn primitive_element_source_rejects_out_of_bounds_and_write_only_observation() {
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            typed_trees_to_checked_trees::lower_typed_trees(typed).is_err(),
+            typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled()
+            )
+            .is_err(),
             "invalid element access must not reach Terminal production"
         );
     }

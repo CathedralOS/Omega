@@ -11,7 +11,8 @@ use checked_trees::{
 fn plan(source: &str) -> Option<CheckedUnitEffectMachinePlan> {
     let mut typed = crate::tests::parse_typed_trees_with_core_service(source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
-    let checked = crate::lower_typed_trees(typed).expect("check");
+    let checked =
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check");
     let machine = checked
         .typed
         .machines()

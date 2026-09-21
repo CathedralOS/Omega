@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use typed_trees::proposition::ProofSubstitutions;
 
@@ -98,7 +99,8 @@ fn outcome_specific_guarantee_reaches_separate_checked_carrier() {
         .expect("Success case");
     let outcome_symbol = outcome.symbol;
     let success_symbol = success.symbol;
-    let checked = lower_typed_trees(typed).expect("check guarded declaration stage");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check guarded declaration stage");
     let mut rows = checked.facts.proof.outcome_specific_guarantees.iter();
     let (_, row) = rows.next().expect("one checked outcome-specific guarantee");
     assert!(
@@ -139,7 +141,8 @@ fn outcome_specific_named_and_unnamed_rows_discharge_on_matching_exit() {
         }
         "#,
     );
-    let checked = lower_typed_trees(typed).expect("matching exit discharges guarded rows");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("matching exit discharges guarded rows");
     let rows = checked
         .facts
         .proof
@@ -169,7 +172,7 @@ fn outcome_specific_named_row_checks_evidence_after_result_substitution() {
         }
         "#,
     );
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("the named source exactly inhabits the concretely substituted guarantee");
 }
 
@@ -189,7 +192,7 @@ fn outcome_specific_named_row_rejects_wrong_substituted_evidence() {
         }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the assigned term must match the concrete qualifying result");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -212,7 +215,8 @@ fn outcome_specific_named_row_is_not_required_on_other_case() {
         { Outcome::Failure }
         "#,
     );
-    lower_typed_trees(typed).expect("nonmatching result has no guarded evidence lane");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("nonmatching result has no guarded evidence lane");
 }
 
 #[test]
@@ -228,8 +232,8 @@ fn outcome_specific_named_row_requires_one_matching_assignment() {
         { Outcome::Success }
         "#,
     );
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("matching result must assign guarded named evidence");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("matching result must assign guarded named evidence");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit"
     )), "unexpected diagnostics: {diagnostics:?}");
@@ -251,7 +255,7 @@ fn outcome_specific_named_row_rejects_assignment_on_other_case() {
         }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("nonmatching result must not assign guarded named evidence");
     assert!(
         diagnostics
@@ -280,7 +284,7 @@ fn outcome_specific_named_row_rejects_duplicate_matching_assignment() {
         }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a guarded output is assigned exactly once on a matching path");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -302,7 +306,8 @@ fn outcome_specific_unnamed_row_substitutes_concrete_result() {
         { Outcome::Success }
         "#,
     );
-    lower_typed_trees(typed).expect("matching fact proves the substituted result proposition");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("matching fact proves the substituted result proposition");
 }
 
 #[test]
@@ -317,7 +322,7 @@ fn outcome_specific_unnamed_row_substitutes_payload_constructor() {
         { Outcome::Success { value: 7 } }
         "#,
     );
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("the full concrete payload constructor participates in result substitution");
 }
 
@@ -332,7 +337,7 @@ fn outcome_specific_unnamed_row_rejects_missing_matching_proof() {
         { Outcome::Success }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("matching result must establish its guarded proposition");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -366,7 +371,7 @@ fn outcome_specific_assignment_must_cover_every_qualifying_join_input() {
         }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("one predecessor cannot establish a guarded term for the whole join");
     assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
         "outcome-specific evidence `selected` is not definitely assigned on the matching ordinary exit through choose::joined"
@@ -400,7 +405,8 @@ fn outcome_specific_assignment_on_all_join_inputs_passes() {
         }
         "#,
     );
-    lower_typed_trees(typed).expect("every qualifying predecessor establishes the guarded term");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("every qualifying predecessor establishes the guarded term");
 }
 
 #[test]
@@ -417,7 +423,8 @@ fn outcome_specific_rows_need_no_lane_on_crash_exit() {
         { crash Abort; }
         "#,
     );
-    lower_typed_trees(typed).expect("a crash exit has no result or guarded proof lane");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("a crash exit has no result or guarded proof lane");
 }
 
 #[test]
@@ -433,7 +440,7 @@ fn outcome_specific_rows_reject_unclassified_dynamic_result() {
         { value }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a dynamic sum result cannot silently count as a nonmatching case");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -465,7 +472,8 @@ fn outcome_specific_selected_term_is_available_in_matching_caller_arm() {
         }
         "#,
     );
-    let checked = lower_typed_trees(typed).expect("selected guarded term should bind in its arm");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("selected guarded term should bind in its arm");
     let arm = checked
         .facts
         .proof
@@ -509,8 +517,8 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
         }
         "#,
     );
-    let checked =
-        lower_typed_trees(typed).expect("saved immutable call should retain its selected term");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("saved immutable call should retain its selected term");
     let arm = checked
         .facts
         .proof
@@ -574,8 +582,9 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
 
 #[test]
 fn outcome_specific_indexed_validity_retains_collection_and_index() {
-    let checked = lower_typed_trees(parse_typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            r#"
         trait Evidence {}
         data Outcome [copy] { case Success; case Failure; }
         proposition accepted(result_value: Outcome, observed: i32) evidence Evidence;
@@ -597,7 +606,9 @@ fn outcome_specific_indexed_validity_retains_collection_and_index() {
             requires needed: accepted(value, items[index]) {}
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("indexed guarded fact should retain both the indexed place and selector value");
     let arm = checked
         .facts
@@ -657,7 +668,7 @@ fn outcome_specific_omitted_named_and_unnamed_rows_are_fact_only_in_matching_arm
         }
         "#,
     );
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("all matching guarded facts should publish without selected terms");
     let arm = checked
         .facts
@@ -707,7 +718,7 @@ fn outcome_specific_validity_invalidates_only_on_referenced_writes() {
             }}
             "#,
         );
-        let checked = lower_typed_trees(parse_typed_trees(&source))
+        let checked = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .expect("guarded evidence should satisfy the target before its write");
         let arm = checked
             .facts
@@ -765,8 +776,9 @@ fn outcome_specific_validity_invalidates_only_on_referenced_writes() {
 
 #[test]
 fn outcome_specific_validity_contexts_do_not_couple_independent_rows() {
-    let checked = lower_typed_trees(parse_typed_trees(
-        r#"
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            r#"
         trait Evidence {}
         data Record { value: i32; other: i32; }
         data Outcome [copy] { case Success; case Failure; }
@@ -803,7 +815,9 @@ fn outcome_specific_validity_contexts_do_not_couple_independent_rows() {
             { target.value = 7; }
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("independent guarded rows should satisfy the target before its write");
     let arm = checked
         .facts
@@ -887,7 +901,8 @@ fn outcome_specific_fact_and_term_do_not_leak_to_sibling_arm() {
         }
         "#,
     );
-    let checked = lower_typed_trees(typed).expect("sibling arm remains independently checkable");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("sibling arm remains independently checkable");
     let arms = checked
         .facts
         .proof
@@ -970,7 +985,7 @@ fn outcome_specific_selected_term_does_not_bind_in_a_sibling_arm() {
         }
         "#,
     );
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a selected term must not enter the sibling arm's proof namespace");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -1016,7 +1031,8 @@ fn outcome_specific_selector_rejects_wrong_case_and_noncall_origin() {
         ),
     ] {
         let typed = parse_typed_trees(source);
-        let diagnostics = lower_typed_trees(typed).expect_err("invalid arm source must reject");
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect_err("invalid arm source must reject");
         assert!(
             diagnostics
                 .iter()
@@ -1058,7 +1074,7 @@ fn outcome_evidence_retains_constructor_payload_values_and_field_associations() 
             {{ selected = incoming; {result} }}
         "#
         ));
-        let result = lower_typed_trees(typed);
+        let result = lower_typed_trees(typed, &CheckingRequest::settled());
         if accepted {
             result.expect("same constructor field values in a different authored order");
         } else {

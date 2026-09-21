@@ -6,6 +6,7 @@ use super::{
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 const NOMINAL_CALLBACK: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }
@@ -360,7 +361,7 @@ fn nominal_linear_callback_result_cannot_be_moved_twice() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         assert!(
-            lower_typed_trees(typed).is_err(),
+            lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
             "moving {consumed} twice must reject"
         );
     }
@@ -615,7 +616,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 #[test]

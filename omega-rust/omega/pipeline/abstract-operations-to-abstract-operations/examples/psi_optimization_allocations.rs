@@ -92,7 +92,11 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check");
     let lowered =
         checked_trees_to_lowered_psi::lower_machine(&checked, "measure").expect("lower measure");
     let semantic =

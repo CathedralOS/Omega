@@ -55,8 +55,11 @@ fn produce_candidate(
     .unwrap_or_else(|error| panic!("resolve scalar cycle: {error:?}\n{source}"));
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|error| panic!("type scalar cycle: {error:?}\n{source}"));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|error| panic!("check scalar cycle: {error:#?}\n{source}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|error| panic!("check scalar cycle: {error:#?}\n{source}"));
     terminal_production::TerminalProductionRequest::new(&checked, entry).produce_artifact()
 }
 

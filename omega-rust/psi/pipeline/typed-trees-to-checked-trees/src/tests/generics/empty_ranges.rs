@@ -1,6 +1,7 @@
 //! Empty declarations do not authorize initialization or value delivery.
 
 use super::typed_source;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 const EMPTY_TYPES: [&str; 8] = [
@@ -19,7 +20,8 @@ fn empty_integer_ranges_are_legal_without_value_establishment() {
     for empty_type in EMPTY_TYPES {
         let source = format!("machine unreachable(value: {empty_type}) {{ }}");
         let typed = typed_source(&source).expect("empty declaration types");
-        lower_typed_trees(typed).expect("declaring an empty parameter creates no value");
+        lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect("declaring an empty parameter creates no value");
     }
 }
 
@@ -37,7 +39,7 @@ fn empty_integer_ranges_reject_calls_stores_returns_and_zero_construction() {
             ),
         ] {
             let typed = typed_source(&source).expect("empty destination source types");
-            let result = lower_typed_trees(typed);
+            let result = lower_typed_trees(typed, &CheckingRequest::settled());
             assert!(
                 result.is_err(),
                 "empty destination accepted a concrete value: {source}"

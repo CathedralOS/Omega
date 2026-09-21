@@ -3,6 +3,7 @@ use super::super::{
     parse_syntax_trees, resolve,
 };
 
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
@@ -105,7 +106,7 @@ fn direct_alias_stores_invalidate_domain_facts_but_rebinding_does_not() {
             invalidates,
             "rebinding invalidates the alias's copied fact, not the owner's fact"
         );
-        let checked = lower_typed_trees(typed);
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled());
         if invalidates {
             let diagnostics = checked.expect_err("referent write must invalidate the domain");
             assert!(
@@ -275,8 +276,8 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
                 .proves_place_domain_membership_in_program(&typed, required_place, required_domain)
         });
 
-    let diagnostics =
-        lower_typed_trees(typed.clone()).expect_err("requires should fail after mutation");
+    let diagnostics = lower_typed_trees(typed.clone(), &CheckingRequest::settled())
+        .expect_err("requires should fail after mutation");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -426,7 +427,8 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
         });
     assert!(!heal_entry_proves);
 
-    let diagnostics = lower_typed_trees(typed).expect_err("requires should fail after mutation");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("requires should fail after mutation");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -565,7 +567,8 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
         });
 
     assert!(heal_entry_proves);
-    lower_typed_trees(typed).expect("disjoint mutation should preserve imported domain fact");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("disjoint mutation should preserve imported domain fact");
 }
 
 #[test]
@@ -763,7 +766,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
         );
     }
 
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("unrelated machine-field mutation should preserve intersection requirements");
 }
 
@@ -873,7 +876,7 @@ fn stores_and_calls_invalidate_domain_facts_copied_to_aliases() {
                 ));
             }
         }
-        match lower_typed_trees(typed) {
+        match lower_typed_trees(typed, &CheckingRequest::settled()) {
             Err(diagnostics)
                 if diagnostics.iter().any(|diagnostic| {
                     diagnostic

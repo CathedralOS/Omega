@@ -4,6 +4,7 @@
 //! carrier resolves through `refines`; the selected conformance's rows are
 //! then checked against the refinement's clauses.
 
+use crate::CheckingRequest;
 use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
@@ -14,7 +15,7 @@ fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnos
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn rejection(source: &str, expectation: &str) -> Vec<String> {

@@ -18,7 +18,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse field RHS source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve field RHS source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type field RHS source");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check field RHS source")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check field RHS source")
 }
 
 fn unsigned(value: u128) -> TerminalScalarValue {
@@ -467,8 +471,11 @@ fn receiver_field_rhs_call_reaches_canonical_terminal() {
     let syntax = parse_syntax_trees(&tokens).expect("parse field RHS call");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve field RHS call");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type field RHS call");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check field RHS call");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check field RHS call");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
         .produce_artifact()
         .expect("call-bearing field RHS must reach canonical Terminal");

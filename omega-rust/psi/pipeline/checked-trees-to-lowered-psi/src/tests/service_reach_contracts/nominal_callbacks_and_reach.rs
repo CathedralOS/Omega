@@ -6,6 +6,7 @@ use crate::tests::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::OperationKind;
+use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn direct_boundary_calls_transfer_both_owned_claims() {
@@ -329,7 +330,7 @@ fn direct_installation_boundary_keeps_its_required_declaration() {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let result = lower_typed_trees(typed);
+        let result = lower_typed_trees(typed, &CheckingRequest::settled());
         if additional_reach.is_empty() {
             let diagnostics =
                 result.expect_err("installation bounds do not waive direct declarations");

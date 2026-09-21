@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::symbol_of_checked;
 
@@ -39,7 +40,8 @@ fn checked_wrappers_publish_authored_and_transitive_service_union() {
     let syntax = parse_syntax_trees(&tokens).expect("parse reach composition");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve reach composition");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type reach composition");
-    let checked = lower_typed_trees(typed).expect("checked wrappers inherit callee reach");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked wrappers inherit callee reach");
     for name in [
         "forward",
         "caller",
@@ -97,8 +99,8 @@ fn private_direct_boundary_calls_require_authored_service_reach() {
     let syntax = parse_syntax_trees(&tokens).expect("parse direct reach");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve direct reach");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type direct reach");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("a private boundary call needs a declaration");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("a private boundary call needs a declaration");
     assert_eq!(
         diagnostics
             .iter()
@@ -151,7 +153,8 @@ fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure
         .find(|machine| machine.name.as_str() == "Main::main")
         .expect("main")
         .symbol;
-    let checked = lower_typed_trees(typed).expect("service ceiling should admit the body");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("service ceiling should admit the body");
 
     let worker_reach = checked
         .facts
@@ -205,7 +208,8 @@ fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("service ceiling must reject widening");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("service ceiling must reject widening");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -233,7 +237,7 @@ fn intrinsic_boundary_projection_preserves_the_callers_service_ceiling() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the intrinsic requirement must not bypass the caller's ceiling");
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -280,7 +284,8 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     };
     let wait = symbol_of("Sleeper::wait");
     let run = symbol_of("Main::run");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     let wait_suspension = checked
         .facts
@@ -400,7 +405,8 @@ fn checked_machine_operational_facts_keep_suspension_and_blocking_independent() 
     };
     let suspend_only = symbol_of("Harness::suspend_only");
     let block_only = symbol_of("Harness::block_only");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     let suspension = |machine| {
         checked
@@ -491,7 +497,8 @@ fn qualification_facts_record_policy_commitments() {
         .semantic_domains
         .lookup("i64::Km")
         .expect("Km interned");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     let clamped = checked
         .facts
@@ -722,7 +729,8 @@ fn contract_plans_fingerprint_published_halves() {
     let direct_self_loop = symbol_of("Main::direct_self_loop");
     let branching = symbol_of("Main::branching");
     let call_bearing = symbol_of("Main::call_bearing");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     let plan = |symbol| {
         checked

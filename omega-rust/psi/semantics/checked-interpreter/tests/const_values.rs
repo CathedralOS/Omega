@@ -7,6 +7,7 @@ use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
 };
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn assert_seven(source: &str) {
@@ -16,7 +17,8 @@ fn assert_seven(source: &str) {
         normalize_generic_data(GenericDataRequest::new(syntax)).expect("canonical const arguments");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("const value symbols");
     let typed = lower_symbol_resolved_trees(&resolved).expect("const value types");
-    let checked = lower_typed_trees(typed).expect("checked const values");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked const values");
     let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
     assert_eq!(outcome.error, None, "{source}");
     assert_eq!(outcome.exit_code, 7, "{source}");

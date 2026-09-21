@@ -3,6 +3,7 @@
 //! place; coverage flows through indexing, element borrows, whole-array calls,
 //! copies, and transitions. A corrupted element or stale alias retires only
 //! that element's facts, so the rejecting call names the retired coordinate.
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -26,7 +27,9 @@ fn check(source: &str, accepted: bool) {
 /// while every call in the body stays accepted: the sibling's coverage was
 /// never disturbed.
 fn check_sibling_coverage_at_calls_and_corruption_at_return(source: &str, place: &str) {
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+    else {
         panic!("a corrupted referent must not be handed back at the return:\n{source}");
     };
     let field_requirements = diagnostics
@@ -48,7 +51,7 @@ fn check_sibling_coverage_at_calls_and_corruption_at_return(source: &str, place:
 }
 
 fn check_rejection(source: &str, accepted: bool, fragment: &str) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(
             accepted,
             "an unproved collection element crossed the boundary:\n{source}"

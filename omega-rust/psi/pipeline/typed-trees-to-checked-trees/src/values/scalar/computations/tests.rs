@@ -135,7 +135,7 @@ fn checked_source(source: &str, combined: bool) -> checked_trees::CheckedTrees {
         typed.machine_states_mut(&machine)[0].statement_nodes =
             arena::HandleSpan::from_parts(state.statement_nodes.start(), 1);
     }
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 

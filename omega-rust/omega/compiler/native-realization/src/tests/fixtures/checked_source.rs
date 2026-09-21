@@ -4,6 +4,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 pub(crate) fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -11,5 +12,5 @@ pub(crate) fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }

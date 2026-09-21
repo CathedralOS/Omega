@@ -72,7 +72,11 @@ fn artifact_for(source: &str, entry: &str) -> terminal_codec::CanonicalTerminalA
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     terminal_production::TerminalProductionRequest::new(&checked, entry)
         .produce_artifact()
         .unwrap()

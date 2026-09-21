@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -27,7 +28,7 @@ fn published_caller_must_cover_every_surviving_call_crash_route() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("the caller's Trap ceiling cannot cover a surviving Abort route");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -55,7 +56,7 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a private published ceiling cannot retain an uncovered direct site");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -82,7 +83,7 @@ fn private_explicit_crash_ceiling_must_cover_every_direct_site() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("covered private ceilings and omitted private ceilings should remain valid");
     assert_eq!(
         checked
@@ -130,7 +131,8 @@ fn checked_crash_calls_select_acyclic_private_body_summaries() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
     let plan = |name: &str| {
         checked
             .facts
@@ -194,7 +196,7 @@ fn private_crash_summaries_compose_guarded_routes_across_nonleaf_calls() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("a published caller should cover a guard retained through private wrappers");
     let plan = |name: &str| {
         checked
@@ -270,7 +272,8 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("requirement crash capsule should lower");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("requirement crash capsule should lower");
     let apply = checked
         .machines()
         .iter()

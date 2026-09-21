@@ -84,7 +84,10 @@ fn a_direct_reference_field_result_keeps_its_source_loan_active() {
             {
                 let checked_source =
                     format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
-                let result = crate::lower_typed_trees(typed_program(&checked_source));
+                let result = crate::lower_typed_trees(
+                    typed_program(&checked_source),
+                    &crate::CheckingRequest::settled(),
+                );
                 if declaration.contains("select(forward_outer(")
                     || declaration.contains("select(forward_array(")
                 {

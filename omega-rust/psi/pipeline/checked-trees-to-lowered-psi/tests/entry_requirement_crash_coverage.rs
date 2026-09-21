@@ -20,6 +20,7 @@ use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalInterpretError, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -69,7 +70,7 @@ fn assert_trap_with_entry_arguments(
     check_module: impl Fn(&terminal_psi::TerminalModule),
 ) {
     let artifact = {
-        let checked = lower_typed_trees(typed(source))
+        let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
@@ -227,7 +228,7 @@ fn integer_field_entry_source(
 }
 
 fn assert_structural_entry_requirement_artifact(source: &str) {
-    let checked = lower_typed_trees(typed(source))
+    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     for contract in &checked.facts.contract_plans.machines {
         for bucket in contract.crash.published() {

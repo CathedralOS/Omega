@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
@@ -16,7 +17,9 @@ fn implicit_unit_exit_cannot_claim_an_unestablished_output_domain() {
             {{ {body} }}
             "#
         );
-        let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&source)) else {
+        let Err(diagnostics) =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        else {
             panic!("Unit body {body:?} cannot establish an unwritten output predicate");
         };
         assert!(
@@ -41,7 +44,7 @@ fn implicit_unit_exit_preserves_an_unchanged_input_domain() {
             {{ {body} }}
             "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{body:?}: {diagnostics:#?}"));
     }
 }
@@ -55,7 +58,7 @@ fn unit_boundary_signature_publishes_its_output_contract_without_a_body() {
             ensures out_line[0] == 0;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a boundary signature publishes a guarantee, not a checked empty body");
 }
 
@@ -77,7 +80,7 @@ fn output_writer_establishes_utf8_without_an_input_text_precondition() {
             read(self.line);
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("whole output replacement establishes text after arbitrary input bytes");
 }
 
@@ -89,7 +92,9 @@ fn output_writer_cannot_claim_utf8_after_writing_invalid_bytes() {
         ensures out_line in Utf8
         { out_line = [255, 0, 0, 0]; }
     "#;
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+    else {
         panic!("removing the input predicate cannot grant an output predicate");
     };
     assert!(
@@ -124,7 +129,7 @@ fn rejects_unproven_exit_ensures_domain_membership() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("exit ensures without a supporting flow fact should fail");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -159,7 +164,7 @@ fn accepts_exit_ensures_preserved_from_entry_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit ensures should be provable from preserved entry facts");
 }
 
@@ -223,7 +228,7 @@ fn rejects_unproven_exit_ensures_boolean_expression() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("exit boolean ensures without a supporting flow fact should fail");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -250,7 +255,7 @@ fn accepts_exit_ensures_preserved_boolean_expression() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit boolean ensures should be provable from preserved entry facts");
 }
 
@@ -284,7 +289,7 @@ fn accepts_exit_ensures_domain_union_when_left_branch_is_proven() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit ensures union should be provable when the left domain branch holds");
 }
 
@@ -314,7 +319,7 @@ fn accepts_exit_ensures_boolean_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit boolean comparison should be provable from a preserved domain fact");
 }
 
@@ -344,7 +349,7 @@ fn accepts_exit_ensures_boolean_union_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit boolean disjunction should be provable from a preserved domain fact");
 }
 
@@ -385,7 +390,7 @@ fn rejects_exit_ensures_boolean_expression_from_domain_fact_after_mutating_call(
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("exit boolean ensures should fail after mutating call");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -432,7 +437,7 @@ fn accepts_exit_ensures_boolean_expression_from_domain_fact_across_disjoint_muta
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit boolean ensures should be preserved across disjoint mutating call");
 }
 
@@ -461,7 +466,7 @@ fn accepts_exit_ensures_fixed_indexed_scalar_member_expression_from_domain_fact(
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "fixed indexed exit boolean requires should be provable from an indexed preserved domain fact",
     );
 }
@@ -504,7 +509,7 @@ fn rejects_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_after_
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("fixed indexed exit boolean ensures should fail after mutating call");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -552,7 +557,7 @@ fn accepts_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_across
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "fixed indexed exit boolean ensures should be preserved across disjoint mutating call",
     );
 }
@@ -583,7 +588,7 @@ fn accepts_exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fac
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "dynamic indexed exit boolean requires should be provable from an indexed preserved domain fact",
     );
 }
@@ -618,7 +623,7 @@ fn accepts_exit_ensures_domain_union_when_right_branch_is_proven() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("exit ensures union should be provable when the right domain branch holds");
 }
 
@@ -650,7 +655,7 @@ fn rejects_unproven_exit_ensures_domain_union() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("exit ensures union should fail when neither domain branch is proven");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -684,7 +689,7 @@ fn accepts_requires_from_local_boolean_alias_transfer() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("boolean requires should be provable from a transferred local alias fact");
 }
 
@@ -722,7 +727,7 @@ fn accepts_requires_domain_union_when_left_branch_is_proven() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("requires union should be provable when the left domain branch holds");
 }
 
@@ -756,7 +761,7 @@ fn accepts_requires_boolean_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("requires boolean comparison should be provable from a preserved domain fact");
 }
 
@@ -790,7 +795,7 @@ fn accepts_requires_boolean_union_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("requires boolean disjunction should be provable from a preserved domain fact");
 }
 
@@ -824,7 +829,7 @@ fn accepts_requires_scalar_member_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "scalar member requires should be provable from an enclosing preserved domain fact",
     );
 }
@@ -858,7 +863,7 @@ fn accepts_requires_fixed_indexed_scalar_member_expression_from_domain_fact() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "fixed indexed scalar member requires should be provable from an indexed preserved domain fact",
     );
 }
@@ -893,7 +898,7 @@ fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() 
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "dynamic indexed scalar member requires should be provable from an indexed preserved domain fact",
     );
 }
@@ -938,7 +943,7 @@ fn rejects_requires_boolean_expression_from_domain_fact_after_mutating_call() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("requires boolean expression should fail after mutating call");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -988,7 +993,7 @@ fn accepts_requires_boolean_expression_from_domain_fact_across_disjoint_mutating
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("requires boolean expression should be preserved across disjoint mutating call");
 }
 
@@ -1010,7 +1015,7 @@ fn snapshot_parameter_equality_transports_through_the_write() {
             self.count = self.count + 1;
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
 
@@ -1030,7 +1035,9 @@ fn snapshot_parameter_equality_does_not_alias_the_written_place() {
             self.count = self.count + 1;
         }
     "#;
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+    else {
         panic!("the exit `self.count` is `before + 1`, not `before`");
     };
     assert!(

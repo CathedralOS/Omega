@@ -23,7 +23,7 @@ fn fixture() -> checked_trees::CheckedTrees {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed).unwrap()
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap()
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     let program = &checked.typed;
     let machine = program
         .machines()
@@ -247,7 +247,7 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     let program = &checked.typed;
     let machine = program
         .machines()

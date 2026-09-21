@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
@@ -207,7 +208,8 @@ fn aggregate_literal_reference_argument_reaches_checked_trees() {
         parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("literal-carried reference reaches the checked callee");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("literal-carried reference reaches the checked callee");
 }
 
 #[test]
@@ -271,7 +273,10 @@ fn mutable_argument_bindings_do_not_grant_reference_access() {
             parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        match (lower_typed_trees(typed), expected_error) {
+        match (
+            lower_typed_trees(typed, &CheckingRequest::settled()),
+            expected_error,
+        ) {
             (Ok(_), None) => {}
             (Err(diagnostics), Some(expected)) => assert!(
                 format!("{diagnostics:?}").contains(expected),

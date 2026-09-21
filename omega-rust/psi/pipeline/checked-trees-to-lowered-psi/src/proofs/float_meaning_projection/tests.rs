@@ -1048,7 +1048,11 @@ fn checked_semantic_fixture(source: &str) -> checked_trees::CheckedTrees {
     })
     .expect("resolve semantic fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type semantic fixture");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check semantic fixture")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check semantic fixture")
 }
 
 #[test]
@@ -1158,5 +1162,9 @@ fn checked_float_fixture(source: &str) -> checked_trees::CheckedTrees {
     })
     .expect("resolve projection fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type projection fixture");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check projection fixture")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check projection fixture")
 }

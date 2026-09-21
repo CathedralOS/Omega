@@ -211,7 +211,7 @@ fn collecting_float_pattern_operators_does_not_manufacture_source_expressions() 
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let count = typed.expression_table.expression_nodes().count();
-    let checked = crate::lower_typed_trees(typed).unwrap();
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
     assert_eq!(
         checked.typed.expression_table.expression_nodes().count(),
         count

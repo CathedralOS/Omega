@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use crate::tests::parse_typed_trees_with_core_service;
@@ -7,7 +8,7 @@ const PUB_DATA: &str = "pub data Message { case Empty; case Data(value: u8); }";
 
 fn check(machine: &str, accepted: bool) {
     let source = format!("{DATA}\n{machine}");
-    match lower_typed_trees(parse_typed_trees(&source)) {
+    match lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved result membership accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -30,7 +31,7 @@ fn lower_service_source(
 ) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let mut typed = parse_typed_trees_with_core_service(source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 #[test]
@@ -146,7 +147,7 @@ fn result_case_membership_rejects_a_foreign_nominal_classifier() {
     let source = format!(
         "{DATA} data Other {{ case Empty; case Data(value: u8); }} machine make() -> Message ensures result in Other::Data; {{ Message::Data {{ value: 1 }} }}"
     );
-    assert!(lower_typed_trees(parse_typed_trees(&source)).is_err());
+    assert!(lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).is_err());
 }
 
 #[test]

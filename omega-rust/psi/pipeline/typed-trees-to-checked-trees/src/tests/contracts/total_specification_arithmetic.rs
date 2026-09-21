@@ -1,8 +1,9 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
 }
 
 #[test]

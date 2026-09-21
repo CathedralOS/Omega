@@ -11,6 +11,7 @@ use terminal_interpreter::{
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[derive(Clone, Copy)]
@@ -415,7 +416,8 @@ fn checked_source(source: &str, form: BranchForm) -> checked_trees::CheckedTrees
                 arena::HandleSpan::from_parts(nodes.start(), nodes.count() - 1);
         }
     }
-    lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn encoded(source: &str, form: BranchForm) -> (Vec<u8>, Vec<u8>) {

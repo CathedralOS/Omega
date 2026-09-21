@@ -50,7 +50,11 @@ fn local_receiver_scalar_and_fresh_case_keep_argument_identity_and_once_only_eff
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap();
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::main")
             .produce_artifact()
             .expect("mixed call establishes its fresh case before borrowing the local receiver");
@@ -182,7 +186,11 @@ fn scalar_return_helper_reads_its_established_local_record_across_fuel() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let helper = checked
         .machines()
         .iter()
@@ -277,7 +285,11 @@ fn nested_record_constructor_and_mutable_receiver_publish_verified_terminal() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "observe")
         .produce_artifact()
         .expect("nested record observer retains its checked transitive body");
@@ -309,7 +321,11 @@ fn owned_record_children_reuse_parameter_and_local_places() {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap();
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "wrap")
             .produce_artifact()
             .unwrap_or_else(|error| panic!("{body}: {error:?}"));

@@ -7,6 +7,7 @@ use super::{
     parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -45,7 +46,8 @@ fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve affine-cast-affine source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type affine-cast-affine source");
-    let checked = lower_typed_trees(typed).expect("check affine-cast-affine source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check affine-cast-affine source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
         .expect("affine-cast-affine source lowers");
     let entry = lowered

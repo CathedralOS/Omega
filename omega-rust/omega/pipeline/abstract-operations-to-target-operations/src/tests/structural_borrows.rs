@@ -19,6 +19,7 @@ use target_operations::{TargetOperationPlan, TargetStructuralArgument, TargetUni
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperationPlan {
@@ -26,7 +27,7 @@ pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperatio
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal =
         checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run").expect("lower source");
     lower_artifact(

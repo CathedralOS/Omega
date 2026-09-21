@@ -21,6 +21,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -35,7 +36,7 @@ fn direct_boolean_member_crash_route_survives_source_call_codec_and_interpretati
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("direct Boolean member crash route lowers");
 
@@ -112,7 +113,7 @@ fn verifier_rejects_unknown_direct_boolean_member_identity() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("direct Boolean member crash route lowers");
     let wrong_field = StructuralFieldId::new(u64::MAX).expect("nonzero field");
@@ -162,7 +163,7 @@ fn nested_boolean_member_path_survives_source_call_codec_verification_interpreta
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("nested Boolean member crash route lowers");
 
@@ -300,7 +301,7 @@ fn projected_structural_argument_prefix_rebases_member_crash_routes_end_to_end()
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("projected structural member crash route lowers");
 
@@ -471,7 +472,7 @@ fn composed_boolean_member_predicate_rebases_every_path_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("composed Boolean member crash route lowers");
 
@@ -682,7 +683,7 @@ fn integer_member_comparisons_rebase_and_validate_exact_leaf_types_end_to_end() 
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("integer member crash comparisons lower");
 

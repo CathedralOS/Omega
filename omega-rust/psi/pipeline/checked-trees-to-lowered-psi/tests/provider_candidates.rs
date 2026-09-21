@@ -11,6 +11,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
@@ -124,7 +125,7 @@ fn invalid_unit_provider_plan_names_the_exact_candidate() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let baseline = lower_typed_trees(typed).expect("check");
+    let baseline = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     for candidate in ["FirstProvider::emit", "SecondProvider::emit"] {
         let symbol = baseline
             .machines()
@@ -159,7 +160,7 @@ fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewr
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("zero-argument Unit provider catalog lowers");
 
@@ -236,7 +237,7 @@ fn checked_unit_provider_candidates_retain_linear_qualified_structural_inputs() 
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("structural Unit provider catalog lowers");
 
@@ -328,7 +329,7 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("structural provider artifact lowers");
     let [candidate] = lowered.semantic_module.provider_candidates.as_slice() else {
@@ -401,7 +402,7 @@ fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_cl
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
         "ProgramLocalProducer::handoff",

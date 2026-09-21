@@ -5,6 +5,7 @@ use super::{
 };
 use crate::machine_lowering::machine_dispatch::select_terminal_machine;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees_to_checked_trees::CheckingRequest;
 
 const REACHABLE_PROOF_SCC: &str = r#"
     data ProofTree {
@@ -422,5 +423,5 @@ fn checked_managed_source(source: &str) -> CheckedTrees {
     })
     .expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }

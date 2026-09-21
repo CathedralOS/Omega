@@ -315,7 +315,8 @@ fn rejection(source: &str) -> Vec<diagnostics::Diagnostic> {
     .expect("resolve negative fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type negative fixture before checking borrow compatibility");
-    let Err(diagnostics) = crate::lower_typed_trees(typed) else {
+    let Err(diagnostics) = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+    else {
         panic!("these boundaries cannot license mutable adjacency: {source}");
     };
     diagnostics

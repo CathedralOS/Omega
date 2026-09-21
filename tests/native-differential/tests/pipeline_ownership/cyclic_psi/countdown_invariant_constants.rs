@@ -12,6 +12,7 @@ use abstract_operations_to_abstract_operations::{
 };
 use optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId};
+use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn source_countdown_yields_exact_certificate_owned_zero_and_one() {
@@ -230,7 +231,8 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
     let syntax = parse_syntax_trees(&tokens).expect("parse acyclic unit");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve acyclic unit");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type acyclic unit");
-    let checked = lower_typed_trees(typed).expect("check acyclic unit");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check acyclic unit");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::once")
         .expect("lower acyclic unit");
     let semantic =

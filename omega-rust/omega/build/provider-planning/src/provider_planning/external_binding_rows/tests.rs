@@ -445,8 +445,11 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
     .expect("resolve top-level external ABI fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type top-level external ABI fixture");
-    typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
-        .expect("check exact top-level external satisfier");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed.clone(),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check exact top-level external satisfier");
     let plans = crate::provider_planning::derive_satisfies_plans(
         &typed,
         ProviderPlanDerivation::unevaluated(Some("linux_x86_64")),

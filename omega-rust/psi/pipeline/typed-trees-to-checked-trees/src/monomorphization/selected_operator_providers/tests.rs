@@ -30,8 +30,11 @@ fn typed(source: &str) -> TypedTrees {
 #[test]
 fn empty_selection_does_not_prepare_or_copy_provider_trees() {
     WORK.set((0, 0));
-    crate::lower_typed_trees(typed("machine identity(value: i32) -> i32 { value }"))
-        .expect("ordinary checking");
+    crate::lower_typed_trees(
+        typed("machine identity(value: i32) -> i32 { value }"),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("ordinary checking");
     assert_eq!(WORK.get(), (0, 0));
 }
 
@@ -58,11 +61,9 @@ fn distinct_const_tuples_share_a_copy_and_converged_demand_copies_nothing() {
             .symbol,
     }];
     WORK.set((0, 0));
-    let checked = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let checked = crate::lower_typed_trees(
         program,
-        &selected,
-        &[],
-        &[],
+        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
     )
     .expect("two const tuples");
     assert_eq!(WORK.get(), (1, 1));
@@ -129,11 +130,9 @@ fn nested_providers_prepare_once_and_copy_only_new_demand() {
         )
         .collect::<Vec<_>>();
     WORK.set((0, 0));
-    let checked = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let checked = crate::lower_typed_trees(
         program.clone(),
-        &selected,
-        &[],
-        &[],
+        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
     )
     .expect("fixed point");
     assert_eq!(
@@ -163,11 +162,9 @@ fn nested_providers_prepare_once_and_copy_only_new_demand() {
             .expect("retained template");
         assert_eq!(checked.machine_type_parameters(template).len(), 1);
     }
-    let repeated = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let repeated = crate::lower_typed_trees(
         program,
-        &selected,
-        &[],
-        &[],
+        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
     )
     .expect("independent checking");
     assert_eq!(

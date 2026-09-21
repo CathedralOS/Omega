@@ -333,11 +333,15 @@ fn explicit_self_edges_cannot_publish_termination_guarantees() {
         Some(language_semantics::TerminationGuarantee::NoGuarantee),
         "compile-time consumers must not infer acyclic termination for self loops"
     );
-    super::super::lower_typed_trees(program)
+    super::super::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect("a productive loop without a termination promise remains valid");
     let caller = format!("{unannotated} machine caller() terminates; {{ spin(); }}");
     assert!(
-        super::super::lower_typed_trees(super::super::typed(&caller)).is_err(),
+        super::super::lower_typed_trees(
+            super::super::typed(&caller),
+            &crate::CheckingRequest::settled()
+        )
+        .is_err(),
         "a terminating caller cannot inherit a false guarantee from a self loop"
     );
 }
@@ -374,7 +378,13 @@ fn explicit_self_occurrences_cannot_hide_beside_descending_edges() {
             }),
             "{source}\n{diagnostics:#?}"
         );
-        assert!(super::super::lower_typed_trees(super::super::typed(source)).is_err());
+        assert!(
+            super::super::lower_typed_trees(
+                super::super::typed(source),
+                &crate::CheckingRequest::settled()
+            )
+            .is_err()
+        );
     }
 }
 

@@ -1,4 +1,5 @@
 use super::typed_source;
+use crate::CheckingRequest;
 use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
@@ -23,7 +24,7 @@ fn specialization_identity_ignores_selected_machine_body_edits() {
         let resolved =
             resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        lower_typed_trees(typed)
+        lower_typed_trees(typed, &CheckingRequest::settled())
             .expect("specialization should check")
             .machine_specializations[0]
             .report_fingerprint
@@ -480,7 +481,8 @@ fn consuming_seq_map_specializes_recursive_machine_parameter_calls() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("consuming Seq map should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("consuming Seq map should specialize");
 
     let map_instances: Vec<_> = checked
         .machine_specializations
@@ -528,7 +530,8 @@ fn unused_recursive_generic_value_template_is_not_emitted_or_fenced() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("unused generic template should remain legal");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("unused generic template should remain legal");
     let map = checked
         .machines()
         .iter()
@@ -558,7 +561,8 @@ fn const_generic_template_is_not_consumed_by_machine_specialization() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("const-generic template should validate");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("const-generic template should validate");
     let retag = checked
         .machines()
         .iter()
@@ -654,7 +658,8 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
             "Quantity<integer:u64:2>"
         ]
     );
-    let checked = lower_typed_trees(typed).expect("const result indices should specialize");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("const result indices should specialize");
 
     let retag = checked
         .machines()
@@ -760,7 +765,8 @@ fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed).expect("contract schemas should remain generic");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("contract schemas should remain generic");
 
     let equivalent = checked
         .machines()
@@ -788,7 +794,7 @@ fn generic_member_borrows_use_the_receivers_exact_type_arguments() {
         "#
         );
         let typed = typed_source(&source).expect("generic member source types");
-        let result = lower_typed_trees(typed);
+        let result = lower_typed_trees(typed, &CheckingRequest::settled());
         assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
     }
 }
@@ -838,5 +844,6 @@ fn consuming_seq_filter_borrows_each_value_before_preserving_or_dropping_it() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed).expect("consuming Seq filter should specialize");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("consuming Seq filter should specialize");
 }

@@ -33,8 +33,11 @@ pub fn checked(source: &str) -> CheckedTrees {
     .expect("resolve scalar locals with source/debug custody");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type scalar locals");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|diagnostics| panic!("check scalar locals: {diagnostics:#?}\n{source}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("check scalar locals: {diagnostics:#?}\n{source}"))
 }
 
 pub fn unsigned(value: u128) -> TerminalScalarValue {

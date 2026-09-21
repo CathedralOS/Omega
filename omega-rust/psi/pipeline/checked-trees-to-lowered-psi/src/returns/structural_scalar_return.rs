@@ -1033,6 +1033,7 @@ mod trait_operator_tests {
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
+    use typed_trees_to_checked_trees::CheckingRequest;
     use typed_trees_to_checked_trees::lower_typed_trees;
 
     #[test]
@@ -1065,7 +1066,7 @@ mod trait_operator_tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed).expect("check");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
         let [plan] = checked
             .facts
             .flow

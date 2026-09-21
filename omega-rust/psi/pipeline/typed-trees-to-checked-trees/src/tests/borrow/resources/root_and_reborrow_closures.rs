@@ -5,6 +5,7 @@ use super::{
     mutable_parent_two_shared_children_restored_use, reborrow_access_source, symbolic_adjacency,
     try_lower,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -334,7 +335,8 @@ fn projected_self_write_only_local_retains_direct_root_resource() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve fenced write-only local");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type fenced write-only local");
-    let checked = lower_typed_trees(typed).expect("exact self field capture is non-observing");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("exact self field capture is non-observing");
     assert!(
         checked
             .facts

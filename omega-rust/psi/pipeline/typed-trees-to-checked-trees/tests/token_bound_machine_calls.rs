@@ -19,7 +19,10 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     )?;
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
 }
 
 const WRAPPED_ADD: &str = "data Wrapped { value: u8; }

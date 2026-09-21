@@ -294,8 +294,11 @@ fn a_reference_field_cannot_enter_the_owned_temporary_initializer_route() {
     let source = "data View { reference: &u64; }
         machine forward(value: View) -> View { value }
         machine Main::caller(value: View) { let result: View = forward(forward(value)); }";
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed(source))
-        .expect_err("stored references need a loan-bearing temporary plan");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("stored references need a loan-bearing temporary plan");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

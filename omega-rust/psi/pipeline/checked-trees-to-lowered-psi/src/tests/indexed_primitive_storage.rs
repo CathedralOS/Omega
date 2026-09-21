@@ -7,6 +7,7 @@ use checked_trees::{
 };
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{OperationKind, StructuralPathSegment};
+use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
     let source = r#"
@@ -47,7 +48,7 @@ fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            lower_typed_trees(typed).is_err(),
+            lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
             "invalid primitive access: {source}"
         );
     }

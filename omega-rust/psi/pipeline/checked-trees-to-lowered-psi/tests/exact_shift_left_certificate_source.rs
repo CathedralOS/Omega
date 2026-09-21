@@ -6,6 +6,7 @@ use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
@@ -29,7 +30,8 @@ fn bounded_exact_left_shift_uses_only_its_canonical_certificate() {
     let syntax = parse_syntax_trees(&tokens).expect("parse exact left shift");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve exact left shift");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type exact left shift");
-    let checked = lower_typed_trees(typed).expect("check exact left shift");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check exact left shift");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("bounded exact left shift lowers with a producer certificate");
 

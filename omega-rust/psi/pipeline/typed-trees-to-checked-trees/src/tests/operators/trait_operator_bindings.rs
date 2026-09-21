@@ -1,4 +1,5 @@
 use super::checked_program_from_source;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -228,7 +229,8 @@ fn trait_operator_use_rejects_multiple_selected_conformance_binders() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("two selected binders are ambiguous");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("two selected binders are ambiguous");
     let message = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -263,7 +265,8 @@ fn visible_conformance_does_not_supply_an_unbound_trait_operator() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("visible conformance is not authority");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("visible conformance is not authority");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains("no such operator is declared")
@@ -283,7 +286,8 @@ fn trait_operator_bindings_are_unique_per_normalized_operand_telescope() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("duplicate trait token must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("duplicate trait token must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

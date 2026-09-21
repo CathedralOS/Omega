@@ -32,7 +32,7 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = crate::lower_typed_trees(typed).unwrap();
+        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
         let program = &checked.typed;
         let nominal = program.domain_definitions()[0].semantic_id;
         assert_ne!(nominal, identity);

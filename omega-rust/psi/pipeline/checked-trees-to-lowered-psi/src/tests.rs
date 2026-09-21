@@ -75,6 +75,7 @@ use terminal_psi::{TerminalMachineResult, TerminalModule};
 use tokens_to_syntax_trees::{
     parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
 };
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn checked_source(source: &str) -> checked_trees::CheckedTrees {
@@ -82,7 +83,7 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 /// The toolchain core service declaration, resident so raw-pipeline fixtures
@@ -145,7 +146,7 @@ fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees
     typed
         .bind_fused_service_erasures(authorizations)
         .expect("fixture boundary traits admit fused service authorizations");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn checked_scalar_suspension_fixture() -> checked_trees::CheckedTrees {
@@ -350,7 +351,7 @@ fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees 
     })
     .expect("resolve source-aware fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn reborrow_source(child_access: &str) -> checked_trees::CheckedTrees {
@@ -520,7 +521,7 @@ fn checked_write_line_literal() -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn assert_source_direct_float_result(primitive: &str, projection: &str, format: IeeeFloatFormat) {

@@ -50,7 +50,11 @@ fn checked_source(source: &str) -> CheckedTrees {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check selected array locals")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check selected array locals")
 }
 
 fn reject(checked: &CheckedTrees, mutation: &str) {

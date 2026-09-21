@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = r#"
 machine walk(remaining: u32 [0..=5])
@@ -17,7 +18,7 @@ terminates by remaining in 0..=5;
 fn prove(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 

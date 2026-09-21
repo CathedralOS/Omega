@@ -1,4 +1,5 @@
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
@@ -20,7 +21,7 @@ fn receiver_result_bounds_reach_guarded_subordinate_state_requirements() {
              state consume(&self, width: u64, alignment_size: u64) -> u64
              requires alignment_size >= 1 && alignment_size <= 8 { width / alignment_size }
          }";
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
 }
 
@@ -36,7 +37,7 @@ fn receiver_result_bounds_reach_subordinate_state_requirements() {
         ),
     ] {
         let source = receiver_bound_source(binding, statements, argument);
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
     }
 }
@@ -55,8 +56,9 @@ fn receiver_result_bounds_do_not_survive_substitution_or_overwrite() {
         ("alignment.size()", "", "9"),
     ] {
         let source = receiver_bound_source(binding, statements, argument);
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("a different or overwritten value has no getter guarantee");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("a different or overwritten value has no getter guarantee");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -71,8 +73,9 @@ fn receiver_result_bounds_require_a_valid_getter_body() {
     for invalid_result in ["0", "9"] {
         let source = receiver_bound_source("alignment.size()", "", "width")
             .replace("<= 8 { 4 }", &format!("<= 8 {{ {invalid_result} }}"));
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("using a getter guarantee does not discharge its body obligation");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("using a getter guarantee does not discharge its body obligation");
         assert!(
             diagnostics
                 .iter()
@@ -195,7 +198,7 @@ fn boundary_result_guarantees_preserve_input_write_ceilings() {
 }
 
 fn check(source: &str, accepted: bool) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved caller requirement accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");
@@ -548,7 +551,10 @@ fn embedded_call_guarantees_preserve_sibling_operand_order() {
              machine use_result() {{ let mut current: Count = make();
                  let pair: Pair = Pair {{ first: {first}, second: {second} }}; }}"
         );
-        let result = crate::lower_typed_trees(super::parse_typed_trees(&source));
+        let result = crate::lower_typed_trees(
+            super::parse_typed_trees(&source),
+            &crate::CheckingRequest::settled(),
+        );
         assert_eq!(result.is_ok(), accepted, "{result:#?}\n{source}");
     }
 }

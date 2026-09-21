@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::typed_trees;
+use crate::CheckingRequest;
 
 #[test]
 fn explicit_unit_locals_reject_value_initializers() {
@@ -26,7 +27,7 @@ fn explicit_unit_locals_reject_value_initializers() {
                 0
             }}"
         );
-        let diagnostics = lower_typed_trees(typed_trees(&source))
+        let diagnostics = lower_typed_trees(typed_trees(&source), &CheckingRequest::settled())
             .err()
             .unwrap_or_else(|| panic!("Unit must not store {initializer}"));
         assert!(
@@ -51,7 +52,7 @@ fn unit_calls_and_explicit_result_discard_remain_valid() {
         "machine value() -> u64 { 7 } machine main() { _ = value(); }",
         "machine main() { let unused: (); }",
     ] {
-        lower_typed_trees(typed_trees(source))
+        lower_typed_trees(typed_trees(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
@@ -80,5 +81,6 @@ fn destructuring_retains_generated_unit_inference_sentinels() {
         inferred_unit,
         "the generated marker retains its untyped origin"
     );
-    lower_typed_trees(typed).expect("generated inference markers are not authored Unit stores");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("generated inference markers are not authored Unit stores");
 }

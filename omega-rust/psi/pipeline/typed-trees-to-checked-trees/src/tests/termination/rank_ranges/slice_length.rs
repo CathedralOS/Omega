@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const WALK: &str = r#"
 data Entry { value: u32; }
@@ -14,7 +15,7 @@ terminates by entries -> Slice::Length in 0..=capacity;
 "#;
 
 fn prove(source: &str) {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 

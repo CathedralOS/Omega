@@ -67,8 +67,11 @@ fn lowered_module(
     .unwrap_or_else(|error| panic!("resolve {label}: {error:?}"));
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     (lowered.semantic_module, lowered.proof_bundle)

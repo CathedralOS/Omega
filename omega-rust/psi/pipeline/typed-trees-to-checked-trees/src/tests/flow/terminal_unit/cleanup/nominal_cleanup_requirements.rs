@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::flow::terminal_unit::{
     BindingRelevance, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, Lexer,
@@ -42,7 +43,8 @@ fn nominal_cleanup_uses_exact_attached_symbol_when_spelling_is_spoofed() {
         .expect("mutable Second cleanup")
         .attached_data = Some(typed_trees::name::Identifier::generated("First"));
 
-    let checked = lower_typed_trees(typed).expect("exact identity survives diagnostic spoofing");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("exact identity survives diagnostic spoofing");
     let plan = checked
         .facts
         .flow

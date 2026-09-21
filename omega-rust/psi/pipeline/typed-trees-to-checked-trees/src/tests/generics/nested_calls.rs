@@ -1,9 +1,11 @@
 use super::typed_source;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn rejects(source: &str, fragment: &str) {
     let typed = typed_source(source).expect("nested generic call types");
-    let diagnostics = lower_typed_trees(typed).expect_err("invalid generic call must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("invalid generic call must reject");
     assert!(
         diagnostics
             .iter()
@@ -27,8 +29,11 @@ fn nested_calls_infer_from_arguments_without_a_direct_result_annotation() {
                  {expression}
              }}"
         );
-        lower_typed_trees(typed_source(&source).expect("nested generic expression types"))
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        lower_typed_trees(
+            typed_source(&source).expect("nested generic expression types"),
+            &CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     }
 }
 
@@ -41,8 +46,11 @@ fn generic_selector_infers_a_borrowed_field_type() {
             let view: &[i32] = items[..self.endpoint(&self.marker)];
             view.len
         }";
-    lower_typed_trees(typed_source(source).expect("borrowed field selector types"))
-        .expect("field type supplies the nested call's generic argument");
+    lower_typed_trees(
+        typed_source(source).expect("borrowed field selector types"),
+        &CheckingRequest::settled(),
+    )
+    .expect("field type supplies the nested call's generic argument");
 }
 
 #[test]
@@ -60,8 +68,11 @@ fn nested_generic_selector_waits_for_its_callers_concrete_witness() {
             let second: u64 = window(&items, &triple);
             second
         }";
-    lower_typed_trees(typed_source(source).expect("forwarded generic selector types"))
-        .expect("specializing callers exposes each concrete nested tuple");
+    lower_typed_trees(
+        typed_source(source).expect("forwarded generic selector types"),
+        &CheckingRequest::settled(),
+    )
+    .expect("specializing callers exposes each concrete nested tuple");
 }
 
 #[test]

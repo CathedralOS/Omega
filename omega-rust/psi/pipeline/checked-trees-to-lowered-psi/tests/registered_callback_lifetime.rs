@@ -18,6 +18,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::program_local_root_introduction_compatibility_report_identity;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 /// The authored callback-registration contract: `Registration` is the linear
@@ -66,7 +67,7 @@ fn lowered() -> lowered_psi::LoweredPsi {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     lower_machine(&checked, "Customer::run").expect("lower registration program")
 }
 
@@ -357,7 +358,7 @@ fn interpreted_register_unregister_round_trip_drives_the_ledger() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
     let module = &lowered.semantic_module;
     let register_boundary = module
@@ -499,7 +500,7 @@ fn installed_registered_provider_mints_and_settles_the_live_claim() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let mut lowered =
         lower_machine(&checked, "Customer::run").expect("installed registration program lowers");
     let module = &mut lowered.semantic_module;
@@ -855,7 +856,7 @@ fn sum_reply_case_payload_authorizes_the_routed_domain() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("sum reply customer checks");
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("sum reply customer checks");
 }
 
 /// A boundary machine that returns the same `Reply` but is not named by the
@@ -875,7 +876,8 @@ fn non_route_requirement_cannot_mint_the_case_payload_domain() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("mint is not a route");
+    let diagnostics =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect_err("mint is not a route");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -904,7 +906,8 @@ fn unqualified_case_payload_cannot_serve_the_qualified_state() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("unqualified payload must fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("unqualified payload must fail");
     assert!(
         diagnostics
             .iter()

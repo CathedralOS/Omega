@@ -44,7 +44,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -513,8 +517,11 @@ fn one_selected_edge_cannot_transfer_the_same_affine_local_twice() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("one selected edge cannot duplicate affine ownership");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("one selected edge cannot duplicate affine ownership");
     assert!(
         diagnostics
             .iter()

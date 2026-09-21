@@ -197,7 +197,10 @@ fn source_rejects_record_rebinding_and_invalid_bounds() {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        assert!(crate::lower_typed_trees(typed).is_err(), "{source}");
+        assert!(
+            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).is_err(),
+            "{source}"
+        );
     }
 }
 
@@ -257,7 +260,7 @@ fn check_source(source: &str) -> checked_trees::CheckedTrees {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 

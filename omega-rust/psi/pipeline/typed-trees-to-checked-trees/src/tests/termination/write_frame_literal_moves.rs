@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -346,7 +347,8 @@ fn immediate_literal_moves_preserve_expression_call_frames() {
         visible.dedup();
         assert_eq!(visible, ["self.value"]);
     }
-    lower_typed_trees(program).expect("expression literal move preserves its access route");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("expression literal move preserves its access route");
 }
 
 #[test]
@@ -357,8 +359,11 @@ fn immediate_literal_moves_reach_checked_trees() {
         "write_outer(Outer { inner: input });",
         "write_outer(Outer { inner: outer.inner });",
     ] {
-        lower_typed_trees(literal_move_program(body, "u64"))
-            .expect("literal move reaches checked trees");
+        lower_typed_trees(
+            literal_move_program(body, "u64"),
+            &CheckingRequest::settled(),
+        )
+        .expect("literal move reaches checked trees");
     }
 }
 
@@ -572,7 +577,8 @@ fn immediate_literal_move_composes_owned_suffix_below_reference_leaf() {
             .collect();
         assert_eq!(paths, vec!["self.cell.value"]);
     }
-    lower_typed_trees(program).expect("owned reference suffix reaches checked trees");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("owned reference suffix reaches checked trees");
 }
 
 #[test]
@@ -636,7 +642,8 @@ fn immediate_literal_moves_preserve_complete_empty_owned_and_shared_frames() {
         ] {
             assert_eq!(paths, Some(Vec::new()), "{name} {query}");
         }
-        lower_typed_trees(program).expect("zero-leaf literal move reaches checked trees");
+        lower_typed_trees(program, &CheckingRequest::settled())
+            .expect("zero-leaf literal move reaches checked trees");
     }
 }
 
@@ -718,5 +725,6 @@ fn immediate_literal_moves_preserve_acyclic_named_transition_origins() {
             "transition literal must expand its moved local before private-root filtering"
         );
     }
-    lower_typed_trees(program).expect("transition literal move reaches checked trees");
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .expect("transition literal move reaches checked trees");
 }

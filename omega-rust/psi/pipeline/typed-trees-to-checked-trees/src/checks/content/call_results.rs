@@ -914,7 +914,8 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve replay fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type replay fixture");
-        let checked = crate::lower_typed_trees(typed).expect("check original replay fixture");
+        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect("check original replay fixture");
         assert_replay(&checked, true);
         checked
     }
@@ -1072,7 +1073,8 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve issuance fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type issuance fixture");
-        let checked = crate::lower_typed_trees(typed).expect("check issuance fixture");
+        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect("check issuance fixture");
         assert_replay(&checked, true);
         checked
     }
@@ -1181,7 +1183,7 @@ mod tests {
             resolve(ResolutionRequest::new(&syntax)).expect("resolve sibling-route fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type sibling-route fixture");
-        let error = crate::lower_typed_trees(typed)
+        let error = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
             .expect_err("an unnamed sibling requirement cannot mint the routed domain");
         assert!(
             error.iter().any(|diagnostic| diagnostic
@@ -1222,7 +1224,7 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve launder fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type launder fixture");
-        let error = crate::lower_typed_trees(typed)
+        let error = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
             .expect_err("transferred input must not mint fresh supply");
         assert!(
             error.iter().any(|diagnostic| diagnostic
@@ -1266,7 +1268,7 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve relay fixture");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type relay fixture");
-        crate::lower_typed_trees(typed)
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
             .expect("declared forwarding stays admissible through the transfer route");
     }
 
@@ -1298,7 +1300,7 @@ mod tests {
             let typed =
                 symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                     .expect("type authority control");
-            crate::lower_typed_trees(typed)
+            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         };
         let authorized = source
             .replace("provider: &Other", "provider: &Allowed")

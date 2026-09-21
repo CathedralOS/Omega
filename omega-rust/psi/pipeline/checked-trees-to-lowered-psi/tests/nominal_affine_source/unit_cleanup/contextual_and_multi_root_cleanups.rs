@@ -14,6 +14,7 @@ use crate::nominal_affine_source::{
     parse_syntax_trees, resolve,
 };
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
@@ -21,7 +22,7 @@ fn empty_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("empty nominal cleanup lowers");
 
@@ -90,7 +91,8 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
     let syntax = parse_syntax_trees(&tokens).expect("parse contextual cleanup");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual cleanup");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type contextual cleanup source");
-    let checked = lower_typed_trees(typed).expect("check contextual cleanup source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check contextual cleanup source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("contextual nominal cleanup lowers");
 
@@ -318,7 +320,8 @@ fn finite_contextual_nominal_cleanup_preserves_caller_superset_and_canonical_art
         resolve(ResolutionRequest::new(&syntax)).expect("resolve finite contextual cleanup");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type finite contextual cleanup source");
-    let checked = lower_typed_trees(typed).expect("check finite contextual cleanup source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check finite contextual cleanup source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("finite contextual nominal cleanup lowers");
 
@@ -477,7 +480,8 @@ fn caller_only_contextual_fact_does_not_invent_a_cleanup_receiver_or_obligation(
         resolve(ResolutionRequest::new(&syntax)).expect("resolve caller-only contextual cleanup");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type caller-only contextual cleanup source");
-    let checked = lower_typed_trees(typed).expect("check caller-only contextual cleanup source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check caller-only contextual cleanup source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("caller-only contextual nominal cleanup lowers");
 
@@ -548,7 +552,7 @@ fn wide_mixed_primitive_record_crosses_source_lowering_codec_and_verifier() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("wide flat scalar nominal cleanup lowers");
 
@@ -624,7 +628,7 @@ fn two_nominal_roots_cleanup_in_reverse_parameter_order_and_may_share_a_target()
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("two nominal roots lower");
 
@@ -680,7 +684,8 @@ fn contextual_multi_root_nominal_cleanup_crosses_source_codec_and_verifier() {
         resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual two-root cleanup");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type contextual two-root cleanup source");
-    let checked = lower_typed_trees(typed).expect("check contextual two-root cleanup source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check contextual two-root cleanup source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("contextual two-root cleanup lowers");
     let entry = lowered
@@ -744,7 +749,7 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("one executable cleanup in a two-root list lowers");
 
@@ -831,7 +836,7 @@ fn two_nominal_roots_run_distinct_executable_cleanups_in_reverse_order() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("two distinct executable cleanup actions lower");
 
@@ -885,7 +890,7 @@ fn two_nominal_roots_may_repeat_one_executable_cleanup_target_and_helper() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("shared executable cleanup target lowers");
 
@@ -926,7 +931,8 @@ fn contextual_roots_may_share_one_executable_cleanup_target_and_helper() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual executable cleanup");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type contextual executable cleanup");
-    let checked = lower_typed_trees(typed).expect("check contextual executable cleanup");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check contextual executable cleanup");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("contextual executable cleanup lowers");
 

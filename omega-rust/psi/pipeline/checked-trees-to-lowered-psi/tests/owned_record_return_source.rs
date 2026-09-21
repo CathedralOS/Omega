@@ -30,7 +30,11 @@ fn fixture(property: &str, carrier: &str, parameters: &str, prefix: &str) -> Che
          machine stamp(output: &mut u64, value: u64) -> u64 {{ output = value; value }}
          machine retain(mask: u64, {parameters} record: {carrier}) -> {carrier} {{ {prefix} record }}"
     );
-    typed_trees_to_checked_trees::lower_typed_trees(typed_source(&source)).unwrap()
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed_source(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap()
 }
 
 fn unsigned(value: u128) -> TerminalScalarValue {
@@ -58,12 +62,14 @@ fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
                 } else {
                     format!("{retain} {relay}")
                 };
-                let checked =
-                    typed_trees_to_checked_trees::lower_typed_trees(typed_source(&format!(
+                let checked = typed_trees_to_checked_trees::lower_typed_trees(
+                    typed_source(&format!(
                         "data Record {property} {{ first: u64; second: u64; third: u64; }}
                      machine identity(value: u64) -> u64 {{ value }} {machines}"
-                    )))
-                    .unwrap();
+                    )),
+                    &typed_trees_to_checked_trees::CheckingRequest::settled(),
+                )
+                .unwrap();
                 let artifact =
                     terminal_production::TerminalProductionRequest::new(&checked, "relay")
                         .produce_artifact()
@@ -134,11 +140,14 @@ fn owned_record_calls_compose_without_ambiguous_body_catalogs() {
 #[test]
 fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution() {
     for property in ["", "[copy]"] {
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_source(&format!(
-            "data Record {property} {{ first: u64; second: u64; third: u64; }}
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed_source(&format!(
+                "data Record {property} {{ first: u64; second: u64; third: u64; }}
              machine retain(record: Record) -> Record {{ record }}
              machine relay(left: Record, right: Record) -> Record {{ retain(left) }}"
-        )))
+            )),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
         .unwrap();
         let _ = terminal_production::TerminalProductionRequest::new(&checked, "relay")
             .produce_artifact()
@@ -193,12 +202,15 @@ fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution()
 
 #[test]
 fn structural_return_requires_remaining_affine_input_cleanup_evidence() {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_source(
-        "data Record { first: u64; second: u64; third: u64; }
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_source(
+            "data Record { first: u64; second: u64; third: u64; }
          machine combine(left: Record, right: Record) -> Record {
              Record { first: left.first, second: right.second, third: left.third }
          }",
-    ))
+        ),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
     .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "combine")
         .produce_artifact()
@@ -470,7 +482,11 @@ fn consumed_affine_parameter_cannot_be_returned() {
     let source = "data Record { first: u64; second: u64; third: u64; }
         machine consume(record: Record) {}
         machine retain(record: Record) -> Record { consume(record); record }";
-    let error = typed_trees_to_checked_trees::lower_typed_trees(typed_source(source)).unwrap_err();
+    let error = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_source(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_err();
     assert!(
         format!("{error:?}").contains("already transferred"),
         "{error:?}"
@@ -532,14 +548,17 @@ fn source_replay_requires_the_exact_affine_return_transfer() {
 
 #[test]
 fn owned_array_call_results_return_without_fabricated_claims() {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_source(
-        "data Entry { value: u64; }
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_source(
+            "data Entry { value: u64; }
          machine forward(values: [Entry; 3]) -> [Entry; 3] { values }
          machine relay(values: [Entry; 3]) -> [Entry; 3] {
              let first: [Entry; 3] = forward(values);
              forward(first)
          }",
-    ))
+        ),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
     .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "relay")
         .produce_artifact()

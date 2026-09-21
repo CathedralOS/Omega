@@ -11,6 +11,7 @@ use terminal_interpreter::{
     TerminalStructuralByteArrayValue, TerminalStructuralValue,
 };
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeShape};
+use typed_trees_to_checked_trees::CheckingRequest;
 
 const FILL: &str = r#"
 machine fill(out: &mut [u8], byte: u8) {
@@ -241,7 +242,7 @@ fn scalar_case_return_bounded_literal_requires_constructor_evidence() {
     let syntax = parse_syntax_trees(&Lexer::new(&invalid).tokenize().unwrap()).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    if let Ok(checked) = lower_typed_trees(typed) {
+    if let Ok(checked) = lower_typed_trees(typed, &CheckingRequest::settled()) {
         assert!(
             terminal_production::TerminalProductionRequest::new(&checked, "bounded")
                 .produce_artifact()
@@ -469,7 +470,7 @@ fn byte_input_exact_narrowing_rejects_a_state_annotation_without_field_bounds() 
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("state annotation cannot establish missing payload bounds");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

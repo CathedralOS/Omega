@@ -199,13 +199,14 @@ pub(crate) fn typed_trees_to_checked_trees(
                 settlement.privileged_interrupt_table,
             ),
         )?;
-        let mut program =
-            typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
-                typed,
-                &selected_generic_operator_providers,
-                &selected_boundary_families,
-                &opaque_property_receipts,
-            )?;
+        // Standalone and package compilations share the settled checkpoint;
+        // the package declaration-authority gate below is what distinguishes
+        // a package build, not a second checking route.
+        let request = typed_trees_to_checked_trees::CheckingRequest::settled()
+            .with_selected_generic_operator_providers(&selected_generic_operator_providers)
+            .with_selected_boundary_families(&selected_boundary_families)
+            .with_opaque_property_receipts(&opaque_property_receipts);
+        let mut program = typed_trees_to_checked_trees::lower_typed_trees(typed, &request)?;
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
             crate::package::declaration_admission::validate_authored_declaration_selections(
@@ -405,7 +406,10 @@ pub(crate) fn typed_trees_to_preliminary_checked_trees(
     timings: &mut CompileTimings,
 ) -> Result<Arc<CheckedProgram>, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
-        let program = typed_trees_to_checked_trees::lower_preliminary_typed_trees(typed)?;
+        let program = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+        )?;
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))
     })

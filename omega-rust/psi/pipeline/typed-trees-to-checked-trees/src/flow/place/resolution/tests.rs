@@ -250,7 +250,7 @@ fn requires_fact_through_a_generic_leaf_resolves_at_call_sites() {
     .unwrap();
     let program =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(program)
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect("a requires fact through a generic leaf discharges at the call site");
 }
 

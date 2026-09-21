@@ -42,7 +42,7 @@ fn rejection_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
         resolve(ResolutionRequest::new(&syntax)).expect("resolve structural conservation fixture");
     let typed =
         lower_symbol_resolved_trees(&resolved).expect("type structural conservation fixture");
-    let result = crate::lower_typed_trees(typed);
+    let result = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled());
     assert!(result.is_err(), "unproved structural authority must reject");
     result.err().unwrap_or_default()
 }

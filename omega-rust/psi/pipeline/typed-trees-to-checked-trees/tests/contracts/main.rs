@@ -3,7 +3,10 @@
 //! view, while a call that corrupts the consumed element still rejects.
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    typed_trees_to_checked_trees::lower_typed_trees(typed(source)?)
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed(source)?,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
 }
 
 fn typed(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {

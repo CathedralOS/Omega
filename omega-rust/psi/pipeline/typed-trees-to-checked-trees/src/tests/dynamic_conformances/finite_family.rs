@@ -4,6 +4,7 @@
 //! every roster tuple's provider specialization.
 
 use super::{check_dynamic_source, sole_direct_dynamic_plan, sole_direct_dynamic_unit_plan};
+use crate::CheckingRequest;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
@@ -200,7 +201,7 @@ fn dynamic_family_call_rejects_a_value_outside_the_roster() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed) else {
+    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("a non-member tuple must not select a family row")
     };
     assert!(
@@ -221,7 +222,7 @@ fn dynamic_call_rejects_a_generic_requirement_without_a_family() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed) else {
+    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("an unbounded generic requirement stays dynamically ineligible")
     };
     assert!(
@@ -349,7 +350,7 @@ fn dynamic_family_call_rejects_an_uncorrelated_tuple() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed) else {
+    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("an uncorrelated tuple must not select a family row")
     };
     assert!(
@@ -643,7 +644,7 @@ fn dynamic_family_call_rejects_a_generic_caller_tuple() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed) else {
+    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("a generic-spelled tuple is not a closed roster tuple")
     };
     assert!(
@@ -664,7 +665,7 @@ fn dynamic_family_call_rejects_a_nongeneric_provider() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(errors) = lower_typed_trees(typed) else {
+    let Err(errors) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("a nongeneric provider cannot cover a finite family")
     };
     assert!(

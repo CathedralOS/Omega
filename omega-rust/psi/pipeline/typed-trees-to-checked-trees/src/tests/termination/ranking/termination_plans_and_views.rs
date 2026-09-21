@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -220,7 +221,8 @@ fn recorded_view_divergence_is_loud() {
     assert_eq!(witness.view_path, "Nat::Descending");
     witness.view_path = "Slice::Length".to_string();
 
-    let diagnostics = lower_typed_trees(typed).expect_err("a diverging recorded view must be loud");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("a diverging recorded view must be loud");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -285,7 +287,8 @@ fn accepts_increasing_cursor_via_bounded_argumented_view() {
     assert_eq!(witness.view_path, "Nat::IncreasingTo");
     assert_eq!(witness.view_arguments, vec!["limit".to_string()]);
 
-    lower_typed_trees(typed).expect("the bounded increasing cursor should prove");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("the bounded increasing cursor should prove");
 }
 
 /// TPR3: the unbounded `Nat::Increasing` is NOT a valid ranking -- the
@@ -318,8 +321,8 @@ fn rejects_unbounded_increasing_view_with_directed_message() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the unbounded increasing view must be rejected");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the unbounded increasing view must be rejected");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -378,7 +381,8 @@ fn rejects_view_argument_arity_misuse_with_directed_messages() {
         let resolved =
             resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        let diagnostics = lower_typed_trees(typed).expect_err("arity misuse must be rejected");
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect_err("arity misuse must be rejected");
         assert!(
             diagnostics
                 .iter()
@@ -436,7 +440,8 @@ fn rank_range_on_increasing_to_is_consumed_and_recorded() {
     assert_eq!(range.ceiling, "limit");
     assert!(range.ceiling_inclusive);
 
-    lower_typed_trees(typed).expect("the structurally-true rank range should verify");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("the structurally-true rank range should verify");
 }
 
 /// TPR3 completion: checker legality resolves subjects, view arguments, view
@@ -485,7 +490,7 @@ fn termination_checker_uses_normalized_witness_without_parallel_spans() {
         "Nat::IncreasingTo"
     );
 
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("normalized witness should independently prove the bounded climb");
 }
 
@@ -539,8 +544,8 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
         let resolved =
             resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
         let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-        let diagnostics =
-            lower_typed_trees(typed).expect_err("an unverifiable range must be rejected");
+        let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect_err("an unverifiable range must be rejected");
         assert!(
             diagnostics
                 .iter()

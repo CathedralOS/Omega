@@ -1,4 +1,5 @@
 use super::{Lexer, lower_symbol_resolved_trees, parse_syntax_trees};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::CheckedTrees;
 
@@ -14,7 +15,7 @@ fn check(source: &str) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )?;
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|error| vec![error])?;
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn accepts(source: &str) -> CheckedTrees {

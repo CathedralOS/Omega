@@ -35,8 +35,11 @@ fn typed_source(source: &str) -> typed_trees::TypedTrees {
 
 pub(super) fn indexed_replacement(nested: bool) -> lowered_psi::LoweredPsi {
     let typed = typed_source(&source(nested, 2));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("authored index range and ASCII byte establish indexed replacement");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("authored index range and ASCII byte establish indexed replacement");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
         .expect("source-authored indexed replacement reaches Terminal");
     terminal_verifier::verify_module(
@@ -110,8 +113,11 @@ fn cyclic_source(nested: bool) -> String {
 
 pub(super) fn cyclic_indexed_replacement(nested: bool) -> lowered_psi::LoweredPsi {
     let typed = typed_source(&cyclic_source(nested));
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("authored cyclic index range and ASCII byte establish indexed replacement");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("authored cyclic index range and ASCII byte establish indexed replacement");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::rewrite")
         .expect("cyclic indexed replacement reaches Terminal");
     terminal_verifier::verify_module(
@@ -234,7 +240,10 @@ fn cyclic_indexed_store_updates_original_backing_without_changing_extent() {
 fn indexed_store_rejects_index_at_live_length() {
     for nested in [false, true] {
         let typed = typed_source(&source(nested, 3));
-        let result = typed_trees_to_checked_trees::lower_typed_trees(typed);
+        let result = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        );
         if let Ok(checked) = result {
             assert!(
                 checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").is_err(),

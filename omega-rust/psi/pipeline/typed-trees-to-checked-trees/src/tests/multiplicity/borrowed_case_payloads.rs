@@ -1,5 +1,6 @@
 //! Pattern bindings do not turn borrowed affine payloads into owned snapshots.
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn check_case_source(
@@ -11,7 +12,7 @@ fn check_case_source(
     let syntax = parse_syntax_trees(&tokens).expect("parse case custody");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve case custody");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type case custody");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn rejects_borrowed_transfer(source: &str) {

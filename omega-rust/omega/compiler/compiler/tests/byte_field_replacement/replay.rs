@@ -35,7 +35,11 @@ fn byte_replacement_replay_binds_equal_capacity_siblings_and_dynamic_copy() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let terminal =
         checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(

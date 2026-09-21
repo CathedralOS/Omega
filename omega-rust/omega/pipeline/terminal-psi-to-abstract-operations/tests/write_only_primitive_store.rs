@@ -10,6 +10,7 @@ use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -31,7 +32,7 @@ fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Harness::exercise")
         .expect("mutable source store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -115,7 +116,7 @@ fn verified_boolean_store_retains_exact_write_only_parameter_and_preceding_value
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("write-only Boolean source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -190,7 +191,7 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("write-only IEEE float source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -262,7 +263,7 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "forward")
         .expect("declared-range runtime index store lowers to verified Terminal Psi");
     assert!(
@@ -349,7 +350,7 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Sink::fill")
         .expect("write-only fixed-integer parameter store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");

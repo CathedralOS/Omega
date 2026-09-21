@@ -20,6 +20,7 @@ use terminal_psi::{
     CrashPredicateTerm, CrashRouteGuard, OperationKind, StructuralFieldType, StructuralTypeShape,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -83,7 +84,7 @@ fn whole_aggregate_equality_expands_and_reconstructs_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("whole aggregate equality lowers");
 
@@ -320,7 +321,7 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Whole::enter")
         .expect("whole Envelope equality lowers through its sum field");
 
@@ -532,7 +533,7 @@ fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("mixed equality lowers through the direct call");
     let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
@@ -856,7 +857,7 @@ fn nested_mixed_aggregate_equality_prefixes_every_path_and_rebases_whole_root_ca
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let equal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("nested mixed equality lowers through the whole-root call");
     let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")

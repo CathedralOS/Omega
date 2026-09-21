@@ -56,7 +56,11 @@ fn lower_writer(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .expect("source-authored mutable loop retains independently checked bounds");
     terminal_verifier::verify_module(

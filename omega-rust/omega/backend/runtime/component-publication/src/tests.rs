@@ -94,6 +94,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
@@ -2794,7 +2795,7 @@ fn interpreted_unregister_drives_registration_ledger_teardown() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
     let module = &lowered.semantic_module;
     let unregister_boundary = module
@@ -3153,7 +3154,7 @@ fn interpreted_register_and_unregister_drive_the_registration_ledger() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
     let module = &lowered.semantic_module;
     let register_boundary = module

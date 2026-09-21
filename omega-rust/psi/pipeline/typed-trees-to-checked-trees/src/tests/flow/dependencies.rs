@@ -2,6 +2,7 @@ use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
 
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::lower_typed_trees;
@@ -85,7 +86,7 @@ fn domain_conjunction_write_checks_every_predicate_facet() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("a UTF-8 but non-ASCII literal must fail the second predicate facet");
 
     assert!(

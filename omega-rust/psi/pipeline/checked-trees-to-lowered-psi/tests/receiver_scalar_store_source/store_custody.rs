@@ -12,7 +12,11 @@ const ORDERED_SOURCE: &str = r#"
 "#;
 
 fn checked() -> checked_trees::CheckedTrees {
-    typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(ORDERED_SOURCE)).unwrap()
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(ORDERED_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap()
 }
 
 fn plan_mut(
@@ -142,8 +146,11 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
 #[test]
 fn unrelated_scalar_local_cannot_hide_an_omitted_call_between_stores() {
     let source = ORDERED_SOURCE.replace("self.left = 1;", "let unrelated: u16 = 7; self.left = 1;");
-    let mut checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(&source)).unwrap();
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed_from_source(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let _artifact = terminal_production::TerminalProductionRequest::new(&checked, "Pair::ordered")
         .produce_artifact()
         .expect("authored local and ordered stores publish together");

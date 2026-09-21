@@ -211,7 +211,13 @@ fn natural_ranked_callee_rejects_missing_descent() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    assert!(typed_trees_to_checked_trees::lower_typed_trees(typed).is_err());
+    assert!(
+        typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err()
+    );
 }
 
 #[test]

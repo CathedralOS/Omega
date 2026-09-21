@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 use checked_trees::{CheckedScalarExpression, CheckedTrees, CheckedUnitEffectOperationPlan};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
@@ -40,13 +41,13 @@ fn source(destination: Destination, target: &str, expression: &str) -> String {
 }
 
 fn accepts(source: &str) -> CheckedTrees {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn rejects(source: &str) {
     // Parsing and typing must succeed; an unrelated frontend failure is not a rejection witness.
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => panic!("invalid integer field landing accepted: {source}"),
         Err(diagnostics) => assert!(!diagnostics.is_empty(), "{source}"),
     }

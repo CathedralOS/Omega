@@ -2,6 +2,7 @@ use super::{
     checked_program_from_source, has_selected_domain_add, indexed_selection_fixture, named_type,
     operator_with_spelling,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::operators::build_operator_facts;
 use crate::tests::{
@@ -242,7 +243,7 @@ fn checked_software_may_satisfy_a_contracted_ordinary_operator() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("a checked provider may ask less than its ordinary operator requirement");
 }
 
@@ -300,7 +301,8 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
                     })
             })
     );
-    let checked = lower_typed_trees(typed).expect("signature selection should resolve +");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("signature selection should resolve +");
 
     assert!(checked.facts.operators.resolved_uses().any(|operator_use| {
         operator_use.spelling == OperatorSpelling::Add

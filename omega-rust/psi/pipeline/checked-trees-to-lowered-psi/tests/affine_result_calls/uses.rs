@@ -247,8 +247,11 @@ fn a_call_initialized_affine_local_cannot_be_moved_twice() {
         "Main::consume(result);",
         "Main::consume(result); Main::consume(result);",
     );
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed(&source))
-        .expect_err("second ownership transfer must fail source checking");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("second ownership transfer must fail source checking");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

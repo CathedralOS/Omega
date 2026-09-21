@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn check(source: &str, accepted: bool, rejection: &str) {
@@ -6,7 +7,7 @@ fn check(source: &str, accepted: bool, rejection: &str) {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved lower bound accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");

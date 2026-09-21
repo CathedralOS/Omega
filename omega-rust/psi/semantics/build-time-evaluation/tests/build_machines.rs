@@ -207,8 +207,11 @@ fn exported_wrapper_reach_controls_evaluation_admission() {
              machine memberless() -> u64 reaches {{ helper() }}\n\
              pub machine exported() -> u64 {{ memberless() }}"
         ));
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(program)
-            .expect("ordinary wrappers propagate their helper's service row");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            program,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("ordinary wrappers propagate their helper's service row");
         let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked, None);
         let result = admission.evaluate_const_evaluable_machine(&checked, "exported", vec![]);
         if declaration.is_empty() {

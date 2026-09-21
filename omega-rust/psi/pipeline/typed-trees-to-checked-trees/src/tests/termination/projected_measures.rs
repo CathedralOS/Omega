@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use crate::CheckingRequest;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
@@ -18,7 +19,7 @@ const COUNTDOWN: &str = include_str!(concat!(
 #[test]
 fn measure_projection_requires_its_exact_parameter_receiver() {
     let program = typed(COUNTDOWN);
-    lower_typed_trees(program).expect("valid direct field measure");
+    lower_typed_trees(program, &CheckingRequest::settled()).expect("valid direct field measure");
     for receiver in ["nonexistent", "self", "Other::countdown"] {
         let source = COUNTDOWN.replace(
             "{ countdown.remaining }",
@@ -32,7 +33,7 @@ fn measure_projection_requires_its_exact_parameter_receiver() {
         );
         crate::checks::termination::check_machine_termination(&program)
             .expect_err("invalid measure cannot supply a termination proof");
-        assert!(lower_typed_trees(program).is_err());
+        assert!(lower_typed_trees(program, &CheckingRequest::settled()).is_err());
     }
 }
 

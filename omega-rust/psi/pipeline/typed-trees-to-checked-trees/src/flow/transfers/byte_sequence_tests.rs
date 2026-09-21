@@ -14,7 +14,7 @@ fn check(source: &str) -> Result<CheckedTrees, Vec<String>> {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    crate::lower_typed_trees(typed).map_err(|diagnostics| {
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).map_err(|diagnostics| {
         diagnostics
             .iter()
             .map(|diagnostic| diagnostic.message.clone())

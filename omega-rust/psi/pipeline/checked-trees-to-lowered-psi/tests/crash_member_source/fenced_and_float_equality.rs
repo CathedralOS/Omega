@@ -24,6 +24,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -39,7 +40,7 @@ fn unsupported_mixed_aggregate_equality_shapes_remain_fenced() {
             Ok(typed) => typed,
             Err(_) => continue,
         };
-        let checked = match lower_typed_trees(typed) {
+        let checked = match lower_typed_trees(typed, &CheckingRequest::settled()) {
             Ok(checked) => checked,
             Err(diagnostics) => {
                 assert!(!diagnostics.is_empty());
@@ -188,7 +189,7 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("payload-sum equality expands the nested record and lowers");
     let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
@@ -487,7 +488,7 @@ fn payload_sum_nested_sum_equality_replays_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("payload-sum equality expands the nested sum and lowers");
 
@@ -541,7 +542,7 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("IEEE aggregate equality lowers");
 
@@ -848,7 +849,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("borrowed byte-sequence aggregate equality lowers");
 
@@ -1007,7 +1008,7 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("empty-record equality lowers through the existing Boolean constant carrier");
 
@@ -1118,7 +1119,7 @@ fn address_record_equality_remains_fenced_before_terminal_lowering() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     let result = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter");
     assert!(
@@ -1145,7 +1146,7 @@ fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("fixed-index structural member crash route lowers");
 
@@ -1278,7 +1279,7 @@ fn verifier_rejects_empty_truncated_and_mistyped_boolean_field_paths() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("nested Boolean member crash route lowers");
     let CrashRouteGuard::Predicate(predicate) =

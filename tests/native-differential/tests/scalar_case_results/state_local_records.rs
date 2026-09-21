@@ -140,7 +140,10 @@ fn state_local_mutation_rejects_immutable_receiver_and_overlapping_shared_read()
         .expect("resolve");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(typed) {
+        let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        ) {
             Ok(_) => panic!("incompatible local receiver access must fail source checking"),
             Err(diagnostics) => diagnostics,
         };

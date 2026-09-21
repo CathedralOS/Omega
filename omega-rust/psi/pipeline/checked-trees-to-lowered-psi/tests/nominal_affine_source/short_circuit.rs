@@ -7,6 +7,7 @@ use super::{
     parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -81,8 +82,8 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
         .expect("resolve reused nominal short-circuit scalar return");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type reused nominal short-circuit scalar return");
-    let checked =
-        lower_typed_trees(typed).expect("check reused nominal short-circuit scalar return");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check reused nominal short-circuit scalar return");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
         .expect("pure reused short-circuit value source-distributes through nominal cleanup");
 
@@ -197,8 +198,8 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
         .expect("resolve mixed contextual short-circuit scalar return");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type mixed contextual short-circuit scalar return");
-    let checked =
-        lower_typed_trees(typed).expect("check mixed contextual short-circuit scalar return");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check mixed contextual short-circuit scalar return");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
         .expect("mixed contextual short-circuit scalar return lowers");
 
@@ -368,7 +369,8 @@ fn contextual_scalar_cleanup_and_exact_result_use_disjoint_obligation_identities
         resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual exact scalar cleanup");
     let typed = lower_symbol_resolved_trees(&resolved)
         .expect("type contextual exact scalar cleanup source");
-    let checked = lower_typed_trees(typed).expect("check contextual exact scalar cleanup source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check contextual exact scalar cleanup source");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
         .expect("contextual cleanup and exact scalar result lower together");
 

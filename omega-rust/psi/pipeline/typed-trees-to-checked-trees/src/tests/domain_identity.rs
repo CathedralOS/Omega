@@ -1,4 +1,5 @@
 use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
+use crate::CheckingRequest;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
 fn check(source: &str) -> checked_trees::CheckedTrees {
@@ -9,7 +10,7 @@ fn check(source: &str) -> checked_trees::CheckedTrees {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed).expect("checked lowering should succeed")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked lowering should succeed")
 }
 
 fn specializations_for<'program>(

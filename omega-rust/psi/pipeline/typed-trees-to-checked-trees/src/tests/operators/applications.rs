@@ -2,6 +2,7 @@ use super::{
     Identifier, Lexer, OperatorSpelling, ResolutionRequest, StateParameter, SymbolHandle,
     TypeReferenceNode, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::operators::{checked_program_from_source, operator_with_spelling};
 use typed_trees::expression::ExpressionNode;
@@ -398,8 +399,8 @@ fn named_generic_boundary_rejects_conflicting_landed_literal_application() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("conflicting landed literal types must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("conflicting landed literal types must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "cannot validate explicit static arguments because its operand application remains open or unresolved",
@@ -484,7 +485,8 @@ fn named_generic_boundary_static_type_must_equal_operand_application() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("mismatched static type must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("mismatched static type must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -507,7 +509,8 @@ fn monomorphic_named_boundary_rejects_static_arguments() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("static argument must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("static argument must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -859,14 +862,14 @@ fn selected_generic_operator_provider_closes_application_in_specialized_helper()
         .find(|machine| machine.name.as_str() == "GenericProvider::identity")
         .expect("generic identity provider")
         .symbol;
-    let checked = crate::lower_typed_trees_with_selected_generic_operator_providers(
+    let checked = crate::lower_typed_trees(
         typed,
-        &[crate::SelectedGenericOperatorProviderSpecialization {
-            requirement_operator,
-            realization_machine,
-        }],
-        &[],
-        &[],
+        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&[
+            crate::SelectedGenericOperatorProviderSpecialization {
+                requirement_operator,
+                realization_machine,
+            },
+        ]),
     )
     .expect("final substitution closes the selected application");
 
@@ -1035,6 +1038,9 @@ fn checked_program_with_selected_generic_providers(
             }
         })
         .collect::<Vec<_>>();
-    crate::lower_typed_trees_with_selected_generic_operator_providers(typed, &selected, &[], &[])
-        .expect("selected generic providers reach final-substitution closure")
+    crate::lower_typed_trees(
+        typed,
+        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
+    )
+    .expect("selected generic providers reach final-substitution closure")
 }

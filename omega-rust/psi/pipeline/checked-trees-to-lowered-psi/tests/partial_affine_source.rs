@@ -10,6 +10,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::{OperationKind, StructuralFieldType, StructuralPathSegment, Terminator};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
@@ -281,7 +282,7 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     for (machine, moved, residual) in [("Root::first", 0, 1), ("Root::second", 1, 0)] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
@@ -452,7 +453,7 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     for (machine, expected_paths) in [("Root::forward", [0, 1]), ("Root::reverse", [1, 0])] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
@@ -628,7 +629,7 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     let all = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::all")
         .expect("three moves completely consume the triple");
@@ -1051,7 +1052,7 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("two quartet moves and their decreasing complement lower");
     let entry = lowered
@@ -1187,7 +1188,7 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("nested leaf moves and their decreasing complements lower");
     let entry = lowered
@@ -1697,7 +1698,7 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("direct field transfer plus residual affine cleanup lowers");
 
@@ -2041,7 +2042,7 @@ fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpre
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("mixed field transfers plus recursive residual cleanup lower");
     let entry = lowered

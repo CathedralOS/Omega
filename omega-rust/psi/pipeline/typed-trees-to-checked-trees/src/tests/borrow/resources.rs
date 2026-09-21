@@ -8,6 +8,7 @@ mod transactional_rejections;
 use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 const SYMBOLIC_ADJACENCY: &str = r#"
@@ -29,7 +30,7 @@ fn lower(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve borrow resources");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
-    lower_typed_trees(typed).expect("check borrow resources")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check borrow resources")
 }
 
 fn try_lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
@@ -39,7 +40,7 @@ fn try_lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostic
     let syntax = parse_syntax_trees(&tokens).expect("parse borrow resources");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve borrow resources");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type borrow resources");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn reborrow_access_source(parent: &str, child: &str) -> String {

@@ -1,4 +1,5 @@
 use super::checked;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -524,8 +525,8 @@ fn uninitialized_conditional_sum_cannot_be_moved_as_an_empty_value() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("implicit zero-fill does not establish a sum value");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("implicit zero-fill does not establish a sum value");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

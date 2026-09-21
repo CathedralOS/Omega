@@ -12,6 +12,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const COMPOSITION_SOURCE: &str = r#"
@@ -39,7 +40,7 @@ fn check_composition_source(expression: &str, requirements: &str) -> checked_tre
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve arithmetic composition");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type arithmetic composition");
-    lower_typed_trees(typed).expect("check arithmetic composition")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check arithmetic composition")
 }
 
 #[test]
@@ -183,7 +184,7 @@ fn erased_arithmetic_prefix_without_a_bound_is_rejected() {
     let syntax = parse_syntax_trees(&tokens).expect("parse unsafe prefix");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve unsafe prefix");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type unsafe prefix");
-    if let Ok(checked) = lower_typed_trees(typed) {
+    if let Ok(checked) = lower_typed_trees(typed, &CheckingRequest::settled()) {
         assert!(
             matches!(
                 checked_trees_to_lowered_psi::lower_machine(&checked, "Root::composed"),
@@ -605,7 +606,7 @@ fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
     let syntax = parse_syntax_trees(&tokens).expect("parse mixed shifts");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed shifts");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type mixed shifts");
-    let checked = lower_typed_trees(typed).expect("check mixed shifts");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check mixed shifts");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
         .expect("mixed shifts lower to Terminal Psi");
     let entry = lowered

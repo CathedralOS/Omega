@@ -1,16 +1,18 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
 fn accepts(source: &str) {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn rejects_uncovered(source: &str) {
-    let diagnostics = match lower_typed_trees(parse_typed_trees(source)) {
-        Ok(_) => panic!("an entry requirement cannot establish this route: {source}"),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
+            Ok(_) => panic!("an entry requirement cannot establish this route: {source}"),
+            Err(diagnostics) => diagnostics,
+        };
     assert!(
         diagnostics
             .iter()

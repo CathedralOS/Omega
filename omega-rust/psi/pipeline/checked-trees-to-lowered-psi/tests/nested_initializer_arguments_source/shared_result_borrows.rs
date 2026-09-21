@@ -704,7 +704,10 @@ fn a_named_result_cannot_be_borrowed_after_its_owned_move() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    if let Ok(checked) = typed_trees_to_checked_trees::lower_typed_trees(typed) {
+    if let Ok(checked) = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    ) {
         assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err());
     }
 }

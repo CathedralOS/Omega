@@ -1,4 +1,5 @@
 use super::checked;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -385,7 +386,8 @@ fn state_call_result_consumes_checked_opaque_multi_output_map() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("checked outcome maps should compose");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked outcome maps should compose");
     use language_semantics::PermissionEventKind;
     let maps = checked
         .facts

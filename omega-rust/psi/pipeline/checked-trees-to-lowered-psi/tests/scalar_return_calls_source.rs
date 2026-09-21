@@ -9,6 +9,7 @@ use terminal_interpreter::{
     TerminalScalarValue, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[path = "scalar_return_calls_source/call_result_bounds.rs"]
@@ -53,7 +54,8 @@ fn checked_arms(source: &str, combined: bool) -> checked_trees::CheckedTrees {
     }
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn combine_value_machine_arms(syntax: &mut syntax_trees::SyntaxTrees) {

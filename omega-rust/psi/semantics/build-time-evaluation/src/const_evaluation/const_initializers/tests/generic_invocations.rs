@@ -14,8 +14,11 @@ fn generic_calls_in_executable_helpers_replay_after_ordinary_checking() {
         )],
         &[],
     );
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check executable generic helper call");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check executable generic helper call");
     super::super::validate_retained_invocations(&checked.typed, None)
         .expect("retained recipe can call an already-specialized executable helper");
 }
@@ -81,8 +84,11 @@ fn generic_call_replay_rejects_alternate_instance_and_changed_argument() {
         )],
         &[],
     );
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("ordinary checking preserves constant recipes");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("ordinary checking preserves constant recipes");
     super::super::validate_retained_invocations(&checked.typed, None)
         .expect("receiving replay also works after ordinary specialization");
     let declaration = checked.typed.const_declarations()[0].clone();

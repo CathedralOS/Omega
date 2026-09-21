@@ -427,8 +427,8 @@ fn match_owned_parameter_selection_rejects_reusing_the_moved_parameter() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics =
-        crate::lower_typed_trees(typed).expect_err("a moved parameter cannot be observed again");
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("a moved parameter cannot be observed again");
     assert!(
         format!("{diagnostics:?}").contains("may have been transferred"),
         "{diagnostics:?}"
@@ -451,7 +451,7 @@ fn match_fresh_value_admission_admits_fresh_linear_products() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
         .expect("fresh linear case products carry no tracked source place");
 }
 
@@ -471,8 +471,8 @@ fn match_fresh_value_admission_keeps_reference_and_hook_rejections() {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics =
-            crate::lower_typed_trees(typed).expect_err("unsupported branch custody must reject");
+        let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect_err("unsupported branch custody must reject");
         assert!(
             diagnostics
                 .iter()

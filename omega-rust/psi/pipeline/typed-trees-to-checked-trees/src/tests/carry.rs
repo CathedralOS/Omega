@@ -2,6 +2,7 @@ use super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
 };
+use crate::CheckingRequest;
 
 #[test]
 fn checked_facts_store_declared_and_effective_carry_separately() {
@@ -23,7 +24,7 @@ fn checked_facts_store_declared_and_effective_carry_separately() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     let outer = checked
         .data_definitions()
@@ -81,7 +82,7 @@ fn lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 #[test]

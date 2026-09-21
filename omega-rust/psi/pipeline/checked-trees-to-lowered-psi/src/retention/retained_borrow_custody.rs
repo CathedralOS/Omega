@@ -288,7 +288,11 @@ mod tests {
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check")
+        typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("check")
     }
 
     const RETAINED_BORROW_PROGRAM: &str = r#"

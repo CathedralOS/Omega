@@ -95,8 +95,11 @@ fn produce_source(entry: &str, source: &str) -> CanonicalTerminalArtifact {
     .expect("resolve scalar-case source");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type scalar-case source");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check scalar-case source");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check scalar-case source");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
         .produce_artifact()
         .unwrap_or_else(|error| panic!("publish scalar-case Terminal: {error:#?}"));

@@ -20,6 +20,7 @@ use terminal_psi::{
     StructuralTypeShape, ValueDeclaration,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -45,7 +46,7 @@ fn top_level_bounded_reach_lowers_normalized_machine_identity() {
         .expect("normalized top-level requirement")
         .identity();
     let requirement_symbol = requirement.symbol;
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let service_ids = ["MachineControl", "PortIo"]
         .iter()
         .enumerate()
@@ -573,7 +574,7 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let owner = checked
         .machine_specializations
         .iter()
@@ -591,7 +592,7 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let terminal_checked = lower_typed_trees(typed).expect("check");
+    let terminal_checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let mut lowered = lower_machine(&terminal_checked, "terminal_root").expect("lower terminal");
     lower_closed_conformance_applications(&checked, &[owner], &mut lowered.semantic_module)
         .expect("lower closed application");
@@ -703,7 +704,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Root::enter").expect("lower terminal");
     let cases = lowered
         .semantic_module
@@ -835,7 +836,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
     let lowered = lower_machine(&checked, "Root::enter")
         .expect("payload-bearing equality has exact case-payload paths");
     let cases = lowered

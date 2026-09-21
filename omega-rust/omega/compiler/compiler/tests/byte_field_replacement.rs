@@ -42,8 +42,11 @@ fn replacement(literal: &str, nested: bool) -> lowered_psi::LoweredPsi {
     .expect("resolve replacement");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type replacement");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("replacement must establish the destination Utf8 predicate");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("replacement must establish the destination Utf8 predicate");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
         .expect("authored bounded replacement must reach Terminal");
     terminal_verifier::verify_module(

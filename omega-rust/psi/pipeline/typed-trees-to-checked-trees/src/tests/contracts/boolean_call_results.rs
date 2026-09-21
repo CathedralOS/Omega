@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -48,8 +49,11 @@ fn call_produced_boolean_guarantees_compose_with_captured_locals() {
             "result == !value",
         ),
     ] {
-        lower_typed_trees(parse_typed_trees(&source(body, guarantee)))
-            .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
+        lower_typed_trees(
+            parse_typed_trees(&source(body, guarantee)),
+            &CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
     }
 }
 
@@ -88,7 +92,7 @@ fn call_produced_boolean_results_need_real_guarantees_and_independent_requires()
         ),
     ] {
         let program = parse_typed_trees(&format!("{helper}\n{}", source(body, "result == !value")));
-        let diagnostics = lower_typed_trees(program)
+        let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
             .expect_err("call contracts must not be invented or circular");
         assert!(
             diagnostics
@@ -105,10 +109,13 @@ fn call_produced_boolean_guarantees_reject_altered_call_and_argument_custody() {
         CheckedBooleanExpression as Boolean, CheckedScalarComputationKind as Computation,
         CheckedScalarExpression as Scalar, CheckedScalarExpressionRole as Role,
     };
-    let checked = lower_typed_trees(parse_typed_trees(&source(
-        "let saved: bool = identity(!value); Host::finish(false); saved",
-        "result == !value",
-    )))
+    let checked = lower_typed_trees(
+        parse_typed_trees(&source(
+            "let saved: bool = identity(!value); Host::finish(false); saved",
+            "result == !value",
+        )),
+        &CheckingRequest::settled(),
+    )
     .expect("saved call result");
     let machine = checked
         .machines()
@@ -274,8 +281,11 @@ fn boolean_computation_graphs_prove_source_normal_guarantees() {
             "result == (value && other)",
         ),
     ] {
-        lower_typed_trees(parse_typed_trees(&source(body, guarantee)))
-            .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
+        lower_typed_trees(
+            parse_typed_trees(&source(body, guarantee)),
+            &CheckingRequest::settled(),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics:#?}"));
     }
 }
 
@@ -285,10 +295,13 @@ fn boolean_computation_graphs_reject_altered_application_and_call_custody() {
         CheckedBooleanExpression as Boolean, CheckedScalarComputationKind as Computation,
         CheckedScalarExpression as Scalar, CheckedScalarExpressionRole as Role,
     };
-    let checked = lower_typed_trees(parse_typed_trees(&source(
-        "let saved: bool = identity(value) == identity(other); Host::finish(false); saved",
-        "result == (value == other)",
-    )))
+    let checked = lower_typed_trees(
+        parse_typed_trees(&source(
+            "let saved: bool = identity(value) == identity(other); Host::finish(false); saved",
+            "result == (value == other)",
+        )),
+        &CheckingRequest::settled(),
+    )
     .expect("source graph guarantee");
     let machine = checked
         .machines()
@@ -382,7 +395,7 @@ fn boolean_computation_graphs_reject_altered_short_circuit_custody() {
         let checked = lower_typed_trees(parse_typed_trees(&source(
             &format!("let saved: bool = identity(value) {operator} identity(other); Host::finish(false); saved"),
             &format!("result == (value {operator} other)"),
-        )))
+        )), &CheckingRequest::settled())
         .expect("source short-circuit guarantee");
         let machine = checked
             .machines()
@@ -443,7 +456,7 @@ fn boolean_computation_graphs_capture_mutable_values_at_the_selected_read() {
             ),
             "result == !value",
         ));
-        let result = lower_typed_trees(program);
+        let result = lower_typed_trees(program, &CheckingRequest::settled());
         assert_eq!(result.is_ok(), admitted, "{before_capture}");
         if let Err(diagnostics) = result {
             assert!(

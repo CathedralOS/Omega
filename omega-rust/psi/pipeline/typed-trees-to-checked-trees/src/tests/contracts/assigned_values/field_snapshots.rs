@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -10,7 +11,7 @@ const DEFINITIONS: &str = r#"
 "#;
 
 fn check_snapshot(source: &str, accepted: bool) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved byte accepted:\n{source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{source}\n{diagnostics:#?}");

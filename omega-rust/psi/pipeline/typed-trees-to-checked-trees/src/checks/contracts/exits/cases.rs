@@ -401,7 +401,7 @@ mod tests {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = crate::lower_typed_trees(typed).unwrap();
+        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
         let exit = checked
             .facts
             .flow
@@ -494,7 +494,7 @@ mod tests {
         .unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = crate::lower_typed_trees(typed).unwrap();
+        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).unwrap();
         let exits = checked
             .facts
             .flow

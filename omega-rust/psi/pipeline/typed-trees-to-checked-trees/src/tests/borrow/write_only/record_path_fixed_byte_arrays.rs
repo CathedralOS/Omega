@@ -1,10 +1,12 @@
 use super::{rendered_rejection, typed};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
 fn record_path_fixed_byte_array_literal_element_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
 
@@ -12,7 +14,9 @@ fn record_path_fixed_byte_array_literal_element_is_writable() {
                 outer.inner.bytes[0] = 1;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("an in-bounds literal byte element behind an eligible record path should lower");
 }
 
@@ -39,8 +43,9 @@ fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
 
 #[test]
 fn record_path_fixed_byte_array_proven_dynamic_element_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
 
@@ -48,7 +53,9 @@ fn record_path_fixed_byte_array_proven_dynamic_element_is_writable() {
                 outer.inner.bytes[index] = 1;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a proven in-bounds dynamic byte element behind an eligible record path should lower");
 }
 
@@ -94,8 +101,9 @@ fn record_path_fixed_byte_array_dynamic_index_observation_remains_rejected() {
 
 #[test]
 fn record_path_fixed_byte_array_static_range_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
 
@@ -103,7 +111,9 @@ fn record_path_fixed_byte_array_static_range_is_writable() {
                 outer.inner.bytes[1..3] = [1, 2];
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a statically normalized byte range behind an eligible record path should lower");
 }
 
@@ -289,8 +299,9 @@ fn nested_invariant_bearing_record_field_write_remains_rejected() {
 
 #[test]
 fn closed_ranged_record_field_write_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Limited { value: u8 [0..=10]; }
             data Outer { inner: Limited; }
 
@@ -302,14 +313,17 @@ fn closed_ranged_record_field_write_is_writable() {
                 outer.inner.value = 4;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a store proven within a field's closed literal integer range is a write-only place");
 }
 
 #[test]
 fn literal_indexed_closed_ranged_record_field_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner [copy] { value: u8 [0..=10]; }
             data Outer { items: [Inner; 2]; }
 
@@ -317,7 +331,9 @@ fn literal_indexed_closed_ranged_record_field_is_writable() {
                 outer.items[1].value = next;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a closed-ranged field beneath a literal fixed-array element should lower");
 }
 
@@ -377,8 +393,9 @@ fn closed_ranged_record_field_wider_source_remains_rejected() {
 
 #[test]
 fn policy_qualified_record_field_write_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Limited { value: u32 in Wrapping; depth: i32 in Wrapping; }
             data Outer { inner: Limited; }
 
@@ -391,14 +408,17 @@ fn policy_qualified_record_field_write_is_writable() {
                 outer.inner.value = next;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("an arithmetic-policy-only integer leaf carries no membership obligation");
 }
 
 #[test]
 fn literal_indexed_policy_record_field_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner [copy] { value: u32 in Wrapping; }
             data Outer { items: [Inner; 2]; }
 
@@ -406,7 +426,9 @@ fn literal_indexed_policy_record_field_is_writable() {
                 outer.items[1].value = next;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a policy-qualified field beneath a literal fixed-array element should lower");
 }
 
@@ -457,8 +479,9 @@ fn domain_qualified_record_field_is_writable() {
     // the complete carrier footprint, and the ordinary write-side domain
     // check re-derives `in Utf8` from the field declaration and discharges it
     // against the stored value — the same obligation a `&mut` store owes.
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             domain [u8; 8]::Utf8
             requires
                 valid_utf8(self);
@@ -474,7 +497,9 @@ fn domain_qualified_record_field_is_writable() {
                 outer.inner.label = next;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a store of a domain-proven value into a plain domain leaf should lower");
 }
 

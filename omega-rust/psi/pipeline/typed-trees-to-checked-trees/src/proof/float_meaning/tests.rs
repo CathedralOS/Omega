@@ -276,7 +276,11 @@ fn bind_projection_facts_without_exit_proof(program: &TypedTrees) -> ProofFacts 
 
 #[test]
 fn actual_checked_projection_invocations_deduplicate_values_and_retain_occurrences() {
-    let checked = crate::lower_typed_trees(typed_projection_program()).expect("checked");
+    let checked = crate::lower_typed_trees(
+        typed_projection_program(),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("checked");
     let projections = &checked.facts.proof.float_meaning_projections;
     assert_eq!(projections.len(), 2);
     assert_eq!(projections[0].result.id, CheckedProofValueId(0));
@@ -357,8 +361,9 @@ fn actual_checked_projection_invocations_deduplicate_values_and_retain_occurrenc
 
 #[test]
 fn direct_parameter_identity_includes_its_exact_machine_owner() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine narrow(value: f32)
                 requires Float::meaning32(value) == Float::meaning32(value);
                 {}
@@ -367,7 +372,9 @@ fn direct_parameter_identity_includes_its_exact_machine_owner() {
                 requires Float::meaning32(value) == Float::meaning32(value);
                 {}
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked");
     let [narrow, wide] = checked.facts.proof.float_meaning_projections.as_slice() else {
         panic!("one projection for each exact machine parameter")
@@ -388,13 +395,16 @@ fn direct_parameter_identity_includes_its_exact_machine_owner() {
 
 #[test]
 fn top_level_scalar_result_retains_direct_checked_provenance() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine result_source(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { value }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("direct result reflexivity should pass ordinary exit checking");
     let result_proof = &checked.facts.proof;
     let CheckedFloatProjectionSource::DirectMachineResult(result) =
@@ -414,8 +424,9 @@ fn top_level_scalar_result_retains_direct_checked_provenance() {
 
 #[test]
 fn direct_result_identity_includes_exact_owner_and_primitive_format() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine narrow(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { value }
@@ -424,7 +435,9 @@ fn direct_result_identity_includes_exact_owner_and_primitive_format() {
                 ensures Float::meaning64(result) == Float::meaning64(result);
                 { value }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("direct result reflexivity should pass for both primitive formats");
     let proof = &checked.facts.proof;
     let [narrow, wide] = proof.float_meaning_projections.as_slice() else {
@@ -445,13 +458,16 @@ fn direct_result_identity_includes_exact_owner_and_primitive_format() {
 
 #[test]
 fn direct_result_reflexivity_does_not_prove_a_distinct_parameter_projection() {
-    let diagnostics = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let diagnostics = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine distinct(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(value);
                 { value }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect_err("distinct checked projection terms require explicit evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -462,13 +478,16 @@ fn direct_result_reflexivity_does_not_prove_a_distinct_parameter_projection() {
 
 #[test]
 fn raw_float_result_equality_does_not_borrow_float_meaning_reflexivity() {
-    let diagnostics = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let diagnostics = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine raw(value: f32) -> f32
                 ensures result == result;
                 { value }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect_err("IEEE equality is not FloatMeaning structural equality");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -494,7 +513,7 @@ fn real_result_named_parameter_shadows_the_contract_pseudo_result() {
     };
     assert_eq!(program.symbols.name(parameter.owner_machine), "shadow");
     assert_eq!(program.symbols.name(parameter.parameter), "result");
-    let diagnostics = crate::lower_typed_trees(program)
+    let diagnostics = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
         .expect_err("a real result parameter must not receive pseudo-result reflexivity");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -505,14 +524,17 @@ fn real_result_named_parameter_shadows_the_contract_pseudo_result() {
 
 #[test]
 fn direct_structural_member_retains_checked_owner_and_path() {
-    let member_checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let member_checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 data Sample { value: f32; }
                 machine member_source(sample: Sample)
                 requires Float::meaning32(sample.value) == Float::meaning32(sample.value);
                 {}
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked member source");
     let CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) =
         &member_checked.facts.proof.float_meaning_projections[0].source
@@ -541,14 +563,17 @@ fn direct_structural_member_retains_checked_owner_and_path() {
 
 #[test]
 fn cast_and_const_sources_remain_transitional() {
-    let cast_checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let cast_checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine cast_source(value: f32)
                 requires
                     Float::meaning64(value as f64) == Float::meaning64(value as f64);
                 {}
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked cast source");
     assert_eq!(
         cast_checked.facts.proof.float_meaning_projections[0].source,
@@ -558,13 +583,16 @@ fn cast_and_const_sources_remain_transitional() {
         })
     );
 
-    let const_checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let const_checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine const_source<const Value: f32>()
                 requires Float::meaning32(Value) == Float::meaning32(Value);
                 {}
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked const-parameter source");
     assert_eq!(
         const_checked.facts.proof.float_meaning_projections[0].source,
@@ -577,8 +605,9 @@ fn cast_and_const_sources_remain_transitional() {
 
 #[test]
 fn nested_state_scalar_parameters_retain_direct_block_provenance() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 data Probe {
                 }
 
@@ -596,7 +625,9 @@ fn nested_state_scalar_parameters_retain_direct_block_provenance() {
                     {}
                 }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked state-owned source");
     let parameter = checked
         .facts
@@ -635,8 +666,9 @@ fn nested_state_scalar_parameters_retain_direct_block_provenance() {
 
 #[test]
 fn nested_state_contract_keeps_block_machine_and_literal_classes_disjoint() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 data Probe {
                 }
 
@@ -654,7 +686,9 @@ fn nested_state_contract_keeps_block_machine_and_literal_classes_disjoint() {
                     {}
                 }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked mixed-ownership source");
     let proof = &checked.facts.proof;
     assert_eq!(proof.float_meaning_projections.len(), 3);
@@ -689,7 +723,11 @@ fn nested_state_contract_keeps_block_machine_and_literal_classes_disjoint() {
 
 #[test]
 fn exact_literal_bits_are_the_checked_semantic_source_identity() {
-    let checked = crate::lower_typed_trees(typed_literal_projection_program()).expect("checked");
+    let checked = crate::lower_typed_trees(
+        typed_literal_projection_program(),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("checked");
     let projections = &checked.facts.proof.float_meaning_projections;
     assert_eq!(projections.len(), 3);
     assert_eq!(
@@ -1048,8 +1086,9 @@ fn checked_binding_rejects_equality_operand_substitution_transactionally() {
 
 #[test]
 fn transported_ensures_result_instantiates_at_the_call_use_site() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine helper(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { value }
@@ -1058,7 +1097,9 @@ fn transported_ensures_result_instantiates_at_the_call_use_site() {
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { helper(value) }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked");
     let proof = &checked.facts.proof;
     // The transported `ensures` instantiates once at the call: the imported
@@ -1122,8 +1163,9 @@ fn transported_ensures_result_instantiates_at_the_call_use_site() {
 
 #[test]
 fn transported_ensures_result_is_distinct_per_call_site() {
-    let checked = crate::lower_typed_trees(lower_projection_fixture(
-        r#"
+    let checked = crate::lower_typed_trees(
+        lower_projection_fixture(
+            r#"
                 machine helper(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { value }
@@ -1136,7 +1178,9 @@ fn transported_ensures_result_is_distinct_per_call_site() {
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { helper(value) }
             "#,
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("checked");
     let proof = &checked.facts.proof;
     let sites = proof

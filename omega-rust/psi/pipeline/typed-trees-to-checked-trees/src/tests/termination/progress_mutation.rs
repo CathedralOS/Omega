@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::symbol_of_checked;
 use language_semantics::TerminationGuarantee;
@@ -86,7 +87,7 @@ fn check_source(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse progress mutation");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve progress mutation");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type progress mutation");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("check progress mutation: {diagnostics:#?}"))
 }
 
@@ -98,7 +99,7 @@ fn assert_unproved_tail_requirement(source: &str) {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve unproved tail requirement");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type unproved tail requirement");
-    let diagnostics = match lower_typed_trees(typed) {
+    let diagnostics = match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => panic!("an exact progress origin cannot substitute for a proven call requirement"),
         Err(diagnostics) => diagnostics,
     };

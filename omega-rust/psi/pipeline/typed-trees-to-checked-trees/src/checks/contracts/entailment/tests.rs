@@ -132,7 +132,9 @@ fn projection_entailment_cannot_reuse_a_mutated_entry_premise() {
             {{ self.left = 0; self.right = 1; }}
         "#
         ));
-        let Err(diagnostics) = crate::lower_typed_trees(program) else {
+        let Err(diagnostics) =
+            crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        else {
             panic!("mutated entry equality must not prove {postcondition}");
         };
         assert!(
@@ -213,7 +215,8 @@ fn generic_recursive_copy_retains_actual_inductive_exit_proofs() {
         1,
         "the actual induction engine proves this exact guarantee"
     );
-    crate::lower_typed_trees(program).expect("generic recursive proof survives every exit check");
+    crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("generic recursive proof survives every exit check");
 }
 
 #[test]

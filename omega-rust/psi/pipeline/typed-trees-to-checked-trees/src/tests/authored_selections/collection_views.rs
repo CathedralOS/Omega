@@ -9,6 +9,7 @@ use super::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget, Lexer,
     ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -76,7 +77,8 @@ fn a_resolved_nominal_machine_spelled_as_slice_is_not_a_collection_view() {
 
 #[test]
 fn checking_retains_the_view_operation_and_the_declared_machine_separately() {
-    let checked = lower_typed_trees(typed_program(BOTH_SPELLINGS)).expect("program should check");
+    let checked = lower_typed_trees(typed_program(BOTH_SPELLINGS), &CheckingRequest::settled())
+        .expect("program should check");
     let mut view_selections = 0usize;
     let mut resolved_selections = 0usize;
 

@@ -3,6 +3,7 @@ use super::super::super::super::{
 };
 
 use super::fixture_source;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::inputs::assert_input_subject;
 use crate::tests::termination::progress_mutation::assert_subjects;
@@ -90,7 +91,8 @@ fn an_input_reference_does_not_prove_a_missing_qualification() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = lower_typed_trees(typed).expect_err("identity cannot mint a qualification");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("identity cannot mint a qualification");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -143,7 +145,7 @@ fn earlier_operand_writes_must_preserve_the_input_referents_qualification() {
             assert_input_subject(&check_source(&source));
         } else {
             let typed = super::exposure::typed_source(&source);
-            let Err(diagnostics) = lower_typed_trees(typed) else {
+            let Err(diagnostics) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
                 panic!("overlapping write must retire the old qualification");
             };
             assert!(

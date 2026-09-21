@@ -17,7 +17,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     .expect("resolve named operator call");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type named operator call");
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
 }
 
 #[test]

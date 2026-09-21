@@ -253,11 +253,10 @@ fn family_checked(
     bind_fixture_fused_service_erasures(&mut typed, selected);
     let demands =
         crate::boundary_dispatch::selected_boundary_family_specializations(&typed, selected);
-    typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
+    typed_trees_to_checked_trees::lower_typed_trees(
         typed,
-        &[],
-        &demands,
-        &[],
+        &typed_trees_to_checked_trees::CheckingRequest::settled()
+            .with_selected_boundary_families(&demands),
     )
     .expect("check finite-family fixture")
 }
@@ -1067,8 +1066,11 @@ fn value_requirement_rejects_a_const_provider_binder() {
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("a const provider binder cannot satisfy a Value requirement");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a const provider binder cannot satisfy a Value requirement");
     assert!(
         diagnostics
             .iter()

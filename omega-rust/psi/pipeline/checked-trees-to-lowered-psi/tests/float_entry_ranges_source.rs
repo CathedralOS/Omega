@@ -14,6 +14,7 @@ use terminal_interpreter::{
 };
 use terminal_psi::OperationKind;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn check(source: &str) -> CheckedTrees {
@@ -22,7 +23,8 @@ fn check(source: &str) -> CheckedTrees {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-    lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn lower(source: &str, entry: &str) -> lowered_psi::LoweredPsi {

@@ -1,4 +1,5 @@
 use super::TerminationGuarantee;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::assert_input_premise;
 use crate::tests::termination::progress_mutation::aliases::carriers::borrowed::source;
@@ -84,7 +85,7 @@ fn reconstructed_results_do_not_restore_qualifications_retired_by_helper_writes(
         if retained {
             assert_input_premise(&check_source(&source));
         } else {
-            let diagnostics = lower_typed_trees(typed_source(&source))
+            let diagnostics = lower_typed_trees(typed_source(&source), &CheckingRequest::settled())
                 .expect_err("returning a reference cannot restore its scheduler qualification");
             assert!(
                 diagnostics.iter().any(|diagnostic| diagnostic

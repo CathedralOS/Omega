@@ -133,8 +133,11 @@ fn unguarded_cyclic_byte_operations_reject_at_source_checking() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let errors =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect_err("bounds remain required");
+    let errors = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("bounds remain required");
     assert!(
         errors
             .iter()
@@ -370,8 +373,11 @@ fn unguarded_tail_cannot_gain_a_bounds_proof_from_edge_selection() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect_err("selected edges still need actual tail bounds");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("selected edges still need actual tail bounds");
     assert!(format!("{diagnostics:?}").contains("cannot prove subslice range"));
 }
 

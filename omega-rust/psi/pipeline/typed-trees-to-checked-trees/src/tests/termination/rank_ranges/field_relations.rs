@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -33,7 +34,7 @@ fn customer_field_relation_checks_through_complete_lowering() {
     let program = typed(COUNTDOWN);
     crate::checks::termination::check_machine_termination(&program)
         .expect("entry requires relates the exact ranked field to its pinned ceiling");
-    lower_typed_trees(program)
+    lower_typed_trees(program, &CheckingRequest::settled())
         .expect("the original customer also satisfies ordinary formation and recursive contracts");
 }
 
@@ -44,7 +45,7 @@ fn customer_ordinary_formation_is_independent_of_the_ranking_witness() {
         .replace(WITNESS, "")
         .replace("\nrequires", " -> u64\nrequires")
         .replace("\n-> u64 {", "\n{");
-    lower_typed_trees(typed(&source)).expect(
+    lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(
         "the customer's types, subtraction and recursive precondition form without ranking",
     );
 }
@@ -196,9 +197,10 @@ fn field_relation_requires_exact_reconstruction_owner_and_carrier() {
     let borrowed = COUNTDOWN.replace("countdown: Countdown,", "countdown: &Countdown,");
     reject_termination(&borrowed);
     prove_termination(&borrowed.replace("walk(Countdown {", "walk(&Countdown {"));
-    lower_typed_trees(typed(
-        &COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]"),
-    ))
+    lower_typed_trees(
+        typed(&COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]")),
+        &CheckingRequest::settled(),
+    )
     .expect_err("a positive step range does not establish compatible arithmetic carriers");
 }
 

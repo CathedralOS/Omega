@@ -344,7 +344,10 @@ fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnos
     .expect("dispatch resolution");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("dispatch typing");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
 }
 
 fn execute(
@@ -626,8 +629,11 @@ fn float_match_results_reject_mixed_formats_before_lowering() {
         .expect("resolution");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("typing");
-        let errors = typed_trees_to_checked_trees::lower_typed_trees(typed)
-            .expect_err("mixed result formats must reject");
+        let errors = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect_err("mixed result formats must reject");
         assert!(
             errors
                 .iter()

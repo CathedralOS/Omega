@@ -22,8 +22,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
 }
 
 fn artifact(
@@ -392,7 +395,11 @@ fn unit_callers_do_not_implicitly_discard_value_returning_trailing_calls() {
             let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
             let typed = lower_symbol_resolved_trees(&resolved).unwrap();
             assert!(
-                typed_trees_to_checked_trees::lower_typed_trees(typed).is_err(),
+                typed_trees_to_checked_trees::lower_typed_trees(
+                    typed,
+                    &typed_trees_to_checked_trees::CheckingRequest::settled()
+                )
+                .is_err(),
                 "Unit caller cannot silently discard the trailing bool result"
             );
         }
@@ -612,7 +619,11 @@ fn unit_tail_exemption_does_not_admit_unit_calls_in_scalar_value_positions() {
             "only the entire terminal expression receives the Unit exemption"
         );
         assert!(
-            typed_trees_to_checked_trees::lower_typed_trees(typed).is_err(),
+            typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled()
+            )
+            .is_err(),
             "Unit cannot supply a scalar operand or local: {body}"
         );
     }

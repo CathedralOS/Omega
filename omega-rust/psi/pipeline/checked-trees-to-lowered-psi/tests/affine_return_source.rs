@@ -40,8 +40,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .unwrap_or_else(|errors| panic!("fixture should check: {source}\n{errors:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|errors| panic!("fixture should check: {source}\n{errors:#?}"))
 }
 
 fn identity_plan_mut(

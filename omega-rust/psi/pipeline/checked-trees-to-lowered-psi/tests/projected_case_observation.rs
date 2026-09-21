@@ -11,7 +11,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check")
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check")
 }
 
 #[test]
@@ -120,7 +124,11 @@ fn projected_case_observation_rejects_foreign_cases_and_write_only_access() {
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
         assert!(
-            typed_trees_to_checked_trees::lower_typed_trees(typed).is_err(),
+            typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled()
+            )
+            .is_err(),
             "{receiver}: {selected_case} cannot authorize reading the selected discriminator"
         );
     }

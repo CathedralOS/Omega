@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::flow::check_against_whole_pass as lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use crate::tests::parse_typed_trees_with_core_service;
@@ -13,7 +14,7 @@ fn check_service_source(
 ) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let mut typed = parse_typed_trees_with_core_service(source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 #[test]
@@ -31,14 +32,15 @@ machine rebuild(outcome: Outcome, fallback: Token in Issued) -> Receipt {
     }
 }
 "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the selected payload's routed qualification reaches its constructor");
     let wrong_case = source.replace(
         "Outcome::Empty -> Receipt { value: fallback }",
         "Outcome::Empty -> Receipt { value: outcome.value }",
     );
-    let diagnostics = lower_typed_trees(parse_typed_trees(&wrong_case))
-        .expect_err("the sibling arm cannot reuse the qualified arm's selection");
+    let diagnostics =
+        lower_typed_trees(parse_typed_trees(&wrong_case), &CheckingRequest::settled())
+            .expect_err("the sibling arm cannot reuse the qualified arm's selection");
     assert!(
         diagnostics
             .iter()
@@ -63,7 +65,7 @@ reaches Mutator {
     let receipt: Receipt = Receipt { stamp: mutator.clear(&mut value), value: value };
 }
 "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an earlier operand call invalidates qualification before capture");
     assert!(
         diagnostics
@@ -75,14 +77,17 @@ reaches Mutator {
         "stamp: mutator.clear(&mut value), value: value",
         "stamp: 0, value: value",
     );
-    lower_typed_trees(parse_typed_trees(&selected))
+    lower_typed_trees(parse_typed_trees(&selected), &CheckingRequest::settled())
         .expect("without mutation the copied value retains qualification");
     let captured_first = source.replace(
         "stamp: mutator.clear(&mut value), value: value",
         "value: value, stamp: mutator.clear(&mut value)",
     );
-    lower_typed_trees(parse_typed_trees(&captured_first))
-        .expect("a later operand call cannot revoke an already captured scalar field");
+    lower_typed_trees(
+        parse_typed_trees(&captured_first),
+        &CheckingRequest::settled(),
+    )
+    .expect("a later operand call cannot revoke an already captured scalar field");
 }
 
 #[test]
@@ -111,7 +116,7 @@ machine exercise(token: Token in Issued & Vacant, accept: bool) -> Token {
     }
 }
 "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("each selected result payload retains the exact owned qualifications");
     let forwarded = source
         .replace(
@@ -122,13 +127,13 @@ machine exercise(token: Token in Issued & Vacant, accept: bool) -> Token {
             "let outcome: Outcome = choose(token, accept);",
             "let chosen: Outcome = choose(token, accept); let outcome: Outcome = forward(chosen);",
         );
-    lower_typed_trees(parse_typed_trees(&forwarded))
+    lower_typed_trees(parse_typed_trees(&forwarded), &CheckingRequest::settled())
         .expect("a whole-sum wrapper retains conditional payload contracts");
     let copied = source.replace(
         "transition outcome {",
         "let moved: Outcome = outcome; transition moved {",
     );
-    lower_typed_trees(parse_typed_trees(&copied))
+    lower_typed_trees(parse_typed_trees(&copied), &CheckingRequest::settled())
         .expect("an owned sum move preserves exact case paths");
 }
 
@@ -149,10 +154,10 @@ machine exercise(token: Token) -> Token {
     consume(outcome.value)
 }
 "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the absent qualified alternative cannot authorize raw custody");
     let affine = source.replace("Token [linear]", "Token");
-    let diagnostics = lower_typed_trees(parse_typed_trees(&affine))
+    let diagnostics = lower_typed_trees(parse_typed_trees(&affine), &CheckingRequest::settled())
         .map(|_| ())
         .expect_err("case qualification selection is required even without linear debt");
     assert!(
@@ -177,7 +182,7 @@ machine exercise(token: Token in Issued, raw: Token) -> Token {
     consume(outcome.value)
 }
 "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .map(|_| ())
         .expect_err("replacing the sum cannot retain its old selected case");
     assert!(
@@ -187,7 +192,7 @@ machine exercise(token: Token in Issued, raw: Token) -> Token {
         "{diagnostics:#?}"
     );
     let valid = source.replace("outcome = Outcome::Raw { raw: raw };", "");
-    lower_typed_trees(parse_typed_trees(&valid))
+    lower_typed_trees(parse_typed_trees(&valid), &CheckingRequest::settled())
         .expect("an unchanged constructed tag authorizes its own payload");
 }
 
@@ -200,7 +205,7 @@ boundary trait Issuer { machine issue() -> Token in Issued; }
 data Outcome { case Qualified(value: Token in Issued); case Empty; }
 machine wrap(token: Token) -> Outcome { Outcome::Qualified { value: token } }
 "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a case field declaration is not issuer evidence");
     assert!(
         diagnostics
@@ -219,7 +224,7 @@ boundary trait Issuer { machine issue() -> u64 in Secret; }
 data Outcome { case Qualified(value: u64 in Secret); case Raw(raw: u64); }
 machine bad(outcome: Outcome) -> u64 in Secret { outcome.value }
 "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .map(|_| ())
         .expect_err("a scalar qualification cannot escape from an unselected payload");
     assert!(
@@ -232,7 +237,7 @@ machine bad(outcome: Outcome) -> u64 in Secret { outcome.value }
         "-> u64 in Secret { outcome.value }",
         "-> u64 ensures result in Secret { outcome.value as u64 }",
     );
-    let diagnostics = lower_typed_trees(parse_typed_trees(&explicit))
+    let diagnostics = lower_typed_trees(parse_typed_trees(&explicit), &CheckingRequest::settled())
         .map(|_| ())
         .expect_err("an explicit result promise cannot bypass source-case selection");
     assert!(
@@ -568,7 +573,7 @@ machine Main::run(&mut self) {
 }
 "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the exact checked conformance may establish its routed fact");
     let issued = checked
         .domain_definitions()
@@ -670,7 +675,7 @@ machine Main::run(&mut self) {
     };
     issued.establishment_routes.clear();
 
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("checked lowering must not reconstruct route authority from conformance names");
     assert!(
         diagnostics
@@ -706,7 +711,7 @@ machine Main::run(&mut self) {
 }
 "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a non-owner cannot mint another carrier's bodyless fact");
     assert!(
         diagnostics
@@ -741,7 +746,7 @@ machine Main::run(&mut self) {
 }
 "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("ownership must not bypass a predicate body");
     assert!(
         diagnostics
@@ -783,7 +788,7 @@ machine Main::run(&mut self) {
 }
 "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the exact-machine route may establish its own result domain");
     let issued = checked
         .domain_definitions()
@@ -850,7 +855,7 @@ ensures
 }
 "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an exact-machine route authorizes only the named machine");
     assert!(
         diagnostics

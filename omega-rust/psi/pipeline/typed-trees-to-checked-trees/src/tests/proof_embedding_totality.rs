@@ -1,6 +1,7 @@
 use super::{
     Arc, Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
@@ -8,7 +9,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax))?;
     let typed = lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])?;
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn messages(source: &str) -> String {
@@ -205,7 +206,7 @@ fn natural_coercion_requires_the_toolchain_owner_when_sources_are_known() {
         )
         .unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = lower_typed_trees(typed);
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled());
         assert_eq!(checked.is_ok(), accepted, "{origin:?}: {checked:?}");
     }
 }

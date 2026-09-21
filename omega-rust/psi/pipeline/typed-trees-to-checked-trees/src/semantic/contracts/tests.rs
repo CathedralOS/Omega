@@ -21,7 +21,7 @@ fn boolean_call_promises_keep_actual_values_when_formal_spellings_overlap() {
                 "machine identity({formal}: {primitive}) -> {primitive} ensures result == {formal} {{ {formal} }}
                  machine compute(value: {primitive}, other: {primitive}) -> {primitive} ensures result == value {{ identity({actual}) }}"
             ));
-            let result = crate::lower_typed_trees(program);
+            let result = crate::lower_typed_trees(program, &crate::CheckingRequest::settled());
             assert_eq!(result.is_ok(), admitted, "{primitive} {formal}: {actual}");
             if let Err(diagnostics) = result {
                 assert!(diagnostics.iter().any(|diagnostic| {

@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -9,7 +10,8 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 }
 
 fn rejected(source: &str, expected: &str) {
-    let diagnostics = lower_typed_trees(typed(source)).expect_err("program should be rejected");
+    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
+        .expect_err("program should be rejected");
     assert!(
         diagnostics
             .iter()
@@ -24,8 +26,9 @@ fn rejected(source: &str, expected: &str) {
 
 #[test]
 fn transparent_record_accepts_explicit_erased_initializer() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Certified {
             value: i32;
             proof [erased]: i32;
@@ -37,14 +40,17 @@ fn transparent_record_accepts_explicit_erased_initializer() {
             certified.value
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("transparent erased record should check");
 }
 
 #[test]
 fn erased_proof_only_containment_does_not_poison_runtime_holder() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Nat {
             case Zero;
             case Succ(previous: Nat);
@@ -60,7 +66,9 @@ fn erased_proof_only_containment_does_not_poison_runtime_holder() {
             certified.value
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("proof-only data should be legal behind an erased occurrence");
 }
 
@@ -81,8 +89,9 @@ fn construction_still_requires_erased_initializer() {
 
 #[test]
 fn unique_nullary_constructor_supplies_omitted_erased_initializer() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Nat {
             case Zero;
             case Succ(previous: Nat);
@@ -94,14 +103,17 @@ fn unique_nullary_constructor_supplies_omitted_erased_initializer() {
             certified.value
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("the unique nullary constructor should supply the erased term");
 }
 
 #[test]
 fn selected_case_payload_gets_unique_nullary_erased_initializer() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Evidence { case Only; case WithPayload(value: i32); }
         data Certified {
             case Proven(value: i32, proof [erased]: Evidence);
@@ -113,7 +125,9 @@ fn selected_case_payload_gets_unique_nullary_erased_initializer() {
             0
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("only the selected case's omitted erased payload should elaborate");
 }
 
@@ -183,8 +197,9 @@ fn generic_evidence_does_not_supply_an_erased_initializer() {
 
 #[test]
 fn ambiguous_nullary_evidence_remains_legal_when_explicitly_supplied() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Evidence { case First; case Second; }
         data Certified { value: i32; proof [erased]: Evidence; }
         data Main {}
@@ -196,7 +211,9 @@ fn ambiguous_nullary_evidence_remains_legal_when_explicitly_supplied() {
             certified.value
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("an explicit term should resolve ambiguous nullary evidence");
 }
 
@@ -249,8 +266,9 @@ fn runtime_projection_of_erased_field_is_rejected() {
 
 #[test]
 fn checked_attached_machine_accepts_erased_record_and_reads_material_self_field() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Certified { value: i32; proof [erased]: i32; }
         machine Certified::read(&self) -> i32 { self.value }
         data Main {}
@@ -259,7 +277,9 @@ fn checked_attached_machine_accepts_erased_record_and_reads_material_self_field(
             certified.read()
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a closed checked record may use its erased-stripped attached machine");
 }
 
@@ -293,12 +313,15 @@ fn erased_linear_field_on_attached_record_retains_its_obligation() {
 
 #[test]
 fn unused_generic_erased_record_with_attached_machine_is_schema_only() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Box<T> { value: T; proof [erased]: i32; }
         machine Box::read<T>(&self) -> i32 { 0 }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("an unused generic schema and method template have no runtime storage");
 }
 
@@ -327,8 +350,9 @@ fn erased_record_with_generic_attached_machine_remains_fenced() {
 
 #[test]
 fn case_bearing_erased_data_with_attached_machine_is_accepted() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Certified {
             proof [erased]: i32;
             case Valid(case_proof [erased]: i32);
@@ -336,7 +360,9 @@ fn case_bearing_erased_data_with_attached_machine_is_accepted() {
         }
         machine Certified::read(&self) -> i32 { 0 }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("closed checked case-bearing data may use an erased-stripped attached machine");
 }
 
@@ -353,8 +379,9 @@ fn boundary_attached_machine_on_erased_record_remains_fenced() {
 
 #[test]
 fn exact_case_payload_accepts_explicit_erased_initializer() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Certified {
             case First(value: i32, first_proof [erased]: i32);
             case Second(value: i32, second_proof [erased]: i32);
@@ -368,7 +395,9 @@ fn exact_case_payload_accepts_explicit_erased_initializer() {
             0
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("only the constructed case's erased payload is required");
 }
 
@@ -417,8 +446,9 @@ fn runtime_projection_of_erased_payload_is_rejected() {
 
 #[test]
 fn erased_payload_may_flow_into_another_erased_payload() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Source { case Proven(value: i32, proof [erased]: i32); }
         data Target { case Proven(value: i32, proof [erased]: i32); }
         machine convert(source: Source) -> Target {
@@ -430,7 +460,9 @@ fn erased_payload_may_flow_into_another_erased_payload() {
             }
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("erased payload use inside another erased initializer should check");
 }
 
@@ -448,22 +480,26 @@ fn proof_machine_result_cannot_determine_runtime_data() {
 
 #[test]
 fn proof_machine_result_may_determine_proof_computation() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Nat { case Zero; case Succ(previous: Nat); }
         machine proof_value(value: Nat) -> i32 [0..=7] { 7 }
         machine proof_twice(value: Nat) -> i32 {
             proof_value(value) + proof_value(value)
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("proof-machine results remain available to proof computation");
 }
 
 #[test]
 fn proof_machine_result_may_initialize_an_erased_binding() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
         data Nat { case Zero; case Succ(previous: Nat); }
         data Certified { value: i32; proof [erased]: i32; }
         machine proof_value(value: Nat) -> i32 { 7 }
@@ -475,7 +511,9 @@ fn proof_machine_result_may_initialize_an_erased_binding() {
             certified.value
         }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("proof-machine results remain available to erased initializers");
 }
 

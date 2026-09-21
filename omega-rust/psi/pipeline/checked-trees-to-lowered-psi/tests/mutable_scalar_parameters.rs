@@ -13,6 +13,7 @@ use terminal_interpreter::{
     interpret_terminal_artifact, interpret_terminal_artifact_measured,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -25,7 +26,7 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 
 fn assert_execution(source: &str, expected: TerminalScalarValue) {
     let artifact = {
-        let checked = lower_typed_trees(typed(source))
+        let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
@@ -47,7 +48,7 @@ fn assert_execution(source: &str, expected: TerminalScalarValue) {
 }
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
-    let checked = lower_typed_trees(typed(source))
+    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
         .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
@@ -198,7 +199,7 @@ fn final_mutable_formal_guarantee_cannot_prove_equality_with_the_original_argume
         ensures result == input
         { input = 9; input }
     "#;
-    lower_typed_trees(typed(helper))
+    lower_typed_trees(typed(helper), &CheckingRequest::settled())
         .expect("the helper's result equals its final mutable input, not an implicit old value");
     let source = format!(
         r#"
@@ -209,7 +210,7 @@ fn final_mutable_formal_guarantee_cannot_prove_equality_with_the_original_argume
         "#,
     );
     assert!(
-        lower_typed_trees(typed(&source)).is_err(),
+        lower_typed_trees(typed(&source), &CheckingRequest::settled()).is_err(),
         "a final-formal guarantee must not be substituted with the earlier call argument",
     );
 }
@@ -361,7 +362,7 @@ fn checked_entry_storage_custody_rejects_missing_stale_and_rebound_parameter_row
         { select(7, 4, 9) }
     "#;
     assert_execution(source, integer("i32", 9));
-    let checked = lower_typed_trees(typed(source)).unwrap();
+    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap();
     let machine = checked
         .typed
         .machines()

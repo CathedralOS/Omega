@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
@@ -16,12 +17,15 @@ fn a_body_write_cannot_make_a_false_entry_crash_route_true() {
         {{ {body} }}
     "#
         );
-        let diagnostics = match lower_typed_trees(parse_typed_trees(&source)) {
-            Err(diagnostics) => diagnostics,
-            Ok(_) => {
-                panic!("the published entry route stays false after the body changes flag: {body}")
-            }
-        };
+        let diagnostics =
+            match lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()) {
+                Err(diagnostics) => diagnostics,
+                Ok(_) => {
+                    panic!(
+                        "the published entry route stays false after the body changes flag: {body}"
+                    )
+                }
+            };
         assert!(
             diagnostics
                 .iter()
@@ -79,9 +83,10 @@ fn assert_entry_parameters(expression: &CheckedBooleanExpression, expected: &[us
 
 #[test]
 fn computed_parameter_ranges_retain_exact_entry_predicates() {
-    let checked = lower_typed_trees(parse_typed_trees(
-        "machine value(input: u64[(5 / 2) * 2..=10]) -> u64 { input }",
-    ))
+    let checked = lower_typed_trees(
+        parse_typed_trees("machine value(input: u64[(5 / 2) * 2..=10]) -> u64 { input }"),
+        &CheckingRequest::settled(),
+    )
     .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let machine = &checked.machines()[0];
     let contract = checked
@@ -114,9 +119,12 @@ fn computed_parameter_ranges_retain_exact_entry_predicates() {
 
 #[test]
 fn mutable_boolean_requires_retains_entry_operand_and_body_retains_current_storage() {
-    let checked = lower_typed_trees(parse_typed_trees(
-        "machine value(mut input: bool) -> bool requires input { input = false; input }",
-    ))
+    let checked = lower_typed_trees(
+        parse_typed_trees(
+            "machine value(mut input: bool) -> bool requires input { input = false; input }",
+        ),
+        &CheckingRequest::settled(),
+    )
     .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let machine = checked
         .machines()
@@ -164,7 +172,7 @@ fn published_mutable_parameter_crash_predicates_are_entry_snapshots() {
         ("mut input: u32", "input == 7u32", vec![0]),
     ] {
         let source = format!("machine value({parameters}) crashes Trap {predicate} {{}}");
-        let checked = lower_typed_trees(parse_typed_trees(&source))
+        let checked = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         let machine = checked
             .machines()
@@ -205,7 +213,7 @@ fn current_mutable_guard_cannot_cover_a_call_with_a_false_entry_crash_route() {
             state invoke() -> bool { trigger() }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("current mutable state is not the published entry route");
     assert!(
         diagnostics
@@ -259,9 +267,11 @@ fn pristine_mutable_guard_covers_a_call_with_an_entry_crash_route() {
         }
     "#,
     ] {
-        lower_typed_trees(parse_typed_trees(source)).unwrap_or_else(|diagnostics| {
-            panic!("a guard that still reads the entry operand covers: {diagnostics:#?}")
-        });
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).unwrap_or_else(
+            |diagnostics| {
+                panic!("a guard that still reads the entry operand covers: {diagnostics:#?}")
+            },
+        );
     }
 }
 
@@ -279,9 +289,11 @@ fn a_clean_guard_conjunct_survives_its_mutated_sibling() {
             state invoke() -> bool { trigger() }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source)).unwrap_or_else(|diagnostics| {
-        panic!("a pristine conjunct covers despite a spoiled sibling: {diagnostics:#?}")
-    });
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).unwrap_or_else(
+        |diagnostics| {
+            panic!("a pristine conjunct covers despite a spoiled sibling: {diagnostics:#?}")
+        },
+    );
 }
 
 #[test]
@@ -298,7 +310,7 @@ fn a_mutated_guard_conjunct_does_not_survive_its_clean_sibling() {
             state invoke() -> bool { trigger() }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the written operand cannot claim the entry route");
     assert!(
         diagnostics
@@ -325,7 +337,7 @@ fn a_same_name_parameter_bound_elsewhere_cannot_impersonate_the_entry_operand() 
             state invoke() -> bool { trigger() }
         }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a name-collided binding is not the named entry operand");
     assert!(
         diagnostics

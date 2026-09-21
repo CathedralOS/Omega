@@ -11,6 +11,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -40,7 +41,7 @@ fn qualified_same_leaf_machines_publish_independently_executable_artifacts() {
     })
     .expect("resolve modules");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type modules");
-    let checked = lower_typed_trees(typed).expect("check modules");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check modules");
     let mut artifacts = Vec::new();
     for (qualified, expected) in [
         ("dungeon::combat::value", 7u128),

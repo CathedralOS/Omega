@@ -205,8 +205,11 @@ fn selected_operator_binding_fixture() -> (checked_trees::CheckedTrees, Provider
     let [plan] = plans.as_slice() else {
         panic!("selected-operator fixture must derive one provider plan")
     };
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("check selected-operator binding fixture");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check selected-operator binding fixture");
     (checked, plan.clone())
 }
 

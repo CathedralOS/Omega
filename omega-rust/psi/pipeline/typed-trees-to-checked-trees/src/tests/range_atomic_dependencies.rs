@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -14,7 +15,7 @@ fn check(source: &str, accepted: bool) {
         .unwrap_or_else(|diagnostics| panic!("resolve: {diagnostics:#?}\n{source}"));
     let typed = lower_symbol_resolved_trees(&resolved)
         .unwrap_or_else(|diagnostics| panic!("type: {diagnostics:#?}\n{source}"));
-    match lower_typed_trees(typed) {
+    match lower_typed_trees(typed, &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "stale atomic bounds accepted: {source}"),
         Err(diagnostics) => {
             assert!(!accepted, "{diagnostics:#?}\n{source}");

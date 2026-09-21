@@ -156,7 +156,8 @@ fn assert_conflict(source: &str) {
     let syntax = parse_syntax_trees(&tokens).expect("parse domain control");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve domain control");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type domain control");
-    let diagnostics = crate::lower_typed_trees(typed).expect_err("unproven separation rejects");
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("unproven separation rejects");
     assert!(
         diagnostics.iter().any(
             |diagnostic| diagnostic.message.contains("while local borrow")

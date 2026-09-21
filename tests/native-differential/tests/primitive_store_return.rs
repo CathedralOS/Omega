@@ -44,8 +44,11 @@ fn produce(source: &str, entry: &str) -> CanonicalTerminalArtifact {
     .expect("resolve store-return source");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type store-return source");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check store-return source");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check store-return source");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
         .produce_artifact()
         .expect("publish store-return Terminal");

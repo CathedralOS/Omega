@@ -15,6 +15,7 @@ use terminal_psi_to_abstract_operations::{
     build_verified_psi_optimization_unit, lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -61,7 +62,7 @@ fn omega_retains_verified_partial_result_continuation_cleanup() {
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = lower_typed_trees(typed).unwrap();
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
     let mut terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("existing anonymous partial-return source lowers");
     let module = &mut terminal.semantic_module;
@@ -218,7 +219,7 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let checked = lower_typed_trees(typed).expect("check");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
         let entry_name = if attached { "Root::enter" } else { "enter" };
         let partial = &checked
             .facts

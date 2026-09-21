@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -27,7 +28,8 @@ fn rejects_terminating_recursive_machine_without_decreases() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("termination check should fail");
 
     assert!(
         diagnostics
@@ -57,7 +59,8 @@ fn accepts_slice_range_surface_during_checked_lowering() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("checked lowering should accept ranges");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should accept ranges");
 }
 
 #[test]
@@ -87,7 +90,8 @@ fn accepts_terminating_countdown_machine_with_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("termination check should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("termination check should succeed");
 }
 
 #[test]
@@ -188,7 +192,8 @@ fn accepts_terminating_distance_machine_with_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("termination distance proof should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("termination distance proof should succeed");
 }
 
 #[test]
@@ -226,7 +231,8 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("termination slice distance proof should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("termination slice distance proof should succeed");
 }
 
 #[test]
@@ -255,7 +261,8 @@ fn rejects_terminating_countdown_machine_with_stalled_decrease() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -298,7 +305,8 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -341,7 +349,8 @@ fn rejects_terminating_slice_length_order_without_supported_progress_shape() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -385,7 +394,8 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("termination slice length proof should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("termination slice length proof should succeed");
 }
 
 #[test]
@@ -425,7 +435,8 @@ fn accepts_terminating_mutually_recursive_states_with_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("mutual recursion decrease proof should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("mutual recursion decrease proof should succeed");
 }
 
 #[test]
@@ -464,7 +475,8 @@ fn rejects_terminating_mutually_recursive_states_without_decrease() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("termination check should fail");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -500,7 +512,8 @@ fn infers_default_nat_descending_for_plain_usize_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("default nat-descending inference should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("default nat-descending inference should succeed");
 }
 
 #[test]
@@ -538,7 +551,8 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("default slice-length inference should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("default slice-length inference should succeed");
 }
 
 #[test]
@@ -569,7 +583,8 @@ fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("default bounded-distance inference should succeed");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("default bounded-distance inference should succeed");
 }
 
 #[test]
@@ -600,7 +615,8 @@ fn accepts_explicit_named_bounded_distance_view() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("explicit named bounded-distance view should prove");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("explicit named bounded-distance view should prove");
 }
 
 #[test]
@@ -630,7 +646,8 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("inverted distance should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("inverted distance should fail");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -691,8 +708,8 @@ fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
             .subjects,
         ["limit - index"]
     );
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the subtraction spelling is retired surface");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the subtraction spelling is retired surface");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -738,8 +755,8 @@ fn rejects_named_bounded_distance_view_over_single_subject() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the view ranks a (lower, upper) pair only");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("the view ranks a (lower, upper) pair only");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -777,7 +794,8 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics = lower_typed_trees(typed).expect_err("ambiguous default order should fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("ambiguous default order should fail");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -827,7 +845,8 @@ fn infers_default_nat_descending_for_plain_u32_decreases() {
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
 
-    lower_typed_trees(typed).expect("default nat-descending inference should cover u32");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("default nat-descending inference should cover u32");
 }
 
 #[test]
@@ -864,8 +883,8 @@ fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("a unique declared measure must not be inferred");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("a unique declared measure must not be inferred");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {

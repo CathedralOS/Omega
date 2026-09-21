@@ -5,6 +5,7 @@ use super::{
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
+use typed_trees_to_checked_trees::CheckingRequest;
 pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
     // The same customer is also run through the CLI with the bundled library.
     // The stage-local harness supplies only its imported content vocabulary.
@@ -17,7 +18,7 @@ pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 #[test]

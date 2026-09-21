@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
@@ -279,8 +280,11 @@ fn parameter_aggregate_record_moves_reach_checked_trees() {
             "let first: Outer = Outer { inner: input }; write_outer(first);",
         ),
     ] {
-        lower_typed_trees(parameter_aggregate_program(parameter_type, body, "u64"))
-            .expect("parameter carrier move reaches checked trees");
+        lower_typed_trees(
+            parameter_aggregate_program(parameter_type, body, "u64"),
+            &CheckingRequest::settled(),
+        )
+        .expect("parameter carrier move reaches checked trees");
     }
 }
 

@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn stored_aggregate_program(body: &str) -> typed_trees::TypedTrees {
@@ -282,7 +283,8 @@ fn stored_aggregate_call_argument_reaches_checked_trees() {
         "let mut first: CellView = CellView { body: &mut self.cell }; let second: View = View { body: &mut first.body.value, tag: 0 }; store(second);",
     ] {
         let program = stored_aggregate_program(body);
-        lower_typed_trees(program).expect("stored reference-bearing value reaches checked callee");
+        lower_typed_trees(program, &CheckingRequest::settled())
+            .expect("stored reference-bearing value reaches checked callee");
     }
 }
 

@@ -6,6 +6,7 @@ mod dynamic_unit_plans;
 mod finite_family;
 mod structural_field_stores_and_descriptor_transfers;
 
+use crate::CheckingRequest;
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, resolve,
 };
@@ -246,7 +247,7 @@ fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
     // closed — until the settled fused-provider input supplies an erasure
     // authorization, exactly as `checked_with_service` fixtures arrange.
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
-    lower_typed_trees(typed).expect("check dynamic source")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check dynamic source")
 }
 
 fn sole_direct_dynamic_plan(

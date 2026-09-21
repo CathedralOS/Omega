@@ -1,15 +1,19 @@
 use super::{rendered_rejection, typed};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
 fn direct_write_only_byte_slice_length_metadata_is_readable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine observe_length(bytes: &write [u8]) {
                 let length: u64 = bytes.len;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("the direct write-only byte-slice descriptor length is metadata, not content");
 }
 
@@ -31,26 +35,32 @@ fn direct_write_only_byte_slice_other_metadata_remains_rejected() {
 
 #[test]
 fn direct_write_only_fixed_array_length_metadata_is_readable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine observe_length(bytes: &write [u8; 4]) {
                 let length: u64 = bytes.len;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("the direct fixed byte-array length is static type metadata, not content");
 }
 
 #[test]
 fn direct_write_only_fixed_array_length_supports_a_proven_element_store() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine fill(bytes: &write [u8; 4], index: u64 [0..bytes.len]) {
                 let length: u64 = bytes.len;
                 bytes[index] = 7;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("fixed-array length metadata should support its ordinary proven index bound");
 }
 
@@ -74,22 +84,26 @@ fn direct_write_only_record_field_named_len_remains_content() {
 
 #[test]
 fn record_held_fixed_array_length_metadata_is_readable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Holder { bytes: [u8; 4]; }
 
             machine observe_length(holder: &write Holder) {
                 let length: u64 = holder.bytes.len;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("literal fixed-array length behind a plain record field is static metadata");
 }
 
 #[test]
 fn nested_plain_record_fixed_array_length_metadata_is_readable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner {
                 bytes: [u8; 4];
                 sibling: u64;
@@ -103,14 +117,17 @@ fn nested_plain_record_fixed_array_length_metadata_is_readable() {
                 let length: u64 = holder.inner.bytes.len;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("every receiver in a nested plain-record path has statically known common fields");
 }
 
 #[test]
 fn nested_plain_record_non_byte_fixed_array_length_metadata_is_readable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             data Inner { words: [u16; 4]; }
             data Holder { inner: Inner; }
 
@@ -118,7 +135,9 @@ fn nested_plain_record_non_byte_fixed_array_length_metadata_is_readable() {
                 let length: u64 = holder.inner.words.len;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("literal fixed-array length is static independently of its element type");
 }
 
@@ -225,13 +244,16 @@ fn direct_write_only_byte_slice_content_read_remains_rejected() {
 
 #[test]
 fn direct_write_only_byte_slice_proven_element_is_writable() {
-    lower_typed_trees(typed(
-        r#"
+    lower_typed_trees(
+        typed(
+            r#"
             machine fill(bytes: &write [u8], index: u64 [0..bytes.len]) {
                 bytes[index] = 7;
             }
         "#,
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("a runtime byte-slice index proven against descriptor length should lower");
 }
 

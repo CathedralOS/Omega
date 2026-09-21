@@ -319,6 +319,7 @@ mod tests {
     use typed_trees::expression::{BinaryOperator, ExpressionNode, TableCallExpression};
     use typed_trees::statement::StatementNode;
 
+    use crate::CheckingRequest;
     use crate::lower_typed_trees;
 
     fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
@@ -326,7 +327,7 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).unwrap();
         let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
         let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        lower_typed_trees(typed)
+        lower_typed_trees(typed, &CheckingRequest::settled())
     }
 
     fn source_with_use(index: &str) -> String {

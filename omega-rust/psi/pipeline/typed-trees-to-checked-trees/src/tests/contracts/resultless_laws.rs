@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 
@@ -16,7 +17,7 @@ fn resultless_law_accepts_an_exact_resultless_satisfier() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an exact resultless theorem satisfier should check");
 }
 
@@ -36,7 +37,7 @@ fn result_bearing_machine_cannot_satisfy_a_resultless_law() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a runtime result must not satisfy a theorem-only slot");
     let messages = diagnostics
         .iter()
@@ -65,7 +66,7 @@ fn unchanged_resultless_self_citation_cannot_prove_itself() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a theorem must not obtain its own ensures from an unchanged citation");
     let messages = diagnostics
         .iter()
@@ -113,7 +114,7 @@ fn descending_resultless_self_citation_is_a_checked_induction_edge() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a resultless citation should prove both exact descent and its induction step");
 }
 
@@ -134,7 +135,7 @@ fn explicitly_discarded_recursive_call_still_requires_exact_descent() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("discarding a recursive result must not erase its induction edge");
     let messages = diagnostics
         .iter()
@@ -170,7 +171,7 @@ fn unchanged_resultless_mutual_citations_cannot_certify_each_other() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("mutual theorem citations must prove descent on every exact edge");
     let messages = diagnostics
         .iter()

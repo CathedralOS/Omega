@@ -28,8 +28,11 @@ fn checked(prefix: &str) -> checked_trees::CheckedTrees {
              value
          }}"
     );
-    typed_trees_to_checked_trees::lower_typed_trees(typed(&source))
-        .unwrap_or_else(|diagnostics| panic!("reference-result checking: {diagnostics:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("reference-result checking: {diagnostics:#?}"))
 }
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -74,8 +77,11 @@ fn local_record_checked(prefix: &str) -> checked_trees::CheckedTrees {
             value
         }}"
     );
-    typed_trees_to_checked_trees::lower_typed_trees(typed(&source))
-        .unwrap_or_else(|diagnostics| panic!("local reference checking: {diagnostics:#?}"))
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("local reference checking: {diagnostics:#?}"))
 }
 
 #[test]
@@ -294,7 +300,13 @@ fn local_reference_record_rejects_conflicting_original_access() {
             replace(held.body);
             value
         }";
-    assert!(typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err());
+    assert!(
+        typed_trees_to_checked_trees::lower_typed_trees(
+            typed(source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err()
+    );
 }
 
 const STORED_REFERENCE_SOURCE: &str = "data View { body: &mut i32; }
@@ -318,9 +330,11 @@ const OWNED_REFERENCE_RECORD_SOURCE: &str = "data View { body: &mut i32; }
 
 #[test]
 fn owned_reference_record_argument_preserves_original_storage() {
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(OWNED_REFERENCE_RECORD_SOURCE))
-            .expect("owned reference record arguments reach checked trees");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(OWNED_REFERENCE_RECORD_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("owned reference record arguments reach checked trees");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("owned reference record arguments preserve complete leaf custody");
@@ -333,7 +347,11 @@ fn owned_reference_record_argument_composes_with_ordinary_work() {
         .replace("machine forward(value: View) -> View { value }", "machine notify() {} machine forward(marker: i32, value: View) -> View { notify(); value }")
         .replace("let input: View", "let marker: i32 = 4 + 5; let input: View")
         .replace("forward(input)", "forward(marker, input)");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(&source)).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("owned ingress composes with scalar formals and ordinary effects");
@@ -342,9 +360,11 @@ fn owned_reference_record_argument_composes_with_ordinary_work() {
 
 #[test]
 fn owned_reference_record_argument_rejects_changed_prior_custody() {
-    let original =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(OWNED_REFERENCE_RECORD_SOURCE))
-            .unwrap();
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(OWNED_REFERENCE_RECORD_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let machine = original
         .machines()
         .iter()
@@ -455,8 +475,11 @@ fn reference_record_origin_roster_rejects_exponential_type_dags() {
 
 #[test]
 fn stored_reference_result_preserves_original_storage() {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(STORED_REFERENCE_SOURCE))
-        .unwrap_or_else(|diagnostics| panic!("stored-reference checking: {diagnostics:#?}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(STORED_REFERENCE_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("stored-reference checking: {diagnostics:#?}"));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("stored result carries exact returned leaf origins");
@@ -474,7 +497,11 @@ fn stored_reference_result_composes_with_an_ordinary_effect() {
             replace(held.body);
             value
         }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source)).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("ordinary effect precedes reference record completion");
@@ -491,7 +518,11 @@ fn stored_reference_result_rejoins_full_formal_positions() {
             replace(held.body);
             value
         }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed(source)).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("structural ordinal rejoins its full authored argument position");
@@ -508,7 +539,11 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
         "{STORED_REFERENCE_SOURCE}
         machine alternate(value: &mut i32) -> View {{ View {{ body: value }} }}"
     );
-    let original = typed_trees_to_checked_trees::lower_typed_trees(typed(&source)).unwrap();
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(&source),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
         .produce_artifact()
         .expect("unmodified same-typed helper roster");
@@ -622,8 +657,11 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
 #[test]
 fn reference_release_processing_preserves_empty_helpers() {
     let program = typed("machine empty() {} machine exercise() { empty(); }");
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(program).expect("check empty helper");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        program,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("check empty helper");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("empty helper has no last-statement release boundary");
@@ -663,7 +701,11 @@ fn reference_result_rejects_conflicting_access_before_last_use() {
         }",
     );
     assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(program).is_err(),
+        typed_trees_to_checked_trees::lower_typed_trees(
+            program,
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err(),
         "a live returned loan excludes direct access to its original referent"
     );
 }
@@ -989,11 +1031,11 @@ const PROJECTED_REFERENCE_RESULT_SOURCE: &str = "data View { body: &mut i32; }
 
 #[test]
 fn projected_reference_result_preserves_original_storage() {
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_REFERENCE_RESULT_SOURCE))
-            .unwrap_or_else(|diagnostics| {
-                panic!("projected reference-result checking: {diagnostics:#?}")
-            });
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(PROJECTED_REFERENCE_RESULT_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("projected reference-result checking: {diagnostics:#?}"));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("a projected leaf return keeps exact ingress custody");
@@ -1006,9 +1048,11 @@ fn projected_reference_result_rejects_changed_leaf_custody() {
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
-    let original =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_REFERENCE_RESULT_SOURCE))
-            .unwrap();
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(PROJECTED_REFERENCE_RESULT_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
         .produce_artifact()
         .expect("untampered projected leaf custody");
@@ -1112,7 +1156,11 @@ fn projected_reference_result_rejects_sibling_leaf_rosters() {
     let source = "data Pair { left: &mut i32; right: &mut i32; }
         machine pick(pair: Pair) -> &mut i32 { pair.left }";
     assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(typed(source)).is_err(),
+        typed_trees_to_checked_trees::lower_typed_trees(
+            typed(source),
+            &typed_trees_to_checked_trees::CheckingRequest::settled()
+        )
+        .is_err(),
         "a multi-leaf carrier cannot donate one leaf to a bare result"
     );
 }
@@ -1123,9 +1171,11 @@ fn nested_call_record_argument_rejects_changed_leaf_custody() {
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
-    let original =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(NESTED_CALL_RECORD_ARGUMENT_SOURCE))
-            .unwrap();
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(NESTED_CALL_RECORD_ARGUMENT_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
         .produce_artifact()
         .expect("untampered nested call-operand custody");
@@ -1268,9 +1318,11 @@ const NESTED_CALL_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
 fn nested_call_record_argument_preserves_original_storage() {
     // The projected operand roots at `forward_outer`'s anonymous owned result;
     // `select`'s returned leaf still replays the exact loan `outer` captured.
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(NESTED_CALL_RECORD_ARGUMENT_SOURCE))
-            .unwrap_or_else(|diagnostics| panic!("nested operand checking: {diagnostics:#?}"));
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(NESTED_CALL_RECORD_ARGUMENT_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("nested operand checking: {diagnostics:#?}"));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("nested operand terminal production");
@@ -1291,11 +1343,11 @@ const PROJECTED_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
 
 #[test]
 fn projected_record_argument_preserves_original_storage() {
-    let checked =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_RECORD_ARGUMENT_SOURCE))
-            .unwrap_or_else(|diagnostics| {
-                panic!("projected record-argument checking: {diagnostics:#?}")
-            });
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(PROJECTED_RECORD_ARGUMENT_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("projected record-argument checking: {diagnostics:#?}"));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "exercise")
         .produce_artifact()
         .expect("a projected record operand keeps exact ingress custody");
@@ -1308,9 +1360,11 @@ fn projected_record_argument_rejects_changed_leaf_custody() {
         CheckedUnitEffectOperationPlan as Operation,
         CheckedUnitStructuralArgumentSourcePlan as Source,
     };
-    let original =
-        typed_trees_to_checked_trees::lower_typed_trees(typed(PROJECTED_RECORD_ARGUMENT_SOURCE))
-            .unwrap();
+    let original = typed_trees_to_checked_trees::lower_typed_trees(
+        typed(PROJECTED_RECORD_ARGUMENT_SOURCE),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
     let _ = terminal_production::TerminalProductionRequest::new(&original, "exercise")
         .produce_artifact()
         .expect("untampered projected record-argument custody");

@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 fn prove_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
@@ -7,7 +8,7 @@ fn prove_termination(source: &str) {
 
 fn prove(source: &str) {
     prove_termination(source);
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
@@ -113,7 +114,8 @@ fn computed_endpoint_may_land_under_requires_facts_not_declarations() {
 fn unrelated_payloads_and_immutable_locals_preserve_exact_parameter_ordinals() {
     let source = "data Payload { value: u64; } machine climb(flag: bool, limit: u64 [0..=10], payload: Payload, index: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { let unrelated: u64 = 7; transition index < limit { true -> climb(flag, limit, payload, index + 1) false -> index } }";
     prove(source);
-    lower_typed_trees(typed(source)).expect("the unrelated payload fixture checks completely");
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
+        .expect("the unrelated payload fixture checks completely");
     reject(&source.replace(
         "climb(flag, limit, payload, index + 1)",
         "climb(flag, limit + 1, payload, index + 1)",

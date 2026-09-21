@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::tests::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 
@@ -46,7 +47,7 @@ fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
         })
         .expect("selected conformance")
         .symbol;
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("an explicit binder should specialize through its selected closed map");
 
     let specialization = checked
@@ -137,7 +138,7 @@ fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances(
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let checked = lower_typed_trees(typed)
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("each exact conformance argument should produce one specialization");
 
     let instances = checked
@@ -193,7 +194,8 @@ fn nested_generic_conformance_application_closes_its_own_telescope() {
         })
         .expect("generic conformance")
         .symbol;
-    let checked = lower_typed_trees(typed).expect("closed generic conformance application");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("closed generic conformance application");
     let specialization = checked
         .machine_specializations
         .iter()
@@ -248,7 +250,8 @@ fn selected_generic_conformance_bound_closes_and_specializes_its_application() {
         })
         .expect("selected generic conformance")
         .symbol;
-    let checked = lower_typed_trees(typed).expect("selected bound application closes");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("selected bound application closes");
     let specialization = checked
         .machine_specializations
         .iter()
@@ -304,7 +307,8 @@ fn selected_bound_application_substitutes_forwarded_type_const_and_machine_argum
         .and_then(|machine| typed.machine_states(machine).first())
         .expect("rank state")
         .symbol;
-    let checked = lower_typed_trees(typed).expect("forwarded selected application closes");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("forwarded selected application closes");
     let specialization = checked
         .machine_specializations
         .iter()
@@ -359,7 +363,8 @@ fn unused_private_selected_conformance_bound_rejects_missing_application_argumen
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("private bound must close");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("private bound must close");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
@@ -386,7 +391,8 @@ fn unused_private_trait_selected_conformance_bound_is_also_closed() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("private trait bound must close");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("private trait bound must close");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
             "generic conformance `SequenceEncoding` requires 2 explicit non-lifetime argument(s), got 0",
@@ -414,7 +420,8 @@ fn unused_private_selected_conformance_bound_rejects_wrong_argument_category() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("wrong type category must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("wrong type category must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -444,5 +451,6 @@ fn private_selected_conformance_bound_closes_lifetime_const_and_machine_lanes() 
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("all selected private bound lanes close");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("all selected private bound lanes close");
 }

@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
@@ -144,7 +145,8 @@ fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
     };
     let left = machine_symbol("left");
     let right = machine_symbol("right");
-    let checked = lower_typed_trees(typed).expect("measured proof SCC should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("measured proof SCC should check");
 
     let [component] = checked
         .facts
@@ -270,7 +272,8 @@ fn checked_singleton_proof_scc_retains_its_exact_self_edge() {
         .find(|machine| machine.name.as_str() == "descend")
         .expect("descend machine")
         .symbol;
-    let checked = lower_typed_trees(typed).expect("measured self recursion should check");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("measured self recursion should check");
 
     let [component] = checked
         .facts
@@ -320,7 +323,8 @@ fn inferred_completion_never_publishes_a_promise() {
     };
     let inferred = symbol_of("Main::inferred");
     let promised = symbol_of("Main::promised");
-    let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("checked lowering should succeed");
 
     assert_eq!(
         checked
@@ -444,7 +448,8 @@ fn implementation_inherits_requirement_guarantee() {
     );
     assert!(run.termination_plan.implementation_witness.is_none());
 
-    lower_typed_trees(typed).expect("an acyclic inheritor discharges the claim for free");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("an acyclic inheritor discharges the claim for free");
 }
 
 /// TPR4: omission has different normalized meaning on a private body and a
@@ -543,8 +548,8 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("a cyclic inheritor without a witness must fail");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("a cyclic inheritor without a witness must fail");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains("recursive cycle")
@@ -566,5 +571,6 @@ fn cyclic_inheritor_without_witness_fails_and_witness_discharges() {
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
-    lower_typed_trees(typed).expect("the witness discharges the inherited claim");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("the witness discharges the inherited claim");
 }

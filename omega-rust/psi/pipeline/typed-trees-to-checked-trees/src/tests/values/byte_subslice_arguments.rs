@@ -1,5 +1,6 @@
 //! Endpoint custody is retained before executable range admission.
 use super::StatementNode;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::values::typed_trees;
 use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
@@ -142,8 +143,9 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
 
 #[test]
 fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
-    let checked = lower_typed_trees(typed_trees(
-        "boundary trait Host { machine write(bytes: &[u8]); }
+    let checked = lower_typed_trees(
+        typed_trees(
+            "boundary trait Host { machine write(bytes: &[u8]); }
          data Relay {}
          machine Relay::write(bytes: &[u8]) reaches Host { Host::write(bytes); }
          data Helper {}
@@ -151,7 +153,9 @@ fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
             Relay::write(bytes[..]);
             Host::write(bytes);
          }",
-    ))
+        ),
+        &CheckingRequest::settled(),
+    )
     .expect("full exclusive byte view checks without extra bounds");
     let machine = checked
         .machines()

@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees};
 use numerics::literals::FloatFormat;
 use semantic_vocabulary::IeeeFloatValue;
@@ -44,12 +45,12 @@ fn source(destination: Destination, target: &str, expression: &str) -> String {
 }
 
 fn accepts(source: &str) -> CheckedTrees {
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
 }
 
 fn rejects(source: &str) {
-    match lower_typed_trees(parse_typed_trees(source)) {
+    match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
         Ok(_) => panic!("invalid float destination accepted: {source}"),
         Err(diagnostics) => assert!(!diagnostics.is_empty(), "{source}"),
     }

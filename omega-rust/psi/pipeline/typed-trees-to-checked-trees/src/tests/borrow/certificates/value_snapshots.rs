@@ -41,7 +41,7 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     fixture_result(
         source,
         "check snapshot fixture",
-        crate::lower_typed_trees(typed_source(source)),
+        crate::lower_typed_trees(typed_source(source), &crate::CheckingRequest::settled()),
     )
 }
 
@@ -170,7 +170,9 @@ fn assert_replay_rejects_snapshot_drift(checked: &mut checked_trees::CheckedTree
 }
 
 fn assert_borrow_conflict(source: &str) {
-    let Err(diagnostics) = crate::lower_typed_trees(typed_source(source)) else {
+    let Err(diagnostics) =
+        crate::lower_typed_trees(typed_source(source), &crate::CheckingRequest::settled())
+    else {
         panic!("overlapping mutable windows must reject: {source}");
     };
     assert!(

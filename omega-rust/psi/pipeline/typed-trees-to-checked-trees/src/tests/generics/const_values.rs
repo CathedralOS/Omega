@@ -1,4 +1,5 @@
 use super::{Lexer, lower_symbol_resolved_trees, parse_syntax_trees};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
@@ -20,15 +21,15 @@ fn typed_source(source: &str) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>
 
 fn accepts(source: &str) -> CheckedTrees {
     let typed = typed_source(source).expect("const value source should type");
-    lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+    lower_typed_trees(typed, &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
         panic!("const value source should check: {diagnostics:#?}\n{source}")
     })
 }
 
 fn rejects(source: &str, fragment: &str) {
     let typed = typed_source(source).expect("const value refusal source should type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("false const value obligation must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("false const value obligation must reject");
     assert!(
         diagnostics
             .iter()
@@ -85,8 +86,8 @@ fn inferred_const_binder_is_an_executable_checked_value() {
     };
     assert_eq!(path.symbol, binder.symbol);
     let endpoint_symbol = endpoint.symbol;
-    let checked =
-        lower_typed_trees(typed).expect("inferred N must pass checked return-range proof");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("inferred N must pass checked return-range proof");
     let endpoint_instance = checked
         .machine_specializations
         .iter()
@@ -179,7 +180,8 @@ fn same_spelled_const_binders_in_different_machines_keep_their_symbols() {
         };
         assert_eq!(path.symbol, binder);
     }
-    lower_typed_trees(typed).expect("each machine proves its own exact return range");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("each machine proves its own exact return range");
 }
 
 #[test]
@@ -542,7 +544,7 @@ fn authored_unit_annotation_is_not_an_inferred_temporary() {
     assert_annotation(&typed);
     crate::specialize_static_machine_calls(&mut typed).expect("select the explicit scalar callee");
     assert_annotation(&typed);
-    let Err(diagnostics) = lower_typed_trees(typed) else {
+    let Err(diagnostics) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
         panic!("an explicit Unit local cannot admit a scalar call result");
     };
     assert!(

@@ -32,10 +32,16 @@ fn exact_requirement_lifetime_partition_is_stable_across_checked_and_external_su
     "#;
     let (checked_typed, checked_plan) = derive_provider_fixture(checked_source);
     let (external_typed, external_plan) = derive_provider_fixture(external_source);
-    typed_trees_to_checked_trees::lower_typed_trees(checked_typed.clone())
-        .expect("checked exact realization");
-    typed_trees_to_checked_trees::lower_typed_trees(external_typed.clone())
-        .expect("external exact realization");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        checked_typed.clone(),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked exact realization");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        external_typed.clone(),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("external exact realization");
 
     assert_eq!(checked_plan.rows[0].requirement_lifetime_partition, [0, 1]);
     assert_eq!(
@@ -187,8 +193,11 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     .expect("resolve external top-level requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type external top-level requirement fixture");
-    typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
-        .expect("the exact external satisfier should pass conformance validation");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed.clone(),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("the exact external satisfier should pass conformance validation");
     let evaluated_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
         &typed,
         Some(target::TargetProfile::LinuxX64),
@@ -807,8 +816,11 @@ fn selected_provider_binds_actual_reach_for_bounded_requirement() {
         }
     "#;
     let (typed, plan) = derive_provider_fixture(source);
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("bounded provider should check");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("bounded provider should check");
     let selected = effects::SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&plan),
         std::slice::from_ref(&plan.name),
@@ -854,8 +866,11 @@ fn selected_top_level_provider_binds_its_exact_actual_reach() {
         }
     "#;
     let (typed, plan) = derive_provider_fixture(source);
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("bounded top-level provider should check");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("bounded top-level provider should check");
     let selected = effects::SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&plan),
         std::slice::from_ref(&plan.name),
@@ -906,8 +921,11 @@ fn selected_top_level_provider_with_unresolved_installation_reach_is_not_a_resol
         }
     "#;
     let (typed, plan) = derive_provider_fixture(source);
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("provider calling an unresolved bounded requirement should check");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("provider calling an unresolved bounded requirement should check");
     let realization = checked
         .typed
         .machines()
@@ -970,8 +988,11 @@ fn selected_trait_provider_with_unresolved_installation_reach_is_not_a_resolved_
         }
     "#;
     let (typed, plan) = derive_provider_fixture(source);
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("trait provider calling an unresolved bounded requirement should check");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("trait provider calling an unresolved bounded requirement should check");
     let selected = effects::SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&plan),
         std::slice::from_ref(&plan.name),
@@ -1010,8 +1031,11 @@ fn selected_boundary_operator_does_not_enter_trait_installation_reach_resolution
         }
     "#;
     let (typed, plan) = derive_provider_fixture(source);
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .expect("boundary operator provider should check");
+    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("boundary operator provider should check");
     let selected = effects::SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&plan),
         std::slice::from_ref(&plan.name),

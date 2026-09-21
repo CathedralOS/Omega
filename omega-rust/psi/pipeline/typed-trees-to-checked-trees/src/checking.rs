@@ -1,8 +1,9 @@
 //! Typed-tree checking: specialize calls, validate contracts and ownership,
 //! assemble execution plans, then publish checked trees.
 //!
-//! Package checkpoints select explicit checking modes; only the test-only
-//! crash-inspection mode omits crash admission.
+//! `lower_typed_trees` is the one entrance; a `CheckingRequest` names the
+//! package checkpoint (preliminary or settled) and carries the settled
+//! selections. Only the test-only crash-inspection mode omits crash admission.
 
 pub(crate) mod call_acknowledgements;
 pub(crate) mod program_validation;
@@ -12,21 +13,100 @@ use crate::checks;
 use crate::facts::build_check_facts;
 use checked_trees::CheckedTrees;
 
-/// Check a standalone program. Toolchain-owned selections may remain late-bound
-/// until build-time evaluation; ordinary authored selections remain strict.
-pub fn lower_typed_trees(
-    program: typed_trees::TypedTrees,
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(program, CheckingMode::SettledPackage, &[], &[], &[])
+/// One typed->checked lowering request. `settled()` is the final package
+/// checkpoint: every selection the orchestration owner settled is supplied
+/// through the `with_*` builders. Standalone programs and package builds
+/// share it: ordinary package selections stay strict while unresolved
+/// compiler-owned toolchain selections remain TCB input, so a package build
+/// must run its declaration authority gate over the result before issuing
+/// package evidence. `preliminary()` is the pre-settlement checkpoint: unresolved
+/// selections are retained only for compiler-owned toolchain source, pending
+/// opaque-copy evidence and deferred const range endpoints are tolerated, and
+/// the caller must reject unresolved ordinary-package selections before
+/// granting build authority.
+///
+/// Psi derives applications from authored uses and uses ordinary
+/// authoritative specialization; the request carries no application strings,
+/// capability assertions, or provider-selection policy.
+#[derive(Debug, Clone, Copy)]
+pub struct CheckingRequest<'a> {
+    mode: CheckingMode,
+    selected_generic_operator_providers: &'a [SelectedGenericOperatorProviderSpecialization],
+    selected_boundary_families: &'a [SelectedBoundaryFamilySpecialization],
+    opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
 }
 
-fn check_program(
+impl<'a> CheckingRequest<'a> {
+    const fn with_mode(mode: CheckingMode) -> Self {
+        Self {
+            mode,
+            selected_generic_operator_providers: &[],
+            selected_boundary_families: &[],
+            opaque_property_receipts: &[],
+        }
+    }
+
+    /// The final package checkpoint with no settled selections yet attached.
+    pub const fn settled() -> Self {
+        Self::with_mode(CheckingMode::Settled)
+    }
+
+    /// The pre-settlement package checkpoint.
+    pub const fn preliminary() -> Self {
+        Self::with_mode(CheckingMode::Preliminary)
+    }
+
+    /// Settled checking that omits crash admission so tests can inspect the
+    /// recorded crash facts of programs the admission gate would reject.
+    #[cfg(test)]
+    pub(crate) const fn crash_fact_inspection() -> Self {
+        Self::with_mode(CheckingMode::CrashFactInspection)
+    }
+
+    /// Omega-selected generic checked bodies to specialize for the exact
+    /// closed applications of their boundary-operator requirements.
+    pub const fn with_selected_generic_operator_providers(
+        mut self,
+        selected: &'a [SelectedGenericOperatorProviderSpecialization],
+    ) -> Self {
+        self.selected_generic_operator_providers = selected;
+        self
+    }
+
+    /// Selected boundary adapter rows whose requirements declare complete
+    /// finite families.
+    pub const fn with_selected_boundary_families(
+        mut self,
+        selected: &'a [SelectedBoundaryFamilySpecialization],
+    ) -> Self {
+        self.selected_boundary_families = selected;
+        self
+    }
+
+    /// Exact orchestration receipts that close opaque-property validation.
+    pub const fn with_opaque_property_receipts(
+        mut self,
+        receipts: &'a [validation::OpaqueDataPropertyReceipt],
+    ) -> Self {
+        self.opaque_property_receipts = receipts;
+        self
+    }
+}
+
+/// Check typed trees under one explicit request: the checkpoint mode plus
+/// the settled selections the orchestration owner supplies. Toolchain-owned
+/// selections may remain late-bound until build-time evaluation; ordinary
+/// authored selections remain strict in both modes.
+pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
-    mode: CheckingMode,
-    selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
-    selected_boundary_families: &[crate::SelectedBoundaryFamilySpecialization],
-    opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
+    request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    let CheckingRequest {
+        mode,
+        selected_generic_operator_providers,
+        selected_boundary_families,
+        opaque_property_receipts,
+    } = *request;
     // Mathematical `let`/`boundary let` declarations elaborate into
     // `CheckedMathematicalDeclaration` records and then into a kernel
     // signature the kernel itself re-decides; run both elaborations first so
@@ -185,7 +265,7 @@ fn check_program(
     )?;
 
     match mode {
-        CheckingMode::PreliminaryPackage | CheckingMode::SettledPackage => {
+        CheckingMode::Preliminary | CheckingMode::Settled => {
             checks::check_checked_facts_recording_with_mutation_summaries(
                 &program,
                 &mut facts,
@@ -220,15 +300,6 @@ fn check_program(
     Ok(CheckedTrees::with_roots(program, facts))
 }
 
-/// Lower a pre-settlement package checkpoint. Unresolved selections are
-/// retained only for compiler-owned toolchain source; the caller must reject
-/// unresolved ordinary-package selections before granting build authority.
-pub fn lower_preliminary_typed_trees(
-    program: typed_trees::TypedTrees,
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(program, CheckingMode::PreliminaryPackage, &[], &[], &[])
-}
-
 /// One Omega-selected generic checked body that must be specialized for the
 /// exact closed applications of its boundary-operator requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,58 +321,30 @@ pub struct SelectedBoundaryFamilySpecialization {
     pub realization_machine: symbols::SymbolHandle,
 }
 
-/// Settled checking with the exact selected generic operator providers the
-/// orchestration owner supplies. Psi derives applications from authored uses
-/// and uses ordinary authoritative specialization; the request carries no
-/// application strings, capability assertions, or provider-selection policy.
-///
-/// Standalone programs and package builds share this checkpoint: ordinary
-/// package selections stay strict while unresolved compiler-owned toolchain
-/// selections remain TCB input, so a package build must run its declaration
-/// authority gate over the result before issuing package evidence.
-pub fn lower_typed_trees_with_selected_generic_operator_providers(
-    program: typed_trees::TypedTrees,
-    selected: &[SelectedGenericOperatorProviderSpecialization],
-    selected_boundary_families: &[SelectedBoundaryFamilySpecialization],
-    opaque_property_receipts: &[::validation::OpaqueDataPropertyReceipt],
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(
-        program,
-        CheckingMode::SettledPackage,
-        selected,
-        selected_boundary_families,
-        opaque_property_receipts,
-    )
-}
-
 /// These are distinct checking checkpoints, not freely combinable permissions.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CheckingMode {
-    PreliminaryPackage,
-    SettledPackage,
+    /// The pre-settlement package checkpoint.
+    Preliminary,
+    /// The final package checkpoint after provider settlement.
+    Settled,
+    /// Settled checking without crash admission, for crash-fact tests only.
     #[cfg(test)]
     CrashFactInspection,
 }
 
 impl CheckingMode {
     fn allows_pending_opaque_copy(self) -> bool {
-        matches!(self, Self::PreliminaryPackage)
+        matches!(self, Self::Preliminary)
     }
 
     fn allows_pending_const_range_endpoints(self) -> bool {
-        matches!(self, Self::PreliminaryPackage)
+        matches!(self, Self::Preliminary)
     }
 
     fn allows_unresolved_toolchain_selections(self) -> bool {
-        matches!(self, Self::PreliminaryPackage | Self::SettledPackage)
+        matches!(self, Self::Preliminary | Self::Settled)
     }
-}
-
-#[cfg(test)]
-pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
-    program: typed_trees::TypedTrees,
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    check_program(program, CheckingMode::CrashFactInspection, &[], &[], &[])
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
@@ -355,19 +398,28 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
 
 #[cfg(test)]
 mod tests {
-    use super::CheckingMode;
+    use super::{CheckingMode, CheckingRequest};
 
     #[test]
     fn checking_modes_preserve_package_settlement_permissions() {
         assert!(!CheckingMode::CrashFactInspection.allows_pending_opaque_copy());
         assert!(!CheckingMode::CrashFactInspection.allows_pending_const_range_endpoints());
         assert!(!CheckingMode::CrashFactInspection.allows_unresolved_toolchain_selections());
-        assert!(CheckingMode::PreliminaryPackage.allows_pending_opaque_copy());
-        assert!(CheckingMode::PreliminaryPackage.allows_pending_const_range_endpoints());
-        assert!(CheckingMode::PreliminaryPackage.allows_unresolved_toolchain_selections());
-        assert!(!CheckingMode::SettledPackage.allows_pending_opaque_copy());
-        assert!(!CheckingMode::SettledPackage.allows_pending_const_range_endpoints());
-        assert!(CheckingMode::SettledPackage.allows_unresolved_toolchain_selections());
+        assert!(CheckingMode::Preliminary.allows_pending_opaque_copy());
+        assert!(CheckingMode::Preliminary.allows_pending_const_range_endpoints());
+        assert!(CheckingMode::Preliminary.allows_unresolved_toolchain_selections());
+        assert!(!CheckingMode::Settled.allows_pending_opaque_copy());
+        assert!(!CheckingMode::Settled.allows_pending_const_range_endpoints());
+        assert!(CheckingMode::Settled.allows_unresolved_toolchain_selections());
+        assert_eq!(CheckingRequest::settled().mode, CheckingMode::Settled);
+        assert_eq!(
+            CheckingRequest::preliminary().mode,
+            CheckingMode::Preliminary
+        );
+        assert_eq!(
+            CheckingRequest::crash_fact_inspection().mode,
+            CheckingMode::CrashFactInspection
+        );
     }
 
     #[test]
@@ -384,8 +436,8 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
-        let checked =
-            crate::lower_typed_trees(typed).expect("elaborated declarations check into facts");
+        let checked = crate::lower_typed_trees(typed, &CheckingRequest::settled())
+            .expect("elaborated declarations check into facts");
         let [declaration] = checked.facts.proof.mathematical_declarations.as_slice() else {
             panic!("one checked mathematical declaration expected");
         };
@@ -409,7 +461,7 @@ mod tests {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
 
-        let diagnostics = crate::lower_typed_trees(typed)
+        let diagnostics = crate::lower_typed_trees(typed, &CheckingRequest::settled())
             .expect_err("a malformed `core::Type` carrier is unelaboratable");
         assert!(
             diagnostics

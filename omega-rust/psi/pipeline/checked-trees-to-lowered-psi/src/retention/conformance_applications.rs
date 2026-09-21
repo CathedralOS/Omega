@@ -465,7 +465,11 @@ mod tests {
         .expect("resolve");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type");
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("check");
         let selection = crate::machine_lowering::machine_dispatch::select_terminal_machine(
             &checked,
             "Main::main",

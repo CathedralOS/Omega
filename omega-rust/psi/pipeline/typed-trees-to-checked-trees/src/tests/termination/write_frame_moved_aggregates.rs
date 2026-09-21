@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn moved_aggregate_program(body: &str, scalar: &str) -> typed_trees::TypedTrees {
@@ -317,8 +318,11 @@ fn moved_aggregate_names_and_fields_reach_checked_trees() {
         "let first: OuterChoice = OuterChoice { inner: Choice::Empty {} }; let second: Choice = first.inner; consume_choice(second);",
         "let first: SharedOuter = SharedOuter { inner: SharedView { body: &self.value } }; let second: MixedShared = MixedShared { inner: first.inner, writer: View { body: &mut self.other } }; write_mixed(second);",
     ] {
-        lower_typed_trees(moved_aggregate_program(body, "u64"))
-            .expect("valid carrier move reaches checked trees");
+        lower_typed_trees(
+            moved_aggregate_program(body, "u64"),
+            &CheckingRequest::settled(),
+        )
+        .expect("valid carrier move reaches checked trees");
     }
 }
 

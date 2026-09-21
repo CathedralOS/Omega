@@ -1,5 +1,6 @@
 use super::super::lower_typed_trees;
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 
 #[test]
 fn carrier_safety_proofs_preserve_tighter_argument_bounds() {
@@ -15,12 +16,15 @@ fn carrier_safety_proofs_preserve_tighter_argument_bounds() {
                 state accept(delivered: {carrier} [0..={maximum}]) -> {carrier} {{ delivered }}
             }}"
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
         assert!(
-            lower_typed_trees(parse_typed_trees(
-                &source.replace(&format!("0..={maximum}"), &format!("0..={}", maximum - 1)),
-            ))
+            lower_typed_trees(
+                parse_typed_trees(
+                    &source.replace(&format!("0..={maximum}"), &format!("0..={}", maximum - 1)),
+                ),
+                &CheckingRequest::settled()
+            )
             .is_err(),
             "a tighter-than-proved target accepted: {source}"
         );
@@ -41,7 +45,7 @@ fn named_transition_refolds_nonliteral_operands_under_its_own_guard() {
                 state accept(delivered: u32 [{range}]) -> u32 {{ delivered }}
             }}"
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 }
@@ -207,10 +211,11 @@ fn named_transition_integer_query_does_not_truncate_anonymous_division() {
 }
 
 fn rejects_range(source: &str) {
-    let diagnostics = match lower_typed_trees(parse_typed_trees(source)) {
-        Ok(_) => panic!("out-of-range argument was accepted"),
-        Err(diagnostics) => diagnostics,
-    };
+    let diagnostics =
+        match lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()) {
+            Ok(_) => panic!("out-of-range argument was accepted"),
+            Err(diagnostics) => diagnostics,
+        };
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
@@ -232,9 +237,12 @@ fn statement_and_value_calls_must_establish_the_parameter_range() {
         }
     }
     for body in ["_ = accept(1);", "let result: u32 = accept(5);"] {
-        lower_typed_trees(parse_typed_trees(&format!(
-            "machine accept(value: u32 [1..=5]) -> u32 {{ value }} machine run() {{ {body} }}"
-        )))
+        lower_typed_trees(
+            parse_typed_trees(&format!(
+                "machine accept(value: u32 [1..=5]) -> u32 {{ value }} machine run() {{ {body} }}"
+            )),
+            &CheckingRequest::settled(),
+        )
         .expect("in-range call");
     }
 }
@@ -246,7 +254,7 @@ fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
             "machine accept(value: f64 [0.0..1.5]) -> f64 {{ value }}
              machine run() {{ _ = accept({argument}); }}"
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     }
 
@@ -255,8 +263,9 @@ fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
             "machine accept(value: f64 [0.0..1.5]) -> f64 {{ value }}
              machine run() {{ _ = accept({argument}); }}"
         );
-        let diagnostics = lower_typed_trees(parse_typed_trees(&source))
-            .expect_err("out-of-range float call must reject");
+        let diagnostics =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+                .expect_err("out-of-range float call must reject");
         assert!(
             diagnostics
                 .iter()
@@ -270,7 +279,7 @@ fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
         machine run(value: f64) { _ = accept(value); }
     "#;
     assert!(
-        lower_typed_trees(parse_typed_trees(unknown)).is_err(),
+        lower_typed_trees(parse_typed_trees(unknown), &CheckingRequest::settled()).is_err(),
         "an unconstrained float call must reject"
     );
 
@@ -278,15 +287,22 @@ fn strict_float_calls_retain_and_enforce_the_authored_endpoint() {
         machine wide(value: f64 [0.0..=1.5]) -> f64 { value }
         machine run(value: f64 [0.0..1.5]) { _ = wide(value); }
     "#;
-    lower_typed_trees(parse_typed_trees(strict_to_inclusive))
-        .expect("a strict source range fits an inclusive target");
+    lower_typed_trees(
+        parse_typed_trees(strict_to_inclusive),
+        &CheckingRequest::settled(),
+    )
+    .expect("a strict source range fits an inclusive target");
 
     let inclusive_to_strict = r#"
         machine narrow(value: f64 [0.0..1.5]) -> f64 { value }
         machine run(value: f64 [0.0..=1.5]) { _ = narrow(value); }
     "#;
     assert!(
-        lower_typed_trees(parse_typed_trees(inclusive_to_strict)).is_err(),
+        lower_typed_trees(
+            parse_typed_trees(inclusive_to_strict),
+            &CheckingRequest::settled()
+        )
+        .is_err(),
         "an inclusive source range must not fit a strict target"
     );
 }
@@ -302,7 +318,7 @@ fn float_call_endpoints_read_at_the_declared_carrier() {
         machine accept(value: f32 [0.0..=0.3]) -> f32 { value }
         machine run() { _ = accept(0.3); }
     "#;
-    lower_typed_trees(parse_typed_trees(inclusive))
+    lower_typed_trees(parse_typed_trees(inclusive), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{inclusive}\n{diagnostics:#?}"));
 
     // f32("0.10000000149011613") rounds to 0.1f32, so the exclusive endpoint
@@ -312,7 +328,7 @@ fn float_call_endpoints_read_at_the_declared_carrier() {
         machine accept(value: f32 [0.0..0.10000000149011613]) -> f32 { value }
         machine run() { _ = accept(0.1); }
     "#;
-    let diagnostics = lower_typed_trees(parse_typed_trees(exclusive))
+    let diagnostics = lower_typed_trees(parse_typed_trees(exclusive), &CheckingRequest::settled())
         .expect_err("the exclusive f32 endpoint equals the delivered f32 value");
     assert!(
         diagnostics
@@ -328,7 +344,11 @@ fn float_call_endpoints_read_at_the_declared_carrier() {
         machine run() { _ = accept(0.3f32); }
     "#;
     assert!(
-        lower_typed_trees(parse_typed_trees(suffixed_argument)).is_err(),
+        lower_typed_trees(
+            parse_typed_trees(suffixed_argument),
+            &CheckingRequest::settled()
+        )
+        .is_err(),
         "an f32-suffixed argument equal to the exclusive f32 endpoint must reject"
     );
 
@@ -338,8 +358,11 @@ fn float_call_endpoints_read_at_the_declared_carrier() {
         machine accept(value: f64 [0.0..0.3f32]) -> f64 { value }
         machine run() { _ = accept(0.3); }
     "#;
-    lower_typed_trees(parse_typed_trees(landed_endpoint))
-        .unwrap_or_else(|diagnostics| panic!("{landed_endpoint}\n{diagnostics:#?}"));
+    lower_typed_trees(
+        parse_typed_trees(landed_endpoint),
+        &CheckingRequest::settled(),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{landed_endpoint}\n{diagnostics:#?}"));
 }
 
 #[test]
@@ -353,7 +376,7 @@ fn incoming_argument_guards_keep_their_own_polarity() {
             }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(positive))
+    lower_typed_trees(parse_typed_trees(positive), &CheckingRequest::settled())
         .expect("the positive guard establishes the floor");
     rejects_range(&positive.replace(
         "true -> accept(value)\n                false -> 0",
@@ -372,7 +395,8 @@ fn named_state_delivery_checks_a_renamed_parameter_range() {
             state accept(delivered: u32 [1..=5]) -> u32 { delivered }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source)).expect("guarded named-state arrival");
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("guarded named-state arrival");
     rejects_range(&source.replace("value > 0", "value >= 0"));
 }
 
@@ -397,7 +421,8 @@ fn immutable_singleton_bound_is_not_a_guess_about_a_variable_limit() {
             }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source)).expect("the immutable limit is exactly five");
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("the immutable limit is exactly five");
     rejects_range(&source.replace("limit: u32 [5..=5]", "limit: u32 [4..=6]"));
 }
 
@@ -424,7 +449,7 @@ fn bare_dispatch_guards_establish_bounded_arguments() {
                     {local_target}
                 }} {external_target}"
             );
-            lower_typed_trees(parse_typed_trees(&source))
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
                 .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
         }
     }
@@ -442,7 +467,8 @@ fn later_dispatch_arm_keeps_its_own_fuel_guard() {
             state advance(delivered: u64 [1..=128]) -> u64 { delivered }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source)).expect("the second arm supplies its own floor");
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("the second arm supplies its own floor");
 }
 
 #[test]
@@ -479,7 +505,8 @@ fn dispatch_guards_preserve_bounded_fuel_on_ranked_state_cycles() {
             }
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source)).expect("bounded decreasing fuel stays in range");
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("bounded decreasing fuel stays in range");
 }
 
 #[test]

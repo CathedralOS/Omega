@@ -12,6 +12,7 @@ use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::StructuralPathSegment;
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[path = "dynamic_dispatch/unit.rs"]
@@ -37,7 +38,7 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("stored dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -160,7 +161,7 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("rebound dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -299,7 +300,7 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("changed-conformance rebound lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -419,7 +420,7 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("forwarded dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
@@ -627,7 +628,7 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-    let checked = lower_typed_trees(typed).expect("check source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
     let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
         .expect("direct scalar forwarding lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");

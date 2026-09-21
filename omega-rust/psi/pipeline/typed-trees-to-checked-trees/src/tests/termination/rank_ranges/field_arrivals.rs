@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -16,7 +17,7 @@ const FRESH: &str = include_str!(concat!(
 ));
 
 fn prove(source: &str) {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 

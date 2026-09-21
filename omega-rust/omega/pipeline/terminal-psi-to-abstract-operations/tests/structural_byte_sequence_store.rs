@@ -10,6 +10,7 @@ use terminal_psi_to_abstract_operations::{
     lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
@@ -55,7 +56,7 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
         let syntax = parse_syntax_trees(&tokens).expect("parse source");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-        let checked = lower_typed_trees(typed).expect("check source");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
             .expect("guarded write lowers to Terminal");
         let writer = terminal
@@ -182,7 +183,7 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
         let syntax = parse_syntax_trees(&tokens).expect("parse source");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
-        let checked = lower_typed_trees(typed).expect("check source");
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
         let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
             .expect("bounded byte-field replacement lowers to Terminal");
         let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");

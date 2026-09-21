@@ -1,4 +1,5 @@
 use super::typed_source;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 #[test]
@@ -21,7 +22,7 @@ fn concrete_erased_proof_output_call_requires_a_complete_type_application() {
     "#,
     )
     .expect("unresolved erased application remains available for checking");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("erased call cannot hide an unresolved type application");
     assert!(
         diagnostics
@@ -46,24 +47,27 @@ fn fixed_width_argument_source(argument: &str) -> String {
 fn named_conformance_fixed_width_argument_accepts_fitting_literal() {
     let typed =
         typed_source(&fixed_width_argument_source("2")).expect("fixed-width evidence call types");
-    lower_typed_trees(typed).expect("bound u8 input accepts a fitting literal");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("bound u8 input accepts a fitting literal");
 }
 
 #[test]
 fn named_conformance_fixed_width_argument_rejects_overflowing_literal() {
     let typed = typed_source(&fixed_width_argument_source("300"))
         .expect("literal landing is checked after typing");
-    lower_typed_trees(typed).expect_err("bound u8 input must reject 300 without a closed caller");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("bound u8 input must reject 300 without a closed caller");
 }
 
 #[test]
 fn named_conformance_fixed_width_argument_checks_computed_actuals() {
     let fitting = typed_source(&fixed_width_argument_source("1 + 1"))
         .expect("computed fixed-width input types");
-    lower_typed_trees(fitting).expect("bound u8 input accepts a fitting computation");
+    lower_typed_trees(fitting, &CheckingRequest::settled())
+        .expect("bound u8 input accepts a fitting computation");
     let overflowing = typed_source(&fixed_width_argument_source("200 + 100"))
         .expect("computed narrowing is checked after typing");
-    lower_typed_trees(overflowing)
+    lower_typed_trees(overflowing, &CheckingRequest::settled())
         .expect_err("bound u8 input must reject a computation yielding 300");
 }
 
@@ -87,7 +91,7 @@ fn source(body: &str) -> String {
 
 fn rejects(body: &str, fragment: &str) {
     let typed = typed_source(&source(body)).expect("named evidence body should type");
-    let diagnostics = lower_typed_trees(typed)
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("invalid retained generic evidence call must reject without a closed caller");
     assert!(
         diagnostics
@@ -101,8 +105,8 @@ fn rejects(body: &str, fragment: &str) {
 fn retained_named_conformance_body_checks_without_a_closed_caller() {
     let typed = typed_source(&source("Order::before(left, right)"))
         .expect("named evidence body should type");
-    let checked =
-        lower_typed_trees(typed).expect("open evidence call should check its declared requirement");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("open evidence call should check its declared requirement");
     let template = checked
         .machines()
         .iter()

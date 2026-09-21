@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const CLIMB: &str = r#"
 data Payload { value: u64; }
@@ -19,7 +20,7 @@ terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 fn prove(source: &str) {
     crate::checks::termination::check_machine_termination(&typed(source))
         .unwrap_or_else(|diagnostics| panic!("termination: {source}\n{diagnostics:#?}"));
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("complete checking: {source}\n{diagnostics:#?}"));
 }
 
@@ -90,7 +91,8 @@ fn payload_type_compatibility_remains_an_ordinary_checking_obligation() {
         .replace("carried: Payload", "carried: Other");
     crate::checks::termination::check_machine_termination(&typed(&source))
         .expect("the numeric rank does not prove payload compatibility");
-    let diagnostics = lower_typed_trees(typed(&source)).expect_err("incompatible payload arrival");
+    let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+        .expect_err("incompatible payload arrival");
     assert!(
         diagnostics
             .iter()
@@ -172,7 +174,8 @@ fn named_states_can_duplicate_unranked_entry_parameters() {
 
     crate::checks::termination::check_machine_termination(&typed(&source))
         .expect("rank evidence does not authorize copying an affine payload");
-    let diagnostics = lower_typed_trees(typed(&source)).expect_err("affine payload copied");
+    let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+        .expect_err("affine payload copied");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

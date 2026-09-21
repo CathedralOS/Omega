@@ -2,6 +2,7 @@ use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
 
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::progress_mutation::assert_subjects;
 use crate::tests::termination::progress_mutation::assert_unproved_tail_requirement;
@@ -12,7 +13,7 @@ fn checks(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::
     let syntax = parse_syntax_trees(&tokens).unwrap();
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
 }
 
 fn reject_requires(source: &str) {

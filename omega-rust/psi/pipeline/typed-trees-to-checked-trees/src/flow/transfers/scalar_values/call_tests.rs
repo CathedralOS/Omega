@@ -21,7 +21,8 @@ fn checked(source: &str) -> CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse call fixture");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve call fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type call fixture");
-    crate::lower_typed_trees(typed).expect("check authentic call fixture")
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("check authentic call fixture")
 }
 
 fn preserves_values(checked: &CheckedTrees) -> bool {

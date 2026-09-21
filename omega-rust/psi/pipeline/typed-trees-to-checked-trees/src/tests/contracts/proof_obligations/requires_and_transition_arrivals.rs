@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
@@ -38,7 +39,7 @@ fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("scalar member requires should fail after same-index mutation");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -88,7 +89,7 @@ fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_muta
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("fixed indexed requires boolean expression should fail after mutating call");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -139,7 +140,7 @@ fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_dis
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "fixed indexed requires boolean expression should be preserved across disjoint mutating call",
     );
 }
@@ -185,7 +186,7 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("dynamic indexed requires boolean expression should fail after mutating call");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -239,7 +240,7 @@ fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_d
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "dynamic indexed requires boolean expression should be preserved across disjoint mutating call",
     );
 }
@@ -282,7 +283,7 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("dynamic indexed exit boolean ensures should fail after mutating call");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -334,7 +335,7 @@ fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_acro
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "dynamic indexed exit boolean ensures should be preserved across disjoint mutating call",
     );
 }
@@ -373,7 +374,7 @@ fn accepts_requires_domain_union_when_right_branch_is_proven() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("requires union should be provable when the right domain branch holds");
 }
 
@@ -408,7 +409,7 @@ fn rejects_unproven_requires_domain_union() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("requires union should fail when neither domain branch is proven");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -449,7 +450,7 @@ fn accepts_requires_from_instantiated_boundary_operator_boolean_ensures() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "a boundary operator boolean postcondition should be substituted onto caller operands",
     );
 }
@@ -484,7 +485,7 @@ fn invalidates_instantiated_boundary_operator_boolean_ensures_when_either_operan
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("mutating either substituted operand should invalidate the postcondition");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -535,9 +536,11 @@ fn named_call_ensures_publish_from_rewritten_and_discarded_statement_forms() {
         }}
     "#
         );
-        lower_typed_trees(parse_typed_trees(&source)).unwrap_or_else(|diagnostics| {
-            panic!("ensures from `{call}` must discharge accept's requires: {diagnostics:?}")
-        });
+        lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled()).unwrap_or_else(
+            |diagnostics| {
+                panic!("ensures from `{call}` must discharge accept's requires: {diagnostics:?}")
+            },
+        );
     }
 }
 
@@ -575,7 +578,7 @@ fn named_call_mutable_operand_invalidation_retires_prior_facts() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("the `&mut` operand write must retire the pre-call `value == 42` fact");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -633,7 +636,9 @@ fn named_call_operand_write_retires_facts_riding_the_rewritten_operand_source() 
             "#
         );
 
-        let Err(diagnostics) = lower_typed_trees(parse_typed_trees(&source)) else {
+        let Err(diagnostics) =
+            lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        else {
             panic!(
                 "a nested `&mut` operand write — spelled or named — must retire the ensures fact riding the rewritten operand source: {call}"
             );
@@ -675,7 +680,7 @@ fn named_call_operand_write_to_unrelated_storage_keeps_its_ensures_facts() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "a named call writing storage no enclosing operand names keeps its own ensures facts",
     );
 }
@@ -711,7 +716,7 @@ fn accepts_guarded_transition_that_establishes_state_arrival_requires() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "the taken guard should establish the target state's arrival contract, which is then assumed inside the state",
     );
 }
@@ -744,7 +749,7 @@ fn incoming_guard_rebinds_state_parameter_for_nested_call_requires() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).expect(
         "the incoming guard should rebind the state parameter before proving a nested call contract",
     );
 }
@@ -764,7 +769,7 @@ fn exact_declared_local_range_proves_call_requires() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a store-enforced Exact local range should prove the callee bounds");
 }
 
@@ -783,7 +788,7 @@ fn broader_declared_local_range_does_not_prove_call_requires() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a range containing -1 must not establish nonnegativity");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -813,7 +818,7 @@ fn rejects_transition_that_does_not_establish_state_arrival_requires() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("an unconditional edge must prove the target state's arrival contract");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -854,7 +859,7 @@ fn state_arrival_requires_are_scoped_to_the_declaring_state() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("one state's arrival fact must not leak into a sibling state");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -892,7 +897,7 @@ fn rejects_self_transition_after_state_arrival_fact_is_invalidated() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect_err("a self back-edge must re-establish an invalidated arrival invariant");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -1163,5 +1168,6 @@ fn accepts_requires_from_local_alias_transfer() {
         "callee requirement should instantiate onto the local argument"
     );
 
-    lower_typed_trees(typed).expect("local aliases should inherit proven domain memberships");
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("local aliases should inherit proven domain memberships");
 }

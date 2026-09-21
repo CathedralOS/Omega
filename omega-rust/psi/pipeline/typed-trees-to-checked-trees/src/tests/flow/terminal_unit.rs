@@ -2,6 +2,7 @@ use super::super::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
 
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
@@ -55,7 +56,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 /// Same prelude as `checked`, with the toolchain `core/service.omg` resident
@@ -67,7 +68,7 @@ fn checked_with_service(source: &str) -> checked_trees::CheckedTrees {
     let source = format!("boundary trait PortIo {{}}\n{source}");
     let mut typed = crate::tests::parse_typed_trees_with_core_service(&source);
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);
-    lower_typed_trees(typed).expect("check")
+    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn contextual_cleanup_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> {
@@ -75,7 +76,7 @@ fn contextual_cleanup_diagnostics(source: &str) -> Vec<diagnostics::Diagnostic> 
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed)
+    lower_typed_trees(typed, &CheckingRequest::settled())
         .expect_err("contextual cleanup requirement-set mismatch must reject at its return edge")
 }
 

@@ -404,7 +404,7 @@ fn runtime_index_store_fails_closed_without_a_proven_bound() {
             super::super::super::resolve(super::super::super::ResolutionRequest::new(&syntax))
                 .expect("resolve");
         let typed = super::super::super::lower_symbol_resolved_trees(&resolved).expect("type");
-        crate::lower_typed_trees(typed)
+        crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
             .expect_err("unproven runtime index must not produce a store plan");
     }
 }

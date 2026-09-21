@@ -5,6 +5,7 @@ mod record_path_fixed_byte_arrays;
 mod whole_replacement_and_fixed_arrays;
 mod write_only_subloans;
 
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
@@ -20,7 +21,7 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 }
 
 fn rendered_rejection(source: &str) -> String {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .expect_err("source should be rejected")
         .iter()
         .map(ToString::to_string)

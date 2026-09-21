@@ -2,6 +2,7 @@ use super::{
     Identifier, Lexer, OperatorSpelling, ResolutionRequest, StateParameter, SymbolHandle,
     lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::operators::checked_program_from_source;
 use crate::tests::operators::named_type;
@@ -117,7 +118,8 @@ fn explicit_const_argument_must_corroborate_the_operand_value() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("mismatched const must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("mismatched const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -144,7 +146,8 @@ fn repeated_const_binder_rejects_inconsistent_operand_lengths() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("inconsistent N must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("inconsistent N must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -231,7 +234,8 @@ fn inferred_const_value_must_fit_the_declared_carrier() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("out-of-range const must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("out-of-range const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -257,7 +261,8 @@ fn spelled_const_application_reports_an_invalid_declared_carrier_value() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics = lower_typed_trees(typed).expect_err("out-of-range const must reject");
+    let diagnostics = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect_err("out-of-range const must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message

@@ -15,8 +15,11 @@ const NOMINAL_SCHEMA_FORWARDING: &str = r#"
 
 #[test]
 fn nominal_generic_family_satisfaction_survives_private_specialization() {
-    crate::lower_typed_trees(typed(NOMINAL_SCHEMA_FORWARDING))
-        .expect("exact generic satisfaction survives nested private forwarding");
+    crate::lower_typed_trees(
+        typed(NOMINAL_SCHEMA_FORWARDING),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect("exact generic satisfaction survives nested private forwarding");
 }
 
 #[test]
@@ -24,7 +27,7 @@ fn nominal_generic_family_rejects_a_different_const_carrier() {
     let source = NOMINAL_SCHEMA_FORWARDING
         .replace("selected<const Count: u64>", "selected<const Count: u32>")
         .replace("reaches Console { Count }", "reaches Console { value }");
-    assert!(crate::lower_typed_trees(typed(&source)).is_err());
+    assert!(crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled()).is_err());
 }
 
 #[test]
@@ -197,7 +200,8 @@ fn retained_static_calls_reject_missing_duplicate_and_wrong_selection_joins() {
 
 #[test]
 fn deleting_static_call_binders_changes_the_specialization_commitment() {
-    let checked = crate::lower_typed_trees(specialized()).expect("checked static calls");
+    let checked = crate::lower_typed_trees(specialized(), &crate::CheckingRequest::settled())
+        .expect("checked static calls");
     let mut missing = checked.clone();
     let calls: Vec<_> = missing
         .typed
@@ -281,8 +285,9 @@ fn retained_static_parameter_operational_contract_mutations_reject() {
 
 #[test]
 fn forwarded_nominal_binders_retain_exact_owners_and_selected_reach() {
-    let checked = crate::lower_typed_trees(typed(
-        "boundary trait Console {}\n\
+    let checked = crate::lower_typed_trees(
+        typed(
+            "boundary trait Console {}\n\
          trait Task { machine run(value: u64) -> u64 reaches Console; }\n\
          machine quiet(value: u64) -> u64 satisfies Task::run { value }\n\
          machine loud(value: u64) -> u64 satisfies Task::run reaches Console { value }\n\
@@ -292,7 +297,9 @@ fn forwarded_nominal_binders_retain_exact_owners_and_selected_reach() {
          where machine Selected satisfies Task::run; { traverse<Selected>(value) }\n\
          machine first() -> u64 { outer<quiet>(7) }\n\
          machine second() -> u64 { outer<loud>(9) }",
-    ))
+        ),
+        &crate::CheckingRequest::settled(),
+    )
     .expect("nested closed callback applications");
     validate(&checked.typed).expect("forwarded binders retain their own template custody");
     let reaches = &checked.facts.service_reaches;
@@ -351,13 +358,16 @@ fn statement_and_named_tail_calls_retain_binders_without_internal_transfer_calls
             "0",
         ),
     ] {
-        let checked = crate::lower_typed_trees(typed(&format!(
-            "boundary trait Audit {{}}\n\
+        let checked = crate::lower_typed_trees(
+            typed(&format!(
+                "boundary trait Audit {{}}\n\
              machine quiet() {result} {{ {selected_body} }}\n\
              machine invoke<machine Work>() {result}\n\
              where machine Work() {result} reaches Audit; {{ {body} }}\n\
              machine caller() {result} {{ invoke<quiet>() }}"
-        )))
+            )),
+            &crate::CheckingRequest::settled(),
+        )
         .expect("selected static call with an internal state transfer");
         validate(&checked.typed).expect("exact retained selection");
         let specialization = checked
@@ -415,7 +425,8 @@ fn quiet_selections_do_not_change_fixed_suspension_acknowledgements() {
                  machine invoke<machine Step>() where {contract} requires true; suspends; {{ {marker}Step(); }}\n\
                  machine caller() suspends; {{ suspend invoke<quiet>(); }}"
             );
-            let result = crate::lower_typed_trees(typed(&source));
+            let result =
+                crate::lower_typed_trees(typed(&source), &crate::CheckingRequest::settled());
             if accepted {
                 let checked = result.expect("the fixed requirement marker remains valid for quiet");
                 validate(&checked.typed).expect("selected quiet contract custody");

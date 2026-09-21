@@ -1,4 +1,5 @@
 use super::parse_typed_trees;
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use typed_trees::{TypedTrees, expression::ExpressionNode, statement::StatementNode};
 
@@ -7,7 +8,7 @@ fn check(source: &str, accepted: bool) {
 }
 
 fn check_program(program: TypedTrees, accepted: bool, description: &str) {
-    match lower_typed_trees(program) {
+    match lower_typed_trees(program, &CheckingRequest::settled()) {
         Ok(_) => assert!(accepted, "unproved result bounds accepted: {description}"),
         Err(diagnostics) => {
             assert!(!accepted, "{description}: {diagnostics:#?}");
@@ -236,7 +237,8 @@ fn same_spelled_foreign_parameter_cannot_supply_return_bounds() {
     };
     path.symbol = foreign;
     path.head_symbol = foreign;
-    let diagnostics = lower_typed_trees(program).expect_err("foreign return binder must reject");
+    let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
+        .expect_err("foreign return binder must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic.message.contains(
@@ -262,7 +264,8 @@ fn result_carrier_spelling_cannot_authorize_a_nominal_type() {
             name: typed_trees::name::Identifier::generated_static("u64"),
         },
     );
-    let diagnostics = lower_typed_trees(program).expect_err("nominal return carrier must reject");
+    let diagnostics = lower_typed_trees(program, &CheckingRequest::settled())
+        .expect_err("nominal return carrier must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message

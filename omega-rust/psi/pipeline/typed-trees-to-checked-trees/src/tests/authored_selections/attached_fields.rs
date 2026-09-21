@@ -2,6 +2,7 @@ use super::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget, Lexer, ResolutionRequest,
     lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
@@ -14,7 +15,8 @@ fn check_source(source: &str) -> CheckedTrees {
     let syntax = parse_syntax_trees(&tokens).expect("parse attached fields");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve attached fields");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type attached fields");
-    lower_typed_trees(typed).expect("bare attached fields complete checking")
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("bare attached fields complete checking")
 }
 
 fn field_symbol(program: &CheckedTrees, owner: &str, name: &str) -> SymbolHandle {

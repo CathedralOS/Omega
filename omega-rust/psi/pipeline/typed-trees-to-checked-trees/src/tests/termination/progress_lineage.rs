@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::termination::symbol_of_checked;
 use checked_trees::CheckedTrees;
@@ -17,7 +18,7 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 }
 
 fn checked(source: &str) -> CheckedTrees {
-    lower_typed_trees(typed(source)).unwrap_or_else(|diagnostics| {
+    lower_typed_trees(typed(source), &CheckingRequest::settled()).unwrap_or_else(|diagnostics| {
         panic!("lineage fixture must reach checked trees: {diagnostics:#?}")
     })
 }
@@ -410,7 +411,7 @@ fn demanded_growing_projection_has_no_private_checked_guarantee() {
     assert!(plan.implementation_witness.is_some());
     assert_eq!(plan.checked_summary, TerminationGuarantee::NoGuarantee);
 
-    let Err(diagnostics) = lower_typed_trees(program) else {
+    let Err(diagnostics) = lower_typed_trees(program, &CheckingRequest::settled()) else {
         panic!("NoGuarantee cannot excuse the missing root-entry qualification");
     };
     assert!(
@@ -453,7 +454,7 @@ fn demanded_growing_projection_rejects_the_finite_published_premise() {
         "Node::scheduler"
     );
 
-    let diagnostics = match lower_typed_trees(program) {
+    let diagnostics = match lower_typed_trees(program, &CheckingRequest::settled()) {
         Ok(_) => panic!("a finite entry premise cannot cover the growing dependency"),
         Err(diagnostics) => diagnostics,
     };

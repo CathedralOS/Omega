@@ -38,7 +38,7 @@ fn lower(source: &str) -> Result<checked_trees::CheckedTrees, Vec<Diagnostic>> {
     let syntax = parse_syntax_trees(&tokens).expect("syntax");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolved");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed");
-    crate::lower_typed_trees(typed)
+    crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
 }
 
 const OPTIONAL_INPUT: &str = r#"

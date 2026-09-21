@@ -1,4 +1,5 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use checked_trees::AcceptanceView;
 
@@ -18,7 +19,8 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source)).expect("program should check");
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("program should check");
     let main = checked
         .machines()
         .iter()
@@ -225,7 +227,8 @@ fn exposes_exit_acceptance_through_shared_view_surface() {
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source)).expect("program should check");
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("program should check");
     let main = checked
         .machines()
         .iter()
@@ -278,7 +281,7 @@ fn acceptance_views_publish_exact_state_owned_borrow_compatibility_certificates(
         machine Other::idle(&mut self) {}
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("symbolic adjacency should retain one structural borrow certificate");
     let split = checked
         .machines()
@@ -392,7 +395,7 @@ fn acceptance_views_publish_exact_statement_owned_qualification_correspondences(
         machine Other::idle(&mut self) {}
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("an exact checked operator transformation should retain its field transfer");
     let additive = checked
         .domain_definitions()
@@ -594,7 +597,7 @@ fn source_lowering_retains_prior_state_local_qualification_transfer_endpoints() 
         }
     "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("a prior exact-state local should be a checked transfer endpoint");
     let run = checked
         .machines()

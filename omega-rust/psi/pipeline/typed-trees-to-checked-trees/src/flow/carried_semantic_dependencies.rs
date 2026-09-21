@@ -418,7 +418,8 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let mut checked = crate::lower_typed_trees(typed).expect("check");
+        let mut checked =
+            crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()).expect("check");
         let expected = checked.facts.flow.semantic_dependencies.clone();
         assert!(!expected.rows.is_empty(), "fixture must carry dependencies");
 

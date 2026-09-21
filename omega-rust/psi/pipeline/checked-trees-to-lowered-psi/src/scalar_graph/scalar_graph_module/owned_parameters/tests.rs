@@ -528,7 +528,11 @@ fn actual_affine_limits_artifact_rejects_missing_duplicate_and_transferred_clean
     .expect("resolved");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("typed");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("checked");
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "root")
         .produce_artifact()
         .expect("publish affine scalar graph");

@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -23,12 +24,12 @@ const FORWARDED: &str = r#"
 const FORWARDED_ENDPOINT: &str = "limits.limit % limits.divisor + 6";
 
 fn accepts(source: &str) {
-    lower_typed_trees(typed(source))
+    lower_typed_trees(typed(source), &CheckingRequest::settled())
         .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
 }
 
 fn rejects_range(source: &str) {
-    let diagnostics = lower_typed_trees(typed(source))
+    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
         .expect_err("computed field endpoints must form and preserve every exact input");
     assert!(
         diagnostics
@@ -190,8 +191,11 @@ fn endpoint_literals_retain_rational_meaning_and_landing_boundaries() {
         rejects_range(&COUNTDOWN.replace(ENDPOINT, endpoint));
     }
     rejects_range(&COUNTDOWN.replace("in 0..", "in (1 / 2 * 2).."));
-    let diagnostics = lower_typed_trees(typed(&COUNTDOWN.replace(ENDPOINT, "12 % 7")))
-        .expect_err("anonymous remainder cannot form");
+    let diagnostics = lower_typed_trees(
+        typed(&COUNTDOWN.replace(ENDPOINT, "12 % 7")),
+        &CheckingRequest::settled(),
+    )
+    .expect_err("anonymous remainder cannot form");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -276,7 +280,8 @@ fn selected_operand_calls_preserve_single_state_endpoint_evidence() {
         1,
         "the selected operand call stays in the authored state"
     );
-    lower_typed_trees(program).unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    lower_typed_trees(program, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
     // Preserving the operand's position does not authorize invalid endpoint
     // formation or erase its intermediate arithmetic obligations.
     for endpoint in [
@@ -467,8 +472,8 @@ fn named_stored_endpoint_rejects_foreign_referents_and_invalid_rank() {
     )));
     rejects_range(&NAMED_STORED_ENDPOINT.replace("[0..=4]", "[0..=5]"));
     let stalled = NAMED_STORED_ENDPOINT.replace("pending - 1", "pending");
-    let diagnostics =
-        lower_typed_trees(typed(&stalled)).expect_err("every cyclic edge must decrease");
+    let diagnostics = lower_typed_trees(typed(&stalled), &CheckingRequest::settled())
+        .expect_err("every cyclic edge must decrease");
     assert!(
         diagnostics
             .iter()

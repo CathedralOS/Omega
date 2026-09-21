@@ -12,6 +12,7 @@ use terminal_psi_to_abstract_operations::{
     lower_artifact_for_optimization,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 const WRITER: &str = r#"
@@ -54,7 +55,7 @@ fn writer() -> (TerminalModule, ProofBundle) {
     let syntax = parse_syntax_trees(&tokens).expect("parse writer");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve writer");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type writer");
-    let checked = lower_typed_trees(typed).expect("check writer");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check writer");
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("lower authored writer and its ordinary caller");
     (lowered.semantic_module, lowered.proof_bundle)

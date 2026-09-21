@@ -87,7 +87,11 @@ fn main() {
         .unwrap();
         let program =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let expected = typed_trees_to_checked_trees::lower_typed_trees(program.clone()).unwrap();
+        let expected = typed_trees_to_checked_trees::lower_typed_trees(
+            program.clone(),
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .unwrap();
         let mut elapsed = Vec::new();
         let mut allocation_calls = Vec::new();
         let mut allocated_bytes = Vec::new();
@@ -96,7 +100,11 @@ fn main() {
             let before_calls = ALLOCATION_CALLS.load(Ordering::Relaxed);
             let before_bytes = ALLOCATED_BYTES.load(Ordering::Relaxed);
             let start = Instant::now();
-            let checked = typed_trees_to_checked_trees::lower_typed_trees(input).unwrap();
+            let checked = typed_trees_to_checked_trees::lower_typed_trees(
+                input,
+                &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            )
+            .unwrap();
             let duration = start.elapsed();
             let calls = ALLOCATION_CALLS.load(Ordering::Relaxed) - before_calls;
             let bytes = ALLOCATED_BYTES.load(Ordering::Relaxed) - before_bytes;

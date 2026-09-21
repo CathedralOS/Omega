@@ -1,3 +1,4 @@
+use crate::CheckingRequest;
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
 use crate::tests::parse_typed_trees_with_core_service;
@@ -21,7 +22,7 @@ fn output_predicates_survive_read_only_boundary_arguments() {
         // builds; without them the carrier parameter stays unshaped.
         let mut typed = parse_typed_trees_with_core_service(&source);
         crate::tests::bind_fixture_fused_service_erasures(&mut typed);
-        lower_typed_trees(typed)
+        lower_typed_trees(typed, &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{receiver}: {diagnostics:#?}"));
     }
 }
@@ -37,7 +38,7 @@ fn output_predicates_do_not_survive_writable_boundary_arguments() {
             device.read(output);
         }
     "#;
-    assert!(lower_typed_trees(parse_typed_trees(source)).is_err());
+    assert!(lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled()).is_err());
 }
 
 #[test]
@@ -51,7 +52,7 @@ fn output_predicates_survive_read_only_boundary_expression_arguments() {
             let count: u64 = console.write(output);
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("expression calls use the same selected readonly formal frame");
 }
 
@@ -75,7 +76,7 @@ fn writable_indexed_boundary_argument_preserves_sibling_element_coverage() {
             self.cells[1].out = "ee";
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the lent element is re-established and every sibling survives");
 }
 
@@ -97,7 +98,9 @@ fn writable_indexed_boundary_argument_retires_only_the_lent_field() {
             Device::read(&mut self.cells[1].out);
         }
     "#;
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+    else {
         panic!("the lent field's coverage was handed to a &mut [u8] writer");
     };
     let field_requirements = diagnostics
@@ -138,7 +141,7 @@ fn readonly_sibling_argument_does_not_widen_the_boundary_write() {
             self.cells[1].out = "ee";
         }
     "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
         .expect("the shared read lends nothing and the lent field is restored");
 }
 
@@ -162,7 +165,9 @@ fn runtime_indexed_boundary_argument_retires_every_elements_field() {
             self.cells[0].out = "ee";
         }
     "#;
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    let Err(diagnostics) =
+        lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+    else {
         panic!("a runtime-indexed loan must retire every element's field coverage");
     };
     let field_requirements = diagnostics

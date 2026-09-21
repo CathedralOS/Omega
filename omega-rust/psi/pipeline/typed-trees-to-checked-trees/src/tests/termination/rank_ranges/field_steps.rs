@@ -1,4 +1,5 @@
 use super::{lower_typed_trees, typed};
+use crate::CheckingRequest;
 
 const COUNTDOWN: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -14,18 +15,23 @@ fn field_rank_accepts_positive_batch_sizes_and_equivalent_guard_polarities() {
         "(countdown.remaining >= amount) == true",
     ] {
         let source = COUNTDOWN.replace("countdown.remaining >= amount", guard);
-        lower_typed_trees(typed(&source)).expect(guard);
+        lower_typed_trees(typed(&source), &CheckingRequest::settled()).expect(guard);
     }
-    lower_typed_trees(typed(&COUNTDOWN.replace("}, amount)", "}, 1)")))
-        .expect("batch sizes may change while remaining positive at every arrival");
+    lower_typed_trees(
+        typed(&COUNTDOWN.replace("}, amount)", "}, 1)")),
+        &CheckingRequest::settled(),
+    )
+    .expect("batch sizes may change while remaining positive at every arrival");
     let computed = COUNTDOWN
         .replace("remaining >= amount", "remaining >= amount + 1")
         .replace("remaining - amount", "remaining - (amount + 1)");
-    lower_typed_trees(typed(&computed)).expect("computed positive step");
+    lower_typed_trees(typed(&computed), &CheckingRequest::settled())
+        .expect("computed positive step");
     let literal = COUNTDOWN
         .replace("remaining >= amount", "remaining >= 2")
         .replace("remaining - amount", "remaining - 2");
-    lower_typed_trees(typed(&literal)).expect("literal batches larger than one");
+    lower_typed_trees(typed(&literal), &CheckingRequest::settled())
+        .expect("literal batches larger than one");
 }
 
 #[test]
@@ -55,7 +61,8 @@ fn batch_descent_checks_each_recursive_branch() {
         "    transition countdown.remaining >= amount {",
         "    transition countdown.remaining >= 3 {\n        true -> walk(Countdown { remaining: countdown.remaining - 3 }, amount)\n    }\n    transition countdown.remaining >= amount {",
     );
-    lower_typed_trees(typed(&source)).expect("both recursive branches decrease");
+    lower_typed_trees(typed(&source), &CheckingRequest::settled())
+        .expect("both recursive branches decrease");
     for unchanged in [
         source.replace("remaining - 3", "remaining"),
         source.replace("remaining - amount", "remaining"),
@@ -129,6 +136,6 @@ fn batch_descent_rejects_alias_writes_in_prefix_and_edge_operands() {
 #[test]
 fn full_checking_rejects_an_incompatible_step_carrier() {
     let source = COUNTDOWN.replace("amount: u64 [1..=2]", "amount: i32 [1..=2]");
-    lower_typed_trees(typed(&source))
+    lower_typed_trees(typed(&source), &CheckingRequest::settled())
         .expect_err("positive bounds do not establish carrier compatibility");
 }

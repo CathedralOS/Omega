@@ -7,6 +7,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 /// Two memberships observe one established place: `c in Choice::Some` folds
@@ -43,7 +44,8 @@ pub(super) fn representation_specialization_membership_verified() -> VerifiedPsi
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve established memberships");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type established memberships");
-    let checked = lower_typed_trees(typed).expect("check established memberships");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check established memberships");
     let lowered = lower_machine(&checked, "probe").expect("lower established memberships");
     verified(lowered.semantic_module, lowered.proof_bundle)
 }
@@ -59,7 +61,8 @@ pub(super) fn representation_specialization_field_value_verified() -> VerifiedPs
     let resolved =
         resolve(ResolutionRequest::new(&syntax)).expect("resolve established field values");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type established field values");
-    let checked = lower_typed_trees(typed).expect("check established field values");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
+        .expect("check established field values");
     let lowered = lower_machine(&checked, "probe").expect("lower established field values");
     verified(lowered.semantic_module, lowered.proof_bundle)
 }
