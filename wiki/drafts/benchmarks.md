@@ -52,6 +52,7 @@ when this block drifts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28129.6 ms | measured 150441984 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 1.68124e+06 ms | measured 246046720 B compile | measured 8192 B | measured 1.93834 ms |
+| linux_x86_64 | linux x86_64 | structural_proofs | default | measured 34932.9 ms | measured 150704128 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-9c09e32a82fb | measured 29846.9 ms | measured 148590592 B compile | measured 8192 B | measured 4.17697 ms |
 | macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
@@ -167,6 +168,15 @@ once per `--target` leg before `measure`, and a failed settlement
 leaves the lock's earlier accepted sections intact. The produced JSON
 rows await commit under `tools/benchmark/records/` once its claim
 frees; regenerating them is one `measure` invocation per target.
+
+Update (z27, `5e2d355a02`, linux x86_64 host): the first
+dependency-free proof subject is committed — `structural_proofs` ×
+`linux_x86_64` default selection
+(`tools/benchmark/records/structural_proofs__linux_x86_64__default.json`):
+3 compile samples, median 34932.9 ms, published 8192 B artifact,
+runtime `skipped` (proof machines emit no runtime code). `math_proofs`
+still fails earlier at checked-call selection
+(PROOF-SUBJECT-CALL-SELECTION family).
 
 ## Reading a row
 
