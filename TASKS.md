@@ -11550,6 +11550,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   identity (selected ProgramEntry establishment rejoins 0 Terminal
   attachment identities) — a compiler entry-mechanics gap the app board now
   tracks as "the set_alignment call-site gate" under GEOMETRY-PARITY.
+  Re-verified at `f7212dc016f2`: the ported `set_alignment`/`expand`
+  pair stands on the pinned submodule revision; the residual stays the
+  compiler entry-mechanics gate under GEOMETRY-PARITY, and the squalr
+  submodule dir sits under SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738).
   Sibling stubs on the same parity-gaps sentence:
   GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING (the
   "alignment string parsing" gap), GEOMETRY-CLONE-SERIALIZATION,
