@@ -686,6 +686,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &[
             "builder",
             "field_paths",
+            "layout_plan",
             "packing",
             "sizing",
             "sum_materialization",
@@ -763,6 +764,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
             "stack_and_fuel",
         ],
     ),
+    ("omega/backend/runtime/runtime-abi", &["runtime_abi"]),
 ];
 
 /// Crates whose `lib.rs` is itself the domain entry — allowed only because
@@ -771,7 +773,6 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
 const LIB_RS_OWNED: &[&str] = &[
     "omega/backend/artifacts/component-candidate",
     "omega/backend/instruction_set_architectures/x86-encoding",
-    "omega/backend/runtime/runtime-abi",
     "omega/representations/function-identity",
     "omega/representations/installation-evidence",
     "psi/semantics/terminal-fuel",
