@@ -2,9 +2,13 @@
 //! the surviving guarantee to surviving AssignedValue provenance, then compare
 //! predicates under exact declaration/call substitution. Never replay a local
 //! initializer or identify repeated calls by their printed arguments.
-//! Machine entries and requirement signatures share this substitution, but
-//! `callable` retains their distinct declaration-owned parameter/result scopes.
+//! Machine entries, named state arrivals, and requirement signatures share this
+//! substitution; `callable` retains their distinct parameter/result scopes.
 //! A public requirement guarantee is not a proof of its provider's body.
+//! A named arrival substitutes only its own state contract; it cannot revive
+//! machine-entry assumptions. Implicit self must resolve to a canonical receiver
+//! place; it does not consume a positional explicit argument. Receiver-field
+//! predicates still need their own exact declaration-owned projection support.
 //!
 //! This consumes the existing flow evidence rather than copying predicates at
 //! each assignment. Storage dependencies retire changed inputs; assignment
@@ -33,6 +37,7 @@ mod tests;
 struct Invocation<'program> {
     site: CallSite<'program>,
     callable: Callable<'program>,
+    caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
     statement: usize,
     ordinal: usize,
@@ -208,12 +213,21 @@ fn invocation<'program>(
     let target = match &site {
         CallSite::Expression { call, .. } => call.target_symbol,
         CallSite::Statement(call) => call.target_symbol,
-        CallSite::TransitionNamed { .. } => return None,
+        CallSite::TransitionNamed { path, .. } => path.symbol,
     };
-    let callable = Callable::resolve(program, target)?;
+    let callable = match &site {
+        CallSite::TransitionNamed { .. } => {
+            crate::semantic_calls::find_state_with_machine(program, target)
+                .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
+                .map(|(machine, state)| Callable::Machine { machine, state })
+                .or_else(|| Callable::resolve(program, target))?
+        }
+        _ => Callable::resolve(program, target)?,
+    };
     Some(Invocation {
         site,
         callable,
+        caller_machine: caller.machine_symbol,
         caller_state: caller.state_symbol,
         statement,
         ordinal,
@@ -236,16 +250,38 @@ fn stable_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()
         }
-        _ => false,
+        CallSite::TransitionNamed {
+            evidence_arguments, ..
+        } => evidence_arguments.is_empty(),
     };
     ordinary
-        && parameters.len() == arguments.len()
         && parameters
             .iter()
-            .all(|parameter| !parameter.is_self && !parameter.is_const)
+            .filter(|parameter| !parameter.is_self)
+            .count()
+            == arguments.len()
+        && parameters.iter().all(|parameter| !parameter.is_const)
+        && (!parameters.iter().any(|parameter| parameter.is_self)
+            || receiver_place(program, invocation).is_some())
         && arguments
             .iter()
             .all(|argument| stable_value(program, *argument, &mut Vec::new()))
+}
+
+fn receiver_place(program: &TypedTrees, invocation: &Invocation<'_>) -> Option<CanonicalPlace> {
+    let place = crate::flow::canonical_receiver_place_for_call_site(
+        program,
+        invocation.caller_machine,
+        invocation.caller_state,
+        &invocation.site,
+        invocation.statement,
+    )?;
+    (matches!(place.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        && !place.segments.iter().any(|segment| {
+            matches!(segment, facts::PlaceSegment::Index { .. })
+                || crate::flow::place_segment_has_unresolved_identity(*segment)
+        }))
+    .then_some(place)
 }
 
 fn stable_value(
@@ -553,7 +589,9 @@ mod prerequisite_roster_probes {
     //! `PlaceRoot::Symbol` capture a bound-place join can consume
     //! (`direct_place`). Each pin names the roster member it exercises.
 
-    use super::{Invocation, direct_place, invocation, stable_arguments, stable_value};
+    use super::{
+        Invocation, direct_place, invocation, receiver_place, stable_arguments, stable_value,
+    };
     use crate::semantic_calls::{CallSite, call_site_argument_expressions};
     use checked_trees::FlowStateFact;
     use facts::PlaceRoot;
@@ -608,7 +646,11 @@ mod prerequisite_roster_probes {
     "#;
 
     fn program() -> typed_trees::TypedTrees {
-        let tokens = source_files_to_tokens::Lexer::new(SOURCE)
+        program_source(SOURCE)
+    }
+
+    fn program_source(source: &str) -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("tokenize");
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
@@ -696,7 +738,7 @@ mod prerequisite_roster_probes {
     }
 
     #[test]
-    fn invocation_resolves_only_ordinary_call_sites() {
+    fn invocation_resolves_exact_calls_and_named_state_transitions() {
         let program = program();
         let resolved = invocation_at(&program, 1, 0).expect("`produce(k)` site");
         assert!(matches!(resolved.site, CallSite::Expression { .. }));
@@ -714,10 +756,59 @@ mod prerequisite_roster_probes {
         );
         // `let r: &u64 = &k` is call-free: there is no site to bind.
         assert!(invocation_at(&program, 8, 0).is_none());
-        // `_ -> self.done(a)` resolves to a named-transition site, which the
-        // roster deliberately refuses: its parameters substitute positionally
-        // through the transition edge, not through this ordinary binding.
-        assert!(invocation_at(&program, 9, 0).is_none());
+        let transition = invocation_at(&program, 9, 0).expect("named state transition");
+        let (_, done) = machine_state(&program, "main", "done");
+        assert!(matches!(transition.site, CallSite::TransitionNamed { .. }));
+        assert_eq!(transition.callable.target_symbol(), done.symbol);
+        assert!(stable_arguments(&program, &transition));
+    }
+
+    #[test]
+    fn receiver_binding_keeps_the_selected_place_and_subordinate_contract_scope() {
+        let program = program_source(
+            "data Source { value: u64; }
+             machine Source::read(&self) -> u64 ensures result == self.value { self.value }
+             data Probe {}
+             machine Probe::main(&self, source: Source, unrelated: Source) -> u64
+             requires source.value >= 1 {
+                 let saved: u64 = source.read();
+                 transition { _ -> consume(saved) }
+                 state consume(&self, value: u64) -> u64 requires value >= 1 { value }
+             }",
+        );
+        let supplied = invocation_at(&program, 0, 0).expect("receiver call");
+        assert!(stable_arguments(&program, &supplied));
+        let CallSite::Expression { call, .. } = &supplied.site else {
+            panic!("getter expression call");
+        };
+        let actual = direct_place(&program, call.receiver).expect("actual receiver place");
+        let getter = supplied.callable.parameters(&program);
+        assert_eq!(
+            getter.iter().filter(|parameter| !parameter.is_self).count(),
+            0
+        );
+        let place = receiver_place(&program, &supplied).expect("receiver binding");
+        assert_eq!(place, actual);
+        let (_, caller) = machine_state(&program, "main", "main");
+        let source = program
+            .state_parameters(caller)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "source")
+            .expect("actual source");
+        assert_eq!(place.root, PlaceRoot::Symbol(source.symbol));
+        let unrelated = program
+            .state_parameters(caller)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "unrelated")
+            .expect("unrelated receiver");
+        assert_ne!(place.root, PlaceRoot::Symbol(unrelated.symbol));
+        let transition = invocation_at(&program, 1, 0).expect("subordinate transition");
+        assert!(stable_arguments(&program, &transition));
+        assert_eq!(
+            transition.callable.contracts(&program).count(),
+            1,
+            "entry preconditions must not be rebound to subordinate parameters"
+        );
     }
 
     #[test]

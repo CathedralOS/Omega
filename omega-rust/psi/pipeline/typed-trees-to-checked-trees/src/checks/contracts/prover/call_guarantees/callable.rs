@@ -80,7 +80,17 @@ impl<'program> Callable<'program> {
     ) -> impl Iterator<Item = &'program SignatureContract> {
         let (first, second): (&[SignatureContract], &[SignatureContract]) = match self {
             Self::Machine { machine, state } => (
-                program.machine_contracts(machine),
+                if program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == state.symbol)
+                {
+                    program.machine_contracts(machine)
+                } else {
+                    // Machine contracts bind entry parameters, not a later
+                    // state's independently declared parameter scope.
+                    &[]
+                },
                 program.state_contracts(state),
             ),
             Self::Requirement { signature } => (program.state_signature_contracts(signature), &[]),

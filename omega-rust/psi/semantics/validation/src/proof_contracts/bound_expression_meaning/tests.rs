@@ -7,6 +7,137 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
+fn result_bound_program(source: &str) -> TypedTrees {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize result bounds");
+    let syntax = parse_syntax_trees(&tokens).expect("parse result bounds");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve result bounds");
+    lower_symbol_resolved_trees(&resolved).expect("type result bounds")
+}
+
+fn result_bound_comparison(program: &TypedTrees, machine_index: usize) -> ExpressionHandle {
+    let contract = &program.machine_contracts(&program.machines()[machine_index])[0];
+    let typed_trees::domain::ProofFact::Expression(expression) =
+        program.proof_facts.get(contract.facts.start())
+    else {
+        panic!("result comparison fact");
+    };
+    *expression
+}
+
+#[test]
+fn result_bound_operand_types_require_exact_primitive_and_field_contract_owners() {
+    let mut program = result_bound_program(
+        "data Count { value: u64; }
+         machine first() -> u64 ensures result < 8 { 4 }
+         machine second() -> u64 ensures result < 8 { 4 }
+         machine first_record() -> Count ensures result.value < 8 { Count { value: 4 } }
+         machine second_record() -> Count ensures result.value < 8 { Count { value: 4 } }",
+    );
+    for (owner_index, foreign_index) in [(0, 1), (2, 3)] {
+        let expression = result_bound_comparison(&program, owner_index);
+        let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression)
+        else {
+            panic!("result comparison");
+        };
+        let operand = comparison.left;
+        let machine = program.machines()[owner_index].clone();
+        let state = program.machine_states(&machine)[0].clone();
+        let reference = super::operand_type(&program, &machine, Some(&state), operand)
+            .expect("own result operand has its declared type");
+        assert_eq!(
+            program.primitive_type_reference(reference),
+            Some(typed_trees::types::PrimitiveType::U64)
+        );
+        let foreign = &program.machines()[foreign_index];
+        assert!(
+            super::operand_type(
+                &program,
+                foreign,
+                program.machine_states(foreign).first(),
+                operand
+            )
+            .is_none(),
+            "another machine with the same carrier cannot own this result occurrence"
+        );
+
+        let copied_node = program.expression_table.expression(operand).clone();
+        let copied = program.expression_table.insert(copied_node);
+        let copied_type = super::operand_type(&program, &machine, Some(&state), copied);
+        if matches!(
+            program.expression_table.expression(operand),
+            ExpressionNode::Member(_)
+        ) {
+            // An exact retained root still determines its field type. Derived
+            // type information grants no authored postcondition occurrence custody.
+            assert_eq!(copied_type, Some(reference));
+            assert!(crate::reserved_result_place(&program, copied).is_none());
+            let foreign = &program.machines()[foreign_index];
+            assert!(
+                super::operand_type(
+                    &program,
+                    foreign,
+                    program.machine_states(foreign).first(),
+                    copied
+                )
+                .is_none()
+            );
+        } else {
+            assert!(
+                copied_type.is_none(),
+                "a copied result root outside the authored contract has no owner"
+            );
+        }
+
+        if let ExpressionNode::Member(mut member) =
+            program.expression_table.expression(operand).clone()
+        {
+            let copied_receiver = program.expression_table.expression(member.receiver).clone();
+            member.receiver = program.expression_table.insert(copied_receiver);
+            let grafted = program
+                .expression_table
+                .insert(ExpressionNode::Member(member));
+            assert!(
+                super::operand_type(&program, &machine, Some(&state), grafted).is_none(),
+                "a nominally correct field cannot authorize a grafted result root"
+            );
+        }
+    }
+}
+
+#[test]
+fn result_bounds_ignore_unrelated_operators_without_bypassing_matching_operators() {
+    for (carrier, builtin) in [("Other", true), ("u64", false)] {
+        let program = result_bound_program(&format!(
+            "data Other {{ value: u64; }}
+             boundary operator < Comparison::less(left: {carrier}, right: {carrier}) -> bool;
+             machine bounded() -> u64 ensures result < 8 {{ 4 }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "bounded")
+            .expect("bounded machine");
+        let contract = &program.machine_contracts(machine)[0];
+        let typed_trees::domain::ProofFact::Expression(expression) =
+            program.proof_facts.get(contract.facts.start())
+        else {
+            panic!("result bound");
+        };
+        assert_eq!(
+            super::has_builtin_bound_expression_meaning(
+                &program,
+                machine,
+                program.machine_states(machine).first(),
+                *expression
+            ),
+            builtin,
+            "the declared result carrier selects the {carrier} comparison honestly"
+        );
+    }
+}
+
 fn membership_program() -> (TypedTrees, ExpressionHandle, ExpressionHandle) {
     let tokens = Lexer::new(
         "data Choice [copy] { case Ready(value: u64); case Empty; }
