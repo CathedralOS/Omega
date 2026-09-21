@@ -14,23 +14,32 @@ Rows verified by independent stash-baseline reproduction at revision
 ## typed-trees-to-checked-trees
 
 `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
-660f5af762 (2026-09-18, macOS arm64): 4159 run, 4153 passed, 6 failed. Three
-are the long-standing set described below. The other three,
-`tests::termination::rank_ranges::{computed_field_limits::
-field_endpoint_formation_never_uses_final_cancellation_to_excuse_overflow,
-field_coordinates::field_endpoints_require_defined_intermediates_and_exact_owned_carriers,
-field_endpoint_arithmetic::constant_rank_endpoints_preserve_landing_and_rational_meaning}`,
-appeared under the live **TERMINATION-RANKING-CHECKS** claim and belong to
-that lane. The earlier reading at 30f4189a58 was 3991 run, 3988 passed,
+d936717fd2 (2026-09-21, linux x86-64): 5065 run, 5065 passed, 0 failed. The
+`--lib` cluster is closed: every member recorded below now passes.
+
+Prior reading at 660f5af762 (2026-09-18, macOS arm64): 4159 run, 4153 passed,
+6 failed — superseded. The `rank_ranges` trio
+(`field_endpoint_formation_never_uses_final_cancellation_to_excuse_overflow`,
+`field_endpoints_require_defined_intermediates_and_exact_owned_carriers`,
+`constant_rank_endpoints_preserve_landing_and_rational_meaning`) landed under
+**TERMINATION-RANKING-CHECKS** and now passes. The earlier reading at
+30f4189a58 was 3991 run, 3988 passed,
 3 failed. The 13-failure row recorded at
 2c234a684c was worked through test by test; ten were stale fixtures or retired
 premises (each commit names the introducing revision and the rule that decided
 it), and the two renamed tests are now
 `static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call` and
-`general_state_graph_retains_interleaved_scalar_storage_write`. The remaining
-three, with the production site each needs:
+`general_state_graph_retains_interleaved_scalar_storage_write`. The last three
+members of that cluster, all closed:
 
-- `tests::multiplicity::borrowed_observations::indexed_operand_access_preserves_shared_collection_and_owned_index`:
+- Resolved: `tests::multiplicity::borrowed_observations::indexed_operand_access_preserves_shared_collection_and_owned_index`
+  landed under **BASELINE-T2C-INDEXED-OPERAND-ACCESS** — `7ec7ee32e8` routes
+  indexed operand zero through the attached-receiver loan
+  (`receiver_self_match` in `indexing.rs`), so `machine [] Buffer::index(&self,
+  ..)` admits a `Buffer` place exactly as `buffer.at(index)` borrows it, and
+  `b845a7afd7` retains the explicit-parameter control
+  (`ordinary_first_parameter_gains_no_receiver_adaptation`). Passes in the
+  d936717fd2 reading. Original attribution:
   since f1f9f898e2 `build_operator_facts` no longer re-seeds `NestedExpression`
   value rows, which had resolved the `[]` occurrence with wildcard operands;
   under exact typing the `self.buffer: Buffer` place does not match the
