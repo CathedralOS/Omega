@@ -2968,6 +2968,19 @@ moved to the termination-catalog fence (see that row's refresh note).
   total canonical-byte generator still gated on the inductive profile's
   unfinished proofs.
 
+  Re-verified at `d25250eb22e` (linux x86-64): the named thinnest row has
+  landed — `fact:integer-structural-field-read-range` is now `Proved`. The
+  row emits no fact of its own shape: `operation_facts.rs` routes the read's
+  interval bounds through `declared_carrier_bounds` — the
+  `fact:scalar-carrier-bounds` certifying procedure — and now joins the
+  roster only when that fixed-shape `ConjunctionElimination` certificate is
+  accepted by proof-admission's checker; a rejected certificate emits nothing
+  rather than joining trusted. Registered in `PROVED_ENTRIES`
+  (trusted_surface.rs) and the recorded `operation_facts.rs` site digest is
+  refreshed. `terminal-verifier` 851/851 PASS. ~32 `ExplicitlyTrusted`
+  reconstruction rows remain; the next-thinnest is now whichever row still
+  depends only on Proved dependencies.
+
 - **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
   erased-stripped layout under
   [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
