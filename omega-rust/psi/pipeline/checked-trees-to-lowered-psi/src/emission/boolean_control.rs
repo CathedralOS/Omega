@@ -305,6 +305,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 id: block,
                 parameters: block_parameters,
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: all_operations[operation_start..operation_end].to_vec(),
                 terminator: Terminator::Conditional {
                     condition,
@@ -314,6 +315,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         target: when_true.block,
                         arguments: when_true.arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -322,6 +324,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         target: when_false.block,
                         arguments: when_false.arguments,
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -384,6 +387,7 @@ fn emit_reserved_boolean_value_blocks(
                     target,
                     arguments: vec![value],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
@@ -438,6 +442,7 @@ fn emit_reserved_boolean_value_blocks(
                         target: when_true,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -446,6 +451,7 @@ fn emit_reserved_boolean_value_blocks(
                         target: when_false,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -458,6 +464,7 @@ fn emit_reserved_boolean_value_blocks(
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
@@ -591,6 +598,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                     edge,
                     target: next_stage,
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     arguments,
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
@@ -648,6 +656,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                         target: when_true,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
@@ -656,6 +665,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                         target: when_false,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -668,6 +678,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });

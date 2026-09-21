@@ -159,7 +159,7 @@ fn wrapper() -> OptimizedProgramStorageSemanticWrapperPlan {
         &application,
     )
     .unwrap();
-    plan_optimized_program_storage_semantic_wrapper(contract).unwrap()
+    plan_optimized_program_storage_semantic_wrapper(contract, None).unwrap()
 }
 
 #[test]

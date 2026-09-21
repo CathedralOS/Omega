@@ -1,8 +1,8 @@
 //! Canonical structural function-result and operation-result wire rows.
 
 use terminal_psi::{
-    StructuralMultiplicity, StructuralOperationResult, StructuralResultClaimBinding,
-    StructuralResultDeclaration,
+    ResultQualificationEstablishment, StructuralMultiplicity, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralResultDeclaration,
 };
 
 use super::CodecError;
@@ -138,6 +138,14 @@ pub(crate) fn encode_operation_result(
         writer.id(*qualification);
     }
     encode_projected_qualifications(writer, &result.projected_qualifications)?;
+    writer.len(
+        "operation result qualification establishments",
+        result.qualification_establishments.len(),
+    )?;
+    for establishment in &result.qualification_establishments {
+        writer.id(establishment.domain);
+        writer.u64(u64::from(establishment.route));
+    }
     writer.len("structural operation result claims", result.claims.len())?;
     for claim in &result.claims {
         writer.id(claim.claim);
@@ -159,6 +167,14 @@ pub(crate) fn decode_operation_result(
         multiplicity: decode_multiplicity(reader)?,
         qualifications: decode_ids(reader, "StructuralDomainId")?,
         projected_qualifications: decode_projected_qualifications(reader)?,
+        qualification_establishments: decode_counted(reader, |reader| {
+            Ok(ResultQualificationEstablishment {
+                domain: reader.id("StructuralDomainId")?,
+                route: u32::try_from(reader.u64()?).map_err(|_| {
+                    CodecError::MalformedStructuralFoundation("route index out of range")
+                })?,
+            })
+        })?,
         claims: decode_counted(reader, |reader| {
             Ok(StructuralResultClaimBinding {
                 claim: reader.id("ClaimId")?,

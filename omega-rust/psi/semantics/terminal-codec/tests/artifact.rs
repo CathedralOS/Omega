@@ -299,11 +299,13 @@ fn semantic_module() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(1),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -322,6 +324,7 @@ fn semantic_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: vec![goal.clone()],

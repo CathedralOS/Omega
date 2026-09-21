@@ -68,6 +68,28 @@ pub(crate) const WRONG_STRUCT_TYPE_ASSIGNMENT_REJECTED: &str =
 pub(crate) const WRONG_STRUCT_TYPE_ARRAY_ELEMENT_REJECTED: &str =
     "arithmetic/wrong_struct_type_array_element_rejected";
 pub(crate) const UNKNOWN_FIELD_READ_REJECTED: &str = "arithmetic/unknown_field_read_rejected";
+pub(crate) const BARE_BOUNDARY_FIELD_VALUE_REJECTED: &str = "boundary/bare_field_value_rejected";
+pub(crate) const BARE_BOUNDARY_PAYLOAD_VALUE_REJECTED: &str =
+    "boundary/bare_payload_value_rejected";
+pub(crate) const BARE_BOUNDARY_PARAMETER_VALUE_REJECTED: &str =
+    "boundary/bare_parameter_value_rejected";
+pub(crate) const BARE_BOUNDARY_RETURN_VALUE_REJECTED: &str = "boundary/bare_return_value_rejected";
+pub(crate) const BARE_BOUNDARY_SIGNATURE_PARAMETER_VALUE_REJECTED: &str =
+    "boundary/bare_signature_parameter_value_rejected";
+pub(crate) const BARE_BOUNDARY_SIGNATURE_RETURN_VALUE_REJECTED: &str =
+    "boundary/bare_signature_return_value_rejected";
+
+// The bare-boundary value-position gate (`Service<R>` is the only service
+// value spelling) rejects in six positions; the executing test reads each
+// fixture's expected.txt.
+pub(crate) const BARE_BOUNDARY_VALUE_FAIL_CANARIES: &[&str] = &[
+    BARE_BOUNDARY_FIELD_VALUE_REJECTED,
+    BARE_BOUNDARY_PAYLOAD_VALUE_REJECTED,
+    BARE_BOUNDARY_PARAMETER_VALUE_REJECTED,
+    BARE_BOUNDARY_RETURN_VALUE_REJECTED,
+    BARE_BOUNDARY_SIGNATURE_PARAMETER_VALUE_REJECTED,
+    BARE_BOUNDARY_SIGNATURE_RETURN_VALUE_REJECTED,
+];
 
 // The executing tests use named cases; corpus inventory consumes this slice.
 pub(crate) const PASS_CANARIES: &[&str] = &[
@@ -121,4 +143,10 @@ pub(crate) const FAIL_CANARIES: &[&str] = &[
     WRONG_STRUCT_TYPE_ASSIGNMENT_REJECTED,
     WRONG_STRUCT_TYPE_ARRAY_ELEMENT_REJECTED,
     UNKNOWN_FIELD_READ_REJECTED,
+    BARE_BOUNDARY_FIELD_VALUE_REJECTED,
+    BARE_BOUNDARY_PAYLOAD_VALUE_REJECTED,
+    BARE_BOUNDARY_PARAMETER_VALUE_REJECTED,
+    BARE_BOUNDARY_RETURN_VALUE_REJECTED,
+    BARE_BOUNDARY_SIGNATURE_PARAMETER_VALUE_REJECTED,
+    BARE_BOUNDARY_SIGNATURE_RETURN_VALUE_REJECTED,
 ];

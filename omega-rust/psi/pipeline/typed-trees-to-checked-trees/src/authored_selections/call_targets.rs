@@ -49,13 +49,9 @@ pub(crate) fn checked_target_conformance_targets(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Vec<SymbolHandle> {
-    let Some(machine_symbol) = program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target)
-            .then_some(machine.symbol)
-    }) else {
+    let Some(machine_symbol) = crate::semantic_calls::find_state_with_machine(program, target)
+        .map(|(machine, _)| machine.symbol)
+    else {
         return Vec::new();
     };
 

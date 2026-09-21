@@ -307,6 +307,189 @@ fn enforced_range_of_type_reference(
     }
 }
 
+/// The floor a const-parameter extent's declared type guarantees — the closed
+/// declared range minimum of the binder (`const N: u64[1..=18446744073709551615]` contributes 1),
+/// else its unsigned carrier's zero. `None` means the binder contributes no
+/// usable floor: an unranged signed carrier could in principle specialize a
+/// negative "length", so nothing below it is provable.
+pub(in crate::checks::ranges) fn symbolic_extent_floor(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    extent_symbol: SymbolHandle,
+    extent_name: &typed_trees::name::Identifier,
+) -> Option<i64> {
+    let reference = type_reference_for_symbol(program, machine, state, extent_symbol)
+        .or_else(|| type_reference_for_name(program, machine, state, extent_name))
+        .or_else(|| {
+            attached_data_const_parameter_reference(program, machine, extent_symbol, extent_name)
+        })?;
+    constrained_minimum_of_type_reference(program, reference).or_else(|| {
+        primitive_of_type_reference(program, reference).and_then(|primitive| {
+            matches!(
+                primitive,
+                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+            )
+            .then_some(0)
+        })
+    })
+}
+
+/// The declared carrier of a const binder that lives on the machine's ATTACHED
+/// data (`data Buffer<const N: u64>` in `Buffer::push`), where the machine's own
+/// parameter list is empty. Symbol match is authoritative; the terminal name is
+/// only a fallback when the data declaration never resolved.
+fn attached_data_const_parameter_reference(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    extent_symbol: SymbolHandle,
+    extent_name: &typed_trees::name::Identifier,
+) -> Option<TypeReferenceHandle> {
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == machine.attached_data_symbol)
+        .or_else(|| {
+            machine.attached_data.as_ref().and_then(|name| {
+                program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name == *name)
+            })
+        })?;
+    program
+        .data_type_parameters(data)
+        .iter()
+        .find_map(|parameter| match &parameter.kind {
+            typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference }
+                if parameter.symbol == extent_symbol || parameter.name == *extent_name =>
+            {
+                Some(*type_reference)
+            }
+            _ => None,
+        })
+}
+
+/// The declared minimum across a type's closed Range constraints, under the
+/// same Exact-shell gate as `enforced_range_of_type_reference` but tolerating
+/// a symbolic or absent maximum — a `u64[1..=18446744073709551615]`/`u64[0..N]` lower bound is
+/// still an enforced floor.
+fn constrained_minimum_of_type_reference(
+    program: &typed_trees::TypedTrees,
+    mut handle: TypeReferenceHandle,
+) -> Option<i64> {
+    let mut minimum: Option<numerics::bignum::BigInt> = None;
+    loop {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = program.type_reference_table.constraints(*constraints);
+                if constraints.iter().any(|constraint| {
+                    matches!(
+                        constraint,
+                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                            if *domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    )
+                }) {
+                    return None;
+                }
+                for constraint in constraints {
+                    let typed_trees::types::TypeConstraintNode::Range {
+                        minimum: range_minimum,
+                        ..
+                    } = constraint
+                    else {
+                        continue;
+                    };
+                    let Some(range_minimum) =
+                        validation::closed_integer_range_bound(program, *range_minimum)
+                    else {
+                        continue;
+                    };
+                    minimum = Some(match minimum {
+                        Some(prior) => range_minimum.max(prior),
+                        None => range_minimum,
+                    });
+                }
+                handle = *base_type;
+            }
+            _ => break,
+        }
+    }
+    minimum?.to_i64()
+}
+
+/// `Some(end_inclusive)` when `expression`'s declared type carries a Range
+/// constraint whose maximum names the const binder `extent` — the
+/// `u64[0..N]`/`u64[0..=N]` binder-bounded shape. `end_inclusive == false`
+/// asserts `value < N` (a strict index bound); `true` only `value <= N`.
+pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    extent_symbol: SymbolHandle,
+    extent_name: &typed_trees::name::Identifier,
+) -> Option<bool> {
+    let mut handle = expression_type_reference(program, machine, state, expression)?;
+    loop {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = program.type_reference_table.constraints(*constraints);
+                // A non-Exact shell's range is deliberately permissive — it
+                // must never discharge a bound (same kill as the literal path).
+                if constraints.iter().any(|constraint| {
+                    matches!(
+                        constraint,
+                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                            if *domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    )
+                }) {
+                    return None;
+                }
+                for constraint in constraints {
+                    let typed_trees::types::TypeConstraintNode::Range {
+                        maximum,
+                        end_inclusive,
+                        ..
+                    } = constraint
+                    else {
+                        continue;
+                    };
+                    let ExpressionNode::Name(path) = program.expression_table.expression(*maximum)
+                    else {
+                        continue;
+                    };
+                    // Symbol match is authoritative — a same-spelled binder in
+                    // another scope cannot borrow this discharge. Fall back to
+                    // the terminal name only when the endpoint never resolved
+                    // to a symbol.
+                    let names_extent = path.symbol == extent_symbol
+                        || (!path.symbol.is_valid()
+                            && program
+                                .expression_table
+                                .name_path_members(path.members)
+                                .last()
+                                .is_some_and(|member| *member == *extent_name));
+                    if names_extent {
+                        return Some(*end_inclusive);
+                    }
+                }
+                handle = *base_type;
+            }
+            _ => return None,
+        }
+    }
+}
+
 pub(in crate::checks::ranges) fn expression_type_reference(
     program: &typed_trees::TypedTrees,
     machine: &Machine,

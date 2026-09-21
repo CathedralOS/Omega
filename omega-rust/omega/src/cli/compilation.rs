@@ -40,6 +40,13 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
                     timing.phase
                 );
             }
+            for timing in outcome.report.timings() {
+                eprintln!(
+                    "{:>10.3} ms  {}",
+                    timing.microseconds as f64 / 1_000.0,
+                    timing.phase
+                );
+            }
         }
         eprintln!(
             "{:>10.3} ms  total elapsed",

@@ -1,7 +1,9 @@
-// ADDRESS-TRANSLATION-CANARY first slice: the mapping-authority contract the
-// numeric page-table walk lacks (wiki/spec/resources/extents.md "Mapping and
-// reclamation"). Cathedral's page-table package is the OS owner; Omega owns
-// only the general authority and checking rules this boundary exercises.
+// ADDRESS-TRANSLATION-CANARY: the mapping-authority contract the numeric
+// page-table walk lacks (wiki/spec/resources/extents.md "Mapping and
+// reclamation"), driven against the OS package that is the receipts'
+// realization. Cathedral's page-table package is the OS owner; Omega owns
+// only the general authority and checking rules this boundary exercises --
+// `translation` holds that contract, `cathedral` is the stand-in provider.
 //
 // A translation provider installs and tears down mappings over ordinary
 // extent custody. Fixed placement consumes the exact source and destination
@@ -49,18 +51,26 @@
 // carrying real page-table installation: a fully backed four-level
 // hierarchy over qualified table extents, raw entry encoding, the level
 // walk, and the hardware boundary requirements (entry store, root
-// activation, leaf invalidation) its install/remove routes compose.
-// `cathedral_install_and_teardown` drives the package against the exact
-// pending mapping's recorded geometry: install through the walk, the
-// activation receipt, leaf clear plus local invalidate, the release
-// receipt, and the cross-core shootdown discharge. The package now also
-// carries the second level of mapping authority: `install_huge`/
-// `remove_huge` store and clear the terminal one level up, so a depth-2
-// leaf maps the whole 2MiB span with no `pt` table -- granularity is the
-// provider's install policy, and the authority's `Pending`/`Installed`/
-// shootdown cycle is unchanged (`cathedral_huge_install_and_teardown`).
-// The receipt crossings stay one-shot: replaying `activate` on an
-// `Installed` carrier rejects
+// activation, leaf invalidation) its install/remove routes compose, plus a
+// second level of mapping authority (`install_huge`/`remove_huge` store the
+// terminal at depth 2, so a 2MiB leaf needs no `pt` table). The package is
+// also the authority's declared provider: `cathedral::provider` carries the
+// complete `satisfies` coverage of `TranslationAuthority`, so the receipt
+// crossings have a nominal realization owned by the package performing the
+// walk.
+//
+// The drivers no longer pass geometry beside the carrier: `install` and
+// `remove` consume the authority's own carrier and return it, reading the
+// recorded bases the `map` crossing minted, so the stored entries provably
+// belong to the exact mapping `activate` qualifies and `unmap` releases --
+// the custody chain threads the provider's stores instead of a parallel
+// call over inert `addr` values. `cathedral_install_and_teardown` drives
+// the full sequence; `cathedral_huge_install_and_teardown` repeats it for
+// the depth-2 leaf. The borrowed carrier cannot yet flow through a package
+// route -- a carrier holding the source loan is a view whose return and
+// field qualifications do not survive a call boundary today, so the
+// borrowed drivers keep their authority-only shape. The receipt crossings stay
+// one-shot: replaying `activate` on an `Installed` carrier rejects
 // (`tests/omega/fail/core/translation_double_activation`). Interpreting
 // stored table memory is still the undeclared placed-access surface
 // (wiki/spec/resources/placed_access.md), so the hardware crossings remain
@@ -68,121 +78,25 @@
 // installation are the package's next edges.
 use omega::language::core::assembly;
 use omega::language::core::extent;
+use translation::BorrowedMapping;
+use translation::BorrowedMapping::Pending;
+use translation::BorrowedMapping::Installed;
+use translation::Mapping;
+use translation::Mapping::Pending;
+use translation::Mapping::Installed;
+use translation::Reclaimed;
+use translation::Shootdown;
+use translation::Shootdown::Owed;
+use translation::TranslationActivationFact;
+use translation::TranslationAuthority;
+use translation::TranslationCompletionFact;
+use translation::TranslationInstallObligations;
+use translation::TranslationReleaseObligations;
+use translation::Unmapped;
+use translation::UnmappedBorrowed;
 use cathedral::hardware;
 use cathedral::installer;
-
-// One translation-activation fact an install receipt must establish,
-// spelled as authored contract data. The identity is inert: naming a fact
-// grants no authority, and nonzero normalization belongs to the provider's
-// admission, not to source.
-data TranslationActivationFact {
-    identity: u64;
-}
-
-// One target-completion fact a release receipt must establish before the
-// torn-down mapping's authority becomes reusable.
-data TranslationCompletionFact {
-    identity: u64;
-}
-
-// The exact install obligations a mapping binds, spelled as the authored
-// fact identities the provider's activation receipt must cover. This
-// contract fixes the set at two facts; a provider package's own contract
-// declares the arity its receipts actually require.
-data TranslationInstallObligations {
-    facts: [TranslationActivationFact; 2];
-}
-
-// The exact release obligations a mapping binds, spelled as the authored
-// fact identities the provider's release receipt must cover.
-data TranslationReleaseObligations {
-    facts: [TranslationCompletionFact; 2];
-}
-
-// Provider-owned identity of one pending or installed mapping over the
-// exact consumed extents. Opaque to source: reconstructing or
-// requalifying it outside the establishing routes below is not a spelling
-// source can make.
-boundary data MappingToken [linear];
-
-// The owned-route carrier: an unforgeable provider identity, the authored
-// obligation sets the mapping binds, and the two consumed ranges held as
-// visible `Extent in Granted` fields. A consumer holding only the carrier
-// still discovers the exact fact sets its activation or release receipt
-// must establish, and the held ranges' custody is what `activate` and
-// `unmap`'s conservation equations relate -- the provider's recorded
-// geometry is read through those fields' `base`/`length` projections.
-// The carrier is not `[linear]`: a linear record's interior is opaque to
-// the claim ledger, so the held extents' qualifications could never be
-// replayed at the release crossing.
-data Mapping {
-    token: MappingToken;
-    source: Extent in Granted;
-    destination: Extent in Granted;
-    install: TranslationInstallObligations;
-    release: TranslationReleaseObligations;
-}
-
-domain Mapping::Pending
-established by TranslationAuthority::map;
-
-domain Mapping::Installed
-established by TranslationAuthority::activate;
-
-// Provider-owned identity of one borrowed-source mapping. Kept opaque for
-// the same reason as `MappingToken`; the carrier below pairs it with the
-// visible loan it holds, so source can never spell this token alone.
-boundary data BorrowedMappingToken [linear];
-
-// The borrowed-source carrier: an unforgeable provider identity, the
-// visible shared loan of the lender's source, the consumed destination
-// range, and the same authored obligation surface the owned route
-// carries. While this value lives the loan stays active, which is what
-// makes the lender's owned source unavailable until teardown releases
-// the carrier. Not `[linear]` for the same ledger-visibility reason as
-// `Mapping`.
-data BorrowedMapping {
-    token: BorrowedMappingToken;
-    held_source: &Extent in Granted;
-    destination: Extent in Granted;
-    install: TranslationInstallObligations;
-    release: TranslationReleaseObligations;
-}
-
-domain BorrowedMapping::Pending
-established by TranslationAuthority::map_borrowed;
-
-domain BorrowedMapping::Installed
-established by TranslationAuthority::activate_borrowed;
-
-// The linear cross-core invalidation debt a teardown leaves. It cannot be
-// dropped; only `discharge` consumes it.
-boundary data Shootdown [linear];
-
-domain Shootdown::Owed;
-
-// Teardown's intermediate custody: the reusable destination, the owned
-// source the mapping held, and the still-owed shootdown obligation.
-data Unmapped {
-    destination: Extent in Granted;
-    source: Extent in Granted;
-    shootdown: Shootdown in Owed;
-}
-
-// Borrowed teardown's intermediate custody has no `source` field: the loan
-// ends when the carrier is consumed, so the lender -- not the unmap route --
-// retains source authority. Only the destination and the shootdown debt
-// return through the boundary.
-data UnmappedBorrowed {
-    destination: Extent in Granted;
-    shootdown: Shootdown in Owed;
-}
-
-// The debt-free shape after `discharge`: both ranges' authority, nothing owed.
-data Reclaimed {
-    destination: Extent in Granted;
-    source: Extent in Granted;
-}
+use cathedral::provider::CathedralTranslationProvider;
 
 // The Cathedral driver's result: the same reclaimed ranges plus the
 // hierarchy the provider returned. `CathedralPageTables` moves through
@@ -193,100 +107,6 @@ data CathedralReclaimed {
     source: Extent in Granted;
     tables: CathedralPageTables;
 }
-
-boundary trait TranslationAuthority {
-    // Structural validation only: consumes the caller-authored obligation
-    // sets into the pending carrier, where a consumer reads the exact fact
-    // sets the provider's receipts must establish. The carrier holds both
-    // ranges' custody and grants no mapped access.
-    machine map(
-        source: Extent in Granted,
-        destination: Extent in Granted,
-        install: TranslationInstallObligations,
-        release: TranslationReleaseObligations
-    ) -> Mapping
-    requires
-        source.length == destination.length
-    ensures
-        result in Mapping::Pending,
-        separate(
-            Granted::content(&result.source),
-            Granted::content(&result.destination),
-        )
-        == separate(
-            Granted::content(old(&source)),
-            Granted::content(old(&destination)),
-        );
-
-    // The provider receipt crossing: installed translations exist for the
-    // exact pending mapping, and the carrier's authored install set is
-    // what the receipt behind this edge must establish.
-    machine activate(pending: Mapping in Pending) -> Mapping
-    ensures
-        result in Mapping::Installed,
-        separate(
-            Granted::content(&result.source),
-            Granted::content(&result.destination),
-        )
-        == separate(
-            Granted::content(old(&pending.source)),
-            Granted::content(old(&pending.destination)),
-        );
-
-    // Stale translations are released by the provider before this returns;
-    // the carrier's authored release set is what that receipt must
-    // establish, and the cross-core shootdown debt remains the caller's
-    // to discharge.
-    machine unmap(active: Mapping in Installed) -> Unmapped
-    ensures
-        separate(
-            Granted::content(&result.destination),
-            Granted::content(&result.source),
-        )
-        == separate(
-            Granted::content(old(&active.source)),
-            Granted::content(old(&active.destination)),
-        );
-
-    // Structural validation over a shared source loan: the pending carrier
-    // holds the loan, the destination's custody, and the caller-authored
-    // obligation sets, and grants no mapped access. The lender's owned
-    // source stays borrowed until release.
-    machine map_borrowed(
-        source: &Extent in Granted,
-        destination: Extent in Granted,
-        install: TranslationInstallObligations,
-        release: TranslationReleaseObligations
-    ) -> BorrowedMapping
-    requires
-        source.length == destination.length
-    ensures
-        result in BorrowedMapping::Pending,
-        Granted::content(&result.destination)
-        == Granted::content(old(&destination));
-
-    // The borrowed route's receipt crossing: installed translations exist
-    // for the exact pending borrowed mapping.
-    machine activate_borrowed(pending: BorrowedMapping in Pending)
-        -> BorrowedMapping
-    ensures
-        result in BorrowedMapping::Installed,
-        Granted::content(&result.destination)
-        == Granted::content(old(&pending.destination));
-
-    // Releasing an installed borrowed mapping ends the source loan; the
-    // shootdown debt remains the caller's to discharge.
-    machine unmap_borrowed(active: BorrowedMapping in Installed)
-        -> UnmappedBorrowed
-    ensures
-        Granted::content(&result.destination)
-        == Granted::content(old(&active.destination));
-}
-
-boundary requirement Shootdown::discharge(self)
-reaches MachineControl
-requires
-    self in Shootdown::Owed;
 
 // The carrier-field reads the drivers exercise: a consumer holding only a
 // pending or installed carrier still discovers the exact obligation sets
@@ -373,13 +193,14 @@ reaches TranslationAuthority + MachineControl
     Reclaimed { destination: released_destination, source: released_source }
 }
 
-// The Cathedral provider flow end to end: the pending carrier's recorded
-// geometry feeds the package's real install -- the four-level walk, the
-// entry stores, and the root activation -- before the authority's receipt
-// crossing marks the mapping installed. Teardown runs the same pair in
-// reverse: the package clears the leaf and invalidates the page's local
-// translation, the release crossing returns both ranges' custody plus the
-// owed shootdown, and `discharge` completes the cross-core debt.
+// The Cathedral provider flow end to end: the pending carrier itself threads
+// the package's real install -- the four-level walk, the entry stores, and
+// the root activation -- before the authority's receipt crossing marks the
+// mapping installed. Teardown runs the same carrier through the release
+// route in reverse: the package clears the leaf and invalidates the page's
+// local translation on the installed carrier, the release crossing returns
+// both ranges' custody plus the owed shootdown, and `discharge` completes
+// the cross-core debt.
 machine cathedral_install_and_teardown(
     authority: &TranslationAuthority,
     hardware: &TranslationHardware,
@@ -405,12 +226,12 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     };
     let pending: Mapping in Pending =
         authority.map(source, destination, install, release);
-    let installing: CathedralPageTables =
-        CathedralPageTables::install(tables, hardware, pending.source.base, pending.destination.base);
-    let installed: Mapping in Installed = authority.activate(pending);
-    let removed: CathedralPageTables =
-        CathedralPageTables::remove(installing, hardware, installed.destination.base);
-    let unmapped: Unmapped = authority.unmap(installed);
+    let walked: WalkedInstall =
+        CathedralPageTables::install(tables, hardware, pending);
+    let installed: Mapping in Installed = authority.activate(walked.pending);
+    let cleared: ClearedLeaf =
+        CathedralPageTables::remove(walked.tables, hardware, installed);
+    let unmapped: Unmapped = authority.unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();
     let released_destination: Extent in Granted = unmapped.destination;
@@ -418,7 +239,7 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     CathedralReclaimed {
         destination: released_destination,
         source: released_source,
-        tables: removed,
+        tables: cleared.tables,
     }
 }
 
@@ -452,12 +273,12 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     };
     let pending: Mapping in Pending =
         authority.map(source, destination, install, release);
-    let installing: CathedralPageTables =
-        CathedralPageTables::install_huge(tables, hardware, pending.source.base, pending.destination.base);
-    let installed: Mapping in Installed = authority.activate(pending);
-    let removed: CathedralPageTables =
-        CathedralPageTables::remove_huge(installing, hardware, installed.destination.base);
-    let unmapped: Unmapped = authority.unmap(installed);
+    let walked: WalkedInstall =
+        CathedralPageTables::install_huge(tables, hardware, pending);
+    let installed: Mapping in Installed = authority.activate(walked.pending);
+    let cleared: ClearedLeaf =
+        CathedralPageTables::remove_huge(walked.tables, hardware, installed);
+    let unmapped: Unmapped = authority.unmap(cleared.installed);
     let owed: Shootdown in Owed = unmapped.shootdown;
     owed.discharge();
     let released_destination: Extent in Granted = unmapped.destination;
@@ -465,7 +286,7 @@ reaches TranslationAuthority + TranslationHardware + MachineControl
     CathedralReclaimed {
         destination: released_destination,
         source: released_source,
-        tables: removed,
+        tables: cleared.tables,
     }
 }
 

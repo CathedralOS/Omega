@@ -244,6 +244,7 @@ mod tests {
                 defining_operation: OperationId::new(1).unwrap(),
                 declaration: test_byte_read_declaration(StructuralTypeId::new(3).unwrap()),
                 result: terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: PlaceId::new(2).unwrap(),
                     structural_type: StructuralTypeId::new(3).unwrap(),
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

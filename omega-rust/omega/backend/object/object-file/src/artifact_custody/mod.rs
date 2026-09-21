@@ -46,6 +46,17 @@ pub fn stage_validated_optimized_object_artifact(
     terminal: terminal_codec::CanonicalTerminalArtifact,
     source: StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<StagedValidatedOptimizedObjectArtifact, OptimizedObjectArtifactError> {
+    stage_validated_optimized_object_artifact_shared(terminal, std::sync::Arc::new(source))
+}
+
+/// The same staging over shared container custody: callers that must keep the
+/// relocation-free container available to another retained artifact — the
+/// emitted fragment object and the semantic-entry object are one content —
+/// hold a shared stage rather than a moved one. Validation is identical.
+pub fn stage_validated_optimized_object_artifact_shared(
+    terminal: terminal_codec::CanonicalTerminalArtifact,
+    source: std::sync::Arc<StagedOptimizedRelocationFreeObjectContainer>,
+) -> Result<StagedValidatedOptimizedObjectArtifact, OptimizedObjectArtifactError> {
     validate_optimized_relocation_free_object_container(&source)
         .map_err(OptimizedObjectArtifactError::Source)?;
     validate_terminal_join(&terminal, &source)?;
