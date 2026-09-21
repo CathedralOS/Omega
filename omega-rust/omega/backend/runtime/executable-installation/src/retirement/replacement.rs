@@ -19,13 +19,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::executable_installation::installation::InstalledCodeEvidence;
-use crate::executable_installation::{
-    AdmittedArtifact, ArtifactContentDigest, InstallationAudience, InstallationDiagnostic,
-    InstalledCode, MappingQuarantineReceipt, QuarantinedInstallation, ReplacementFactDigest,
-    RetiredInstallation, RetirementAuthority, RetirementReceipt, UninstallOutcome,
-    uninstall_installed,
-};
+use crate::artifacts::{AdmittedArtifact, InstallationAudience};
+use crate::authority_digests::{ArtifactContentDigest, ReplacementFactDigest};
+use crate::installation::InstalledCodeEvidence;
+use crate::installation::{InstallationDiagnostic, InstalledCode};
+use crate::retirement::quarantine::{MappingQuarantineReceipt, QuarantinedInstallation};
+use crate::retirement::uninstall::{UninstallOutcome, uninstall_installed};
+use crate::retirement::{RetiredInstallation, RetirementAuthority, RetirementReceipt};
 use layout_plans::EntryStubId;
 
 /// One-shot authority to replace one exact installed realization: the named

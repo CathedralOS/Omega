@@ -1,11 +1,17 @@
 use sha2::Digest;
 
-use super::{
-    AdmissionReceiptId, AdmittedArtifact, Architecture, ArtifactContentDigest, ArtifactId,
-    ArtifactRelocationKind, CodePlacement, CodePlacementId, DecodedArtifactRelocation,
-    FinalBytesDigest, InstallationDiagnostic, PlacementPlanId, RelocationTarget, Sha256,
+use crate::artifacts::AdmittedArtifact;
+use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
+use crate::authority_digests::{
+    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, CodePlacementId, FinalBytesDigest,
+    PlacementPlanId,
 };
-use crate::executable_installation::code_placement::CodePlacementEvidence;
+use crate::installation::InstallationDiagnostic;
+use crate::placement::CodePlacement;
+use crate::placement::CodePlacementEvidence;
+use layout_plans::RelocationTarget;
+use sha2::Sha256;
+use target::Architecture;
 /// Inert provider-side result of resolving one admitted artifact at one exact
 /// placement. The bytes are not executable authority; only the installation
 /// ladder can consume the corresponding placement and establish execution.
@@ -24,7 +30,7 @@ impl MaterializedArtifactBytes {
         self.admission.artifact.0.identity
     }
 
-    pub(super) const fn admission_evidence(&self) -> &AdmittedArtifact {
+    pub(crate) const fn admission_evidence(&self) -> &AdmittedArtifact {
         &self.admission
     }
 
@@ -36,7 +42,7 @@ impl MaterializedArtifactBytes {
         self.placement.placement
     }
 
-    pub(super) const fn placement_evidence(&self) -> &CodePlacementEvidence {
+    pub(crate) const fn placement_evidence(&self) -> &CodePlacementEvidence {
         &self.placement
     }
 

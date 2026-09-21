@@ -1,12 +1,18 @@
 //! Code placement claims, materialization receipts, frozen placements and
 //! final validation certificates.
+//!
+//! `materializer.rs` resolves one admitted artifact at one claimed placement
+//! into the inert `MaterializedArtifactBytes` the freeze transition binds.
 
-pub(crate) use crate::MaterializedArtifactBytes;
-use crate::executable_installation::{
-    AdmissionReceiptId, AdmittedArtifact, Artifact, CodePlacementId, FinalBytesDigest,
-    FinalValidationId, InstallationAudience, InstallationDiagnostic, InstallationScopeId,
+pub(crate) mod materializer;
+
+use crate::artifacts::{AdmittedArtifact, Artifact, InstallationAudience};
+use crate::authority_digests::{
+    AdmissionReceiptId, CodePlacementId, FinalBytesDigest, FinalValidationId, InstallationScopeId,
     MachineFootprintId,
 };
+use crate::installation::InstallationDiagnostic;
+use crate::placement::materializer::MaterializedArtifactBytes;
 use extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use layout_plans::{PlacementConstraints, PlacementSite};
 

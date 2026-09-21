@@ -1,17 +1,24 @@
 use super::super::test_support::*;
-use super::super::{
-    Architecture, Artifact, ArtifactEntry, ArtifactId, DestinationPreparationReceipt,
-    DestinationPreparationReceiptId, EntrySetId, MachineContractSetId, MachineFootprintId,
-    NonAuthoritativeWriterContextFingerprint64, PlacementConstraints, PlacementPlanId,
-    PreparedPostHandoffWriterDestination, RelocationSetId, RelocationTarget,
+use crate::artifacts::{Artifact, ArtifactEntry};
+use crate::authority_digests::{
+    ArtifactId, DestinationPreparationReceiptId, EntrySetId, MachineContractSetId,
+    MachineFootprintId, NonAuthoritativeWriterContextFingerprint64, PlacementPlanId,
+    RelocationSetId,
 };
-use super::{POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource};
+use crate::post_handoff_writer::{
+    DestinationPreparationReceipt, PreparedPostHandoffWriterDestination,
+};
 use extents::ExtentRights;
 use layout_plans::PlacementSite;
 use layout_plans::{
     ByteOrder, IntegerInterpretation, MaterializationWrite, PlacementPhase, PostHandoffWriterStep,
     StoredIntegerFit,
 };
+use layout_plans::{
+    POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
+};
+use layout_plans::{PlacementConstraints, RelocationTarget};
+use target::Architecture;
 
 #[test]
 fn installed_code_resolves_only_its_entries_for_atomic_post_handoff_writers() {

@@ -1,14 +1,22 @@
 //! Executable artifacts, their entries, admission evidence and audiences.
+//!
+//! `container.rs` owns the decoded container — validation of its sections
+//! and relocations, and admission of a validated container into an
+//! [`AdmittedArtifact`] — and `container_bytes.rs` the wire format that
+//! encodes and decodes one.
 
-use crate::DecodedArtifactRelocation;
-use crate::executable_installation::authority_digests::NonAuthoritativeContainerFingerprint64;
-pub(crate) use crate::executable_installation::derive_artifact_content_commitments;
-use crate::executable_installation::validate_decoded_relocations;
-use crate::executable_installation::{
-    AdmissionReceiptId, ArtifactAuthorityCommitments, ArtifactContentDigest, ArtifactId,
-    EntrySetId, InstallationDiagnostic, MachineContractSetId, MachineFootprintId, PlacementPlanId,
-    ProofPayloadDigest, RelocationSetId,
+pub(crate) mod container;
+pub(crate) mod container_bytes;
+use crate::artifacts::container::DecodedArtifactRelocation;
+use crate::artifacts::container::derive_artifact_content_commitments;
+use crate::artifacts::container::validate_decoded_relocations;
+use crate::authority_digests::ArtifactAuthorityCommitments;
+use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
+use crate::authority_digests::{
+    AdmissionReceiptId, ArtifactContentDigest, ArtifactId, EntrySetId, MachineContractSetId,
+    MachineFootprintId, PlacementPlanId, ProofPayloadDigest, RelocationSetId,
 };
+use crate::installation::InstallationDiagnostic;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
 use std::sync::Arc;
 use target::Architecture;

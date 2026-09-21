@@ -1,11 +1,18 @@
 //! Decoding and validating an executable container.
 
-use crate::executable_installation::container_bytes::record_layouts::{
+use crate::artifacts::ArtifactEntry;
+use crate::artifacts::container::{
+    ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
+    DecodedArtifactContainer, DecodedArtifactRelocation, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
+    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, ValidatedArtifactContainer,
+    normalized_proof_payload_digest, validate_decoded_container,
+};
+use crate::artifacts::container_bytes::record_layouts::{
     entry_layout, entry_schema, header_layout, header_schema, identity_layout, identity_schema,
     placement_layout, placement_schema, relocation_layout, relocation_schema, section_layout,
     section_schema,
 };
-use crate::executable_installation::container_bytes::{
+use crate::artifacts::container_bytes::{
     AUTHORITY_COMMITMENT_BYTES, ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES,
     OMEGA_EXECUTABLE_CONTAINER_MAGIC, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
     PLACEMENT_RECORD_BYTES, RELOCATION_COUNT_BYTES, RELOCATION_RECORD_BYTES,
@@ -13,21 +20,21 @@ use crate::executable_installation::container_bytes::{
     SECTION_FOOTPRINT, SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_PROOF,
     SECTION_RELOCATIONS, WireSection, non_authoritative_informational_section_fingerprint,
 };
-use crate::executable_installation::{
-    Architecture, ArtifactAuthorityCommitments, ArtifactEntry, ArtifactId, ArtifactRelocationKind,
-    ContainerLimits, ContainerSection, ContainerSectionKind, DecodedArtifactContainer,
-    DecodedArtifactRelocation, EntrySetId, EntryStubId, InstallationDiagnostic,
-    MachineContractSetId, MachineFootprintId, NonAuthoritativeContainerFingerprint64,
-    NonAuthoritativeInformationalFingerprint64, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
-    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, PlacementPlanId, RelocationSetId, RelocationTarget,
-    ValidatedArtifactContainer, normalized_proof_payload_digest, validate_decoded_container,
+use crate::authority_digests::ArtifactAuthorityCommitments;
+use crate::authority_digests::{
+    ArtifactId, EntrySetId, MachineContractSetId, MachineFootprintId,
+    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
+    PlacementPlanId, RelocationSetId,
 };
+use crate::installation::InstallationDiagnostic;
 use layout_plans::{
     ArtifactInstallationScopeId, ByteOrder, DataSymbolId, LayoutPlanReport, MachineRegimeId,
     PlacementAddressRange, PlacementConstraints, PlacementPhase, ScalarFieldSchema,
     decode_scalar_layout,
 };
+use layout_plans::{EntryStubId, RelocationTarget};
 use std::collections::BTreeMap;
+use target::Architecture;
 
 /// Decodes and validates one canonical Omega-native executable container.
 ///

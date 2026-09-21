@@ -1,19 +1,28 @@
-use super::OwnedImageProvider;
-use crate::executable_installation::test_support::{
-    admit, artifact, artifact_placement_constraints, authority_commitments, certificate, entry_id,
-    frozen_for_audience, id, installed_code, relocatable_artifact,
+use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
+use crate::artifacts::{AdmittedArtifact, Artifact, ArtifactEntry, InstallationAudience};
+use crate::authority_digests::{
+    ArtifactId, EntryContractDigest, EntryReferenceFactDigest, EntrySetId, InstallationFactDigest,
+    InstalledCodeId, MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
+    ReplacementFactDigest, RetirementFactDigest,
+};
+use crate::entry_references::{
+    EntryReferenceAuthority, EntryReferenceReceipt, InstalledEntryReference,
 };
 use crate::executable_installation::{
-    AdmittedArtifact, Artifact, ArtifactEntry, ArtifactId, ArtifactRelocationKind,
-    DecodedArtifactRelocation, EntryContractDigest, EntryReferenceAuthority,
-    EntryReferenceFactDigest, EntryReferenceReceipt, EntrySetId, InstallAuthority,
-    InstallationAudience, InstallationFactDigest, InstalledCode, InstalledCodeId,
-    InstalledEntryReference, MachineContractSetId, MachineFootprintId, MappingQuarantineCause,
-    PlacementPlanId, QuarantinedInstallation, RelocationSetId, ReplacementAuthority,
-    ReplacementFactDigest, ReplacementOutcome, RetiredInstallation, RetirementAuthority,
-    RetirementFactDigest, RetirementReceipt, UninstallOutcome, ValidatedPlacement,
-    install_validated, quarantine_installed, replace_installed, retire_installed,
-    uninstall_installed, validate_final_placement,
+    install_validated, retire_installed, validate_final_placement,
+};
+use crate::installation::{InstallAuthority, InstalledCode};
+use crate::owned_image_provider::OwnedImageProvider;
+use crate::placement::ValidatedPlacement;
+use crate::retirement::quarantine::{
+    MappingQuarantineCause, QuarantinedInstallation, quarantine_installed,
+};
+use crate::retirement::replacement::{ReplacementAuthority, ReplacementOutcome, replace_installed};
+use crate::retirement::uninstall::{UninstallOutcome, uninstall_installed};
+use crate::retirement::{RetiredInstallation, RetirementAuthority, RetirementReceipt};
+use crate::test_support::{
+    admit, artifact, artifact_placement_constraints, authority_commitments, certificate, entry_id,
+    frozen_for_audience, id, installed_code, relocatable_artifact,
 };
 use layout_plans::{EntryStubId, RelocationTarget};
 use target::Architecture;

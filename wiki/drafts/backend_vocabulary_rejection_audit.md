@@ -54,7 +54,7 @@ envelope byte of a populated canonical fixture to a non-admitted tag value and
 asserts the complete label set — a future tag field that forgets its
 rejection fails the test by absence, not by a pinned position.
 
-### `executable-installation` — `container.rs`, `container_bytes/decoding.rs`
+### `executable-installation` — `artifacts/container.rs`, `artifacts/container_bytes/decoding.rs`
 
 `decode_executable_container` covers the full closed vocabulary: fixed magic,
 reserved-zero fields, `format_marker` `u16` (v1/v2 only), canonical header

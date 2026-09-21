@@ -1,6 +1,6 @@
 //! Domain-separated authority digests and report-only fingerprints.
 
-use crate::executable_installation::InstallationDiagnostic;
+use crate::installation::InstallationDiagnostic;
 use layout_plans::PlacementConstraints;
 use sha2::Digest;
 use sha2::Sha256;

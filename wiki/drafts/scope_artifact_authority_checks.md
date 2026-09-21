@@ -37,9 +37,10 @@ Crate `executable-installation`
   compatibility, instruction-fetch visibility, and demanded
   `EntryReferenceFactDigest` facts; the reference borrows `InstalledCode`,
   so the realization cannot retire while an entry remains possible.
-- `uninstall.rs` owns the drain-or-quarantine join;
-  `replacement.rs`/`replacement_quarantine.rs` own the patch-then-drain
-  replacement join over declared entries carrying bound admitted fragments.
+- `retirement/uninstall.rs` owns the drain-or-quarantine join;
+  `retirement/replacement.rs`/`retirement/quarantine.rs` own the
+  patch-then-drain replacement join over declared entries carrying bound
+  admitted fragments.
 - The final image carries placed-executable and initialized-data
   inventories bound by `image-emission/src/installed_artifact.rs` to an
   `InstalledCode` occurrence, rejecting unclassified gaps, a truncated

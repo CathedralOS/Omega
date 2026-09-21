@@ -15,10 +15,13 @@
 //! does at the direct crossing. Any refusal returns every supplied input:
 //! nothing about the mapping's custody is lost to a failed transition.
 
-use crate::executable_installation::{
-    InstallationDiagnostic, InstalledCode, MappingQuarantineReceipt, QuarantinedInstallation,
+use crate::executable_installation::retire_installed;
+use crate::installation::{InstallationDiagnostic, InstalledCode};
+use crate::retirement::quarantine::{
+    MappingQuarantineReceipt, QuarantinedInstallation, quarantine_installed,
+};
+use crate::retirement::{
     RetiredInstallation, RetirementAuthority, RetirementError, RetirementReceipt,
-    quarantine_installed, retire_installed,
 };
 
 /// The two endings an uninstall produces: the placement returned through a

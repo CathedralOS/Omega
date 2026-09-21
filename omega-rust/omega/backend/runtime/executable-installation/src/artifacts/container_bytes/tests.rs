@@ -1,48 +1,51 @@
 //! Executable container byte tests.
 
-use super::super::{
-    AdmissionReceiptId, ValidatedContainerAdmissionEvidence, admit_validated_container,
+use crate::artifacts::Artifact;
+use crate::artifacts::ArtifactEntry;
+use crate::artifacts::container::ArtifactRelocationKind;
+use crate::artifacts::container::ContainerLimits;
+use crate::artifacts::container::DecodedArtifactContainer;
+use crate::artifacts::container::DecodedArtifactRelocation;
+use crate::artifacts::container::OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
+use crate::artifacts::container::OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
+use crate::artifacts::container::normalized_proof_payload_digest;
+use crate::artifacts::container::{
+    ValidatedContainerAdmissionEvidence, admit_validated_container,
     non_authoritative_decoded_container_fingerprint,
 };
-use super::{
-    Artifact, ContainerLimits, ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES,
-    OMEGA_EXECUTABLE_CONTAINER_MAGIC, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
-    PLACEMENT_RECORD_BYTES, RELOCATION_COUNT_BYTES, SECTION_CODE, SECTION_CONTRACTS,
-    SECTION_ENTRIES, SECTION_FOOTPRINT, SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_PROOF,
-    SECTION_RELOCATIONS, decode_executable_container, encode_executable_container,
-    encode_executable_container_v1_compatibility,
+use crate::artifacts::container_bytes::decoding::decode_executable_container;
+use crate::artifacts::container_bytes::encoding::encode_record;
+use crate::artifacts::container_bytes::record_layouts::entry_layout;
+use crate::artifacts::container_bytes::record_layouts::header_layout;
+use crate::artifacts::container_bytes::record_layouts::identity_layout;
+use crate::artifacts::container_bytes::record_layouts::placement_layout;
+use crate::artifacts::container_bytes::record_layouts::relocation_layout;
+use crate::artifacts::container_bytes::record_layouts::section_layout;
+use crate::artifacts::container_bytes::{
+    ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES, OMEGA_EXECUTABLE_CONTAINER_MAGIC,
+    OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES, PLACEMENT_RECORD_BYTES,
+    RELOCATION_COUNT_BYTES, SECTION_CODE, SECTION_CONTRACTS, SECTION_ENTRIES, SECTION_FOOTPRINT,
+    SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_PROOF, SECTION_RELOCATIONS,
+    encode_executable_container, encode_executable_container_v1_compatibility,
     non_authoritative_informational_section_fingerprint,
 };
-use crate::executable_installation::Architecture;
-use crate::executable_installation::ArtifactAuthorityCommitments;
-use crate::executable_installation::ArtifactEntry;
-use crate::executable_installation::ArtifactId;
-use crate::executable_installation::ArtifactRelocationKind;
-use crate::executable_installation::DecodedArtifactContainer;
-use crate::executable_installation::DecodedArtifactRelocation;
-use crate::executable_installation::EntrySetId;
-use crate::executable_installation::EntryStubId;
-use crate::executable_installation::MachineContractSetId;
-use crate::executable_installation::MachineFootprintId;
-use crate::executable_installation::NonAuthoritativeContainerFingerprint64;
-use crate::executable_installation::OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
-use crate::executable_installation::OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
-use crate::executable_installation::PlacementPlanId;
-use crate::executable_installation::RelocationSetId;
-use crate::executable_installation::RelocationTarget;
-use crate::executable_installation::container_bytes::encoding::encode_record;
-use crate::executable_installation::container_bytes::record_layouts::entry_layout;
-use crate::executable_installation::container_bytes::record_layouts::header_layout;
-use crate::executable_installation::container_bytes::record_layouts::identity_layout;
-use crate::executable_installation::container_bytes::record_layouts::placement_layout;
-use crate::executable_installation::container_bytes::record_layouts::relocation_layout;
-use crate::executable_installation::container_bytes::record_layouts::section_layout;
-use crate::executable_installation::normalized_proof_payload_digest;
+use crate::authority_digests::AdmissionReceiptId;
+use crate::authority_digests::ArtifactAuthorityCommitments;
+use crate::authority_digests::ArtifactId;
+use crate::authority_digests::EntrySetId;
+use crate::authority_digests::MachineContractSetId;
+use crate::authority_digests::MachineFootprintId;
+use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
+use crate::authority_digests::PlacementPlanId;
+use crate::authority_digests::RelocationSetId;
 use layout_plans::ArtifactInstallationScopeId;
+use layout_plans::EntryStubId;
 use layout_plans::LayoutPlanReport;
 use layout_plans::MachineRegimeId;
 use layout_plans::PlacementConstraints;
 use layout_plans::PlacementPhase;
+use layout_plans::RelocationTarget;
+use target::Architecture;
 
 fn limits() -> ContainerLimits {
     ContainerLimits {

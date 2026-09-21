@@ -2572,12 +2572,9 @@ fn program_local_root_cohort_keys_do_not_collapse_to_compact_schema_identity() {
 #[test]
 fn component_era_artifact_occurrence_joins_require_strong_installation_evidence() {
     let root = workspace_root();
-    let installation_path = root.join(
-        "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation.rs",
+    let installation = recursive_production_rust_source(
+        &root.join("omega-rust/omega/backend/runtime/executable-installation/src"),
     );
-    let installation = std::fs::read_to_string(&installation_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()))
-        + &recursive_production_rust_source(&installation_path.with_extension(""));
     let effects_path = root.join(
         "omega-rust/omega/representations/effects/src/component_eras/component_era_entry_ledger.rs",
     );
@@ -3428,12 +3425,9 @@ fn final_image_symbol_authority_binds_exact_entry_and_data_rows() {
 #[test]
 fn executable_container_v2_retains_strong_imported_authority_commitments() {
     let root = workspace_root();
-    let installation_path = root.join(
-        "omega-rust/omega/backend/runtime/executable-installation/src/executable_installation.rs",
+    let installation = recursive_production_rust_source(
+        &root.join("omega-rust/omega/backend/runtime/executable-installation/src"),
     );
-    let installation = std::fs::read_to_string(&installation_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()))
-        + &recursive_production_rust_source(&installation_path.with_extension(""));
     for domain in [
         "omega.imported-contract-set.sha256.v1\\0",
         "omega.declared-machine-footprint.sha256.v1\\0",
@@ -3461,8 +3455,9 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
         "compact authority coordinates must stay explicitly report-only and strong digests must not expose raw constructors",
     );
 
-    let codec_path = root
-        .join("omega-rust/omega/backend/runtime/executable-installation/src/executable_installation/container_bytes.rs");
+    let codec_path = root.join(
+        "omega-rust/omega/backend/runtime/executable-installation/src/artifacts/container_bytes.rs",
+    );
     let codec = std::fs::read_to_string(&codec_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", codec_path.display()))
         + &recursive_production_rust_source(&codec_path.with_extension(""));
@@ -3474,8 +3469,9 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
         "the ordinary encoder must emit v2 strong evidence while v1 remains an explicit compatibility path",
     );
 
-    let materializer_path =
-        root.join("omega-rust/omega/backend/runtime/executable-installation/src/executable_installation/materializer.rs");
+    let materializer_path = root.join(
+        "omega-rust/omega/backend/runtime/executable-installation/src/placement/materializer.rs",
+    );
     let materializer = std::fs::read_to_string(&materializer_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", materializer_path.display()));
     assert!(
