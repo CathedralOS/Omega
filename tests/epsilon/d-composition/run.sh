@@ -14,11 +14,7 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Epsilon D composition: unsupported host; needs macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Epsilon D composition"
 
 COMPOSITION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$COMPOSITION_TMP"' EXIT HUP INT TERM

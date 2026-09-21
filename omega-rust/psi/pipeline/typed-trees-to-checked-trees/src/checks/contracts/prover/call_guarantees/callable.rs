@@ -26,18 +26,15 @@ impl<'program> Callable<'program> {
         if !target.is_valid() {
             return None;
         }
-        let machines = program.machines().iter().filter_map(|machine| {
-            let state = program.machine_states(machine).first()?;
-            (target == machine.symbol || target == state.symbol)
-                .then_some(Self::Machine { machine, state })
-        });
+        let machines = crate::semantic_calls::find_machine_head(program, target)
+            .map(|(machine, state)| Self::Machine { machine, state });
         let requirements = program
             .traits()
             .iter()
             .flat_map(|definition| program.trait_machine_signatures(definition).iter())
             .filter(|signature| signature.symbol == target)
             .map(|signature| Self::Requirement { signature });
-        let mut candidates = machines.chain(requirements);
+        let mut candidates = machines.into_iter().chain(requirements);
         let selected = candidates.next()?;
         let result_type = match selected {
             Self::Machine { state, .. } => state.return_type,

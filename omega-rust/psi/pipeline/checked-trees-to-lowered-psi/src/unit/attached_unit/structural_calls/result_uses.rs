@@ -410,6 +410,7 @@ fn producer(
             CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 result,
                 discard_result_on_return,
+                operand_source,
                 ..
             } if result.binding_ordinal == binding_ordinal => Some(Producer {
                 operation_index,
@@ -419,7 +420,7 @@ fn producer(
                 },
                 result,
                 discard: *discard_result_on_return,
-                construction_source: None,
+                construction_source: *operand_source,
             }),
             CheckedUnitEffectOperationPlan::EstablishScalarArray { source, result, .. }
                 if result.binding_ordinal == binding_ordinal =>
@@ -1206,6 +1207,62 @@ pub(crate) fn validate_consumer(
                             != result.type_identity)
                 {
                     return unsupported("array argument constructor lost whole owned custody");
+                }
+                continue;
+            }
+            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source:
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+                        call_ordinal,
+                        parameter_position,
+                    }),
+                result,
+                value,
+                ..
+            } = candidate
+            {
+                // A case construction operand has no local symbol; its call
+                // occurrence and authored formal position own the
+                // constructor, exactly like a literal array operand.
+                if !checked
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .is_valid(*value)
+                {
+                    return unsupported("case argument operand has a stale value handle");
+                }
+                let node = checked.facts.values.structural_values.nodes.get(*value);
+                let checked_trees::CheckedStructuralValueKind::Case(constructor) = &node.kind
+                else {
+                    return unsupported("case argument operand is not a case construction");
+                };
+                let names_result = result.statement_index == coordinate.statement_index
+                    && *call_ordinal == coordinate.call_ordinal
+                    && *parameter_position == parameter.position
+                    && expression == Some(constructor.expression);
+                if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
+                    return unsupported(
+                        "case argument does not rejoin its exact constructor occurrence",
+                    );
+                }
+                if names_result
+                    && (authored.boundary
+                        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                        || !argument.path.is_empty()
+                        || result.multiplicity != Multiplicity::Unrestricted
+                        || !validation::has_plain_owned_contents_with_numeric_constraints(
+                            &checked.typed,
+                            constructor.type_reference,
+                        )
+                        || checked
+                            .typed
+                            .normalized_type_identity(constructor.type_reference)
+                            .into_string()
+                            != result.type_identity)
+                {
+                    return unsupported("case argument constructor lost whole owned custody");
                 }
                 continue;
             }

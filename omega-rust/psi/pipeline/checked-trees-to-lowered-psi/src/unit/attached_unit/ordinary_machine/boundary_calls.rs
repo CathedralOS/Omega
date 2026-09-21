@@ -244,6 +244,7 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: terminal_psi::OperationResult::Scalar(value),
             kind,
@@ -406,7 +407,17 @@ impl MachineEmission<'_> {
             id,
             *target_machine,
         )?;
+        let qualification_establishments =
+            super::super::catalog::call_result_qualification_establishments(
+                checked,
+                plan.state,
+                *coordinate,
+                *target_machine,
+                qualifications,
+                self.domain_ids,
+            )?;
         let returned = StructuralOperationResult {
+            qualification_establishments,
             place: result_place,
             structural_type,
             multiplicity: match multiplicity {
@@ -423,6 +434,7 @@ impl MachineEmission<'_> {
         };
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Structural(returned.clone()),
             kind,

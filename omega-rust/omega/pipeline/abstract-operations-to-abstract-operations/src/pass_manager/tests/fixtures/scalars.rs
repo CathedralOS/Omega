@@ -7,6 +7,7 @@ fn empty_contract(id: u64) -> terminal_psi::MachineContract {
     use semantic_vocabulary::ContractId;
     terminal_psi::MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(id).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -101,12 +102,14 @@ pub(in crate::pass_manager::tests) fn verified_dead_literals_unit() -> VerifiedP
             block,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_103).unwrap(),
                         result: OperationResult::Scalar(declaration(
                             ValueId::new(5_104).unwrap(),
@@ -116,6 +119,7 @@ pub(in crate::pass_manager::tests) fn verified_dead_literals_unit() -> VerifiedP
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_105).unwrap(),
                         result: OperationResult::Scalar(declaration(
                             ValueId::new(5_106).unwrap(),
@@ -165,12 +169,14 @@ pub(in crate::pass_manager::tests) fn verified_half_dead_literals_unit()
             block,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_113).unwrap(),
                         result: OperationResult::Scalar(declaration(ValueId::new(5_114).unwrap())),
                         kind: OperationKind::IntegerConstant {
@@ -179,6 +185,7 @@ pub(in crate::pass_manager::tests) fn verified_half_dead_literals_unit()
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_115).unwrap(),
                         result: OperationResult::Scalar(declaration(live)),
                         kind: OperationKind::IntegerConstant {
@@ -228,11 +235,13 @@ pub(in crate::pass_manager::tests) fn verified_parameter_add_unit() -> VerifiedP
             block,
             vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(5_125).unwrap(),
                     result: OperationResult::Scalar(declaration(sum)),
                     kind: OperationKind::WrappingIntegerAdd { left, right },

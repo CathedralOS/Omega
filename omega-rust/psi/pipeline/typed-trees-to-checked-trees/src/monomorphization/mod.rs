@@ -575,11 +575,7 @@ fn apply_call_specializations(
         let existing = saved_calls::selected_instance(program, program, template, selection)
             .map(|instance| instance.instance);
         let state_symbols = if let Some(existing) = existing {
-            let Some(machine) = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == existing)
-            else {
+            let Some(machine) = crate::lookup::machine_by_symbol(program, existing) else {
                 return Err(vec![Diagnostic::error(
                     "specialization receipt has no live instance",
                 )]);
@@ -883,10 +879,7 @@ fn closed_operator_realizations_for_machine(
     program: &TypedTrees,
     machine_symbol: SymbolHandle,
 ) -> Result<Vec<typed_trees::operator::ClosedOperatorRealizationApplication>, Diagnostic> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)
         .expect("specialized machine must remain in the typed program");
     program
         .machine_trait_conformances(machine)

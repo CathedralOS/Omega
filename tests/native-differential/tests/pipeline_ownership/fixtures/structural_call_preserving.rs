@@ -80,10 +80,12 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
     callee.structural_places = vec![structural_place(callee_extent)];
     let call = |id, result, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::CallStructuralScalar {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments,
             structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -116,12 +118,14 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
         entry,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(STRUCTURAL_CALL_PRESERVING_CONSTANT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(constant)),
                     kind: OperationKind::IntegerConstant {
@@ -135,6 +139,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
                 ),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(STRUCTURAL_CALL_PRESERVING_SECOND_CONSTANT_OPERATION)
                         .unwrap(),
                     result: OperationResult::Scalar(declaration(second_constant)),
@@ -161,6 +166,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(STRUCTURAL_CALL_PRESERVING_CONTRACT).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),

@@ -6,28 +6,88 @@ use calling_conventions::{
 
 use crate::{
     OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
-    ProgramEntrySourceExtentFieldRole, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
+    ProgramEntrySourceReceiverSignature, ProgramStorageEntryDiagnostic,
+    ProgramStorageEntryRootRole,
 };
 
 use super::model::{
-    OptimizedProgramStorageSemanticWrapperContinuationDisposition,
+    OptimizedProgramStorageSemanticReceiverStorage,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperPlan, OptimizedProgramStorageSemanticWrapperStep,
 };
 use super::recipe::{
-    EXTENT_ALIGNMENT, EXTENT_BYTE_COUNT, OUTGOING_FRAME_BYTE_COUNT, PRE_CALL_STACK_ALIGNMENT,
-    SHADOW_BYTE_COUNT, expected_relocation,
+    EXTENT_ALIGNMENT, EXTENT_BYTE_COUNT, OUTGOING_FRAME_BYTE_COUNT,
+    OptimizedProgramStorageSemanticReceiverLayout, PRE_CALL_STACK_ALIGNMENT,
+    RECEIVER_SLOT_BYTE_OFFSET, SHADOW_BYTE_COUNT, expected_relocation, expected_steps,
 };
+
+/// The receiver residence is not a boundary input: nothing outside the
+/// wrapper can supply it. Its checked extent is a property of the emitted
+/// semantic child, so the caller derives the referent layout there and the
+/// plan records it verbatim for downstream custody.
+pub(super) fn receiver_storage(
+    receiver: Option<OptimizedProgramStorageSemanticReceiverLayout>,
+    contract: &OptimizedProgramStorageSemanticEntryContract,
+) -> Result<Option<OptimizedProgramStorageSemanticReceiverStorage>, ProgramStorageEntryDiagnostic> {
+    let declared = matches!(
+        contract.source_signature().receiver(),
+        ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+    );
+    match (receiver, declared) {
+        (None, false) => Ok(None),
+        (Some(_), false) | (None, true) => Err(ProgramStorageEntryDiagnostic(
+            "optimized semantic ProgramStorage wrapper receiver storage must match the exact receiver signature"
+                .into(),
+        )),
+        (Some(receiver), true) => {
+            if receiver.byte_count() == 0
+                || !receiver.alignment().is_power_of_two()
+                || receiver.alignment() > 16
+                || receiver.byte_count() > u16::MAX as u32
+            {
+                return Err(ProgramStorageEntryDiagnostic(
+                    "optimized semantic ProgramStorage wrapper receiver requires a checked layout within one aligned slot"
+                        .into(),
+                ));
+            }
+            let slot_byte_count = receiver.slot_byte_count().ok_or(ProgramStorageEntryDiagnostic(
+                "optimized semantic ProgramStorage wrapper receiver layout overflowed its slot"
+                    .into(),
+            ))?;
+            Ok(Some(OptimizedProgramStorageSemanticReceiverStorage {
+                byte_count: receiver.byte_count(),
+                alignment: receiver.alignment(),
+                slot_byte_count,
+                outgoing_stack_byte_offset: RECEIVER_SLOT_BYTE_OFFSET,
+            }))
+        }
+    }
+}
 
 pub(super) fn validate(
     plan: &OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     validate_contract_surface(&plan.source)?;
+    let expected_frame = match plan.receiver {
+        Some(receiver) => receiver
+            .outgoing_stack_byte_offset
+            .checked_add(receiver.slot_byte_count)
+            .and_then(|end| end.checked_add(8))
+            .ok_or(ProgramStorageEntryDiagnostic(
+                "optimized semantic ProgramStorage wrapper receiver frame overflowed".into(),
+            ))?,
+        None => OUTGOING_FRAME_BYTE_COUNT,
+    };
     if plan.source_signature_identity != plan.source.source_signature_identity()
         || plan.shadow_byte_count != SHADOW_BYTE_COUNT
-        || plan.outgoing_frame_byte_count != OUTGOING_FRAME_BYTE_COUNT
+        || plan.outgoing_frame_byte_count != expected_frame
         || plan.outgoing_release_byte_count != plan.outgoing_frame_byte_count
         || plan.pre_call_stack_alignment != PRE_CALL_STACK_ALIGNMENT
+        || (plan.receiver.is_some()
+            != matches!(
+                plan.source.source_signature().receiver(),
+                ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+            ))
         || plan.encoding_disposition
             != OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1
         || plan.physical_disposition
@@ -37,8 +97,34 @@ pub(super) fn validate(
             "optimized semantic ProgramStorage wrapper frame or source custody drifted".into(),
         ));
     }
+    if let Some(receiver) = plan.receiver {
+        if receiver.outgoing_stack_byte_offset != RECEIVER_SLOT_BYTE_OFFSET
+            || receiver.slot_byte_count & 15 != 0
+            || receiver.slot_byte_count < receiver.byte_count
+            || receiver.slot_byte_count < 16
+            || receiver.byte_count == 0
+            || !receiver.alignment.is_power_of_two()
+            || receiver.alignment > 16
+        {
+            return Err(ProgramStorageEntryDiagnostic(
+                "optimized semantic ProgramStorage wrapper receiver residence drifted".into(),
+            ));
+        }
+    }
     replay_steps(plan)?;
-    if plan.relocation != expected_relocation() {
+    let call_step_index = plan
+        .steps
+        .iter()
+        .position(|step| {
+            matches!(
+                step,
+                OptimizedProgramStorageSemanticWrapperStep::CallPrivateTerminalContinuation { .. }
+            )
+        })
+        .ok_or(ProgramStorageEntryDiagnostic(
+            "optimized semantic ProgramStorage wrapper has no continuation call".into(),
+        ))?;
+    if plan.relocation != expected_relocation(call_step_index) {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage wrapper call relocation drifted".into(),
         ));
@@ -115,150 +201,18 @@ fn validate_root_placement(
     Ok(())
 }
 
+/// The replay is the whole recipe — the incoming boundary plan never carries
+/// a receiver, so when the source signature provisions one the wrapper itself
+/// owns the zeroed residence and shifts the continuation's argument order to
+/// `self`, image, storage.
 fn replay_steps(
     plan: &OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
-    use OptimizedProgramStorageSemanticWrapperStep as Step;
-    let [
-        Step::EnterFunction,
-        Step::ReserveOutgoingStackFrame {
-            byte_count: reserve,
-        },
-        image_base,
-        image_length,
-        storage_base,
-        storage_length,
-        image_address,
-        storage_address,
-        Step::CallPrivateTerminalContinuation {
-            calling_policy,
-            semantic_calling_plan_report_fingerprint,
-            disposition,
-        },
-        Step::ReleaseOutgoingStackFrame {
-            byte_count: release,
-        },
-        Step::ReturnUnit,
-    ] = &plan.steps
-    else {
-        return Err(ProgramStorageEntryDiagnostic(
-            "optimized semantic ProgramStorage wrapper action sequence drifted".into(),
-        ));
-    };
-    if *reserve != OUTGOING_FRAME_BYTE_COUNT
-        || !replay_copy(
-            image_base,
-            ProgramStorageEntryRootRole::Image,
-            0,
-            ProgramEntrySourceExtentFieldRole::Base,
-            MachineRegister::X86Rcx,
-            0,
-            32,
-        )
-        || !replay_copy(
-            image_length,
-            ProgramStorageEntryRootRole::Image,
-            0,
-            ProgramEntrySourceExtentFieldRole::Length,
-            MachineRegister::X86Rcx,
-            8,
-            40,
-        )
-        || !replay_copy(
-            storage_base,
-            ProgramStorageEntryRootRole::InitialStorage,
-            1,
-            ProgramEntrySourceExtentFieldRole::Base,
-            MachineRegister::X86Rdx,
-            0,
-            48,
-        )
-        || !replay_copy(
-            storage_length,
-            ProgramStorageEntryRootRole::InitialStorage,
-            1,
-            ProgramEntrySourceExtentFieldRole::Length,
-            MachineRegister::X86Rdx,
-            8,
-            56,
-        )
-        || !replay_bind(
-            image_address,
-            ProgramStorageEntryRootRole::Image,
-            0,
-            MachineRegister::X86Rcx,
-            32,
-        )
-        || !replay_bind(
-            storage_address,
-            ProgramStorageEntryRootRole::InitialStorage,
-            1,
-            MachineRegister::X86Rdx,
-            48,
-        )
-        || *calling_policy != CallingPolicy::MicrosoftX64
-        || *semantic_calling_plan_report_fingerprint
-            != plan.source.semantic_calling_plan_report_fingerprint()
-        || *disposition
-            != OptimizedProgramStorageSemanticWrapperContinuationDisposition::PrivateTerminalSymbolRequiredV1
-        || *release != OUTGOING_FRAME_BYTE_COUNT
-    {
+    let fingerprint = plan.source.semantic_calling_plan_report_fingerprint();
+    if plan.steps != expected_steps(fingerprint, plan.receiver) {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage wrapper action sequence drifted".into(),
         ));
     }
     Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn replay_copy(
-    step: &OptimizedProgramStorageSemanticWrapperStep,
-    expected_role: ProgramStorageEntryRootRole,
-    expected_parameter_index: usize,
-    expected_field: ProgramEntrySourceExtentFieldRole,
-    expected_register: MachineRegister,
-    expected_source_offset: u16,
-    expected_stack_offset: u32,
-) -> bool {
-    matches!(
-        step,
-        OptimizedProgramStorageSemanticWrapperStep::CopyIncomingIndirectExtentWord {
-            role,
-            parameter_index,
-            field,
-            source_register,
-            source_byte_offset,
-            outgoing_stack_byte_offset,
-        } if *role == expected_role
-            && *parameter_index == expected_parameter_index
-            && *field == expected_field
-            && *source_register == expected_register
-            && *source_byte_offset == expected_source_offset
-            && *outgoing_stack_byte_offset == expected_stack_offset
-    )
-}
-
-fn replay_bind(
-    step: &OptimizedProgramStorageSemanticWrapperStep,
-    expected_role: ProgramStorageEntryRootRole,
-    expected_parameter_index: usize,
-    expected_register: MachineRegister,
-    expected_stack_offset: u32,
-) -> bool {
-    matches!(
-        step,
-        OptimizedProgramStorageSemanticWrapperStep::BindOutgoingExtentCopyAddress {
-            role,
-            parameter_index,
-            register,
-            outgoing_stack_byte_offset,
-            byte_count,
-            alignment,
-        } if *role == expected_role
-            && *parameter_index == expected_parameter_index
-            && *register == expected_register
-            && *outgoing_stack_byte_offset == expected_stack_offset
-            && *byte_count == EXTENT_BYTE_COUNT
-            && *alignment == EXTENT_ALIGNMENT
-    )
 }

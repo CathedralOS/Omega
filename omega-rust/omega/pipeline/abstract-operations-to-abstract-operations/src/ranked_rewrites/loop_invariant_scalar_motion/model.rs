@@ -55,6 +55,14 @@ pub enum LoopInvariantNodeResult {
     /// unit's structural custody still sees the same producer declaring the
     /// same place and every consumer keeps spelling the same place identity.
     LiteralPlace(terminal_psi::StructuralPlaceDeclaration),
+    /// A preserved trivial-affine-local place declaration — the whole,
+    /// claim-free affine empty-record place an `EstablishTrivialAffineLocal`
+    /// establishes. The moved operation keeps the declaration byte-exact, so
+    /// the transformed unit's structural custody still sees the same
+    /// producer declaring the same place — and, like an affine scalar-case
+    /// result, the realization re-spells where member edges and returns
+    /// dispose that persistent place.
+    TrivialAffineLocal(terminal_psi::StructuralPlaceDeclaration),
     /// A preserved unit-result invocation — an admitted `CallUnit`. The
     /// moved operation defines nothing and establishes nothing: the
     /// relocation rebinds its member-parameter scalar operands and
@@ -71,7 +79,10 @@ impl LoopInvariantNodeResult {
     pub const fn scalar_value(&self) -> Option<ValueId> {
         match self {
             Self::Scalar { value, .. } => Some(*value),
-            Self::Structural(_) | Self::LiteralPlace(_) | Self::Unit => None,
+            Self::Structural(_)
+            | Self::LiteralPlace(_)
+            | Self::TrivialAffineLocal(_)
+            | Self::Unit => None,
         }
     }
 }
@@ -382,6 +393,35 @@ pub(super) fn candidate_identity(
                         canonical.extend_from_slice(&structural_type.get().to_le_bytes());
                     }
                     // Admission only produces a byte-sequence-literal
+                    // declaration; any other kind still commits byte-exact
+                    // through the output unit identity.
+                    _ => canonical.push(1),
+                }
+            }
+            LoopInvariantNodeResult::TrivialAffineLocal(place) => {
+                canonical.push(4);
+                canonical.extend_from_slice(&place.id.get().to_le_bytes());
+                match place.kind {
+                    semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal,
+                        structural_type,
+                        construction,
+                    } => {
+                        canonical.push(0);
+                        canonical.extend_from_slice(&declaration_ordinal.to_le_bytes());
+                        canonical.extend_from_slice(&structural_type.get().to_le_bytes());
+                        match construction {
+                            Some(element) => {
+                                canonical.push(1);
+                                canonical.extend_from_slice(
+                                    &element.root_structural_type.get().to_le_bytes(),
+                                );
+                                canonical.extend_from_slice(&element.index.to_le_bytes());
+                            }
+                            None => canonical.push(0),
+                        }
+                    }
+                    // Admission only produces a trivial-affine-local
                     // declaration; any other kind still commits byte-exact
                     // through the output unit identity.
                     _ => canonical.push(1),

@@ -26,6 +26,7 @@ pub(super) fn scalar(ordinal: u64, bits: u16) -> ValueDeclaration {
 pub(super) fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Scalar(scalar(ordinal, bits)),
         kind: OperationKind::IntegerConstant {
@@ -37,6 +38,7 @@ pub(super) fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
 pub(super) fn emit_byte(ordinal: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -62,6 +64,7 @@ pub(super) fn successor(edge: u64, block: u64) -> SuccessorEdge {
         target: block_id(block),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
 }
@@ -81,10 +84,12 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
         integer(2, 64, u128::from(byte_index)),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: vec![value_id(2)],
                 structural_arguments: vec![StructuralArgument {
@@ -124,12 +129,14 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
     helper.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(10),
                     result: OperationResult::Scalar(scalar(10, 64)),
                     kind: OperationKind::ByteSequenceLength {
@@ -138,6 +145,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(11),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -158,12 +166,14 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(12),
                     result: OperationResult::Scalar(scalar(12, 8)),
                     kind: OperationKind::ByteSequenceRead {
@@ -179,6 +189,7 @@ pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule 
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),
@@ -339,12 +350,14 @@ fn byte_read_rejects_duplicate_obligations_and_guard_facts_from_other_paths() {
             target: block_id(5),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         };
     }
     joined.machines[1].blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
@@ -369,6 +382,7 @@ fn byte_read_rejects_fake_wrong_source_later_and_sibling_length() {
         let mut module = base.clone();
         let mut length = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(14),
             result: OperationResult::Scalar(scalar(14, 64)),
             kind: OperationKind::ByteSequenceLength {
@@ -518,6 +532,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
                     target: block_id(3),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 };
@@ -540,6 +555,7 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
                     1,
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(14),
                         result: OperationResult::Scalar(scalar(14, 64)),
                         kind: OperationKind::ByteSequenceLength {

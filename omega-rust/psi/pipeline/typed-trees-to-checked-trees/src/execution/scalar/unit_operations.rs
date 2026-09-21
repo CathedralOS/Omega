@@ -14,10 +14,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
         .machines
         .iter()
         .map(|graph| {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == graph.machine)?;
+            let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
             graph
                 .states
                 .iter()
@@ -106,6 +103,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                         result,
                                         value: root.root,
                                         calls: Vec::new(),
+                                        operand_source: None,
                                         discard_result_on_return: false,
                                     },
                                 );

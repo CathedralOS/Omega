@@ -570,7 +570,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 
     let (installed, _) = install_terminal_object(
         candidate.object(),
-        candidate.object().text_bytes().to_vec(),
+        candidate.image().output().final_text_bytes.clone(),
         entry_offset,
     );
     let mut other_text = candidate.object().text_bytes().to_vec();
@@ -585,7 +585,9 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     assert!(
         claimed_error
             .diagnostic()
-            .contains("different installed-code")
+            .contains("different installed-code"),
+        "{}",
+        claimed_error.diagnostic()
     );
     let (candidate, mut installed, other_roots) = claimed_error.into_parts();
     assert!(other_roots.binds_installed_code(&other_installed));
@@ -1022,10 +1024,41 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert!(candidate.object().foreign_calls().is_empty());
     assert_eq!(candidate.image().output().final_image_imports, 0);
     assert!(candidate.image().output().final_data_bytes.is_empty());
+    let semantic_text_len = candidate.object().text_bytes().len();
+    let final_text = &candidate.image().output().final_text_bytes;
     assert_eq!(
-        candidate.image().output().final_text_bytes,
+        &final_text[..semantic_text_len],
         candidate.object().text_bytes()
     );
+    // The only emitted bytes beyond compiler-authored text are the one
+    // classified hosted Unit-entry adapter the exact target selects.
+    assert!(
+        candidate
+            .image()
+            .output()
+            .executable_regions
+            .unclassified_gaps
+            .is_empty()
+    );
+    let entry_adapters: Vec<_> = candidate
+        .image()
+        .output()
+        .executable_regions
+        .regions
+        .iter()
+        .filter(|region| region.section_offset >= semantic_text_len)
+        .collect();
+    let [entry_adapter] = entry_adapters.as_slice() else {
+        panic!(
+            "final text must classify one hosted entry adapter beyond the compiler text: {entry_adapters:#?}"
+        )
+    };
+    assert_eq!(entry_adapter.section_offset, semantic_text_len);
+    assert_eq!(
+        entry_adapter.byte_count,
+        final_text.len() - semantic_text_len
+    );
+    assert_eq!(entry_adapter.symbol, "omega_linux_x86_64_unit_entry");
     assert_eq!(
         candidate
             .component_progress()
@@ -1037,7 +1070,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         .expect("progress terminal entry offset fits installation geometry");
     let (installed, _) = install_terminal_object(
         candidate.object(),
-        candidate.object().text_bytes().to_vec(),
+        candidate.image().output().final_text_bytes.clone(),
         entry_offset,
     );
     let installed_identity = installed.identity();
@@ -1237,7 +1270,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             .expect("progress transaction entry offset fits installation geometry");
         let (installed, _) = install_terminal_object(
             candidate.object(),
-            candidate.object().text_bytes().to_vec(),
+            candidate.image().output().final_text_bytes.clone(),
             entry_offset,
         );
         let installed_identity = installed.identity();

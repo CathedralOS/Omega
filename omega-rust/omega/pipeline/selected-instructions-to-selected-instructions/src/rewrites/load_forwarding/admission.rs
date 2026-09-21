@@ -106,7 +106,6 @@ use crate::rewrites::place_storage::{
 };
 
 pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
     pub block_index: usize,
     pub load_index: usize,
     pub load_id: SelectedInstructionId,
@@ -487,11 +486,15 @@ pub(super) fn admit<'source>(
     // crosses every edge into it and each predecessor's terminator rows
     // decide first. A deferred block then resolves when every predecessor
     // path resolves to one register: either the same store dominates the
-    // join or each leg's own last writer stored that register, and a
-    // deferred cycle resolves the same way once its arriving legs agree on
-    // the register, since the cycle writes nothing itself. The entry
+    // join or each leg's own last writer stored that register, and legs
+    // that stored different registers still resolve when the block's own
+    // parameter merges them — every incoming edge binding that parameter
+    // from exactly the leg's register. A deferred cycle resolves the same
+    // way once its arriving legs agree on the register, since the cycle
+    // writes nothing itself. The entry
     // block's implicit path, a block no edge reaches, and a deferred region
-    // whose arriving legs disagree or never settle each leave the load
+    // whose arriving legs disagree without an edge merge or never settle
+    // each leave the load
     // unproven. The carried `value` and the load's `output` are validated
     // against every crossed edge, terminator, and walked span once the
     // common register is known.
@@ -569,7 +572,7 @@ pub(super) fn admit<'source>(
             }) {
                 return Err(StoredLoadForwardingError::AliasingWrite);
             }
-            crossed.extend(edges.iter().copied());
+            crossed.extend(edges.iter().map(|edge| (predecessor_index, cursor, *edge)));
             predecessors.push(predecessor_index);
             if !visited[predecessor_index] {
                 pending.push((predecessor_index, predecessor.instructions.len()));
@@ -582,9 +585,15 @@ pub(super) fn admit<'source>(
     }
     // Resolve the deferred region. A block resolves to the one register
     // every predecessor resolved to, so convergence through a shared
-    // predecessor lands while divergent legs and unreached regions leave
-    // the load's block unresolved. The first pass is acyclic propagation
-    // only; a stall leaves the cyclic remainder to the fixpoint below.
+    // predecessor lands. Legs that settled on different registers still
+    // meet when the block's own parameter already merges them — every
+    // incoming edge binding that parameter from exactly this leg's
+    // register — while divergent legs without the merge and unreached
+    // regions leave the load's block unresolved. The first pass is acyclic
+    // propagation only; a stall leaves the cyclic remainder to the
+    // fixpoint below.
+    let mut merged = vec![None; function.blocks.len()];
+    let mut merge_work = 0usize;
     loop {
         if resolved[block_index].is_some() {
             break;
@@ -610,13 +619,16 @@ pub(super) fn admit<'source>(
     }
     // The still-open deferred blocks carry an optimistic candidate: nothing
     // in a deferred block's walked span writes the forwarded range, so a
-    // cyclic region carries whatever its arriving legs agree on. Each open
-    // block takes the meet of its predecessors — a resolved or already
-    // pinned predecessor contributes its register, an open one contributes
-    // nothing, and conflicting registers mark the block conflicted — and the
-    // candidates only descend, so the meet converges. A block left open at
-    // the fixpoint belongs to a region no resolved leg reaches: no finite
-    // path arrives through it, so it constrains nothing.
+    // cyclic region carries whatever its arriving legs agree on. Once every
+    // predecessor has settled the block is decided: agreeing legs propagate
+    // their register, divergent legs still meet through the block's own
+    // merged parameter, and anything else is a conflict. While a leg stays
+    // open the block takes the optimistic meet instead — a resolved or
+    // already pinned predecessor contributes its register, an open one
+    // contributes nothing, and conflicting settled registers mark the block
+    // conflicted — and the candidates only descend, so the meet converges.
+    // A block left open at the fixpoint belongs to a region no resolved leg
+    // reaches: no finite path arrives through it, so it constrains nothing.
     let mut open = vec![false; function.blocks.len()];
     for (block, _) in &deferred {
         open[*block] = resolved[*block].is_none();
@@ -626,6 +638,36 @@ pub(super) fn admit<'source>(
         let mut progressed = false;
         for (block, predecessors) in &deferred {
             if !open[*block] || conflicted[*block] {
+                continue;
+            }
+            if predecessors
+                .iter()
+                .all(|predecessor| resolved[*predecessor].is_some())
+            {
+                let mut legs = predecessors
+                    .iter()
+                    .map(|predecessor| resolved[*predecessor].unwrap());
+                let first = legs.next().unwrap();
+                if legs.all(|leg| leg == first) {
+                    if resolved[*block] != Some(first) {
+                        resolved[*block] = Some(first);
+                        progressed = true;
+                    }
+                    merged[*block] = None;
+                } else if let Some(parameter) =
+                    merged_parameter(*block, predecessors, &resolved, function, &mut merge_work)
+                {
+                    if resolved[*block] != Some(parameter) {
+                        resolved[*block] = Some(parameter);
+                        progressed = true;
+                    }
+                    merged[*block] = Some(parameter);
+                } else {
+                    conflicted[*block] = true;
+                    resolved[*block] = None;
+                    merged[*block] = None;
+                    progressed = true;
+                }
                 continue;
             }
             let mut candidate = None;
@@ -649,9 +691,11 @@ pub(super) fn admit<'source>(
             if conflict {
                 conflicted[*block] = true;
                 resolved[*block] = None;
+                merged[*block] = None;
                 progressed = true;
             } else if resolved[*block] != candidate {
                 resolved[*block] = candidate;
+                merged[*block] = None;
                 progressed = true;
             }
         }
@@ -749,25 +793,35 @@ pub(super) fn admit<'source>(
         .iter()
         .find(|register| register.id == value)
         .ok_or(StoredLoadForwardingError::UnsupportedPair)?;
-    // Nothing on the walked path may redefine the carried value or predefine
-    // the load's result: the store's tail, each crossed block's terminator
-    // and its successor-edge transports, the intervening block bodies, and
-    // the load's own head all keep both registers identical after the copy.
-    // A looped head adds its own tail span and terminator: on the cyclic
-    // path they run between the load and the block's next top.
-    for successor in &crossed {
-        edge_preserves(successor, &forwarded, value, output)?;
+    // Nothing on the walked path may redefine the register each leg carries
+    // or predefine the load's result: the store's tail, each crossed block's
+    // terminator and its successor-edge transports, the intervening block
+    // bodies, and the load's own head all keep those registers identical
+    // after the copy. Each position's own resolved register is the carried
+    // one — a block that resolved through its merged parameter carries the
+    // parameter itself, and the edge binding defining it is the one
+    // transport the audit lets through. A looped head adds its own tail
+    // span and terminator: on the cyclic path they run between the load
+    // and the block's next top.
+    for (predecessor, target, successor) in &crossed {
+        edge_preserves(
+            successor,
+            &forwarded,
+            resolved[*predecessor],
+            merged[*target],
+            output,
+        )?;
     }
     for (walked_block, start, end) in &between {
         for instruction in &function.blocks[*walked_block].instructions[*start..*end] {
-            registers_untouched(instruction, value, output)?;
+            registers_untouched(instruction, resolved[*walked_block], output)?;
         }
     }
     for walked_block in &walked {
         if *walked_block != block_index || head_looped {
             registers_untouched(
                 terminator_instruction(&function.blocks[*walked_block].terminator),
-                value,
+                resolved[*walked_block],
                 output,
             )?;
         }
@@ -808,6 +862,7 @@ pub(super) fn admit<'source>(
             distance.checked_add(end - start)
         })
         .and_then(|total| total.checked_add(crossed.len()))
+        .and_then(|total| total.checked_add(merge_work))
         .ok_or(StoredLoadForwardingError::IdentityOverflow)?;
     let steps = plan
         .functions
@@ -826,7 +881,6 @@ pub(super) fn admit<'source>(
         return Err(StoredLoadForwardingError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         load_index,
         load_id: load,
@@ -1130,21 +1184,35 @@ fn sequence_source(
 
 /// A crossed edge must perform no work the roster cannot see. `Unused`
 /// transports are quiet; `Registers` bindings and case payloads name the one
-/// register the edge defines, which must not be the carried value or the
-/// load's result. Structural destinations, case custody slots, and custody
-/// discards reach the forwarded bytes only through the same place root under
-/// place exclusivity.
+/// register the edge defines, which must not be the register the edge's own
+/// leg carries or the load's result. The one permitted definition is the
+/// merged parameter the target block resolved through — and only when the
+/// binding supplies exactly the register this leg resolved to, which is the
+/// condition the merge itself was admitted under. Structural destinations,
+/// case custody slots, and custody discards reach the forwarded bytes only
+/// through the same place root under place exclusivity.
 fn edge_preserves(
     successor: &SelectedSuccessor,
     forwarded: &Forwarded,
-    value: VirtualRegisterId,
+    carried: Option<VirtualRegisterId>,
+    defined: Option<VirtualRegisterId>,
     output: VirtualRegisterId,
 ) -> Result<(), StoredLoadForwardingError> {
     for binding in &successor.bindings {
-        if let SelectedValueTransport::Registers { parameter, .. } = binding.transport
-            && (parameter == value || parameter == output)
+        if let SelectedValueTransport::Registers {
+            argument,
+            parameter,
+        } = binding.transport
         {
-            return Err(StoredLoadForwardingError::UnsupportedUse);
+            if Some(parameter) == defined {
+                if Some(argument) != carried {
+                    return Err(StoredLoadForwardingError::UnsupportedUse);
+                }
+                continue;
+            }
+            if Some(parameter) == carried || parameter == output {
+                return Err(StoredLoadForwardingError::UnsupportedUse);
+            }
         }
     }
     for binding in &successor.structural_bindings {
@@ -1169,7 +1237,7 @@ fn edge_preserves(
                 SelectedCasePayloadTransport::Unmaterialized { parameter }
                 | SelectedCasePayloadTransport::Registers { parameter, .. } => parameter,
             };
-            if parameter == value || parameter == output {
+            if Some(parameter) == carried || Some(parameter) == defined || parameter == output {
                 return Err(StoredLoadForwardingError::UnsupportedUse);
             }
         }
@@ -1177,22 +1245,87 @@ fn edge_preserves(
     Ok(())
 }
 
-/// Between the store and the load no instruction may redefine the carried
-/// value or predefine the load's result; both stay register-identical after
-/// the copy.
+/// Between the store and the load no instruction may redefine the register
+/// that position carries or predefine the load's result; both stay
+/// register-identical after the copy. A position whose block never
+/// resolved carries nothing provable, so only the result still holds it.
 fn registers_untouched(
     instruction: &SelectedInstruction,
-    value: VirtualRegisterId,
+    carried: Option<VirtualRegisterId>,
     output: VirtualRegisterId,
 ) -> Result<(), StoredLoadForwardingError> {
     for operand in &instruction.operands {
         if operand.access != RegisterOperandAccess::Use
-            && (operand.virtual_register == value || operand.virtual_register == output)
+            && (Some(operand.virtual_register) == carried || operand.virtual_register == output)
         {
             return Err(StoredLoadForwardingError::UnsupportedUse);
         }
     }
     Ok(())
+}
+
+/// A divergent join still forwards when the block already merges the legs
+/// on its edges: a `BlockParameter` register every incoming edge binds from
+/// exactly that leg's resolved register. The carried value is then the
+/// parameter itself — it holds the stored bytes whichever path ran.
+/// Candidates are the block's own parameter registers in declaration order;
+/// the first every edge binds from its leg wins, and `work` charges one
+/// step per edge inspected per candidate so the accounting matches the
+/// validator's.
+fn merged_parameter(
+    block: usize,
+    predecessors: &[usize],
+    resolved: &[Option<VirtualRegisterId>],
+    function: &SelectedFunction,
+    work: &mut usize,
+) -> Option<VirtualRegisterId> {
+    let block_id = function.blocks[block].id;
+    for register in &function.virtual_registers {
+        let VirtualRegisterOrigin::BlockParameter {
+            block: parameter_block,
+            ..
+        } = register.origin
+        else {
+            continue;
+        };
+        if parameter_block != block_id {
+            continue;
+        }
+        let mut binds = true;
+        for predecessor in predecessors {
+            for edge in terminator_successors(&function.blocks[*predecessor].terminator) {
+                if edge.block != block_id {
+                    continue;
+                }
+                *work += 1;
+                let mut arguments =
+                    edge.bindings
+                        .iter()
+                        .filter_map(|binding| match binding.transport {
+                            SelectedValueTransport::Registers {
+                                argument,
+                                parameter,
+                            } if parameter == register.id => Some(argument),
+                            _ => None,
+                        });
+                let Some(argument) = arguments.next() else {
+                    binds = false;
+                    break;
+                };
+                if arguments.next().is_some() || Some(argument) != resolved[*predecessor] {
+                    binds = false;
+                    break;
+                }
+            }
+            if !binds {
+                break;
+            }
+        }
+        if binds {
+            return Some(register.id);
+        }
+    }
+    None
 }
 
 /// Calls, hosted effects, and terminator kinds are always barriers: they can
@@ -1259,6 +1392,8 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoa
         | ExactRemainderU64 { .. }
         | WrappingRemainderI64 { .. }
         | WrappingDivideI64 { .. }
+        | ExactDivideI64 { .. }
+        | ExactRemainderI64 { .. }
         | SaturatingAdd { .. }
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }

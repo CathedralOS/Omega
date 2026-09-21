@@ -169,13 +169,8 @@ pub(crate) fn call_result_sources(
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
-    let callee_state = crate::semantic_calls::find_state(program, call.target_symbol)?;
-    let callee = program.machines().iter().find(|candidate| {
-        program
-            .machine_states(candidate)
-            .iter()
-            .any(|state| state.symbol == callee_state.symbol)
-    })?;
+    let (callee, callee_state) =
+        crate::semantic_calls::find_state_with_machine(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !program.machine_type_parameters(callee).is_empty()

@@ -78,11 +78,7 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
         else {
             continue;
         };
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-        else {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
             continue;
         };
         let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {

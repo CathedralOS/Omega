@@ -42,6 +42,14 @@ machine Main::main(&mut self) {
     self.complete(22);
     assert self.compiler.tape.bytes[13] == 42;
 
+    self.compiler.compile("machine answer() -> u8 { ~213 }", "answer");
+    self.complete(22);
+    assert self.compiler.tape.bytes[13] == 42;
+
+    self.compiler.compile("machine answer() -> u8 { (~40) + 2 }", "answer");
+    self.complete(22);
+    assert self.compiler.tape.bytes[13] == 217;
+
     self.compiler.compile("machine answer() -> u8 { 20 + 22 }", "answer");
     self.complete(22);
     assert self.compiler.selected_machine == 0;

@@ -55,10 +55,12 @@ fn array_argument_module(length: u64) -> TerminalModule {
     }
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(901),
             arguments: vec![],
             structural_arguments: vec![StructuralArgument {
