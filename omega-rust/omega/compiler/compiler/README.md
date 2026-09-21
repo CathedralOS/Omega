@@ -55,7 +55,7 @@ their before/after physical-source custody checks and final source-consumption
 verification. Retention copies parsed storage for the discovery child and holds
 that frontier until the final child consumes it; it is not a persistent cache.
 
-[Native compilation](src/compiler/native/prepared.rs) prepares and realizes the native
+[Native compilation](../native-realization/src/native_product/prepared.rs) prepares and realizes the native
 product; it is not owned by optional optimization or report writing. Re-entry
 from retained Terminal Psi uses `RetainedNativeRealizationRequest`. The current
 API threads a receiving policy alongside the image request; separating its

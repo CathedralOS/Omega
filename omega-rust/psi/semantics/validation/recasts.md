@@ -1,7 +1,7 @@
 # Recast validation implementation
 
 The [recast contract](../../../../wiki/spec/layouts/recasts.md) defines the
-representation judgment. `src/recasts.rs` and its child modules implement the
+representation judgment. `src/value_custody/recasts.rs` and its child modules implement the
 supported source subset; their restrictions are not new language semantics.
 
 Shared scalar, bounded byte-region, and recursively nested record/array views

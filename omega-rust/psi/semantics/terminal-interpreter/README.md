@@ -179,9 +179,10 @@ validation of the written prefix; buffer writeback itself grants none.
 
 ## Fixed byte arrays
 
-`start_artifact_with_structural_arguments_and_byte_arrays` and the existing
-`start_artifact_with_provider_installation` entrypoint supply explicit
-initialized fixed-array contents by structural argument and relative field path.
+`TerminalExecution::start_artifact` -- the only start entry, since `8e2dc8b8ade91`
+collapsed the two named variants -- supplies explicit initialized fixed-array
+contents through `TerminalStructuralInputs.byte_arrays`, by structural argument
+and relative field path.
 Every supplied value must match a real unqualified `FixedArray(u8, N)` and contain
 exactly `N` bytes. Duplicate referents, mistyped paths, and fabricated storage
 reject; an opaque root does not imply initialization. `structural_byte_array`
