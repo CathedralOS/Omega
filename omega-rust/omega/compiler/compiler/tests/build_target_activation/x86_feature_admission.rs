@@ -285,6 +285,7 @@ fn boundary_operator_and_float_adapters_retain_terminal_execution() {
     let project = TempProject::with_main(
         r#"use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Arithmetic {}
 boundary operator Arithmetic::identity(value: i32) -> i32;
@@ -293,14 +294,10 @@ machine ArithmeticProvider::identity(value: i32) -> i32
     satisfies Arithmetic::identity { value }
 
 data Main { console: Service<Console>; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let fused32: f32 = F32::fused_multiply_add(2.0f32, 3.0f32, 4.0f32);
     let fused64: f64 = F64::fused_multiply_add(2.0f64, 3.0f64, 4.0f64);
-    self.emit();
-}
-machine Main::emit(&mut self) reaches Console {
     let value: i32 = Arithmetic::identity(7);
-    self.console.write_line("mixed execution");
     self.console.exit_process(value);
 }
 "#,

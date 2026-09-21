@@ -897,6 +897,10 @@ const SET_LEN_FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
     machine set_len(descriptor: i32, length: i32) -> i32
     reaches FilesystemHost;
 }
+
+pub data FilesystemProvider { }
+machine FilesystemProvider::set_len(descriptor: i32, length: i32) -> i32
+    satisfies FilesystemHost::set_len { length }
 "#;
 
 /// An application root over the filesystem package; the root consumer's
@@ -924,6 +928,7 @@ impl FilesystemApplicationFixture {
             r#"machine build(builder: &mut Build) {
     builder.application("filesystem-consumer");
     builder.depend_as("ordinary_filesystem", Source::Path { location: "../filesystem" });
+    builder.select_provider<ordinary_filesystem::FilesystemHost, ordinary_filesystem::FilesystemProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
