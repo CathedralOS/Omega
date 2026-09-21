@@ -1,9 +1,12 @@
 # Supplied-theory derivation checking
 
-Run `sh tests/gamma/derivation-checking/run.sh` from the repository root.
-The gate uses the selected Gamma evaluator on macOS arm64 or Windows x64 Git
-Bash. An unavailable Python installation explicitly skips; other hosts report
-unsupported. Host availability is not evidence of cross-platform execution.
+Run `sh tests/gamma/derivation-checking/run.sh` from the repository root on
+macOS arm64 or Linux x86-64, or Windows x64 in Git Bash. The gate uses the
+selected Gamma evaluator stamped into the checked-in Alpha seed; macOS
+additionally requires `codesign`. An unavailable Python installation
+explicitly skips; other hosts report unsupported. Windows runtime validation
+is not implied by this portable entrypoint, and a result on one host is not
+evidence of cross-platform execution.
 
 The tiny [main.gamma](main.gamma) calls the complete source-owned
 [`check_derivation`](../../../bootstrap/proofs/checker/CHECKING.md)
