@@ -10133,7 +10133,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     ENTRY-CONTENT-ROOTS, field-obligation rows), not this gate. Remaining
     here once main is green again: run the suite on windows_x86_64,
     macos_arm64, linux_arm64 hosts — host-gated, none producible on this
-    machine.
+    machine. Re-witness at `4927883cf3` (linux x86-64): class (1)
+    reproduces verbatim — `basics_samples_compile_from_authored_program_
+    entry_bindings` rejects brightness_control's windows_x86_64 authored
+    entry with the same diagnostic in 11s. The deep legs are no longer
+    re-witnessable in a bounded run: `all_samples_reach_checked_trees`
+    and `algorithm_samples_..._bindings` exceed ~9 min before their
+    first assertion, and `omega --check --target linux_x86_64
+    samples/cli/basics/print_number/main.omg` emits nothing for >9 min
+    (matches the check-time caveat recorded on NOMINAL-FIELD-FLOW —
+    scale, not yet evidence of a hang). Classes (2) and (3) stay
+    recorded at `e092723726` above, unverified at tip.
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Give Terminal Psi a borrowed-view vocabulary for non-byte element types, so
   a callee can use a `&[T]` it receives. `d7a48d7af0` made the view local a
