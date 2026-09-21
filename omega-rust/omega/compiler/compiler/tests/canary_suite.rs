@@ -319,6 +319,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "structural/local_record_receivers",
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
+    // Routed scalar-domain establishment: the source compiles through
+    // checked semantics, but the artifact's unit-plan admission does not yet
+    // emit machines carrying routed scalar qualifications.
+    "domains/scalar_domain_issuer_route",
     // `drop<T>` specializations check through checked semantics and lower to
     // terminal nominal cleanup; the native codec route is not yet realized.
     "drops/core_drop_explicit_consume",

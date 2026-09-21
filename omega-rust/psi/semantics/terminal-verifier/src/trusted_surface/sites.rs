@@ -1044,7 +1044,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_qualifications.rs",
-        sha256: Some("18a42ad8454808f6ff7b3749e651a836af2eb8a37c13ea196dd186cc5abd7dae"),
+        sha256: Some("38eabd294cf9b7f0b342d925a4d270de1d8f40645af4a0caf58c38fc5c33701b"),
         inventory_machinery: false,
     },
     ImplementationSite {
