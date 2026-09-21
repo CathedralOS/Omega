@@ -422,6 +422,7 @@ mod tests {
             entry: BlockId::new(2).unwrap(),
             blocks: Vec::new(),
             contract: MachineContract {
+                erased_proof_formals: Vec::new(),
                 erased_scalar_formals: Vec::new(),
                 id: ContractId::new(9).unwrap(),
                 crash_routes: Vec::new(),
@@ -434,6 +435,7 @@ mod tests {
 
     fn test_block(operations: Vec<Operation>) -> Block {
         Block {
+            erased_proof_formals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             id: BlockId::new(2).unwrap(),
             parameters: Vec::new(),

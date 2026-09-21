@@ -263,6 +263,21 @@ fn evaluate_application_group(
                 ]
             };
             let invocation = checked.calls_for_source(reference).map_err(&failure)?;
+            // This pre-resolution probe has no Omega provider plan. Keep
+            // authored applications whose reachable closure needs selected
+            // execution intact: the typed continuation folds them under the
+            // exact provider rows Omega settles, as deferred fixed-array
+            // lengths do. The per-argument retry mode must report no
+            // progress for such an application or the driver loop never
+            // terminates.
+            if invocation.needs_operator_selection() {
+                if selected_argument.is_valid() {
+                    return Err(failure(
+                        "const-generic application awaits provider selection".to_owned(),
+                    ));
+                }
+                continue;
+            }
             let evaluated = invocation
                 .evaluate_application_probe(reference, *public, &syntax)
                 .map_err(&failure)?;

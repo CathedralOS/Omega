@@ -206,6 +206,23 @@ impl<'checked> CheckedScalarCallee<'checked> {
         }
     }
 
+    /// Proof-only erased formals in authored order. Empty for callees with
+    /// no erased-proof roster.
+    pub(crate) fn erased_proof_parameters(
+        &self,
+    ) -> Vec<&checked_trees::CheckedErasedProofParameterPlan> {
+        match self {
+            Self::Graph(graph) => graph
+                .states
+                .first()
+                .map(|state| state.erased_proof_parameters.iter().collect())
+                .unwrap_or_default(),
+            Self::Boundary(plan) => plan.erased_proof_parameters.iter().collect(),
+            Self::Structural(plan) => plan.erased_proof_parameters.iter().collect(),
+            Self::Operations(plan) => plan.erased_proof_parameters.iter().collect(),
+        }
+    }
+
     pub(crate) fn result_type(&self) -> Result<ScalarType, LoweringError> {
         match self {
             Self::Graph(graph) => graph

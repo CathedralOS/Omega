@@ -311,7 +311,95 @@ fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
         panic!("direct result source expected")
     };
     result.owner_machine = other;
-    assert!(lower_machine(&owner_drift, "result").is_err());
+    // A drifted checked-table owner never reaches the artifact as a stronger
+    // source: emission re-derives the direct-result source from the machine
+    // context, the mismatch demotes the row to `TransitionalInput`, and the
+    // downgraded module still verifies.
+    let drifted = lower_machine(&owner_drift, "result").expect("lower drifted owner");
+    assert!(
+        drifted
+            .semantic_module
+            .float_meaning_projections
+            .iter()
+            .all(|projection| matches!(
+                projection.source,
+                terminal_psi::FloatMeaningSource::TransitionalInput(..)
+            )),
+        "a drifted owner demotes the row to TransitionalInput, never a forged direct result: {:?}",
+        drifted
+            .semantic_module
+            .float_meaning_projections
+            .iter()
+            .map(|projection| projection.source.clone())
+            .collect::<Vec<_>>()
+    );
+    terminal_verifier::validate_module(&drifted.semantic_module).expect("verify demoted owner");
+}
+
+#[test]
+fn authored_float_meaning_equality_ensures_clause_cites_its_checked_row() {
+    let source = r#"
+        machine read() -> u64
+        ensures
+            FloatSemantics::add(
+                FloatFormat::BINARY32,
+                Float::meaning32(1.0f32),
+                Float::meaning32(2.0f32)
+            ) == Float::meaning32(3.0f32);
+        { 7 }
+    "#;
+    let checked = checked_float_projection_source(source);
+    let lowered = lower_machine(&checked, "read").expect("lower");
+    // The authored `==` clause keeps its claim as a vocabulary `Atom` citing
+    // the dense checked equality row — never erased toward `Truth`/`Empty` —
+    // and the verifier discharges it as a semantic axiom of the module.
+    let [clause] = lowered.semantic_module.machines[0]
+        .contract
+        .ensures
+        .as_slice()
+    else {
+        panic!("the authored ensures clause lowers to one contract clause")
+    };
+    assert_eq!(
+        clause.proposition,
+        Proposition::Atom(terminal_psi::float_meaning_equality_proposition_id(0))
+    );
+    let [equality] = lowered.semantic_module.float_meaning_equalities.as_slice() else {
+        panic!("the authored equality lowers to one module equality row")
+    };
+    assert_eq!(equality.id, terminal_psi::ProofPropositionId(0));
+    assert_ne!(equality.left, equality.right);
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("verify");
+    // A forged cite — a clause whose `Atom` identity names no reconstructed
+    // equality axiom — stays unprovable: the replayed semantic axiom's
+    // conclusion mismatches the obligation, so the verifier rejects the
+    // module.
+    let mut forged = lowered.semantic_module.clone();
+    forged.machines[0].contract.ensures[0].proposition = Proposition::Atom(
+        semantic_vocabulary::PropositionId::new(
+            terminal_psi::float_meaning_equality_proposition_id(0).get() + 1,
+        )
+        .expect("nonzero"),
+    );
+    assert!(
+        terminal_verifier::verify_module(
+            &forged,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+
+    let bytes = terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module)
+    );
 }
 
 #[test]

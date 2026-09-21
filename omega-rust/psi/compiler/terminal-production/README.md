@@ -76,7 +76,7 @@ Its source receipt binds typed parameter symbol and authored position, normalize
 carrier, exact requirement, and selected-plan digest. The current implementation
 also requires the separate service qualification; `ENTRY-CONTENT-ROOTS` owns
 retiring that requirement under the
-[intrinsic binding contract](../../../../wiki/spec/build/component_publication.md#service-bindings-and-era-entry),
+[intrinsic binding contract](../../../../wiki/spec/build/component_publication.md#bindings-and-era-entry),
 without losing establishment evidence. The
 raw producer checks typed custody; final compiler admission additionally rejoins
 selection provenance and an ordered call/checked-operation bijection.

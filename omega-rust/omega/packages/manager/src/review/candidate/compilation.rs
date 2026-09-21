@@ -115,6 +115,29 @@ pub fn compile_resolved_package_reviews(
     )
 }
 
+/// The same closure review armed by the accepted target's restricted-request
+/// checkpoint. A consuming operation — locked-source checking — supplies the
+/// consent it holds, so each occurrence's projected restricted build request
+/// joins its retained meaning inside the pass, before that request's own
+/// build effect executes, instead of the operation joining findings after it.
+pub fn compile_resolved_package_reviews_with_checkpoint(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    bindings: SemanticBindingReview<'_>,
+    restricted_build_checkpoint: &RestrictedBuildCheckpoint,
+) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    compile_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        None,
+        None,
+        Some(restricted_build_checkpoint),
+        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
+    )
+    .map(|compiled| compiled.reviews)
+}
+
 /// The same candidate review, retaining binding-independent source preparation
 /// in the caller's store. A command reviewing several targets of one resolved
 /// closure prepares each package once; changed sources and selections still
@@ -151,6 +174,42 @@ pub fn compile_resolved_package_candidate_for_production(
     bindings: SemanticBindingReview<'_>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    production_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        root_build_snapshot,
+        None,
+    )
+}
+
+/// The production route armed by the accepted target's restricted-request
+/// checkpoint: a projected restricted build request the retained consent does
+/// not grant rejects the pass before that request's own build effect executes
+/// or its generated-source bundle hands off to a dependent activation.
+pub fn compile_resolved_package_candidate_for_production_with_checkpoint(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    bindings: SemanticBindingReview<'_>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: &RestrictedBuildCheckpoint,
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    production_candidate(
+        target_closure,
+        build_root,
+        bindings,
+        root_build_snapshot,
+        Some(restricted_build_checkpoint),
+    )
+}
+
+fn production_candidate(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    bindings: SemanticBindingReview<'_>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
     if closure.root_role() != package_compilation::BuildDeclarationKind::Application {
@@ -171,7 +230,7 @@ pub fn compile_resolved_package_candidate_for_production(
         bindings,
         Some(&root_path),
         root_build_snapshot,
-        None,
+        restricted_build_checkpoint,
         &mut CandidateSourcePreparation::for_closure(closure),
     )?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
@@ -190,14 +249,57 @@ pub fn compile_resolved_package_candidate_for_production(
 }
 
 /// CHECK accepts either project role and preserves the requested entry through
-/// discovery and final binding, without entering production. The occurrence
-/// reviews return beside the checked root: an executor of the accepted policy
-/// needs them for the restricted-build grant join.
+/// discovery and final binding, without entering production. This
+/// observational route carries no restricted-request consent; a consuming
+/// check supplies its accepted target's checkpoint through the
+/// `_with_checkpoint` variant.
 pub(crate) fn compile_resolved_package_candidate_for_check(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     entry_path: &Path,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+) -> Result<
+    (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
+    CompileResolvedPackageReviewsError,
+> {
+    compile_candidate_for_check(
+        target_closure,
+        build_root,
+        entry_path,
+        root_build_snapshot,
+        None,
+    )
+}
+
+/// The consuming check route, armed by the accepted target's
+/// restricted-request checkpoint the same way as the production route:
+/// retained consent gates each projected request's own build effect inside
+/// the pass rather than at the operation's boundary after it.
+pub(crate) fn compile_resolved_package_candidate_for_check_with_checkpoint(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    entry_path: &Path,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: &RestrictedBuildCheckpoint,
+) -> Result<
+    (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
+    CompileResolvedPackageReviewsError,
+> {
+    compile_candidate_for_check(
+        target_closure,
+        build_root,
+        entry_path,
+        root_build_snapshot,
+        Some(restricted_build_checkpoint),
+    )
+}
+
+fn compile_candidate_for_check(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    entry_path: &Path,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
 ) -> Result<
     (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
     CompileResolvedPackageReviewsError,
@@ -208,7 +310,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         SemanticBindingReview::Discover,
         Some(entry_path),
         root_build_snapshot,
-        None,
+        restricted_build_checkpoint,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )?;
     let CompiledPackageReviews {
@@ -224,10 +326,10 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
 
 /// Audit-only candidate observation carries no restricted-request
 /// checkpoint (`None`): inspection never issues grants, and projected
-/// requests must survive to the decision document. The wired executor
-/// callers keep the same None today — the consuming operations join the
-/// retained policy after the pass — while `compile_dependency_closure`
-/// accepts the checkpoint for callers that already hold accepted consent.
+/// requests must survive to the decision document. The consuming operations
+/// (`operations::check_project`, `check_locked_sources`, `compile_project`)
+/// supply the accepted target's checkpoint so every occurrence's request
+/// waits on its granted meaning before its build effect executes.
 fn compile_candidate(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,

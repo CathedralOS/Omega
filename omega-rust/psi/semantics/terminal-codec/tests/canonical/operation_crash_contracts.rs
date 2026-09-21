@@ -54,6 +54,7 @@ fn comparison_fixture() -> TerminalModule {
     machine.result = TerminalMachineResult::Scalar(declaration(940, ScalarType::Boolean));
     machine.blocks = vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(900),
         parameters: Vec::new(),
@@ -74,6 +75,7 @@ fn comparison_fixture() -> TerminalModule {
     }];
     machine.contract = MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: contract_id(900),
         crash_routes: vec![guarded(CrashCause::Trap, negative(920))],
         requires: Vec::new(),
@@ -88,7 +90,7 @@ fn comparison_fixture() -> TerminalModule {
 fn operation_crash_contracts_round_trip_and_enter_semantic_identity() {
     let module = comparison_fixture();
     let bytes = encode_module(&module).expect("operation crash contract encodes");
-    assert_eq!(&bytes[8..12], &[103, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[104, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 

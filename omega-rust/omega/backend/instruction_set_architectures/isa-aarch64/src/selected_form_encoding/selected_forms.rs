@@ -1,7 +1,6 @@
 //! Encoding one selected form: validating the request, resolving registers
 //! and emitting the words for every operation family.
 
-use crate::aarch64_physical_register_model;
 use crate::saturating_forms::SaturatingRealization;
 use crate::selected_form_encoding::copy_bytes;
 use crate::selected_form_encoding::decoding::{decode_words, footprint, validate_decoded};
@@ -69,7 +68,7 @@ fn validate_request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     let (family, count) = family_and_operand_count(kind)?;

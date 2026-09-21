@@ -55,7 +55,6 @@ fn build_projected_edge_plan(
     let states = program.machine_states(machine);
     if machine.supply_mode != MachineSupplyMode::CheckedBody
         || machine.attached_data.is_none()
-        || states.len() != 2
         || !program.machine_contracts(machine).is_empty()
         || !program.state_contracts(state).is_empty()
         || !super::terminal_unit::cleanup_type_is_unit(program, state.return_type)

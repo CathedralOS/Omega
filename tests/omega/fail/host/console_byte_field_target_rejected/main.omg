@@ -1,9 +1,10 @@
 // FAIL canary: `self.r = block self.console.read_byte()` (a FIELD assignment
 // target) is outside read_byte's served shape -- the composite owns the
 // whole ByteRead result and serves the `let r: ByteRead = ...` LOCAL slot
-// only today. The emission blocker must refuse LOUDLY (selection emits
-// nothing generic for byte ops; the alternative is a silently-ZII field,
-// the cardinal sin). Remove when field-target byte reads gain a lowering.
+// only today. The refusal must stay LOUD (the alternative is a silently-ZII
+// field, the cardinal sin); it surfaces as the unit-plan local-construction
+// omission at the assignment, reported through ProgramEntry establishment.
+// Remove when field-target byte reads gain a lowering.
 use omega::language::std::console;
 use omega::language::core::service;
 
@@ -12,7 +13,9 @@ data Main {
     r: ByteRead;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self)
+reaches Console
+{
     self.r = block self.console.read_byte();
     transition self.r {
         ByteRead::Byte { value } -> got(value)

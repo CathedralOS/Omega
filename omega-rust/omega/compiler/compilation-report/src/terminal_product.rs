@@ -1424,6 +1424,7 @@ mod tests {
                 entry: BlockId::new(2).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: Vec::new(),
                     structural_parameters: Vec::new(),
@@ -1436,6 +1437,7 @@ mod tests {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: ContractId::new(9).unwrap(),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),

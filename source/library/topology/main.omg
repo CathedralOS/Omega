@@ -1,0 +1,39 @@
+// topology — canonical checked-boundary topology package
+// (TASKS.md TOPOLOGY-PLAN-VERIFICATION; contract:
+// wiki/spec/packages/topology.md).
+//
+// The package owns the v1 wire tables, graph normalization, the fixed
+// `no_route`/`only_via` predicates, plan composition, and the independent
+// source-free plan verification — an ordinary package with no compiler
+// privilege. The Omega realization reuses the Rust reference's semantics
+// (omega-rust/omega/packages/topology): same canonical byte layout (LE
+// integers, u32 length prefixes, canonical-order rosters, the v1 tag
+// table) and the same verification order — decode, request commitment,
+// roster exactness, per-instance component binding, transport membership,
+// then independent predicate replay against the recorded certificates.
+//
+// Input confinement: the verifier consumes only caller-staged bytes —
+// `plan`, `request`, and per-instance verified `description` byte buffers
+// staged through `feed_*`/`open_*` machines. No plan-declared claim is
+// trusted: `verify` replays every required predicate itself and checks
+// each recorded certificate against the reconstructed edge set, so a
+// stored success flag, a stale request, a substituted component record,
+// and an unselected verifier identity all reject by comparison or replay
+// — never by loading code.
+//
+// Bounds: this realization fixes the v1 roster scale at
+// MAX_INSTANCES=8, MAX_ENDPOINTS_PER_INSTANCE=8, MAX_BINDINGS=16,
+// MAX_POLICIES=8, MAX_SELECTOR_MEMBERS=8, MAX_ASSUMPTIONS_PER_INSTANCE=4,
+// MAX_ACCEPTED=32, MAX_TRANSPORTS=8 — an unsuccessful verification, never
+// a satisfied verdict, on exhaustion. The Rust reference's larger limits
+// (MAX_INSTANCES=1024 et al.) are the wire contract; a wider realization
+// moves to dynamically-sized carriers when the language admits them.
+//
+// Stage status: `digest` + `verify` are implemented — the request,
+// plan, and components decoders plus the full check pipeline
+// (commitment, roster, component binding, assumptions, bindings/graph
+// normalization, policy coverage + verifier identity, and independent
+// no_route/only_via predicate replay with certificate closure checks
+// over the reconstructed adjacency).
+use digest;
+use verify;

@@ -1,7 +1,25 @@
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeArtifact};
+use build_declarations::{BuildDeclaration, extract_build_declaration};
+use compiler::{
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
+    RetainedNativeArtifact, compile_to_checked,
+};
+use diagnostics::Diagnostic;
+use package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
+use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+
+#[path = "../support/console_acceptance.rs"]
+mod console_acceptance;
+#[path = "../support/linux_entry_acceptance.rs"]
+mod linux_entry_acceptance;
+#[path = "../support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
+#[path = "../support/windows_entry_acceptance.rs"]
+mod windows_entry_acceptance;
 
 pub(super) const HOSTED_NATIVE_TARGETS: [&str; 4] = [
     "linux_x86_64",
@@ -36,6 +54,112 @@ pub(super) fn fail_canary() -> PathBuf {
     repo_root()
         .join("tests/omega/fail")
         .join(super::fixture_roster::NO_SELECTION_WRONG_ARITY)
+}
+
+fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32])
+        .expect("repository fixture package identity is nonzero")
+}
+
+/// The interpreter canary declares the ordinary standard-library dependency
+/// in its `build.omg`, so checked compilation needs the reconciled package
+/// graph: the fixture directory is the root package and the bundled std is
+/// bound to its repository path directly. Source spelling selects only this
+/// repository's test policy; the admitted entry and Console rows are then
+/// derived from and replayed against the preliminary checked graph. This is
+/// test-owned acceptance, not evidence that an audit occurred.
+pub(super) fn interpreter_package_inputs(
+    target_name: &str,
+) -> Result<PackageCompilationInputs, Vec<Diagnostic>> {
+    let root_path = interpreter_canary().join("main.omg");
+    let project_root = root_path
+        .parent()
+        .expect("interpreter canary source has a project root")
+        .to_path_buf();
+    let declaration = extract_build_declaration(&project_root)
+        .unwrap_or_else(|error| panic!("interpreter canary {project_root:?}: {error}"));
+    let root_role = declaration.kind();
+    let root_name = match declaration {
+        BuildDeclaration::Application(application) => application.name,
+        BuildDeclaration::Package(package) => package.name,
+        BuildDeclaration::Workspace(_) => {
+            panic!("interpreter canary {project_root:?} cannot be a workspace root")
+        }
+    };
+    let root_identity = fixture_package_identity(1);
+    let standard_library_identity = fixture_package_identity(2);
+    let mut package_inputs = PackageCompilationInputs::new(
+        root_identity,
+        root_role,
+        vec![
+            PackageSourceBinding::new(root_identity, root_name.into_string(), project_root),
+            PackageSourceBinding::new(
+                standard_library_identity,
+                "omega-language-std",
+                repo_root().join("source/library/std"),
+            ),
+        ],
+        vec![PackageDependencyBinding::new(
+            root_identity,
+            "omega_language_std",
+            standard_library_identity,
+        )],
+    )
+    .unwrap_or_else(|errors| panic!("interpreter canary package inputs: {errors:#?}"));
+
+    let standard_library_root = repo_root().join("source/library/std");
+    let mut bindings = Vec::new();
+    match target_name {
+        "macos_arm64" => bindings.push(macos_entry_acceptance::candidate_macos_entry_binding(
+            &standard_library_root,
+            standard_library_identity,
+        )?),
+        "linux_x86_64" => bindings.push(
+            linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
+                &standard_library_root,
+                standard_library_identity,
+            )?,
+        ),
+        "linux_arm64" => {
+            bindings.push(linux_entry_acceptance::candidate_linux_arm64_entry_binding(
+                &standard_library_root,
+                standard_library_identity,
+            )?)
+        }
+        "windows_x86_64" => bindings.push(
+            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
+                &standard_library_root,
+                standard_library_identity,
+            )?,
+        ),
+        _ => {}
+    }
+    if !bindings.is_empty() {
+        package_inputs = package_inputs
+            .with_accepted_semantic_bindings(bindings.clone())
+            .map_err(|errors| {
+                vec![Diagnostic::error(format!(
+                    "interpreter canary entry acceptance: {errors:?}"
+                ))]
+            })?;
+    }
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(package_inputs.clone()),
+        ..CheckedCompileRequest::new(&root_path, Some(target_name))
+    })?;
+    bindings.push(console_acceptance::candidate_console_exit_binding(
+        &preliminary,
+        standard_library_identity,
+        true,
+        false,
+    )?);
+    package_inputs
+        .with_accepted_semantic_bindings(bindings)
+        .map_err(|errors| {
+            vec![Diagnostic::error(format!(
+                "cannot admit interpreter canary semantic binding: {errors:?}"
+            ))]
+        })
 }
 
 pub(super) fn golden_for_target(target: &str) -> String {

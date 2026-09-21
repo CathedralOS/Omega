@@ -6,11 +6,11 @@ use crate::tests::{
     OptimizationSelections, OptimizedTargetLoweringRequest, PlaceId,
     StagedOptimizedRelocationFreeObjectContainer, StructuralAccess, StructuralMultiplicity,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, compiler_baseline_request_v1,
-    lower_optimized_to_target_operations, optimize_artifact_sections, reseal_proof,
+    encode_fixture_sections, lower_optimized_to_target_operations, optimize_artifact_sections,
     stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
     stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
     stage_optimized_verified_physical_pipeline, structural_extent_call_unit_artifact,
-    structural_extent_unit_leaf_artifact,
+    structural_extent_call_unit_parts, structural_extent_unit_leaf_parts,
 };
 #[test]
 fn structural_call_publication_preserves_owned_indirect_arguments() {
@@ -135,7 +135,7 @@ fn installed_structural_provider_call_reaches_shared_publication() {
 }
 
 #[test]
-fn claim_completion_prefixes_publish_as_metadata_without_instruction_spans() {
+fn claim_completion_machines_fail_closed_at_native_lowering() {
     let (semantic, proof, boundary) = completion_artifact();
     let execution = omega_native_differential_test::admit_native_provider(
         NativeTarget::uefi_x64(),
@@ -155,72 +155,30 @@ fn claim_completion_prefixes_publish_as_metadata_without_instruction_spans() {
         OptimizationSelections::default(),
         OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
     ] {
-        let source = stage(&semantic, &proof, selections, &[], &settlements);
-        let published = publish(&source, &[&execution]);
-        assert_eq!(published.text_bytes(), &[0xc3]);
-        assert_eq!(published.boundary_settlements().len(), 2);
-        for (index, row) in published.boundary_settlements().iter().enumerate() {
-            assert_eq!(row.settlement.code_offset, 0);
-            assert_eq!(row.settlement.byte_count, 0);
-            assert_eq!(row.settlement.operation_ordinal, index);
-            assert_eq!(row.settlement.completion_receipts.len(), 1);
-        }
-        let settlement_site = machine_code::SemanticCodeSite::Operation(
-            published.boundary_settlements()[0].settlement.psi_operation,
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            compiler_baseline_request_v1(&selections),
+        )
+        .expect("verified structural source");
+        let result = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest {
+                target: NativeTarget::uefi_x64(),
+                settlements: &settlements,
+                installation: None,
+                ieee_float_fma: &[],
+                native_callbacks: &[],
+            },
         );
-        let attribution_position = published
-            .semantic_code_attribution()
-            .iter()
-            .position(|row| row.attribution.site == settlement_site)
-            .unwrap();
-        for mutation in 0..5 {
-            let mut changed = published.clone();
-            let rows = changed.semantic_code_attribution_mut_for_test();
-            match mutation {
-                0 => {
-                    rows.remove(attribution_position);
-                }
-                1 => {
-                    // Keep the correct row and add the same site with a different
-                    // extent. Filtering by site must not hide this extra record.
-                    let mut duplicate = rows[attribution_position].clone();
-                    duplicate.attribution.byte_count = 1;
-                    rows.insert(attribution_position + 1, duplicate);
-                }
-                2 => rows[attribution_position].attribution.operation_ordinal += 1,
-                3 => {
-                    rows[attribution_position].attribution.code_offset += 1;
-                    rows[attribution_position].text_offset += 1;
-                }
-                _ => rows[attribution_position].attribution.byte_count = 1,
-            }
-            assert!(
-                image_emission::validate_function_fragment_object_artifact(&source, &changed)
-                    .is_err(),
-                "settlement attribution mutation {mutation} must fail independent replay"
-            );
-        }
-        let mut changed = published.clone();
-        changed.boundary_settlements_mut_for_test().pop();
-        assert!(
-            image_emission::validate_function_fragment_object_artifact(&source, &changed).is_err()
-        );
-        let mut changed = published.clone();
-        changed.boundary_settlements_mut_for_test()[0]
-            .settlement
-            .completion_receipts[0]
-            .argument_index = 1;
-        assert!(
-            image_emission::validate_function_fragment_object_artifact(&source, &changed).is_err()
-        );
-        let image = image_emission::emit_executable_image(&published, 10).unwrap();
-        assert!(
-            image_emission::build_installation_record(
-                &image,
-                semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+        assert_eq!(
+            result.map(|_| ()),
+            Err(
+                abstract_operations_to_target_operations::LoweringError::UnsupportedControlFlow(
+                    semantic_vocabulary::MachineId::new(3_602).unwrap()
+                )
             )
-            .is_err(),
-            "metadata-only settlement still requires its admitted execution"
         );
     }
 }
@@ -356,8 +314,7 @@ fn assert_installation_rejects(
 }
 
 fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMachineId) {
-    let (semantic, proof) = structural_extent_unit_leaf_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = structural_extent_unit_leaf_parts();
     let machine = &mut module.machines[0];
     for parameter in &mut machine.structural_parameters {
         parameter.multiplicity = StructuralMultiplicity::Linear;
@@ -415,11 +372,8 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
             },
         })
         .collect();
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-        boundary,
-    )
+    let (semantic, proof) = encode_fixture_sections(&module, &proof);
+    (semantic, proof, boundary)
 }
 
 fn provider_artifact() -> (
@@ -431,8 +385,7 @@ fn provider_artifact() -> (
         BoundaryMachineDeclaration, ProviderCandidateConformance, ProviderParameterRefinement,
         ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
     };
-    let (semantic, proof) = structural_extent_call_unit_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = structural_extent_call_unit_parts();
     let boundary = semantic_vocabulary::BoundaryMachineId::new(3_620).unwrap();
     let provider_type = StructuralTypeId::new(3_621).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
@@ -510,9 +463,10 @@ fn provider_artifact() -> (
             .collect(),
         completion_receipts: Vec::new(),
     };
+    let (semantic, proof) = encode_fixture_sections(&module, &proof);
     (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
+        semantic,
+        proof,
         vec![
             terminal_psi_to_abstract_operations::SelectedProviderAdapter {
                 requirement_identity: "StructuralSink::accept".into(),

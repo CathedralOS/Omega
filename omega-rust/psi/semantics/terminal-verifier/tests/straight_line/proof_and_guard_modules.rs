@@ -190,6 +190,7 @@ pub(super) fn unit_module() -> TerminalModule {
             entry: BlockId::new(900).unwrap(),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(900).unwrap(),
                 parameters: Vec::new(),
@@ -201,6 +202,7 @@ pub(super) fn unit_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(900).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -379,6 +381,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
     ];
     let return_block = |block_raw, operation, place, result_case, edge_raw| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: BlockId::new(block_raw).unwrap(),
         parameters: Vec::new(),
@@ -409,6 +412,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(930).unwrap(),
             parameters: Vec::new(),
@@ -421,6 +425,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
                     target: BlockId::new(931).unwrap(),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -429,12 +434,14 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
                     target: BlockId::new(934).unwrap(),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(931).unwrap(),
             parameters: Vec::new(),
@@ -447,6 +454,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
                     target: BlockId::new(932).unwrap(),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -455,6 +463,7 @@ pub(super) fn multi_exit_payloadless_guard_module() -> (
                     target: BlockId::new(933).unwrap(),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },

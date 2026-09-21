@@ -87,7 +87,7 @@ fn request(
     // Hosted boundary storage is committed caller frame space: its
     // displacement is always a nonnegative unsigned-immediate offset.
     if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
-        || physical.model() != &crate::aarch64_physical_register_model()
+        || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(
             kind,
             SelectedInstructionKind::HostedWriteByteI32 {

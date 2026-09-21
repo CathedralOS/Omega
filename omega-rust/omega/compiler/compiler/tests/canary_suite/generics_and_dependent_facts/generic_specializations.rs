@@ -374,8 +374,9 @@ fn closed_indexed_domain_canaries() {
     let uses = &checked.facts.qualifications.vacuous_uses;
     assert_eq!(
         uses.len(),
-        3,
-        "closed qualification plus both concrete generic instances should be retained"
+        4,
+        "the concrete closed qualification, the open `retag_i64` template, \
+         and both concrete generic instances should each be retained"
     );
     for use_fact in uses {
         let machine = checked
@@ -394,10 +395,19 @@ fn closed_indexed_domain_canaries() {
         else {
             panic!("indexed qualification canary result should remain constrained");
         };
-        let [typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
-            checked.type_reference_table.constraints(*constraints)
-        else {
-            panic!("indexed qualification canary result should carry one domain");
+        // The bounded carrier may add a range constraint beside the declared
+        // domain; the evidence check selects exactly the domain member.
+        let domain_constraints = checked
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .filter_map(|constraint| match constraint {
+                typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [result_domain] = domain_constraints.as_slice() else {
+            panic!("indexed qualification canary result should carry exactly one domain");
         };
         assert_eq!(
             use_fact.semantic_domain, result_domain.semantic_id,
@@ -575,7 +585,7 @@ fn open_computed_quantity_result_canary_runs() {
     assert!(selections.iter().all(|selection| {
         selection
             .operation_contract_identity
-            .contains("IndexAlgebra::plus")
+            .contains("IndexAdd::add")
             && selection.algebra_requirement == "add"
             && selection.algebra_alias.as_deref() == Some("Canonical")
             && selection.provider.is_valid()
@@ -680,15 +690,16 @@ fn open_index_exact_local_fact_canary_runs() {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
+    // Under conformance-bound requirements every `a + 0 == 0`-shaped
+    // equality transports as a declared `requires` hypothesis: no call can
+    // mint the fact without a requires carrying it, so the discharge evidence
+    // lives at the machines' State entry points rather than a call-ensures
+    // axiom.
     assert!(
         evidence
             .iter()
-            .any(|fact| matches!(fact.point, facts::ProgramPoint::CallEnsures { .. }))
+            .all(|fact| { matches!(fact.point, facts::ProgramPoint::State { .. }) })
     );
-    assert!(evidence.iter().any(|fact| !matches!(
-        fact.point,
-        facts::ProgramPoint::CallEnsures { .. } | facts::ProgramPoint::Global
-    )));
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);

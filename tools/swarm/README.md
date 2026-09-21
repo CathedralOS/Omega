@@ -54,7 +54,11 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    same-layer session; `uncovered_mentions` lists paths or backticked crate
    names the item text cites that `owning_paths` do not cover — the fence
    would protect the wrong ground; `scale_hint` fires when the text spans
-   many crates, marking a multi-layer decomposition rather than one slice.
+   many crates, marking a multi-layer decomposition rather than one slice;
+   `resolution_language` fires when the item text carries board-sweep
+   vocabulary ("Resolved —", "Row consumed", "already landed"), meaning the
+   item may already be resolved upstream — re-verify it names unfinished
+   work before assigning a session to re-discover that.
    Use them before spawning: adjust owning paths to the named machinery and
    order dependency-flagged items into layers. Use
    `--skip-host-gates`, `--skip-route-check`, or `--skip-claims-check` when
@@ -114,7 +118,11 @@ A local wave runs the same protocol from one machine without Devin sessions:
 the coordinator spawns one agent per `.codex/worktrees/<wave>-<task>` worktree
 and each agent claims, works, lands, and releases exactly like a cloud session.
 `worktree_status.py` is the local wave's `status`/`report` equivalent. At
-drain, write the per-slot tally (result, commits, `item_closed`) to
+drain, collect worker evidence notes first: `python3 tools/claims.py notes`
+lists findings workers attached to their claim tickets; fold what they
+justify into one board sweep commit (landing it takes `--board-update`), then
+`python3 tools/claims.py sweep` marks them consumed. Then write the per-slot
+tally (result, commits, `item_closed`) to
 `tools/swarm/waves/<wave>.outcomes.json` so local waves stay measurable the
 same way cloud waves do.
 

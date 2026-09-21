@@ -18,7 +18,7 @@ use super::{
     allocate_dense, content_conservation, dense_identity, lookup_domain_id, lookup_service_id,
     lookup_type_id, terminal_scalar_type, unique_unit_boundary, unsupported,
 };
-use checked_trees::CheckedUnitStructuralTypePlan;
+use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
@@ -374,6 +374,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
@@ -455,6 +460,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+            }
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
             }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 let mut field_identities = BTreeSet::new();
@@ -660,6 +670,13 @@ pub(super) fn lower_unit_structural_domains_including(
                     .iter()
                     .map(|requirement| &requirement.domain),
             )
+            .chain(match &boundary.result {
+                CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                    qualifications.iter()
+                }
+                CheckedBoundaryMachineResultPlan::Unit
+                | CheckedBoundaryMachineResultPlan::Scalar(_) => [].iter(),
+            })
         {
             if !selected.contains(domain) {
                 selected.push(*domain);
@@ -811,6 +828,8 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }
