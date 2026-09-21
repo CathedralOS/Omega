@@ -11020,6 +11020,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/bootstrap/omega-request`, `omega-parser`, `omega-identity.sh`,
   `omega-executable`, and `source-closure.py`, and
   CHAIN-MANIFEST-OCREQ-ENTRY-BINDING holds the binding draft.
+  Re-verified at `832c55e69b7` (board claim for this row timed out on
+  the starved claims-ref; no item holder): the request-entry binding is
+  unchanged and the witness re-run on this host PASSes —
+  `sh tests/bootstrap/omega-request/run.sh --identity` verifies all
+  bound identities and assembles the same byte streams (622,933-byte
+  receipt request, 565,909-byte customer, 45-byte expected
+  observation); execution legs still seed-host-gated. Fence drift since
+  the last stamp: the OMEGA-D-REQUEST-ADMISSION dir-fence on
+  `tools/bootstrap/omega` + `tests/bootstrap/omega-request` has
+  drained; live claims on this surface are sibling-alias items —
+  OCREQ-ENTRY-BINDING (Devin/z161 ~09:26Z), CHAIN-MANIFEST-OCREQ-BINDING
+  (~09:34Z), OMEGA-D-REQUEST-AND-ENTRY-ROUTE (Zergling-130 ~10:05Z) —
+  plus OMEGA-D-REQUEST-V1-TABLES (Zergling-126 ~11:19Z) on
+  `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`.
 - **OMEGA-C.** Verified `8a37f82686`: the canonical item is
   `TASKS_BOOTSTRAP.md` P4's OMEGA-C — "the sole self-host edge": compile
   the exact Omega-written closure rooted at `source/omega/{build.omg,
