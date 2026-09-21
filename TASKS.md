@@ -5669,8 +5669,13 @@ Owners include
   (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs:519`)
   re-verified PASS here. So the repair is to re-pin that second assertion on
   the new contract (lowering admits; the correspondence gate refuses), not to
-  drop it. Left unlanded: the file is fenced to
-  PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION (Devin, exp ~04:50Z Sep 21).
+  drop it. Landed on `a4d396d0de4` after that fence
+  lapsed: the second assertion now pins admission
+  (`lower_typed_trees(...).is_ok()` — lowering admits; the published
+  correspondence gate holds the execution refusal); the transport-lift
+  counterpart's rejection assertion still holds and is untouched.
+  Re-verified linux x86-64: `cargo nextest run -p package-evidence -E
+  'test(~quotients)'` — 13/13 pass.
 
   Remaining work:
 
