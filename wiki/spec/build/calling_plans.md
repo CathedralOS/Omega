@@ -8,8 +8,8 @@ the portable module.
 
 ## Authorship and evaluation
 
-`Calling<C, Policy>` names a convention subject `C` and the exact named
-conformance `Policy: C satisfies CallingPolicy`. Its compile-time `plan` machine
+`Calling<C>` names a convention subject `C`, declared `where C satisfies
+CallingPolicy` and resolved through that exact named conformance. Its compile-time `plan` machine
 receives a normalized `BoundarySignature` and returns
 `Accepted(BoundaryEntryPlan)` or `Rejected(CallingPolicyRejection)`.
 

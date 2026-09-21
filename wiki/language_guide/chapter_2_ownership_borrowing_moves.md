@@ -216,8 +216,8 @@ claim cannot disappear on the edge. See [state arrivals](../spec/language/state_
 Separate loans may require a disjointness proof:
 
 ```omega
-let a = &mut items[i];
-let b = &mut items[j];
+let a: &mut i32 = &mut items[i];
+let b: &mut i32 = &mut items[j];
 ```
 
 Bounds and `i != j` can establish that the elements differ. They cannot create
@@ -227,7 +227,7 @@ calls are ways to establish relations between already-existing subjects.
 A loan captures its place when formed:
 
 ```omega
-let view = &mut buffer[table[index]];
+let view: &mut u8 = &mut buffer[table[index]];
 ```
 
 Later changing `table[index]` does not retarget `view`. Compatibility premises
@@ -237,8 +237,8 @@ does not move those frozen places.
 Half-open windows illustrate a simple automatic proof:
 
 ```omega
-let left = &mut items[start..mid];
-let right = &mut items[mid..end];
+let left: &mut [i32] = &mut items[start..mid];
+let right: &mut [i32] = &mut items[mid..end];
 ```
 
 Once their bounds are valid, the shared immutable boundary `mid` establishes
