@@ -6425,25 +6425,6 @@ Omega-side / native:
   Service-carrier custody item, not this one; the linux leg of the last test
   now emits its expected `requires explicit AVX+FMA3 admission` diagnostics
   again under this fix.
-- **INTEGER-DIVISION-ENTRY-SELECTION.** Scope verified at `5b3caaf337ca` — the
-  subject canary exists and passes, but only at source checking, so native entry
-  selection is still unverified. `tests/omega/pass/operators/division_value_entry_selection`
-  asserts the whole rule — `u64 /` selects the realized exact-division entry, `i32 /`
-  the typed truncating entry, `%` the paired remainder entry on the same operands,
-  holding through let binding, transition argument and guard operand — and is green
-  (`OMEGA_PASS_CANARY_FILTER=division_value_entry_selection` against
-  `pass_canaries_compile`, 0.4s).
-  It is fenced to `CHECKED_ONLY_PASS_CANARIES` (canary_suite.rs:615) because the
-  fixture directory holds `main.omg` alone with no `build.omg`, so it never reaches
-  native production and the entry selection it names is never exercised past the
-  checker. The residue is therefore narrow and has a worked precedent: the sibling
-  `operators/runtime_integer_division_value` carries `build.omg` + `main.omg`, sits on
-  `ACTIVE_PASS_CANARIES` (canary_suite.rs:4775) and passes natively in 44s — it was
-  promoted the same way ("added the missing `build.omg` entry binds", recorded under
-  BASELINE-CANARY-PASS-CLUSTER). Supply the entry binds and move the roster line in
-  one change; the fixture body needs nothing. `tests/omega/pass/operators` is
-  unclaimed, `canary_suite.rs` was held by EXTERNAL-DATA-SCHEMA-CONVERSION until
-  ~04:20Z, which is why this is recorded rather than done.
 - **FLOAT-FMA-NATIVE-TRANSPORT.** Scope verified at 4e523615fe — re-mines
   the transport legs already enumerated on sibling X86-FMA-PROVIDER-TRANSPORT:
   (a) the production arm for `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`
