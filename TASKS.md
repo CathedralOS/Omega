@@ -2850,147 +2850,31 @@ syntax and other terminal services are not prerequisites.
   Separate emitted-byte verification from execution, which requires an
   appropriately admitted privileged environment, not raw I/O in a hosted test.
 
-- **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
-  `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources
-  under the [FloatMeaning contract](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
-  Keep IEEE runtime comparison distinct from mathematical meaning equality;
-  NaN payloads erase only in the meaning projection and signed zeros remain
-  distinct there. Installed scalar-result providers already execute in the
-  Terminal interpreter, and the verifier's provider-result conformance already
-  admits scalar provider rows.
+- **FLOAT-PROVIDERS.** Complete checked source and independently replayed
+  `FloatSemantics` obligations used by the actual `Float::*` slot contracts,
+  under [FloatMeaning](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
+  Closed Meaning-valued applications and authored equality ensures already
+  reach produced artifacts and independent proof replay; reuse that route.
+  Its checked binder, evaluator and Terminal application carrier specialize
+  Meaning results and Format/Meaning operands. Complete Boolean,
+  classification and integer-conversion contract discharge through the
+  appropriate proof carriers, not by admitting those results as FloatMeaning.
 
-  Remaining work:
+  Owners: checked `proof/float_meaning.rs`, validation's
+  `float_projection_bindings`, checked/lowered contract production and
+  Terminal semantic/proof replay. Preserve exact declaration/signature,
+  owner/use-site, result and argument correspondence; shared numerical kernels
+  and well-formed metadata alone do not establish a source obligation.
 
-  - Kernel discharge. Each `FloatSemantics::*` row in
-    `numerics/src/float_semantics_catalog.rs` now carries a
-    `FloatSemanticKernel` beside its identity (landed 2026-09-19):
-    `FloatSemanticOperation::kernel_discharge` evaluates a signature-shaped
-    operand list through the bound `FloatSemantics` definition and pairs the
-    result with the row's `FloatSemanticContractIdentity`, selected through
-    the complete signature by `from_source_identity` — never the leaf
-    spelling. Meaning results compare by payload-erased meaning equality;
-    `Bool` results keep the IEEE predicates (`NaN` unordered, `+0` == `-0`).
-    The Terminal side now carries the application: `FloatMeaningSource::
-    SemanticApplication` (codec tag 10) spells the catalog
-    `FloatSemanticContractIdentity`, the declared result format, and the
-    operand roster as projection-row references; the verifier rejoins the
-    contract through `for_contract_identity`, checks each operand's kind,
-    rejoins explicit `Format` arguments to the declared result format (or
-    meaning-operand formats when the signature has no `Format`), resolves
-    meaning operands to strictly earlier rows, and re-runs
-    `kernel_discharge` when every meaning operand is a literal — the
-    discharged result rides the shared proof-value space. Equality row
-    validation establishes carrier compatibility, not the truth of an
-    equality or discharge of a source obligation. The checked side
-    now produces the binding (landed 2026-09-19): each sealed
-    `FloatSemantics::*` call inside a contract expression —
-    declaration-level or transported `ensures` use site — resolves through
-    the complete toolchain signature via `from_source_identity` (never the
-    leaf spelling) and gains a `CheckedFloatSemanticApplication` row on the
-    new `ProofFacts::float_semantic_applications` side table plus a
-    transitional `SemanticApplication`-keyed projection row for its result.
-    `Format` operands match the const-substituted `FloatFormat` literal
-    against the sealed `BINARY32`/`BINARY64` canonical encodings;
-    `Meaning` operands rejoin declaration invocations, nested applications,
-    or the use site's operand key, and each `==` pairing an application
-    emits its equality at the site coordinate (`None` at the declaration).
-    Producer and kernel discharge meet in
-    `typed-trees-to-checked-trees/src/proof/float_meaning.rs` /
-    `checked-trees/src/checked_trees/proof/float_meaning.rs`, and
-    `checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs`
-    (`rejoin_float_semantic_applications`, landed 409eb250ab) emits every
-    checked application row as Terminal `FloatMeaningSource::SemanticApplication`
-    with the exact catalog identity, result format and operand roster,
-    refusing by result row an application that fails catalog replay, names
-    no row or a resolved row, or declares a format the row does not project
-    (`semantic_application_lowers_to_the_terminal_carrier_end_to_end`).
-    Emission alone does not close the source-proof path described below: the
-    selected machine's scalar-contract lowering
-    (`scalar_graph/scalar_contracts.rs::covered_requires`) still admits no
-    non-reflexive meaning clause, so a contract naming an application lowers
-    only when another machine is selected.
-  - The non-call operation result and call result
-    [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
-    now carry the use-site coordinate settled
-    [contract import](wiki/spec/proofs/contracts.md) requires ("caller import
-    requires the matching result case and argument/result substitution") and
-    gain checked and lowered producers (landed 2026-09-19).
-    `CheckedFloatProjectionSourceKey` distinguishes `DirectCallResult`/
-    `DirectOperationResult` by a `CheckedFloatUseSite` (owner machine/state,
-    statement index, call ordinal); `instantiate_transported_ensures` in
-    `typed-trees-to-checked-trees/src/proof/float_meaning.rs` re-binds each
-    imported `ensures` equality at every `ContractCallFact`/
-    `ContractOperatorUseFact` site — `result` names the producer the exact
-    call or FMA operation emits there, each callee parameter names the
-    authored argument expression — and `direct_result_float_meaning_
-    reflexivity` rejoins authored rows on (owner, expression, use site).
-    `checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs`
-    joins each site to its `LoweredSourceCallOccurrence`/
-    `LoweredSelectedIeeeFloatFmaOccurrence` coordinate and emits
-    `DirectCallFloatResult`/`DirectOperationFloatResult` only for the
-    producer-kind partition the verifier rejoins. Verified on Linux x86-64
-    with `cargo nextest run -p checked-trees-to-lowered-psi --lib -E
-    'test(/float_meaning_projection/)'` (11/11) and `cargo nextest run -p
-    typed-trees-to-checked-trees --lib -E 'test(/float/)'` (96/96): a caller
-    `helper(value)` whose machines carry the reflexive `ensures` now holds a
-    `DirectCallResult` row at its call site distinct from its own
-    `DirectMachineResult`, and two call sites project distinct rows.
-
-  Acceptance: every `FloatSemantics` obligation a `Float::*` slot contract
-  cites is discharged through a checked kernel binding, not catalog identity
-  alone, and `fail/float/float_semantics_lookalike_grants_no_primitive` still
-  rejects. The two open source classes gain a producer the verifier rejoins,
-  raised at a use site the checked source key distinguishes.
-
-  This is an implementation gap under the existing FloatMeaning and contract
-  import rules, not a language-design blocker.
-  The source customer below now passes `compile_to_checked` with the real
-  core; changing `3.0f32` to `4.0f32` is disproved. The source checker uses
-  `validation/src/proof_contracts/float_projection_bindings/semantic_values.rs`
-  for closed meaning-valued applications, sharing exact catalog and format
-  recognition with the checked binder. Unknown operands remain unproved;
-  selected authored equality cannot acquire builtin meaning semantics.
-
-  ```omega
-  use omega::language::core::float_operations;
-  machine read() -> u64
-  ensures FloatSemantics::add(FloatFormat::BINARY32,
-      Float::meaning32(1.0f32), Float::meaning32(2.0f32))
-      == Float::meaning32(3.0f32);
-  { 7 }
-  ```
-
-  Next retain this authored equality as a typed contract proposition with its
-  exact owner/use-site obligation, admit it through the owner's scalar-contract
-  lowering, and discharge that obligation through the ordinary
-  `CertificateDerived` production and independent replay route.
-  The checked equality side table and Terminal mathematical-value rows alone
-  do not join `TerminalMachine.contract.ensures` to a proved obligation.
-  Do not erase the claim to `Truth`/`Empty` or treat well-formed metadata as
-  proof. Acceptance remains this same source reaching source-free verification
-  with its contract intact, plus rejection of the false twin.
-  Measured at `739e4e81e97` (linux x86-64, this session): `--check` passes and
-  all five `float_semantic_applications` tests stay green, but
-  `omega inspect-terminal --machine read` on the source customer stops at
-  `scalar_graph_lowering/contract_lowering.rs:201`
-  `validate_closed_scalar_contract` — "machine must have exactly one requires
-  and one ensures clause". The gate fires before clause-shape checking: the
-  machine authors no requires and its ensures is a meaning equality rather
-  than a `ClosedScalarContractValue`, so the route to admission is a
-  meaning-valued contract proposition lane beside the closed-scalar one, not
-  another variant on the existing gate.
-  Resume on macOS AArch64 with `RUST_MIN_STACK=67108864 cargo nextest run -p
-  compiler --test float_semantic_applications --no-fail-fast --no-tests fail`.
-  On the source-check implementation based on `0917f9983c`, all five tests pass:
-  real-core contracts (including nested f64, NaN and signed-zero controls),
-  false contracts, authored equality, unknown inputs, and the source-free
-  artifact operand-validation regression. The latter constructs application
-  metadata explicitly and does not establish end-to-end proof production. Reuse
-  `float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract`
-  and the signature-selected `numerics::FloatSemanticOperation::kernel_discharge`;
-  catalog identity alone is insufficient. An application can produce the
-  existing mathematical value type; a missing internal value-source form does
-  not by itself require a new source-language type.
+  Acceptance: actual slot-contract customers retain and discharge their
+  obligations through produced source-free artifacts, including non-Meaning
+  results and imported call/operator results. False claims, lookalike
+  declarations, altered operands/formats/results and missing evidence reject.
+  Preserve IEEE Boolean comparison separately from structural meaning
+  equality, including NaNs and signed zeros. Keep
+  `produced_artifact_verifies_authored_float_meaning_ensures` and its forged/
+  missing-evidence controls. Native FMA transport belongs to
+  **X86-FMA-PROVIDER-TRANSPORT**; constants to **FLOAT-IDENTITY-LITERAL-CARRIER**.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Restore ordinary native
   descriptor invocation and forwarding, beginning with a non-entry helper that
@@ -4125,7 +4009,31 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
   (`bf8769cce13`). The crate is excluded from the landing gate
   (`--exclude omega-native-differential-test`), so nothing else watches it. The
   sibling `--test terminal_psi_source_payloadless_optimizer` is also green, 3/3.
-- **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics. Landed: already-landed `f32`/`f64` constants now compose in constant expressions through the `FloatSemantics` provider — `Add`/`Subtract`/`Multiply`/`Divide` and all six comparisons produce determined bits at the landed format, an anonymous operand lands at its peer's format before the operation, NaN results reject without explicit representation bits, and substituted-declaration literal roots (`const Q: f32 = A`) replay dependency/operator custody through the existing probe path (`landed_float_leaves_compose_at_their_own_format`, `float_literal_alias_roots_keep_witnessed_declaration_custody`, `public_float_constants_carry_landed_identity_through_composition`). Remaining: authored NaN literal bits and non-arithmetic float operators in const position.
+- **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete admitted floating constant
+  evaluation/materialization under [constants](wiki/spec/language/constants.md#materialization).
+  Four arithmetic operators, six comparisons and public/imported constant
+  identity already have a connected route. Reuse it, preserving exact
+  declaration/import identity and one-time format landing.
+
+  Separate payloadless NaN meaning, usable in proof and compile-time
+  computation, from runtime bytes requiring canonicalization, explicit bits
+  or an exact selected realization. `const_generic_expressions/value.rs`
+  and `const_initializers/materialize.rs` still reject computed NaNs at
+  their current boundaries. Complete that distinction without choosing an
+  arbitrary payload or inventing new literal syntax. For the remaining
+  selected named-operation customers (classification, conversion, directed
+  rounding and fused operations), first exercise the existing general
+  evaluator; the binary-operator match alone does not establish which calls
+  are unsupported.
+
+  Acceptance: those source-authored constant customers evaluate and replay
+  with exact selected custody; determined runtime results publish stable bits,
+  while undetermined representations and forged receipts reject. A
+  payloadless NaN may participate in admitted compile-time/proof reasoning
+  without materializing. Retain signed-zero, format and imported-alias controls.
+  Owners: build-time evaluation's constant expression, materialization and
+  replay paths, with shared FloatSemantics rather than a separate arithmetic
+  definition.
 - **STRUCTURAL-UNIT-LOWERING.** Scope verified on `a4ffd1aff8` — structural-unit
   lowering in checked-trees-to-lowered-psi is landed for the bounded subset
   (`unit/structural_unit_control.rs`: multi-state claim-free affine structural
@@ -4149,102 +4057,27 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
 
 Omega-side / native:
 
-- **X86-FMA-PROVIDER-TRANSPORT.** x86 FMA provider transport (mined by 7 independent legs — highest-consensus gap).
-  Re-verified at `3f5e37a0b6` for the FMA-PROVIDER-TRANSPORT dispatch
-  (another re-mine of this row): the upstream custody leg is now merged on
-  main — `5101c726a1` landed the requirement-use lane (`From<&CheckedNamed
-  RequirementUseFact> for SelectedFmaUse` feeds both fact lanes into the
-  one demand view at
-  `provider-planning/src/x86_fma_plan_association/mod.rs:371`). The
-  remaining legs (a)-(c) below are unchanged and currently fenced:
-  Jarod's X86-FMA-PROVIDER-TRANSPORT claim (swarm-w9, exp 09:07Z) holds
-  `target-operations-to-selected-instructions/src/legalization` +
-  `target/control_flow/sources.rs`, i.e. leg (a)'s exact implementing
-  surface; legs (b)/(c) downstream carry + fence removals stay blocked
-  behind it. No separable slice on this host.
-  Upstream custody leg restored (landed `5101c726a1`; previously noted
-  on branch `zergling/z132-fma-provider-transport`):
-  `bind_checked_x86_scalar_fma_plan_associations` scanned only
-  `named_uses()`, so requirement-spelled `F32::/F64::fused_multiply_add`
-  calls — `CheckedNamedRequirementUseFact`s — produced zero associations and
-  the Terminal rejoin died upstream of the transport fence. Both fact lanes
-  now feed one demand view, matching the `SelectedIntrinsicUse` view
-  `selected_ieee_float_fma_unit_applications` already uses; the two recorded
-  transport tests again fail at the documented
-  `FMA provider transport is not implemented in the common instruction
-  pipeline` fence instead of upstream. Remaining legs: (a) **LANDED at
-  `2a6e06f1c496d`** ("legalize scalar-FMA unit operations against exact
-  constant sources") —
-  `legalization/scalar_graph_input/target/unit.rs:114-118` dispatches
-  `NearestIeeeFloatFusedMultiplyAdd` to `unit/ieee_float.rs:81-136`, which
-  legalizes it against its exact constant operand sources and the settlement's
-  operation/format; (b) s2s carry, s2rh XMM allocation, post-allocation machine plan,
-  machine-emission VFMADD + canonical MXCSR envelope + `x86_scalar_fma*`
-  object records; (c) remove the `object_emission.rs`, `program_entry.rs`, and
-  `optimization_stage.rs` fences once the transport proves out. Unrelated
-  upstream regression witnessed on base `40e9234d97`:
-  `derive_fused_program_entry_establishments` rejects `Service<R>`-fielded
-  ProgramEntry receivers ("rejoins 0 Terminal attachment identities"), blocking
-  `admitted_x86_fma_demand_retains_exact_plan_associations`,
-  `aarch64_fma_demand_is_not_an_x86_feature_association`, and the windows leg
-  of `exact_x86_fma_demand_fails_closed_without_feature_admission` — a
-  Service-carrier custody item, not this one; the linux leg of the last test
-  now emits its expected `requires explicit AVX+FMA3 admission` diagnostics
-  again under this fix.
-  Leg (a) landed (main `2a6e06f1c4` + lane `zergling/z13-x86-fma-provider-transport`; (linux
-  x86-64, `cargo nextest run -p target-operations-to-selected-instructions`
-  258/258): `unit.rs` dispatches
-  `AbstractOperation::NearestIeeeFloatFusedMultiplyAdd` to the IEEE replay,
-  `unit/ieee_float.rs` validates the FMA row — exact psi_operation/result/
-  format identity, `settlement.terminal_operation` and `settlement.format`
-  pinned, and each of left/right/addend replayed against the ordered sources
-  as the exact `IeeeFloatImmediate` the operand names (defining operation,
-  source value, raw bits — a same-valued constant from another definition
-  rejects); the result publishes `Source::Home` with the float's
-  `scalar_shape`, and `control_flow/sources.rs` `definition()` supplies the
-  same `Home` row so downstream consumers replay it. Legs (b) and (c)
-  remain on their own surfaces.
-- **FLOAT-FMA-NATIVE-TRANSPORT.** Scope verified at 4e523615fe — re-mines
-  the transport legs already enumerated on sibling X86-FMA-PROVIDER-TRANSPORT:
-  (a) **LANDED at `2a6e06f1c496d`** — the production arm for
-  `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` is in
-  `legalization/scalar_graph_input/target/unit.rs:114-118` +
-  `unit/ieee_float.rs:81-136`; (b) the downstream carry — s2s carry, s2rh XMM allocation,
-  post-allocation machine plan, machine-emission VFMADD + canonical MXCSR
-  envelope + `x86_scalar_fma*` object records; (c) the
-  `object_emission.rs` / `program_entry.rs` / `optimization_stage.rs`
-  fence removals once the transport proves out. The upstream custody leg
-  is already restored on `zergling/z132-fma-provider-transport`
-  (`bind_checked_x86_scalar_fma_plan_associations` now sees
-  requirement-spelled `CheckedNamedRequirementUseFact`s; transport tests
-  again die at the documented "not implemented in the common instruction
-  pipeline" fence). Implementing surfaces fenced at verification time:
-  `legalization/scalar_graph_input` under RESTORE-DYNAMIC-DESCRIPTOR-AND-
-  TABLE-CUSTODY (22:05Z) and SIGNED-CALL-PREMISES-NATIVE-WIDEN (22:20Z).
-  An unrelated upstream regression witnessed on that row's base also
-  applies: `derive_fused_program_entry_establishments` rejects
-  `Service<R>`-fielded ProgramEntry receivers — a Service-carrier custody
-  item, not this one. Re-measured at `94e764a6da` (linux x86-64): leg (a)
-  now landed on main (`2a6e06f1c496`) — `unit.rs` dispatches
-  `AbstractOperation::NearestIeeeFloatFusedMultiplyAdd` into
-  `unit/ieee_float.rs::validate` with exact `IeeeFloatImmediate` custody;
-  `nextest -p target-operations-to-selected-instructions
-  -E 'test(~ieee_float)'` 5/5 green incl.
-  `fused_multiply_add_replays_exact_constant_sources` +
-  `fused_multiply_add_rejects_any_operand_drift`. Legs (b)/(c) still
-  fenced: `object_emission.rs:34` transport-stop message pinned PASS
-  (64.5s), `optimization_stage.rs:27` "optimized nearest-FMA custody"
-  still returns, and no `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma`
-  references exist in s2s/s2rh/machine-emission src. Live claim map:
-  `legalization/`+`control_flow/sources.rs` under
-  X86-FMA-PROVIDER-TRANSPORT (Jarod, canonical owner); the
-  object_emission/program_entry/native_realization surfaces under
-  UEFI-PHYSICAL-SEMANTIC-ENTRY; `selection/construction` under
-  CALLBACK-PRIVATE-MATERIALIZATION; `s2rh/unsequenced_spill_stages` under
-  POC-SPILL-FAMILY-SEQUENCING. `optimization_stage.rs` is the only
-  unfenced residual file but its fence is only removable once the
-  transport it gates exists. Record:
-  `wiki/drafts/float_fma_native_transport.md`.
+- **X86-FMA-PROVIDER-TRANSPORT.** Carry checked/legalized scalar FMA
+  occurrences through ordinary selected-instruction transformation,
+  register-home assignment, machine planning and image publication.
+  Reuse the feature-custodied encoder in `machine-emission/src/x86_fma.rs`
+  and independent artifact readers; their test-driven fragments are not a
+  connected provider-execution route.
+
+  Preserve exact operation/operand/result identities, selected provider and
+  AVX+FMA3 admission, XMM homes, canonical MXCSR save/install/restore, and
+  per-occurrence physical coverage. Remove the object, entry and optimization
+  fences only as their required transport is independently checked, not by
+  bypassing them. The production native realization still rejects retained
+  FMA before instruction selection.
+
+  Acceptance: the source-evaluated-import/FMA customer pinned by
+  `retained_x86_fma_and_source_evaluated_import_stop_at_fma_transport`
+  publishes and executes on a matching admitted host, including nested
+  foreign-call control custody. Both formats distinguish fused from
+  separately rounded cancellation; absent/wrong-profile feature admission,
+  operand/provider substitution and corrupted emitted evidence reject.
+  Report cross-target byte replay separately from hardware execution.
 
 Proof/evidence:
 
@@ -5010,7 +4843,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   for the implementing leg: (a) whether every *admitted* family has selection
   coverage on every ISA (admitted-but-unencodable is the remaining hole class
   — e.g. `NearestIeeeFloatFusedMultiplyAdd` is ingest-refused today, tracked
-  by FLOAT-FMA-NATIVE-TRANSPORT); (b) whether `UnsupportedScalarOperation`
+  by X86-FMA-PROVIDER-TRANSPORT); (b) whether `UnsupportedScalarOperation`
   surfaces as a compile diagnostic end-to-end rather than aborting; (c)
   whether any `match` on `node.operation` outside nodes.rs/control.rs is
   reachable before `nodes::validate` (none found at verify time — all are
@@ -6188,17 +6021,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
 
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE.** — mined candidate; verify scope then implement.
-- **CONSTANT-LEAF-EXACT-CARRIER.** — mined candidate; resolved,
-  verified-covered re-mine of COMPUTED-CONSTANT-LEAF-CARRIER's surface:
-  `syntax-trees-to-symbol-resolved-trees/src/constant/initializer_leaves.rs`
-  carries every computed leaf kind with an exact declared carrier —
-  builtin int/bool/float/string arms, closed generic applications via
-  `closed_leaf_carrier` (:29) + substitution, nominal literals via
-  `require_closed_data` (:464), literal-length array carriers, and
-  constrained→base fallback — and refuses each unsupported shape
-  explicitly. Landed under PKG-INPUTS-FLOAT-IDENTITY-LANDING `742a2f1d84`;
-  witnesses green at `cdee121ee9`/`d32183a35c`, surface re-verified
-  intact at `6f91898606`. No independent slice remains.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTRUCTIVE-REAL-FOUNDATIONS.** Mined candidate — resolved:
   scope verified, owned elsewhere. The name re-mines the constructive
@@ -6777,9 +6599,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   | test(/captures/) | test(/reads/)'`: 197/197 PASS on linux x86-64;
   `cargo fmt` clean. Worked unclaimed — no claimable marker existed for
   this name and `checks/ranges/facts/dependencies*` carries no live fence.
-- **FMA-PROVIDER-PIPELINE-TRANSPORT.** — mined candidate; merged alias of
-  X86-FMA-PROVIDER-TRANSPORT (verify-scope: the named tests confirmed the
-  frontier; see that row for landed legs and the remaining transport work).
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Give generated wire codecs a
   route to `Derived` trust that does not depend on an authored grammar
@@ -8066,46 +7885,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
   here. Sibling stubs on this surface:
   PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
-- **PACKAGE-INPUTS-PSI-FAILURES.** — mined candidate; scope verified,
-  resolved — the psi-failure legs of package compilation inputs are
-  implemented and pinned at `compiler/tests/package_compilation_inputs/`
-  (the wave-9 stub was retired under `50559da3ab9` on the
-  PKG-INPUTS-FLOAT-IDENTITY-LANDING lineage; the surface is broader and
-  covered): symlink-escape and missing-edge build-scope rejections,
-  private-type generic/boundary/method arguments, provider-selection
-  composition rejections, forged/corrupt/truncated independent-component
-  descriptions, custody/assumption/provider-digest rejections, and the
-  module-constant failure legs (`ambiguous_module_constant_leaves_reject_
-  in_both_import_orders`, `private_module_constant_import_rejects_even_
-  when_unused`, `private_dependency_computed_constant_leaf_rejects`,
-  `nominal_constant_bodies_reject_wrong_carriers_and_private_selection`,
-  `public_float_declarations_do_not_admit_*`). Re-verified at
-  `0f75a052f0` (linux x86-64): `cargo nextest run -p compiler --test
-  package_compilation_inputs -E 'test(~reject) or test(~do_not_admit)
-  or test(~fail)'` — 51/51 PASS (206s). No independent slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
-- **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF.** Mined candidate — resolved:
-  re-mines the computed-constant leaf surface landed under
-  PKG-INPUTS-FLOAT-IDENTITY-LANDING (`742a2f1d84`), same resolution as
-  sibling COMPUTED-CONSTANT-LEAF-CARRIER.
-  `syntax-trees-to-symbol-resolved-trees/src/constant/
-  initializer_leaves.rs` carries every computed leaf kind with exact
-  declared carriers and explicit refusals. Re-verified at `9ff8673b310`
-  (linux x86-64): `cargo nextest run -p compiler -E
-  'test(~public_float_constants_retain_landed_identity_and_exact_
-  import_owner)'` — 1/1 pass. No independent slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
-- **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF.** Mined candidate — resolved:
-  re-mines the computed-constant leaf surface landed under
-  PKG-INPUTS-FLOAT-IDENTITY-LANDING (`742a2f1d84`), same resolution as
-  sibling COMPUTED-CONSTANT-LEAF-CARRIER.
-  `syntax-trees-to-symbol-resolved-trees/src/constant/
-  initializer_leaves.rs` carries every computed leaf kind with exact
-  declared carriers and explicit refusals. Re-verified at `9ff8673b310`
-  (linux x86-64): `cargo nextest run -p compiler -E
-  'test(~public_float_constants_retain_landed_identity_and_exact_
-  import_owner)'` — 1/1 pass. No independent slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Re-witnessed at `00f36e8cfa` (linux x86-64): `obligation_ledger.rs:116` still lists certificates, transitive open obligations, schema migration, and local admission decisions as separate unfinished joins, and `EVIDENCE_SCHEMA.md` still reserves replacement encodings to PROOF-CONTRACT-MIGRATION. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
@@ -8179,19 +7961,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   hosted_receiver). Sibling re-mine names on this surface:
   PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
 
-- **PKG-INPUTS-FLOAT-IDENTITY-LANDING.** Mined candidate — scope verified,
-  resolved — landed at `742a2f1d84` ("psi: evaluate and independently replay
-  floating constant declarations"): public floating module constants retain
-  exact declaration identity and exact import owner through package inputs —
-  rational intermediates round once to the f32/f64 declaration destination,
-  materializable bit encodings stay separate (`float:f32:7f800000` etc.),
-  signed zero/subnormal/infinity and forged-root drift rejection covered.
-  Witness green at `cdee121ee9`:
-  `public_float_constants_retain_landed_identity_and_exact_import_owner`
-  (package_compilation_inputs). Re-verified at `4946c28bd44` (z148): the
-  same witness is green. Sibling stubs on this surface:
-  PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, COMPUTED-CONSTANT-LEAF-CARRIER,
-  PACKAGE-INPUTS-PSI-FAILURES.
 - **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
   names the geometric half of placed access ([placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)):
   the referent geometry is the declared-carrier join plus path resolution and
