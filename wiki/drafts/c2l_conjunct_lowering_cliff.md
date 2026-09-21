@@ -87,6 +87,16 @@ Aggregate: 51.6s → 41.1s (1.26x) on the terminating reduction. The same
 obligations are discharged either way — 633 evidence rows and 633
 reconstructed obligations before and after every run.
 
+Re-verified at `2dbfecd98e49` (z140): the hotspot-1 repair is intact —
+`retain_provable` still reconstructs the module once
+(`scalar_block_invariants.rs:39`) and hands `&original` to the roster pass,
+with `cyclic_guarantees::strengthen` taking the owner's reconstruction or
+one of its own only when the module changed (:43-52); the hotspot-2 residual
+is unchanged — `path_facts/conditions.rs` still clones every
+`Equal(Value, _)` axiom into a per-condition-fact certificate; the subject
+fixture still sits at
+`nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`.
+
 ## Acceptance for the repair
 
 The unreduced fixture terminates with a verdict under an ordinary test
