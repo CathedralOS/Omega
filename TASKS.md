@@ -2752,92 +2752,70 @@ syntax and other terminal services are not prerequisites.
   custody and premature close/reclaim. Exercise isolated hung-worker recovery
   separately; checked declarations and provider-plan selection alone do not pass.
 
-- **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
-  congruence theorem, and optional precondition transport for quotient-owned
-  operations under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations).
-  No structural or effectful observer crosses the quotient unless its law is
-  explicit and checked. Custody-bearing quotients remain fenced.
+- **QUOTIENT-THEOREM-LIFT.** Complete checked operation correspondence and
+  publication under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations).
+  Managed direct `Quotient::define` and transport-backed `Quotient::lift`
+  already have checked-only source canaries. Reuse their post-termination
+  admission and proof-only request handling; mathematical admission is not
+  executable realization.
 
-  Managed direct `Quotient::define` requests now pass source checking.
-  Validation defers admission until `build_check_facts` has proved termination;
-  `admit_checked_quotient_requests` reads `facts.termination` through
-  `CheckedTerminationOracle`. The request finalizes as a proof-only intrinsic,
-  not an executable callee. Preserve the rejection controls in
-  `tests/omega/fail/proofs/quotient_*`.
+  The local relation/result-flow checks are broader than their canonical
+  publisher. In validation's `proof_contracts/quotients/relation_plan/`,
+  argument adaptation and immutable result aliases have checked forms, but
+  `terminal_bridge.rs` still admits monomorphic, single-state, direct
+  position-preserving rows. Complete missing correspondence judgments and
+  extend publication and independent reconstruction for adaptation,
+  aliases/forwarding, result computation, preconditioned `define`, and
+  generic/private applications; reuse the local judgments already implemented.
+  Retain complete application, relation, precondition and theorem-role evidence.
+  Do not multiply source-shape recognizers to publish each arrangement.
 
-  Published correspondence also reaches its intended execution fence:
-  `retain_checked_quotient_correspondences`, called from
-  `lower_terminal_selection`, rederives and retains the admitted batch.
-  Lowering the admitted program's empty entry rejects with
-  `ModuleError::NonExecutableQuotientCorrespondence`, pinned by
-  `proofs::quotient_correspondence::tests::lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate`.
-  Do not reopen the repaired early-admission path or add a runtime value plan
-  merely to bypass that fence. The requesting machine itself has no checked
-  scalar plan; the execution gate needs no such plan.
+  Representative/theorem eligibility still requires checked termination,
+  purity, crash freedom and exact hermetic identities; theorem closures must
+  be bodyful and free of admitted assumptions. Check helper types/statements
+  transitively, not only visible bodies. General assumption-closure machinery
+  and the congruence-only `lift<F, Congruence>` canonical payload belong to
+  **PROOF-CONTRACT-MIGRATION**; coordinate that payload's codec, verifier and
+  package-review consumers rather than inventing a second wire form.
 
-  One superseded assertion survives this move and is red on main (measured
-  2026-09-20 at `e5bbe53956`, macOS arm64): `package-evidence`
-  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`
-  (`packages/review/evidence/src/capture/quotients/tests.rs:247`) still
-  asserts `typed_trees_to_checked_trees::lower_typed_trees(program).is_err()`
-  with the message "ordinary checked lowering must not admit the proof-only
-  request". That is exactly the rejection `21bdf20fafa0` deliberately deferred
-  past the termination fence and `a8be17adc1dc` finalized as a proof-only
-  intrinsic, so the assertion is stale by design rather than a regression. Its
-  first assertion — `validation::validate_program(&program).is_err()` — still
-  holds, and the non-executability it was protecting is now held by this row's
-  own named gate: `lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate`
-  (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs:519`)
-  re-verified PASS here. So the repair is to re-pin that second assertion on
-  the new contract (lowering admits; the correspondence gate refuses), not to
-  drop it. Landed on `a4d396d0de4` after that fence
-  lapsed: the second assertion now pins admission
-  (`lower_typed_trees(...).is_ok()` — lowering admits; the published
-  correspondence gate holds the execution refusal); the transport-lift
-  counterpart's rejection assertion still holds and is untouched.
-  Re-verified linux x86-64: `cargo nextest run -p package-evidence -E
-  'test(~quotients)'` — 13/13 pass.
+  Acceptance: package-backed direct `define` and transport-backed `lift`
+  admit through ordinary `omega --check`, not only an isolated lowering
+  helper. Their [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence)
+  rederives on decode and supports the broader admitted applications above.
+  Preserve rejection of implicit lifts, missing/surplus/reversed roles,
+  invalid laws, unproved termination, non-hermetic identities, admitted or
+  boundary theorem closures, and custody-bearing quotients.
+  **QUOTIENT-RUNTIME-REALIZATION** owns execution separately.
 
-  Remaining work:
+- **QUOTIENT-RUNTIME-REALIZATION.** Give admitted quotient operations a
+  checked executable value/call path under the
+  [representative realization contract](wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization).
+  The bounded direct correspondence forms already provide a starting point;
+  this work need not wait for every generalization in QUOTIENT-THEOREM-LIFT.
 
-  - Put the managed admission shape on the checked-only source corpus and
-    retain rejection of unproved termination, invalid laws and non-hermetic
-    identities. Use package provenance: a standalone user source currently
-    rejects at `normalized_hermetic_symbol_identity`.
-    `proofs/quotient_lift_unproved_termination_rejected` now pins the
-    termination fence: a pure, single-state representative whose checked
-    summary stays progress-conditional (a `satisfies` conformance inheriting
-    the boundary requirement's `requires fuel in Fuel::Rank` premise) is
-    refused with `not admitted until the termination fence`, exercised by
-    `quotient_lift_rejects_a_representative_with_progress_conditional_termination`
-    in `proof_and_domain_canaries.rs` and rostered under
-    `proof_and_float_suites::FILE_EXPECTATION_FAIL_CANARIES`. Still open in
-    this bullet: the managed `Quotient::lift` pass canary and a
-    CHECKED_ONLY_FAIL seat for the pin — both register through
-    `canary_suite.rs`, fenced at claim time by
-    CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP — plus the invalid-law and
-    non-hermetic retention halves.
-  - Exercise the same gate through the CLI after ordinary package review and
-    ProgramEntry establishment. At `0504c60747`, the recorded macOS ARM64
-    CLI probe stops earlier in std review
-    (`ContractEntailmentOpenObligation` after `core/nat_metric.omg` changed);
-    the lowering regression is not a successful CLI native run. Route those
-    earlier failures to their owners without weakening review or entry checks.
-  - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
-    language-semantics, codec, verifier and review rows belong to
-    **PROOF-CONTRACT-MIGRATION**.
-  - General adapted lift with result computation, beyond the omission,
-    permutation, repetition and closed literals the direct rung covers.
-  - The conversion-independent closure over helper types and statements.
-  - Generic or private applications, preconditioned `define`, result aliases
-    and forwarded result flow, none of which has a canonical row.
+  Checked contracts, ranges and termination, and subsequent nested/mixed-call
+  lowering still exclude `quotient_operation` calls. Terminal validation
+  rejects nonempty retained correspondence tables with
+  `NonExecutableQuotientCorrespondence`. Replace those exclusions only
+  where a checked representation/operation judgment licenses the ordinary
+  representative call. Retaining a mathematical correspondence row alone
+  does not establish all executable custody.
 
-  Acceptance: an explicit direct `define` and a transport-backed `lift` admit
-  through `omega --check` with their
-  [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence)
-  rows rederived on decode, while implicit lifts, missing, surplus or reversed
-  roles, admitted or boundary theorem closures, and custody-bearing quotients
-  still reject. Mathematical admission does not grant executable realization.
+  Preserve the representative ABI and permitted uncanonicalized constant
+  materialization without exposing representative-sensitive structural
+  observers. Axiomatic operations supply no algorithm; executable use needs
+  checked computation or a realization with correspondence. Keep custody-
+  bearing quotients fenced and fact-only admission free of runtime calls,
+  dictionaries or fuel charges.
+
+  Acceptance: direct `define` and transport-backed `lift` customers reach
+  source-free Terminal checking and matching-host native execution, with
+  result/argument/relationship substitution and missing correspondence
+  rejected independently. Preserve refusal of illicit representative
+  extraction and unsupported realization. The quotient-refusing policy
+  control additionally depends on PROOF-CONTRACT-MIGRATION's transitive
+  assumption closure through helper types/statements; do not confuse that
+  integration dependency with the initial executable route.
 
 - **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
   for PE, versioned ELF, and Darwin/Mach-O through the remaining port-bearing
@@ -8663,49 +8641,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green. Re-verified at `ff2f489bbff` (linux x86-64): pass_canaries_compile + fail_canaries_reject under the same filters both green. Re-verified at `832c55e69b` (linux x86-64): same filtered pair still 2/2 green — no independent slice exists here. Re-verified at `836bb681a26` (linux x86-64) (z153): same filtered pair still 2/2 green — `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` rejects with the recorded fragments and `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles; no independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN.** — mined candidate; verify scope then implement.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
-- **QUOTIENT-RUNTIME-REALIZATION.** — mined candidate; scope verified at
-  `d74f2145b9`. Re-mines the "executable quotient lowering" leg that
-  QUOTIENT-THEOREM-LIFT deliberately defers: today a `Quotient::define`/`lift`
-  batch is retained proof-only — `retain_checked_quotient_correspondences`
-  installs `RetainedQuotientCorrespondence` rows (binding `public_operation` to
-  its `representative` machine application plus congruence/theorem evidence) and
-  module validation rejects any nonempty table with
-  `ModuleError::NonExecutableQuotientCorrespondence` "until executable quotient
-  lowering exists". Realization is a separate judgment per
-  wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization —
-  the spec's runtime rules are authored (construction retains the representative
-  and its ABI unchanged; constant materialization may emit the representative
-  uncanonicalized; a lifted operation's runtime plan is a call of its
-  representative machine over the representative arguments), and the retained
-  correspondence rows already carry every binding a lowering step needs. But no
-  value path reaches that lowering today: every checked-stage site exits calls
-  whose `quotient_operation.is_some()` (contracts/exits/scalars/calls.rs:209,
-  contracts/evidence.rs:63/330, ranges/*, termination/progress/origins.rs:230),
-  so "the production entrance sees no request". The dependency chain is ordered:
-  QUOTIENT-THEOREM-LIFT's remaining legs give quotient operations a checked
-  source route at all (checked-corpus admission + CLI/package-review exercise),
-  then the checks-side value-path exits admit covered `quotient_operation`
-  calls, then lowering resolves each call through the retained correspondence to
-  the representative machine (axiom-dependent equality additionally needs the
-  named transitive-assumption-closure dependency, quotients.md#formation). No
-  independent slice exists under this name until the admission legs land.
-  Re-verified at `53817f8759` (linux x86-64): the value-path exits are all
-  still in place — `quotient_operation.is_some()` early-outs at
-  checks/termination/progress/origins.rs:230, ranges/call_results.rs:27,
-  ranges/facts/dependencies/reads.rs:128, c2l emission/call_source_custody/
-  nested.rs:165 + expression_preparation/mixed_arguments.rs:139 +
-  proofs/quotient_correspondence.rs:103 — and module validation still
-  rejects nonempty correspondence tables with
-  `NonExecutableQuotientCorrespondence`
-  (terminal-verifier/src/validation/quotient_correspondence.rs). Claim
-  rotation: the row's earlier QUOTIENT-RUNTIME-REALIZATION lease expired
-  (~10:57Z); the admission-leg owner QUOTIENT-THEOREM-LIFT is re-held
-  (Devin/f8ad694c, ~16:19Z) and the corpus's fail twins are under
-  NEW-QTL-INVALID-LAW-FAIL-TWINS (Zergling-165, ~16:26Z). Two bare
-  same-named stubs further down re-mine this row. No independent slice.
-  covered — executable quotient lowering is deferred by owner QUOTIENT-THEOREM-LIFT; no independent slice
-- **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
-  covered — executable quotient lowering is deferred by owner QUOTIENT-THEOREM-LIFT; no independent slice
 - **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY.** Scope verified, resolved —
   the stub re-mines the parameter-origin vs fresh-local-origin custody
   split already landed on `origin/main` at `2091d8659302` ("psi:
