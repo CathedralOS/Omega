@@ -49,6 +49,12 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
+    /// The write root's overlap key as admission resolved it. Establishment
+    /// re-resolves the same spelling and compares against this baseline: an
+    /// ancestor swapped to a host alias after admission changes the
+    /// resolution, so a key computed at establishment would admit the
+    /// redirect self-consistently.
+    admitted_build_dir_key: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
@@ -184,6 +190,7 @@ impl BuildMachineFilesystemScope {
             source_root,
             canonical_source_metadata: None,
             canonical_source_metadata_required: false,
+            admitted_build_dir_key: overlap_key(&build_dir),
             build_dir,
             sponsor,
             root_package_identity: None,
@@ -207,6 +214,7 @@ impl BuildMachineFilesystemScope {
             source_root,
             canonical_source_metadata: metadata,
             canonical_source_metadata_required: true,
+            admitted_build_dir_key: overlap_key(&build_dir),
             build_dir,
             sponsor,
             root_package_identity: None,
@@ -509,9 +517,11 @@ impl BuildMachineFilesystemScope {
         // of its ancestors — through any spelling — or Source's read-only
         // contract would grant writes over every captured member. The
         // default layout nests the write root inside the read root, which
-        // stays admitted: writes reach only the build directory itself.
-        let admitted_build_dir_key = overlap_key(&self.build_dir);
-        if overlap_key(&self.source_root).starts_with(&admitted_build_dir_key) {
+        // stays admitted: writes reach only the build directory itself. The
+        // baseline is admission's recorded key, not a fresh resolution — an
+        // ancestor aliased after admission must still compare against it.
+        let admitted_build_dir_key = &self.admitted_build_dir_key;
+        if overlap_key(&self.source_root).starts_with(admitted_build_dir_key) {
             return Err(vec![Diagnostic::error(format!(
                 "build write root `{}` must not cover the source root `{}`",
                 self.build_dir.display(),
@@ -531,6 +541,16 @@ impl BuildMachineFilesystemScope {
                 ))]);
             }
         }
+        // Compare against admission's recorded key before any mutation: an
+        // ancestor aliased between them must refuse here, not after
+        // `create_dir_all` has already followed the alias. The post-creation
+        // check below keeps covering the narrower window inside establishment.
+        if overlap_key(&self.build_dir) != *admitted_build_dir_key {
+            return Err(vec![Diagnostic::error(format!(
+                "build write root `{}` resolves to a different directory than admission checked",
+                self.build_dir.display()
+            ))]);
+        }
         if let Some(sponsor) = &self.sponsor {
             let path = sponsor
                 .bind_path(&self.build_dir)
@@ -540,7 +560,7 @@ impl BuildMachineFilesystemScope {
                 .map_err(|error| self.sponsor_diagnostic(error))?
             {
                 Some(FilesystemSponsorEntry::Directory) => {
-                    return self.ensure_established_write_root(&admitted_build_dir_key);
+                    return self.ensure_established_write_root(admitted_build_dir_key);
                 }
                 Some(_) => {
                     return Err(vec![Diagnostic::error(format!(
@@ -564,7 +584,7 @@ impl BuildMachineFilesystemScope {
                 let _ = std::fs::remove_dir(&self.build_dir);
                 return Err(self.sponsor_diagnostic(error));
             }
-            if let Err(diagnostics) = self.ensure_established_write_root(&admitted_build_dir_key) {
+            if let Err(diagnostics) = self.ensure_established_write_root(admitted_build_dir_key) {
                 let _ = std::fs::remove_dir(&self.build_dir);
                 return Err(diagnostics);
             }
@@ -576,7 +596,7 @@ impl BuildMachineFilesystemScope {
                 self.build_dir.display()
             ))]
         })?;
-        self.ensure_established_write_root(&admitted_build_dir_key)
+        self.ensure_established_write_root(admitted_build_dir_key)
     }
 
     /// Re-check the write root now that it exists. The overlap fences above
@@ -1471,6 +1491,41 @@ mod tests {
         assert_eq!(
             fs::read_link(&build_dir).expect("the host alias is host-owned, not ours to remove"),
             redirect_target
+        );
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_root_establishment_rejects_an_ancestor_alias_planted_after_admission() {
+        let session_root = temporary_staging_root("write-root-ancestor-alias");
+        let ancestor = session_root.join("real-ancestor");
+        fs::create_dir_all(&ancestor).expect("create the ancestor directory");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        let build_dir = ancestor.join("build");
+
+        // Admission records the write root's key while the ancestor is real;
+        // a host alias planted on that ancestor before establishment must not
+        // become the baseline establishment checks against.
+        let scope = BuildMachineFilesystemScope::for_root(
+            &session_root.join("source/main.omg"),
+            build_dir.clone(),
+            None,
+        );
+        fs::remove_dir(&ancestor).expect("remove the admitted ancestor");
+        std::os::unix::fs::symlink(&redirect_target, &ancestor)
+            .expect("plant the host alias on an admitted ancestor");
+
+        let diagnostics = scope
+            .ensure_write_roots()
+            .expect_err("an ancestor swapped to a host alias after admission redirects writes outside the fenced root");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("different directory than admission checked"),
+            "{diagnostics:?}"
         );
 
         fs::remove_dir_all(session_root).expect("remove session root");
