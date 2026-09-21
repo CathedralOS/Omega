@@ -3,10 +3,16 @@ data Main {
 
 machine Main::next_room_count(
     &mut self,
-    room_count: u64 [1..=16],
-    index: u64 [0..=15]
-) -> u64 [1..=16] {
-    max(room_count, index + 1)
+    room_count: u64,
+    index: u64
+) -> u64
+requires 1 <= room_count, room_count <= 16, index <= 15
+ensures 1 <= result, result <= 16
+{
+    transition index + 1 > room_count {
+        true -> (index + 1)
+        _ -> room_count
+    }
 }
 
 machine Main::main(&mut self) {

@@ -5,10 +5,11 @@ data Entry {
 data Main {
 }
 
-machine Main::main(&mut self, entries: &[Entry], index: u64 [0..=9223372036854775806]) -> i32
+machine Main::main(&mut self, entries: &[Entry], index: u64) -> i32
 requires
     // The successor expression is exact arithmetic: the declared parameter
-    // range is the independent premise that `index + 1` cannot overflow.
+    // bound is the independent premise that `index + 1` cannot overflow.
+    index <= 9223372036854775806,
     index + 1 <= entries.len
 {
     let chosen: Entry = entries[index];
