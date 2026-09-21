@@ -1,5 +1,7 @@
 //! Contextual domain, value and statement member targets.
 
+use std::collections::HashSet;
+
 use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::call_targets::declaration_target;
 use crate::authored_selections::contexts;
@@ -358,7 +360,7 @@ fn contextual_domain_target_type(
                 typed_trees::domain::ProofFact::Membership(membership) => membership.value,
                 typed_trees::domain::ProofFact::Proposition(_) => continue,
             };
-            if expression_contains(program, root, expression, &mut Vec::new()) {
+            if expression_contains(program, root, expression) {
                 return Some(domain.target_type);
             }
         }
@@ -366,76 +368,101 @@ fn contextual_domain_target_type(
     None
 }
 
+/// Whether the containment walk from `root` reaches `target`.
 pub(crate) fn expression_contains(
     program: &TypedTrees,
     root: typed_trees::expression::ExpressionHandle,
     target: typed_trees::expression::ExpressionHandle,
-    visited: &mut Vec<typed_trees::expression::ExpressionHandle>,
 ) -> bool {
-    if !root.is_valid() || visited.contains(&root) {
+    reaches(program, root, target, &mut HashSet::new())
+}
+
+/// Every expression the containment walk reaches from `root`.
+///
+/// `expression_contains(program, root, target)` holds exactly when this set
+/// contains `target`: the walk records each expression it enters before
+/// comparing it, and an address no expression occupies never ends the walk
+/// early, so the recorded set is the whole reachable set. A caller asking
+/// the same containment question of many targets indexes this once instead
+/// of rewalking `root` per target.
+pub(crate) fn reachable_expressions(
+    program: &TypedTrees,
+    root: typed_trees::expression::ExpressionHandle,
+) -> HashSet<typed_trees::expression::ExpressionHandle> {
+    let mut reached = HashSet::new();
+    // Arena index zero is the invalid address; `is_valid` rejects it below,
+    // so no recorded expression can equal it.
+    reaches(
+        program,
+        root,
+        typed_trees::expression::ExpressionHandle::invalid(),
+        &mut reached,
+    );
+    reached
+}
+
+/// The shared walk: a membership set, never an ordered history, so an
+/// expression reached twice through different parents is entered once.
+fn reaches(
+    program: &TypedTrees,
+    root: typed_trees::expression::ExpressionHandle,
+    target: typed_trees::expression::ExpressionHandle,
+    visited: &mut HashSet<typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    if !root.is_valid() || !visited.insert(root) {
         return false;
     }
     if root == target {
         return true;
     }
-    visited.push(root);
     match program.expression_table.expression(root) {
         ExpressionNode::Match(dispatch) => {
-            expression_contains(program, dispatch.subject, target, visited)
+            reaches(program, dispatch.subject, target, visited)
                 || program
                     .expression_table
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
                         (matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_contains(program, pattern, target, visited)))
-                            || expression_contains(program, arm.value, target, visited)
+                        if reaches(program, pattern, target, visited)))
+                            || reaches(program, arm.value, target, visited)
                     })
         }
-        ExpressionNode::Atomic(atomic) => {
-            expression_contains(program, atomic.value, target, visited)
-        }
+        ExpressionNode::Atomic(atomic) => reaches(program, atomic.value, target, visited),
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
             .iter()
-            .any(|child| expression_contains(program, *child, target, visited)),
+            .any(|child| reaches(program, *child, target, visited)),
         ExpressionNode::Binary(binary) => {
-            expression_contains(program, binary.left, target, visited)
-                || expression_contains(program, binary.right, target, visited)
+            reaches(program, binary.left, target, visited)
+                || reaches(program, binary.right, target, visited)
         }
         ExpressionNode::Call(call) => {
-            (call.receiver.is_valid()
-                && expression_contains(program, call.receiver, target, visited))
+            (call.receiver.is_valid() && reaches(program, call.receiver, target, visited))
                 || program
                     .expression_table
                     .expression_handles(call.arguments)
                     .iter()
-                    .any(|child| expression_contains(program, *child, target, visited))
+                    .any(|child| reaches(program, *child, target, visited))
         }
-        ExpressionNode::Cast(cast) => expression_contains(program, cast.value, target, visited),
+        ExpressionNode::Cast(cast) => reaches(program, cast.value, target, visited),
         ExpressionNode::Indexed(indexed) => {
-            expression_contains(program, indexed.collection, target, visited)
-                || expression_contains(program, indexed.index, target, visited)
+            reaches(program, indexed.collection, target, visited)
+                || reaches(program, indexed.index, target, visited)
         }
-        ExpressionNode::Member(member) => {
-            expression_contains(program, member.receiver, target, visited)
-        }
-        ExpressionNode::Borrow(inner) => {
-            expression_contains(program, inner.target, target, visited)
-        }
+        ExpressionNode::Member(member) => reaches(program, member.receiver, target, visited),
+        ExpressionNode::Borrow(inner) => reaches(program, inner.target, target, visited),
         ExpressionNode::Range(range) => {
-            expression_contains(program, range.start, target, visited)
-                || expression_contains(program, range.end, target, visited)
+            reaches(program, range.start, target, visited)
+                || reaches(program, range.end, target, visited)
         }
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .any(|field| expression_contains(program, field.value, target, visited)),
-        ExpressionNode::Unary(unary) => {
-            expression_contains(program, unary.operand, target, visited)
-        }
+            .any(|field| reaches(program, field.value, target, visited)),
+        ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -546,4 +573,75 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     type_reference
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{expression_contains, reachable_expressions};
+    use typed_trees::TypedTrees;
+
+    fn fixture() -> TypedTrees {
+        let source = r#"
+            data Pair { left: u16; right: u16; }
+            proposition related(value: u16);
+            machine Pair::combine(&self, other: u16) -> u16
+                requires other <= 100u16
+            {
+                let scaled: u16 = ((left + right) * other) - (left + right);
+                let chosen: u16 = (scaled + left) - (right + other);
+                scaled + chosen
+            }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    /// The indexed reachable set answers exactly the containment question the
+    /// per-target walk answers, for every ordered pair the program records.
+    #[test]
+    fn reachable_expressions_agree_with_containment_for_every_pair() {
+        let program = fixture();
+        let expressions = program
+            .expression_table
+            .iter_expressions()
+            .map(|(expression, _)| expression)
+            .collect::<Vec<_>>();
+        assert!(
+            expressions.len() > 20,
+            "fixture records enough expressions, not {}",
+            expressions.len()
+        );
+        let mut reached_any = false;
+        for root in expressions.iter().copied() {
+            let reached = reachable_expressions(&program, root);
+            reached_any |= reached.len() > 1;
+            for target in expressions.iter().copied() {
+                assert_eq!(
+                    reached.contains(&target),
+                    expression_contains(&program, root, target),
+                    "containment disagreed for {root:?} and {target:?}",
+                );
+            }
+        }
+        assert!(reached_any, "fixture reaches beyond single expressions");
+    }
+
+    /// The unmatchable address the reachable walk uses is never recorded, so
+    /// it cannot end that walk early.
+    #[test]
+    fn no_recorded_expression_holds_the_invalid_address() {
+        let program = fixture();
+        let invalid = typed_trees::expression::ExpressionHandle::invalid();
+        for (expression, _) in program.expression_table.iter_expressions() {
+            assert_ne!(expression, invalid);
+            assert!(expression.is_valid());
+        }
+    }
 }
