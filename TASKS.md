@@ -8792,6 +8792,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `omega` recompile equivalence. Sibling decompositions of the same gated
   rung: OMEGA-C, OMEGA-C-SELF-HOST-EDGE (both already annotated), OMEGA-D*,
   OCREQ-REQUEST-{BINDING,ENTRY-BINDING}.
+  Re-verified at `94e764a6da` on linux x86-64 (z146): no `omega0`/`omega`
+  tape exists yet — `bootstrap/` still carries only
+  `1_beta/beta_compiler_bytecode.tape`,
+  `2_gamma/gamma_evaluator_bytecode.tape`, and `5_omega/alpha_tape.epsilon`
+  — so there is still nothing to bind and the producing rung stays gated.
 - **OMEGA-D-COMPILER-REQUEST-TABLES.** Scope verified, fenced at
   `a0b906db93` — the stub re-mines the OMEGA-D OCREQ V1 request-table
   clause, whose named surface is already landed: per
