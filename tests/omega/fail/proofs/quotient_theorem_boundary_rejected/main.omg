@@ -47,7 +47,7 @@ pub machine representative(value: Representative) -> Representative {
 
 // A boundary declaration supplies no checked body, so it cannot occupy the
 // Congruence role and cannot license quotient substitution.
-boundary machine representative_respects(
+pub boundary machine representative_respects(
     left: Representative,
     right: Representative
 )
