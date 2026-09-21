@@ -1,0 +1,34 @@
+// Transparent trait refinement: `trait R = Base` declares a structural bound
+// over an existing base conformance, narrowed by `machine` clauses carrying
+// operational axes only. A refinement is never a `satisfies` target itself —
+// evidence binders (`B: L satisfies R`) are its legal consumers.
+
+trait Logger {
+    machine write(&mut self) suspends; blocks;
+    machine flush(&mut self);
+}
+
+trait LocalLogger = Logger {
+    machine * suspends false; blocks false; terminates;
+    machine Logger::flush terminates;
+}
+
+data Sink {
+    pending: i32;
+}
+
+machine Sink::write(&mut self) satisfies Logger::write {
+    self.pending = 0;
+}
+
+machine Sink::flush(&mut self) satisfies Logger::flush {
+    self.pending = 0;
+}
+
+SinkLogger: Sink satisfies Logger;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

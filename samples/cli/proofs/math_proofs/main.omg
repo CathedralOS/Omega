@@ -2,6 +2,8 @@
 // (every machine body is empty). The native exe exits an abnormal status (0x40001000-ish)
 // while the interpreter exits 0; run behavior of an empty proof program is unspecified
 // today. The sample is compile-checked only.
+use omega::language::core::nat;
+
 // Math proofs: a theorem ladder as Omega proof machines.
 //
 // Every machine below has an empty body. Per Chapter 10, that makes the
@@ -123,8 +125,10 @@ ensures
 
 // Proof views: Bag (multiset) equality carried from requires to ensures.
 // Lean analog: transporting `(items : Multiset) = before` via `exact h`.
-// Pending ordinary core multiset data and slice extraction (Chapter 10).
-// Bag is not a compiler intrinsic; these calls need an imported definition.
+// Bag is not a compiler intrinsic; the boundary declaration stands in for
+// the pending ordinary core multiset data (Chapter 10) so the calls resolve.
+boundary machine Bag(items: &[u64]) -> Nat;
+
 machine bag_equality_carries(before: &[u64], items: &[u64])
 requires
     Bag(items) == Bag(before)

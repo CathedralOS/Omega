@@ -55,11 +55,13 @@ pub(super) fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationI
         entry: BlockId::new(20).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(20).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(20).expect("add operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -76,6 +78,7 @@ pub(super) fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationI
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(20).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -169,11 +172,13 @@ pub(super) fn saturating_add_module() -> (TerminalModule, Proposition, Obligatio
         entry: BlockId::new(30).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(30).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(30).expect("add operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -190,6 +195,7 @@ pub(super) fn saturating_add_module() -> (TerminalModule, Proposition, Obligatio
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(30).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -283,11 +289,13 @@ pub(super) fn wrapping_subtract_module() -> (TerminalModule, Proposition, Obliga
         entry: BlockId::new(40).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(40).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(40).expect("subtract operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -304,6 +312,7 @@ pub(super) fn wrapping_subtract_module() -> (TerminalModule, Proposition, Obliga
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(40).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -397,11 +406,13 @@ pub(super) fn saturating_subtract_module() -> (TerminalModule, Proposition, Obli
         entry: BlockId::new(50).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(50).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(50).expect("subtract operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -418,6 +429,7 @@ pub(super) fn saturating_subtract_module() -> (TerminalModule, Proposition, Obli
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(50).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -511,11 +523,13 @@ pub(super) fn wrapping_multiply_module() -> (TerminalModule, Proposition, Obliga
         entry: BlockId::new(60).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(60).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(60).expect("multiply operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -532,6 +546,7 @@ pub(super) fn wrapping_multiply_module() -> (TerminalModule, Proposition, Obliga
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(60).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -625,11 +640,13 @@ pub(super) fn saturating_multiply_module() -> (TerminalModule, Proposition, Obli
         entry: BlockId::new(70).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(70).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(70).expect("multiply operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -646,6 +663,7 @@ pub(super) fn saturating_multiply_module() -> (TerminalModule, Proposition, Obli
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(70).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),

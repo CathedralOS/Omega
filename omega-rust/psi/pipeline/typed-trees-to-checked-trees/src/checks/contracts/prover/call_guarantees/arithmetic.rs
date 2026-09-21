@@ -97,11 +97,7 @@ fn proves_bound(
     frames: &validation::CallFrameResolver<'_>,
     call: Option<&checked_trees::FlowCallFact>,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, caller.machine_symbol) else {
         return false;
     };
     let Some(state) = crate::semantic_calls::find_state_in_machine(

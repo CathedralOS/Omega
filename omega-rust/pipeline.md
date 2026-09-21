@@ -77,7 +77,7 @@ and carriers belong in its representations; target/runtime primitives belong in
 its backend. Psi must not depend on Omega. A coordinator forwards complete typed
 results rather than owning package loading, build evaluation, stage algorithms,
 artifact formatting, or a generic orchestration subsystem. Allocation counters
-and phase-report deltas belong to [artifacts](omega/tooling/artifacts/src/lib.rs),
+and phase-report deltas belong to [artifacts](omega/tooling/artifacts/src/compile_timings/mod.rs),
 not program representations or a dependency-floor core.
 
 Keep `X-to-Y`, `Y-to-Y`, `Y-to-Z` followable on disk and in the executable route.

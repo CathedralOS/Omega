@@ -37,6 +37,7 @@ fn literal_call_module(bytes: &[u8]) -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(104).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -285,6 +286,7 @@ fn independent_literal_call_module(return_first: bool) -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(114).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {

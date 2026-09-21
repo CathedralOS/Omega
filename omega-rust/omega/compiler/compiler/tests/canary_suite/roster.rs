@@ -221,11 +221,27 @@ fn pass_roster() -> Vec<&'static str> {
     fixtures
 }
 
+/// Fail fixtures pinned outside a `fixture_rosters` module: this hub is the
+/// only registration surface their planner lane authorizes.
+///
+/// Field note (overlord-3, cc4c3e0db4..3b3ba5f7ac): fixture directories on
+/// disk with no roster row anywhere — the CompleteCorpus inventory tests
+/// reject them until registered under an executing owner or removed:
+///   fail/ownership/borrowed_storage_early_return_hole
+///   fail/ownership/borrowed_storage_missing_repair_on_branch
+///   fail/ownership/borrowed_storage_repeated_extraction
+///   fail/ownership/borrowed_storage_stale_read_in_hole
+///   fail/relevance/erased_case_payload_runtime_read
+///   fail/wire/preserve_unknown_demand_unsatisfiable
+///   pass/relevance/erased_case_payload_field_exit (pass roster, below)
+const HUB_PINNED_FAIL_CANARIES: &[&str] = &["arithmetic/trapping_shift_requires_realization"];
+
 fn file_expectation_fail_roster() -> Vec<&'static str> {
     // Cross-target rows only annotate compilation scheduled by these arrays.
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
+        .chain(HUB_PINNED_FAIL_CANARIES)
         .chain(domains_control_and_structures::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(proof_and_float_suites::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_FILE_FAIL_CANARIES)
@@ -249,6 +265,11 @@ fn fail_roster() -> Vec<&'static str> {
         .chain(inline_asm::MSR_FAIL_CANARIES.iter().map(|entry| entry.0))
         .chain(
             inline_asm::CONTROL_REGISTER_FAIL_CANARIES
+                .iter()
+                .map(|entry| entry.0),
+        )
+        .chain(
+            inline_asm::SYSTEM_REGISTER_FAIL_CANARIES
                 .iter()
                 .map(|entry| entry.0),
         )
@@ -462,7 +483,10 @@ fn registered_fail_canaries_have_source_and_their_owned_expectations() {
         true,
         InventoryScope::RegisteredFixtures,
     );
-    for (canary, _) in CROSS_TARGET_FAIL_CANARIES {
+    for (canary, _) in CROSS_TARGET_FAIL_CANARIES
+        .iter()
+        .chain(proof_and_float_suites::CROSS_TARGET_PRODUCTION_FAIL_CANARIES)
+    {
         assert!(
             ACTIVE_FAIL_CANARIES.contains(canary),
             "cross-target failure annotation has no executing roster entry: {canary}"

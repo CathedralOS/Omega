@@ -937,7 +937,21 @@ fn prove_edge(
             Some(coordinate) => {
                 coordinate.actual(program, state, &mut engine, *argument, coordinate.borrowed)?
             }
-            None => engine.normalize(*argument)?,
+            // A scalar destination's actual may itself be a quotient or
+            // remainder tree: bind each division's exact-integer meaning the
+            // same way the endpoints were bound above, so normalization keeps
+            // both operands' identity instead of refusing the term.
+            None => {
+                meanings::install_integer_division_terms(
+                    program,
+                    machine,
+                    state,
+                    &mut engine,
+                    *argument,
+                    0,
+                )?;
+                engine.normalize(*argument)?
+            }
         };
         if let Some(existing) = substitutions.get(identity) {
             // Source copies remain independent atoms. Their established

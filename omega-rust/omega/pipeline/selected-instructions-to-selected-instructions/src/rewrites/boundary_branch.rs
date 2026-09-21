@@ -50,12 +50,18 @@
 //! Either way the compare stays published for every other reader — boolean
 //! materializations and sibling branches included — and a `Jump` fold's
 //! dropped edge never executes, so nothing it carried needs preserving.
-//! Proposal and independent replay share only the admission predicates and
-//! the rebuilt-terminator constructor. Validation re-derives the admitted
-//! branch from the source, requires the proposed terminator to equal the
-//! reconstructed form, and restores the complete source by content: every
-//! other instruction, register, roster row, call, and settlement is
-//! retained bit-identical.
+//! Validation consumes the proposed program, requires the terminator in
+//! the branch's block to equal the independently computed form — the
+//! `Jump` a decided pole permits or the `ConditionalBranchNonZero`
+//! collapse a near pole permits — and restores the complete source by
+//! content: every other instruction, register, roster row, call, and
+//! settlement is retained bit-identical. The validator re-derives the
+//! fold's preconditions on its own audit — the branch/kind pairing and
+//! zero-operand shape, the flag partition every implicit use must
+//! satisfy, the pole-outcome table deciding the outcome, and the
+//! outcome-scoped surface requirements — never consulting the producer's
+//! `admission` routine; only the module's shared condition-state walk and
+//! boundary-operand audit are common to both sides.
 
 mod admission;
 mod rewrite;

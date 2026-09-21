@@ -21,6 +21,18 @@ fn check(machine: &str, accepted: bool) {
     }
 }
 
+/// `Service<R>` fixtures lower against the toolchain carrier with the same
+/// fused-service erasure authorizations `settle_checked_providers` binds in
+/// real builds; without them the carrier field stays unshaped and the
+/// machine's unit plan fails closed.
+fn lower_service_source(
+    source: &str,
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    let mut typed = parse_typed_trees_with_core_service(source);
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+    lower_typed_trees(typed)
+}
+
 #[test]
 fn result_case_membership_observes_the_returned_tag_not_payload_equality() {
     for (condition, accepted) in [
@@ -159,7 +171,7 @@ fn boundary_call_results_carry_their_declaring_case_owner() {
             self.input.read(&mut self.buffer) in Message::Empty
         }}"
     );
-    lower_typed_trees(parse_typed_trees_with_core_service(&source))
+    lower_service_source(&source)
         .expect("boundary call results keep their exact declaring data type");
 }
 
@@ -174,7 +186,7 @@ fn boundary_call_results_still_reject_a_foreign_case_owner() {
             self.input.read(&mut self.buffer) in Other::Empty
         }}"
     );
-    let diagnostics = lower_typed_trees(parse_typed_trees_with_core_service(&source))
+    let diagnostics = lower_service_source(&source)
         .expect_err("a foreign case owner is not evidence about the call result");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

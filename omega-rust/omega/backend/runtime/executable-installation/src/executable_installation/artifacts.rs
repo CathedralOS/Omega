@@ -356,8 +356,20 @@ impl AdmittedArtifact {
     }
 }
 
+/// The audience an admitted installation is scoped to
+/// (wiki/spec/build/executable_installation.md#visibility-and-retirement).
+/// The audience binds into placement evidence, so a receipt minted for one
+/// audience cannot satisfy a validated placement scoped to another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallationAudience {
+    /// Local installation completion only: the realization has no remote
+    /// fetcher and no current executor.
     DormantLocal,
+    /// A remote fetcher may enter later: instruction-fetch visibility must
+    /// complete before entry.
     FutureFetcher,
+    /// An executor may already be running this realization: the sanctioned
+    /// alteration route is the live patch-then-drain replacement join, and
+    /// retirement still proves quiescence before returning the placement.
+    PossibleCurrentExecutor,
 }

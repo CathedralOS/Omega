@@ -145,6 +145,11 @@ pub(crate) fn retain_additional_structural_types(
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
@@ -238,6 +243,7 @@ pub(crate) fn retain_additional_structural_types(
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::FixedArray { .. } => Vec::new(),
         })
         .map(|field| field.id.get())
@@ -256,6 +262,7 @@ pub(crate) fn retain_additional_structural_types(
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::Record { .. }
             | StructuralTypeShape::FixedArray { .. } => &[],
         })
@@ -284,6 +291,11 @@ pub(crate) fn retain_additional_structural_types(
             }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+            }
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
             }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 let mut identities = BTreeSet::new();
@@ -467,6 +479,11 @@ pub(crate) fn lower_structural_type_plans(
                 }
                 CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                     StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+                }
+                // Terminal Psi carries no runtime-length view descriptor, so a
+                // borrowed `&[T]` view rejects here instead of losing its extent.
+                CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                    return unsupported("borrowed slice view has no Terminal descriptor");
                 }
                 CheckedUnitStructuralTypeShape::Record { fields } => {
                     let mut identities = BTreeSet::new();

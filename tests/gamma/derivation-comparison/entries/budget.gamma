@@ -1,10 +1,15 @@
 ; Right root1 selects invalid-ID precedence; root2 selects adjacent work refusal.
+; The initial reservation seeds the shared counter near the bound; the repeat
+; loop then lands on it exactly, keeping the refusal probe constant-time.
 (def comparison_test_execute ((grounded Int)) Int
-  (let result Int (comparison_test_repeat (comparison_start grounded) 1 1 4097 8195 327680)
-    (let observed Int (comparison_test_observe result)
-      (if (eq (first result) 6)
-        (let operand Int
-          (if (eq (layout_word (comparison_test_right_coordinate grounded)) 1) 0 1)
-          (comparison_test_observe (compare_ground_terms
-            (comparison_session (second result)) operand operand 4097 8195)))
-        0))))
+  (let prior Int (comparison_reserve (comparison_start grounded) 67108858 4097)
+    (if (eq (first prior) 6)
+      (let result Int (comparison_test_repeat (comparison_session (second prior)) 1 1 4097 8195 3)
+        (let observed Int (comparison_test_observe result)
+          (if (eq (first result) 6)
+            (let operand Int
+              (if (eq (layout_word (comparison_test_right_coordinate grounded)) 1) 0 1)
+              (comparison_test_observe (compare_ground_terms
+                (comparison_session (second result)) operand operand 4097 8195)))
+            0)))
+      (comparison_test_observe prior))))

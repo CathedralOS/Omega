@@ -138,12 +138,30 @@ impl<'program> EndpointInput<'program> {
         path
     }
 
-    pub fn preserved_by(&self, program: &TypedTrees, actual: ExpressionHandle) -> bool {
+    /// An immutable local names the storage its initializer spelled, so a
+    /// forwarded local is judged against that initializer instead of the
+    /// binding itself. `locals` pairs each immutable binding's symbol with its
+    /// initializer in statement order; later shadows simply resolve further.
+    pub fn preserved_by(
+        &self,
+        program: &TypedTrees,
+        actual: ExpressionHandle,
+        locals: &[(SymbolHandle, ExpressionHandle)],
+    ) -> bool {
+        let actual = resolve_local(program, actual, locals);
         if self.is_parameter(program, actual) {
             return true;
         }
         if self.chain.is_empty() {
             return false;
+        }
+        // A local can also spell the endpoint's own member path or a
+        // containing prefix of it: forwarding `param.a.b` (or the enclosing
+        // `param.a`) carries the endpoint storage into the next state.
+        if self.is_prefix_path(program, actual, self.chain.len() - 1)
+            || self.is_prefixed_by(program, actual, locals)
+        {
+            return true;
         }
         let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(actual)
         else {
@@ -156,7 +174,20 @@ impl<'program> EndpointInput<'program> {
         {
             return false;
         }
-        self.literal_preserves_at(program, literal, 0)
+        self.literal_preserves_at(program, literal, 0, locals)
+    }
+
+    /// The actual spells `param.chain[0..=prefix]` for some prefix of the
+    /// endpoint's chain — the forwarded subtree still contains the leaf.
+    fn is_prefixed_by(
+        &self,
+        program: &TypedTrees,
+        actual: ExpressionHandle,
+        locals: &[(SymbolHandle, ExpressionHandle)],
+    ) -> bool {
+        (1..self.chain.len()).any(|prefix| {
+            self.is_prefix_path(program, resolve_local(program, actual, locals), prefix - 1)
+        })
     }
 
     /// The actual's literal field at `depth` either forwards the same storage
@@ -167,6 +198,7 @@ impl<'program> EndpointInput<'program> {
         program: &TypedTrees,
         literal: &TableStructLiteral,
         depth: usize,
+        locals: &[(SymbolHandle, ExpressionHandle)],
     ) -> bool {
         let (field, _) = self.chain[depth];
         let mut matching = program
@@ -180,20 +212,17 @@ impl<'program> EndpointInput<'program> {
         if matching.next().is_some() {
             return false;
         }
-        if self.is_prefix_path(program, actual.value, depth) {
+        let value = resolve_local(program, actual.value, locals);
+        if self.is_prefix_path(program, value, depth) {
             return true;
         }
-        if let Some((_, next_owner)) = self.chain.get(depth + 1) {
-            if let ExpressionNode::StructLiteral(inner) =
-                program.expression_table.expression(actual.value)
-            {
-                if inner.type_symbol == *next_owner
-                    && inner.case_symbol.is_none()
-                    && inner.case_name.is_none()
-                {
-                    return self.literal_preserves_at(program, inner, depth + 1);
-                }
-            }
+        if let Some((_, next_owner)) = self.chain.get(depth + 1)
+            && let ExpressionNode::StructLiteral(inner) = program.expression_table.expression(value)
+            && inner.type_symbol == *next_owner
+            && inner.case_symbol.is_none()
+            && inner.case_name.is_none()
+        {
+            return self.literal_preserves_at(program, inner, depth + 1, locals);
         }
         false
     }
@@ -227,4 +256,33 @@ impl<'program> EndpointInput<'program> {
                 && matches!(program.expression_table.name_path_members(name.members),
                     [spelling] if *spelling == self.parameter.name))
     }
+}
+
+/// Immutable locals name exactly the storage their initializer spelled. Each
+/// hop lands on a strictly earlier binding's initializer, so the walk cannot
+/// cycle and needs no extra depth budget beyond the local count.
+fn resolve_local(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+    locals: &[(SymbolHandle, ExpressionHandle)],
+) -> ExpressionHandle {
+    for _ in 0..=locals.len() {
+        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+            break;
+        };
+        if !(name.symbol.is_valid() && name.head_symbol == name.symbol)
+            || !matches!(
+                program.expression_table.name_path_members(name.members),
+                [_]
+            )
+        {
+            break;
+        }
+        let Some((_, initializer)) = locals.iter().rfind(|(symbol, _)| *symbol == name.symbol)
+        else {
+            break;
+        };
+        expression = *initializer;
+    }
+    expression
 }

@@ -26,7 +26,7 @@
 //! value all refuse.
 //!
 //! The motivating shape is what the selection folds leave behind.
-//! `literal_compare` rewrites `CompareI64` into `CompareI64Immediate` or
+//! the compare pair rules rewrite `CompareI64` into `CompareI64Immediate` or
 //! `CompareI64Zero` while the materialization stays for its other readers;
 //! a later compare — register-form, or immediate-form against the same
 //! literal — then republishes the subtraction the folded shadow already
@@ -60,11 +60,15 @@
 //! or before it are untouched. The compare's register uses simply
 //! disappear.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the function to equal the independently computed removal, and restores
-//! the complete source by content — every other instruction, register,
-//! roster row, call, and settlement included.
+//! Validation consumes the proposed program, requires the function to
+//! equal the independently computed removal, and restores the complete
+//! source by content — every other instruction, register, roster row,
+//! call, and settlement included. The validator re-derives the removal's
+//! preconditions on its own audits — the canonical-shape read, the
+//! reaching-set equivalence, and the shared-operand stability walk —
+//! never consulting the producer's `admission` routine, so a wrong
+//! legality decision there fails validation even when the proposal is
+//! the edit the producer emitted.
 
 mod admission;
 mod rewrite;

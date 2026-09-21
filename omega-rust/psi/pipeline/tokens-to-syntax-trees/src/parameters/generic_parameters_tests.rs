@@ -8,9 +8,10 @@ use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{MachineParameterContract, TypeParameterKind};
 
-const SYNTAX_CHOICES: [GenericParameterSyntax; 5] = [
+const SYNTAX_CHOICES: [GenericParameterSyntax; 6] = [
     GenericParameterSyntax::TypeAndConst,
     GenericParameterSyntax::StaticBinders,
+    GenericParameterSyntax::DataDeclaration,
     GenericParameterSyntax::TraitRequirements,
     GenericParameterSyntax::RequirementSignature,
     GenericParameterSyntax::MachineDeclaration,
@@ -49,6 +50,7 @@ fn machine_binders_preserve_requirement_identity_only_in_traits() {
     assert!(parse_parameters("<machine Operation>", GenericParameterSyntax::TypeAndConst).is_err());
     for syntax in [
         GenericParameterSyntax::StaticBinders,
+        GenericParameterSyntax::DataDeclaration,
         GenericParameterSyntax::TraitRequirements,
         GenericParameterSyntax::MachineDeclaration,
     ] {
@@ -102,7 +104,8 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             value.is_ok(),
             matches!(
                 syntax,
-                GenericParameterSyntax::RequirementSignature
+                GenericParameterSyntax::DataDeclaration
+                    | GenericParameterSyntax::RequirementSignature
                     | GenericParameterSyntax::MachineDeclaration
             )
         );
@@ -116,19 +119,21 @@ fn conformance_and_value_binders_keep_distinct_admission() {
 }
 
 #[test]
-fn requirement_signatures_reject_satisfies_after_a_value_binder() {
-    let result = parse_parameters(
-        "<Evidence: Value satisfies Trait>",
+fn non_conformance_sites_reject_satisfies_after_a_value_binder() {
+    for syntax in [
+        GenericParameterSyntax::DataDeclaration,
         GenericParameterSyntax::RequirementSignature,
-    );
-    let Err(error) = result else {
-        panic!("a `satisfies` tail is a conformance binder, not a value binder")
-    };
-    assert!(
-        error
-            .message
-            .contains("conformance binder is not admitted on a requirement signature"),
-        "{:?}",
-        error.message
-    );
+    ] {
+        let result = parse_parameters("<Evidence: Value satisfies Trait>", syntax);
+        let Err(error) = result else {
+            panic!("a `satisfies` tail is a conformance binder, not a value binder")
+        };
+        assert!(
+            error
+                .message
+                .contains("conformance binder is not admitted in this parameter list"),
+            "{:?}",
+            error.message
+        );
+    }
 }

@@ -11,6 +11,10 @@ use source::SourceMap;
 use source_files_to_tokens::Lexer;
 use std::{path::PathBuf, sync::Arc};
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::domain::ProofFact;
+use symbol_resolved_trees::expression::ExpressionNode;
+use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
@@ -243,6 +247,46 @@ fn domain_symbol_path(program: &SymbolResolvedTrees, name: &str) -> String {
     program.symbols.display_path(definition.symbol, "::")
 }
 
+/// The selected declarations on a `x in Type::Case` fact after the fact has
+/// normalized to a case-membership expression: (case owner, case).
+fn selected_case_membership(
+    program: &SymbolResolvedTrees,
+    facts: arena::HandleSpan<ProofFact>,
+) -> (String, String) {
+    let [ProofFact::Expression(expression)] = program.proof_facts(facts) else {
+        panic!("a case-membership fact normalizes to one expression")
+    };
+    let ExpressionNode::Membership(membership) =
+        program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("the normalized fact is a case-membership expression")
+    };
+    assert!(
+        !membership.domain_symbol.is_valid(),
+        "a case selection never fills the declared-domain slot"
+    );
+    (
+        program
+            .symbols
+            .display_path(membership.case_type_symbol, "::"),
+        program.symbols.display_path(membership.case_symbol, "::"),
+    )
+}
+
+fn data_where_facts(program: &SymbolResolvedTrees, name: &str) -> arena::HandleSpan<ProofFact> {
+    let definition = program
+        .data_definitions
+        .iter()
+        .find(|definition| {
+            program
+                .symbols
+                .display_path(definition.symbol, "::")
+                .ends_with(name)
+        })
+        .unwrap_or_else(|| panic!("data `{name}`"));
+    definition.storage.where_facts
+}
+
 #[test]
 fn foreign_nominal_const_attachment() {
     for (tag, declaring) in [
@@ -304,6 +348,23 @@ fn open_template_index_membership_on_value_type() {
     // Indexed/generic domain families name themselves `Window` (the carrier
     // prefix is only folded into unindexed domain names).
     assert_eq!(domain_symbol_path(&program, "Window"), "units::Window");
+    // The `K in Window<8>` fact selects the FOREIGN family exactly: its
+    // recorded domain symbol is `units::Window` with a live authored-selection
+    // receipt, and the index argument is the closed `8`.
+    let [ProofFact::Membership(membership)] =
+        program.proof_facts(data_where_facts(&program, "Holder"))
+    else {
+        panic!("`K in Window<8>` stays a declared-domain membership fact")
+    };
+    assert_eq!(
+        program.symbols.display_path(membership.domain_symbol, "::"),
+        "units::Window"
+    );
+    assert!(
+        membership.authored_domain_selection.is_some(),
+        "the selected domain records an authored-selection occurrence"
+    );
+    assert_eq!(membership.domain_arguments.count(), 1);
 }
 
 #[test]
@@ -379,6 +440,52 @@ fn qualified_case_membership_in_foreign_domain_fact() {
         domain_symbol_path(&program, "NonEmpty"),
         "policy::Choice::NonEmpty"
     );
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|definition| {
+            program.symbols.display_path(definition.symbol, "::") == "policy::Choice::NonEmpty"
+        })
+        .expect("policy::Choice::NonEmpty");
+    // Resolution success alone says nothing about WHICH case the fact
+    // selected: assert the foreign owner and exact case, not just a hit.
+    assert_eq!(
+        selected_case_membership(&program, domain.facts),
+        (
+            "shapes::Choice".to_string(),
+            "shapes::Choice::Some".to_string()
+        )
+    );
+    // The fact's selected declaration is the exact foreign case symbol, not
+    // merely "resolution succeeded": `self in shapes::Choice::Some` is a
+    // case-membership expression whose `case_symbol`/`case_type_symbol` bind
+    // `shapes::Choice::Some` on `shapes::Choice`.
+    let fact_expression = program
+        .proof_facts(domain.facts)
+        .iter()
+        .find_map(|fact| match fact {
+            ProofFact::Expression(handle) => Some(*handle),
+            ProofFact::Membership(_) => None,
+        })
+        .expect("the domain's fact is an expression");
+    let symbol_resolved_trees::expression::ExpressionNode::Membership(membership) = program
+        .tables
+        .bodies
+        .expressions
+        .expression(fact_expression)
+    else {
+        panic!("the domain fact is a case membership expression")
+    };
+    assert_eq!(
+        program
+            .symbols
+            .display_path(membership.case_type_symbol, "::"),
+        "shapes::Choice"
+    );
+    assert_eq!(
+        program.symbols.display_path(membership.case_symbol, "::"),
+        "shapes::Choice::Some"
+    );
 }
 
 #[test]
@@ -420,7 +527,7 @@ fn contested_indexed_domain_family_prefers_module_local() {
 #[test]
 fn narrow_case_import_in_membership_fact() {
     // `use shapes::Choice::Some` exposes the exact case to `c in Some` ...
-    lower_multi(&[
+    let program = lower_multi(&[
         (
             "shapes.omg",
             "module shapes; pub data Choice { case Empty; case Some(v: u32); }",
@@ -431,13 +538,121 @@ fn narrow_case_import_in_membership_fact() {
         ),
     ])
     .expect("narrow case import in fact resolves");
+    // The `where` fact retains its selected declaration rather than only
+    // resolving: the case target keeps `domain_symbol` invalid and records a
+    // checked-domain-membership selection binding for the checking stage.
+    let holder = program
+        .data_definitions
+        .iter()
+        .find(|definition| program.symbols.display_path(definition.symbol, "::") == "Holder")
+        .expect("Holder");
+    let membership = program
+        .proof_facts(holder.storage.where_facts)
+        .iter()
+        .find_map(|fact| match fact {
+            ProofFact::Membership(membership) => Some(membership),
+            ProofFact::Expression(_) => None,
+        })
+        .expect("the where clause is a membership fact");
+    let authored = program
+        .domain_path_members(membership.domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    assert_eq!(authored, "Choice::Some");
+    assert!(
+        !membership.domain_symbol.is_valid(),
+        "a case membership target carries no declared-domain symbol"
+    );
+    let occurrence = membership
+        .authored_domain_selection
+        .expect("the where fact retains its authored selection");
+    let selection = program
+        .authored_declaration_selections()
+        .get(occurrence)
+        .expect("the occurrence's selection row");
+    match selection.target() {
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
+            resolved,
+        ) => assert_eq!(
+            program
+                .symbols
+                .display_path(resolved.selected_symbol(), "::"),
+            "shapes::Choice::Some"
+        ),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(
+            binding,
+        ) => assert_eq!(
+            binding,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership
+        ),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+            _,
+        ) => panic!("the case selection is not an intrinsic"),
+    }
+}
+
+#[test]
+fn unimported_qualified_domain_fact_selects_package_internal() {
+    // The one selection law for domain facts: a complete logical path selects
+    // exactly — exposure governs imports and leaf spellings, not the spelled
+    // `a::u64::Private` itself. The fact records that exact selected
+    // declaration even though `check.omg` never imports `a`.
+    let program = lower_multi(&[
+        ("a.omg", "module a; domain u64::Private requires self > 0;"),
+        (
+            "check.omg",
+            "data H where v in a::u64::Private, { v: u64; }",
+        ),
+    ])
+    .expect("complete-path domain fact resolves");
+    let [ProofFact::Membership(membership)] = program.proof_facts(data_where_facts(&program, "H"))
+    else {
+        panic!("`v in a::u64::Private` stays a membership fact")
+    };
+    assert_eq!(
+        program.symbols.display_path(membership.domain_symbol, "::"),
+        "a::u64::Private"
+    );
+    assert!(membership.authored_domain_selection.is_some());
+}
+
+#[test]
+fn transitive_case_import_does_not_expose_membership() {
+    // `use` is file-local: relay's import of `shapes::Choice::Some` does not
+    // re-expose the case, so check's fact has nothing to select. Resolution
+    // must fail closed — no domain symbol, no case pair — leaving a
+    // late-bound authored-selection occurrence for the checked stage to
+    // report, rather than guessing through another file's import.
+    let program = lower_multi(&[
+        (
+            "shapes.omg",
+            "module shapes; pub data Choice { case Empty; case Some(v: u32); }",
+        ),
+        ("relay.omg", "module relay; use shapes::Choice::Some;"),
+        (
+            "check.omg",
+            "use relay; data H where c in Choice::Some, { c: u32; }",
+        ),
+    ])
+    .expect("the unresolved fact lowers and defers selection");
+    let [ProofFact::Membership(membership)] = program.proof_facts(data_where_facts(&program, "H"))
+    else {
+        panic!("`c in Choice::Some` stays a membership fact")
+    };
+    assert!(
+        !membership.domain_symbol.is_valid(),
+        "transitive exposure never fabricates a selected domain"
+    );
+    assert!(membership.authored_domain_selection.is_some());
 }
 
 #[test]
 fn qualified_indexed_domain_constraint() {
     // Qualified spelling of a module's indexed domain family as a field
     // constraint.
-    lower_multi(&[
+    let program = lower_multi(&[
         (
             "units.omg",
             "module units; pub domain<const N: u64> u64::Window<N> requires self < N;",
@@ -445,6 +660,38 @@ fn qualified_indexed_domain_constraint() {
         ("main.omg", "data S { v: u64 in units::u64::Window<8>; }"),
     ])
     .expect("qualified indexed domain constraint resolves");
+    // The selected declaration is the foreign family's own symbol and the
+    // constraint retains the closed index argument it was selected under.
+    assert_eq!(domain_symbol_path(&program, "Window"), "units::Window");
+    let data = program
+        .data_definitions
+        .iter()
+        .find(|definition| program.symbols.display_path(definition.symbol, "::") == "S")
+        .expect("data S");
+    let member = program
+        .data_members(data.storage.members)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .expect("S carries a field member");
+    let TypeReference::Constrained(constrained) = &member.type_reference else {
+        panic!("the field's type reference is constrained")
+    };
+    let domain = program
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints)
+        .iter()
+        .find_map(|constraint| match constraint {
+            TypeConstraint::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("the field constraint is a domain constraint");
+    assert_eq!(domain.name.as_str(), "units::u64::Window");
+    assert_eq!(domain.arguments.len(), 1, "the closed index `8` is bound");
 }
 
 #[test]

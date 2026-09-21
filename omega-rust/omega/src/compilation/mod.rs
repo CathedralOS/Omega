@@ -2,6 +2,8 @@
 
 pub mod publication;
 
+mod build_directory;
+
 use crate::temporary_directory::TemporaryDirectory;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
@@ -66,6 +68,8 @@ pub enum CompileProjectError {
     Publication(String),
     /// The private workspace a check stages into could not be created.
     CheckWorkspace(std::io::Error),
+    /// The output directory records a different owner or a live occupant.
+    BuildDirectory(String),
 }
 
 impl std::fmt::Display for CompileProjectError {
@@ -90,6 +94,7 @@ impl std::fmt::Display for CompileProjectError {
             Self::CheckWorkspace(error) => {
                 write!(formatter, "cannot create the check workspace: {error}")
             }
+            Self::BuildDirectory(conflict) => write!(formatter, "{conflict}"),
         }
     }
 }
@@ -133,6 +138,23 @@ pub fn compile_project(
         }
         None => options.retain_build_dir(),
     };
+    // A retained product directory must belong to this source root and to one
+    // live compile; a check owns a private workspace and needs no record.
+    let _occupancy = match check_workspace {
+        Some(_) => None,
+        None => Some(
+            build_directory::acquire(&build_dir, &options.root_path)
+                .map_err(|conflict| CompileProjectError::BuildDirectory(conflict.to_string()))?,
+        ),
+    };
+    // Artifact writes bind the admitted canonical directory rather than the
+    // spelled name, so an alias swapped in during admission cannot redirect
+    // the publish or retained product paths.
+    let build_dir = _occupancy
+        .as_ref()
+        .map(|occupancy| occupancy.directory().to_path_buf())
+        .unwrap_or(build_dir);
+    options.build_dir = Some(build_dir.clone());
     let policy_root_path = options.root_path.clone();
     let target = crate::invocation_target_profile(options.target_name.as_deref())
         .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
@@ -176,7 +198,8 @@ pub fn compile_project(
                         prepared, &build_dir, target,
                     )
                     .with_accepted_trust_admissions(admissions)
-                    .with_optimization_rollback(optimization_rollback);
+                    .with_optimization_rollback(optimization_rollback)
+                    .with_timings(collect_timings);
                     let request = match build_snapshot {
                         Some(snapshot) => request.with_build_snapshot(snapshot),
                         None => request,
@@ -203,7 +226,8 @@ pub fn compile_project(
                     let request = packages::PreparedLocalProjectCheckRequest::new(
                         prepared, &build_dir, target,
                     )
-                    .with_accepted_trust_admissions(admissions);
+                    .with_accepted_trust_admissions(admissions)
+                    .with_timings(collect_timings);
                     let request = match build_snapshot {
                         Some(snapshot) => request.with_build_snapshot(snapshot),
                         None => request,
@@ -219,7 +243,8 @@ pub fn compile_project(
                     let request = CompileRequest::new(options)
                         .with_requested_product(product)
                         .with_optimization_rollback(optimization_rollback)
-                        .with_accepted_trust_admissions(admissions);
+                        .with_accepted_trust_admissions(admissions)
+                        .with_timings(collect_timings);
                     let request = match build_snapshot {
                         Some(snapshot) => request.with_build_snapshot(snapshot),
                         None => request,

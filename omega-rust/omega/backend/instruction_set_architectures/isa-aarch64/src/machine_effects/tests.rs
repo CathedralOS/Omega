@@ -351,7 +351,10 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
         assert_eq!(less_than_branch.alternatives.len(), 1);
         assert_eq!(
             less_than_branch.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(4)
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(8),
+            }
         );
         assert_eq!(
             less_than_branch.alternatives[0].encoded.control,
@@ -368,7 +371,10 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
         );
         assert_eq!(
             signed_less_than_branch.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(4)
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(8),
+            }
         );
         let scalar_call = catalog
             .declarations

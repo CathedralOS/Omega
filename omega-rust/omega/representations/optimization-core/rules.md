@@ -44,6 +44,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization` | Required |
 | `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 | `StateSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization StateSpecialization` | Required |
+| `RepresentationSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization RepresentationSpecialization` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s
@@ -55,7 +56,7 @@ the repository gate.
 
 ## Supported composition policy
 
-- The source vocabulary names six Psi suites; the executable
+- The source vocabulary names eight Psi suites; the executable
   `lowered-psi-to-lowered-psi` phase runs every member through
   `run_psi_optimization` over the complete validated carrier.
 - One checked-tree product-pruning rule may follow authored checking when the

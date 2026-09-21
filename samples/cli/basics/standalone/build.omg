@@ -1,0 +1,12 @@
+// Standalone benchmark subject: binds the hosted program-entry slots with no
+// package dependency. The canonical ProcessExit provider lives in the standard
+// library, so this artifact cannot terminate cleanly; it is a compile-scope
+// subject measured with --no-run.
+
+machine build(builder: &mut Build) {
+    builder.application("standalone");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

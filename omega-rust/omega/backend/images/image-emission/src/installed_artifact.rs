@@ -1,3 +1,4 @@
+use boundary_applications::BoundaryOpaqueRepresentationApplications;
 use executable_installation::{ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId};
 use function_identity::MachineFunctionIdentity;
 use installation_evidence::InstalledArtifactOccurrenceDigest;
@@ -209,12 +210,23 @@ pub fn project_installed_artifact_memory_images(
         )));
     }
     if object.target().object_format == target::ObjectFormat::MachO {
-        image_macho::validate_macho_aarch64_import_binding_pairing(
-            &output.final_text_bytes,
-            &output.executable_regions,
-            &output.data_regions,
-        )
-        .map_err(|diagnostic| {
+        let pairing = match object.target().architecture {
+            target::Architecture::Aarch64 => {
+                image_macho::validate_macho_aarch64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )
+            }
+            target::Architecture::X86_64 => {
+                image_macho::validate_macho_x86_64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )
+            }
+        };
+        pairing.map_err(|diagnostic| {
             InstalledArtifactMemoryProjectionError(format!(
                 "Mach-O import thunk/binding-slot pairing drifted: {diagnostic}"
             ))
@@ -459,11 +471,17 @@ pub fn bind_installed_compiler_private_function_entry(
 
 /// Bind canonical terminal installation metadata to one exact installed code
 /// occurrence. Neither an image fingerprint nor an artifact ID can substitute
-/// for the byte-bearing values replayed here.
+/// for the byte-bearing values replayed here. `boundary_opaque_applications`
+/// is the bound artifact's retained by-value opaque custody
+/// (`NativeArtifact::boundary_application_coverage`'s `opaque_applications`,
+/// or the canonical empty set when the artifact carries no coverage); the
+/// replayed record must claim that same set, since equal size, alignment, or
+/// a compact fingerprint never establishes agreement.
 pub fn bind_installed_artifact(
     object: ObjectArtifact,
     image: ExecutableImage,
     installation: InstallationRecord,
+    boundary_opaque_applications: &BoundaryOpaqueRepresentationApplications,
     installed: InstalledCode,
 ) -> Result<InstalledArtifact, Box<InstalledArtifactBindingError>> {
     let reject = |object, image, installation, installed, diagnostic: String| {
@@ -493,6 +511,16 @@ pub fn bind_installed_artifact(
             installation,
             installed,
             format!("terminal installation record does not bind the exact image: {error}"),
+        );
+    }
+    if installation.boundary_opaque_applications() != boundary_opaque_applications {
+        return reject(
+            object,
+            image,
+            installation,
+            installed,
+            "installed artifact by-value opaque custody disagrees with the installation record"
+                .into(),
         );
     }
     if installed.architecture() != object.target().architecture {

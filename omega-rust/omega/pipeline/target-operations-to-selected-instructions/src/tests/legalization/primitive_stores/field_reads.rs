@@ -3,7 +3,8 @@ use super::{
     AbstractOperation, AbstractResult, BindingRelevance, FuelScheduleIdentity, IntegerSign,
     LegalizedScalarInstructionKind, NativeTarget, OperationId, PlaceId, ScalarType,
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType,
-    StructuralTypeId, StructuralTypeShape, TargetUnitOperation, ValueId, fixture,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TargetUnitOperation, ValueId,
+    fixture,
 };
 use crate::legalize_target_operations;
 use crate::tests::legalization::primitive_stores::integer;
@@ -37,6 +38,236 @@ fn byte_field_metadata_replays_exact_subject_without_content_read_authority() {
     ] {
         for nested in [false, true] {
             field_observations(access, nested, true);
+        }
+    }
+}
+
+/// A terminal literal `FixedIndex` ends the bounded carrier of a scalar field
+/// observation (`self.maps[1].value`): the element record owns the observed
+/// field. Legalization rechecks the index against the declared extent and
+/// re-emits the exact runtime path lowering produced.
+#[test]
+fn indexed_field_observations_replay_literal_element_offset() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    let scalar = integer(IntegerSign::Signed, 32);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ] {
+            let (mut source, _, _) = fixture(native, scalar, false);
+            let element = StructuralTypeId::new(2).unwrap();
+            let array = StructuralTypeId::new(3).unwrap();
+            let maps = StructuralFieldId::new(2).unwrap();
+            let value = StructuralFieldId::new(1).unwrap();
+            source.structural_types.make_mut()[0].shape = StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "padding".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(scalar),
+                    },
+                    StructuralFieldDeclaration {
+                        id: maps,
+                        identity: "maps".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(array),
+                    },
+                ],
+            };
+            let mut types = source.structural_types.to_vec();
+            types.extend([
+                StructuralTypeDeclaration {
+                    id: element,
+                    identity: "Map".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            id: value,
+                            identity: "value".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(scalar),
+                        }],
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: array,
+                    identity: "Maps".into(),
+                    shape: StructuralTypeShape::FixedArray { element, length: 2 },
+                },
+            ]);
+            source.structural_types = types.into();
+            let function = &mut source.functions[0];
+            function.parameters.clear();
+            function.structural_parameters[0].access = access;
+            let parameter = function.structural_parameters[0].clone();
+            let read = AbstractResult {
+                value: ValueId::new(7).unwrap(),
+                scalar_type: scalar,
+            };
+            let result = AbstractResult {
+                value: ValueId::new(8).unwrap(),
+                scalar_type: scalar,
+            };
+            function.result = AbstractFunctionResult::Scalar(result);
+            function.operations = vec![
+                AbstractOperation::IntegerStructuralField {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: read,
+                    path: vec![Segment::Field(maps), Segment::FixedIndex(1)],
+                    source: parameter.place,
+                    field: value,
+                },
+                AbstractOperation::Return {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    result: result.value,
+                    value: read.value,
+                    scalar_type: scalar,
+                    cleanup_actions: Vec::new(),
+                },
+            ];
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+                .unwrap();
+            // The legalized observation keeps lowering's exact runtime shape:
+            // the field identity followed by the literal element index.
+            let LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                source: argument, ..
+            } = &legalized.plan().scalar_functions[0].blocks[0].instructions[0].kind
+            else {
+                panic!("field read");
+            };
+            assert_eq!(
+                argument.path,
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("maps".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(1),
+                ]
+            );
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legalized, &environment);
+            let selected = crate::select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            // The four-byte element stride places `maps[1].value` at byte 8:
+            // `padding` owns bytes 0..4 and `maps[0].value` owns 4..8.
+            let load = selected.plan().functions[0].blocks[0]
+                .instructions
+                .iter()
+                .find(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        selected_instructions::SelectedInstructionKind::Load32 { .. }
+                    )
+                })
+                .expect("indexed element load");
+            let selected_instructions::SelectedInstructionKind::Load32 { byte_offset } = load.kind
+            else {
+                unreachable!()
+            };
+            assert_eq!(byte_offset, 8);
+            // A retained path that drops, moves, or substitutes the literal
+            // element index no longer names this observation's subject.
+            for path in [
+                Vec::new(),
+                vec![terminal_psi::StructuralPathSegment::Field("maps".into())],
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("maps".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(0),
+                ],
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("maps".into()),
+                    terminal_psi::StructuralPathSegment::Field("1".into()),
+                ],
+                vec![terminal_psi::StructuralPathSegment::FixedIndex(1)],
+            ] {
+                let mut changed = target.clone();
+                let TargetUnitOperation::StructuralScalarFieldRead {
+                    source: argument, ..
+                } = &mut changed.functions[0].graph.blocks[0].operations[0]
+                else {
+                    panic!("field read");
+                };
+                argument.path = path;
+                super::reject_target(&source, &changed, &unit, legalized.plan());
+            }
+            // Malformed canonical carriers stay fail-closed at the source
+            // boundary: out of extent, index into a record, mid-path index,
+            // and a case segment.
+            for mutation in [
+                vec![Segment::Field(maps), Segment::FixedIndex(2)],
+                vec![Segment::FixedIndex(0)],
+                vec![
+                    Segment::Field(maps),
+                    Segment::FixedIndex(0),
+                    Segment::Field(value),
+                ],
+                vec![
+                    Segment::Field(maps),
+                    Segment::Case(semantic_vocabulary::StructuralCaseId::new(1).unwrap()),
+                ],
+            ] {
+                let mut changed = source.clone();
+                let AbstractOperation::IntegerStructuralField { path, .. } =
+                    &mut changed.functions[0].operations[0]
+                else {
+                    panic!("field read");
+                };
+                *path = mutation;
+                assert!(
+                    abstract_operations_to_target_operations::lower_to_target_operations(
+                        &changed,
+                        abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                            native
+                        )
+                    )
+                    .is_err()
+                );
+            }
+            // The same malformed runtime carriers stay closed in the legalized
+            // plan's independent replay.
+            for path in [
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("maps".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(2),
+                ],
+                vec![
+                    terminal_psi::StructuralPathSegment::Field("maps".into()),
+                    terminal_psi::StructuralPathSegment::FixedIndex(0),
+                    terminal_psi::StructuralPathSegment::Field("value".into()),
+                ],
+            ] {
+                let mut changed = legalized.plan().clone();
+                let LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                    source: argument,
+                    ..
+                } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
+                else {
+                    panic!("field read");
+                };
+                argument.path = path;
+                assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+            }
         }
     }
 }

@@ -1,14 +1,18 @@
-// SECONDARY-PROCESSOR-CANARY build root: registers the application and
-// selects the startup envelope's physical representation so the authored
-// boundary machines materialize against an exact carrier. The build file
-// shares the program namespace — `use` here would re-declare the roots
-// module — so the selection names program declarations directly. No
-// ordinary package dependencies: the checked-only canary stays on the
-// bundled toolchain libraries.
+// SECONDARY-PROCESSOR-CANARY build root: registers the application, binds
+// the host program entries, and selects the startup envelope's physical
+// representation so the authored boundary machines materialize against an
+// exact carrier. The build file shares the program namespace — `use` here
+// would re-declare the roots module — so the bindings name program
+// declarations directly. No ordinary package dependencies: the canary
+// stays on the bundled toolchain libraries.
 
 machine build(builder: &mut Build) {
     builder.application("secondary-processor-canary");
 
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.select_representation<
         StartupEnvelope,
         StartupEnvelopeCarrierRepresentation

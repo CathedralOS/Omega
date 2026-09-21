@@ -6,6 +6,7 @@ use crate::native_realization::realization_request::{
     NativeRealizationInput, NativeRealizationRequest,
 };
 use diagnostics::Diagnostic;
+use terminal_psi_to_abstract_operations::TerminalPlacedViewEstablishment;
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
 ///
@@ -45,6 +46,14 @@ impl PreparedNativeRealizationInput {
             && self.optimization_selections == *optimization_selections
     }
 
+    /// The provider establishments bound to this input's direct-entry
+    /// placed-view roster rows, in roster order. Empty for a program that
+    /// declared none; the bound set survives `reopen` so every realization
+    /// request sees the exact loans preparation admitted.
+    pub fn placed_view_establishments(&self) -> &[TerminalPlacedViewEstablishment] {
+        self.input.placed_view_establishments()
+    }
+
     pub(crate) fn reopen(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -66,16 +75,45 @@ impl PreparedNativeRealizationInput {
 
 /// Decode, verify, and lower one canonical Terminal artifact into the reusable
 /// target-neutral native input frontier.
+///
+/// The establishment-less entrance stays fail-closed for a declared roster;
+/// consumers holding one provider establishment per declared direct-entry row
+/// take [`prepare_native_realization_input_with_placed_view_establishments`].
 pub fn prepare_native_realization_input(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     profile: &proof_admission::AdmissionProfile,
     optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
 ) -> Result<PreparedNativeRealizationInput, Vec<Diagnostic>> {
+    prepare_native_realization_input_with_placed_view_establishments(
+        artifact,
+        profile,
+        optimization_selections,
+        &[],
+    )
+}
+
+/// The same preparation with the provider's placed-view supplies: each
+/// declared direct-entry roster row joins exactly one establishment, the bound
+/// set rides inside the reusable input, and every realization request that
+/// reopens this preparation sees the exact admitted loans. A supply answering
+/// no declared row, answering one twice, or carrying a referent that cannot
+/// rejoin the module's own catalogs rejects here rather than inside
+/// realization — a roster or a pointer is not this authority.
+pub fn prepare_native_realization_input_with_placed_view_establishments(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    profile: &proof_admission::AdmissionProfile,
+    optimization_selections: &optimization_core::PostTerminalOptimizationSelections,
+    placed_view_establishments: &[TerminalPlacedViewEstablishment],
+) -> Result<PreparedNativeRealizationInput, Vec<Diagnostic>> {
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
-    let input =
-        lower_realization_input(artifact.semantic_bytes(), artifact.proof_bytes(), profile)?;
+    let input = lower_realization_input_with_placed_view_establishments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        profile,
+        placed_view_establishments,
+    )?;
     Ok(PreparedNativeRealizationInput {
         terminal_artifact_identity: artifact.manifest().identity(),
         profile: profile.clone(),
@@ -88,6 +126,20 @@ pub(crate) fn lower_realization_input(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &proof_admission::AdmissionProfile,
+) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
+    lower_realization_input_with_placed_view_establishments(
+        semantic_bytes,
+        proof_bytes,
+        profile,
+        &[],
+    )
+}
+
+pub(crate) fn lower_realization_input_with_placed_view_establishments(
+    semantic_bytes: &[u8],
+    proof_bytes: &[u8],
+    profile: &proof_admission::AdmissionProfile,
+    placed_view_establishments: &[TerminalPlacedViewEstablishment],
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
     // This leg requires the sealed PSIPSC proof section: the section must name
     // the identity reconstructed from this exact module, so a bare proof
@@ -105,7 +157,9 @@ pub(crate) fn lower_realization_input(
         },
         profile,
     )
-    .and_then(|admitted| admitted.try_into_native_input())
+    .and_then(|admitted| {
+        admitted.try_into_native_input_with_placed_view_establishments(placed_view_establishments)
+    })
     .map_err(|error| realization_error("native artifact lowering", error))
 }
 

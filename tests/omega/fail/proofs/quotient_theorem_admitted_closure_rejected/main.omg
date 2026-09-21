@@ -1,11 +1,11 @@
 use omega::language::core::relation;
 
-data Representative {
+pub data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-proposition equivalent(a: Representative, b: Representative) = a == b;
+pub proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
 ensures a == a
@@ -43,7 +43,7 @@ where equivalent satisfies
 
 boundary machine observe(value: Representative) -> bool;
 
-machine representative(value: Representative) -> Representative {
+pub machine representative(value: Representative) -> Representative {
     value
 }
 
@@ -51,9 +51,9 @@ machine representative(value: Representative) -> Representative {
 // launders an admitted law into the theorem position.
 machine representative_respects(left: Representative, right: Representative)
 requires equivalent(left, right)
+requires observe(left)
 ensures equivalent(representative(left), representative(right))
 {
-    let seen: bool = observe(left);
 }
 
 machine admitted(value: EquivalenceClass) -> EquivalenceClass {

@@ -101,7 +101,7 @@ pub use arithmetic_judgment::integer_embedding_sources_equal;
 pub use call_requirements::structural_call_requirement_entailed;
 pub(crate) use const_ranges::{
     const_range_bound_is_supported, selected_const_call_result_bounds, symbolic_range_contains,
-    validate_const_range_call,
+    validate_const_range_call, validate_const_range_call_in_environment,
 };
 pub(crate) use exit_coverage::entailment_covers_all_exits;
 pub use law_conformance::{
@@ -147,7 +147,7 @@ pub use strict_arithmetic::{
     strict_arithmetic_expression_implication,
     strict_arithmetic_expression_implication_with_arguments,
 };
-pub(crate) use structural_judgment::proved_index_algebras_for_provider;
+pub(crate) use structural_judgment::declared_index_algebra_laws;
 pub use transparent_applications::transparent_proposition_application_entailed;
 
 use std::collections::BTreeMap;
@@ -658,6 +658,35 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     zero_value_mention.is_some(),
                 );
             }
+            // Hypothesis discharge: an ensures fact spelled verbatim in the
+            // machine's own requires contract follows by assumption alone.
+            // Law satisfiers on carriers outside the engine's language rely
+            // on it — their declared law equation is the conformance's
+            // evidence, carried forward as a caller obligation. The discharge
+            // only publishes hypotheses spelled over declared call targets:
+            // an undeclared view name has no selected declaration to supply
+            // a proof term. On stand-down-accountable bodies the fact still
+            // records its stand-down row so the kernel-checked assumption
+            // discharge certificate is emitted for every goal the kernel
+            // proposition language can lower.
+            if requires.iter().any(|required| {
+                program
+                    .expression_table
+                    .expressions_structurally_equal(*required, *fact)
+            }) && fact_call_targets(program, *fact).all_declared
+            {
+                proven.push(*fact);
+                if account_stand_downs {
+                    record_expression_stand_down(
+                        machine,
+                        *fact,
+                        crate::ContractEntailmentStandDownReason::UnrecognizedInductiveBody,
+                        &ensures_coordinates,
+                        stand_downs,
+                    );
+                }
+                return false;
+            }
             let Some(held) = mention else {
                 // Pure, total fact-call projections are validated separately.
                 // Their denotational field terms belong to the structural
@@ -809,6 +838,23 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 engine.parameter_atoms
             );
         }
+        // A fact already folded to a Boolean constant carries the constant
+        // arithmetic's verdict directly: `true` is proven and `false` is
+        // disproved. Recording either as an unjudged stand-down would both
+        // inflate the admission ledger and, on `false`, let a refuted
+        // postcondition pass `--check` silently.
+        if let ExpressionNode::Boolean(constant) = program.expression_table.expression(*fact) {
+            if *constant {
+                proven.push(*fact);
+            } else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic",
+                    machine.name,
+                    program.expression_table.display_name(*fact)
+                )));
+            }
+            continue;
+        }
         match engine.judge(*fact) {
             Judgment::Proven => proven.push(*fact),
             Judgment::Refuted => {
@@ -846,5 +892,94 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 // places): stand down rather than reject what we cannot read.
             }
         }
+    }
+}
+
+/// Call-target summary of a contract fact: whether it spells any call, and
+/// whether every call head resolves to a declared operator or machine
+/// (vacuously true with no calls). The verbatim-requires discharge publishes
+/// a hypothesis only when its spelling is over real declarations — an
+/// undeclared view name has no selected declaration to supply a proof term.
+struct FactCallTargets {
+    any: bool,
+    all_declared: bool,
+}
+
+fn fact_call_targets(program: &TypedTrees, expression: ExpressionHandle) -> FactCallTargets {
+    if !expression.is_valid() {
+        return FactCallTargets {
+            any: false,
+            all_declared: true,
+        };
+    }
+    let merge = |handles: &mut dyn Iterator<Item = ExpressionHandle>| -> FactCallTargets {
+        let mut summary = FactCallTargets {
+            any: false,
+            all_declared: true,
+        };
+        for handle in handles {
+            let nested = fact_call_targets(program, handle);
+            summary.any |= nested.any;
+            summary.all_declared &= nested.all_declared;
+        }
+        summary
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Match(dispatch) => merge(
+            &mut crate::value_custody::expression_types::match_children(program, *dispatch),
+        ),
+        ExpressionNode::Atomic(atomic) => merge(&mut [atomic.value].into_iter()),
+        ExpressionNode::Call(call) => {
+            let declared = call.target_symbol.is_valid()
+                || typed_trees::operator::resolve_named_expression_call(program, call).is_some()
+                || program
+                    .machines()
+                    .iter()
+                    .any(|machine| machine.name.as_str() == call.target.as_str());
+            let mut nested = merge(
+                &mut [call.receiver].into_iter().chain(
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .copied(),
+                ),
+            );
+            nested.any = true;
+            nested.all_declared &= declared;
+            nested
+        }
+        ExpressionNode::Binary(binary) => merge(&mut [binary.left, binary.right].into_iter()),
+        ExpressionNode::Unary(unary) => merge(&mut [unary.operand].into_iter()),
+        ExpressionNode::Cast(cast) => merge(&mut [cast.value].into_iter()),
+        ExpressionNode::Member(member) => merge(&mut [member.receiver].into_iter()),
+        ExpressionNode::Borrow(inner) => merge(&mut [inner.target].into_iter()),
+        ExpressionNode::Indexed(indexed) => {
+            merge(&mut [indexed.collection, indexed.index].into_iter())
+        }
+        ExpressionNode::Range(range) => merge(&mut [range.start, range.end].into_iter()),
+        ExpressionNode::StructLiteral(struct_literal) => merge(
+            &mut program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+                .iter()
+                .map(|field| field.value),
+        ),
+        ExpressionNode::ArrayLiteral(items) => merge(
+            &mut program
+                .expression_table
+                .expression_handles(*items)
+                .iter()
+                .copied(),
+        ),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::ZeroValue(_) => FactCallTargets {
+            any: false,
+            all_declared: true,
+        },
     }
 }

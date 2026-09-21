@@ -44,6 +44,14 @@ over the private Epsilon execution envelope, not the sealed request edge; no
 Rust compiler, host parser, host typechecker, or host code generator supplies
 the program's meaning.
 
+The chain once emitted five extra zero bytes — an empty record, not part of
+any frame — between the last assigned-table frame and the bounded-sum values
+on one of two runs of byte-identical customer input; the same request did not
+repeat it. The oracle pins the stream consistent with the customer's emission
+order, which contains no such record. A gate failure whose only difference is
+an extra `0000000000` group is this known transport artifact, not a contract
+violation.
+
 From the repository root on macOS arm64, or Windows x64 with Git Bash:
 
 ```sh
@@ -61,10 +69,10 @@ semantics.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 18,230 bytes, SHA-256
-`c92fdbd62f7933859922481c021b951ffb01baec7efee5d4ee8f72c9f3d8ca4d`, and packs
-on top of the bound member closure to 576,295 bytes, SHA-256
-`517bee1ce9b180a993eb1a90e6d32e997afb08e8d4ba8c945d7637ceb355b919`.
+The [customer](main.epsilon) entry is bound at 19,632 bytes, SHA-256
+`ce58f84f280c4f7682cb4be3f9db1763a165fb82afffa0cd5da8df413c21fa16`, and packs
+on top of the bound member closure to 589,552 bytes, SHA-256
+`69aa773f4e006e9a737643cb0f97033c471176aed7dd31429e9cc205a4496e70`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not

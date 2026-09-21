@@ -2,28 +2,29 @@
 //! locate the named `first_member` and `last_member` bounding one
 //! contiguous run inside a block's body, require that block to be reached
 //! by exactly one edge — the unconditional `Jump` the destination block
-//! ends in — and prove the window the move crosses independent: no
-//! register or condition-state hazard between any member and any crossed
-//! position, no member interference with the edge's register transports,
-//! no roster-carrying run sharing the window with a second memory-access
-//! actor, no barrier, call, hosted effect, or call-roster entry inside
-//! the window, and no boundary settlement whose observed executed prefix
-//! changes.
+//! ends in — and hand the crossed window to the shared run audit:
+//! `crossed_window` derives the positions and edges every acyclic path
+//! from the destination to the run's block crosses (exactly this `Jump`
+//! edge under the gates below) and `admit_run_relocation` proves the
+//! window independent once — no register or condition-state hazard between
+//! any member and any crossed position, no member interference with the
+//! edge's register transports, no roster-carrying run sharing the window
+//! with a second memory-access actor, no barrier, call, hosted effect, or
+//! call-roster entry inside the window, and no boundary settlement whose
+//! observed executed prefix changes.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedTerminator,
-};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator};
 
 use super::PredecessorRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    edge_accounted, plain_edge, terminator_instruction, terminator_successors, transport_conflict,
+    CrossingDirection, all_edges, crossed_window, plain_edge, terminator_instruction,
+    terminator_successors,
 };
-use crate::rewrites::window_hazards::{coupled, has_call_contract, schedulable, surface};
+use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The run's own block — the edge's successor.
     pub block_index: usize,
     /// The run's first member index in the block body.
@@ -41,15 +42,15 @@ pub(super) struct Admission<'source> {
     pub landing_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,
     last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, PredecessorRunRelocationError> {
+) -> Result<Admission, PredecessorRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(PredecessorRunRelocationError::SourceMismatch);
@@ -147,82 +148,32 @@ pub(super) fn admit<'source>(
                 .then_some(target.instructions.len())
         })
         .ok_or(PredecessorRunRelocationError::UnsupportedPair)?;
-    // Every member meets the schedulable bar itself; the run's memory
-    // accounting is the union of its members' roster rows.
-    let mut run_accounted = false;
-    for member in run {
-        run_accounted |= schedulable(function, member)
-            .ok_or(PredecessorRunRelocationError::UnsupportedInstruction)?;
-    }
-    // The edge's register transports sit between the run's new and old
-    // positions: a member defining the transported argument would hand
-    // the binding a new value where the source bound the old, a member
-    // defining the parameter would be overwritten before the run's block
-    // observes it, and a member reading the parameter would observe the
-    // pre-transport value after the move. Reading the argument is
-    // harmless — the binding never writes it.
-    for member in run {
-        if transport_conflict(member, successor) {
-            return Err(PredecessorRunRelocationError::UnsupportedPair);
-        }
-    }
-    // The `Jump` instruction itself is the crossed edge's position: it is
-    // exempt from the barrier-kind rule but not from the hazard, call, or
-    // memory accounting. Rows the roster records with the edge's own
-    // origin count as the edge position's memory surface.
-    if has_call_contract(function, terminator.id) {
-        return Err(PredecessorRunRelocationError::UnsupportedInstruction);
-    }
-    if run_accounted && edge_accounted(function, terminator, successor) {
-        return Err(PredecessorRunRelocationError::UnsupportedPair);
-    }
-    for member in run {
-        if coupled(member, terminator) {
-            return Err(PredecessorRunRelocationError::UnsupportedPair);
-        }
-    }
-    // Every member trades order with the positions at and after the
-    // landing index in the predecessor body — they ran before the run and
-    // now run after it — and the positions before the run in its own
-    // body, which now follow it across the boundary. Every other position
-    // keeps the run on the side it always had.
-    for crossed in target.instructions[landing_index..]
-        .iter()
-        .chain(block.instructions[..first_index].iter())
-    {
-        // Every crossed instruction meets the same schedulable bar as the
-        // members: no barrier kind, no call contract, and no unaccounted
-        // memory reach. Its roster rows may keep their relative order
-        // only while no member records any — a row-carrying run passing a
-        // second accounted actor would reorder recorded accesses.
-        let crossed_accounted = schedulable(function, crossed)
-            .ok_or(PredecessorRunRelocationError::UnsupportedInstruction)?;
-        if run_accounted && crossed_accounted {
-            return Err(PredecessorRunRelocationError::UnsupportedPair);
-        }
-        for member in run {
-            if coupled(member, crossed) {
-                return Err(PredecessorRunRelocationError::UnsupportedPair);
-            }
-        }
-    }
-    // A settlement positioned past the landing index observes the run
-    // inside the predecessor block's prefix; a settlement positioned past
-    // the run's first index observed a member inside its own block's.
-    // Both refuse; positions at or before either boundary keep the
-    // executed set they always had.
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > first_index)
-            || (settlement.block == target.id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(PredecessorRunRelocationError::UnsupportedPair);
-    }
+    // The crossed window is the shared derivation rather than this family's
+    // own enumeration: the gates above leave exactly one acyclic path —
+    // this `Jump` edge — so the backward path walk is bounded by the
+    // function's edge roster alone. The shared audit applies the hazard,
+    // memory-roster, transport, and settlement checks once across the run's
+    // members.
+    let edge_limit = all_edges(function).count();
+    let crossing = crossed_window(
+        function,
+        block_index,
+        first_index,
+        last_index,
+        target_index,
+        landing_index,
+        CrossingDirection::Backward,
+        edge_limit,
+    )
+    .ok_or(PredecessorRunRelocationError::WorkBudgetExceeded)?;
+    let members: Vec<_> = run.iter().collect();
+    admit_run_relocation(function, &members, &crossing).map_err(rejection)?;
     // The scan walks every block body and terminator instruction once to
     // locate the run's first member and count the block's predecessor
-    // edges; the window audit walks every member-against-crossed operand
-    // and unit surface, plus the function's three rosters and the edge's
-    // binding roster once per member.
+    // edges; the path walk touches each edge once; the window audit walks
+    // every member-against-crossed operand and unit surface, plus the
+    // function's three rosters and the edge's binding roster once per
+    // member.
     let steps = plan
         .functions
         .iter()
@@ -242,6 +193,7 @@ pub(super) fn admit<'source>(
                     .try_fold(total, |total, _| total.checked_add(1))
             })
         })
+        .and_then(|total| total.checked_add(edge_limit))
         .and_then(|total| {
             run.iter().try_fold(total, |total, member| {
                 target.instructions[landing_index..]
@@ -269,11 +221,24 @@ pub(super) fn admit<'source>(
         return Err(PredecessorRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,
         target_index,
         landing_index,
     })
+}
+
+fn rejection(rejection: RunRelocationRejection) -> PredecessorRunRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => {
+            PredecessorRunRelocationError::UnsupportedInstruction
+        }
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => PredecessorRunRelocationError::UnsupportedPair,
+    }
 }

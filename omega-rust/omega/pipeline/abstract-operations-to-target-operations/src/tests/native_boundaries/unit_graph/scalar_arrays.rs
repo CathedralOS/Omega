@@ -41,6 +41,7 @@ fn fixture() -> AbstractOperationPlan {
         projected_qualifications: Vec::new(),
     };
     let result = |identity| terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: PlaceId::new(identity).unwrap(),
         structural_type: array,
         multiplicity: StructuralMultiplicity::Unrestricted,
