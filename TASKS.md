@@ -9564,6 +9564,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE,
   BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION, HOST-ALIAS-BUILD-DIR-DETECTION,
   REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.
+  Resolved at `12ea4941eb` (z102) — every leg of the race-window residual
+  the name owns is landed and witnessed green: `ensure_write_roots`
+  re-checks `overlap_key(&self.build_dir)` against admission's recorded key
+  before any mutation (`filesystem_scope.rs`:567), then
+  `ensure_established_write_root` re-inspects post-creation, rejecting a
+  symlink occupant and canonical-resolution drift (:633/:646); the
+  captured-source snapshot backing refuses a planted alias
+  (`materialize_snapshot`, "not a concrete directory"); and `build-output`
+  covers the same window on the staged-output side — `materialize_into`
+  rejects a symlink destination up front and `verify_materialized_at`
+  re-inspects the root and every entry, catching host aliases planted
+  after materialization. Witness on linux x86-64:
+  `cargo nextest run -p build-evaluation -E 'test(~write_root_establishment)
+  or test(~host_alias)'` — 6/6 PASS (incl.
+  `write_root_establishment_rejects_an_ancestor_alias_planted_after_admission`,
+  the exact check-to-first-write window) and `cargo nextest run -p
+  build-output -E 'test(~symlink_destination) or test(~host_aliases) or
+  test(~symlink_after_commit) or test(~nonempty_destination)'` — 5/5 PASS.
+  **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** holds no remaining
+  slice: it is the residual-owner name for this row's surface, and the
+  residual is closed.
 - **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
