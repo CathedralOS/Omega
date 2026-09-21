@@ -8807,16 +8807,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   primitives are open as recorded: `terminal-psi/terminal_module/
   control_flow/termination.rs` has no external-completion terminator and the
   trace codec admits only an empty terminal-external group. Currently
-  unworkable — the claim surfaced live fences on
-  `source/library/std/process_exit.omg` (MACOS-X64-HOST-PROFILE/
-  package-wiring, ~2026-09-21T00:50Z), and Devin's PLACED-ACCESS-NATIVE-OPS
-  (~00:56Z) nominally spans the whole cross-stage route (terminal-psi src,
-  terminal-interpreter, lowered→terminal and terminal→abstract pipelines,
-  native providers, backend layout) via a single space-joined path entry
-  that `conflicts()` does not match — treat that as claimed intent, not a
-  free window. The slice is inherently the parent's cross-stage terminator +
-  codec + verifier + interpreter + realization leg, not a file-local edit.
-  Coordinate with the parent item's owner lane before working it.
+  unworkable — the originally recorded `source/library/std/process_exit.omg`
+  package-wiring fence has expired, but the cross-stage route it would feed
+  stays claimed: PLACED-ACCESS-NATIVE-OPS (Jarod, ~2026-09-21T06:27Z)
+  nominally spans the whole route (terminal-psi src, terminal-interpreter,
+  lowered→terminal and terminal→abstract pipelines, native providers,
+  backend layout) via a single space-joined path entry that `conflicts()`
+  does not match — treat that as claimed intent, not a free window.
+  Adjacent surfaces are also live-fenced: TPR6 (~08:07Z) holds
+  typed-trees-to-checked-trees checks/termination, PCC-CANONICAL-SEMANTIC-
+  LEDGER (~06:20Z) holds terminal-verifier reconstruction,
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (~04:33Z) and
+  GENERAL-CYCLIC-EXECUTION-OPTIMIZER (~03:48Z) hold the
+  terminal-psi-to-abstract lowering legs, TWO-AXIS-TERMINAL-AUTHORITY-
+  REVIEW (~04:54Z) holds the realization authority policy, and
+  BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE (~08:34Z) holds the
+  terminal-Psi differential harness. The slice is inherently the parent's
+  cross-stage terminator + codec + verifier + interpreter + realization
+  leg, not a file-local edit. Coordinate with the parent item's owner
+  lane before working it.
 - **PRODUCER-CHECKER-BOUNDARY-AUDIT** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SEPARATION** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
