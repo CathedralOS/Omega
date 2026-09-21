@@ -73,6 +73,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Build: [declarations and package identity](spec/build/declarations.md),
   [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
+  [requirement-based test groups](spec/build/testing.md),
   [selected-product behavior exclusions](spec/build/behavior_exclusions.md),
   [optimization selection and validation](spec/build/optimizations.md),
   [target slots and entry roots](spec/build/entry_roots.md),

@@ -14,7 +14,9 @@ use checked_trees::{
     CheckedStructuralUnitControlTerminatorPlan,
 };
 use language_semantics::Multiplicity;
-use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, StructuralFieldId, StructuralPlaceKind,
+};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, SuccessorEdge, Terminator, ValueDeclaration};
 #[test]
@@ -2135,4 +2137,82 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
         Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));
+}
+
+/// A `drop` hook with an ordinary body runs at the cleanup edge against the
+/// borrowed `self` receiver: the edge lends the consumed value into the callee
+/// frame at the hook's declared `is_self` parameter place, so the body's
+/// `self.handle` read resolves. Without that binding the hook frame starts
+/// empty and the read has no operand.
+#[test]
+fn nominal_cleanup_hook_body_interprets_against_the_consumed_receiver() {
+    let checked = checked_source(
+        r#"
+            data Latch {}
+            machine Latch::report(code: i32) {}
+
+            data Guard { handle: i32; }
+            machine Guard::drop(&mut self) {
+                Latch::report(self.handle);
+            }
+
+            data Root {}
+            machine consume<T>(v: T) {}
+            machine Root::score(guard: Guard) -> i32 { consume(guard); 41 }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::score").expect("drop hook invocation lowers");
+    let semantic =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("semantic section encodes");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof section encodes");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine is in the module");
+    let structural_parameter = &machine.structural_parameters[0];
+    let structural_argument = terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 0xc0de,
+        structural_type: structural_parameter.structural_type,
+        qualifications: structural_parameter.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let handle_field = terminal_interpreter::TerminalStructuralScalarFieldValue {
+        argument_index: 0,
+        path: Vec::new(),
+        field: StructuralFieldId::new(1).expect("handle is field 1"),
+        value: terminal_interpreter::TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid"),
+            value: IntegerValue::Signed(41),
+        },
+    };
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&structural_argument),
+            scalar_fields: std::slice::from_ref(&handle_field),
+            ..Default::default()
+        },
+    )
+    .expect("module with an ordinary drop body starts");
+    let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
+    let status = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .expect("drop hook body interprets");
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(_)
+            )
+        ),
+        "hook cleanup must complete with the caller's scalar result, got {status:?}"
+    );
+    assert_eq!(execution.live_affine_frontier().count(), 0);
 }

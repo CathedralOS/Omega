@@ -31,10 +31,10 @@ use super::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode,
-    TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, StatementNode, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::{
     ShapeCollector, control, entry_claims, free_structural_scalar_signature, is_unit,
@@ -257,100 +257,35 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             ));
             return None;
         }
-        let cleanup_statements = program
-            .statement_table
-            .statements(cleanup_state.statement_nodes);
-        if cleanup_statements
-            .iter()
-            .any(|statement| !matches!(statement, StatementNode::Call(_)))
-        {
-            return None;
-        }
+        // The hook body is an ordinary checked Unit body: whatever the body's
+        // statements lowered to is exactly what the edge invokes. The bounded
+        // slice pins lived here only to keep the helper-list recognizer honest;
+        // what remains exact is the selection — the plan must be this owner's
+        // attached `T::drop` state, its structural signature carries at most
+        // the borrowed `self` receiver the edge lends, and it takes no scalar
+        // arguments.
         let cleanup_target = plans
             .iter()
             .find(|candidate| candidate.machine == cleanup_machine.symbol)?;
-        let (cleanup_return, cleanup_calls) = cleanup_target.operations.split_last()?;
-        let CheckedUnitEffectOperationPlan::Complete {
-            statement_index,
-            trivial_affine_local_discard_ordinals,
-            trivial_affine_discards,
-        } = cleanup_return
-        else {
-            return None;
+        let borrowed_receiver = |parameter: &CheckedUnitStructuralParameterPlan| {
+            parameter.is_self
+                && matches!(
+                    parameter.access,
+                    CheckedStructuralAccess::MutableBorrow
+                        | CheckedStructuralAccess::WriteOnlyBorrow
+                )
+                && parameter.type_identity == checked_parameter.type_identity
         };
-        if usize::try_from(*statement_index).ok()? != cleanup_calls.len()
-            || cleanup_calls.len() != cleanup_statements.len()
-            || !trivial_affine_local_discard_ordinals.is_empty()
-            || !trivial_affine_discards.is_empty()
+        if cleanup_target.state != cleanup_state.symbol
             || cleanup_target.attachment_type_identity.as_deref()
                 != Some(checked_parameter.type_identity.as_str())
-            || !cleanup_target.structural_parameters.is_empty()
-            || !cleanup_target.trivial_affine_locals.is_empty()
-            || !cleanup_target.entry_claims.is_empty()
-            || !cleanup_target.body_qualifications.is_empty()
-            || !service_reach_is_empty(facts, cleanup_target.service_reach)
-            || !service_reach_plan_is_empty(facts, cleanup_target.contract_service_reach)
+            || cleanup_target
+                .structural_parameters
+                .iter()
+                .any(|parameter| !borrowed_receiver(parameter))
+            || !cleanup_target.scalar_parameters.is_empty()
         {
             return None;
-        }
-        let mut cleanup_helpers = Vec::with_capacity(cleanup_calls.len());
-        for (statement_index, operation) in cleanup_calls.iter().enumerate() {
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                target_state,
-                target_contract_report_fingerprint,
-                service_reach,
-                scalar_arguments,
-                erased_scalar_arguments,
-                structural_arguments,
-                claim_transfers,
-            } = operation
-            else {
-                return None;
-            };
-            if usize::try_from(coordinate.statement_index).ok()? != statement_index
-                || coordinate.call_ordinal != 0
-                || *target_machine == cleanup_machine.symbol
-                || cleanup_helpers
-                    .iter()
-                    .any(|(helper, _, _)| helper == target_machine)
-                || !service_reach_is_empty(facts, *service_reach)
-                || !scalar_arguments.is_empty()
-                || !erased_scalar_arguments.is_empty()
-                || !structural_arguments.is_empty()
-                || !claim_transfers.is_empty()
-            {
-                return None;
-            }
-            cleanup_helpers.push((
-                *target_machine,
-                *target_state,
-                *target_contract_report_fingerprint,
-            ));
-        }
-        for (helper_machine, helper_state, helper_fingerprint) in cleanup_helpers {
-            let helper = plans
-                .iter()
-                .find(|candidate| candidate.machine == helper_machine)?;
-            let helper_shape = shapes
-                .types
-                .get(helper.attachment_type_identity.as_ref()?)?;
-            if helper.machine == machine.symbol
-                || helper.machine == cleanup_machine.symbol
-                || helper.state != helper_state
-                || helper.contract_report_fingerprint != helper_fingerprint
-                || !matches!(&helper_shape.shape, CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty())
-                || !helper.structural_parameters.is_empty()
-                || !helper.trivial_affine_locals.is_empty()
-                || !helper.entry_claims.is_empty()
-                || !helper.body_qualifications.is_empty()
-                || !service_reach_is_empty(facts, helper.service_reach)
-                || !service_reach_plan_is_empty(facts, helper.contract_service_reach)
-                || !matches!(helper.operations.as_slice(), [CheckedUnitEffectOperationPlan::Complete { statement_index: 0, trivial_affine_local_discard_ordinals, trivial_affine_discards }] if trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty())
-            {
-                return None;
-            }
         }
         cleanups.push(CheckedUnitNominalAffineCleanupPlan {
             source_parameter_index: checked_parameter.position,
