@@ -7978,12 +7978,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `bootstrap/5_omega/omega_compiler.epsilon.sources` as the first full Omega
   compiler (currently 16,152 lines / 8 members: representations, request/UTF-8,
   lexical classification, lexer, parser, Alpha tape, scalar compilation,
-  outcome). No independent slice exists here: OMEGA-D was live-claimed by
-  Zergling-112 (lease expiring 2026-09-20T22:27Z) at verification time, its
-  bounded legs are the separate OMEGA-D-* board rows below, and its acceptance
-  (interpreted D compiles the Omega C closure to `omega0_compiler_bytecode.tape`)
-  additionally depends on OMEGA-PRODUCT-COMPILER-SOURCE (C is currently a
-  lexer plus partial parser under `source/psi/`). Sibling re-mines of the same
+  outcome). No independent slice exists here, re-verified at `138ed79a677`:
+  the bare OMEGA-D claim has drained but the family stays claimed piecemeal —
+  OMEGA-D-REQUEST-AND-ENTRY-ROUTE (item-level, 10:05Z),
+  OMEGA-D-REQUEST-V1-TABLES (`bootstrap/5_omega/outcome.epsilon` +
+  `tests/bootstrap/omega-outcome`, 11:19Z), OMEGA-D-SCALAR-SEQUENCING
+  (item-level, 14:57Z) — its bounded legs are the separate OMEGA-D-* board
+  rows below, and its acceptance (interpreted D compiles the Omega C closure
+  to `omega0_compiler_bytecode.tape`) additionally depends on
+  OMEGA-PRODUCT-COMPILER-SOURCE (C is still a lexer plus partial parser under
+  `source/psi/` — fenced to OMEGA-WRITTEN-PRODUCT-COMPILER, 07:20Z). Sibling re-mines of the same
   OMEGA-D clauses: OMEGA-D, OMEGA-D-COMPILER-REQUEST-TABLES,
   OMEGA-D-ENTRY-ADAPTER, OMEGA-D-ENTRY-ADAPTER-RETIREMENT,
   OMEGA-D-REAL-ENTRY-ROUTE, OMEGA-D-REQUEST-ADMISSION,
