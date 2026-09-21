@@ -10105,6 +10105,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
   exists; retire or re-scope once the sibling lanes land detection.
 - **C2L-BASELINE-FAILURE-ATTRIBUTION.** Inserted owner row — the name other rows cite as the owner of the checked-trees-to-lowered-psi residual families (scalar-return custody / provider attachment / attached-unit sets); no `**NAME.**` row previously existed. The attribution leg itself is landed: the member-by-member census `wiki/drafts/c2l_failure_census_d936717f.md` (landed `54e321bdf00`) records 2199 members / 24 failures, every one inside an already-owned `known_baseline_failures.md` family, and the §checked-trees-to-lowered-psi ledger re-read stands at `6ef64f6dd6` (2152 run, 2093 passed, 59 failed, 1 SIGTERM). The repair legs the name covers are separately owned and live: scalar-return custody → C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (live claim, `tests/owned_record_return_source.rs`, 10:35Z); provider attachment / attached-unit sets → C2L-RESIDUAL-FAILURE-ATTRIBUTION's lane plus WRITE-ONLY-BORROW fences; bare fixture spellings → ENTRY-CONTENT-ROOTS; the unattributed tail → C2L-UNATTRIBUTED-FAILURE-TAIL (verified empty at `f43b4e8869c`). No unowned slice remains under this name — it is a ledger-owning umbrella, not a repair row.
+  Claim freshness at `7a62e962b2a7` (zergling-168): the recorded scalar-return
+  custody claim (~10:35Z) has drained — that family is currently unfenced on
+  the board owner C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES. Live neighbors on
+  the crate: CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET (Devin/f8ad694c,
+  ~14:02Z) — the tail stub this row verified empty — and
+  NEW-C2L-SUITE-ERASED-PROOF-FORMALS-COMPILE-FIX (z78, ~13:53Z) on
+  `tests/registered_callback_lifetime.rs`. Umbrella verdict unchanged.
 - **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified,
 - **C2L-BOUNDARY-BYTE-BUFFER-FAILURES.** — mined candidate; scope verified,
   family repaired. Re-mines the boundary-byte-buffer group of
@@ -10786,7 +10793,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `12ea4941ebd`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
 - **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `f2e4007aff4`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `dccdfd1fd1`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
-- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`; re-verified again at `fff3918dc42f3` (z140 leg): all three gate facts unchanged — concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
+- **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`; re-verified again at `fff3918dc42f3` (z140 leg): all three gate facts unchanged — concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226; re-verified at `32a6a7fa330` (z157 leg): all three gate facts unchanged). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** mined candidate; scope verified, authorization gate recorded (re-verified at `a84ebca972`: both deferral sentences intact at concurrency.md:138 and chapter_18:399-400, and `compose_composition_model` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226). Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
 - **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION and CONCURRENT-PROTOCOL-WHOLE-COMPOSITION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. No implementation slice exists to claim.
   Re-verified at `fbf36233c9` (z181): both deferral sentences intact (concurrency.md:138-139, chapter_18:399-400) and `cross_activation_edges` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226 — no same-item claim live; the authorization gate stands.
@@ -10913,7 +10920,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claims on this lane's surfaces at stamp time (OMEGA-PRODUCT-COMPILER-
   SOURCE and the service-custody/selected-dispatch files are unclaimed);
   NATIVE-DIFFERENTIAL-MATRIX (z182, ~14:30Z) is the only adjacent
-  item-claim. No independent slice.
+  item-claim. No independent slice. Re-verified at `796814691e`
+  (z146, linux x86-64): the refusal still emits at
+  `service_custody/root.rs:145` and the pin still stands at
+  `linux_dynamic_realization.rs:310` (now also accepting the earlier
+  lowering root guard); lane surfaces remain unclaimed — no second
+  implementation produces artifacts, so no deeper harness exists.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the cross-package dynamic loan-origin cluster already
   closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per
@@ -11175,7 +11187,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   conformance + malformed-source families green through DCREQ/DCOUT,
   resource-boundary refusals reproduced, exact Epsilon evaluator closure
   compiled). Complete D execution remains P4 under OMEGA-D/OMEGA-C, not this
-  name. Re-verified at `c924529921`; no slice remains.
+  name. Re-verified at `c924529921`; no slice remains. Re-verified at `268e8b6fece` (linux x86-64): the retirement still holds — `bf1a1a8d6cc9` is on main ('board: gamma-closure evidence retires DELTA-COMPILER'), TASKS_BOOTSTRAP.md carries zero DELTA-COMPILER references, and the tests/delta families (request-boundary, normalization, lowering-plan, internal-boundary, generated-function-census, frontend-boundary, emission) remain in place. The DELTA-COMPILER live claim cited on sibling rows has expired; the settled verdict stands.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE.** — mined candidate; scope verified
   2026-09-20 (z180): re-mines the DELTA-COMPILER checkpoint leg "both measured
   stress families refuse in existing rows before post-frontend allocation is
@@ -11231,7 +11243,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   still describe depend-free subjects that need `ProcessExit` explicitly;
   this subject's entry evidently does not.
 - **DEPENDENCY-FREE-MEASURABLE-SUBJECT.** — mined candidate; resolved as
-  covered (verified `fff3918dc42`): the measured depend-free subject is
+  covered (verified `fff3918dc42`; re-verified at `796814691e4c` (z140 leg):
+  `wrapping_square_sum` subject intact and eight committed records under
+  `tools/benchmark/records/` still present, linux_x86_64 default row still
+  measured — compile 33,397 ms median, runtime 5× exit-0 at 4.376 ms median,
+  8192 B published artifact): the measured depend-free subject is
   landed — `wrapping_square_sum` (`3dd805679c`) with committed records
   under `tools/benchmark/records/` incl. the measured linux_x86_64 default
   row at `e7c0099cb2` (compile 33,397 ms median; runtime leg measured
@@ -11336,7 +11352,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `repeated_exact_declaration_selection_compiles`. Sibling stub
   CANARY-DUPLICATE-OVERLOAD-DECLARATIONS covers the corpus row. No
   independent slice exists.
-- **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
+- **DURABLE-CODEC-EXTRACTION** — mined candidate; drained — consumed by
+  the resolved same-name row below.
   2026-09-20T21:52Z). Re-verified at `832c55e69b7` (z203 leg):
   a fresh audit of every `tests/omega/pass` directory named
   `*division*`/`*divide*`/`*modulo*` shows 23/24 carry `build.omg`
@@ -11377,6 +11394,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   machine-emission, native-artifact, object-file) — in-scope per the
   representations-home rule, not transform orphans. No independent slice
   exists here.
+  Re-verified at `416e9dd7e639` (z133): `optimized_semantic_wrapper_object/
+  codec.rs` still sits in `compiler/native-realization` unrelocated, and
+  PIPELINE-OWNER-CONSOLIDATION's keep/move decision is still open — the
+  TASKS_OPTIMIZER bullet still reads "skip it while undecided". The
+  UEFI-PHYSICAL-SEMANTIC-ENTRY path fence has lapsed, but the surface is
+  still covered at the item level: SEMANTIC-WRAPPER-OWNER-RELOCATION
+  (f8ad694c, ~16:39Z), POC-NATIVE-WRAPPER-RELOCATION (z182, ~16:00Z),
+  PIPELINE-WRAPPER-OBJECT-ORPHAN (z108 ~17:49Z, TASKS.md + its wiki
+  draft), and DURABLE-CODEC-RELOCATION (z120, ~16:35Z — fixed_view +
+  post-allocation neighbors, not the wrapper dir). The bare mined stub
+  above is annotated drained. No independent slice exists.
 
 - **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
   [PIPELINE-OWNER-CONSOLIDATION](TASKS_OPTIMIZER.md) remaining-work bullet in
@@ -11592,6 +11620,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT (:16808), the exact-symbol leg by
   PROGRAM-ENTRY-SELECTION-EXACTNESS (:14775). Retired verdict unchanged;
   nothing to implement under this name.
+  Re-verified at `796814691e4`: anchors intact — the
+  `build-evaluation/src/admission/selection.rs` exact-slot selection +
+  `root_bindings.rs` re-bind/ambiguity rejections stand; the "0 Terminal
+  attachment identities" attribution stays with
+  SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT. No slice under this name.
 - **COMPILER-EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate;
   scope verified, resolved — the same surface the sibling
   EXECUTABLE-PUBLICATION-OPERATION row above already marks covered:
@@ -11783,7 +11816,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ancestor of main and the pins stand. No independent slice exists; open
   manifest legs stay named in their own rows.
 - **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
-- **GAMMA-CERT-FULL-CHECK.** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-FULL-CHECK.** — mined candidate; folds into the resolved
+  same-named rows on this board (~:11730 verified at `fff3918dc42`,
+  ~:11802 resolved): the name is the full-certificate check leg, already
+  adjudicated — `tests/gamma/beta-encoding-check/run.sh` re-witnessed on
+  linux x86-64 (135,485,028-byte request reproduced byte-exact,
+  evaluator bounded-observed ~450s past admission; projected 45-52M work
+  units against the 2^26 provision, 6h cap), with completion
+  duration-blocked on a dedicated seed-execution host. Re-verified at
+  `796814691e4` (linux x86-64): the surviving item-level claim under
+  this name has drained — only a GAMMA-CERTIFICATE-CHECK item claim
+  (zergling-182, ~15:24Z) remains on the cluster, so this stub itself is
+  the only unclaimed surface; nothing to implement here beyond the fold.
 - **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE.** Mined candidate; scope
   verified at `fff3918dc4` — same provision-bounded full-certificate
   check leg as GAMMA-PROVISION-NATIVE-ACCEPTANCE: run
@@ -12194,6 +12238,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists here; sibling stubs on the same parity-gaps sentence:
   GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-CLONE-SERIALIZATION,
   GEOMETRY-NAMED-TRAIT-OPERATORS.
+  Re-verified at `32a6a7fa33` (linux x86-64): adjudication unchanged —
+  the surface is still an edit inside the `samples/apps/squalr`
+  submodule (pin now `ef6682f7`, rotated from the `5b0307c` recorded
+  earlier this wave). The recorded fences drained and re-formed:
+  SQUALR-DEBUG-ASSERTIONS (z35) now holds the `samples/apps/squalr`
+  dir-fence and SQUALR-DEBUG-ASSERTION-PARITY an item claim (both
+  ~16:2x-16:45Z, elapsed at this check), with SQUALR-SEED-PARITY on the
+  seed draft (~15:14Z); GEOMETRY-PARITY coordination still applies.
+  Still no independent slice under this name.
 - **GEOMETRY-EVIDENCE-REFRESH.** Scope verified — no independent slice.
   The name re-mines the evidence-retention clause of the squalr
   application acceptance (:143): "retain results under the app's ignored
@@ -12642,6 +12695,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   confirming no trainer machinery under `omega-rust/`) is folded here
   per its field note and its draft deleted. Record:
   `wiki/drafts/learned_optimization_cost_model.md`.
+  Re-verified at `32a6a7fa330` (z203 leg): the
+  LEARNED-OPTIMIZATION-COST-MODEL dispatch lands on this alias row —
+  the canonical row's name is the dispatched spelling. Gate unchanged:
+  optimizations.md:206-211 still forbids trainer/corpus/model/
+  inference in the Rust reference compiler,
+  learned_optimization_policy.md unchanged since `f3be428d4ae`
+  ("These notes authorize no implementation"), and the deterministic
+  `predicted_cost_delta` baseline still ships under
+  abstract-operations-to-abstract-operations/src/pass_manager. The item
+  stays resolved-by-design; the gated residual remains on
+  WORKLOAD-CORPUS-AND-MULTIVERSIONING.
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** — mined candidate; scope verified,
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
   two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
@@ -12758,6 +12822,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   mid-sentence into the paragraph above — z181's second such splice
   (see BENCHMARK-ROW-RESUMPTION); append stamps after the row's last
   sentence.
+  Re-verified at `32a6a7fa33` (z199): the gate
+  `tests/architecture/scoped_lookup_maps.rs` (JUSTIFIED_LOOKUP_MAP_FILES
+  catalog :32; census tests `every_name_keyed_lookup_map_file_is_cataloged`
+  :429 and `every_cataloged_file_still_observes_a_name_keyed_map` :448)
+  and the `wiki/drafts/lookup_map_justification.md` census are both
+  present at base; adjudication unchanged — the gate is
+  self-maintaining, no independent slice exists.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES.** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). Re-witnessed again at `d6a0625f6b`: 48/48 pass in 61.3s (the `unsupported_mixed_aggregate_equality_shapes_remain_fenced` member is a 60.7s slow pin, not a failure). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
 - **LOWERED-OPERATION-PROOF-MACHINE-CALLS.** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
   that no longer declare such a map. The one-shot census it encodes —
@@ -14738,6 +14809,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   spill codec entrance names (`encode`/`decode`) collide
   workspace-wide, so automated orphan gates need qualified
   identities — already lives on the coordinator row.
+  Re-verified at `796814691e4c` (linux x86-64): the artifact is on
+  main — `wiki/drafts/poc_orphan_entrance_audit.md` (blob
+  56c8b6ca2445), landed via `b629cfee856` ("docs: land the parked
+  spill-stage entrance audit"). Nothing re-opened.
 - **POC-REWRITE-ORPHANS.** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
   ORPHAN-REWRITE-MODULES-CATALOG — resolved as a stub at `e7c0099cb2b`:
   the named catalog is landed (`rewrites/module_catalog.rs`, 54 rows at
