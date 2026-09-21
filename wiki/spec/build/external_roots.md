@@ -65,6 +65,16 @@ and quiescence. An unresolved attempt cannot become a fresh independent attempt
 by forgetting its identity. Delayed or replayed acknowledgements cannot settle
 another invocation or release its resources.
 
+Each processor's startup resources are accounted separately — a dedicated
+stack class and a private state extent — so no two admitted processors can
+share one backing. An admitted account that has never been invoked may
+withdraw with its resources returned intact; once an invocation is
+outstanding the account can no longer withdraw, since the attempt may still
+arrive, and a started account stays held until retirement. The startup
+ledger borrows the installed entry for its whole lifetime: no completion,
+settlement, or retirement edge releases that installation while an attempt
+under it could still exist.
+
 ## Resource columns
 
 | Resource | Ceiling | Realization evidence |
