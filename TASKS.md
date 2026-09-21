@@ -10495,12 +10495,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-BUILD-AND-PACKAGES** — mined candidate; scope verified at `f1675418b1`,
   gate row recorded at
   [wiki/drafts/rc_build_and_packages_linux_x86_64.md](wiki/drafts/rc_build_and_packages_linux_x86_64.md).
-  The gate is **red** on linux x86-64: the 7-crate package/build nextest block
-  fails 109 tests (package-evidence policy digest/identity drift dominant),
-  doc tests pass, and the 6-target compiler block fails 11
-  (x86_feature_admission FMA rows + package entry-selection drift). The row
-  stays open; repair legs belong to the feature owners.
-- **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
+  The gate is **red** on linux x86-64 at `ea698be648` (re-measured
+  2026-09-21, superseding the `f1675418b1` record): the 7-crate
+  package/build nextest block fails 107 of 1684 tests, doc tests pass, and
+  the 6-target compiler block fails 12 of 355 (6 x86_feature_admission FMA
+  rows + 2 entry-selection + 3 build-config + 1 new build_log_facet).
+  Dominant package-side families: repository/canary roster drift (12),
+  child-execution fixture selectors (27), service/provider realization
+  drift (~20), checked-side evidence-row rejections (~45). The row stays
+  open; repair legs belong to the feature owners.
+- **RC-BUILD-AND-PACKAGES-GATE** — the gate-measurement leg of
+  RC-BUILD-AND-PACKAGES. Scope verified at `ea698be648`: re-measure the
+  three command blocks on linux x86-64 and refresh
+  [rc_build_and_packages_linux_x86_64](wiki/drafts/rc_build_and_packages_linux_x86_64.md).
+  Landed — record updated to RED at `ea698be648` (107+12 failures), with
+  the per-cluster inventory and signatures. Repair legs (roster drift,
+  fixture selectors, service-schema legs) are fenced to
+  BUILD-PACKAGES-GATE's companion-fixture lane and the feature owners.
 - **RC-CLOSURE-EVIDENCE-RETENTION.** Scope verified at `797e99ead7`,
   re-verified holding at `d74f2145b9` —
   mined candidate naming the post-closure directive in
