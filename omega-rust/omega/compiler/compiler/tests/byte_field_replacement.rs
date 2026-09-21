@@ -195,6 +195,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
     };
     let operation = |identity, value, scalar_type, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -250,6 +251,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
             structural_parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1004).unwrap(),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldStore {

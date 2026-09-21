@@ -82,6 +82,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -94,6 +95,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -103,6 +105,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(3),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -113,6 +116,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(4),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -275,6 +279,7 @@ fn second_literal_cannot_supply_another_sources_length() {
         2,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(5),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {

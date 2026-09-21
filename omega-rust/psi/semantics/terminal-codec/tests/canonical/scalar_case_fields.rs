@@ -81,6 +81,7 @@ fn fixture() -> TerminalModule {
     ];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),

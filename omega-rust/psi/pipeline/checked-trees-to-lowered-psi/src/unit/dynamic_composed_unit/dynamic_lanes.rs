@@ -232,6 +232,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     if has_descriptor_store {
         caller_operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
@@ -241,6 +242,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     }
     caller_operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: call_operation,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

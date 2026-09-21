@@ -40,6 +40,7 @@ fn store_module(block_home: bool) -> TerminalModule {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -102,6 +103,7 @@ fn store_module(block_home: bool) -> TerminalModule {
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(2),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {

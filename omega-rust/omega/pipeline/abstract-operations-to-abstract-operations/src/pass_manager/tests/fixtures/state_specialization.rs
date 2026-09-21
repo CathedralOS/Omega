@@ -527,6 +527,7 @@ fn integer_comparison_machine() -> terminal_psi::TerminalMachine {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_813).unwrap(),
                         result: OperationResult::Scalar(unsigned64(5_810)),
                         kind: OperationKind::IntegerConstant {
@@ -620,6 +621,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_all_constant_unit()
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_708).unwrap(),
                         result: OperationResult::Scalar(boolean(5_706)),
                         kind: OperationKind::BooleanConstant { value: true },

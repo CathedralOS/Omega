@@ -110,6 +110,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation,
                     result: OperationResult::Structural(StructuralOperationResult {
                         qualification_establishments: Vec::new(),
@@ -207,6 +208,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),

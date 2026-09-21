@@ -91,6 +91,7 @@ fn ledger_fixture() -> TerminalModule {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(10),
                     result: OperationResult::Scalar(value(20)),
                     kind: OperationKind::ExactIntegerSubtract {
@@ -101,6 +102,7 @@ fn ledger_fixture() -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(11),
                     result: OperationResult::Scalar(value(27)),
                     kind: OperationKind::Call {

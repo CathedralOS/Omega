@@ -294,6 +294,7 @@ fn verifier_rejects_a_scalar_operation_with_a_unit_result_without_panicking() {
     let operation = OperationId::new(901).unwrap();
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Unit,
         kind: OperationKind::BooleanConstant { value: true },
@@ -359,6 +360,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
     });
     machine.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -667,6 +669,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(10).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -796,6 +799,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(20).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -1055,6 +1059,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(30).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

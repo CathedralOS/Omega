@@ -61,6 +61,7 @@ pub(super) fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationI
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(20).expect("add operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -177,6 +178,7 @@ pub(super) fn saturating_add_module() -> (TerminalModule, Proposition, Obligatio
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(30).expect("add operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -293,6 +295,7 @@ pub(super) fn wrapping_subtract_module() -> (TerminalModule, Proposition, Obliga
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(40).expect("subtract operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -409,6 +412,7 @@ pub(super) fn saturating_subtract_module() -> (TerminalModule, Proposition, Obli
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(50).expect("subtract operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -525,6 +529,7 @@ pub(super) fn wrapping_multiply_module() -> (TerminalModule, Proposition, Obliga
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(60).expect("multiply operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -641,6 +646,7 @@ pub(super) fn saturating_multiply_module() -> (TerminalModule, Proposition, Obli
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(70).expect("multiply operation"),
                 result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

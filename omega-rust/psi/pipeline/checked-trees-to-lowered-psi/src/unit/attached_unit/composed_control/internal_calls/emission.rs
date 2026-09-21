@@ -250,6 +250,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
     }
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

@@ -80,6 +80,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
     callee.structural_places = vec![structural_place(callee_extent)];
     let call = |id, result, arguments| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::CallStructuralScalar {
@@ -124,6 +125,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(STRUCTURAL_CALL_PRESERVING_CONSTANT_OPERATION).unwrap(),
                     result: OperationResult::Scalar(declaration(constant)),
                     kind: OperationKind::IntegerConstant {
@@ -137,6 +139,7 @@ pub(crate) fn structural_call_preserving_artifact() -> (Vec<u8>, Vec<u8>) {
                 ),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(STRUCTURAL_CALL_PRESERVING_SECOND_CONSTANT_OPERATION)
                         .unwrap(),
                     result: OperationResult::Scalar(declaration(second_constant)),

@@ -604,6 +604,7 @@ mod tests {
         let machine = machine();
         let operation = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(42).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallDynamicUnit {

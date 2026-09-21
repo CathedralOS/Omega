@@ -297,6 +297,7 @@ fn lower_dynamic_unit_machine(
                         erased_proof_formals: Vec::new(),
                         operations: vec![Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: call_operation,
                             result: OperationResult::Unit,
                             kind: call_kind,
@@ -979,6 +980,7 @@ fn materialize_forwarded_unit_helper(
             erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation,
                 result: OperationResult::Unit,
                 kind: match next_helper {

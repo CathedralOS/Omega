@@ -515,6 +515,7 @@ fn float_scalar(id: u64) -> ValueDeclaration {
 fn float32_constant(id: u64, result: u64, bits: u32) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(id),
         result: OperationResult::Scalar(float_scalar(result)),
         kind: OperationKind::IeeeFloatConstant {
@@ -582,6 +583,7 @@ fn float_meaning_module() -> terminal_psi::TerminalModule {
         float32_constant(2, 11, 0x3f80_0000),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Scalar(float_scalar(12)),
             kind: OperationKind::Call {

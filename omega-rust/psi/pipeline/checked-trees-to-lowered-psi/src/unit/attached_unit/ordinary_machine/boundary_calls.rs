@@ -244,6 +244,7 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: terminal_psi::OperationResult::Scalar(value),
             kind,
@@ -433,6 +434,7 @@ impl MachineEmission<'_> {
         };
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Structural(returned.clone()),
             kind,

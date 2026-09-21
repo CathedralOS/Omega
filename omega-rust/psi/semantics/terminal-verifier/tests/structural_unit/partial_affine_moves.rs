@@ -739,6 +739,7 @@ fn claims_are_linear_across_unit_operations_and_return() {
     let mut reused = hard_root_module();
     reused.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -792,6 +793,7 @@ fn scalar_return_cannot_abandon_linear_structural_custody() {
     machine.result = TerminalMachineResult::Scalar(result);
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

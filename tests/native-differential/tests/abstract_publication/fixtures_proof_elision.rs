@@ -146,6 +146,7 @@ pub(super) fn live_exact_add_zero_verified() -> VerifiedPsiOptimizationUnit {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_088).unwrap(),
                     result: OperationResult::Scalar(declaration(zero)),
                     kind: OperationKind::IntegerConstant {
@@ -154,6 +155,7 @@ pub(super) fn live_exact_add_zero_verified() -> VerifiedPsiOptimizationUnit {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_089).unwrap(),
                     result: OperationResult::Scalar(declaration(computed)),
                     kind: OperationKind::ExactIntegerAdd {
@@ -212,6 +214,7 @@ pub(super) fn live_exact_divide_by_one_verified() -> VerifiedPsiOptimizationUnit
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_098).unwrap(),
                     result: OperationResult::Scalar(declaration(one)),
                     kind: OperationKind::IntegerConstant {
@@ -220,6 +223,7 @@ pub(super) fn live_exact_divide_by_one_verified() -> VerifiedPsiOptimizationUnit
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_099).unwrap(),
                     result: OperationResult::Scalar(declaration(quotient)),
                     kind: OperationKind::ExactIntegerDivide {
@@ -282,6 +286,7 @@ pub(super) fn live_exact_multiply_by_zero_verified() -> VerifiedPsiOptimizationU
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_108).unwrap(),
                     result: OperationResult::Scalar(declaration(zero)),
                     kind: OperationKind::IntegerConstant {
@@ -290,6 +295,7 @@ pub(super) fn live_exact_multiply_by_zero_verified() -> VerifiedPsiOptimizationU
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_109).unwrap(),
                     result: OperationResult::Scalar(declaration(product)),
                     kind: OperationKind::ExactIntegerMultiply {
@@ -348,6 +354,7 @@ pub(super) fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_118).unwrap(),
                     result: OperationResult::Scalar(declaration(zero)),
                     kind: OperationKind::IntegerConstant {
@@ -356,6 +363,7 @@ pub(super) fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_119).unwrap(),
                     result: OperationResult::Scalar(declaration(divisor)),
                     kind: OperationKind::IntegerConstant {
@@ -364,6 +372,7 @@ pub(super) fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_120).unwrap(),
                     result: OperationResult::Scalar(declaration(quotient)),
                     kind: OperationKind::ExactIntegerDivide {
@@ -432,6 +441,7 @@ pub(super) fn live_exact_zero_value_shift_verified() -> VerifiedPsiOptimizationU
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_129).unwrap(),
                     result: OperationResult::Scalar(declaration(zero)),
                     kind: OperationKind::IntegerConstant {
@@ -440,6 +450,7 @@ pub(super) fn live_exact_zero_value_shift_verified() -> VerifiedPsiOptimizationU
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_130).unwrap(),
                     result: OperationResult::Scalar(count_declaration(count)),
                     kind: OperationKind::IntegerConstant {
@@ -448,6 +459,7 @@ pub(super) fn live_exact_zero_value_shift_verified() -> VerifiedPsiOptimizationU
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_131).unwrap(),
                     result: OperationResult::Scalar(declaration(shifted)),
                     kind: OperationKind::ExactIntegerShiftRight {
@@ -512,6 +524,7 @@ pub(super) fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedP
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_169).unwrap(),
                     result: OperationResult::Scalar(declaration(negative_one)),
                     kind: OperationKind::IntegerConstant {
@@ -520,6 +533,7 @@ pub(super) fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedP
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_170).unwrap(),
                     result: OperationResult::Scalar(count_declaration(count)),
                     kind: OperationKind::IntegerConstant {
@@ -528,6 +542,7 @@ pub(super) fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedP
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1_171).unwrap(),
                     result: OperationResult::Scalar(declaration(shifted)),
                     kind: OperationKind::ExactIntegerShiftRight {
@@ -583,6 +598,7 @@ pub(super) fn live_exact_self_subtract_verified() -> VerifiedPsiOptimizationUnit
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1_139).unwrap(),
                 result: OperationResult::Scalar(declaration(difference)),
                 kind: OperationKind::ExactIntegerSubtract {
@@ -634,6 +650,7 @@ pub(super) fn live_exact_self_division_or_remainder_verified(
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1_148).unwrap(),
                 result: OperationResult::Scalar(declaration(remainder)),
                 kind: if divide {
@@ -727,6 +744,7 @@ pub(super) fn live_exact_remainder_by_unit_verified(
     if constant_left {
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1_161).unwrap(),
             result: OperationResult::Scalar(declaration(operand)),
             kind: OperationKind::IntegerConstant {
@@ -737,12 +755,14 @@ pub(super) fn live_exact_remainder_by_unit_verified(
     operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1_158).unwrap(),
             result: OperationResult::Scalar(declaration(one)),
             kind: OperationKind::IntegerConstant { value: divisor },
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1_159).unwrap(),
             result: OperationResult::Scalar(declaration(remainder)),
             kind: OperationKind::ExactIntegerRemainder {

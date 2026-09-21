@@ -535,6 +535,7 @@ impl MachineEmission<'_> {
         };
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id,
             result: terminal_psi::OperationResult::Scalar(value),
             kind,
@@ -681,6 +682,7 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id,
             result: OperationResult::Scalar(value),
             kind: OperationKind::CallStructuralScalar {
@@ -818,6 +820,7 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id,
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -936,6 +939,7 @@ impl MachineEmission<'_> {
         )?;
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: terminal_psi::OperationResult::Scalar(value),
             kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {

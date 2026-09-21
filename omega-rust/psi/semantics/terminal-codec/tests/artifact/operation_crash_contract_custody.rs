@@ -392,6 +392,7 @@ fn declaration(raw: u64, scalar_type: ScalarType) -> ValueDeclaration {
 fn operation(raw: u64, result: u64, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(raw),
         result: OperationResult::Scalar(declaration(result, ScalarType::Boolean)),
         kind,
@@ -499,6 +500,7 @@ fn crash_module() -> TerminalModule {
                     ),
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(4),
                         result: OperationResult::Scalar(declaration(CONSTANT, integer_type)),
                         kind: OperationKind::IntegerConstant {

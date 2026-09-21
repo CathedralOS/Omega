@@ -61,6 +61,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(3),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -90,6 +91,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(1),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -102,6 +104,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(2),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -160,6 +163,7 @@ pub(super) fn byte_operation_fence(subslice: bool) {
         };
         machine.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

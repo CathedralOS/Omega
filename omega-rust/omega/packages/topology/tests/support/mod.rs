@@ -75,6 +75,7 @@ pub fn component_module(calls: &[&str], provides: &[(&str, &str, &str)]) -> Term
             .push(boundary_machine(boundary, requirement));
         module.machines[0].blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(operation_id).expect("operation identity"),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
@@ -242,6 +243,7 @@ pub fn assumption_api_module() -> (TerminalModule, Identity) {
     module.root_service_reach.concrete = vec![service];
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(9).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {

@@ -28,6 +28,7 @@ fn module() -> TerminalModule {
     });
     caller.blocks[0].operations[0] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::EstablishByteSequenceLiteral {
@@ -74,6 +75,7 @@ fn module() -> TerminalModule {
     });
     callee.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Scalar(boolean_declaration(value_id(4))),
         kind: OperationKind::BooleanConstant { value: true },

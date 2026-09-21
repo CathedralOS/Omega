@@ -49,6 +49,7 @@ fn reference_place(place: u64, producer: u64) -> StructuralPlaceDeclaration {
 fn release(operation: u64, place: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(operation),
         result: OperationResult::Unit,
         kind: OperationKind::ReleaseReference {
@@ -60,6 +61,7 @@ fn release(operation: u64, place: u64) -> Operation {
 fn establish(operation: u64, place: u64, source: StructuralArgument) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(operation),
         result: reference_result(place),
         kind: OperationKind::EstablishReference { source },
@@ -116,6 +118,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
             [
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(18),
                     result: OperationResult::Scalar(ValueDeclaration {
                         id: value_id(10),
@@ -128,6 +131,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(19),
                     result: OperationResult::Unit,
                     kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -157,6 +161,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
     writer.blocks[0].id = block_id(3);
     writer.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(30),
         result: OperationResult::Unit,
         kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -181,6 +186,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
     caller.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: reference_result(2),
             kind: OperationKind::CallStructural {
@@ -195,6 +201,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -211,6 +218,7 @@ fn relay_module(mark_before_return: bool) -> TerminalModule {
         release(3, 2),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(4),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(2),
@@ -267,6 +275,7 @@ fn reference_result_rejects_parent_read_write_and_call_before_release() {
         2,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -336,6 +345,7 @@ fn reference_result_rejects_wrong_formal_and_local_escape() {
     });
     relay.blocks[0].operations[1] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(19),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -459,6 +469,7 @@ fn reference_result_join_requires_equal_reference_custody_on_every_arrival() {
     caller.blocks[0].operations.push(Operation {
         id: operation_id(5),
         static_reach_binding: None,
+        suspension_crossing: None,
         result: OperationResult::Scalar(ValueDeclaration {
             id: value_id(5),
             scalar_type: ScalarType::Boolean,
@@ -530,6 +541,7 @@ fn reference_result_alias_writes_invalidate_reaching_store_but_permission_events
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(7),
             result: OperationResult::Unit,
             kind: OperationKind::WriteOnlyPrimitiveStore {
@@ -583,6 +595,7 @@ fn reference_result_mutable_carrier_lends_only_the_callees_declared_access() {
         if access == StructuralAccess::SharedBorrow {
             callee.blocks[0].operations[0] = Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(30),
                 result: OperationResult::Scalar(ValueDeclaration {
                     id: value_id(31),
@@ -708,6 +721,7 @@ fn record_reference_module() -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -928,6 +942,7 @@ fn returned_record_reference_module() -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(5),
             result: construction.result.clone(),
             kind: OperationKind::CallStructural {
@@ -1518,6 +1533,7 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(18),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(10),
@@ -1558,6 +1574,7 @@ fn reference_record_result_preserves_scalar_sibling_and_rejects_local_escape() {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(19),
             result: OperationResult::Structural(StructuralOperationResult {
                 place: place_id(16),
