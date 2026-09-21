@@ -80,6 +80,12 @@ pub(super) fn close_one(
     if !operator.is_boundary() {
         return Err(SymbolicBoundaryApplicationClosureError::OperatorIsNotBoundary);
     }
+    // The retained rejections name what the symbolic demand and specialization
+    // records cannot carry: lifetime telescopes and non-type binders have no
+    // substitution payload. Binder data-property bounds and producer
+    // conformance bounds need none — the closed demand rejoins the exact
+    // operator declaration identity, and the reviewed selected application
+    // already pins the concrete arguments.
     if operator.lifetime_parameter_count() != 0 {
         return Err(SymbolicBoundaryApplicationClosureError::UnsupportedOperatorLifetimeTelescope);
     }
@@ -87,13 +93,6 @@ pub(super) fn close_one(
         if !matches!(parameter.kind(), PackageReviewTypeParameterKind::Type) {
             return Err(
                 SymbolicBoundaryApplicationClosureError::UnsupportedOperatorBinderCategory(
-                    u32::try_from(ordinal).unwrap_or(u32::MAX),
-                ),
-            );
-        }
-        if has_nontrivial_bounds(parameter) {
-            return Err(
-                SymbolicBoundaryApplicationClosureError::UnsupportedOperatorBinderBounds(
                     u32::try_from(ordinal).unwrap_or(u32::MAX),
                 ),
             );
@@ -106,20 +105,10 @@ pub(super) fn close_one(
     if producer.lifetime_parameter_count() != 0 {
         return Err(SymbolicBoundaryApplicationClosureError::UnsupportedProducerLifetimeTelescope);
     }
-    if !producer.conformance_bounds().is_empty() {
-        return Err(SymbolicBoundaryApplicationClosureError::UnsupportedProducerConformanceBounds);
-    }
     for (ordinal, parameter) in producer.type_parameters().iter().enumerate() {
         if !matches!(parameter.kind(), PackageReviewTypeParameterKind::Type) {
             return Err(
                 SymbolicBoundaryApplicationClosureError::UnsupportedProducerBinderCategory(
-                    u32::try_from(ordinal).unwrap_or(u32::MAX),
-                ),
-            );
-        }
-        if has_nontrivial_bounds(parameter) {
-            return Err(
-                SymbolicBoundaryApplicationClosureError::UnsupportedProducerBinderBounds(
                     u32::try_from(ordinal).unwrap_or(u32::MAX),
                 ),
             );
@@ -231,11 +220,6 @@ pub(super) fn close_one(
         selected_application_package: request.selected_application_review.package(),
         sources: vec![source],
     })
-}
-
-fn has_nontrivial_bounds(parameter: &package_evidence::record::PackageReviewTypeParameter) -> bool {
-    parameter.bounds().multiplicity() != language_semantics::Multiplicity::Affine
-        || parameter.bounds().carry().is_some()
 }
 
 fn lower_review_application(
