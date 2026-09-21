@@ -12603,6 +12603,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PROOF-CACHE-DEPENDENCY-INVALIDATION. Verified at
   `0f75a052f09`: no live same-item claim. No independent slice
   under this name.
+- **DERIVATION-RECHECK-CACHE.** Resolved — the `check_proof_plan`
+  recheck-cache consultation landed at `28a3cc7fea`
+  (`proof/src/checker/derivation_cache.rs` +
+  `check_proof_plan_with_derivation_cache` in `checker.rs`): each bounded
+  certificate route asks the caller-supplied `ProofDerivationCache` for
+  derivations retained under the obligation's canonical
+  `ProofObligationKey` before re-deriving the leg; every retained
+  candidate is re-decided through the same admission kernel that decides
+  fresh certificates — accepted discharges, rejected counted and passed
+  over, capacity refused explicitly via `DerivationStoreFull`, and the
+  leg's verdict is unaffected either way — with `DerivationCacheReport`
+  tallying consultations/reused/rejected/retained/refused/invalidated.
+  Re-verified at `6f918986063` (linux x86-64): `cargo nextest run -p
+  proof` — 87/87 pass (the consultation battery in
+  `checker/certificate/tests.rs` has grown from the recorded 81).
+  The store substrate is PROOF-DERIVATION-STORE's
+  `proof/src/derivation_store.rs` (landed `68ce33d9de`); reuse policy —
+  within one compilation, across compilations, or not at all — stays
+  with the `wiki/drafts/proof_search_cache.md` decision and caller
+  adoption; dependency invalidation remains with
+  PROOF-CACHE-DEPENDENCY-INVALIDATION. No independent slice exists
+  under this name.
 - **PROOF-DERIVATION-STORE.** Resolved — covered by owned sibling rows. The stub re-mines `wiki/drafts/proof_search_cache.md`'s derivation-store leg, which is already delivered and decomposed: the store substrate is `proof/src/derivation_store.rs` (PROOF-DERIVATION-STORE-INDEX, landed `68ce33d9de` — canonical `ProofObligationKey` index, generational `DerivationId` handles, `DerivationStoreFull` refusal, key-granularity invalidate, candidate-only lookups), the `check_proof_plan` consultation is DERIVATION-RECHECK-CACHE (resolved at `28a3cc7fea` — `check_proof_plan_with_derivation_cache` re-decides retained candidates through the admission kernel with `DerivationCacheReport` tallies), measurement gating the whole scheme is PROOF-SEARCH-MEASUREMENT (resolved — `OMEGA_PROOF_MEASUREMENTS`), and the open residual is dependency invalidation, owned by the adjacent PROOF-CACHE-DEPENDENCY-INVALIDATION row. No independent slice remains under this name.
 - **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC.** — mined candidate; scope
   verified: merged alias of PROOF-INTERCHANGE-IMPORT's "arithmetic import"
