@@ -1954,7 +1954,7 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Structural {
                 type_identity: self.add_reference_type(field.type_reference, binders)?,
             }
-        } else if let Some(fused_service_erasure) =
+        } else if let Some((fused_service_erasure, provider_node)) =
             provider_backed_field(self.program, field.type_reference)
         {
             let provider_type_identity = self
@@ -1962,7 +1962,7 @@ impl<'program> ShapeCollector<'program> {
                 .type_identity(TypeIdentityRequest {
                     binders,
                     substitutions,
-                    ..TypeIdentityRequest::ordinary(field.type_reference)
+                    ..TypeIdentityRequest::ordinary(provider_node)
                 })
                 .into_string();
             match fused_service_erasure {
@@ -2142,29 +2142,53 @@ impl<'program> ShapeCollector<'program> {
     }
 }
 
+/// A provider-backed field's erasure receipt (when the carrier is an exact
+/// `Service<R>` requirement) plus the type node whose identity names the
+/// provider — the carrier itself for a fused service, the unwrapped
+/// boundary-trait referent for a `&'a mut <boundary trait>` field.
 fn provider_backed_field(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<Option<checked_trees::CheckedFusedServiceErasureReceipt>> {
+) -> Option<(
+    Option<checked_trees::CheckedFusedServiceErasureReceipt>,
+    TypeReferenceHandle,
+)> {
     if let Some(requirement) =
         typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
         let authorization = program.fused_service_erasure(requirement)?;
-        return Some(Some(checked_trees::CheckedFusedServiceErasureReceipt {
-            requirement,
-            provider_plan_digest: authorization.provider_plan_digest,
-        }));
+        return Some((
+            Some(checked_trees::CheckedFusedServiceErasureReceipt {
+                requirement,
+                provider_plan_digest: authorization.provider_plan_digest,
+            }),
+            type_reference,
+        ));
     }
-    let provider_symbol = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. }
-        | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
-        _ => return None,
+    // Attached data stores a provider as `&'a mut <boundary trait>`: look
+    // through the reference (and any qualifications wrapped around it) to the
+    // trait symbol before deciding the field is not a provider handle.
+    let mut unwrapped = type_reference;
+    let provider_symbol = loop {
+        match program.type_reference_table.type_reference(unwrapped) {
+            TypeReferenceNode::Constrained {
+                base_type: inner, ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Reference {
+                referee: inner,
+                access: language_core::ReferenceAccess::Mutable,
+                ..
+            } => unwrapped = *inner,
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::DynamicTrait { symbol, .. } => break *symbol,
+            _ => return None,
+        }
     };
     program
         .traits()
         .iter()
         .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
-        .then_some(None)
+        .then_some((None, unwrapped))
 }
 
 pub(super) fn scalar_type(
