@@ -7100,29 +7100,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claim remains live and no new leg landed since `db3dfb4302`.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
-- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
-  cb01abfa42 — audit that every vocabulary operation reaching the backend is
-  either legalized+selected or cleanly refused, never silently miscompiled or
-  panicked on. The classification point is
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`:
-  `admit()` covers 83 `AbstractOperation` variants, falling through to
-  `Err(NodeRejection::UnsupportedFamily)` → `LegalizationError::UnsupportedScalarOperation`
-  (model.rs:120); `control::validate` classifies terminators with the same
-  `_ => SourceCustodyMismatch` refusal. Ordering is the audit's core fact:
-  `nodes::validate` runs per-block inside `legalize_target_operations` BEFORE
-  `validate_target` and before `source/scalar_graph`'s `instruction()` calls —
-  so the `admit(..).ok()`/`filter_map` sites downstream can only ever see
-  admitted nodes, never a suppressed UnsupportedFamily. Open audit questions
-  for the implementing leg: (a) whether every *admitted* family has selection
-  coverage on every ISA (admitted-but-unencodable is the remaining hole class
-  — e.g. `NearestIeeeFloatFusedMultiplyAdd` is ingest-refused today, tracked
-  by FLOAT-FMA-NATIVE-TRANSPORT); (b) whether `UnsupportedScalarOperation`
-  surfaces as a compile diagnostic end-to-end rather than aborting; (c)
-  whether any `match` on `node.operation` outside nodes.rs/control.rs is
-  reachable before `nodes::validate` (none found at verify time — all are
-  provenance replays under validate_target or per-node dispatch under
-  validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
-  + `representations/abstract-operations` (read-only enumeration).
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
 - **BASELINE-SERVICE-CARRIER-FAILURES.** Resolved. The bare
   boundary-trait carrier family is fully migrated: the 21
@@ -11735,49 +11712,95 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
   REMOVAL, STAGED-ANCESTRY-ELIMINATION.
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT) —
-  retire or wire the public stage entrances the executed stage-entrance
-  orphan sweep named but no sibling row owns. Each is `pub`, re-exported at
-  its crate's `lib.rs`, and has no caller outside its own crate or tests;
-  re-verified at `e5492eee179`:
+  retire or wire the public stage entrances the executed stage-entrance orphan
+  sweep named but no sibling row owns. Re-verified at `716cb194aa`, which
+  corrected the inherited list: the sweep counted several `pub fn`s that are
+  not crate-public at all, so only these three are real entrances — each is
+  re-exported from its crate's `lib.rs` and has no caller outside its own
+  crate or tests:
   - `selected-instructions-to-register-homes::stage_fixed_view_register_allocation`
-    (def `assignment/recovery.rs`) — a second allocation stage entrance
-    beside the used `stage_register_allocation`; route_tests only.
-  - `checked-trees-to-lowered-psi` proof sub-passes, crate-confined:
-    `lower_content_conservation_plan`,
-    `install_non_executable_quotient_correspondences`,
-    `lower_boundary_content_guarantees`,
-    `lower_content_identity_reshuffles`,
-    `lower_content_partition_compositions`,
-    `lower_float_meaning_{equality,projection}`,
-    `produce_checked_canonical_integer_proof`.
+    (`lib.rs:63`, def `assignment/recovery.rs`) — a second allocation stage
+    entrance beside the used `stage_register_allocation`; route_tests only.
+  - `checked-trees-to-lowered-psi::produce_checked_canonical_integer_proof`
+    (`lib.rs:52`, def `proofs/nonzero_divisor_certificate.rs:44`) — called
+    only from `proofs/scalar_block_invariants.rs:176` inside its own crate.
   - `abstract-operations-to-target-operations::lower_to_target_operations_and_native_callbacks`
-    — a competing public entrance beside the used
-    `lower_optimized_to_target_operations`, still delegated to internally,
-    so this one is a naming/ownership decision rather than dead code.
-  - `abstract-operations-to-abstract-operations`: the `propose_*` /
-    `validate_*_specialization` / `bind_revision` / `commit_revision` /
-    `replay_psi_registry` / `compute_cold_parallel` surface is
-    def+re-export only, but `optimization-unit-semantics` touches a
-    same-named `validate_state_argument_specialization` — audit per name
-    before removing anything here.
+    (`lib.rs:27`) — a competing public entrance beside the used
+    `lower_optimized_to_target_operations`, still delegated to internally, so
+    this one is a naming/ownership decision rather than dead code.
 
-  For each entrance decide one of: delete it, demote it to crate-private, or
-  wire it to the coordinator that should call it — grounded in the owning
-  stage's spec text, not in caller counts alone. Test-support
+  Also audit, per name rather than wholesale, the
+  `abstract-operations-to-abstract-operations` specialization surface:
+  `propose_case_membership_specializations` /
+  `validate_case_membership_specialization` (`lib.rs:61`) and
+  `propose_state_argument_specializations` /
+  `validate_state_argument_specialization` (`lib.rs:113-114`) are exported,
+  but `optimization-unit-semantics` carries a same-named
+  `validate_state_argument_specialization`, so confirm which crate owns each
+  name before removing anything.
+
+  NOT in scope, and recorded here so the sweep's stale findings are not
+  re-mined: the seven `checked-trees-to-lowered-psi`
+  `lower_*`/`install_*` proof sub-passes the audit listed are `pub fn` inside
+  `pub(crate) mod`s (`proofs/mod.rs:74-84`) with no `lib.rs` re-export, so
+  they are already crate-private and every one has an internal caller —
+  `lower_content_conservation_plan` at `content_conservation.rs:469`,
+  `lower_boundary_content_guarantees` at `unit/attached_unit.rs:530`,
+  `lower_content_identity_reshuffles` at `unit/attached_unit/claims.rs:174`,
+  `lower_content_partition_compositions` at
+  `scalar_graph/scalar_graph_lowering/contract_lowering.rs:43`,
+  `lower_float_meaning_{equality,projection}` at
+  `machine_lowering/float_meanings.rs:77`, and
+  `install_non_executable_quotient_correspondences` is already `pub(crate)`
+  (`quotient_correspondence.rs:43`). `lower_symbol_resolved_trees_owned` no
+  longer exists in the tree. The `rewrites/`, `unsequenced_spill_stages/` and
+  wrapper-object families belong to POC-SELECTED-REWRITE-CATALOG,
+  POC-SPILL-FAMILY-* and POC-WRAPPER-OBJECT-PLACEMENT.
+
+  For each of the three entrances decide one of: delete it, demote it to
+  crate-private, or wire it to the coordinator that should call it — grounded
+  in the owning stage's spec text, not in caller counts alone. Test-support
   `*_for_test`/`corrupt_*` helpers and crate-internal methods are out of
-  scope; they are not stage entrances. The `rewrites/`,
-  `unsequenced_spill_stages/` and wrapper-object families are NOT this row —
-  they belong to POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-* and
-  POC-WRAPPER-OBJECT-PLACEMENT.
-
+  scope; they are not stage entrances.
 
   Durable note carried from the retired POC-ORPHAN-ENTRANCE-AUDIT row: spill
   codec entrance names (`encode`, `decode`) collide workspace-wide, so any
   future automated orphan gate needs qualified identities to attribute them
   to a machine.
-  Acceptance: every entrance above is deleted, demoted, or called by a real
-  coordinator route with a test driving it; `cargo check --workspace
+
+  Acceptance: each of the three entrances is deleted, demoted, or called by a
+  real coordinator route with a test driving it; `cargo check --workspace
   --all-targets` stays clean.
+
+- **NATIVE-WRAPPER-ENCODING-AARCH64** (new-scope) — the optimized program
+  storage semantic wrapper encoding lane has no AArch64 implementation.
+  `select_optimized_program_storage_semantic_wrapper_encoding`
+  (`omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_encoding/mod.rs:29`)
+  calls `encode_x86_64_semantic_unit_wrapper_template` unconditionally, with
+  no `Architecture` switch, so on AArch64 the lane cannot produce a template.
+  It refuses cleanly rather than miscompiling — the error surfaces as
+  `NonCanonicalRequest` — so this is a missing peer implementation, not a
+  correctness hole. Found at `716cb194aa` while auditing backend vocabulary
+  rejection; flagged there as outside that item's territory and owned by no
+  other row.
+
+  Context that bounds the work: the rest of the backend is an ISA peer. All
+  78 `SelectedInstructionKind` variants encode on both ISAs, neither scalar
+  encoder carries a bare `_ =>` over the kind, and per-ISA row lowering in
+  `post-allocation-machine-to-selected-form-encoding/src/row_encoding/mod.rs:120`
+  is exhaustive over `Architecture`. This wrapper lane is the one place that
+  hard-codes x86-64.
+
+  Decide first whether an AArch64 semantic unit wrapper template is owed at
+  all — check the wrapper's spec text before writing an encoder, since the
+  clean refusal may be the intended contract for non-x86 hosts. If it is
+  owed, give the lane an `Architecture` switch and an AArch64 template beside
+  the x86-64 one.
+
+  Acceptance: either the lane selects a template per architecture and an
+  AArch64 host encodes its own wrapper, with a test pinning both ISAs; or the
+  refusal is pinned as the intended contract by a test that names the
+  architecture, and this row is removed.
 
 - **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **STAGED-LOCAL-CRASH-LOWERING.** Mined candidate — resolved:
