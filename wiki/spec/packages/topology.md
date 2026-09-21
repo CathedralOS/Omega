@@ -654,6 +654,14 @@ the canonical-wire and cross-machine replay claims below rest on
 `noncanonical_and_duplicate_entries_reject` and the green composition legs,
 not the golden pins.
 
+Field note (review c3e3bfec3542..53817f8759e5): `ba9712417c` re-recorded
+`payment.request`/`payment.plan` (both golden pins green again), but the
+committed `build-scope-topology/root/inputs/request.bin` was not regenerated
+— `the_package_composes_and_a_source_free_consumer_verifies` is still red
+(104/105 at `53817f8759e5`, linux x86-64). Re-record with
+`TOPOLOGY_REGENERATE_INPUTS=1` (`composition_build.rs` ~:213) and drop the
+two "currently red" caveats below.
+
 Covered by `omega-rust/omega/packages/topology` tests
 (`cargo nextest run -p topology-plan`, linux x86-64):
 
