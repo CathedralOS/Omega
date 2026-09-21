@@ -9639,6 +9639,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the x86_64-apple-darwin host run stays host-gated on
   MACOS-X64-HOST-PROFILE.
 
+  Re-verified again at `0a0662ad27` (z181): row unchanged; the Mach-O
+  x86_64 pairing dispatch and validator remain landed, and no
+  same-item claim is live.
+
   MACOS-X64-HOST-PROFILE's row. No unbound slice remains here.
 - **FILESYSTEM-SNAPSHOT-ISOLATION.** Resolved — verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
   already holds in `build-evaluation/src/evidence/filesystem_scope/
