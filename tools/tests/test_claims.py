@@ -40,6 +40,14 @@ class PathTests(unittest.TestCase):
         self.assertFalse(module.paths_overlap("a/b", "a/c"))
         self.assertFalse(module.paths_overlap("a/b", "a/bc"))
 
+    def test_paths_overlap_explodes_comma_joined_fields(self):
+        module = load_claims()
+        self.assertTrue(module.paths_overlap("a/b,a/c", "a/b/deep"))
+        self.assertTrue(module.paths_overlap("a/b/deep", "a/b,a/c"))
+        self.assertTrue(module.paths_overlap("a/b, a/c", "a/c"))
+        self.assertFalse(module.paths_overlap("a/b,a/c", "a/d"))
+        self.assertFalse(module.paths_overlap("a/b,a/c", "a/bc"))
+
     def test_normalize_path_rejects_absolute_and_parent_escape(self):
         module = load_claims()
         self.assertEqual(module.normalize_path("src\\windows\\style"), "src/windows/style")
@@ -47,6 +55,10 @@ class PathTests(unittest.TestCase):
         for bad in ("/abs/path", "C:/abs/path", "../escape", "a/../../escape", "."):
             with self.subTest(bad=bad):
                 self.assertRaises(module.ClaimsError, module.normalize_path, bad)
+
+    def test_normalize_path_rejects_comma_joined_field(self):
+        module = load_claims()
+        self.assertRaises(module.ClaimsError, module.normalize_path, "a/b,a/c")
 
 
 class ClaimsTests(unittest.TestCase):
@@ -153,6 +165,35 @@ class ClaimsTests(unittest.TestCase):
         self.run_claims(self.a, "release", "--ticket", claimed["ticket"])
         self.claim(self.b, item="ALPHA-ITEM", owner="B")
         self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 2)
+
+    def test_claim_splits_comma_joined_path_values(self):
+        self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x,src/y",
+                   "--path", "src/z")
+        entry = self.run_claims(self.b, "status")["claims"][0]
+        self.assertEqual(entry["paths"], ["src/x", "src/y", "src/z"])
+        conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM",
+                                   "--owner", "B", "--path", "src/y/deep",
+                                   expected=2)
+        self.assertEqual(conflict["conflicts"][0]["reason"], "overlapping paths")
+        self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/y/deep"])
+
+    def test_claim_rejects_empty_path_segments(self):
+        for bad in ("src/x,,src/y", "src/x,", ",src/x"):
+            with self.subTest(bad=bad):
+                self.claim(self.a, "ALPHA-ITEM", "A", "--path", bad, expected=1)
+        self.assertEqual(self.run_claims(self.a, "status")["state"], "available")
+
+    def test_legacy_comma_joined_claim_still_fences(self):
+        """A claim recorded before comma-splitting keeps its full coverage."""
+        self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
+        record = self.remote_record()
+        record["claims"][0]["paths"] = ["src/x,src/y"]
+        self.rewrite_record(record)
+        conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM",
+                                   "--owner", "B", "--path", "src/y/deep",
+                                   expected=2)
+        self.assertEqual(conflict["state"], "conflict")
+        self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/y/deep"])
 
     def test_path_overlap_blocks_and_allow_overlap_records_exception(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
