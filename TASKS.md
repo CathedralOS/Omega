@@ -6870,8 +6870,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
   stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
-- **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
-- **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-SEED-EXECUTION.** Mined candidate — scope verified at
   `a51cb805cc`, host-gated re-mine: the name re-covers the Windows x64 leg of
   the audited Alpha seed-execution surface already owned by
@@ -6888,7 +6886,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   contract, bound identity for the non-host seed). Nothing executable remains
   on a Linux host: the only residual is running the seed on Windows x64,
   which stays with the owning rows. No independent slice.
-- **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION.** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
   (x86_64) / `isb` (aarch64) instruction-stream serialization plus `pause`
@@ -6943,7 +6940,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   AArch64 `dmb`/`dsb` ordering contracts which need a barrier-option operand
   form, service admission for `svc`-class traps and `syscall`/`sysenter`, and
   catalog test-list updates (tests.rs is claimed elsewhere this wave).
-- **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** — mined candidate; verified scope and
   landed one bounded catalog slice at the work branch. Verified shape at
   `b46b34a87f`: the refusal grid is already complete (HiddenControlExit +
@@ -6982,7 +6978,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   memory-operand contract exists; atomics, mode transitions and AArch64
   system ops stay unrecognized per the same axis paragraph.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
-- **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified, real
   surface under live same-item claims. Mines the atomic-operations half of
   `wiki/spec/language/concurrency.md` ("Concurrency and atomic
@@ -7014,7 +7009,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
   landable from this row. Re-verified at `7110606f46` — the same-item
   claim remains live and no new leg landed since `db3dfb4302`.
-- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
@@ -7100,8 +7094,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   records in `tools/benchmark/records/`), so no independent slice
   exists here. Re-verified at `62c502f9f6` on linux x86-64;
   records confirmed present on the tip `a51cb805cc`.
-- **BENCHMARK-CROSS-TARGET-COMPILE-ROWS** — mined candidate; verify scope then implement.
-- **BENCHMARK-LINUX-X64-ROW-REFRESH** — mined candidate; verify scope then implement.
 - **BENCHMARK-MACOS-ARM64-ROW.** Mined candidate; scope verified at
   50425f1c70 — re-mines the macos_arm64 leg of the host-row matrix (see
   BENCHMARK-HOST-ROW-MATRIX and BENCHMARK-CROSS-HOST-ROWS' verified
@@ -7137,7 +7129,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ASM-CATALOG-FAMILY-EXPANSION). Next action for the fence-holder: commit this
   record under `tools/benchmark/records/` and add the `benchmarks.md`
   coverage entry.
-- **BENCHMARK-MEASURABLE-SUBJECT-CORPUS** — mined candidate; verify scope then implement.
 - **BENCHMARK-PRIME-COUNTER-ROW.** Scope verified at `1a772e4ae1`: the
   mined stub names a measured `benchmark.py` row for
   `samples/cli/arithmetic/prime_counter` (README's example subject,
@@ -7154,7 +7145,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `benchmark.py measure --root samples/cli/arithmetic/prime_counter/main.omg
   --target linux_x86_64 --expected-exit 8` and commit the record plus the
   coverage row. Sibling re-mine name: PRIME-COUNTER-BENCHMARK-ROW.
-- **BENCHMARK-PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION.** Resolved — the
   checked-call-selection blockage that failed `math_proofs` (named on the
   sibling BENCHMARK-PROOF-SUBJECT-SELECTION row) is fixed. Contract-position
@@ -7204,8 +7194,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CALL-SELECTION, BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION,
   BENCHMARK-MEASURABLE-SUBJECT-CORPUS, BENCHMARK-DEPEND-FREE-RUNNABLE-
   SUBJECT.
-- **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
-- **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-REJECTED-ROW-RECORDING.** (new-scope) Give the benchmark record
+  schema a row-level non-applicable status. A `(subject, target)` whose
+  package-review settlement rejects the subject cannot be committed at all
+  today: `settle_package_review` in `tools/benchmark/benchmark.py` raises
+  `SystemExit` on failure, and the validator at
+  `tools/benchmark/benchmark.py:669-670` admits only per-metric `measured`,
+  `unavailable` or `skipped`. So `macos_x86_64` and `uefi_x86_64` CLI
+  subjects exist only as HOST_LEGS-declared matrix cells and never as
+  records. [benchmarks](wiki/drafts/benchmarks.md) asks for the opposite
+  twice, at `:127` and `:136` — record them as non-applicable, not as failed
+  compiles.
+
+  Owning files, each confirmed present: `tools/benchmark/benchmark.py` (both
+  the record writer and the `matrix` renderer),
+  `tools/tests/test_benchmark.py`, `wiki/drafts/benchmarks.md`, and
+  `tools/benchmark/records/`.
+
+  Acceptance: a committed record for `wrapping_square_sum` x `uefi_x86_64`
+  carrying an explicit non-applicable status with its settlement reason,
+  rendered as its own matrix row, with `python3 tools/tests/test_benchmark.py`
+  green on the extended schema.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS.** Mined candidate — covered.
   Sibling re-mine of the selection-row coverage recorded on the
   BENCHMARK-SELECTION-ROW-COVERAGE cluster (this section): contrast
@@ -7231,14 +7240,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `python3 tools/tests/test_benchmark.py` 21/21 green on linux x86-64.
   Open surface left to siblings: more *selection* rows (contrast/variant)
   and the unfilled host legs.
-- **BENCHMARK-SELECTION-MATRIX** — mined candidate; verify scope then implement.
-- **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
-- **BENCHMARK-SELECTION-VARIANT-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-STANDALONE-SUBJECT.** Depend-free benchmark subject. Verified scope: a subject with no `depend()` skips the shared std plumbing and is the only compile reaching a published artifact at this revision — `samples/cli/basics/standalone` landed: empty `Main::main` bound to all hosted `ProgramEntry` roots, ~25 s end-to-end compile on w9 Linux x86-64. Runtime leg stays `skipped` (`--no-run`): `ProcessExit` provider authority is bound to the std package identity and a subject-local boundary machine produces no provider plan, so the artifact cannot exit cleanly. Re-verified on 97eeaf222a: `benchmark.py measure --target linux_x86_64 --no-run --print` publishes an 8192-byte artifact, median compile 27.6 s, peak RSS ~146 MB, runtime `skipped`; no committed record row yet. Remaining: the committed record row under `tools/benchmark/records/` and the `wiki/drafts/benchmarks.md` coverage entry are fenced to sibling claims this wave.
-- **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
-- **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
-- **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
-- **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
@@ -7313,7 +7315,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   fixture's child re-runs the suite binary with `--exact cases::<test>`,
   which no longer matches the `source_diff_commands::cases::*` names, so the
   child runs 0 tests.
-- **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE.** — mined candidate. Verified
   scope (z131 at `e5bbe53956f`): re-mines the race-window residual the
   landed BUILD-DIR-HOST-ALIAS-COLLISIONS row assigns to
@@ -7355,7 +7356,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and
   C2L-RESIDUAL-FAILURE-ATTRIBUTION). No independent slice remains; sibling
   stub LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES carries the same resolution.
-- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
+- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.** Own the still-red
+  scalar-return source-custody family in `checked-trees-to-lowered-psi`.
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION names this row as its open owner;
+  the co-owner it also names, C2L-RESIDUAL-FAILURE-ATTRIBUTION, no longer
+  exists as a row. Members are attributed one by one in
+  `wiki/drafts/known_baseline_failures.md:415-434` and `:604-616`:
+  `owned_record_return_source` (3-4 members) plus
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`.
+
+  Two members route to **WRITE-ONLY-BORROW**'s claimed surfaces
+  (`src/unit/attached_unit*`, `src/scalar_graph`). One is owned nowhere else
+  and is the landable slice here:
+  `source_replay_requires_the_exact_affine_return_transfer` — mutating a
+  return transfer's `machine_symbol` is not rejected by
+  `terminal_production::TerminalProductionRequest::produce_artifact`, so a
+  substituted transfer replays instead of refusing. That is a source-replay
+  verification gap against the Responsibilities table in
+  [verification](wiki/spec/terminal-psi/verification.md), which holds that the
+  artifact verifier "cannot choose a weaker question based on the evidence
+  supplied". Owning files, each confirmed present:
+  `tests/owned_record_return_source.rs` (`:392` is the second member's panic
+  site), `tests/guarded_scalar_returns_source.rs`, `src/returns/`, and
+  `src/unit/attached_unit/composed_control/admission.rs`.
+
+  Acceptance: `cargo nextest run -p checked-trees-to-lowered-psi -E
+  'test(~owned_record_return_source)'` green 4/4, with the substituted return
+  transfer rejected rather than replayed.
 - **C2L-UNATTRIBUTED-FAILURE-TAIL.** Mined candidate; scope verified, tail
   still empty — fresh member-by-member reading at `23392bc467` (linux
   x86-64): 2183 run, 2127 passed, 56 failed. All 55 FAIL + the
@@ -7378,8 +7405,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
   RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
   UNATTRIBUTED-SET remain named on the parent row.
-- **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
-- **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
 - **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
   verified at 1edade1a48 — names the canary
   `tests/omega/pass/filesystem/native_wrapper_write_all_result` (the
@@ -7472,10 +7497,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   pass_canaries_compile still fails identically ("selected ProgramEntry
   establishment rejoins 0 Terminal attachment identities; expected one",
   47s compile) — the moved-failure persists; no in-fence slice exists.
-- **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
-- **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
-- **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
   main (sibling CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING resolution):
@@ -7550,8 +7572,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   recording the attributions into `wiki/drafts/known_baseline_failures.md`
   is fenced to that doc's live claims (LOWERED-UNIT-FAILURE-ATTRIBUTION,
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
-- **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
-- **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
   Verified scope: re-mines NORMALIZED-ABI-LOWERING's callback-transport
   bullet (TASKS.md:2273) — "the common route rejects every request carrying
   a callback in `native_realization/object_emission.rs`". That recorded
@@ -7568,7 +7588,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that owner's lane. Sibling re-mine name: REPLACEMENT-REJECTION-INVENTORY
   (replacement-side inventory, separately claimed).
 - **COMPARE-TEST-SELECTION** — mined candidate; verify scope then implement.
-- **COMPILER-BATCH-MANIFEST** — mined candidate; verify scope then implement.
 - **COMPILER-OBSERVATION-PRODUCTS** — mined candidate; verify scope then implement.
   Verified scope: the surface this name points at is deliberately closed —
   [product boundaries](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
@@ -7602,16 +7621,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that belongs to the parent COMPILER-PASS-PROFILE-TIMINGS row
   (psi_does_not_depend_on_omega forbids the dependency route).
 - **COMPILER-PASS-PROFILE-TIMINGS.** — advanced: the omega-side product legs now record into the `CompileTimings` accumulator the checked record carries. `CheckedCompilation::timings_mut` exposes it; `produce_retained_terminal_artifact` records `terminal-production`, `terminal-verification` and `native-realization-proposal` rows via take/put-back; the direct route carries `terminal-production` on `ProgramEntryTerminalArtifact::stage_timings` (merged back in `prepare_native_product`), and `NativeInputReuse` records `native-input-preparation` on cache miss. Enable+report legs landed (this wave): `CompileRequest::with_timings` reaches `PreparedCheckedSource::prepare`, which builds an `enabled` accumulator when asked; `CompileReport::timings()` carries each target's recorded ladder (`compiler -> tooling` dep edge `artifacts` is downward-legal per `workspace_layering_is_respected`), and `--timings` prints the report's stage rows after the command-level rows. Remaining leg: decompose the coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned timing carrier because `terminal-production` cannot depend on `artifacts` under `psi_does_not_depend_on_omega`; the prepared-project route (`PreparedLocalProjectNativeRequest`/`check_prepared_local_project`) also does not yet thread the flag. Witnessed on linux x86-64 at the pre-`c17b63d7592` green base (main is red there on `crossed_window`'s missing `CrossingDirection` arg — unrelated sibling landing): `timings_request_carries_the_recorded_stage_ladder_to_the_report` + `checked_admission_and_compilation_do_not_write_debug_dumps` pass; `compilation-report` + `assembled-syntax-to-checked-compilation` lib 93/93; `omega --lib` 16/16; architecture layering filter 14/14.
-- **COMPILER-PASS-PROFILING** — mined candidate; verify scope then implement.
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. Remaining: `PairOperandShape`'s twelve-variant product (literal position × result kind × auxiliary/scratch tail) and `PairUnitEffects`'s bound-consumer pairs (`BoundConsumerOperands`, `BoundEarlyClobberConsumerOperands`).
-- **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **CONCURRENT-PROTOCOL-EXTRACTION.** Mined candidate — resolved, authorization gate recorded (re-verified at `d32183a35c`). Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format" (line 138), and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it" (lines 399-400). Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION — all resolved same-way.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION.** — mined candidate; scope verified, authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
 - **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION and CONCURRENT-PROTOCOL-WHOLE-COMPOSITION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. No implementation slice exists to claim.
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE** — mined candidate; verify scope then implement.
-- **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTANT-LEAF-EXACT-CARRIER** — mined candidate; verify scope then implement.
-- **CONSTRUCTIVE-REAL-FOUNDATIONS** — mined candidate; verify scope then implement.
 - **COORDINATOR-OVEROWNERSHIP-AUDIT.** — mined candidate; scope verified, audit
   artifact exists and its actionable finding is landed. The row re-mines
   `wiki/drafts/coordinator_overownership_audit.md`, which swept every named
@@ -7626,7 +7641,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   optimized-semantic-wrapper codec — owned by DURABLE-CODEC-RELOCATION)
   all stand as recorded. Residual relocations are
   sibling items' moves, not audit work; no unclaimed slice remains.
-- **CRATE-ROOT-RESPONSIBILITY-AUDIT** — mined candidate; verify scope then implement.
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
   alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
   `36ffc8af87`), which names this row verbatim. Re-verified on linux
@@ -7784,7 +7798,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-D-REQUEST-TABLES (01:55Z). No unfenced slice remains; sibling
   re-mines of the same bound surface: CHAIN-MANIFEST-OCREQ-BINDING,
   CHAIN-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
-- **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
 - **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER** — mined candidate; verify scope then implement.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE.** — mined candidate; scope verified
@@ -7806,8 +7819,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Host fact: the instrumented route is not seed-host-gated — on linux x86-64
   at `669925b8b9` a `functions:4` measurement returned exit 0, 736 pairs,
   83,996,477 steps, a 3,170-byte receipt, in 111.5 seconds.
-- **DELTA-POST-FRONTEND-ALLOCATION-STRESS** — mined candidate; verify scope then implement.
-- **DEPENDENCY-FREE-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT.** Mined candidate — resolved,
   gate recorded at `867443a8fd`. The runtime leg needs a depend-free subject
   whose process completes cleanly, and two joined gates stand in the way.
@@ -7864,7 +7875,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `devin-w9-dependent-values` (ticket 6c47f5116a7c, expires ~22:20Z) already
   fences `proof_contracts/default_domains` for this item — coordinate before
   working it.
-- **DERIVATION-STORE-SEMANTIC-INDEX** — mined candidate; verify scope then implement.
 - **DIVISION-CANARY-ENTRY-BINDING.** Scope verified at ea025447fe — re-mines
   the surface CANARY-EXACT-ENTRY-SELECTION already owns ("exact entry
   selection for division/value canaries and entry binding"). The missing
@@ -7902,7 +7912,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   scalar-graph signature drops it ("computed borrow disagrees with its selected
   callee signature", checked-trees-to-lowered-psi structural_arguments gate) —
   the run fixture reads `self.seed` so both overloads retain the receiver.
-- **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
   [PIPELINE-OWNER-CONSOLIDATION](TASKS_OPTIMIZER.md) remaining-work bullet in
@@ -7942,7 +7951,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (4) `optimized_semantic_wrapper_object/codec` moves only after
   PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
   that owner — skip it while undecided.
-- **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
 - **DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **EDGE-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — sibling alias of the
   terminal-verifier cleanup-order row recorded under
@@ -7967,8 +7975,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   handoff that make an EFI host row possible at all). No implementable
   slice exists inside the current matrix fence; the promotion decision is
   a milestone statement, not a lane task.
-- **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
-- **EPSILON-BOOTSTRAP-CHAIN** — mined candidate; verify scope then implement.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION.** Scope verified at `54d5dc1cb1`:
   the extension point is concrete and bounded —
   `bootstrap/5_omega/scalar_compilation.epsilon` `fold_operator` admits 10 of
@@ -7985,9 +7991,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   d-composition/refinement acceptance gates live under `tests/epsilon`
   (claimed by DELTA-COMPILER until 21:48Z). Per FEATURE_LEDGER's decision
   method, extension also needs a concrete `D`-side use to cite.
-- **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
 - **EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
-- **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
 - **FILESYSTEM-SNAPSHOT-ISOLATION.** Verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
   already holds in `build-evaluation/src/evidence/filesystem_scope/
   preparation.rs` + `filesystem_scope.rs`. Captured source snapshots get a
@@ -8019,15 +8023,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **FMA-PROVIDER-PIPELINE-TRANSPORT.** — mined candidate; merged alias of
   X86-FMA-PROVIDER-TRANSPORT (verify-scope: the named tests confirmed the
   frontier; see that row for landed legs and the remaining transport work).
-- **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
-- **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
-- **GAMMA-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE** — mined candidate; verify scope then implement.
-- **GAMMA-CERTIFICATE-CHECKING** — mined candidate; verify scope then implement.
-- **GAMMA-CERTIFICATE-NATIVE-CHECK** — mined candidate; verify scope then implement.
-- **GAMMA-CERTIFICATE-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
-- **GAMMA-DERIVATION-CHECKER** — mined candidate; verify scope then implement.
 - **GAMMA-PROVISION-NATIVE-ACCEPTANCE.** Mined candidate — scope
   verified, folds into the gamma certificate-check cluster. The name
   resolves to the TASKS_BOOTSTRAP.md acceptance leg: run the
@@ -8099,9 +8096,34 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`local_relocation`, `run_relocation`, `local_schedule`), retiring each
   family's hand-rolled window scan.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
-- **GENERATED-CODEC-INDEPENDENT-VERIFICATION** — mined candidate; verify scope then implement.
+- **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Give generated wire codecs a
+  route to `Derived` trust that does not depend on an authored grammar
+  policy. [codecs](wiki/spec/layouts/codecs.md) realization table (`:17`)
+  grants `Derived` for an "Authored or generated body independently checked
+  against the public requirement", and its Agreement and trust section
+  (`:22-24`) still records "Independent generated-codec verification and
+  preserving-codec realizations remain implementation work".
+
+  Today a generated codec with no author-supplied policy is classified
+  `WireTrustClass::Admitted { authority: "Omega compiler" }`, carrying the
+  evidence line "generated body is not yet independently checked against the
+  public codec requirement"
+  (`omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs:161-186`).
+  The only existing route to `Derived` is opt-in and single-generator: an
+  authored `CompactBinary::plan` grammar policy evaluated against the schema
+  walk sets `policy_verified`
+  (`omega-rust/psi/semantics/build-time-evaluation/src/layouts/wire_plans.rs:155-176`,
+  landed `a77deb22d6`). So the compiler trusts its own generator by
+  assertion wherever no author wrote a policy.
+
+  Acceptance: a synthesized codec with no authored policy reports
+  `WireTrustClass::Derived` through a compiler-side independent check — the
+  existing pin `synthesized_codec_stays_admitted_without_an_authored_grammar_policy`
+  (`wire_protocol.rs:1480`) inverts, with
+  `policy_verified_generated_codec_reports_derived_trust` (`:1507`) still
+  green. Preserving-codec realizations are named in the same spec sentence
+  but are not this row.
 - **GENERIC-DYNAMIC-FAMILY-DISPATCH** — mined candidate; verify scope then implement.
-- **GENERIC-RETURNED-VIEW-LIFETIMES** — mined candidate; verify scope then implement.
 - **GENERIC-VIRTUAL-CALLS.** Mined candidate — scope verified, covered:
   same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet
   "Runtime-capable family calls in Psi checking
@@ -8114,7 +8136,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   method" — no independent slice exists under this stub. Sibling stubs
   on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH,
   GENERIC-VIRTUAL-DISPATCH.
-- **GEOMETRY-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
   "region alignment/expansion" parity gap). Resolved — the gap is already
@@ -8134,9 +8155,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING (the
   "alignment string parsing" gap), GEOMETRY-CLONE-SERIALIZATION,
   GEOMETRY-DEBUG-ASSERTIONS, GEOMETRY-NAMED-TRAIT-OPERATORS.
-- **GEOMETRY-ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
-- **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
-- **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
   app-board GEOMETRY-PARITY, source:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md)). Run the
@@ -8161,7 +8179,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `build/package-manager/review-<target>.txt` → `omega update --resume`.
   `verify.py` requires Python >=3.11 (`tomllib`); on 3.10 hosts run with
   a `tomli`-backed `tomllib` shim on `PYTHONPATH`.
-- **GEOMETRY-PARITY** — mined candidate; verify scope then implement.
 - **GEOMETRY-WINDOWS-LEG.** Mined candidate — resolved at `9beef2b045`:
   re-mines the same Windows leg of the app repo's GEOMETRY-PARITY acceptance
   that sibling row GEOMETRY-WINDOWS-VALIDATION (~this file, line 7842)
@@ -8267,9 +8284,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   whole-root and resolution-drift rejections stay green
   (`cargo nextest run -p build-evaluation --lib`).
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY.** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
-- **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
-- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
-- **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
   Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
   — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
   already catalogues the host through checked admission (which refuses on
@@ -8283,7 +8297,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
-- **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
   span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
   (verified `14e6f8f72e`). Verified at `96b4afed92e5`: every intrinsic
@@ -8364,7 +8377,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/multi_source_view_lifetimes.rs` and the crate README are claimed
   under GENERIC-RETURNED-VIEW-LIFETIMES (exp 22:27Z). No independent unclaimed
   slice exists here.
-- **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT.** Mined candidate — scope verified,
   already landed and enforced; same verdict as sibling row
   SCOPED-LOOKUP-MAP-AUDIT, whose surface this stub re-mines: the
@@ -8479,8 +8491,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   'test(~mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return)'`
   terminates with a pass or an explicit refusal instead of being killed, and a
   `--no-fail-fast` run of the crate reports no SIGTERM member.
-- **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
-- **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
   (Zergling-181): the "typed-to-one-sorted encoding" bullet of the bounded
   comparison in `wiki/drafts/matching_logic.md`, drafted in
@@ -8553,7 +8563,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `test_matching_logic_metrics.py` 16/16 green. Remaining lane legs:
   the slice-comparison harness's candidate columns fill under
   MATCHING-LOGIC-VERTICAL-SLICE's remaining lane legs.
-- **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
   at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
   adjudicated surface (chapter 14's recorded gap: a trait requirement
@@ -8575,7 +8584,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MATHEMATICAL-FOUNDATIONS-REAL, MATH-PROOFS-CALL-SELECTION-OCCURRENCE,
   MATH-PROOFS-DECLARATION-SELECTION.
 - **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
-- **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
 - **NATIVE-DIFFERENTIAL-MATRIX.** Mined candidate; scope verified at
   `ac4e4eee9b`: names the native-differential leg of the
@@ -8591,7 +8599,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   sibling suites are likewise claimed (RC-NATIVE-MATRIX-MACOS-ARM64 legs,
   RC-NATIVE-MATRIX-HOSTS, BASELINE-NATIVE-DIFF-*). Coordinate before working
   it.
-- **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-MATRIX-MATCHING-HOSTS.** Resolved — covered by owned sibling rows. The stub re-mines the [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix) "matching host" requirement: each hosted target's products executed and independently validated on its own host (`mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast` plus RC-SOURCE-SEMANTICS per host). The gate leg is landed under RC-NATIVE-MATRIX-GATE; the crate leg is NATIVE-DIFFERENTIAL-MATRIX; every required host row is separately owned and live — RC-NATIVE-MATRIX-LINUX-X86-64, RC-NATIVE-MATRIX-LINUX-ARM64, RC-NATIVE-MATRIX-MACOS-ARM64, RC-NATIVE-MATRIX-WINDOWS-X64 — with host coordination under RC-NATIVE-MATRIX-HOSTS, RC-NATIVE-MATRIX-HOST-RUNS, RC-NATIVE-MATRIX-HOST-LEGS and RC-NATIVE-MATRIX-HOST-EXECUTION. Missing/unavailable runners stay explicit open rows per the doc's platform table; nothing in this surface is unowned. No slice exists under this name.
 - **NON-X86-LAYOUT-RELAXATION.** — mined candidate; scope verified at `8734480a01`, no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
   Alias: **AARCH64-BRANCH-RELAXATION** names this same surface — no separate
@@ -8599,8 +8606,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`x86_rel8_selected` rejects `Architecture::Aarch64` as `UnsupportedTarget`
   in catalog.rs, and `hosted_sequences.rs` emits the out-of-range
   diagnostic). Dispatch it here — already resolved.
-- **OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
-- **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-ENTRY-BINDING.** Mined candidate; scope verified at
   163670cf6d — re-mines the bound OCREQ request-entry surface (sibling
   resolutions: CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING,
@@ -8677,7 +8682,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `omega` recompile equivalence. Sibling decompositions of the same gated
   rung: OMEGA-C, OMEGA-C-SELF-HOST-EDGE (both already annotated), OMEGA-D*,
   OCREQ-REQUEST-{BINDING,ENTRY-BINDING}.
-- **OMEGA-D** — mined candidate; verify scope then implement.
 - **OMEGA-D-COMPILER-REQUEST-TABLES.** Scope verified, fenced at
   `a0b906db93` — the stub re-mines the OMEGA-D OCREQ V1 request-table
   clause, whose named surface is already landed: per
@@ -8731,7 +8735,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-D-REQUEST-AND-SCALAR-COMPILATION until 00:07Z) and the
   `tests/epsilon` acceptance gates (claimed by DELTA-COMPILER until
   21:48Z).
-- **OMEGA-D-ENTRY-ADAPTER-RETIREMENT** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-AND-ENTRY-ROUTE.** Scope verified 2026-09-21: the mined
   stub re-covers the request-side + entry composition the OMEGA-D clause
@@ -8801,9 +8804,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/bootstrap/omega-outcome` by OMEGA-D-REQUEST-V1-TABLES (expires
   2026-09-21T01:24Z), and `tests/epsilon` by DELTA-COMPILER (expires
   2026-09-20T21:48Z).
-- **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-TABLE-COMPLETION.** — mined candidate; scope verified, implemented + gate-covered — re-mines the request-table leg of OMEGA-D (TASKS_BOOTSTRAP.md). On `main`, `bootstrap/5_omega/request_and_utf8.epsilon` (827 lines) parses the complete OCREQ V1 subject/invocation surface per `wiki/spec/build/compiler_request.md`: envelope identity, declared extents, package rows (name/lineage/revision/tree/content/member/role + snapshot rows incl. executable/content/target payloads), ordered edge rows (requester/scope/alias/target), root row and role, and invocation product/target/admissions — with first-missing-byte refusal coordinates. Exercised end to end by `tests/bootstrap/omega-request` (sealed OCREQ V1 request through the Gamma→Delta→Epsilon→D chain, exact OCOUT outcome frame). No separable slice: outcome-side tables are fenced by OMEGA-D-REQUEST-V1-TABLES (live claim on `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`), and the request spec file sits under the live OMEGA-D claim.
-- **OMEGA-D-REQUEST-TABLES** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-V1-TABLES.** Mined candidate; scope verified at
   `8a37f82686`: re-mine of the OMEGA-D EREQ v1 request clause — the
   request/outcome table surface of the first full Omega compiler in
@@ -8818,7 +8819,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-D-REQUEST-AND-ENTRY-ROUTE, OMEGA-D-REQUEST-AND-SCALAR-COMPILATION,
   OMEGA-D-REQUEST-OUTCOME-TABLES, OMEGA-D-REQUEST-ROUTE-ENTRY,
   OMEGA-D-REQUEST-TABLE-COMPLETION, OMEGA-D-REQUEST-TABLES.
-- **OMEGA-D-SCALAR-ALPHA-EMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-COMPILATION.** — mined candidate; scope verified, fenced.
   Re-mine of OMEGA-D's scalar-compilation leg (TASKS_BOOTSTRAP.md: extend
   parsed scalar operations and checked call/state sequencing through the
@@ -8838,9 +8838,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   REPLACEMENT (Jarod, exp ~05:25Z). No separable slice: the sibling
   OMEGA-D-SCALAR-{ALPHA-EMISSION,EMISSION-EXTENSION,OPERATION-FRONTIER,
   SEQUENCING} rows name the same file.
-- **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
-- **OMEGA-D-SCALAR-OPERATION-FRONTIER** — mined candidate; verify scope then implement.
-- **OMEGA-D-SCALAR-SEQUENCING** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
   OMEGA-PARSER-GATE-WINDOWS-VALIDATION's Windows x64 leg of the
   omega-parser bootstrap gate. The host-free surface is landed and
@@ -8860,7 +8857,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   headroom (RAM plus pagefile) above that. Residual: literal
   `sh tests/bootstrap/omega-parser/run.sh` under Git Bash + native
   `python3` on real Windows x64 hardware.
-- **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS-VALIDATION.** Windows x64 validation leg of the
   omega-parser bootstrap gate (sibling alias of OMEGA-PARSER-GATE-WINDOWS /
   OMEGA-PARSER-GATE-WINDOWS-ROUTE). Landed: `tests/bootstrap/omega-parser/run.sh
@@ -8889,7 +8885,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   WORKLOAD-CORPUS-AND-MULTIVERSIONING; this is the last unscoped stub on
   the surface and can fold there.
 - **OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION.** — mined candidate; scope verified, covered — same settled surface as resolved sibling OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (adjacent row, TASKS.md:8086): the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete disposition is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION in TASKS_OPTIMIZER.md; the codec-move leg is deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. Re-verified at `8ccd793fa8`: both wrapper modules still sit under `native-realization/src/` unrelocated and both module entrances still have no caller outside their own tests (lib.rs re-export only). No independent slice exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
-- **OPTIMIZED-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
   Verified scope: same orphan-owner surface as WRAPPER-OBJECT-OWNERSHIP's
   landed annotation (the `optimized_semantic_wrapper_{encoding,object}`
   modules in `native-realization/`) — "disposition" is the keep/move/delete
@@ -8922,7 +8917,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests/native-differential) is under sibling live claims this wave. No
   independent slice exists here; the row stays a re-mine pointer to
   PER-RULE-COVERAGE.
-- **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER.** Mined candidate — resolved:
   the name re-covers the edge-level cleanup gate order already pinned by
   the resolved sibling BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER row
@@ -8943,7 +8937,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   holding at `66a6ea93f7` (linux x86-64):
   `cargo nextest run -p terminal-verifier -E 'test(~discard) |
   test(~owned_successors)' --no-fail-fast` 15/15 pass.
-- **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** — mined candidate; scope
   verified, covered — re-mines the review-projection input-resolution clause
   in `wiki/spec/packages/review.md` ("read each fact from the earliest
@@ -9011,9 +9004,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
   here. Sibling stubs on this surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION,
   PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
-- **PACKAGE-INPUTS-PSI-FAILURES** — mined candidate; verify scope then implement.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
-- **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
   `0977a4249e`: the open reading is dependency-route attribution on the
   restricted-build grant join —
@@ -9047,7 +9038,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `manager/tests/locked_source_checking` by Devin's
   PACKAGE-LOCK-SOURCE-IDENTITY. Coordinate with those owners before working
   it.
-- **PAIR-RULE-DESCRIPTOR-AXES** — mined candidate; verify scope then implement.
 - **PARTIAL-OWNERSHIP-CLEANUP-EXPANSION.** Resolved — re-mine of **CML4**'s
   named remaining work, not an independent item. The surface is partial
   ownership cleanup per
@@ -9073,7 +9063,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   nonempty `residual_affine_discards` to
   `LoweringError::UnsupportedPartialAffineContinuation`. The expansion
   legs remain CML4's named work; no independent slice exists.
-- **PASS-CANARY-UNIT-PLAN-CLASS** — mined candidate; verify scope then implement.
 - **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
   stub names the physical-lane access-profile surface covered at `9ced81e046`
   ("backend: cover every access profile through the mixed structural rejoin"):
@@ -9111,8 +9100,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-REWRITE-ORPHANS, PIPELINE-SPILL-FAMILY-ORPHANS,
   PIPELINE-WRAPPER-OBJECT-ORPHAN, and the resolved POC-* family.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
-- **PIPELINE-SPILL-FAMILY-ORPHANS** — mined candidate; verify scope then implement.
-- **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
 - **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
   names the geometric half of placed access ([placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)):
   the referent geometry is the declared-carrier join plus path resolution and
@@ -9188,7 +9175,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
-- **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
 - **POC-NATIVE-WRAPPER-RELOCATION.** — scope verified 2026-09-20: the name
   re-mines the `optimized_semantic_wrapper_{encoding,object}` surface in
   `omega-rust/omega/compiler/native-realization/` — the wrapper object's
@@ -9264,7 +9250,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   terminator + codec + verifier + interpreter + realization leg — no
   file-local slice exists; coordinate with the parent owner lane.
 - **PRIME-COUNTER-BENCHMARK-ROW** — mined candidate; verify scope then implement.
-- **PRIME-COUNTER-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT.** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Partially resolved — the settlement
@@ -9303,7 +9288,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   separate staleness); `PortRead` (`in`) has no terminal-Psi operation yet;
   the macos x86-64 `native_hosted_target()` cfg arm remains fenced here;
   sibling translation-validation row `TV-PRIVILEGED-PORT-EFFECTS` is distinct.
-- **PRIVILEGED-SERVICE-ASM-ADMISSION** — mined candidate; verify scope then implement.
 - **PROCESS-EXIT-PORTABLE-OBSERVATION.** Mined candidate; scope verified at
   `b28abc01fe`: names the portable-observation leg of the
   [Process-exit contract](TASKS.md:~840) parent — "Terminal observations
@@ -9323,9 +9307,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   codec + verifier + interpreter + realization leg, not a file-local edit.
   Coordinate with the parent item's owner lane before working it.
 - **PRODUCER-CHECKER-BOUNDARY-AUDIT** — mined candidate; verify scope then implement.
-- **PRODUCER-CHECKER-DECISION-SEPARATION** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT.** — mined candidate; bounded audit at `8734480a01`, no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
-- **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS.** — mined candidate; residual slice
   implemented on branch `zergling/z161-program-entry-selection-exactness`.
   Scope verified: per-slot/per-schema selection already resolves the bound
@@ -9345,7 +9327,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Note: the `compiler` test binary currently requires a local stub for the
   sibling half-landed `ComponentEraJournalRoster` consumer (`2d8c5136cc9`
   after `20bd592af14`) — unrelated to this change; stub kept uncommitted.
-- **PROMOTION-REJOIN-EVIDENCE** — mined candidate; verify scope then implement.
 - **PROOF-AUTOMATION-WIDENING.** Verified `ac4e4eee9b`, re-verified
   `1edade1a480`: this names widening
   the bounded source-automation fragment in `validation/src/proof_contracts/
@@ -9444,7 +9425,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `call_requirements` under PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION (~04:00Z)
   and PROOF-SUBJECT-CALL-SELECTION (~05:39Z), `arithmetic_judgment` under
   the SIGNED-CALL-PREMISES family (~22:38Z).
-- **PROOF-SAMPLES-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROOF-SEARCH-DERIVATION-CACHE.** Resolved — the derivation recheck
   consultation is wired into `check_proof_plan`: a caller-supplied
   `ProofDerivationCache` (`checker::derivation_cache`, entered via
@@ -9464,7 +9444,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   including four new consultation tests in `checker/certificate/tests.rs`;
   `cargo check -p typed-trees-to-checked-trees` clean; `cargo clippy -p
   proof --all-targets` clean.
-- **PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green. Re-verified at `ff2f489bbff` (linux x86-64): pass_canaries_compile + fail_canaries_reject under the same filters both green.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
@@ -9574,7 +9553,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   action, and it stays until closure. No independent slice exists
   before the contract closes; residual stays on the open gate rows
   (RC-REPOSITORY-CLOSURE, RC-* gate/cluster rows).
-- **RC-DIAGNOSTICS** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS-CLOSURE.** — recorded at
   `wiki/drafts/rc_diagnostics_linux_x86_64.md` (refreshed `1edade1a480`,
   linux-x86_64): the `RC-DIAGNOSTICS` fail-canary row runs
@@ -9595,9 +9573,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Closure = respell/land those legs on another row run; sibling stubs
   RC-DIAGNOSTICS, RC-DIAGNOSTICS-GATE, RC-DIAGNOSTICS-STABILITY re-mine
   the same row.
-- **RC-DIAGNOSTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS-STABILITY.** — mined candidate; scope verified, coverage recorded. Sibling row RC-DIAGNOSTICS-CLOSURE (this section) already carries the measurement and names this stub as a re-mine of its row: the fail-canary leg `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment` ran red at `e76d715c8e` (wiki/drafts/rc_diagnostics_linux_x86_64.md) — 10 drifted canaries in 127.3s, 8 stale `expected.txt` fragments + 2 silent acceptances, 9 fixtures fenced to the RC-DIAGNOSTICS-GATE worker. Landed the one unfenced fixture on this row's run: `domains/boundary_operator_mutation_invalidates_domain` was rejecting earlier than its pinned site after `f1f9f898e2`'s exact call permissions — a bare `self.text` projection lends only immutable access, so the custody fence fired before `consume`'s contract check. Respelled to forward the stored `&mut` field through a `&mut` binding (`let t: &mut [u8] = self.text`, associated `Main::consume(t)`), which re-reaches the same invalidation rejection — `cannot prove requires contract for call consume from Main::main: t in [u8]::NoNul (invalidated by prior mutation of t)` — and `expected.txt` updated to that fragment. Re-witnessed green on linux x86-64 at `d74f2145b9` (`OMEGA_FAIL_CANARY_FILTER=boundary_operator_mutation_invalidates_domain` → fail_canaries_reject_with_expected_diagnostic_fragment PASS). Remaining 9 drifted fixtures stay fenced to the RC-DIAGNOSTICS-GATE worker.
-- **RC-GATE-STABILITY-REPAIR** — mined candidate; verify scope then implement.
 - **RC-HOST-RUNNER-LANES.** — mined candidate; scope verified at
   `797e99ead7`, currently fully covered: re-mines the per-host runner lanes
   of the release-record substrate — `tools/release/release_record.py` (landed
@@ -9618,10 +9594,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   exists. Sibling stubs on the same surface: RC-LINUX-ARM64-NATIVE-ROW,
   RC-LINUX-X86-64-GATE-LEDGER, RC-MATRIX-RUNNER, RC-NATIVE-MATRIX and its
   host-suffix family.
-- **RC-LINUX-ARM64-NATIVE-ROW** — mined candidate; verify scope then implement.
-- **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
-- **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-CLOSURE.** Scope verified at `29983459ec` (linux
   x86-64), open and structurally blocked — re-mines the release-matrix
   closure rule (`wiki/drafts/rust_compiler_completion.md`): the contract
@@ -9700,8 +9672,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   NATIVE-DIFFERENTIAL-MATRIX). Re-run per row when the fixture-migration
   families and host runners land; no independent slice exists under this
   name.
-- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOSTS.** — recorded at
   `wiki/drafts/rc_native_matrix_hosts.md` (revision 0977a4249e): all four
   required runner rows enumerated. linux_x86_64 red on a full
@@ -9719,10 +9689,36 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   boundary-entry root surface owned by ENTRY-CONTENT-ROOTS). Witness:
   `wiki/drafts/rc_native_matrix_linux_x86_64.md`. Re-run the row when that
   family closes.
-- **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
-- **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
-- **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY.** Measure the one release gate that has never produced
+  evidence. `RC-PCC-REPLAY` is a named gate of the eight-gate release matrix
+  (`wiki/drafts/rust_compiler_completion.md:39`, encoded at
+  `tools/release/release_record.py:72-84`): requested artifact/`.proof` pairs
+  round-trip, hostile or substituted evidence rejects before PCC-required
+  interpretation or lowering, and ordinary output still checks without
+  publishing PCC. Five of the other seven gates carry a per-host evidence
+  draft under `wiki/drafts/rc_*.md`; this one carries none, and the only
+  committed release record marks it "not completed — did not reach a verdict
+  within this leg's bound" (`wiki/drafts/release_record_e12b9e8e06.md:26`).
+
+  Why it does not terminate is probably already known. The gate's own command
+  is `nextest run -p checked-trees-to-lowered-psi -p terminal-codec
+  -p terminal-verifier -p terminal-interpreter
+  -p terminal-psi-to-abstract-operations --no-fail-fast`, and
+  `checked-trees-to-lowered-psi` contains the member that never returns a
+  verdict — see **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT**, which records it
+  SIGTERM'd at ~892s and ~900s. A `--no-fail-fast` run of that package cannot
+  finish while that member hangs, so this gate is blocked behind that
+  containment decision rather than behind anything PCC-specific. Confirm that
+  before attributing the gate's silence to anything else; if it holds, the
+  two rows land in order.
+
+  Use `cargo nextest run` — `mbx` is absent on this host, and the manifest's
+  `mbx` spelling is the contract's, not a requirement to use that driver.
+
+  Acceptance: a `wiki/drafts/rc_pcc_replay_<host>.md` record giving pass/fail
+  per named package for both manifest commands run verbatim at a named
+  commit, with every failure attributed to an owning row or family — the same
+  shape the five existing per-gate drafts use.
 - **RC-PLATFORM-RUN-RECORDS.** — scope verified 2026-09-20: re-mines the
   "required platform runs" contract in
   [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
@@ -9741,7 +9737,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-WINDOWS-X64-NATIVE-ROW, and matrix-running to RC-MATRIX-RUNNER. No
   independent unfenced slice exists here. Sibling re-mines:
   RC-PLATFORM-RUNNER-COVERAGE, HOSTED-PLATFORM-RUN-MATRIX.
-- **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
 - **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
   797e99ead7, re-verified at `9e3edc7be9` — re-mines the release-record
   run clause covered by RC-RELEASE-RECORD-AND-CLOSURE's verified row. The
@@ -9791,12 +9786,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-RELEASE-RECORD-RUN, RC-RELEASE-CLOSURE-RUN, and
   RC-RELEASE-RECORD-SUBSTRATE (the substrate leg is the landed part).
 - **RC-RELEASE-RECORD-RUN** — mined candidate; verify scope then implement.
-- **RC-RELEASE-RECORD-SUBSTRATE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY.** — measured gate state at a9fa1a4fe6 (Linux x86-64, cargo; `mbx` absent on this host). `cargo fmt --all -- --check` RED: 14 files drifted under 2026-09-20 landings — external-roots `interrupts/interrupt_table/{member_admissions.rs,tests.rs,tests/member_admission_and_publication.rs}` + `stack_and_fuel/stack_demand.rs`, compiler tests `layout_plans/interrupt_descriptor_tables.rs` + `module_machine_indices{,.rs,/comparisons.rs}`, `calling-conventions/src/lib.rs` (repaired beside this row), c2l `tests/integer_policy_realization.rs`, t2c `checks/multiplicity/{borrowed_windows,linear_obligations}.rs` + `checks/termination/progress/origins{,/tests,/tests/references}.rs`, validation `proof_contracts/domain_weakening.rs` + `value_custody/expression_types/match_dispatch.rs`. `cargo clippy --workspace --all-targets -- -D warnings` RED: `package-source` `tree/capture/traversal.rs:513` `permissions_set_readonly_false` (BUILD-PACKAGES-GATE fence — **repaired 2026-09-20 once that fence expired**: the cleanup now restores the directory's own recorded `Permissions` rather than clearing the readonly bit, which had been handing it back world-writable; `cargo clippy -p package-source --all-targets -- -D warnings` clean and 260/260 crate tests green, so the downstream crates this failure was masking are now reachable), `syntax-trees-to-symbol-resolved-trees` `symbols/type_references/queries.rs:76` collapsible-if, `validation` `machine_calls/structural_call_custody.rs:151` let-else; downstream crates unexamined past the first failure (9 `package-evidence` test unused-import warnings wait behind it). `cargo check --workspace --all-targets` RED: two stale test fixtures under live claims — `tests/native-differential/tests/abstract_publication/decision_custody.rs` (PSI_PASS_CATALOG grew to 7 with `StateSpecialization` in 9a9d1a8b32; GRAPH-FEATURE-PROJECTION-SCHEMA holds the file) and `tests/native-differential/tests/pipeline_ownership/fixtures/ordinary_graph_controls.rs` (`LegalizedScalarTerminator::Crash` added by bf8769cce1; STRUCTURAL-UNIT-CALL-GRAPH-JOINS holds the target). `omega-architecture-test --all-targets` RED 535/547: `glob_self_imports_never_grow_per_crate` — 8 new glob files (acquisition `tree/capture/traversal.rs`, optimization-unit-semantics `control_flow_cleanup/unreachable_private_machines/replay.rs`, c2l `retention/operation_crash_contracts.rs`, proof `checker/measurement.rs`, proof-admission `classicality.rs`, terminal-verifier `trusted_surface.rs` + `tests/structural_unit/self_claim_retirement.rs`, validation `value_custody/expression_types/result_type.rs`) — and an 11-test `boundary_ensures_*`/`symbolic_walk_*`/`provider_receiver` recast-witness family under today's boundary-frame commits (34ae9baa8a, e9769f34e5, 4bebb7da7a). `canary_suite` retired-domain row PASS. `nextest --workspace --lib` RED 15526/15621: selected-dispatch 32 (`boundary_dispatch` finite_family/generic_requirements/source_retention — UEFI-OS-HANDOFF fence), checked-trees-to-lowered-psi 30 (`composed_operand_catalogs`, `dynamic_composed_unit`, `structural_control_cases`), terminal-codec 10 (`block_wire` round-trips after f94e78ec39), package-manager 7 (review/candidate + capability_review; `operations` under TWO-AXIS fence), abstract-operations-to-abstract-operations 7 (`loop_invariant_scalar_motion` — GENERAL-LICM area), source-files-to-assembled-syntax 3 (`build_vocabulary`/`build_prelude` — same 7th-`Optimization` root as decision_custody), calling-conventions 2 ((X86_64,MachO) matrix rows — repaired beside this row), t2c 2, native-realization 1, a2t 1. Next action: sibling items repair their fenced rows; the calling-conventions row and the crate's fmt drift land here.
 - **RC-REPOSITORY-BASELINE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY-BASELINE-GREEN** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY-CLOSURE.** Close the `RC-REPOSITORY` gate row from [rust_compiler_completion](wiki/drafts/rust_compiler_completion.md): its command block (`cargo fmt --all -- --check`, `mbx clippy --workspace --all-targets -- -D warnings`, `mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast`, `mbx check --workspace --all-targets`, `mbx nextest run --workspace --lib --no-fail-fast`) must pass on one commit. Row measured 2026-09-20 at `a9fa1a4fe6` (Linux x86-64, cargo — no mbx): **open, all five commands red**. fmt: 16 unformatted files across external-roots interrupt_table/stack_demand, compiler layout_plans/module_machine_indices tests, calling-conventions, c2l integer_policy_realization, t2c2 multiplicity/termination-origins, validation domain_weakening/match_dispatch. clippy: `permissions_set_readonly_false` at `omega-rust/omega/packages/sources/acquisition/src/tree/capture/traversal.rs:513`. arch-test: 12/547 — glob-self-import ceilings grew in 7 crates; 9 boundary-ensures/symbolic-walk recast-witness rejections (RECAST lane in flight); 2 provider-receiver fixtures stale under the `Service<R>`-only service spelling. check: `omega-native-differential-test` `abstract_publication/decision_custody.rs:58` fixture declares 6 Psi catalog members vs 7 actual. libtests: 95/15,621 failed — selected-dispatch 64 (mostly `Service<R>`-spelling stale fixtures), terminal-codec 20 (wire-tag drift), package-manager 14, a2a2 14, sf2as 6, t2c2 4, calling-conventions 4, native-realization 2, a2t2 2 — most unattributed in [known_baseline_failures](wiki/drafts/known_baseline_failures.md). **Second-host datapoint, 2026-09-20 ~22:40Z at `5958706064`, macOS arm64 (cargo, no mbx).** This is a DIFFERENT host from the row's Linux x86-64 baseline, so the counts below are not a re-measurement of those numbers and must not be diffed against them; the delta from `8e870505f7` is board-only, no code. **Two of the five commands now pass on one commit.** (1) `cargo fmt --all -- --check` **GREEN**, zero drifted files — all 16 the row named are formatted. (2) clippy `--workspace --all-targets --no-deps -- -D warnings` **RED with exactly one error** repo-wide: `clone_on_copy` on `membership.clone()` (`ProofMembershipFact` is `Copy`) at s2s `preparation/generic_data/substitution.rs:274`, fenced to RUNTIME-VALUE-GENERICS (Devin, exp ~05:47Z). The row's own clippy blocker — `package-source` `permissions_set_readonly_false` — is repaired beside this note, and the `queries.rs:76` collapsible-if and validation `structural_call_custody.rs:151` let-else it named are both gone. (3) `omega-architecture-test --all-targets` **RED 573/575**, down to two names: `every_declared_custody_field_inventory_drives_a_substitution_matrix` (23 inventories across image-emission `installation_function_nested_custody.rs` and compilation-report `custody_tests.rs` — CUSTODY-MATRIX-HARNESS-MIGRATION's own in-flight fallout, since the gate cannot yet see the shared driver) and `glob_self_imports_never_grow_per_crate` (two files, each introduced by and fenced to its own author — see GLOB-SELF-IMPORTS-REPAIR's third slice). The nine boundary-ensures/symbolic-walk recast-witness rejections and the two provider-receiver `Service<R>` fixtures are gone. (4) `cargo check --workspace --all-targets` **GREEN**, zero errors with NO excludes — both stale native-differential fixtures the row named (`decision_custody.rs` Psi-catalog arity and `ordinary_graph_controls.rs`) are fixed, as are the eight compile errors the landing gate's `--exclude omega-native-differential-test --exclude compiler` had been hiding. (5) `nextest run --workspace --lib --no-fail-fast` **RED 13/16,169** (16,156 passed, 3 skipped, 1,086s): package-manager 6 (`operations::check_project::…retained_check_root_uses_final_consumer_bindings…`, `operations::compile_project::receiving_admission::…sufficient_policy`, and four `review::candidate::compilation::…` discovery/publication rows), checked-trees-to-lowered-psi 2 (`structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution` and `…ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`), compilation-report 1 (`pcc::native_evidence::section_round_trips_canonically`), compiler 1 (`native_publication_writes_only_declared_products`), external-roots 1 (`stack_and_fuel::fixed_fuel::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`), native-realization 1 (`exclusion_taking_entry_reaches_mechanism_adjudication`), and package-evidence 1 (`capture::quotients::total_direct_define_projects_one_deterministic_recoverable_review_row`). The selected-dispatch 64 / terminal-codec 20 / a2a2 14 clusters the row recorded do not appear on this host at this commit.
-- **RC-REPOSITORY-GATE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY-GATE-CLOSURE.** Mined candidate — scope verified,
   slice landed on `zergling/z93-rc-repository-gate-closure`. Re-mines the
   `RC-REPOSITORY` gate row ([RC-REPOSITORY-CLOSURE](wiki/drafts/rust_compiler_completion.md)
@@ -9889,9 +9882,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   entry_bindings` cohort (algorithm/interpreter/gui/collection/probe/
   rendering/simulation/text/system/arithmetic/all_samples).
 - **RC-REPRESENTATIVE-PROGRAMS-PER-HOST** — mined candidate; verify scope then implement.
-- **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
-- **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
-- **RC-SOURCE-SEMANTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-WINDOWS-X64-NATIVE-ROW.** Residual leg needs a Windows x86-64 host: execute the emitted PE (hosted_receiver_windows cfg-gated run) on its matching runner; compile-side lanes verified green 2026-09-20.
   Re-verified the gate shape at `d8041919ad`: nothing linux-runnable
   remains — the emitted-PE execution leg (hosted_receiver_windows
@@ -9942,7 +9932,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-STAGE-RULE-CATALOG (Devin/z88, exp 02:32Z), so the per-module
   conversion is claim-blocked this wave — the work item stays a named
   EXACT-MACHINE-SIMPLIFICATIONS sub-leg, not an independent surface.
-- **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
 - **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
 - **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
   Verified scope: the name re-mines WORKSPACE-ROLLOUT's exact-rule promotion
@@ -10007,7 +9996,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION.** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
 - **RUST-PRODUCER-RETENTION-POLICY.** Mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Re-verified at `9f48bb2a59` (Zergling-181): three same-item claims are live (Devin/rust-producer-retention-7fe4a4fc exp 01:30Z, Zergling-167 exp 00:20Z, zergling-196 exp 05:12Z) — do not re-mine while they stand. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
-- **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; verify scope then implement.
 - **RUST-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
@@ -10093,7 +10081,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SCAN-SCALAR-SCAN's re-opened note is stale per the sibling's merge
   analysis (`251699c4669d` joined the republished lineage back over
   `43329a3`).
-- **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-DISPATCH.** — mined candidate; scope verified, already landed. The stub decomposes Squalr-Omega `43329a3` ("squalr: port scalar scan, run-length encoder, and element-scan dispatch"), whose element-scan dispatch leg names `element_scan_dispatcher.omg` + the scalar scanners. SCAN-SCALAR-SCAN's re-opened note (written when the recorded gitlink sat on the republished `5ea4a17f3b` lineage) is stale: the recorded gitlink `251699c4669d` is merge `db64d58`'s join of that lineage back over `43329a3`, which is its ancestor — `git log` confirms `43329a3` and `251699c` ("merge: adopt wire-schema NormalizedRegion…") carry `squalr-engine-scanning`. Present on the recorded pin: `squalr-engine-scanning/src/scanners/element_scan_dispatcher.omg`, `scalar/scanner_scalar_iterative.omg`, `scalar/scanner_scalar_single_element.omg`, `structures/snapshot_region_filter_run_length_encoder.omg`, plus the api-side `scan_function_scalar.omg` / `planned_scan_type_scalar.omg` / `snapshot_filter_element_scan_plan.omg` surfaces. Verified on linux-x86_64 at `9e3edc7be9` (gitlink 251699c4669d): `omega --check` clean — squalr-engine-scanning 29 files, squalr-engine-api 30 files. Siblings SCALAR-SCAN-AND-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH, SCAN-SCALAR-SCAN decompose the same commit and share this state.
 - **SCAN-SCALAR-SCAN.** — verified e0927237: landed via the squalr
   pin advance `05416dd1a0` → Squalr-Omega `43329a3` ("squalr: port scalar
@@ -10118,7 +10105,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   original commit and share this reopened state.
 - **SCHEDULING-RELOCATION-UNIFICATION.** — mined candidate; scope verified, the unified admission landed and the family fold-in remains. EXACT-MACHINE-SIMPLIFICATIONS' flag asks for "one relocation rule over a member run and a destination point that derives the crossed positions and edges on every path between them and the traversals that gain or lose the run". `rewrites/relocation/` is that rule: `relocate_selected_member_run` takes only the run's first and last member and a destination instruction — no per-shape window locator — resolves the run as a contiguous span in one block, resolves the destination to any block's body position or terminator-carried instruction, and derives the whole legality surface through the shared primitives once: `block_edges::crossed_window` supplies crossed positions and path edges over every acyclic path to the destination (PATH_EDGE_LIMIT-bounded), the traversal audit re-derives gained edges (every predecessor edge into the destination must be crossed) and lost edges (every terminator exit of every crossed path-source block must be crossed) so multi-path windows no family enumerates — chain and diamond spans — admit identically, and `window_hazards::admit_run_relocation` applies the schedulable/coupled/memory-ordering/transport/settlement audits unchanged. `validate_member_run_relocation` re-admits and replays by restore-by-content under `ValidatedMemberRunRelocation`. Witnessed green on this head: `cargo clippy -p selected-instructions-to-selected-instructions --all-targets --no-deps -D warnings` clean, `cargo fmt` clean, `cargo nextest run -p selected-instructions-to-selected-instructions -E 'test(~relocation::)'` 469/469 pass on Linux x86-64 (18 new tests: cross-block single member and contiguous run, in-block backward/forward/inside-run landings, chain and diamond windows, gained/lost traversal refusal, entry and unreachable destinations, foreign last member, barrier/coupled/memory-ordering/edge-transport/settlement refusals, forged-proposal replay). Remaining: retire the per-shape families' own window locators in favor of this admission — the family entrances stay on EXACT-MACHINE-SIMPLIFICATIONS' flag and GENERAL-SCHEDULE-RELOCATION's migration legs; no `Optimization` descriptor or `selected_optimization` route exists for any relocation rule yet, which stays on the parent row's execution-route leg.
 - **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
-- **SEALED-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **SEED-HOST-CHAIN-LEGS.** Mined candidate. The bootstrap chain has two
   audited seed hosts — macOS arm64 (`alpha_arm64_macos`) and Windows x64
   (`alpha_x64_windows.exe`, `bootstrap/0_alpha/`). Every chain leg that
@@ -10195,7 +10181,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   "provenance ✓ — alpha_x64_linux reproduces from
   alpha_x64_linux.s (GNU binutils)", full gate VERIFIED).
 - **SEED-PARITY-ASSERTIONS.** — mined candidate; scope verified, already landed — same settled surface as sibling SEED-PARITY-ALIGNMENT (adjacent row): the name re-mines the seed↔reference assertion surface closed by `9e18f9cc11b`, where `tests/alpha/parity.sh` joins the per-opcode conformance battery with the diamond edge corpus and asserts exact exit-code + stdout agreement between the audited `alpha_x64_linux` container and `alpha_ref.py` under `require_bound_identity`. Re-verified green on linux x86-64 at `5b3caaf337c`: `sh tests/alpha/parity.sh` → 33 ok / 0 failed (the three "Illegal instruction" lines are the expected native trap cases). The other audited seeds execute on their own hosts (macOS arm64 / Windows x64 `diamond-py.sh` legs) — no unclaimed linux_x86_64 slice remains.
-- **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-DIRECT-READS.** Mined candidate — resolved,
   covered. Re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL
   surface (the direct-reads leg): `selected_optimization.rs` no longer
@@ -10284,7 +10269,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   selected-lowering analysis chain. The catalog surface stays fenced:
   ORPHAN-REWRITE-MODULES-CATALOG renewed to 04:27Z and sibling stub
   SELECTED-REWRITE-CATALOG-ROUTE is now also claimed (04:11Z).
-- **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
 - **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`,
   re-verified at `12ecbe98f8` (owner files `match_dispatch.rs` +
   `result_type.rs` present; 8 `expressions/match_*` canaries on disk):
@@ -10323,7 +10307,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SEMANTIC-WRAPPER-OWNERSHIP (z102 03:35Z, z167 00:58Z) and
   SEMANTIC-WRAPPER-OWNER-RELOCATION (z196 03:20Z). Same-item claims cannot
   be bypassed; do not re-mine.
-- **SERVICE-CARRIER-FIXTURE-MIGRATION** — mined candidate; verify scope then implement.
 - **SHARED-WORD-PREFIX-NATIVE-RUN.** — scope verified, resolved: the shared
   hexadecimal word-prefix gate (`tests/beta/compiler/word-prefix.{py,sh}`)
   runs natively on this host and passes — `sh
@@ -10341,11 +10324,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `3533f7d0e8` (w180, linux x86-64): `sh
   tests/beta/compiler/word-prefix.sh` again passes 736/736 natively and
   the edge-gate wiring + unlabeled refusal message are unchanged.
-- **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE** — mined candidate; verify scope then implement.
-- **SNAPSHOT-STORAGE** — mined candidate; verify scope then implement.
-- **SNAPSHOT-STORAGE-AND-FILTERING** — mined candidate; verify scope then implement.
 - **SOURCE-SEMANTICS-SUITE** — mined candidate; verify scope then implement.
-- **SPILL-FAMILY-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **SPILL-STAGES-OWNERSHIP.** — mined candidate; scope verified, covered — the
   ownership answer is already recorded on the canonical row and in the module
   itself. `unsequenced_spill_stages/` is a stage group of 18
@@ -10365,7 +10344,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
   (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership`
   (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
-- **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
 - **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
   (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
   fields carry wire schema numbers, so the synthesized `encode`/`decode` pair
@@ -10413,10 +10391,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   REGION-ALIGNMENT-EXPANSION and SQUALR-NAMED-TRAIT-OPERATORS hold
   item-level claims on the same lane. Coordinate with GEOMETRY-PARITY's
   owner lane before working it.
-- **SQUALR-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
-- **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-PARITY-GAPS** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
   `10d93dd448`, re-verified at `3533f7d0e8` — the `samples/apps/squalr`
   wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
@@ -10458,7 +10432,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   this wave (SQUALR-TARGETS-AND-THROUGHPUT 21:39Z,
   SQUALR-CLONE-SERIALIZATION 22:50Z), so every implementable path is
   fenced at verification time.
-- **SQUALR-PLUGIN-PACKAGES** — mined candidate; verify scope then implement.
 - **SQUALR-SEED-ALIGNMENT-PARSING.** — mined candidate; scope verified,
   covered. Compound re-mine: "seed" is the port-seed wording on the app
   board's GEOMETRY-PARITY residual list ("the mapped Rust behavior still
@@ -10473,8 +10446,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under this name; sibling re-mine names on the same surface:
   ALIGNMENT-STRING-PARSING, GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
-- **SQUALR-SEED-OPERATOR-PARITY** — mined candidate; verify scope then implement.
-- **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
 - **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
   verified, re-mine of the audited sibling row
@@ -10592,7 +10563,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   refusal is pinned as the intended contract by a test that names the
   architecture, and this row is removed.
 
-- **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **STALE-CUSTODY-GATE-EXPECTATIONS.** Scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
   is current, not stale. All five custody-named fail fixtures
@@ -10625,11 +10595,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   custody-specific stale-expectation slice remains on this row.
   Unrelated roster drift also observed: 6 unregistered fail fixtures under
   `tests/omega/fail` (roster.rs inventory check red at base).
-- **STARTUP-ENTRY-PLACEHOLDER-SWEEP** — mined candidate; verify scope then implement.
-- **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
-- **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
-- **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
-- **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **SUPPLIED-BYTES-SCAN.** Scope verified — real item, no bounded slice exists inside this repo's board. The stub names the Squalr submodule's ordered execution row (`samples/apps/squalr/TASKS.md`): port the scalar scan, snapshot storage, comparison dispatch, RLE encoder and query path through squalr-engine-api + squalr-engine-scanning — a multi-session port inside a submodule whose own AGENTS.md forbids placeholder bodies and requires the unchanged application command as outer acceptance. The submodule path is additionally wholesale-fenced at verification time (SQUALR-TARGETS-AND-THROUGHPUT, exp 21:39Z) and per the submodule's ordering it precedes CLI-COMMANDS, which gates on this row landing first. Execution belongs to the submodule's own lane under its pin — not a parent-repo slice; SQUALR-SUPPLIED-BYTES-SCAN is a sibling stub naming the same row.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
@@ -10790,7 +10755,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   green (15/15 at `b260ea749e`), with every re-recorded digest's citing
   justification revalidated in the landing commit's body.
 
-- **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS.** — verified 14e6f8f72e: the span-arm surface
   for every intrinsic family that produces coverage occurrences is
@@ -10809,7 +10773,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Row consumed — the residual
   stays on the live **TRANSLATION-VALIDATION.** item in
   TASKS_OPTIMIZER.md.
-- **TV-OPERATOR-APPLICATIONS-REPLAY** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-DISPOSITION.** Mined candidate; scope verified at
   a4ffd1aff8 — fifth mined stub for the same directory; the full verified
   scope, family inventory, dependency chain and fence map are recorded on
@@ -10822,8 +10785,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `0f5ae41e7d` (z181): fences unchanged —
   POC-SPILL-FAMILY-SEQUENCING still holds the wholesale
   `selected-instructions-to-register-homes` dir; claim returned exit 2.
-- **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
-- **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE.** Mined candidate — resolved at
   `0f5ae41e7d`: one of the four mined duplicates the
   UNSEQUENCED-SPILL-STAGES-DISPOSITION row (~this file, line 10032) names
@@ -10857,7 +10818,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `runtime_spill/slot.rs` still represent competing slot-reuse owners.
   Acceptance and physical correspondence stay on the optimizer board; this
   item does not add a second spill implementation.
-- **UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **WAIT-WAKE-SUBSTRATE.** Scope verified — authorization gate recorded.
   The name mines chapter_18's "Waitable Contracts: Retained Substrate
   Direction" (`wiki/language_guide/chapter_18_concurrency.md` §331: "a
@@ -10889,7 +10849,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-EXTRACTION,
   WHOLE-COMPOSITION-INTERACTION-EXTRACTION.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION.** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
-- **WINDOWS-ALPHA-CONFORMANCE-LEG** — mined candidate; verify scope then implement.
 - **WINDOWS-FILE-TIME-CARRIER-RESPELL** — mined candidate; verify scope then implement.
 - **WINDOWS-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified,
   covered. The stub is the "unsigned carrier" clause of
@@ -10908,13 +10867,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   idiom does not recur. Sibling stubs resolved on the same clause:
   WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
   WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
-- **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
 - **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER.
 - **WORKLOAD-CORPUS.** Mined candidate; scope verified (re-verified at
   0f5ae41e7d), authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg (the versioned workload corpus that GRAPH-COST-MODEL-STUDY's `predicted_cost_delta` comparison is missing). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records. Same verdict already recorded on sibling GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WORKLOAD-MULTIVERSIONING.** Scope verified, authorization gate recorded (re-verified at `2e1db3ba3e2`; source doc unchanged since `f3be428d4ae`). Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's multiversioning leg (specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: multiversing is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE — still in flight under a live claim) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. Same verdict already recorded on siblings WORKLOAD-CORPUS and GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
-- **WORKSPACE-ROLLOUT** — mined candidate; verify scope then implement.
-- **WR-REJOIN-LEGS** — mined candidate; verify scope then implement.
 - **WRITE-ONLY-BORROW-RESIDUE.** Verified scope: re-mines
   **WRITE-ONLY-BORROW**'s enumerated remaining work
   (TASKS.md:2323): aggregate/[copy]-sum replacement, domain-qualified
