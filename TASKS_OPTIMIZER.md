@@ -737,8 +737,8 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     WORKSPACE-ROLLOUT in wave w9 — arrange the handoff there before the
     catalog work proceeds.
   - Separate validation from proposal: `copy_removal`, `redundant_extension`,
-    `load_forwarding`, `constant_boolean`, the scheduling relocation family,
-    and `dead_compare`'s dead and redundant families now re-derive the
+    `load_forwarding`, `constant_boolean`, `constant_branch`, the scheduling
+    relocation family, and the `dead_compare` families now re-derive the
     legality contract without the producer's `admission` routine — a wrong
     legality decision fails their validators even when the proposal matches
     the emitted edit, and each validator proves it on a forged proposal in
