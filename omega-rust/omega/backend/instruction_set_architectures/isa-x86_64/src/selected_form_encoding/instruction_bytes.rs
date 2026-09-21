@@ -511,7 +511,7 @@ pub(crate) fn encode_unchecked(
                 SelectedInstructionKind::WrappingShiftLeftI64
                 | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 4,
                 SelectedInstructionKind::WrappingShiftRightU64
-                | SelectedInstructionKind::ExactShiftRightU64 { .. } => 6,
+                | SelectedInstructionKind::ExactShiftRightU64 { .. } => 5,
                 _ => 7,
             };
             append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
