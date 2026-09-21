@@ -639,6 +639,67 @@ fn admitted_receiver_entry_rejects_callback_occupancy() {
     );
 }
 
+/// A thunk's emitted signature is validated against its settlement's boundary
+/// entry plan; a settlement declaring a foreign boundary signature rejects
+/// instead of materializing a private function its caller cannot enter.
+#[test]
+fn callback_thunk_signature_must_match_its_boundary_entry_plan() {
+    let (produced, signature, plans) = entry_fixture(
+        "data Main {}\nmachine Main::launch() {}",
+        target::TargetProfile::WindowsX64,
+    );
+    let (artifact, _, _, _, _, _) = produced.into_parts();
+    let target = signature.target_slot().owner.native_target();
+    let (thunk_artifact, receipt) =
+        crate::tests::native_realization::callback_custody::callback_thunk_artifact();
+    // The thunk machine's own signature is (u64) -> u64; settle it under a
+    // boundary plan declaring a second u64 parameter.
+    let foreign_boundary = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        calling_conventions::CallingPolicy::native_for_target(target),
+        &calling_conventions::CallSignature {
+            parameters: vec![
+                calling_conventions::ValueShape::integer(8, 8),
+                calling_conventions::ValueShape::integer(8, 8),
+            ],
+            result: Some(calling_conventions::ValueShape::integer(8, 8)),
+        },
+    )
+    .expect("a two-parameter boundary plan evaluates");
+    let thunks = [
+        crate::tests::native_realization::callback_custody::callback_thunk_settlement(
+            &thunk_artifact,
+            foreign_boundary.plan(),
+            receipt,
+            0,
+            "__omega_private_callback_0",
+        ),
+    ];
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let rejected = crate::realize_native_artifact(
+        artifact,
+        NativeRealizationRequest {
+            callback_thunks: &thunks,
+            ..request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            )
+        },
+    )
+    .expect_err("a thunk whose boundary signature drifts rejects");
+    assert!(
+        rejected.diagnostics().iter().any(|diagnostic| diagnostic
+            .message
+            .contains("signature drifts from its boundary entry plan")),
+        "{:?}",
+        rejected.diagnostics(),
+    );
+}
+
 #[test]
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     let (produced, signature, plans) =
