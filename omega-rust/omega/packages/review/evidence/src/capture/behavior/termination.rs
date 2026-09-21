@@ -44,30 +44,30 @@ pub(crate) fn project_trait_requirement_termination(
         }
     }
     project_termination_with_subject(compilation, &requirement.termination_guarantee, |root| {
-        let parameter = parameters
-            .iter()
-            .find(|parameter| parameter.symbol == root)
-            .ok_or_else(|| {
+        if let Some(parameter) = parameters.iter().find(|parameter| parameter.symbol == root) {
+            if parameter.is_self {
+                return Ok(PackageReviewProgressSubject::Receiver);
+            }
+            let position = parameters
+                .iter()
+                .filter(|candidate| !candidate.is_self)
+                .position(|candidate| candidate.symbol == root)
+                .expect("matched non-self requirement parameter must have an ordinal");
+            let position = u32::try_from(position).map_err(|_| {
                 vec![Diagnostic::error(format!(
-                    "public trait requirement `{}` has a termination premise outside its parameter telescope",
+                    "public trait requirement `{}` has too many parameters for portable review evidence",
                     requirement.name
                 ))]
             })?;
-        if parameter.is_self {
-            return Ok(PackageReviewProgressSubject::Receiver);
-        }
-        let position = parameters
-            .iter()
-            .filter(|candidate| !candidate.is_self)
-            .position(|candidate| candidate.symbol == root)
-            .expect("matched non-self requirement parameter must have an ordinal");
-        let position = u32::try_from(position).map_err(|_| {
-            vec![Diagnostic::error(format!(
-                "public trait requirement `{}` has too many parameters for portable review evidence",
+            Ok(PackageReviewProgressSubject::Parameter(position))
+        } else if let Some(subject) = declaration_subject(compilation, root)? {
+            Ok(subject)
+        } else {
+            Err(vec![Diagnostic::error(format!(
+                "public trait requirement `{}` has a termination premise rooted at neither a parameter nor a public declaration",
                 requirement.name
-            ))]
-        })?;
-        Ok(PackageReviewProgressSubject::Parameter(position))
+            ))])
+        }
     })
 }
 
@@ -99,26 +99,54 @@ pub(crate) fn project_machine_parameter_termination(
         }
     }
     project_termination_with_subject(compilation, &signature.termination_guarantee, |root| {
-        let parameter = parameters
-            .iter()
-            .find(|parameter| parameter.symbol == root)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "public static-machine parameter on `{declaration_path}` has a termination premise outside its parameter telescope",
-                ))]
-            })?;
-        if parameter.is_self {
-            return Ok(PackageReviewProgressSubject::Receiver);
+        if let Some(parameter) = parameters.iter().find(|parameter| parameter.symbol == root) {
+            if parameter.is_self {
+                return Ok(PackageReviewProgressSubject::Receiver);
+            }
+            let position = parameters
+                .iter()
+                .filter(|candidate| !candidate.is_self)
+                .position(|candidate| candidate.symbol == root)
+                .expect(
+                    "matched non-self machine-parameter contract parameter must have an ordinal",
+                );
+            Ok(PackageReviewProgressSubject::Parameter(
+                portable_parameter_position(position)?,
+            ))
+        } else if let Some(subject) = declaration_subject(compilation, root)? {
+            Ok(subject)
+        } else {
+            Err(vec![Diagnostic::error(format!(
+                "public static-machine parameter on `{declaration_path}` has a termination premise rooted at neither a parameter nor a public declaration",
+            ))])
         }
-        let position = parameters
-            .iter()
-            .filter(|candidate| !candidate.is_self)
-            .position(|candidate| candidate.symbol == root)
-            .expect("matched non-self machine-parameter contract parameter must have an ordinal");
-        Ok(PackageReviewProgressSubject::Parameter(
-            portable_parameter_position(position)?,
-        ))
     })
+}
+
+/// A premise root outside the parameter telescope still certifies when it
+/// names a public data, domain, or machine declaration, matching the
+/// declaration-subject route of `behavior/policy/termination.rs`.
+fn declaration_subject(
+    compilation: &PackageReviewInput<'_>,
+    root: SymbolHandle,
+) -> Result<Option<PackageReviewProgressSubject>, Vec<Diagnostic>> {
+    let is_public_declaration = compilation
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == root && data.is_public)
+        || compilation
+            .domain_definitions()
+            .iter()
+            .any(|domain| domain.symbol == root && domain.is_public)
+        || compilation
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == root && machine.is_public);
+    if !is_public_declaration {
+        return Ok(None);
+    }
+    nominal_identity(compilation, root)
+        .map(|identity| Some(PackageReviewProgressSubject::Declaration(identity)))
 }
 
 fn project_termination_with_subject(
