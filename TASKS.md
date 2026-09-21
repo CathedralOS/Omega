@@ -8715,6 +8715,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CHAIN-MANIFEST-GATE-PREFIX-BINDING, GATE-LOCAL-DRIVER-PREFIX-BINDING.
   Remaining open legs on the manifest stay named in their own rows (`omega0`/
   `omega` tapes under OMEGA-C; certificates and admission records per edge).
+  Re-verified at `a84ebca9720` for the CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING
+  stub: the bullet stays struck in TASKS_BOOTSTRAP.md (:278), the closing
+  commit `e1fba5f523` is an ancestor of main, and no residual exists under
+  this stub's name.
 - **GENERAL-LICM.** — mined candidate; verify scope then implement.
 - **GENERAL-RELOCATION-ADMISSION.** Mined candidate — slice landed
   2026-09-21. Re-mines the same EXACT-MACHINE-SIMPLIFICATIONS "one
