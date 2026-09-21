@@ -1655,6 +1655,22 @@ Owners include
   the external-roots subtree under `RC-REPOSITORY-BASELINE-GREEN` (~23:46Z)
   and `AP-BRINGUP` (~01:40Z).
 
+  Re-verified at `3dac85e5cc` (z146, linux x86-64): the source-side gate
+  still holds after this wave's issuance landings (`851052b4f8` constrained-
+  result witness spelling, `15f93d0aa7` foreign-receipt rejection,
+  `aef80b5cf6` provider-backed field classification) — `cargo nextest run
+  -p typed-trees-to-checked-trees checks::content` is now 14/14 green, up
+  from the recorded 10/10 at `a0591618c7ba`. The open frontier is
+  unchanged: the provider-planning/native-settlement join to the installed
+  occurrence has not landed, and every implementing surface stays under a
+  live claim — `execution/unit/providers.rs` + `execution/unit/types`
+  under PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z), `external-roots`
+  subtrees under NEW-FRAB-FOREIGN-STORAGE-SPEC-ALIGNMENT (~16:08Z) and
+  EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), `platform_bringup/uefi_bootstrap`
+  under UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z), with the boundary-ABI lane
+  held by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). No independent slice
+  remains open inside this row.
+
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
   route and exact occurrence through independent replay. Reject forged source
   construction, foreign/replayed receipts, substituted geometry and duplicate
