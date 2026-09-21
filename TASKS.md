@@ -15044,6 +15044,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-HOST-RUNNER-LANES.** — mined candidate; scope verified at
   `797e99ead7`, currently fully covered: re-mines the per-host runner lanes
 - **RC-DIAGNOSTICS-GATE** — mined candidate; verify scope then implement.
+||||||| parent of caff753b494a (board: RC-DIAGNOSTICS-GATE resolved — fixture work landed on main)
+- **RC-DIAGNOSTICS-GATE** — mined candidate; verify scope then implement.
+- **RC-DIAGNOSTICS-GATE.** Resolved — the fail-canary gate leg's fixture
+  work landed on main ahead of this wave. The stub names the
+  `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+  gate that `wiki/drafts/rc_diagnostics_linux_x86_64.md` measured red with
+  10 drifted canaries at `e76d715c8e` (8 stale `expected.txt` fragments,
+  2 silent acceptances). Current state at `a4d396d0de46`: six wording
+  fixtures respelled and `providers/slot_plan_ambiguous`'s `build.omg`
+  re-bound to all four targets so its two-covering-plans ambiguity fires
+  again — filtered run all-7 green on linux x86-64 (`3ba619a81098`);
+  `generics/colon_bound_rejected` re-bound through a `domain<T: copy>`
+  head so its original colon-bound check fires again (`3a505ad6ff5e`);
+  `ownership/linear_ambiguous_state_result_mapping` re-pinned to the
+  production-route refusal (`conditional result custody requires Terminal
+  exit-alternative correspondence`) and moved off the checked-only
+  roster, and `calls/guarded_value_call_terminal_rejected` graduated to
+  `pass/calls/guarded_value_call_computed_argument_exit` after upstream
+  discharged the spliced-continuation obligation (both `273e0d18e9bc`);
+  the tenth, `domains/boundary_operator_mutation_invalidates_domain`,
+  was respelled by RC-DIAGNOSTICS-STABILITY's landed slice
+  (`2e1db3ba3e`). Residual: the gate's green runs are per-revision
+  filtered witnesses; a full unfiltered suite witness plus the
+  matrix-row closure belong to RC-DIAGNOSTICS / RC-DIAGNOSTICS-CLOSURE.
 - **RC-DIAGNOSTICS-STABILITY** — mined candidate; scope verified, coverage recorded. Sibling row RC-DIAGNOSTICS-CLOSURE (this section) already carries the measurement and names this stub as a re-mine of its row: the fail-canary leg `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment` ran red at `e76d715c8e` (wiki/drafts/rc_diagnostics_linux_x86_64.md) — 10 drifted canaries in 127.3s, 8 stale `expected.txt` fragments + 2 silent acceptances, 9 fixtures fenced to the RC-DIAGNOSTICS-GATE worker. Landed the one unfenced fixture on this row's run: `domains/boundary_operator_mutation_invalidates_domain` was rejecting earlier than its pinned site after `f1f9f898e2`'s exact call permissions — a bare `self.text` projection lends only immutable access, so the custody fence fired before `consume`'s contract check. Respelled to forward the stored `&mut` field through a `&mut` binding (`let t: &mut [u8] = self.text`, associated `Main::consume(t)`), which re-reaches the same invalidation rejection — `cannot prove requires contract for call consume from Main::main: t in [u8]::NoNul (invalidated by prior mutation of t)` — and `expected.txt` updated to that fragment. Witnessed green on linux x86-64 at `2e1db3ba3e` (`OMEGA_FAIL_CANARY_FILTER=boundary_operator_mutation_invalidates_domain` → fail_canaries_reject_with_expected_diagnostic_fragment PASS). Remaining 9 drifted fixtures stay fenced to the RC-DIAGNOSTICS-GATE worker.
 - **RC-GATE-STABILITY-REPAIR** — mined candidate; verify scope then implement.
 - **RC-HOST-RUNNER-LANES.** Mined candidate; scope verified at
