@@ -17074,6 +17074,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **MATCH-SELECTIVE-LOWERING** under a live claim on
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
   (~07:39Z at this check); no independent slice exists under this name.
+- **SELECTIVE-EVALUATION-EXPANSION.** Resolved 2026-09-21 — named sibling
+  re-mine of the selective-evaluation parser surface settled on
+  **SELECTIVE-ARITHMETIC-EXPANSION**'s row above, which lists this stub
+  verbatim among its sibling re-mines. Every expansion leg
+  (owned/nonnumeric results, structural/case/domain patterns,
+  parameter/projected/borrowed custody) is owned by
+  **MATCH-SELECTIVE-LOWERING**; its named owner files
+  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
+  are present, and `result_type.rs` (with `reference_values.rs`) sits
+  under RC-REPOSITORY-GATE-CLOSURE's live path fence (~17:31Z at this
+  check). Re-verified at `c924529921`: no independent slice exists under
+  this name.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE.** Mined candidate; scope verified
