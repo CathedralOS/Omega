@@ -9411,7 +9411,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that owner's lane. Sibling re-mine name: REPLACEMENT-REJECTION-INVENTORY
   (replacement-side inventory, separately claimed).
 - **COMPARE-TEST-SELECTION.** — mined candidate; verify scope then implement.
-- **COMPILER-OBSERVATION-PRODUCTS.** — mined candidate; verify scope then implement.
+- **COMPILER-OBSERVATION-PRODUCTS.** — mined candidate; scope verified,
+  resolved as a deliberately closed surface with no authorized slice.
   Verified scope: the surface this name points at is deliberately closed —
   [product boundaries](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
   state compilation produces only the requested product and diagnostics
