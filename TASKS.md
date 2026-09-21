@@ -13482,6 +13482,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (request survives to `checked.restricted_build_requests()`).
   Verified at head fetch on linux x86-64; no live claim fences the three
   scoped files.
+- **NEW-BENCHMARK-RECORD-NOTE-DISCIPLINE.** Inserted row — minted name
+  (planner scope: `tools/benchmark/records/structural_proofs__linux_x86_64__default.json`
+  + `tools/benchmark/README.md` + `wiki/drafts/benchmarks.md`). Scope verified
+  at `52d95a9d76f4` on linux x86-64: mines the field-note ruling at
+  `wiki/drafts/benchmarks.md:202` (record `notes` must describe the
+  measurement — subject/leg/host — not the lane that ran it; re-measurement
+  of an existing cell is a refresh row, not a new item). The scoped record's
+  note still leads with the `z125` lane label the ruling forbids, and
+  README's `notes` schema row carries no discipline text; 5/10 committed
+  records also have empty `notes` (describe-only discipline would let a
+  re-measure legitimately leave them empty). Landed the README leg;
+  the record-note rewrite and any benchmarks.md application marker are
+  fenced under BENCHMARK-PROOF-SUBJECT-SELECTION (Zergling-126, ~14:19Z
+  Sep 21 — both `tools/benchmark/records` and `wiki/drafts/benchmarks.md`).
 - **NEW-BOARD-DUPLICATE-STUB-SWEEP.** Inserted row — sweep executed at
   `96bc0ef81043`+ head fetch (Zergling-52, linux x86-64). Removed 61
   duplicate bare `- **NAME** — mined candidate; verify scope then
