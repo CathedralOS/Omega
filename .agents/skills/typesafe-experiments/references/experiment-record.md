@@ -1645,3 +1645,228 @@ Follow-ups to the corpus-scale run, `build/experiments/proof-advisor-multiclause
 - Capability-gap verdicts on other_rejection sample-reviewed (6/6 correct):
   proof-only Nat/Peano/Interval layout fences and closed-projection-fragment
   boundaries — the "stop debugging, machinery is missing" routing class.
+
+## 2026-09-19 (arch-bind) — requirement-bound architecture assembly
+
+`build/experiments/arch-bind/` (PROTOCOL.md, cases.json, bind.py, frozen.json,
+request/response/batch receipts, response-v2.json, REPORT.md). New judgment
+class tested: a generator proposes candidate Omega data architecture; Jev
+binds each element to a stated requirement (forward), checks requirement
+coverage (backward), picks types, judges [copy] properties; code assembles
+the surviving struct. Five pass-corpus fixtures as gold; coordinator-authored
+candidates padded with 22 orphans, 8 requirement-derivable wrong types, and
+one missing required field (f2 Vec2.y).
+
+Frozen gate: FAIL on one of five checks — false-gap rate 22/31 vs <=1/4.
+Everything else passed strongly:
+
+- Bind: orphans 20/22 vs lexical baseline 5/22; gold false-drops 2/43 vs
+  12/43; provenance 40/41 vs 28/31. Kept-orphans are the predicted fuzzy
+  class (entity_count, max_particles — plausible-utility count fields).
+  f5 enum assembled byte-identical to gold.
+- Type: 39/40 exact-gold, 7/8 planted-wrong corrected (u64->i32 for stated
+  negative velocity, [P;10]->[P;2] for stated counts, i32->Point for named
+  payloads). Single miss f4 Main.h (Point not Holder) is coherent with its
+  bind miss and is compile-visible downstream.
+- Copyable: 14/14.
+- Coverage: the 22 "false gaps" decompose to ~6 TRUE flags (every planted
+  wrong type flagged from the requirement side — bidirectional sabotage
+  detection), behavioral requirements a data-only candidate set cannot
+  satisfy, and unrepresentable [copy] declaration text. Genuine misses ~3.
+  Label bug found and kept frozen: expected-satisfied assumed gold, but
+  coverage judges candidates AS PROPOSED.
+- Exploratory v2 arm (data-scoped coverage question, post-hoc): retained
+  6/7 real-gap flags incl. f2.R1 at 0.15, cut false flags to ~3. Development
+  data only, not the gate.
+
+Cost: 5+5 requests, 1.7s+1.5s, ~43K input / ~9.6K output tokens. Python 3.11
+stdlib, Windows only. Limitations: coordinator-authored candidates (not a
+real generator), atomic authored requirements, no states/transitions, no
+omega --check leg, 5 fixtures one run unblinded labels.
+
+Standing hypothesis for next probe: the coverage question's strictness is a
+feature — it caught sabotage outside its design — but labels and question
+must agree on "satisfied given THESE candidates" vs "satisfied as a spec".
+Next legs if continued: real generator (SWE worker) candidates; vaguer
+requirements; states/transitions in the candidate vocabulary; assembled
+output through omega --check as the deterministic oracle.
+
+---
+
+## 2026-09-19 — arch-live: real generator -> binder -> splice -> omega --check
+
+Follow-up to arch-bind replacing coordinator-authored candidates with real
+generative output. 5 fresh problems; 5 subagent_general workers (SWE-2 Max,
+children of coordinator session — the planned sibling `devin` CLI arm was
+blocked by a CLI auth defect: dispatch rejects the credentials its own
+login stores; see GENERATORS.md). Each wrote gen/p*/main.omg and iterated
+`omega --check` clean. Extraction -> Jev bind/type/copyable + data-scoped
+and whole-program coverage -> splice none+unreferenced -> check both arms.
+
+Frozen facts:
+
+- Generator: 5/5 PASS under trusted coordinator-run --check. 31 elements,
+  all machine-referenced. Workers found the checked-out omega.exe was
+  stale (p5 rebuilt it) and that corpus-style `omega_language_std` imports
+  need a sibling build.omg (p5 wrote one; ~5 min package-path check vs
+  ~3 s bundled-import).
+- Bind: 31/31 elements justified to a requirement, 0 orphans — the
+  instructed-tight generator produced no unrequested machinery. Loose
+  provenance on multi-covered elements (AllRedForNs->R3 not R4).
+  Scratch temporaries (idx, tmp) BOUND here vs DROPPED in arch-bind —
+  same fuzzy class, opposite call.
+- Type: 16/16 confirmed generated type; nothing to correct.
+- Coverage: data-side all >=0.77; program-side all >=0.81 except p2.R1
+  0.41 — "balance may not go below zero" flagged because the invariant
+  lives in the withdraw guard, not the i32 representation. The run's one
+  substantive review flag, invisible to --check.
+- Copyable: 9/9 correctly negative (0.04).
+- Splice: identity everywhere; 10/10 compile matrix PASS.
+
+Cost: 5 requests, 1.77 s, 25,468 in / 4,831 out. Generation ~25 min wall
+slowest worker.
+
+Interpretation: pipeline ran end-to-end losslessly; on clean generator
+output the binder is a free semantic-review/traceability layer, not a
+repair layer — repair value stays proven only on arch-bind's planted
+damage. Limitations: hand-authored problems, child-session provenance,
+no real orphans to remove, --check proves compilation not requirement
+satisfaction.
+
+Next probe for repair evidence: vaguer requirements or a generator
+instruction that invites over-building, so real orphans exist to remove;
+or adversarially damaged generated programs through the same pipeline.
+
+---
+
+## 2026-09-19 (cont.) — arch-live damage probe: 14 labeled variants x 4 detection layers
+
+Deterministic substring-edit damage on the 5 clean generated programs,
+each labeled by expected detector (bind/check/run/review). Same extract
+-> bind -> check pipeline; splice applied to orphans; run leg attempted
+via package-mode siblings.
+
+Result: **14/14 detected, 0 slipped through.**
+
+- Bind: 6/6 orphans -> none (all unreferenced; all splices compile).
+  p4-type u64 corrected -> i32. Bonus coherent call: p3-deep's hardcoded
+  idx bound none (its "bounds-checked index" role destroyed by the edit).
+  Loose calls: p5-unguarded tmp -> none (still used), p2-orphan R1 .42.
+- Check: 2/2 unguarded rejected with real residue (unproven index bound,
+  u64 overflow obligation). p4-type ALSO check-failed (u64 overflow) —
+  dual-detection with different true reasons per layer.
+- covers_prog: flagged ALL 5 deep-damage variants at .06-.53, naming the
+  damaged requirements (p4-deep -> R4 +2/tick; p5-deep -> R5 alternation;
+  p2-deep-guard -> R1/R3/R6; p1-deep-order -> R3/R4 order). p1-deep-order
+  is the boundary case: correct exit code, wrong phase order — invisible
+  to run and check, caught only by Jev reading machine source.
+- Run leg: BLOCKED by the package-review ceremony — `omega run` on a
+  fresh package regenerates pending decision rows; --accept-admissions
+  prints without recording; --resume after hand-accepted rows still left
+  run pending. No headless execution path found. Infrastructure finding:
+  the corpus *_exit convention has no cheap entry point outside the
+  corpus harness. Deep-variant behavioral wrongness asserted from diffs,
+  not executed.
+
+Cost: 14 requests ~4.8 s, ~33K in / ~7K out. Advisor dogfood on
+p3-unguarded residue: false .10 / capability .19 (reasonable — missing
+precondition, not false contract).
+
+Standing lesson: covers_prog is the sleeper instrument — requirement-
+precise semantic review caught every behavioral damage. The residual gap
+class is deep damage that both misses AND preserves exit codes; nothing
+planted reached it. Next rungs if continued: vaguer requirements (less
+for Jev to anchor on), multi-element damage, or a real execution path
+(corpus harness integration) for ground truth.
+
+---
+
+## 2026-09-19 (cont.) — arch-corpus: binding against real corpus contracts
+
+Replaced authored requirements with MECHANICALLY EXTRACTED corpus
+clauses (domain requires-predicates, machine requires/ensures, field
+bounds, custom domains, [copy]). 12 fixtures (domains/, collections/,
+borrows/), candidates = fixture's own elements with types stripped +
+one planted orphan each. Same question machinery as arch-live.
+
+- Orphans: 12/12 -> none.
+- Clause binding: every constrained field bound to its exact clause
+  (Password.length -> Valid-req, Counter fields -> their bound/domain
+  clauses).
+- Type recovery 5/5: proposed plain types, Jev restored
+  `i32 [0..=16]`, `i8 [-5..=5]`, `[u8;3] in Utf8`, `[u8;9] in Ascii`,
+  `[u8;0] in NoNul` from clause text alone — semantic type inference
+  from real contracts.
+- Coverage: 0 false flags on correct programs.
+- Gold->none: 5, all CORRECT per criterion (salt/mana/stamina/console
+  are unconstrained fields). Key finding: `none` = "unconstrained by
+  the stated contract", not "wrong to exist" — corpus programs carry
+  elements contracts don't name. The verdict measures contract
+  coverage; its semantics depend on requirement-set completeness,
+  which code must judge. As an orphan gate it needs complete
+  contracts; as a review surface it already works.
+
+Cost: 12 requests, 3.6 s, 28K in / 6K out. Limitations: domains/-heavy
+selection, param-bound machines not in element vocabulary, no damage
+arm here (covered by arch-live damage probe).
+
+### arch-live p6 dual-arm follow-on (2026-09-20)
+
+Room-booking system (~196 lines, 9 elements) bound twice: authored R1-R9
+vs spec-agent-generated R1-R20 (`spec/p6-requirements-generated.json`).
+
+- The authored spec was self-contradictory (caps 4,6,2 vs required
+  successful team2(size4)->room2 booking). The generator resolved it
+  silently (caps->4,6,4, documented). Both bind arms flagged the
+  deviation: covers_prog::R1=0.07, covers_prog::R4=0.04, R15=0.16.
+  Unplanted spec bug caught at requirement precision.
+- Generated requirements discriminated harder (3 none vs 1) and were
+  more prose-faithful: outcomes->none correctly exposed authored R8's
+  over-specification ("records each outcome" is not in the prose).
+- Scratch-temp instability is requirement-set-dependent: `a` bound under
+  authored, none under genreq.
+- Splice identity (all none elements referenced). Trusted check PASS
+  (package path, ~9 min cold).
+- Detail: build/experiments/arch-live/REPORT.md (p6 section).
+
+### arch-live A/B probe: covers_prog vs SWE self-review (2026-09-20)
+
+Six SWE-2 Max reviewers audited the same targets Jev judged (same inputs:
+prose + requirements + source). Reviewer arm went 5/5 with zero false
+positives and caught p3-unguarded's missing capacity guard that Jev's
+covers_prog scored 0.67 (silent). Jev detected 4/5. Reviewer localization
+was sharper (line-level). Conclusion: covers_prog is NOT a unique
+capability — prompted review matches/beats it per-call; Jev's edge is
+typed output, ~$0.30/2s cost, and its untested-in-this-probe instruments
+(bind provenance, type recovery). Recommended division: Jev = cheap typed
+always-on layer, SWE review = escalation tier.
+
+### canary-triage probe (2026-09-20)
+
+231 real pass-canary failures on current main. Jev triaged 232 packets
+in 66s (~$2): distribution ~205 real_regression / ~10 fixture_bug /
+~7 infra / 1 unclear (unclear landed correctly on a malformed packet).
+
+A/B vs 8 investigating SWE reviewers (with git access): Jev 2/8 correct,
+1 adjacent, 5 wrong — all misses the same axis: drift-vs-regression is a
+HISTORY question and the packet had none. Every reviewer answered "was
+this change intended" via git log -S/--follow; Jev can't. Hard miss:
+cauchy_predicates called fixture_bug at 0.72, actually a real
+term-vocabulary regression (ed037cb533).
+
+Design conclusions: (1) cluster by residue signature first (231 -> ~6
+classes), classify per-cluster not per-item; (2) packet must include
+ranked recent commits (board_reconcile.py pattern); (3) taxonomy needs
+fixed_upstream/known_debt — checkout was 640 commits behind origin/main,
+much of the red is already fixed upstream.
+
+### canary-triage v2: git-context packets (2026-09-20)
+
+Clustered 38 post-pull failures -> 18 residue-signature clusters, each
+packet carrying git context (fixture log + `git log -S <error-fragment>`
++ board grep). ~4-5/8 mapped-truth correct vs v1's 2/8: parse + envelope
++ cleanest borrow cluster fixed to residue_drift; but 4/5 borrow
+sub-clusters still real_regression with the SAME introducing commit in
+packet, and cauchy flipped fixture_bug->residue_drift (truth:
+real_regression). Failure mode shifted from no-history to judgment
+inconsistency; needs_human a mushy 0.68-0.82 band, no gate value.
