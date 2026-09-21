@@ -7980,7 +7980,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   measured comparison against `predicted_cost_delta`) waits on
   WORKLOAD-CORPUS-AND-MULTIVERSIONING and the product compiler. Row
   consumed — the canonical item carries the frontier.
-- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES** — mined candidate; scope verified,
+- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
   two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
   returned-view frontier and the [conformances](wiki/spec/language/conformances.md)
   application-matching boundary. Multi-source leg:
@@ -7996,12 +7996,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   not gain outlives/variance/subtyping and introducing them requires
   revisiting the application-matching rule; there is no authored syntax or
   semantics to implement, so that leg waits on a spec decision, not a
-  checker gap. Dispatch note (`669925b8b9`): the multi-source surface is
-  fenced — `view_link.rs`, `view_link/`, `loans.rs` under
-  GENERIC-RETURNED-VIEW-LIFETIMES (22:27Z) and `checks/borrows/` under
-  DYNAMIC-RECEIVER-LOAN-ORIGIN (01:47Z); sibling row
-  LIFETIME-SOURCE-CORRESPONDENCE is the same clause family and is itself
-  claimed (01:51Z).
+  checker gap. Dispatch note (`2b69813615`, refreshed):
+  the multi-source surface is fenced — `view_link.rs`, `view_link/`, and
+  `checks/borrows/` currently sit inside BORROW-PROOF-CONVERGENCE's claim
+  (~06:46Z; earlier fences under GENERIC-RETURNED-VIEW-LIFETIMES 22:27Z and
+  DYNAMIC-RECEIVER-LOAN-ORIGIN 01:47Z expired unworked). Sibling rows
+  LIFETIME-SOURCE-CORRESPONDENCE and GENERIC-RETURNED-VIEW-LIFETIMES record
+  the same clause family and the same residual pair.
 - **LIFETIME-SOURCE-CORRESPONDENCE.** Scope verified on `8ccd793fa8` — re-mine
   of the same clause family as sibling GENERIC-RETURNED-VIEW-LIFETIMES
   (annotated dispatch above). `borrow/view_link.rs` ("Lifetimes stage 2")
