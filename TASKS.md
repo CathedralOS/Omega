@@ -14758,6 +14758,56 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux-x86_64 run stays at `wiki/drafts/rc_native_matrix_host_execution.md`
   (4dbdaa9bc3); no independent slice exists under this name.
 - **RC-NATIVE-MATRIX-HOSTS.** — recorded at
+||||||| parent of 1fda4c188924 (board: RC-NATIVE-MATRIX-HOST-RUNS scope-verified — per-host runs all owned)
+  (recorded), -HOST-RUNS and -HOST-LEGS (live claims) name the same
+  requirement. Re-verified at `f3d0d1748e` (linux x86-64): the umbrella
+  record stands and `cargo check -p omega-native-differential-test
+  --all-targets` still cannot compile the harness — `pipeline_ownership`
+  now carries 7 errors (4 `optimized_target()` → `&Arc<…>` custody drift
+  sites, the uncovered `LegalizedScalarTerminator::Crash` arm in
+  `fixtures/ordinary_graph_controls.rs`, plus the dropped
+  `produce_checked_canonical_integer_proof` symbol in
+  `fixtures/common.rs` + `scalar_return_calls.rs`) and `optimizer_corpus`
+  fails on the same missing symbol at `psi.rs:1636`. Both directories
+  remain under sibling claims (STRUCTURAL-UNIT-CALL-GRAPH-JOINS,
+  NATIVE-DIFFERENTIAL-MATRIX). Re-run per row when the fixture-migration
+  families and host runners land; no independent slice exists under this
+  name.
+- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOSTS** — recorded at
+  (recorded), -HOST-RUNS and -HOST-LEGS (live claims) name the same
+  requirement. Re-verified at `f3d0d1748e` (linux x86-64): the umbrella
+  record stands and `cargo check -p omega-native-differential-test
+  --all-targets` still cannot compile the harness — `pipeline_ownership`
+  now carries 7 errors (4 `optimized_target()` → `&Arc<…>` custody drift
+  sites, the uncovered `LegalizedScalarTerminator::Crash` arm in
+  `fixtures/ordinary_graph_controls.rs`, plus the dropped
+  `produce_checked_canonical_integer_proof` symbol in
+  `fixtures/common.rs` + `scalar_return_calls.rs`) and `optimizer_corpus`
+  fails on the same missing symbol at `psi.rs:1636`. Both directories
+  remain under sibling claims (STRUCTURAL-UNIT-CALL-GRAPH-JOINS,
+  NATIVE-DIFFERENTIAL-MATRIX). Re-run per row when the fixture-migration
+  families and host runners land; no independent slice exists under this
+  name.
+- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-RUNS.** Scope verified at `a941e36c800` —
+  names the per-host execution runs of the
+  [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
+  requirement: each hosted target's products executed and validated on
+  its own host. Every run is separately owned — linux_x86_64 under
+  RC-NATIVE-MATRIX-LINUX-X86-64 (recorded red 15/38 with fixture-migration
+  residuals at `wiki/drafts/rc_native_matrix_linux_x86_64.md`; the harness
+  itself cannot compile while `pipeline_ownership`/`abstract_publication`
+  stay fenced to STRUCTURAL-UNIT-CALL-GRAPH-JOINS and
+  NATIVE-DIFFERENTIAL-MATRIX), linux_arm64 under RC-NATIVE-MATRIX-LINUX-ARM64
+  (live claim, cross-emit only), macos_arm64 under RC-NATIVE-MATRIX-MACOS-ARM64
+  (no runner), windows_x86_64 under RC-NATIVE-MATRIX-WINDOWS-X64 (runner
+  procedure recorded). Coordination umbrella is RC-NATIVE-MATRIX-HOSTS
+  (recorded, `wiki/drafts/rc_native_matrix_hosts.md` rev 0977a4249e;
+  live claim) with closure under RC-NATIVE-MATRIX-CLOSURE (live claim).
+  No executable slice exists on this host.
+- **RC-NATIVE-MATRIX-HOSTS** — recorded at
   `wiki/drafts/rc_native_matrix_hosts.md` (revision 0977a4249e): all four
   required runner rows enumerated. linux_x86_64 red on a full
   `omega-native-differential-test` sweep (618 pass / 108 fail across 726
