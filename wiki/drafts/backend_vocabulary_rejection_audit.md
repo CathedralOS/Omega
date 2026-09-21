@@ -2,7 +2,10 @@
 
 Sweep of every wire-decode point under `omega-rust/omega/backend/` at
 `22e6066e9f` where a byte-level marker, kind, tag, or schema field maps onto a
-closed vocabulary. For each surface the audit asks two questions: does every
+closed vocabulary. Re-recorded at `bc6c5788e0`: every cited rejection site is
+unchanged — `nodes.rs` still admits 83 `AbstractOperation` variants and maps
+the fall-through to `UnsupportedFamily` (`nodes.rs:39,378,435`), and all
+named coverage tests stand. For each surface the audit asks two questions: does every
 non-admitted value reject with a named diagnostic (no `unreachable!`, no
 silent acceptance), and does a test exercise that rejection?
 
@@ -193,8 +196,14 @@ return `SourceCustodyMismatch`. None panic on vocabulary.
 
 ## Evidence
 
-- `cargo nextest run -p component-description --lib` — 23/23 pass.
+Recorded at `22e6066e9f`; re-witnessed at `bc6c5788e0` (linux x86-64):
+
+- `cargo nextest run -p component-description --lib` — 24/24 pass (the
+  record's 23/23 grew by one; the coverage sweep
+  `every_closed_wire_vocabulary_rejects_a_non_admitted_tag` plus the added
+  `non_utf8_identities_reject`, `zero_service_identity_in_a_bound_rejects`,
+  and `oversized_descriptions_reject_before_decoding` cases all stand).
 - `cargo clippy -p component-description --all-targets` — clean.
 - `cargo fmt --check` — clean.
 - `cargo test -p target-operations-to-selected-instructions
-  admission_vocabulary` — 2/2 pass.
+  admission_vocabulary` — 2/2 pass, re-run at `bc6c5788e0`.
