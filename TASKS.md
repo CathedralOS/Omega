@@ -10833,7 +10833,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `0f5ae41e7d` (z181): fences unchanged —
   POC-SPILL-FAMILY-SEQUENCING still holds the wholesale
   `selected-instructions-to-register-homes` dir; claim returned exit 2.
-- **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-FAMILY-DISPOSITION.** Mined candidate — resolved:
+  sixth mined duplicate of UNSEQUENCED-SPILL-STAGES-DISPOSITION (~this
+  file, line 10852). "Family" is that item's sequence-or-delete
+  disposition over the 18 validated-but-unsequenced families in
+  `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`;
+  the verified scope, family inventory, dependency chain and the
+  `stack_slot_coloring`/`runtime_spill/slot.rs` duplicate-owner pair are
+  recorded on the sibling rows. Territory fenced this wave: the directory
+  wholesale under POC-SPILL-FAMILY-SEQUENCING (~06:53Z Sep 21) and the
+  adjacent UNSEQUENCED-SPILL-STAGE-DISPOSITION claim (~08:13Z). No
+  independent slice.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE.** Mined candidate — resolved at
   `0f5ae41e7d`: one of the four mined duplicates the
