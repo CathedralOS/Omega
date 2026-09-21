@@ -142,6 +142,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &[
             "elf_loader",
             "foreign_locator",
+            "target_profile",
             "target_semantics",
             "uefi_boot_services",
             "uefi_loaded_image",
