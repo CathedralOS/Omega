@@ -17431,7 +17431,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   STRUCTURAL-UNIT-CALL-GRAPH-JOINS (~04:33Z). Re-verified at `90df29812c`: the 17-family stage group is still at
   `pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
   with the same mod.rs contract, and `assignment/mod.rs` still sequences
-  `runtime_spill` + `stack_slot_coloring`.
+  `runtime_spill` + `stack_slot_coloring`. Re-verified at `c924529921d`
+  (z203 leg): unchanged — 17-family stage group, same mod.rs contract,
+  `assignment/mod.rs` still sequences `runtime_spill` +
+  `stack_slot_coloring`, and no upstream commits touched
+  `selected-instructions-to-register-homes/` since the last reading.
+  Fence roster rotated: every cited fence has drained — the
+  `unsequenced_spill_stages/` dir claim, both disposition item claims,
+  `assignment/` and the t2a lowering claim are all gone; the territory
+  is now open code-side, held only board-side by
+  UNSEQUENCED-SPILL-FAMILY-DISPOSITION (~17:07Z, TASKS.md + its draft).
+  The verdict is unchanged: this name carries no slice — the sequencing
+  work belongs to the disposition/realization rows, not this fifth
+  duplicate.
 - **SQUALR-CLONE-SERIALIZATION.** Resolved — implemented under `samples/apps/squalr`
 - **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
 - **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
