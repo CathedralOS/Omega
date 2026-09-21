@@ -1,6 +1,6 @@
 # FLOAT-FMA-NATIVE-TRANSPORT — record
 
-Re-verified at `94e764a6da` on linux x86-64 (cargo; `mbx` absent on this
+Re-verified at `75650d2e94` on linux x86-64 (cargo; `mbx` absent on this
 host). The row re-mines the transport legs enumerated on canonical sibling
 X86-FMA-PROVIDER-TRANSPORT; measured state at tip:
 
@@ -13,50 +13,80 @@ into `unit/ieee_float.rs::validate`, binding psi_operation/result/format,
 binding the settlement's terminal_operation/format, and requiring
 left/right/addend to name the exact retained `IeeeFloatImmediate` records
 so same-valued or same-typed producers cannot substitute; the result lands
-as an `IeeeFloat` home requirement with the format's float shape. Lane
-re-verified: `nextest -p target-operations-to-selected-instructions
--E 'test(~ieee_float)'` — 5/5 including
-`fused_multiply_add_replays_exact_constant_sources` and
-`fused_multiply_add_rejects_any_operand_drift`.
+as an `IeeeFloat` home requirement with the format's float shape.
+`control_flow/sources.rs::definition` supplies the same `Home` row so
+downstream consumers replay it.
 
 ## Legs (b)/(c) — still fenced at tip
 
-- `native_realization/object_emission.rs:34-38` still returns
+- `native_realization/object_emission.rs:39-44` still returns
   "FMA provider transport is not implemented in the common instruction
   pipeline" — pinned PASS by
-  `windows_imports_and_mxcsr_custody::retained_x86_fma_and_source_evaluated_import_stop_at_fma_transport`
-  (64.5s).
-- `native_realization/optimization_stage.rs:27-30` still returns
+  `windows_imports_and_mxcsr_custody::retained_x86_fma_and_source_evaluated_import_stop_at_fma_transport`.
+- `native_realization/optimization_stage.rs:27-32` still returns
   "optimized nearest-FMA custody — retained nearest-FMA occurrences
   require the ordinary custody-preserving pipeline".
-- No `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma` references exist in
-  `selected-instructions-to-selected-instructions/src`,
-  `selected-instructions-to-register-homes/src`, or
-  `machine-emission/src` — the downstream carry (s2s carry, s2rh XMM
-  allocation, post-allocation machine plan, machine-emission VFMADD +
-  canonical MXCSR envelope + object records) is unimplemented.
+- `native_realization/program_entry.rs:44-46` still returns
+  "receipt-coupled ProgramEntry realization does not yet consume retained
+  IEEE-FMA occurrence custody".
+- No `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma` production references
+  exist in `selected-instructions-to-selected-instructions/src`,
+  `selected-instructions-to-register-homes/src`,
+  `register-homes-to-post-allocation-machine/src`, or
+  `machine-emission/src` beyond the `x86_fma.rs` encoder seam —
+  the downstream carry (s2s carry, s2rh XMM allocation, post-allocation
+  machine plan, machine-emission VFMADD + canonical MXCSR envelope +
+  `x86_scalar_fma*` object records) is unimplemented.
 
-## Claim map over the residual surfaces
+## Implementing surface the transport needs
 
-- `legalization/` + `target/control_flow/sources.rs`:
-  X86-FMA-PROVIDER-TRANSPORT (Jarod / w9), expires 09:07Z — canonical
-  owner, active.
-- `native_realization/{object_emission,program_entry,native_realization,
-  optimized_fragment_projection,realization_request}.rs` + `lib.rs` +
-  `optimized_semantic_wrapper_*`: UEFI-PHYSICAL-SEMANTIC-ENTRY (z88),
-  expires 08:44Z.
-- `selection/construction`: CALLBACK-PRIVATE-MATERIALIZATION (z55),
-  09:13Z.
-- `s2rh/unsequenced_spill_stages`: POC-SPILL-FAMILY-SEQUENCING, 06:53Z.
-- `machine-emission/entry_exit_stub.rs`: EXCEPTION-ROOTS-AND-TIMER,
-  08:59Z.
-- `optimization_stage.rs` is the one unfenced residual file, but its
-  fence is only removable once the transport it gates exists.
+The bounded Unit lane makes each FMA a real stream member, so leg (b)'s
+first edit is a `SelectedInstructionKind` variant (format + settlement
+custody, three XMM-class operand uses, one XMM result def) in
+`omega-rust/omega/representations/selected-instructions`, plus the
+`InstructionMachineEffects`/alternative rows it joins against. Downstream
+surfaces: `legalized-operations` (a legalized FMA kind so `nodes.rs` admits
+the abstract node instead of falling to `_ => NodeRejection::
+UnsupportedFamily` at nodes.rs:378),
+t2si `selection/construction` (kind + XMM `RegisterConstraintKey`), s2s
+carry, s2rh XMM allocation (no `X86Xmm` handling exists in the allocator
+today — `X86Xmm` appears only in `calling-conventions` ABI plumbing),
+`register-homes-to-post-allocation-machine` plan node, and the
+`machine-emission` callsite for `emit_feature_required_x86_scalar_fma`
+filling `function.x86_scalar_fma`/`_occurrences`/`x86_floating_control`
+record fields that `image-emission` already validates.
 
-Conclusion: no unfenced implementable slice remains for this stub — the
-transport work belongs to the canonical X86-FMA-PROVIDER-TRANSPORT claim
-under its own sequencing. This pass contributes the re-verified landing
-state of leg (a) and the exact residual map.
+## Claim map over the residual surfaces (2026-09-21 ~13:0xZ)
+
+The w9-era fences on this row have all expired; current live claims:
+
+- `omega-rust/omega/representations/selected-instructions` (whole crate) +
+  `s2s/src/lib.rs` + `s2s/src/rewrites/{fixed_view,allocation_recovery,
+  selected_lowering/literal_fold,literal_folds}` +
+  `s2rh/src/{assignment/post_allocation_manifest,rewrites/
+  rematerialization}` + `tests/architecture/optimizer_source_organization`:
+  DURABLE-CODEC-RELOCATION (Devin / w10-w10-14), expires 21:02Z.
+  `claims.py claim --path omega-rust/omega/representations/
+  selected-instructions` returned exit 2 naming that owner — leg (b)'s
+  first edit is fenced in-wave.
+- `s2s/src/rewrites/confluence_run_relocation/{admission,validation}.rs`
+  + `s2s/src/rewrites/window_hazards.rs`: NEW-CONFLUENCE-RUN-SPECULATABLE-
+  SHARED-PREDICATE.
+- `native-realization/src/{native_product,native_realization/
+  behavior_exclusions,retained_native_product.rs}`: BUILD-EXCLUSION-
+  REALIZATION (w10-06), exp 20:53Z — the three FMA fence files
+  (object_emission, program_entry, optimization_stage) are NOT in it.
+- `target-operations-to-selected-instructions`, `machine-emission`,
+  `legalized-operations`, `register-model`, `physical-instructions`,
+  `register-homes`, `representations/target`: no live claim.
+- No live X86-FMA-PROVIDER-TRANSPORT claim; Jarod's `legalization/` fence
+  (exp 09:07Z) lapsed.
+
+Conclusion: leg (b) is blocked on `omega-rust/omega/representations/
+selected-instructions`, held in-wave by DURABLE-CODEC-RELOCATION until
+~21:02Z — handoff candidate when that claim drains. The remaining stages
+(t2si selection, s2rh XMM allocation, machine plan, machine-emission
+callsite, native-realization fence removal) are unfenced at this revision.
 
 ## Re-verification — `72fc66d6c3` (Zergling-126, linux x86-64)
 
