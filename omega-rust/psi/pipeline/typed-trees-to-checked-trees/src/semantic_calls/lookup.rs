@@ -22,10 +22,7 @@ pub(crate) fn find_state_in_machine(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     program
         .machine_states(machine)
         .iter()
@@ -54,10 +51,7 @@ pub(crate) fn find_state_with_machine(
         return None;
     }
     let machine_symbol = program.symbols.get(state_symbol).parent;
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol)
         && let Some(state) = program
             .machine_states(machine)
             .iter()
@@ -85,11 +79,7 @@ pub(crate) fn find_machine_head(
     program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, symbol) {
         return program
             .machine_states(machine)
             .first()
@@ -152,10 +142,7 @@ pub(crate) fn call_target_parameters(
     target_state_symbol: SymbolHandle,
 ) -> Option<&[typed_trees::signature::StateParameter]> {
     if target_state_symbol.is_valid()
-        && let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == target_state_symbol)
+        && let Some(machine) = crate::lookup::machine_by_symbol(program, target_state_symbol)
     {
         return program
             .machine_states(machine)

@@ -76,10 +76,8 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
     {
         return None;
     }
-    let realization_machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == candidate.realization_machine_symbol)?;
+    let realization_machine =
+        crate::lookup::machine_by_symbol(program, candidate.realization_machine_symbol)?;
     let [realization_state] = program.machine_states(realization_machine) else {
         return None;
     };

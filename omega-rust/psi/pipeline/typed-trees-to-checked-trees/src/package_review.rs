@@ -244,10 +244,7 @@ pub fn infer_machine_termination_summary(
     program: &typed_trees::TypedTrees,
     machine_symbol: symbols::SymbolHandle,
 ) -> Option<language_semantics::TerminationGuarantee> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     Some(checks::termination::infer_machine_checked_summary(
         program, machine,
     ))

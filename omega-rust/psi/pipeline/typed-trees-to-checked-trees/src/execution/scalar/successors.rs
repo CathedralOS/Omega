@@ -129,10 +129,7 @@ fn arguments(
     source: &CheckedScalarStateGraph,
     successor: &CheckedScalarSuccessor,
 ) -> Option<SuccessorArguments> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == graph.machine)?;
+    let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     let states = program.machine_states(machine);
     let source_state = states.iter().find(|state| state.symbol == source.state)?;
     let target = graph
@@ -368,10 +365,7 @@ fn transition_permission_source(
     state: &State,
     successor: &CheckedScalarSuccessor,
 ) -> Option<PermissionEventSource> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let statement_index = successor.statement_ordinal as usize;
     let StatementNode::Transition(transition) = program
         .statement_table
