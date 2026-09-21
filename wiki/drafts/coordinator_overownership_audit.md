@@ -39,15 +39,11 @@ logic itself).
 
 ## Findings
 
-- **F1 — dead orchestration residue in `compiler`.**
-  `omega-rust/omega/compiler/compiler/src/compiler/native/prepared.rs`
-  (171 lines) is unreachable: no `mod native` declaration exists anywhere in
-  `compiler/src/`, and the file's `use super::{admission, realization}`
-  imports resolve to modules that no longer exist — the same-named types
-  (`NativeInputReuseKey`, `PreparedNativeCompilation`) now live in
-  `native-realization` (`native_realization::NativeInputReuseKey` is what
-  `compiler/tests.rs` exercises). The file cannot compile if linked; it is
-  unreferenced source left behind by the input-reuse migration. Delete it.
+- **F1 — dead orchestration residue in `compiler`.** REPAIRED at
+  `e5492eee179` — `compiler/src/compiler/native/prepared.rs` (171 lines of
+  unreachable `NativeInputReuseKey`/`PreparedNativeCompilation` residue left
+  behind by the input-reuse migration into `native-realization`) deleted;
+  the file had no `mod native` declaration and could not compile if wired.
 
 - **F2 — `terminal-production` hosts a substantive derivation.**
   `psi/compiler/terminal-production/src/terminal_production/receiver_eligibility.rs`
@@ -113,6 +109,21 @@ logic itself).
 The sweep reads module structure and entry files; it does not trace every
 `pub` surface for ownership leaks, and it does not measure whether the
 policy tables under F3 would change owner under PIPELINE-OWNER-CONSOLIDATION.
-F1 is safe to delete at any time (the file cannot compile). F2/F4 have
+F2/F4 have
 sibling board items (`WRAPPER-OBJECT-OWNERSHIP`, `DURABLE-CODEC-RELOCATION`)
 that should carry the moves; this audit fixes no code.
+
+## Re-verification at `e5492eee179` (2026-09-21, Linux x86_64)
+
+- F1 landed: the dead file is gone; `compiler.rs` (145 lines) still declares
+  only `options`/`package`/`request`/`tests`.
+- F2 stands: `receiver_eligibility.rs` is now 1,181 lines beside a
+  673-line coordinator root — the eligibility derivation is still resident
+  in the sequencer.
+- F3 stands: `terminal_authority_policy/`,
+  `terminal_authority_permission_policy.rs`,
+  `terminal_authority_permissions.rs`, and `terminal_authority_review{,.rs}`
+  all still live in `native-realization`.
+- F4 stands: `optimized_semantic_wrapper_encoding/` and
+  `optimized_semantic_wrapper_object/` are still unrelocated — covered by
+  `WRAPPER-OBJECT-OWNERSHIP`/`DURABLE-CODEC-RELOCATION`.

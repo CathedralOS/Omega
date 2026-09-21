@@ -2034,15 +2034,17 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+4+3+4 = 14), and again for this function's
-    // blocks (14). The crossed surfaces pair the member (1) against LEAD
-    // (1), TRAIL (1), the branch terminator (2 uses + 1 definition on
-    // x86-64), and T_HEAD (1): 2+2+4+2 = 10 steps. The dead-path bound
-    // prices each block's body, terminator, and edge surfaces once per
-    // member location plus the initial scan: on x86-64 the materializations
-    // cost 1 each, the jumps 2, the branch 3, and the return 9 —
-    // (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written member register
-    // plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 10 + 52;
+    // blocks (14). The window walk's bound is the function's edge roster
+    // (4). The crossed surfaces pair the member (1) against T_HEAD (1),
+    // LEAD (1), and TRAIL (1): 2+2+2 = 6 — and the one crossed edge
+    // pairs the member against the branch terminator (2 uses + 1
+    // definition on x86-64) and the edge row (1+3+0 = 4). The dead-path
+    // bound prices each block's body, terminator, and edge surfaces once
+    // per member location plus the initial scan: on x86-64 the
+    // materializations cost 1 each, the jumps 2, the branch 3, and the
+    // return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written member
+    // register plus one: 26*2 = 52.
+    let steps: u64 = 14 + 14 + 4 + 6 + 4 + 52;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_out_of_arm(&source, 0, MOVING, LEAD, &environment, exact)
         .unwrap();
@@ -2140,4 +2142,171 @@ fn arm_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![HEAD, TAIL, MID]
     );
+}
+
+mod independence_tests {
+    use super::{
+        ArmRelocationError, BLOCK_T, BlockId, EDGE_FJ, F_JUMP, LEAD, MOVING, NativeTarget, POINTER,
+        R_MOVE, SelectedInstructionKind, SelectedInstructionPlan, ValidatedArmRelocation,
+        baseline_target_register_environment, budget, fixture, instruction, jump_terminator,
+        mutated, successor, validate_arm_relocation,
+    };
+
+    /// Move the member at `member_index` inside the arm's body onto
+    /// `landing_index` in the head's body — the edit a producer emitting
+    /// that relocation would publish — without asking admission whether
+    /// the hoist is legal.
+    fn forged(
+        source: &ValidatedArmRelocation,
+        member_index: usize,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let member = proposed.functions[0].blocks[1]
+            .instructions
+            .remove(member_index);
+        proposed.functions[0].blocks[0]
+            .instructions
+            .insert(landing_index, member);
+        proposed
+    }
+
+    /// A forged hoist of a window the validator's own audit admits
+    /// validates: the materialization member is pure register work, the
+    /// crossed head prefix and arm prefix carry no hazards, and the
+    /// skipped edge's paths keep the member's write dead, so the audit
+    /// derives the move and the content comparison accepts it.
+    #[test]
+    fn forged_hoist_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_arm_relocation(
+            &source,
+            0,
+            MOVING,
+            LEAD,
+            &environment,
+            budget(),
+            forged(&source, 1, 0),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a memory-performing member anyway would
+    /// publish the load hoisted out of the arm — the validator's own
+    /// hoistable audit refuses with `UnsupportedInstruction`, not a
+    /// replay mismatch, because it re-derives the member's kind instead
+    /// of trusting the producer's admission record.
+    #[test]
+    fn forged_hoist_of_an_unhoistable_member_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[1] = instruction(
+                MOVING,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, R_MOVE],
+            );
+        });
+        assert_eq!(
+            validate_arm_relocation(
+                &source,
+                0,
+                MOVING,
+                LEAD,
+                &environment,
+                budget(),
+                forged(&source, 1, 0),
+            )
+            .unwrap_err(),
+            ArmRelocationError::UnsupportedInstruction
+        );
+    }
+
+    /// A producer that admitted a member whose arm carries a second
+    /// predecessor anyway would publish the same edit — the validator's
+    /// own structure audit refuses with `UnsupportedPair`, because it
+    /// re-derives the arm's single-head predecessor shape instead of
+    /// trusting the producer's admission record.
+    #[test]
+    fn forged_hoist_from_a_shared_arm_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let jump_row = environment
+                .constraint(environment.selected_keys().jump)
+                .unwrap()
+                .clone();
+            function.blocks[2].terminator = jump_terminator(
+                instruction(F_JUMP, SelectedInstructionKind::Jump, &jump_row, &[]),
+                successor(BLOCK_T, BlockId::new(2).unwrap(), EDGE_FJ),
+            );
+        });
+        assert_eq!(
+            validate_arm_relocation(
+                &source,
+                0,
+                MOVING,
+                LEAD,
+                &environment,
+                budget(),
+                forged(&source, 1, 0),
+            )
+            .unwrap_err(),
+            ArmRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that landed the member somewhere other than the named
+    /// destination's index publishes a program whose content is not the
+    /// admitted hoist: the member one slot deeper in the head fails the
+    /// content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_member_off_the_landing_index_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_arm_relocation(
+                &source,
+                0,
+                MOVING,
+                LEAD,
+                &environment,
+                budget(),
+                forged(&source, 1, 1),
+            )
+            .unwrap_err(),
+            ArmRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged proposal that leaves the member in its arm is a proposal
+    /// for a different (absent) rewrite: no head position carries the
+    /// member, so the content comparison refuses with `ReplayMismatch`.
+    #[test]
+    fn forged_member_left_in_the_arm_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_arm_relocation(
+                &source,
+                0,
+                MOVING,
+                LEAD,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            ArmRelocationError::ReplayMismatch
+        );
+    }
 }

@@ -2,6 +2,7 @@
 //! const-generic calls and expressions, initializers, fixed-array lengths,
 //! and named range arguments and endpoints.
 
+pub(crate) mod const_applications;
 pub(crate) mod const_domain_facts;
 pub(crate) mod const_generic_calls;
 pub(crate) mod const_generic_expressions;

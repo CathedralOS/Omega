@@ -15,12 +15,14 @@ use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_checked_dir
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use checked_trees::CheckedErasedProofParameterPlan;
 
 pub(super) struct Prepared {
     pub(super) value_types: Vec<QualifiedScalarType>,
     pub(super) scalar_bindings: storage::ScalarBindings,
     parameter_types: Vec<QualifiedScalarType>,
     erased_formal_types: Vec<QualifiedScalarType>,
+    erased_proof_formals: Vec<CheckedErasedProofParameterPlan>,
     bindings: Vec<LoweredScalarBinding>,
     prefixes: Vec<PendingStep>,
 }
@@ -69,6 +71,7 @@ pub(super) fn prepare(
     state: &checked_trees::CheckedScalarStateGraph,
     parameter_types: Vec<QualifiedScalarType>,
     erased_formal_types: Vec<QualifiedScalarType>,
+    erased_proof_formals: &[CheckedErasedProofParameterPlan],
     structural_parameters: &[StructuralParameterDeclaration],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
@@ -414,6 +417,7 @@ pub(super) fn prepare(
                         binding_type,
                         &value_types,
                         &scalar_bindings,
+                        &state.erased_proof_parameters,
                     )?,
                 ))
             }
@@ -495,6 +499,7 @@ pub(super) fn prepare(
         scalar_bindings,
         parameter_types,
         erased_formal_types,
+        erased_proof_formals: erased_proof_formals.to_vec(),
         bindings,
         prefixes,
     })
@@ -561,6 +566,10 @@ impl Prepared {
             structural_effects: Vec::new(),
             parameter_types: self.parameter_types,
             erased_formal_types: self.erased_formal_types,
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &self.erased_proof_formals,
+                ),
             bindings: self.bindings,
             terminator,
         };
@@ -593,6 +602,7 @@ impl Prepared {
                                 structural_parameters: Vec::new(),
                                 parameter_types: argument_types,
                                 erased_formal_types: Vec::new(),
+                                erased_proof_formals: Vec::new(),
                                 bindings: Vec::new(),
                                 structural_effects: vec![LoweredScalarEffect::CallUnit(
                                     prepared.call,
@@ -602,6 +612,7 @@ impl Prepared {
                                     target,
                                     arguments: computations::parameters(&prefix.value_types),
                                     erased_arguments: Vec::new(),
+                                    erased_proof_arguments: Vec::new(),
                                     structural_arguments: Vec::new(),
                                 },
                             });
@@ -621,6 +632,7 @@ impl Prepared {
                         structural_parameters: Vec::new(),
                         parameter_types: prefix.parameter_types,
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         bindings: prefix.bindings,
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Jump {
@@ -628,6 +640,7 @@ impl Prepared {
                             target,
                             arguments: computations::parameters(&prefix.value_types),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     };
@@ -643,6 +656,7 @@ impl Prepared {
                     structural_effects: Vec::new(),
                     parameter_types: completed_types.clone(),
                     erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     bindings: vec![LoweredScalarBinding::StoredValue {
                         value: LoweredDirectExpression::Parameter {
                             position: prefix.value_types.len(),
@@ -656,6 +670,7 @@ impl Prepared {
                         target,
                         arguments: computations::parameters(&completed_types),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                     },
                 });
             }
@@ -678,6 +693,7 @@ impl Prepared {
                         structural_effects: Vec::new(),
                         parameter_types: prefix.value_types.clone(),
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         bindings: vec![LoweredScalarBinding::Expression(expression)],
                         terminator: LoweredScalarBranchTerminator::Jump {
                             trivial_affine_discards: Vec::new(),
@@ -685,6 +701,7 @@ impl Prepared {
                             target,
                             arguments: computations::parameters(&completed_types),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                         },
                     })
                 }
@@ -694,6 +711,7 @@ impl Prepared {
                 structural_effects: Vec::new(),
                 parameter_types: prefix.parameter_types,
                 erased_formal_types: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 bindings: prefix.bindings,
                 terminator: LoweredScalarBranchTerminator::Jump {
                     trivial_affine_discards: Vec::new(),
@@ -701,6 +719,7 @@ impl Prepared {
                     target,
                     arguments: computations::parameters(&prefix.value_types),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                 },
             };
         }

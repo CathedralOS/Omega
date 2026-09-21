@@ -312,15 +312,22 @@ static FACT_SCALAR_CARRIER_BOUNDS: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a successor parameter, payload copy, or field read of a fixed integer or bounded-integer type",
-    conclusion: "LessOrEqual propositions bounding the value by its type's exact minimum and maximum",
-    dependencies: &["primitive:integer-carrier-bound"],
+    conclusion: "LessOrEqual propositions bounding the value by its declared interval's exact minimum and maximum, each emitted only after its fixed-shape elimination certificate is accepted: the declared interval invariant is assumption zero and the bound is eliminated at its conjunct index",
+    dependencies: &[
+        "formation:structural-scalar-fields",
+        "rule:assumption",
+        "rule:conjunction-elimination",
+        "formation:mathematical-core",
+    ],
     implementation: &[
         PATH_FACTS_DISCRETE,
         PATH_FACTS,
         TERMINATOR_FACTS,
         OPERATION_FACTS,
     ],
-    soundness: TRUSTED,
+    soundness: SoundnessStatus::Proved {
+        evidence: "declared_carrier_bounds emits each declared-interval bound under a fixed-shape certificate — the declaration's interval invariant (the conjunction of its minimum and maximum bounds) cited as assumption zero, the bound eliminated at its conjunct index — and proof-admission's certificate checker re-decides the certificate before the fact may join the roster; only an accepted certificate marks the emission under this entry — a rejected certificate leaves the emission under the calling row's licensed premise introductions and never fails the module",
+    },
 };
 
 static FACT_RECORD_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {

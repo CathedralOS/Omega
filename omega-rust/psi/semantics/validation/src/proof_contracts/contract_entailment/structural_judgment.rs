@@ -293,114 +293,71 @@ struct RingLicense {
     add_machine: SymbolHandle,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ProvedIndexAlgebra {
-    pub trait_symbol: SymbolHandle,
-    pub requirement: String,
-    pub alias: Option<String>,
+/// Shape-detected commutativity/associativity law slots one trait declares
+/// over `requirement`. The names are the trait's own law requirement slots;
+/// whether a carrier satisfies them is the supplied conformance's checked
+/// business, not this judgment's.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct DeclaredIndexAlgebraLaws {
+    pub commutativity: Vec<String>,
+    pub associativity: Vec<String>,
 }
 
-/// Exact proved associative/commutative algebra instances supplied by one
-/// operation provider. PDI3 records one of these beside the selected public
-/// operator contract; an absent or plural result is not normalization
-/// authority.
-pub(crate) fn proved_index_algebras_for_provider(
+/// The trait-level half of the algebra license: `requirement`'s commutativity
+/// (`R(x, y) == R(y, x)`) and associativity (`R(R(x, y), z) == R(x, R(y, z))`)
+/// law slots, detected by shape in the trait's own signatures. A consuming
+/// machine's `Binder: Subject satisfies Trait` conformance bound supplies the
+/// checked evidence for these slots through the ordinary generic-conformance
+/// machinery.
+pub(crate) fn declared_index_algebra_laws(
     program: &TypedTrees,
-    provider: &Machine,
-) -> Vec<ProvedIndexAlgebra> {
-    let Some(entry) = program.machine_states(provider).first() else {
-        return Vec::new();
-    };
-    let carrier = program
-        .state_parameters(entry)
-        .first()
-        .map(|parameter| parameter.type_reference)
-        .unwrap_or(entry.return_type);
-    let mut algebras = Vec::new();
-
-    for conformance in program.machine_trait_conformances(provider) {
-        let Some(requirement) = conformance.requirement.as_ref() else {
-            continue;
-        };
-        let Some(trait_definition) = program
-            .traits()
+    trait_definition: &TraitDefinition,
+    requirement: &str,
+) -> DeclaredIndexAlgebraLaws {
+    let mut laws = DeclaredIndexAlgebraLaws::default();
+    for law in program.trait_machine_signatures(trait_definition) {
+        let parameters = program
+            .state_signature_parameters(law)
             .iter()
-            .find(|candidate| candidate.symbol == conformance.symbol)
-        else {
-            continue;
-        };
-        let mut comm_laws = Vec::new();
-        let mut assoc_laws = Vec::new();
-        for law in program.trait_machine_signatures(trait_definition) {
-            let parameters = program
-                .state_signature_parameters(law)
-                .iter()
-                .map(|parameter| parameter.name.as_str().to_owned())
-                .collect::<Vec<_>>();
-            for contract in program.state_signature_contracts(law) {
-                if contract.kind != SignatureContractKind::Ensures {
+            .map(|parameter| parameter.name.as_str().to_owned())
+            .collect::<Vec<_>>();
+        for contract in program.state_signature_contracts(law) {
+            if contract.kind != SignatureContractKind::Ensures {
+                continue;
+            }
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Expression(expression) = fact else {
                     continue;
-                }
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let ProofFact::Expression(expression) = fact else {
+                };
+                let mut conjuncts = Vec::new();
+                collect_equality_conjuncts(program, *expression, &mut conjuncts);
+                for conjunct in conjuncts {
+                    let ExpressionNode::Binary(binary) =
+                        program.expression_table.expression(conjunct)
+                    else {
                         continue;
                     };
-                    let mut conjuncts = Vec::new();
-                    collect_equality_conjuncts(program, *expression, &mut conjuncts);
-                    for conjunct in conjuncts {
-                        let ExpressionNode::Binary(binary) =
-                            program.expression_table.expression(conjunct)
-                        else {
-                            continue;
-                        };
-                        let (Some(left), Some(right)) = (
-                            structural_term(program, binary.left),
-                            structural_term(program, binary.right),
-                        ) else {
-                            continue;
-                        };
-                        if commutativity_shape(&left, &right, &parameters).as_deref()
-                            == Some(requirement.as_str())
-                        {
-                            comm_laws.push(law.name.as_str().to_owned());
-                        }
-                        if associativity_shape(&left, &right, &parameters).as_deref()
-                            == Some(requirement.as_str())
-                        {
-                            assoc_laws.push(law.name.as_str().to_owned());
-                        }
+                    let (Some(left), Some(right)) = (
+                        structural_term(program, binary.left),
+                        structural_term(program, binary.right),
+                    ) else {
+                        continue;
+                    };
+                    if commutativity_shape(&left, &right, &parameters).as_deref()
+                        == Some(requirement)
+                    {
+                        laws.commutativity.push(law.name.as_str().to_owned());
+                    }
+                    if associativity_shape(&left, &right, &parameters).as_deref()
+                        == Some(requirement)
+                    {
+                        laws.associativity.push(law.name.as_str().to_owned());
                     }
                 }
             }
         }
-        let alias = conformance.alias.as_ref().map(|alias| alias.as_str());
-        let licensed = comm_laws.iter().any(|law| {
-            slot_satisfier_exists_for_alias(program, trait_definition, law, carrier, alias)
-        }) && assoc_laws.iter().any(|law| {
-            slot_satisfier_exists_for_alias(program, trait_definition, law, carrier, alias)
-        });
-        if licensed {
-            algebras.push(ProvedIndexAlgebra {
-                trait_symbol: trait_definition.symbol,
-                requirement: requirement.as_str().to_owned(),
-                alias: alias.map(str::to_owned),
-            });
-        }
     }
-    algebras.sort_by(|left, right| {
-        (
-            left.trait_symbol.arena_index(),
-            &left.requirement,
-            &left.alias,
-        )
-            .cmp(&(
-                right.trait_symbol.arena_index(),
-                &right.requirement,
-                &right.alias,
-            ))
-    });
-    algebras.dedup();
-    algebras
+    laws
 }
 
 /// Tier-2 (full polynomial): the PAIRED license -- an add op and a mul op
@@ -2562,42 +2519,6 @@ fn slot_satisfier_exists(
                     .first()
                     .map(|parameter| parameter.type_reference)
                     .unwrap_or(candidate_entry.return_type);
-                crate::value_custody::type_references::type_references_match(
-                    program,
-                    candidate_carrier,
-                    carrier,
-                )
-            })
-    })
-}
-
-fn slot_satisfier_exists_for_alias(
-    program: &TypedTrees,
-    trait_definition: &TraitDefinition,
-    requirement_name: &str,
-    carrier: typed_trees::types::TypeReferenceHandle,
-    alias: Option<&str>,
-) -> bool {
-    program.machines().iter().any(|candidate| {
-        program
-            .machine_trait_conformances(candidate)
-            .iter()
-            .any(|conformance| {
-                if conformance.symbol != trait_definition.symbol
-                    || conformance.requirement.as_ref().map(|name| name.as_str())
-                        != Some(requirement_name)
-                    || conformance.alias.as_ref().map(|name| name.as_str()) != alias
-                {
-                    return false;
-                }
-                let Some(entry) = program.machine_states(candidate).first() else {
-                    return false;
-                };
-                let candidate_carrier = program
-                    .state_parameters(entry)
-                    .first()
-                    .map(|parameter| parameter.type_reference)
-                    .unwrap_or(entry.return_type);
                 crate::value_custody::type_references::type_references_match(
                     program,
                     candidate_carrier,

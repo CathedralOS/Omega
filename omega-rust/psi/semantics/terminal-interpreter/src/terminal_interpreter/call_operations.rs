@@ -351,15 +351,26 @@ impl TerminalExecution {
             // form already uses for an ordinary callee. Scalar results carry
             // no structural custody to restrict: the callee's declared scalar
             // result type is checked against the operation result at entry.
+            // A linear structural result may carry minted claims and the
+            // boundary's introduced qualifications: the boundary route mints
+            // `result.claims` onto the caller at resume (no transfer slots
+            // exist on the operation), and the provider's declared result
+            // qualifications introduce the returned domains. Affine results
+            // stay claim-free; projected qualifications still have no
+            // installed-provider leg.
             let supported_result = match &operation.result {
                 terminal_psi::OperationResult::Unit | terminal_psi::OperationResult::Scalar(_) => {
                     true
                 }
                 terminal_psi::OperationResult::Structural(result) => {
-                    result.multiplicity == StructuralMultiplicity::Affine
-                        && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
-                        && result.claims.is_empty()
+                    result.projected_qualifications.is_empty()
+                        && match result.multiplicity {
+                            StructuralMultiplicity::Affine => {
+                                result.qualifications.is_empty() && result.claims.is_empty()
+                            }
+                            StructuralMultiplicity::Linear => true,
+                            StructuralMultiplicity::Unrestricted => false,
+                        }
                 }
             };
             if !supported_result {

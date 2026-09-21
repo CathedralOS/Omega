@@ -346,6 +346,23 @@ def accept_pending_decisions(document):
     return settled, count
 
 
+# Review settlement rejects a `(subject, target)` whose build binds no root
+# for that target. That is a property of the pairing, not a failed compile:
+# the subject never reaches a compile at all. `benchmarks.md` asks twice for
+# these to be recorded as non-applicable rows rather than omitted, so the
+# settlement raises this instead of exiting and `measure` writes the row.
+UNBOUND_ROOT_SLOT = re.compile(
+    r"no bound required root slot `[^`]*ProgramEntry`")
+
+
+class SubjectNotApplicable(Exception):
+    """The (subject, target) pairing cannot produce a measurement at all."""
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
 def settle_package_review(omega, project_dir, target):
     """Accept the generated package review so the project compiles.
 
@@ -382,6 +399,9 @@ def settle_package_review(omega, project_dir, target):
              "--project", str(project_dir)], cwd=str(project_dir))
     lock = project_dir / "omega.lock"
     if code != 0 or not lock.is_file():
+        unbound = UNBOUND_ROOT_SLOT.search(text)
+        if unbound:
+            raise SubjectNotApplicable(unbound.group(0))
         sys.stderr.write(text)
         raise SystemExit(
             f"package-review settlement failed; omega.lock missing in "
@@ -391,6 +411,54 @@ def settle_package_review(omega, project_dir, target):
 
 def unavailable(unit, reason):
     return {"status": "unavailable", "unit": unit, "reason": reason}
+
+
+def non_applicable_record(args, root, repository, omega, selection,
+                          revision, reason):
+    """A committed row for a pairing that cannot be measured at all.
+
+    Every metric is `unavailable` carrying the settlement reason, which is
+    the shape the validator and the matrix already understand; the
+    row-level `applicability` block is what distinguishes "this pairing
+    does not apply" from "a host that could measure it has not yet run".
+    """
+    record = {
+        "schema": SCHEMA,
+        "recorded_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "subject": {
+            "name": args.name or root.parent.name,
+            "root": root.resolve().relative_to(repository).as_posix()
+                    if root.resolve().is_relative_to(repository)
+                    else str(root.resolve()),
+            "source_revision": revision,
+        },
+        "key": {
+            "target": args.target,
+            "selection": selection,
+            "selection_source": "build.omg enable calls plus --enable/--disable",
+        },
+        "applicability": {"status": "non_applicable", "reason": reason},
+        "host": {
+            "os": sys.platform,
+            "machine": platform.machine(),
+            "cpu": cpu_name(),
+            "logical_cpus": os.cpu_count(),
+            "python": platform.python_version(),
+            "rustc": rustc_version(),
+            "omega_binary": str(omega.relative_to(repository))
+                            if omega.is_relative_to(repository)
+                            else str(omega),
+            "omega_profile": "dev" if "debug" in omega.parts else "unknown",
+        },
+        "metrics": {
+            "compile_time_ms": unavailable("ms", reason),
+            "peak_memory_bytes": unavailable("bytes", reason),
+            "code_size_bytes": unavailable("bytes", reason),
+            "runtime_ms": unavailable("ms", reason),
+        },
+        "notes": args.note,
+    }
+    return record
 
 
 # One entry per catalogued deployment profile, in TargetProfile catalog
@@ -466,7 +534,12 @@ def measure(args):
         sys.stderr.write(
             "omega.lock missing; settling package review via omega update "
             "(records project acceptance, not an audit)\n")
-        settle_package_review(omega, project_dir, args.target)
+        try:
+            settle_package_review(omega, project_dir, args.target)
+        except SubjectNotApplicable as not_applicable:
+            return non_applicable_record(
+                args, root, repository, omega, selection, revision,
+                not_applicable.reason)
 
     compile_wall = []
     compile_rss = []
@@ -655,6 +728,21 @@ def validate_record(record, path):
              and all(isinstance(n, str) and RULE_NAME.match(n) for n in names)
              and names == sorted(set(names)),
              f"key.selection.{leg} must be sorted unique exact rule names")
+    # Optional: absent means the pairing applies, so every record written
+    # before this field keeps validating unchanged.
+    if "applicability" in record:
+        applicability = record["applicability"]
+        need(isinstance(applicability, dict),
+             "applicability must be an object when present")
+        if isinstance(applicability, dict):
+            need(applicability.get("status") == "non_applicable",
+                 "applicability.status must be non_applicable")
+            need(isinstance(applicability.get("reason"), str)
+                 and applicability["reason"],
+                 "applicability.reason is required")
+            need(all(record.get("metrics", {}).get(name, {}).get("status")
+                     != "measured" for name in METRIC_NAMES),
+                 "a non-applicable row cannot carry a measured metric")
     host = record.get("host", {})
     for field in ("os", "machine", "omega_binary"):
         need(isinstance(host.get(field), str) and host[field],
@@ -756,8 +844,13 @@ def matrix_rows(records):
 
     def measured_row(record):
         host = record["host"]
-        cells = [measured_cell(name, record["metrics"][name])
-                 for name in METRIC_NAMES]
+        applicability = record.get("applicability")
+        if applicability:
+            reason = applicability["reason"]
+            cells = [f"non-applicable ({reason})" for _ in METRIC_NAMES]
+        else:
+            cells = [measured_cell(name, record["metrics"][name])
+                     for name in METRIC_NAMES]
         return [record["key"]["target"],
                 f"{host['os']} {host['machine']}",
                 record["subject"]["name"],
@@ -770,7 +863,13 @@ def matrix_rows(records):
                                 selection_label(record["key"]["selection"])),
         )
         rows.extend(measured_row(record) for record in covered)
-        if not covered:
+        # A non-applicable record speaks for one (subject, target) pairing,
+        # not for the leg: it says this subject binds no root there, which
+        # leaves the leg itself as unrun as it was. Only a measurable record
+        # retires the leg's own projected row.
+        measurable = [record for record in covered
+                      if not record.get("applicability")]
+        if not measurable:
             cells = [projected_cell(leg, name) for name in METRIC_NAMES]
             rows.append([leg["target"], leg["host"], "—", "—"] + cells)
     for target in sorted(by_target):

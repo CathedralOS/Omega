@@ -26,7 +26,7 @@ use image::{
 };
 use target::TargetProfile;
 
-const SECTION_COUNT: usize = 13;
+const SECTION_COUNT: usize = 14;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -606,7 +606,7 @@ fn expected_fragments(
     let indexed = load.relative().payloads().contents();
     require(
         indexed.rows.len() == SECTION_COUNT && load.sections().len() == SECTION_COUNT,
-        "dynamic ELF assembly requires the exact thirteen-row section roster",
+        "dynamic ELF assembly requires the exact fourteen-row section roster",
     )?;
 
     let mut fragments = Vec::with_capacity(16);
@@ -676,7 +676,8 @@ fn section_bytes<'a>(
         8 => resolved_linkage.procedure_linkage_bytes(),
         9 => resolved_linkage.procedure_got_bytes(),
         10 => resolved_linkage.procedure_relocation_bytes(),
-        11 => resolved_linkage.envelope().resolved_dynamic_table().bytes(),
+        11 => resolved_linkage.general_relocation_bytes(),
+        12 => resolved_linkage.envelope().resolved_dynamic_table().bytes(),
         _ => indexed_bytes,
     }
 }
@@ -796,6 +797,9 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
         ElfDynamicRosterSectionKind::ProcedureGot => ElfPlacedDynamicSectionKind::ProcedureGot,
         ElfDynamicRosterSectionKind::ProcedureRelocation => {
             ElfPlacedDynamicSectionKind::ProcedureRelocation
+        }
+        ElfDynamicRosterSectionKind::GeneralRelocation => {
+            ElfPlacedDynamicSectionKind::GeneralRelocation
         }
         ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
         ElfDynamicRosterSectionKind::SectionNameTable => {

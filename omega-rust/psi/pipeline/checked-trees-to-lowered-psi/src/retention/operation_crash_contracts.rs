@@ -425,7 +425,10 @@ fn operator_declaration(
 }
 
 /// The operation's direct scalar operands in authored position order. Calls
-/// carry their own continuations and never take a row.
+/// carry their own continuations and never take a row. No legitimate join
+/// lands on a call — the occurrence rosters only record comparison
+/// emissions — so a call here means the join itself is corrupt; the site is
+/// rejected rather than assigned a guessed positional telescope.
 fn positional_scalar_operands(kind: &OperationKind) -> Result<Vec<ValueId>, LoweringError> {
     if matches!(
         kind,
@@ -534,6 +537,20 @@ mod tests {
             .expect_err("the rewritten occurrence join must fail closed")
     }
 
+    /// The sole recorded integer-comparison join for the fixture's one `==`
+    /// use, mutably, so the test can point it at a different carrier.
+    fn sole_occurrence(
+        lowered: &mut LoweredPsi,
+    ) -> &mut lowered_psi::LoweredSelectedIntegerComparisonOccurrence {
+        let [occurrence] = lowered
+            .selected_integer_comparison_occurrences
+            .as_mut_slice()
+        else {
+            panic!("the selected comparison emits one occurrence row")
+        };
+        occurrence
+    }
+
     #[test]
     fn crash_contract_rejects_a_call_operation_carrier() {
         let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
@@ -571,12 +588,7 @@ mod tests {
                 .then_some((machine, operation.id))
             })
             .expect("choose emits one call operation beside the comparison");
-        let [occurrence] = lowered
-            .selected_integer_comparison_occurrences
-            .as_mut_slice()
-        else {
-            panic!("the selected comparison emits one occurrence row")
-        };
+        let occurrence = sole_occurrence(&mut lowered);
         occurrence.terminal_machine = call_machine;
         occurrence.terminal_operation = call_operation;
         let error = retain_again(&checked, &mut lowered);
@@ -603,6 +615,264 @@ mod tests {
                     if message.contains("no emitted Terminal operation")
             ),
             "a crash-qualified use without an emitted join must fail closed: {error:?}"
+        );
+    }
+
+    /// A `Namespace::requirement(...)` call has no source-occurrence join to
+    /// an emitted operation, so its crash contract has no Terminal carrier.
+    /// The refusal runs before any body lowering.
+    #[test]
+    fn named_operator_crash_invocation_fails_before_lowering() {
+        let checked = checked(
+            r#"
+            boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
+            machine choose(left: u16, right: u16) -> bool { Meaning::equal(left, right) }
+            "#,
+        );
+        let error = crate::lower_machine(&checked, "choose")
+            .expect_err("a named crash invocation has no operation join");
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("no Terminal operation join")
+            ),
+            "a named crash invocation must not lower silently: {error:?}"
+        );
+    }
+
+    #[test]
+    fn crash_contract_rejects_a_duplicated_join() {
+        let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a call lowers");
+        let duplicated = *sole_occurrence(&mut lowered);
+        lowered
+            .selected_integer_comparison_occurrences
+            .push(duplicated);
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("more than one Terminal operation")
+            ),
+            "one use must join exactly one operation: {error:?}"
+        );
+    }
+
+    #[test]
+    fn crash_contract_rejects_a_join_outside_the_lowered_module() {
+        let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a call lowers");
+        sole_occurrence(&mut lowered).terminal_machine =
+            semantic_vocabulary::MachineId::new(u64::MAX).expect("nonzero machine id");
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("outside the lowered module")
+            ),
+            "a join outside the module must not lower: {error:?}"
+        );
+    }
+
+    #[test]
+    fn crash_contract_rejects_an_absent_operation_join() {
+        let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a call lowers");
+        sole_occurrence(&mut lowered).terminal_operation =
+            semantic_vocabulary::OperationId::new(u64::MAX).expect("nonzero operation id");
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("outside its Terminal machine")
+            ),
+            "a join naming no operation must not lower: {error:?}"
+        );
+    }
+
+    /// A one-operand operation is still a valid carrier shape, so the
+    /// declaration's own parameter roster must disagree — the count check is
+    /// what stops a borrowed contract from landing on the wrong telescope.
+    #[test]
+    fn crash_contract_rejects_an_operand_roster_mismatch() {
+        let checked = checked(
+            r#"
+            boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
+            machine choose(flag: bool, left: u16, right: u16) -> bool { !flag || (left == right) }
+            "#,
+        );
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a negation lowers");
+        let unary = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| block.operations.iter().map(|op| (machine.id, op)))
+            })
+            .find_map(|(machine, operation)| {
+                let mut kind = operation.kind.clone();
+                let mut count = 0usize;
+                kind.map_scalar_uses(&mut |operand| {
+                    count += 1;
+                    operand
+                });
+                (count == 1).then_some((machine, operation.id))
+            })
+            .expect("choose emits one unary operation beside the comparison");
+        let occurrence = sole_occurrence(&mut lowered);
+        occurrence.terminal_machine = unary.0;
+        occurrence.terminal_operation = unary.1;
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("operand roster disagrees")
+            ),
+            "a mismatched operand telescope must not carry the contract: {error:?}"
+        );
+    }
+
+    #[test]
+    fn crash_contract_rejects_two_sites_on_one_operation() {
+        let checked = checked(
+            r#"
+            boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
+            machine choose(left: u16, right: u16, extra: u16) -> bool { (left == right) || (extra == left) }
+            "#,
+        );
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("two crash-qualified comparisons lower");
+        assert_eq!(
+            lowered.semantic_module.operation_crash_contracts.len(),
+            2,
+            "each selected comparison installs its own operation crash contract"
+        );
+        let [first, second] = lowered
+            .selected_integer_comparison_occurrences
+            .as_mut_slice()
+        else {
+            panic!("two selected comparisons emit two occurrence rows")
+        };
+        second.terminal_operation = first.terminal_operation;
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message) if message.contains("collide")
+            ),
+            "two sites must not share one carrier: {error:?}"
+        );
+    }
+
+    #[test]
+    fn crash_contract_rejects_reinstallation() {
+        let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a call lowers");
+        // The honest install is still present, so a second pass must refuse
+        // rather than rewrite the carrier.
+        let source_machines = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .map(|selection| selection.machine)
+            .collect::<Vec<_>>();
+        let error = retain_operation_crash_contracts(&checked, &source_machines, &mut lowered)
+            .expect_err("reinstalling over existing rows must fail closed");
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message) if message.contains("already installed")
+            ),
+            "a second install must not silently rewrite contracts: {error:?}"
+        );
+    }
+    /// A guarded float operator route now carries a structured scalar
+    /// proposition: `!(left == right)` over `f64` formals lowers to the atomic
+    /// scalar IEEE comparison, and `left != right` lowers without the negation.
+    /// Both use the operator's formal telescope (operand `k` is formal `k + 1`)
+    /// and the verifier accepts the installed row.
+    #[test]
+    fn crash_contract_installs_a_scalar_ieee_float_guard() {
+        use semantic_vocabulary::{
+            IeeeFloatComparisonKind, IeeeFloatFormat, Proposition, ScalarTerm, ScalarType, ValueId,
+        };
+        use terminal_psi::CrashRouteGuard;
+
+        let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+        let formal = |raw: u64| ScalarTerm::value(ValueId::new(raw).expect("formal"), float);
+        for (guard, kind) in [
+            ("!(left == right)", IeeeFloatComparisonKind::NotEqual),
+            ("left != right", IeeeFloatComparisonKind::NotEqual),
+            ("left == right", IeeeFloatComparisonKind::Equal),
+        ] {
+            let checked = checked(&format!(
+                "boundary operator == Float::equal(left: f64, right: f64) -> bool\n\
+                 crashes Trap {guard};\n\
+                 machine compare(left: f64, right: f64) -> bool crashes Trap {{ left == right }}"
+            ));
+            let lowered = crate::lower_machine(&checked, "compare")
+                .unwrap_or_else(|error| panic!("{guard} lowers: {error:?}"));
+            let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
+                panic!("{guard}: one float use installs one operation crash contract")
+            };
+            let [
+                terminal_psi::CrashRouteBucket {
+                    cause,
+                    alternatives,
+                },
+            ] = row.published_routes.as_slice()
+            else {
+                panic!("{guard}: one published route")
+            };
+            assert_eq!(*cause, terminal_psi::CrashCause::Trap);
+            let [CrashRouteGuard::Predicate(term)] = alternatives.as_slice() else {
+                panic!("{guard}: the guard is one predicate")
+            };
+            assert_eq!(
+                term.proposition(),
+                &Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format: IeeeFloatFormat::Binary64,
+                    left: formal(1),
+                    right: formal(2),
+                },
+                "{guard}: scalar IEEE comparison over the formal telescope"
+            );
+            terminal_verifier::validate_module(&lowered.semantic_module)
+                .unwrap_or_else(|error| panic!("{guard}: verifier accepts the row: {error:?}"));
+        }
+    }
+
+    /// IEEE ordering guards keep failing closed: `>=` on float formals has no
+    /// structured scalar form even though `==`/`!=` now lower.
+    #[test]
+    fn crash_contract_still_rejects_float_ordering_guards() {
+        let checked = checked(
+            "boundary operator == Float::equal(left: f64, right: f64) -> bool\n\
+             crashes Trap !(right >= 0.0);\n\
+             machine compare(left: f64, right: f64) -> bool crashes Trap { left == right }",
+        );
+        let error = crate::lower_machine(&checked, "compare")
+            .expect_err("an ordering guard has no structured scalar form");
+        assert!(
+            format!("{error:?}")
+                .contains("guarded crash route is outside structured scalar predicate lowering"),
+            "{error:?}"
         );
     }
 }

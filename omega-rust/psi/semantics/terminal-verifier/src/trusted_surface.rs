@@ -251,6 +251,7 @@ pub const PROVED_ENTRIES: &[&str] = &[
     "fact:boolean-polarity-implications",
     "fact:branch-condition-transport",
     "fact:header-invariant-members",
+    "fact:scalar-carrier-bounds",
     "fact:successor-path-transport",
 ];
 

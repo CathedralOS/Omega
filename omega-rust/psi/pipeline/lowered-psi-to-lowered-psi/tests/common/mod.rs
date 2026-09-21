@@ -115,6 +115,7 @@ pub fn contract(ordinal: u64) -> MachineContract {
         ensures: Vec::new(),
         outcome_specific_ensures: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
     }
 }
 
@@ -200,6 +201,7 @@ pub fn block(
         id: BlockId::new(ordinal).unwrap(),
         parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations,
         terminator,
     }
@@ -211,6 +213,7 @@ pub fn successor(ordinal: u64, target: BlockId, arguments: Vec<ValueId>) -> Succ
         target,
         arguments,
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -234,6 +237,7 @@ pub fn jump(ordinal: u64, target: BlockId, arguments: Vec<ValueId>) -> Terminato
         target,
         arguments,
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -676,6 +680,7 @@ pub fn coercion_edge_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -757,6 +762,7 @@ pub fn coercion_region_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -831,6 +837,7 @@ pub fn unit_call(ordinal: u64, callee: MachineId) -> Operation {
             callee,
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
@@ -922,6 +929,7 @@ pub fn dead_machine_coercion_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),

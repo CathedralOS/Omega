@@ -121,7 +121,7 @@ pub use artifact_custody::{
     OptimizedObjectArtifactStage, OptimizedObjectArtifactStatistics,
     OptimizedObjectArtifactUnavailableData, StagedValidatedOptimizedObjectArtifact,
     ValidatedOptimizedObjectArtifactManifest, stage_validated_optimized_object_artifact,
-    validate_optimized_object_artifact,
+    stage_validated_optimized_object_artifact_shared, validate_optimized_object_artifact,
 };
 pub use fragment_container::{
     RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer,

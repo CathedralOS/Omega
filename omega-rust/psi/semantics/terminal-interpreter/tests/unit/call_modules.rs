@@ -63,6 +63,7 @@ pub(super) fn write_only_primitive_call_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(92),
             structural_arguments: vec![StructuralArgument {
@@ -94,6 +95,7 @@ pub(super) fn write_only_primitive_call_module() -> TerminalModule {
         entry: block_id(92),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(92),
             parameters: Vec::new(),
@@ -243,6 +245,7 @@ pub(super) fn structural_scalar_field_call_module() -> TerminalModule {
             }),
             kind: OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(96),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -288,6 +291,7 @@ pub(super) fn structural_scalar_field_call_module() -> TerminalModule {
         entry: block_id(96),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(96),
             parameters: Vec::new(),
@@ -450,6 +454,7 @@ pub(super) fn parameter_dynamic_scalar_call_module() -> TerminalModule {
     }];
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: helper,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
@@ -480,6 +485,7 @@ pub(super) fn parameter_dynamic_scalar_call_module() -> TerminalModule {
         entry: block_id(97),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(97),
             parameters: Vec::new(),
@@ -583,6 +589,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
     caller_machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -595,6 +602,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
                     target: block_id(2),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -603,12 +611,14 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
                     target: block_id(3),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -622,6 +632,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: helper,
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -638,6 +649,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
@@ -651,6 +663,7 @@ pub(super) fn joined_parameter_dynamic_scalar_call_module() -> TerminalModule {
                 }),
                 kind: OperationKind::CallStructuralScalar {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: helper,
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -772,6 +785,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         entry: block_id(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
@@ -822,6 +836,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(1),
             crash_routes: if crashes {
                 vec![crash_route.clone()]
@@ -883,6 +898,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         entry: block_id(2),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -905,6 +921,7 @@ pub(super) fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: if crashes {
                 vec![crash_route]

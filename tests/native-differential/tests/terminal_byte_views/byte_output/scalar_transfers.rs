@@ -69,6 +69,7 @@ fn scalar_guard_transfer_module(boolean: bool) -> TerminalModule {
     bridge.parameters.clear();
     bridge.terminator = Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(160).unwrap(),
         target: caller.entry,
         arguments: vec![ValueId::new(104).unwrap()],

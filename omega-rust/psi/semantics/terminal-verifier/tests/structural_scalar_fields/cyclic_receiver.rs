@@ -69,6 +69,7 @@ fn call() -> Operation {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: id(2),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -89,6 +90,7 @@ fn successor(edge: u64, target: u64) -> SuccessorEdge {
         target: id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -144,6 +146,7 @@ fn receiver_module(cyclic: bool) -> TerminalModule {
         };
         caller.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(3),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -235,6 +238,7 @@ fn loop_cut_does_not_import_a_prefix_field_observation() {
     caller.entry = id(4);
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(4),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -244,6 +248,7 @@ fn loop_cut_does_not_import_a_prefix_field_observation() {
             target: id(1),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),

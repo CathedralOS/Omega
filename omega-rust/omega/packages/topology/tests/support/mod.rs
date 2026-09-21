@@ -13,7 +13,9 @@
 //! used by a given binary are expected dead code there.
 #![allow(dead_code)]
 
+use std::borrow::Borrow;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use component_description::test_support::{bare_module, describe_module, module_subject};
 use component_description::{
@@ -29,7 +31,9 @@ use terminal_psi::{
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ServiceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, Terminator,
 };
-use topology_plan::topology_installation::{OperationSchema, OperationSchemas, PayloadSchema};
+use topology_plan::topology_installation::{
+    AdmittedArtifact, OperationSchema, OperationSchemas, PayloadSchema,
+};
 use topology_plan::*;
 
 pub fn identity(byte: u8) -> Identity {
@@ -186,14 +190,33 @@ pub fn admit_with(
 
 /// The component subject every admission binds, in order — the roster
 /// owner intent names.
-pub fn subjects_of(components: &[AdmittedComponent]) -> Vec<Identity> {
+pub fn subjects_of(components: &[impl Borrow<AdmittedComponent>]) -> Vec<Identity> {
     components.iter().map(subject_of).collect()
 }
 
 /// The plan-level identity of one admission's subject — what a request
 /// roster member must name to bind it.
-pub fn subject_of(admission: &AdmittedComponent) -> Identity {
-    component_subject_identity(&admission.component.subject())
+pub fn subject_of(admission: &impl Borrow<AdmittedComponent>) -> Identity {
+    component_subject_identity(&admission.borrow().component.subject())
+}
+
+/// The admitted executable roster matching `components` in canonical order:
+/// each artifact's component subject and admission profile derive from the
+/// admission itself, so a row can only ever carry a subject and profile
+/// `verify_component` admitted — the artifact identity stays the
+/// caller-asserted executable admission record.
+pub fn artifact_roster(
+    components: &[Arc<AdmittedComponent>],
+    artifact_at: impl Fn(usize) -> Identity,
+) -> Vec<AdmittedArtifact> {
+    components
+        .iter()
+        .enumerate()
+        .map(|(index, admission)| AdmittedArtifact {
+            artifact: artifact_at(index),
+            admission: Arc::clone(admission),
+        })
+        .collect()
 }
 
 /// The port a test component writes: one physical mechanism assumption the
@@ -265,12 +288,14 @@ pub fn billing_module() -> TerminalModule {
     )
 }
 
-/// The three payment components' admissions, in roster order.
-pub fn payment_components() -> Vec<AdmittedComponent> {
+/// The three payment components' admissions, in roster order — shared
+/// evidence, since one admission backs both the plan roster and the
+/// installer's artifact roster.
+pub fn payment_components() -> Vec<Arc<AdmittedComponent>> {
     vec![
-        admit(&api_module()),
-        admit(&authorization_module()),
-        admit(&billing_module()),
+        Arc::new(admit(&api_module())),
+        Arc::new(admit(&authorization_module())),
+        Arc::new(admit(&billing_module())),
     ]
 }
 
@@ -698,4 +723,55 @@ fn hex_decode(text: &str) -> Vec<u8> {
         .filter_map(|pair| std::str::from_utf8(pair).ok())
         .filter_map(|pair| u8::from_str_radix(pair, 16).ok())
         .collect()
+}
+
+// ---- build-scope-topology package inputs -----------------------------------
+
+/// `components.bin`: the owner-admitted component descriptions in canonical
+/// request-roster order — `{u32 count}` then `{u32 desc_len, canonical
+/// description bytes, admitting profile identity[32]}` per instance. The
+/// package recomputes every composition fact from these bytes; nothing here
+/// is a plan fragment.
+pub fn components_input(components: &[impl Borrow<AdmittedComponent>]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&(components.len() as u32).to_le_bytes());
+    for admission in components {
+        let admission = admission.borrow();
+        // The admitted description is exactly `describe_module`'s canonical
+        // encoding of the verified module.
+        let bytes = describe_module(admission.component.module());
+        out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        out.extend_from_slice(&bytes);
+        out.extend_from_slice(&admission.request.profile_identity());
+    }
+    out
+}
+
+/// `bindings.bin`: the owner's binding selections in canonical
+/// `(import, export)` order — `{u32 count}` then `{ii, is, ei, es u32,
+/// transport[32]}` rows.
+pub fn bindings_input(bindings: &[Binding]) -> Vec<u8> {
+    let mut sorted = bindings.to_vec();
+    sorted.sort_by_key(|binding| (binding.import, binding.export));
+    let mut out = Vec::new();
+    out.extend_from_slice(&(sorted.len() as u32).to_le_bytes());
+    for binding in &sorted {
+        out.extend_from_slice(&binding.import.instance.to_le_bytes());
+        out.extend_from_slice(&binding.import.slot.to_le_bytes());
+        out.extend_from_slice(&binding.export.instance.to_le_bytes());
+        out.extend_from_slice(&binding.export.slot.to_le_bytes());
+        out.extend_from_slice(&binding.transport);
+    }
+    out
+}
+
+/// Every input the build-scope-topology project reads: request, admitted
+/// components, and chosen bindings.
+pub fn build_scope_inputs() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let request = payment_request();
+    (
+        encode_request(&request).unwrap(),
+        components_input(&payment_components()),
+        bindings_input(&payment_bindings()),
+    )
 }

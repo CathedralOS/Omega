@@ -12,6 +12,8 @@ pub(crate) const CHECKED_BOUNDARY_OPERATOR_CONST_LENGTH_EXIT: &str =
     "providers/checked_boundary_operator_const_length_exit";
 pub(crate) const CHECKED_NAMED_BOUNDARY_OPERATOR_CONST_LENGTH_EXIT: &str =
     "providers/checked_named_boundary_operator_const_length_exit";
+pub(crate) const CHECKED_BOUNDARY_OPERATOR_CONST_APPLICATION_EXIT: &str =
+    "providers/checked_boundary_operator_const_application_exit";
 pub(crate) const PROVIDER_BOUNDARY_RANGE_ENDPOINT_EXIT: &str =
     "comptime/provider_boundary_range_endpoint_exit";
 pub(crate) const CHECKED_FIXED_OPERATOR_PHYSICAL_CUSTODY: &str =
@@ -125,6 +127,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     CHECKED_BOUNDARY_OPERATOR_PHYSICAL_CUSTODY,
     CHECKED_BOUNDARY_OPERATOR_CONST_LENGTH_EXIT,
     CHECKED_NAMED_BOUNDARY_OPERATOR_CONST_LENGTH_EXIT,
+    CHECKED_BOUNDARY_OPERATOR_CONST_APPLICATION_EXIT,
     PROVIDER_BOUNDARY_RANGE_ENDPOINT_EXIT,
     CHECKED_FIXED_OPERATOR_PHYSICAL_CUSTODY,
     CHECKED_OPERATOR_FRAGMENT_PUBLICATION,
