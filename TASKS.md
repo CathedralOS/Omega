@@ -4835,6 +4835,24 @@ Owners include
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns the receiver rows and the broad
   `Filesystem` summary.
 
+  Scope re-verified at `069276b986dc` (linux x86-64, z140): the realization-side
+  contract machinery is already landed (`filesystem_ordinary_release_contract`,
+  `filesystem_release_bound_mechanism`, `filesystem_release_mechanism_row` in
+  `terminal_authority_policy/filesystem.rs`) but has only test callers — the
+  missing leg is a checked-flow producer minting `occurrence_commitment`, plus
+  the native-rejoin call. Both recorded customer stops moved upstream:
+  `filesystem/native_close` now rejects at `Main::fs requires a selected Fused
+  provider for boundary FilesystemHost` (the canary roster's named gate), and
+  `windows_canonicalize_exit --target windows_x86_64` rejects at `ProgramEntry
+  establishment rejoins 0 Terminal attachment identities ... state graph:
+  state signature: parameter signature: attached data shape` — the
+  ENTRY-CONTENT-ROOTS family — before reaching `structural field store: scalar
+  field type`. The paused transitive closure plan is in
+  `wiki/drafts/filesystem_release_contract_z140.md`. Implementing surfaces are
+  fenced: `filesystem.rs` under TWO-AXIS-TERMINAL-AUTHORITY-REVIEW (~04:54Z),
+  `structural_scalar_store` under the STATE-LOCAL-VALUE-FRONTIER /
+  CORPUS-RED-FAMILY-TRAPSTORE ownership recorded by PSI-NATIVE-FIELD-STORES.
+
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   in `validation/src/machine_calls/calls/write_frames/`. The inference returns
   complete caller-visible paths or fails closed as opaque. It carries finite
@@ -10545,7 +10563,38 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unit_closure cli_mvp, and every family `*_from_authored_program_
   entry_bindings` cohort (algorithm/interpreter/gui/collection/probe/
   rendering/simulation/text/system/arithmetic/all_samples).
-- **RC-REPRESENTATIVE-PROGRAMS-PER-HOST.** — mined candidate; verify scope then implement.
+- **RC-REPRESENTATIVE-PROGRAMS-PER-HOST.** Mined candidate; scope verified,
+  per-host leg measured red on linux-x86_64. This stub is the per-host axis of
+  the same `wiki/drafts/rust_compiler_completion.md` matrix row measured by
+  RC-REPRESENTATIVE-PROGRAMS-CLOSURE/-GATE/-GREEN: the gate must pass on
+  linux_x86_64, linux_arm64, macos_arm64, and windows_x86_64 alike, so the
+  item's slice is a fresh measurement of the host leg this machine can run —
+  the other three host legs remain host-gated (unavailable on this host per
+  protocol), not skips. Measured at `3343c54bef3` on linux x86-64
+  (`RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test
+  samples_compile --no-fail-fast`; cargo, no mbx): 9 pass / 19 fail / 5 legs
+  bounded by SIGINT at >45–145 min (arithmetic, all_samples_reach_checked_trees,
+  samples_with_documented_exit_run_correctly, system, text cohorts), elapsed
+  8688s. Passing legs: dutch_flag, euclid_gcd, cli_mvp, generic_counter,
+  both native_acceptance, recursive_slice, standard_sample_discovery, and
+  `sample_entry_exceptions_are_explicit_and_non_runnable` (stays green after
+  the device_extent_access pin). Failure families, all mapping to the named
+  fenced lanes: ProgramEntry establishment rejoins-0 on
+  linux_x86_64/linux_arm64/macos_arm64 (~180 diagnostics;
+  ENTRY-CONTENT-ROOTS); windows_x86_64 `named-callable(WindowsProcessEntry::
+  enter)` schema rejection of bundled std `entry.omg` (79; TOP-LEVEL-BOUNDARY
+  lane); Fused-provider Service fields `Main::{clock,clock2,input,gui,raw}`
+  (42; gui/simulation/probe legs); `[u8; N]::Utf8` domain-field
+  (print_number/format_number/caesar/print_squares/text legs;
+  DOMAIN-REFINEMENT lane); index-within-length proofs in write_pixel and
+  CompactBinary (20; OPERATOR-MACHINE/proof lanes); `authored Operator
+  selection occurrence 108 remained unresolved (CheckedOperator)` on
+  binary_search_viz (4). Per-host verdict: linux_x86_64 leg measured here;
+  linux_arm64/macos_arm64/windows_x86_64 legs host-gated, unrun. Gate stays
+  open on every measured host axis until the fenced lanes land.
+- **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
+- **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-SOURCE-SEMANTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-WINDOWS-X64-NATIVE-ROW.** Residual leg needs a Windows x86-64 host: execute the emitted PE (hosted_receiver_windows cfg-gated run) on its matching runner; compile-side lanes verified green 2026-09-20.
   Re-verified the gate shape at `d8041919ad`: nothing linux-runnable
   remains — the emitted-PE execution leg (hosted_receiver_windows
