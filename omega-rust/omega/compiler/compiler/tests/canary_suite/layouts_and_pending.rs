@@ -44,8 +44,8 @@ fn plan_laid_value_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-/// Native run of an erased-parameter fixture from its authored build root
-/// (macOS arm64 host): each fixture exits 70 only when its runtime arguments
+/// Native run of an erased-parameter fixture from its authored build root on
+/// the suite's host: each fixture exits 70 only when its runtime arguments
 /// arrive in the callee intact (its header names the other exit codes), so a
 /// shifted ABI position or a Terminal rejection of the stripped plan fails
 /// here.
@@ -352,6 +352,10 @@ fn erased_parameter_between_runtime_values_keeps_both_runtime_positions() {
 
 #[test]
 fn erased_proof_only_typed_parameter_stays_out_of_the_scalar_signature() {
+    // A proof-only-typed erased parameter (`Nat`) is admitted and carries no
+    // scalar position: the fixture's own header records an older rejection
+    // slice, but the checked plan pins `keep` to the retained position alone
+    // and the native run exits 70.
     assert_erased_parameter_call_plan(
         fixture_roster::ERASED_PROOF_ONLY_TYPED_PARAMETER_EXIT,
         &[("keep", &[0], &[70])],
