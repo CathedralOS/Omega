@@ -2289,3 +2289,142 @@ fn triangle_relocation_is_deterministic_and_re_admitted() {
         vec![LATE, LEAD, MOVING, TRAIL]
     );
 }
+
+/// The validator proves its legality reconstruction is its own: a forged
+/// proposal — the same edit a producer would publish — is produced
+/// directly on the source's plan without consulting admission, so the
+/// validator's verdict cannot ride on the producer's admission record. A
+/// legal forged move validates; a forged move across a hazard-coupled
+/// crossed position rejects with the legality error, not a replay
+/// mismatch.
+mod independence_tests {
+    use super::{
+        BRANCH, MOVING, NativeTarget, R_MOVE, R_TAIL, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, TRAIL, TriangleRelocationError,
+        ValidatedTriangleRelocation, baseline_target_register_environment, budget, fixture,
+        instruction, mutated, validate_triangle_relocation,
+    };
+
+    /// Relocate `member` out of the join onto `landing_index` inside the
+    /// head block's body — the edit a producer emitting that relocation
+    /// would publish — without asking admission whether the window is
+    /// legal.
+    fn forged(
+        source: &ValidatedTriangleRelocation,
+        member: SelectedInstructionId,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let (block_index, member_index) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_index, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.id == member)
+                    .map(|member_index| (block_index, member_index))
+            })
+            .unwrap();
+        let instruction = function.blocks[block_index]
+            .instructions
+            .remove(member_index);
+        function.blocks[0]
+            .instructions
+            .insert(landing_index, instruction);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the member and the crossed positions carry no hazards,
+    /// no roster rows, and no barriers, so the audit derives the move and
+    /// the content comparison accepts it.
+    #[test]
+    fn forged_member_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_triangle_relocation(
+            &source,
+            0,
+            MOVING,
+            TRAIL,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 2),
+        )
+        .unwrap();
+    }
+
+    /// The same forged move validates at the body end: naming the head's
+    /// terminator-carried branch instruction lands the member past every
+    /// body position, and the validator derives that landing itself.
+    #[test]
+    fn forged_member_move_to_the_body_end_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_triangle_relocation(
+            &source,
+            0,
+            MOVING,
+            BRANCH,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the member moved past a crossed position reading the
+    /// register it defines — here `TRAIL` mutated to read `R_MOVE`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`, not
+    /// a replay mismatch, because it reconstructs the window's hazards
+    /// instead of trusting the producer's admission record.
+    #[test]
+    fn forged_member_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                TRAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_TAIL],
+            );
+        });
+        assert_eq!(
+            validate_triangle_relocation(
+                &source,
+                0,
+                MOVING,
+                TRAIL,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 2),
+            )
+            .unwrap_err(),
+            TriangleRelocationError::UnsupportedPair
+        );
+        // Landing the member at the body end keeps the coupled `TRAIL`
+        // ahead of it as the source had it, so the validator's audit
+        // derives that window legal as well.
+        validate_triangle_relocation(
+            &source,
+            0,
+            MOVING,
+            BRANCH,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
+}

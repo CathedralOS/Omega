@@ -43,8 +43,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the triangle's converging join.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -85,14 +84,14 @@ fn arm_edge_into(
     plain_edge(arm_edge)
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, TriangleRelocationError> {
+) -> Result<Admission, TriangleRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(TriangleRelocationError::SourceMismatch);
@@ -343,7 +342,6 @@ pub(super) fn admit<'source>(
         return Err(TriangleRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,
