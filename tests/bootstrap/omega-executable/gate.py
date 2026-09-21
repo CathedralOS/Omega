@@ -87,12 +87,14 @@ def main():
     arguments.add_argument("--controls-g", action="store_true")
     arguments.add_argument("--controls-h", action="store_true")
     arguments.add_argument("--controls-i", action="store_true")
+    arguments.add_argument("--controls-j", action="store_true")
     options = arguments.parse_args()
     directory = options.directory.resolve()
     gate = Path(__file__).resolve().parent
     selected = [options.controls, options.controls_b, options.controls_c,
                 options.controls_d, options.controls_e, options.controls_f,
-                options.controls_g, options.controls_h, options.controls_i]
+                options.controls_g, options.controls_h, options.controls_i,
+                options.controls_j]
     if sum(1 for flag in selected if flag) > 1:
         arguments.error("controls parts are separate runs")
     if any(selected) and \
@@ -135,11 +137,11 @@ def main():
         raise SystemExit("Epsilon execution receipt differs from the selected gate identity")
     if receipt_cache and not Path(receipt_cache).exists():
         Path(receipt_cache).write_bytes(receipt)
-    # The controls matrix splits across nine customers, so each part ends by
+    # The controls matrix splits across ten customers, so each part ends by
     # republishing the same successful tape and carries the same expected
     # observation. The split predates the V5 arena growth: the retired
     # 40,265,318-node pair arena could not retain even an eighteen-invocation
-    # half, and the nine-way shape remains the bounded evaluated form.
+    # half, and the ten-way shape remains the bounded evaluated form.
     entry = gate / ("controls.epsilon" if options.controls else
                     "controls_b.epsilon" if options.controls_b else
                     "controls_c.epsilon" if options.controls_c else
@@ -149,6 +151,7 @@ def main():
                     "controls_g.epsilon" if options.controls_g else
                     "controls_h.epsilon" if options.controls_h else
                     "controls_i.epsilon" if options.controls_i else
+                    "controls_j.epsilon" if options.controls_j else
                     "main.epsilon" if options.diagnostic else
                     "main_ocreq.epsilon")
     customer = (directory / "omega_compiler.epsilon").read_bytes() + entry.read_bytes()

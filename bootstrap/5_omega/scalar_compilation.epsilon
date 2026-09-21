@@ -31,15 +31,19 @@ data OmegaScalarCompiler {
     // expression's subtree in preorder (children always carry larger slot
     // positions than their parent), then a reverse scan folds children
     // before their consumers; operand_values holds each visited node's
-    // folded u8 value or -2 for an unsupported form. fold_value receives
-    // the completed root value; fold_anchor is the caller-chosen
+    // folded value (0..255) or -2 for an unsupported form, and
+    // operand_classes tags every folded node's carrier class - 0 for a u8
+    // integer, 1 for a Boolean. fold_value receives the completed root
+    // value and fold_class its class; fold_anchor is the caller-chosen
     // Incomplete coordinate when any node stays unsupported.
     operand_values: [i32; 16384];
+    operand_classes: [i32; 16384];
     eval_order: [i32; 16384];
     eval_count: i32;
     eval_scan: i32;
     fold_anchor: i32;
     fold_value: i32;
+    fold_class: i32;
     // The folded transition subject under the arm scan: subject_class is 0
     // for a u8 integer value and 1 for a Boolean in subject_value.
     subject_class: i32;
@@ -226,10 +230,11 @@ machine OmegaScalarCompiler::resolve_state(
     }
 }
 
-// Fold the parsed expression subtree rooted at root to its u8 value under
+// Fold the parsed expression subtree rooted at root to its value under
 // the machine's default Exact policy: every node's result must be
-// representable in its declared carrier. Returns 0 with the value in
-// self.fold_value, 1 when any node is an unsupported form, or 2 after the
+// representable in its carrier class. Returns 0 with the value in
+// self.fold_value and the class in self.fold_class (0 = u8, 1 = Boolean),
+// 1 when any node is an unsupported form, or 2 after the
 // source's refusal tuple has been recorded through the shared recorders.
 // Children always precede their parents in eval_order, so one preorder
 // collect followed by a reverse scan evaluates every operand before its
@@ -308,16 +313,24 @@ machine OmegaScalarCompiler::fold_expression(
         let expression: i32 = self.eval_order[self.eval_scan];
         transition self.parser.expressions[expression].kind {
             OmegaExpressionKind::Integer -> integer(expression)
+            OmegaExpressionKind::Boolean -> boolean(expression)
             OmegaExpressionKind::Binary -> fold_binary(expression)
             OmegaExpressionKind::Unary -> fold_unary(expression)
             _ -> mark_unsupported(expression)
         }
     }
 
-    // Bitwise complement is total at the carrier width like the binary
-    // bitwise family: `~x` folds to `x ^ 255`. LogicalNot produces a
-    // Boolean and Negate is not total on the unsigned carrier under Exact,
-    // so those operators stay unsupported.
+    // A Boolean literal folds to its 0/1 payload under the Boolean class.
+    state boolean(expression: i32) {
+        self.operand_values[expression] =
+            self.parser.expressions[expression].payload0;
+        self.operand_classes[expression] = 1;
+        transition true { true -> fold_next() }
+    }
+
+    // `~x` is total at the carrier width like the binary bitwise family on
+    // a u8 operand; `!x` complements a Boolean operand. Negate is not
+    // total on the unsigned carrier under Exact, so it stays unsupported.
     state fold_unary(expression: i32) {
         let row: OmegaUnaryExpressionSyntax = self.parser.unary_expressions[
             self.parser.expressions[expression].payload0];
@@ -329,10 +342,39 @@ machine OmegaScalarCompiler::fold_expression(
 
     state fold_unary_operator(expression: i32, row: OmegaUnaryExpressionSyntax) {
         transition row.operator {
-            OmegaUnaryOperatorKind::BitwiseNot -> store_folded(expression,
-                self.operand_values[row.operand] ^ 255)
+            OmegaUnaryOperatorKind::BitwiseNot -> fold_bitwise_not(expression, row)
+            OmegaUnaryOperatorKind::LogicalNot -> fold_logical_not(expression, row)
             _ -> mark_unsupported(expression)
         }
+    }
+
+    state fold_bitwise_not(expression: i32, row: OmegaUnaryExpressionSyntax) {
+        transition self.operand_classes[row.operand] == 0 {
+            true -> store_folded(expression,
+                self.operand_values[row.operand] ^ 255, 0)
+            _ -> reject_unary_operator(row)
+        }
+    }
+
+    // `!x` complements a Boolean operand; a u8 operand is a carrier-class
+    // rejection at the operator.
+    state fold_logical_not(expression: i32, row: OmegaUnaryExpressionSyntax) {
+        transition self.operand_classes[row.operand] == 1 {
+            true -> fold_logical_not_value(expression, row)
+            _ -> reject_unary_operator(row)
+        }
+    }
+
+    state fold_logical_not_value(expression: i32, row: OmegaUnaryExpressionSyntax) {
+        transition self.operand_values[row.operand] == 1 {
+            true -> store_folded(expression, 0, 1)
+            _ -> store_folded(expression, 1, 1)
+        }
+    }
+
+    state reject_unary_operator(row: OmegaUnaryExpressionSyntax) {
+        self.record_reject(-1, 4, row.operator_start);
+        return 2;
     }
 
     state integer(expression: i32) {
@@ -365,6 +407,7 @@ machine OmegaScalarCompiler::fold_expression(
 
     state store(expression: i32, value: i32) {
         self.operand_values[expression] = value;
+        self.operand_classes[expression] = 0;
         transition true { true -> fold_next() }
     }
 
@@ -373,14 +416,39 @@ machine OmegaScalarCompiler::fold_expression(
             self.parser.expressions[expression].payload0];
         transition (self.operand_values[row.left] >= 0) &&
             (self.operand_values[row.right] >= 0) {
-            true -> fold_operator(expression, row)
+            true -> fold_class_route(expression, row)
             _ -> mark_unsupported(expression)
         }
     }
 
-    // The admitted operators produce u8 results: arithmetic, bitwise, and
-    // shift operations. Comparison and logical operators produce Boolean
-    // results this slice does not implement, so they stay unsupported.
+    // Every admitted operator names its operand classes: arithmetic,
+    // bitwise, and shift operations take u8 operands to a u8 result;
+    // ordering comparisons take u8 operands to a Boolean result; equality
+    // compares same-class operands; the logical operators take Boolean
+    // operands to a Boolean result. A class mismatch is a carrier-class
+    // rejection at the operator, not an unsupported form.
+    state fold_class_route(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Equal -> fold_equality(expression, row)
+            OmegaBinaryOperatorKind::NotEqual -> fold_equality(expression, row)
+            OmegaBinaryOperatorKind::Less -> fold_ordered(expression, row)
+            OmegaBinaryOperatorKind::LessEqual -> fold_ordered(expression, row)
+            OmegaBinaryOperatorKind::Greater -> fold_ordered(expression, row)
+            OmegaBinaryOperatorKind::GreaterEqual -> fold_ordered(expression, row)
+            OmegaBinaryOperatorKind::And -> fold_logical(expression, row)
+            OmegaBinaryOperatorKind::Or -> fold_logical(expression, row)
+            _ -> fold_u8_operands(expression, row)
+        }
+    }
+
+    state fold_u8_operands(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition (self.operand_classes[row.left] == 0) &&
+            (self.operand_classes[row.right] == 0) {
+            true -> fold_operator(expression, row)
+            _ -> reject_operator(row)
+        }
+    }
+
     state fold_operator(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition row.operator {
             OmegaBinaryOperatorKind::Add -> fold_add(expression, row)
@@ -401,7 +469,7 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.operand_values[row.left] <=
             255 - self.operand_values[row.right] {
             true -> store_folded(expression,
-                self.operand_values[row.left] + self.operand_values[row.right])
+                self.operand_values[row.left] + self.operand_values[row.right], 0)
             _ -> reject_operator(row)
         }
     }
@@ -409,14 +477,14 @@ machine OmegaScalarCompiler::fold_expression(
     state fold_subtract(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition self.operand_values[row.left] >= self.operand_values[row.right] {
             true -> store_folded(expression,
-                self.operand_values[row.left] - self.operand_values[row.right])
+                self.operand_values[row.left] - self.operand_values[row.right], 0)
             _ -> reject_operator(row)
         }
     }
 
     state fold_multiply(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition self.operand_values[row.right] == 0 {
-            true -> store_folded(expression, 0)
+            true -> store_folded(expression, 0, 0)
             _ -> fold_multiply_bounded(expression, row)
         }
     }
@@ -425,7 +493,7 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.operand_values[row.left] <=
             255 / self.operand_values[row.right] {
             true -> store_folded(expression,
-                self.operand_values[row.left] * self.operand_values[row.right])
+                self.operand_values[row.left] * self.operand_values[row.right], 0)
             _ -> reject_operator(row)
         }
     }
@@ -436,7 +504,7 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.operand_values[row.right] == 0 {
             true -> reject_operator(row)
             _ -> store_folded(expression,
-                self.operand_values[row.left] / self.operand_values[row.right])
+                self.operand_values[row.left] / self.operand_values[row.right], 0)
         }
     }
 
@@ -444,7 +512,7 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.operand_values[row.right] == 0 {
             true -> reject_operator(row)
             _ -> store_folded(expression,
-                self.operand_values[row.left] % self.operand_values[row.right])
+                self.operand_values[row.left] % self.operand_values[row.right], 0)
         }
     }
 
@@ -462,7 +530,7 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.operand_values[row.left] <=
             255 >> self.operand_values[row.right] {
             true -> store_folded(expression,
-                self.operand_values[row.left] << self.operand_values[row.right])
+                self.operand_values[row.left] << self.operand_values[row.right], 0)
             _ -> reject_operator(row)
         }
     }
@@ -470,7 +538,7 @@ machine OmegaScalarCompiler::fold_expression(
     state fold_shift_right(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition self.operand_values[row.right] < 8 {
             true -> store_folded(expression,
-                self.operand_values[row.left] >> self.operand_values[row.right])
+                self.operand_values[row.left] >> self.operand_values[row.right], 0)
             _ -> reject_operator(row)
         }
     }
@@ -480,21 +548,137 @@ machine OmegaScalarCompiler::fold_expression(
     state fold_bitwise_and(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition true {
             true -> store_folded(expression,
-                self.operand_values[row.left] & self.operand_values[row.right])
+                self.operand_values[row.left] & self.operand_values[row.right], 0)
         }
     }
 
     state fold_bitwise_or(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition true {
             true -> store_folded(expression,
-                self.operand_values[row.left] | self.operand_values[row.right])
+                self.operand_values[row.left] | self.operand_values[row.right], 0)
         }
     }
 
     state fold_bitwise_xor(expression: i32, row: OmegaBinaryExpressionSyntax) {
         transition true {
             true -> store_folded(expression,
-                self.operand_values[row.left] ^ self.operand_values[row.right])
+                self.operand_values[row.left] ^ self.operand_values[row.right], 0)
+        }
+    }
+
+    // Equality admits same-class operands - two u8 values or two Booleans  - 
+    // and produces a Boolean result; mixed classes are a carrier-class
+    // rejection at the operator.
+    state fold_equality(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_classes[row.left] ==
+            self.operand_classes[row.right] {
+            true -> fold_equality_operator(expression, row)
+            _ -> reject_operator(row)
+        }
+    }
+
+    state fold_equality_operator(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Equal -> fold_equal(expression, row)
+            _ -> fold_not_equal(expression, row)
+        }
+    }
+
+    state fold_equal(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] ==
+            self.operand_values[row.right] {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    state fold_not_equal(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] !=
+            self.operand_values[row.right] {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    // Ordering compares u8 operands and produces a Boolean result.
+    state fold_ordered(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition (self.operand_classes[row.left] == 0) &&
+            (self.operand_classes[row.right] == 0) {
+            true -> fold_ordered_operator(expression, row)
+            _ -> reject_operator(row)
+        }
+    }
+
+    state fold_ordered_operator(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::Less -> fold_less(expression, row)
+            OmegaBinaryOperatorKind::LessEqual -> fold_less_equal(expression, row)
+            OmegaBinaryOperatorKind::Greater -> fold_greater(expression, row)
+            _ -> fold_greater_equal(expression, row)
+        }
+    }
+
+    state fold_less(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] <
+            self.operand_values[row.right] {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    state fold_less_equal(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] <=
+            self.operand_values[row.right] {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    state fold_greater(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] >
+            self.operand_values[row.right] {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    state fold_greater_equal(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition self.operand_values[row.left] >=
+            self.operand_values[row.right] {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    // The logical operators combine Boolean operands into a Boolean result.
+    state fold_logical(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition (self.operand_classes[row.left] == 1) &&
+            (self.operand_classes[row.right] == 1) {
+            true -> fold_logical_operator(expression, row)
+            _ -> reject_operator(row)
+        }
+    }
+
+    state fold_logical_operator(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition row.operator {
+            OmegaBinaryOperatorKind::And -> fold_and(expression, row)
+            _ -> fold_or(expression, row)
+        }
+    }
+
+    state fold_and(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition (self.operand_values[row.left] == 1) &&
+            (self.operand_values[row.right] == 1) {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
+        }
+    }
+
+    state fold_or(expression: i32, row: OmegaBinaryExpressionSyntax) {
+        transition (self.operand_values[row.left] == 1) ||
+            (self.operand_values[row.right] == 1) {
+            true -> store_folded(expression, 1, 1)
+            _ -> store_folded(expression, 0, 1)
         }
     }
 
@@ -503,8 +687,9 @@ machine OmegaScalarCompiler::fold_expression(
         return 2;
     }
 
-    state store_folded(expression: i32, value: i32) {
+    state store_folded(expression: i32, value: i32, class: i32) {
         self.operand_values[expression] = value;
+        self.operand_classes[expression] = class;
         transition true { true -> fold_next() }
     }
 
@@ -522,6 +707,7 @@ machine OmegaScalarCompiler::fold_expression(
 
     state complete() {
         self.fold_value = self.operand_values[root];
+        self.fold_class = self.operand_classes[root];
         return 0;
     }
 
@@ -920,7 +1106,17 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
         }
     }
 
+    // The terminal return carries the machine's u8 result; a folded
+    // Boolean is a coverage refusal under the same rule as a non-u8 return
+    // type, not a value the slice can emit.
     state retain_terminal(index: i32, state_index: i32) {
+        transition self.fold_class == 0 {
+            true -> retain_u8_terminal(index, state_index)
+            _ -> incomplete(4, self.fold_anchor)
+        }
+    }
+
+    state retain_u8_terminal(index: i32, state_index: i32) {
         self.state_terminal_kind[state_index] = 1;
         self.state_values[state_index] = self.fold_value;
         transition true { true -> check_states(index, state_index + 1) }
@@ -1072,7 +1268,7 @@ machine OmegaScalarCompiler::compile(&mut self, source: &[u8], entry: &[u8]) {
 
     state subject_folded(index: i32, state_index: i32, statement_offset: i32,
         run_end: i32) {
-        self.subject_class = 0;
+        self.subject_class = self.fold_class;
         self.subject_value = self.fold_value;
         transition true {
             true -> scan_arm(index, state_index, run_end, statement_offset, -1)
