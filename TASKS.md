@@ -8379,7 +8379,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   authored root"))` (guard added by `9a81cd68774`); the `4607987316f` pin
   is stale. `bde84d1765a`'s one-hop projected-receiver admit is adjacent
   progress but does not touch establishment custody — the lane is still
-  red upstream of itself.
+  red upstream of itself. Re-verified at `a84ebca972` on linux x86-64
+  (z146): the service-custody stop is unchanged —
+  `selected-dispatch/src/service_custody/root.rs:146` still emits
+  "selected ProgramEntry establishment rejoins {} Terminal attachment
+  identities; expected one" (line shifted by `3bbc8855339`'s stage
+  naming), `source/psi/test-parser.sh` remains the lane's only
+  entrypoint, and the `aggregate_foreign_boundary_members` early-refusal
+  recorded above is still absent from `wiki/drafts/known_baseline_failures.md`.
+  The lane is still red upstream of itself.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the cross-package dynamic loan-origin cluster already
   closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per the
