@@ -2149,6 +2149,7 @@ fn home_fixture() -> (AbstractOperationPlan, Execution) {
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             },
             callee: MachineId::new(902).unwrap(),
@@ -2195,6 +2196,7 @@ fn home_fixture() -> (AbstractOperationPlan, Execution) {
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             },
             fields: [
