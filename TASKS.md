@@ -5647,6 +5647,26 @@ Owners include
   entry provisioning remains a separate dependency for the existing
   receiver-entry canary.
 
+  Lane status (re-verified at `479ceb0e68`, linux x86-64 — see
+  `wiki/drafts/restore_dynamic_descriptor_and_table_custody.md`): the two
+  landed legs stay green — `checked-trees-to-lowered-psi --lib
+  -E 'test(dynamic_composed_unit)'` 46/46 and
+  `abstract-operations-to-target-operations --lib
+  -E 'test(dynamic_parameters)'` 9/9 — and the residual is unchanged: no
+  `SelectedInstructionKind` names `DynamicParameterCall` (selection
+  construction/validation still fall to `Err(invalid())`), and the
+  superseded `ForwardedDynamicParameterCallRecord` and
+  `forwarded_{descriptor,parameter}.rs` recognizers still stand. The
+  remaining-work surfaces are live-fenced this wave:
+  `selection/construction` + `machine_code/calls` under
+  CALLBACK-PRIVATE-MATERIALIZATION (~09:13Z), `legalization/` under
+  X86-FMA-PROVIDER-TRANSPORT (~09:07Z), `isa-aarch64/src` under
+  NATIVE-WRAPPER-ENCODING-AARCH64 (~12:04Z), `isa-x86_64` partials under
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z), `image-emission` lib +
+  hosted_receiver under PLAN-LAID-VIEWS (~09:25Z). The selection-stage arm
+  that gates every later leg sits inside the live selection fence, so no
+  unfenced implementable slice exists.
+
 - **TARGET-SEMANTIC-APPLICATIONS.** Complete typed target observations,
   hermetic const evaluation, and [selected realization coverage](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
   Connect provider-dependent const-generic arguments (fields, `let`
