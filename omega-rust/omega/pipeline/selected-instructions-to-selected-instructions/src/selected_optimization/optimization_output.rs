@@ -1,10 +1,11 @@
 //! Optimizer module role: stage output. Current selected program with separate replay inputs.
 
 use crate::{
-    OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, OwnedSelectedProgram,
-    StagedOptimizedLiveRanges, StagedSelectedLoweringOptimizationRun,
-    validate_optimized_live_range_custody, validate_selected_lowering_optimization_custody,
+    AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, OwnedSelectedProgram, StagedOptimizedLiveRanges,
+    StagedSelectedLoweringOptimizationRun, validate_optimized_live_range_custody,
+    validate_selected_lowering_optimization_custody,
 };
 
 /// Only replay and custody assembly distinguish how the current program was obtained.
@@ -81,6 +82,7 @@ pub enum SelectedInstructionOptimizationError {
     LiveRanges(OptimizedLiveRangeCustodyError),
     Legality(OptimizedAllocationLegalityCustodyError),
     Rewrite(OptimizedLiteralFoldCustodyError),
+    RecoveryCatalog(AllocationRecoveryRuleCatalogError),
     UnsupportedComposition,
     CurrentProgramMismatch,
     MissingExecution,

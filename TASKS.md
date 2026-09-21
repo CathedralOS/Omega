@@ -7837,7 +7837,7 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
   names the same gate). The doc's remaining questions (which specialization
   coordinates a variant kind binds; private symbol naming for variants;
   variant-aware replacement compatibility) are design inputs for that future
-  pass, not a bounded leg.
+  pass, not a bounded leg.  Corroborating evidence re-verified on this branch: checking gives each instance a normalized template identity (`{package-key|unmanaged}::{path}|{machine_identity}`) plus its own concrete normalized identity and a full commitment digest over the canonical template contract bytes/commitment, type/const argument identities, per-machine-argument owner+contract commitments, conformance commitments, operator realizations and static call bindings; `validation/src/machine_calls/machine_specialization_identity.rs` independently recomputes that digest and rejects template-identity drift, unclosed conformances, empty commitments and substituted contract owners. Task activation plans hash the commitment into each `TaskActivationPlanFact` (`provider-planning/src/task_plans/`), artifact application coverage embeds the commitment bytes per variant, and boundary-selection tests pin that two variants of one template yield two distinct commitments (`specialization_commitments.len() == 2`) while `compact_equal_specialization_substitution_changes_authoritative_commitment` pins that substituting a specialization changes the authoritative commitment; `tools/benchmark` record keys carry the selection label.
 
 Build/packages:
 
@@ -9428,6 +9428,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CHAIN-CERTIFICATE-ADMISSION-BINDING (exp 05:30Z). No independent
   slice exists — residual is the upstream Alpha extent-supply leg plus
   host-gated seed execution (macOS arm64 / Windows x64).
+||||||| parent of 5b59d0095d878 (board: benchmark std-comparison-occurrence gate already open)
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION.** — mined candidate; scope verified
   at `f600f8400b7`, covered and fenced — re-mines the "more measurable
   subjects" frontier behind the benchmark matrix, and every producible leg
@@ -10413,6 +10414,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (swarm-z143, exp 13:57Z) and family 1's surface
   `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
   (devin-848972c1, exp 13:59Z). No independent slice remains.
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
+||||||| parent of 5b59d0095d878 (board: benchmark std-comparison-occurrence gate already open)
+||||||| parent of 2ccef088fb73 (board: re-witness CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET attributions)
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
@@ -13194,6 +13198,108 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   records-free leg, ~06:46Z). No separable slice: the sibling
   OMEGA-D-SCALAR-{ALPHA-EMISSION,EMISSION-EXTENSION,OPERATION-FRONTIER,
   SEQUENCING} rows name the same file.
+||||||| parent of e9d98142b2c9a (board: integer comparison occurrence producer covers std plumbing)
+- **GEOMETRY-EVIDENCE-REFRESH** — mined candidate; verify scope then implement.
+- **GEOMETRY-NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
+- **GEOMETRY-NATIVE** — mined candidate; verify scope then implement.
+- **GEOMETRY-PARITY** — mined candidate; verify scope then implement.
+- **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
+- **GEOMETRY-WINDOWS-LEG** — mined candidate; verify scope then implement.
+- **GEOMETRY-WINDOWS-REVALIDATION** — mined candidate; verify scope then implement.
+- **GEOMETRY-WINDOWS-VALIDATION** — mined candidate; verify scope then implement.
+- **GLOB-SELF-IMPORTS-REPAIR** — mined candidate; verify scope then implement.
+- **GRAPH-COST-EVIDENCE-CORPUS** — mined candidate; verify scope then implement.
+- **GRAPH-FEATURE-PROJECTION-SCHEMA** — mined candidate; verify scope then implement.
+- **HOST-ALIAS-BUILD-DIR-DETECTION** — mined candidate; verify scope then implement.
+- **HOSTED-BUILTIN-SETTLEMENT-EXPANSION** — mined candidate; verify scope then implement.
+- **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; verify scope then implement.
+- **HOSTED-PLATFORM-RUN-MATRIX** — resolved as already landed; mines the landed BENCHMARK-HOST-ROW-MATRIX row (ee30bfcf1865). `benchmark.py matrix` renders the hosted-platform run matrix: `HOST_LEGS` enumerates every catalogued `TargetProfile` host leg — linux_arm64, linux_x86_64, macos_arm64, macos_x86_64 (structurally blocked pending native realization), windows_x86_64 (peak-RSS leg explicit-unavailable, no os.wait4), uefi_x86_64 (runtime leg unavailable pending QEMU/hardware), plus cross_platform_cli, local_unchecked, and alpha_bootstrap — and `matrix_rows` emits one measured row per committed record plus one explicit row per uncovered leg, so no host leg is implied. `tools/tests/test_benchmark.py` pins TargetProfile drift (21 tests pass); `wiki/drafts/benchmarks.md` renders the matrix. Residual record-row authorship belongs to the fenced tools/benchmark owners, not this stub.
+- **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
+- **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
+- **HOSTILE-SHARED-MEMORY-REMAPPING** — mined candidate; verify scope then implement.
+- **INDEXED-OPERAND-ATTACHED-RECEIVER** — resolved as already landed; mines the resolved BASELINE-T2C-INDEXED-OPERAND-ACCESS row (:5641). `receiver_self_match` (`typed_trees/declarations/operator/indexing.rs:88`) routes indexed operand zero through the attached-receiver loan at HEAD, so `machine [] Buffer::index(&self, ..)` admits a `Buffer` place exactly as `buffer.at(index)` borrows it, and ordinary first parameters gain no receiver adaptation (`ordinary_first_parameter_gains_no_receiver_adaptation` control). Sibling stub INDEXING-ATTACHED-RECEIVER-BORROW (:6033) mines the same row.
+- **INDEXING-ATTACHED-RECEIVER-BORROW** — mined candidate; verify scope then implement.
+- **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
+- **INSTALLATION-ERA-JOURNAL** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — resolved as already landed. The producer (emission `selected_integer_comparisons` row → lowered roster → `boundary_operator_custody/integer_comparisons` replay → `integer_comparisons::associate` proposals → coverage census) covers std plumbing at HEAD: `benchmark.py measure` over `cli_mvp`/linux_x86_64 with `--accept-admissions` compiles and publishes native output — the e48558bd41 rejection `Terminal proposal must retain every integer comparison occurrence exactly once` no longer fires. Residual row ownership for new benchmark records is `PRIME-COUNTER-BENCHMARK-ROW`'s claim; sibling stubs -COVERAGE/-RETENTION/-STD-COVERAGE mine the same row.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — resolved as already landed; same row as INTEGER-COMPARISON-OCCURRENCE-PRODUCER (see its note at :6036). Retention is the custody leg of that same producer chain: `boundary_operator_custody/integer_comparisons` replays each emitted occurrence strictly and the coverage census rejects any comparison occurrence not retained exactly once, so occurrence retention through the terminal artifact is enforced at HEAD (proven by the `cli_mvp`/linux_x86_64 `benchmark.py measure` compile leg publishing native output at ff782bdf21).
+- **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE** — mined candidate; verify scope then implement.
+- **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
+- **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
+- **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
+- **KNOWN-BASELINE-FAILURES-DOC-REFRESH** — mined candidate; verify scope then implement.
+- **KNOWN-BASELINE-FAILURES-REFRESH** — mined candidate; verify scope then implement.
+- **LEARNED-COST-MODEL** — mined candidate; verify scope then implement.
+- **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — mined candidate; verify scope then implement.
+- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES** — mined candidate; verify scope then implement.
+- **LIFETIME-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
+- **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
+- **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
+- **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
+- **LOWERED-CRASH-MEMBER-BYTE-ENTRIES** — mined candidate; verify scope then implement.
+- **LOWERED-OPERATION-PROOF-MACHINE-CALLS** — mined candidate; verify scope then implement.
+- **LOWERED-PSI-BASELINE-TAIL** — mined candidate; verify scope then implement.
+- **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
+- **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-COMPARISON-METRICS** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-SLICE-COMPARISON** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-VERTICAL-SLICE** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-VERTICAL-SLICE-COMPARISON** — mined candidate; verify scope then implement.
+- **MATH-FOUNDATION-BINDINGS** — mined candidate; verify scope then implement.
+- **MATH-PROOFS-CALL-SELECTION-OCCURRENCE** — mined candidate; verify scope then implement.
+- **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
+- **MATHEMATICAL-FOUNDATIONS-REAL** — mined candidate; verify scope then implement.
+- **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
+- **MODEL-FREE-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
+- **MODULE-CONSTANT-BUILTIN-CARRIER** — mined candidate; verify scope then implement.
+- **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
+- **MULTI-TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
+- **NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
+- **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-FRONTEND-DROP-ORDER** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
+- **NATIVE-DIFFERENTIAL-MATRIX** — mined candidate; verify scope then implement.
+- **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
+- **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
+- **NON-X86-LAYOUT-RELAXATION** — mined candidate; verify scope then implement.
+- **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
+- **OCREQ-ENTRY-BINDING** — mined candidate; resolved as a re-mine of the
+  bound OCREQ request-entry surface (siblings CHAIN-OCREQ-ENTRY-BINDING,
+  D-OCREQ-ENTRY-BINDING resolved the same row). Re-verified at this
+  revision on linux x86-64: `sh tests/bootstrap/omega-request/run.sh
+  --identity` PASSes — `compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…` and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19249`/`SHA256=5d5d0b8e…` (the
+  executable-entry pin re-minted upstream since the sibling row's
+  19253-byte stamp — stream follows the moving source closure; identity
+  binding intact), `gate.py:130` publishes `coverage_request_semantics`,
+  and `omega-identity.sh` refuses a mutated entry. Execution half stays
+  seed-host-gated. Sibling stubs on this surface:
+  CHAIN-MANIFEST-OCREQ-BINDING, OCREQ-REQUEST-BINDING,
+  OCREQ-REQUEST-ENTRY-BINDING.
+- **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
+- **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **OMEGA-C** — mined candidate; verify scope then implement.
+- **OMEGA-C-SELF-HOST-EDGE** — mined candidate; verify scope then implement.
+- **OMEGA-COMPILER-TAPE-BINDING** — mined candidate; verify scope then implement.
+- **OMEGA-D** — mined candidate; verify scope then implement.
+- **OMEGA-D-COMPILER-REQUEST-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-ENTRY-ADAPTER** — mined candidate; verify scope then implement.
+- **OMEGA-D-ENTRY-ADAPTER-RETIREMENT** — mined candidate; verify scope then implement.
+- **OMEGA-D-ENTRY-ADAPTER-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-AND-ENTRY-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-AND-SCALAR-COMPILATION** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-OUTCOME-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-TABLE-COMPLETION** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-V1-TABLES** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-ALPHA-EMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-COMPILATION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-EMISSION-EXTENSION.** Scope verified at `62a52db5ffd` —
@@ -16145,7 +16251,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `capture/semantics/signatures/policy.rs` belong to their own owners'
   fences.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
-- **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
+- **REWRITE-CATALOG-ADMISSION** — the stage entrance's piece landed (selected_optimization.rs): `admit_selected_optimization` is the one ordered admission route — each projected phase selection resolves through the owning phase's catalog (allocation recovery admitted-and-deferred, selected lowering admitted-and-executed), empty and nonempty selections traverse the same walk, and deferred-plus-executable composition still rejects. Remaining of the mined flag: Optimization members + catalog rows for the relocation/other orphan families (member vocabulary is optimization-core's), per-stage candidate discovery binding source and selection identities.
 - **REWRITE-VALIDATOR-INDEPENDENCE.** Mined candidate — resolved at
   `d8041919ad`: this re-mines the EXACT-MACHINE-SIMPLIFICATIONS bullet
   "separate validation from proposal" (TASKS_OPTIMIZER.md) — each rewrite's
@@ -16768,6 +16874,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
   SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
   STAGED-ANCESTRY-ELIMINATION.
+- **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — resolved as already
+  landed: this stub mines the stage-ancestry flag (TASKS_OPTIMIZER stage
+  walks), whose remaining bullet named `selected_optimization.rs` still
+  obtaining selections through
+  `ranges.liveness_stage().selected_stage().optimized_target().optimized()`.
+  At HEAD the crate's staged carriers own that data directly —
+  `de70fc300b730` staged admission data on the carriers
+  (`selected`/`register_environment`/`selections` and friends on
+  `StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
+  `StagedOptimizedAllocationLegality`), and `3148b857987de` named the one
+  sanctioned ancestry walk `optimized_target_owner` for the retained
+  proof-input `Arc` custody compares by identity. A crate-wide read finds
+  zero multi-level `*_stage().*_stage()` chains; the surviving one-level
+  hops (`liveness.selected_stage()`, `ranges.liveness_stage()`,
+  `source.source_legality_stage()`) are the named custody-input hops the
+  register-homes pin explicitly retains. Sibling stubs mining the same
+  flag: SELECTED-OPTIMIZATION-ANCESTRY-READS,
+  SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL,
+  SELECTED-REWRITE-ANCESTRY-REMOVAL, and SELECTED-OPTIMIZATION-DIRECT-READS.
 - **SELECTED-REWRITE-ANCESTRY-REMOVAL.** — mined candidate; resolved
   alias of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface
   (carrier row above). Re-verified at `8f58b6676b0` on linux x86-64:
