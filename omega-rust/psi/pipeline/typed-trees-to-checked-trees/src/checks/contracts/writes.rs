@@ -30,11 +30,7 @@ pub(super) fn check_domain_field_writes(
     state_flow: &FlowStateFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return;
     };
     let Some(state) = crate::semantic_calls::find_state_in_machine(
@@ -655,10 +651,8 @@ fn scan_construction_field_domains(
                     // of the assignment length-fits check (1b). A too-long literal would
                     // otherwise overflow the field's inline storage. Only fires for a
                     // domain-carrying `[u8; N]` field (view carriers have no capacity).
-                    if let Some(machine) = program
-                        .machines()
-                        .iter()
-                        .find(|machine| machine.symbol == state_flow.machine_symbol)
+                    if let Some(machine) =
+                        crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
                         && let Some(state) = crate::semantic_calls::find_state_in_machine(
                             program,
                             state_flow.machine_symbol,
@@ -1898,11 +1892,7 @@ fn declared_value_domain_implies(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = crate::semantic_calls::find_state_in_machine(
@@ -2034,11 +2024,7 @@ fn recast_source_declared_domain_implies(
     source: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = crate::semantic_calls::find_state_in_machine(

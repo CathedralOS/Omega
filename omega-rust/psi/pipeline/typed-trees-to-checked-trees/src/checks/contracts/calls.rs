@@ -518,11 +518,7 @@ fn incoming_guard_proves_requires(
     expression: typed_trees::expression::ExpressionHandle,
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -795,11 +791,7 @@ fn transition_guard_proves_requires(
     ) {
         return false;
     }
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(caller_state) = program

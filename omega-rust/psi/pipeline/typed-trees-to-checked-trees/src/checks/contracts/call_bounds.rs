@@ -96,10 +96,7 @@ fn prove(
     if arguments.len() != parameters.len() {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller.machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
     let state = crate::semantic_calls::find_state_in_machine(
         program,
         caller.machine_symbol,
