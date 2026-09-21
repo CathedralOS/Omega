@@ -83,6 +83,69 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+/// The toolchain core service declaration, resident so raw-pipeline fixtures
+/// can spell `Service<R>` against the real core declaration. These unit
+/// harnesses build a bare `SourceMap` with no package scope, so `use
+/// omega::language::core::service` cannot resolve; installing the source with
+/// `SourceOrigin::Toolchain` gives the service classifier the exact identity
+/// it requires.
+const CORE_SERVICE_OMG: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../source/library/core/service.omg"
+));
+
+/// Check `source` with `core/service.omg` resident as a Toolchain source and
+/// one fused-service erasure authorization bound per declared boundary trait —
+/// the settled-state input `build_evaluation` produces before checking when a
+/// Fused provider is selected. Fixtures exercising service-carrier semantics
+/// spell `Service<R>` fields; the requirement trait they close over must be
+/// `pub`. The digest is a stand-in; nothing here compares it against a
+/// realized plan.
+fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees {
+    let mut sources = SourceMap::default();
+    let service_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/service.omg"),
+            CORE_SERVICE_OMG.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(PathBuf::from("tests/main.omg"), source.to_owned())
+        .source_id;
+    let service_tokens = Lexer::new(CORE_SERVICE_OMG)
+        .tokenize()
+        .expect("tokenize service.omg");
+    let mut syntax =
+        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let authorizations = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .map(
+            |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
+                requirement: definition.symbol,
+                provider_plan_digest: [0x5a; 32],
+            },
+        )
+        .collect();
+    typed
+        .bind_fused_service_erasures(authorizations)
+        .expect("fixture boundary traits admit fused service authorizations");
+    lower_typed_trees(typed).expect("check")
+}
+
 fn checked_scalar_suspension_fixture() -> checked_trees::CheckedTrees {
     checked_source(
         r#"
@@ -167,10 +230,64 @@ fn scalar_fixture_call_coordinate(
 }
 
 fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees {
-    const FLOAT_MEANING: &str = "data FloatMeaning { }";
+    // A proof-only carrier like the real enum: holding builtin `Int` inline
+    // classifies it proof-only, so ensures facts mentioning it route to the
+    // structural judge (closed_float_meaning_equality) instead of the
+    // polynomial engine.
+    const FLOAT_MEANING: &str = "pub data FloatMeaning { value: Int }";
+    const FLOAT_FORMAT: &str = r#"
+        pub data FloatSpecialValues [copy] {
+            signed_zero: bool;
+            subnormals: bool;
+            infinity: bool;
+            nan: bool;
+        }
+        pub data FloatFormat [copy] {
+            radix: u32;
+            precision: u32;
+            minimum_normal_exponent: i32;
+            maximum_normal_exponent: i32;
+            minimum_subnormal_exponent: i32;
+            specials: FloatSpecialValues;
+            rounds_to_nearest_ties_to_even: bool;
+        }
+        pub const FloatFormat::BINARY32: FloatFormat = FloatFormat {
+            radix: 2,
+            precision: 24,
+            minimum_normal_exponent: -126,
+            maximum_normal_exponent: 127,
+            minimum_subnormal_exponent: -149,
+            specials: FloatSpecialValues {
+                signed_zero: true,
+                subnormals: true,
+                infinity: true,
+                nan: true,
+            },
+            rounds_to_nearest_ties_to_even: true,
+        };
+        pub const FloatFormat::BINARY64: FloatFormat = FloatFormat {
+            radix: 2,
+            precision: 53,
+            minimum_normal_exponent: -1022,
+            maximum_normal_exponent: 1023,
+            minimum_subnormal_exponent: -1074,
+            specials: FloatSpecialValues {
+                signed_zero: true,
+                subnormals: true,
+                infinity: true,
+                nan: true,
+            },
+            rounds_to_nearest_ties_to_even: true,
+        };
+    "#;
     const FLOAT_PROJECTIONS: &str = r#"
-        operator Float::meaning32(value: f32) -> FloatMeaning;
-        operator Float::meaning64(value: f64) -> FloatMeaning;
+        machine Float::meaning32(value: f32) -> FloatMeaning;
+        machine Float::meaning64(value: f64) -> FloatMeaning;
+        pub machine FloatSemantics::add(
+            format: FloatFormat,
+            left: FloatMeaning,
+            right: FloatMeaning
+        ) -> FloatMeaning;
     "#;
 
     let mut sources = SourceMap::default();
@@ -178,6 +295,15 @@ fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees 
         .add_with_metadata(
             PathBuf::from("source/library/core/float_meaning.omg"),
             FLOAT_MEANING.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let format_source = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_format.omg"),
+            FLOAT_FORMAT.to_owned(),
             PathBuf::from("source/library/core"),
             None,
             SourceOrigin::Toolchain,
@@ -203,6 +329,11 @@ fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees 
         .expect("tokenize meaning");
     let mut syntax =
         parse_syntax_trees_with_id(meaning_source, &meaning_tokens).expect("parse meaning");
+    let format_tokens = Lexer::new(FLOAT_FORMAT)
+        .tokenize()
+        .expect("tokenize format");
+    parse_syntax_trees_into_with_id(&mut syntax, format_source, &format_tokens)
+        .expect("parse format");
     let projection_tokens = Lexer::new(FLOAT_PROJECTIONS)
         .tokenize()
         .expect("tokenize projections");
@@ -412,7 +543,17 @@ fn assert_source_direct_float_result(primitive: &str, projection: &str, format: 
     };
     assert_eq!(result.scalar_type, ScalarType::IeeeFloat(format));
     assert!(machine.contract.requires.is_empty());
-    assert!(machine.contract.ensures.is_empty());
+    // The authored proof-only meaning equality keeps its claim: one `Atom`
+    // clause citing the module's dense checked equality row.
+    let [clause] = machine.contract.ensures.as_slice() else {
+        panic!("the authored ensures clause lowers to one contract clause")
+    };
+    assert_eq!(
+        clause.proposition,
+        semantic_vocabulary::Proposition::Atom(
+            terminal_psi::float_meaning_equality_proposition_id(0)
+        )
+    );
     assert!(machine.contract.outcome_specific_ensures.is_empty());
     assert!(machine.contract.crash_routes.is_empty());
     let [projection] = lowered.semantic_module.float_meaning_projections.as_slice() else {

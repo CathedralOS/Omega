@@ -37,6 +37,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
         target_state,
         structural_arguments,
         erased_scalar_arguments,
+        erased_proof_arguments,
         result_binding,
         source_site,
     ) = match operation {
@@ -47,6 +48,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             structural_arguments,
             claim_transfers,
             erased_scalar_arguments,
+            erased_proof_arguments,
             ..
         } if claim_transfers.is_empty() => (
             coordinate,
@@ -54,6 +56,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             target_state,
             structural_arguments,
             erased_scalar_arguments.as_slice(),
+            erased_proof_arguments.as_slice(),
             None,
             None,
         ),
@@ -65,6 +68,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             structural_arguments,
             result,
             erased_scalar_arguments,
+            erased_proof_arguments,
             ..
         } => (
             coordinate,
@@ -72,6 +76,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             target_state,
             structural_arguments,
             erased_scalar_arguments.as_slice(),
+            erased_proof_arguments.as_slice(),
             Some(result),
             *source_site,
         ),
@@ -98,6 +103,19 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
                 expression,
                 caller_values,
                 caller_erased_formals,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if erased_proof_arguments.len() != target.erased_proof_formals.len() {
+        return unsupported("internal Unit call proof lane disagrees with its target roster");
+    }
+    let erased_proof_arguments = erased_proof_arguments
+        .iter()
+        .map(|term| {
+            crate::scalar_graph::scalar_contracts::checked_proof_term(
+                checked,
+                term,
+                &state.erased_proof_parameters,
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -190,6 +208,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             crate::unit::attached_unit::ordinary_calls::PreparedCall {
                 arguments: arguments.into_iter().map(|value| value.id).collect(),
                 erased_arguments,
+                erased_proof_arguments,
                 structural_arguments: terminal_arguments,
                 claim_transfers: crate::unit::attached_unit::parameters::emitted_claim_transfers(
                     structural_arguments,
@@ -237,6 +256,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_call_operation(
             callee: target.id,
             arguments: arguments.into_iter().map(|value| value.id).collect(),
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments: terminal_arguments,
             claim_transfers: Vec::new(),
             requirement_obligations,

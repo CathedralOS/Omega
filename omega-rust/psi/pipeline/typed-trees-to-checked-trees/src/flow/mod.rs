@@ -23,7 +23,8 @@ pub(crate) use reference_places::{
     reference_expression_storage_places, reference_result_candidates_before_statement,
 };
 pub(crate) use value_origins::{
-    value_origin_at_call, value_origin_at_call_resolving, value_origin_before_statement,
+    trace_value_origin_before_statement, value_origin_at_call, value_origin_at_call_resolving,
+    value_origin_before_statement,
 };
 mod state;
 mod state_values;

@@ -503,4 +503,59 @@ machine unsupported(value: EquivalenceClass) -> EquivalenceClass {
         ));
         assert_eq!(module, before);
     }
+
+    /// The managed compiler-route program checked through the real route:
+    /// `lower_typed_trees` admits the direct define after proving
+    /// termination, so the checked trees carry the request as the compiler
+    /// sees it.
+    fn managed_checked_program() -> checked_trees::CheckedTrees {
+        let typed = quotient_program(&format!(
+            "{EQUIVALENCE_PRELUDE}{DIRECT_DEFINE_REQUEST}\ndata Main {{\n}}\n\nmachine Main::main(&mut self) {{\n}}\n"
+        ));
+        lower_typed_trees(typed).expect("the checked route admits the managed direct define")
+    }
+
+    #[test]
+    fn lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate() {
+        let checked = managed_checked_program();
+        assert!(checked.facts.termination.for_machine(
+            checked
+                .machines()
+                .iter()
+                .find(|machine| checked.symbols.name(machine.symbol) == "representative")
+                .expect("representative")
+                .symbol
+        )
+        .is_some_and(|plan| matches!(
+            plan.checked_summary,
+            language_semantics::TerminationGuarantee::Terminates { ref premises } if premises.is_empty()
+        )));
+        // The entry carries no request of its own; the correspondence rows
+        // are program facts, so they join its module and the execution gate
+        // refuses the nonempty table exactly as the published-correspondence
+        // contract requires.
+        let error = lower_machine(&checked, "Main::main")
+            .expect_err("a nonempty proof-only table cannot publish an executable module");
+        assert_eq!(
+            error,
+            LoweringError::InvalidTerminalModule(
+                terminal_verifier::ModuleError::NonExecutableQuotientCorrespondence
+            )
+        );
+    }
+
+    #[test]
+    fn the_requesting_machine_itself_stays_unlowerable() {
+        // The request owns no executable value plan: its owner machine has no
+        // checked plan family, so lowering it fails closed before any
+        // Terminal module exists, while the rows still reach every other
+        // lowered machine of the program (see the test above).
+        let checked = managed_checked_program();
+        assert_eq!(
+            lower_machine(&checked, "admitted").unwrap_err(),
+            LoweringError::Unsupported(
+                "machine has no source-independent checked scalar control plan"
+            )
+        );
+    }
 }

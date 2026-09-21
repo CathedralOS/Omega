@@ -5,7 +5,6 @@ use crate::selected_form_encoding::decoding::footprint;
 use crate::selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
 };
-use crate::x86_64_physical_register_model;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
@@ -288,7 +287,7 @@ fn validate_i64_less_than_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if alternative.family != MachineAlternativeFamily::ConditionalBranchI64LessThan
@@ -303,7 +302,7 @@ fn validate_less_than_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if alternative.family != MachineAlternativeFamily::ConditionalBranchU64LessThan
@@ -319,7 +318,7 @@ fn validate_branch_request(
     alternative: MachineAlternativeKey,
     family: MachineAlternativeFamily,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {

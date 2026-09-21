@@ -166,7 +166,7 @@ pub(super) fn assert_comparison_limits_and_risk_classes(
         &scenario.live,
         r#"boundary data PlatformToken;
 
-pub machine add_u64(left: u64, right: u64) -> u64 {
+pub machine add_u64(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 {
     left + right
 }
 "#,

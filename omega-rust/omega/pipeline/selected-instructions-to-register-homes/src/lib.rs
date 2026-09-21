@@ -60,8 +60,7 @@ pub use assignment::post_allocation_manifest::{
     validate_post_allocation_optimization_manifest_after_selected_lowering,
 };
 pub use assignment::recovery::{
-    stage_active_resident_register_allocation, stage_fixed_view_register_allocation,
-    stage_leaf_local_fixed_view_register_allocation,
+    stage_active_resident_register_allocation, stage_leaf_local_fixed_view_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing,
     stage_shared_entry_fixed_view_register_allocation,
 };
@@ -132,6 +131,12 @@ pub use assignment::logical_spill_operations::{
     LogicalSpillStore, LogicalSpillUseRewrite, ValidatedLogicalSpillOperations,
     logical_spill_operation_identity, plan_logical_spill_operations,
     validate_logical_spill_operations,
+};
+pub use assignment::stack_slot_coloring::{
+    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
+    StackSlotColoringError, StackSlotColoringIdentity, StackSlotColoringPlan,
+    StackSlotColoringPolicy, StackSlotColoringValidationReceipt, ValidatedStackSlotColoring,
+    color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
 };
 pub use unsequenced_spill_stages::abstract_spill_access_constraints::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessConstraintPlan,
@@ -256,12 +261,6 @@ pub use unsequenced_spill_stages::spill_recovery_worklist::{
     SpillRecoveryWorklistIdentity, SpillRecoveryWorklistPlan, SpillRecoveryWorklistPolicy,
     SpillRecoveryWorklistReceipt, ValidatedSpillRecoveryWorklist, seed_spill_recovery_worklist,
     spill_recovery_worklist_identity, validate_spill_recovery_worklist,
-};
-pub use unsequenced_spill_stages::stack_slot_coloring::{
-    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
-    StackSlotColoringError, StackSlotColoringIdentity, StackSlotColoringPlan,
-    StackSlotColoringPolicy, StackSlotColoringValidationReceipt, ValidatedStackSlotColoring,
-    color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
 };
 pub use unsequenced_spill_stages::synthetic_reload_values::{
     FunctionSyntheticReloadValues, SyntheticReloadValueBinding, SyntheticReloadValueError,

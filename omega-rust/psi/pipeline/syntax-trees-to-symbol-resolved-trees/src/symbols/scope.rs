@@ -1,7 +1,7 @@
 use arena::{Arena, OrderedRootArena};
 use symbol_resolved_trees::data::{DataDefinition, DataMember};
 use symbol_resolved_trees::types::TypeReference;
-use symbols::{SymbolHandle, SymbolTable};
+use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
 
 #[derive(Clone, Copy)]
 pub(super) struct AttachedMachine {
@@ -103,19 +103,28 @@ impl MachineScope<'_> {
             // declaration. The exact attachment establishes receiver identity.
             let path = symbols.display_path(attachment.machine, "::");
             let selects = |path: &str| {
-                symbols
-                    .lookup_top_level_by_name_and_kinds_from_source_matching(
-                        path,
-                        &[symbols::SymbolKind::Machine],
-                        target.source_span(),
-                        |candidate| {
-                            self.attached_machines
-                                .iter()
-                                .any(|entry| entry.machine == candidate && entry.owner == owner)
-                        },
-                    )
-                    .unique()
-                    == Some(attachment.machine)
+                // Same-path same-owner candidates are a result-overload
+                // family: the lookup cannot return one Unique member, so
+                // membership in the ambiguity set marks this member visible.
+                // The earliest match stays the provisional binding; the typed
+                // result-overload pass rebinds the exact member from the
+                // destination's dispatch set.
+                match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                    path,
+                    &[symbols::SymbolKind::Machine],
+                    target.source_span(),
+                    |candidate| {
+                        self.attached_machines
+                            .iter()
+                            .any(|entry| entry.machine == candidate && entry.owner == owner)
+                    },
+                ) {
+                    SymbolLookup::Unique(candidate) => candidate == attachment.machine,
+                    SymbolLookup::Ambiguous { first, second } => {
+                        attachment.machine == first || attachment.machine == second
+                    }
+                    SymbolLookup::NotFound => false,
+                }
             };
             let mut visible = selects(&path);
             if !visible {
@@ -138,7 +147,10 @@ impl MachineScope<'_> {
                 continue;
             }
             if selected.is_valid() {
-                return SymbolHandle::invalid();
+                // A same-named attached family keeps its first visible member
+                // as the provisional binding; declaration validation owns the
+                // duplicate rejection when the pair is not a legal overload.
+                continue;
             }
             selected = state;
         }

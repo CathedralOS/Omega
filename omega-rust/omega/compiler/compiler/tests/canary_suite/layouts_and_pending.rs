@@ -1,5 +1,5 @@
 use super::{
-    ACTIVE_PENDING_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command,
+    ACTIVE_PENDING_CANARIES, CanaryCompileProduct, CanaryCompileSpec, Command, PendingCanary,
     PendingCanaryExpectation, compile, compile_canary_without_output,
     compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
     compile_rooted_canary_for_target, compile_single_file_hosted_main, executable_name, fs,
@@ -1428,6 +1428,28 @@ fn runtime_let_local_nested_state_arg_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// This module's own parked repros, watched by the same collect-all loop as
+// the umbrella `ACTIVE_PENDING_CANARIES`. Keeping the module list beside its
+// driver lets a fixture owner register a pending case without editing the
+// suite root.
+const PENDING_CANARIES: &[PendingCanary] = &[
+    // FFIVAL (`TASKS.md`): the Windows user32 boundary-coherence canary,
+    // authored against the generic private-callback route. The first
+    // unreached dependency is the routed-domain case payload —
+    // `RegisterClassOutcome::Registered(registration: Registration in
+    // Registration::Live)` cannot yet authorize a case payload, whether the
+    // outcome arrives as the result or through a by-reference parameter (case
+    // data has no boundary shape). Behind it: callback ABI transport in the
+    // common instruction pipeline, then the Windows host leg (unavailable
+    // elsewhere by contract).
+    PendingCanary {
+        path: "host/user32_window_procedure_registration",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot prove requires contract",
+        },
+    },
+];
+
 #[test]
 fn pending_canaries_reproduce_known_gaps() {
     // COLLECT-ALL, not first-panic: a drifted member is a PROMOTION signal,
@@ -1435,7 +1457,7 @@ fn pending_canaries_reproduce_known_gaps() {
     // pattern).
     let mut drifted: Vec<String> = Vec::new();
 
-    for canary in ACTIVE_PENDING_CANARIES {
+    for canary in ACTIVE_PENDING_CANARIES.iter().chain(PENDING_CANARIES) {
         let canary_dir = pending_canary(canary.path);
         let result = compile_canary_without_output(&canary_dir);
         match canary.expectation {

@@ -73,17 +73,17 @@ pub(in crate::symbols) fn call_target_for_type_reference(
     // The exact `Service<R>` carrier owns no call surface: a receiver call
     // resolves against the closed boundary requirement `R` it carries, the
     // same target a bare requirement receiver would select.
-    if let symbol_resolved_trees::types::TypeReference::Generic(generic) = type_reference {
-        if generic.arguments.len() == 1 && exact_service_carrier_data(symbols, generic.base_symbol)
-        {
-            return call_target_for_type_reference(
-                machine,
-                symbols,
-                child_type_references,
-                child_type_references.get(generic.arguments.start()),
-                target,
-            );
-        }
+    if let symbol_resolved_trees::types::TypeReference::Generic(generic) = type_reference
+        && generic.arguments.len() == 1
+        && exact_service_carrier_data(symbols, generic.base_symbol)
+    {
+        return call_target_for_type_reference(
+            machine,
+            symbols,
+            child_type_references,
+            child_type_references.get(generic.arguments.start()),
+            target,
+        );
     }
     let type_symbol = type_reference_symbol(child_type_references, type_reference);
     let direct_child =

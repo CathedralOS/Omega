@@ -13,6 +13,7 @@ pub use encode::encoder::text::PACKAGE_POLICY_TEXT_VERSION;
 pub use encode::membership::{
     PackagePolicyMembershipError, PackagePolicyMembershipLimits, PackagePolicyMembershipUsage,
 };
+pub use encode::restricted_build_request_acceptance_text;
 pub(crate) use encode::rows::{
     contract_entailment_obligation_row_key, external_executable_supply_row_key, nominal_row_key,
 };

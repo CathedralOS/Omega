@@ -3,9 +3,10 @@
 
 use calling_conventions::MachineRegister;
 use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
-    RegisterReservationOverlay, RegisterUnit, RegisterUnitId, RegisterUnitKind, RegisterView,
-    RegisterViewId, RegisterWriteSemantics, ReservationReason, ValidatedPhysicalRegisterModel,
+    PhysicalRegisterModel, PhysicalRegisterModelIdentity, PreservationConvention, RegisterClass,
+    RegisterClassId, RegisterReservationOverlay, RegisterUnit, RegisterUnitId, RegisterUnitKind,
+    RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
+    ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::Architecture;
@@ -34,7 +35,7 @@ pub fn x86_64_fixed_register_view(
     model: &ValidatedPhysicalRegisterModel,
     register: MachineRegister,
 ) -> Option<RegisterViewId> {
-    if model.model() != &x86_64_physical_register_model() {
+    if model.identity() != canonical_x86_64_physical_register_model_identity() {
         return None;
     }
     let name = match register {
@@ -404,4 +405,23 @@ fn overlay(
         reason,
         units: sorted_units(units),
     }
+}
+
+/// The canonical x86-64 physical register model, validated once per process.
+///
+/// Encode and validate paths run per instruction; they compare canonical
+/// identity instead of rebuilding and deep-comparing the model per request.
+pub fn validated_x86_64_physical_register_model() -> &'static ValidatedPhysicalRegisterModel {
+    static CANONICAL: std::sync::OnceLock<ValidatedPhysicalRegisterModel> =
+        std::sync::OnceLock::new();
+    CANONICAL.get_or_init(|| {
+        validate_physical_register_model(x86_64_physical_register_model()).unwrap_or_else(|error| {
+            panic!("canonical x86-64 physical register model must validate: {error}")
+        })
+    })
+}
+
+/// The content identity of the canonical x86-64 physical register model.
+pub fn canonical_x86_64_physical_register_model_identity() -> PhysicalRegisterModelIdentity {
+    validated_x86_64_physical_register_model().identity()
 }

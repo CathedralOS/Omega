@@ -1,0 +1,23 @@
+// A `drop` body is an ordinary Unit machine: helper calls may carry
+// ordinary arguments.
+
+data Guard {
+    handle: i32;
+}
+
+data Teardown {
+}
+
+machine Teardown::unlock(code: i32) {
+}
+
+machine Guard::drop(&mut self) {
+    Teardown::unlock(7);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}
