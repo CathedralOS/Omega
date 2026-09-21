@@ -13500,6 +13500,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rows (-HOSTS ~:12727, -LINUX-X86-64 ~:12746, -LINUX-ARM64 ~:12735) and
   adjudicated under resolved sibling NATIVE-MATRIX-MATCHING-HOSTS
   (~:10853). No independent slice.
+  Fresh audit at `82741ec439` (linux x86-64): gate machinery stays
+  landed (`tools/release/release_record.py`), closure still structurally
+  open on the doc's four-matching-host rule — linux_x86_64 red-but-
+  runnable (CLOSURE's sweep: 1018 pass / 109 fail / 1 skip), the other
+  three host rows unrecordable from this lane — and every leg is
+  live-claimed: -LINUX-X86-64 (~11:30Z), -LINUX-ARM64 (~15:33Z),
+  -WINDOWS-X64 (~16:17Z), -HOST-EXECUTION (~16:39Z),
+  NATIVE-DIFFERENTIAL-MATRIX (~14:30Z).
 - **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; folded into the canonical
   resolved RC-NATIVE-MATRIX-CLOSURE row (~:12639). No independent slice.
 - **RC-NATIVE-MATRIX-GATE** — mined candidate; folded into the canonical
@@ -13547,6 +13555,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; folded — spelling alias
   of canonical RC-NATIVE-MATRIX-LINUX-X86-64 (~:12746). No independent
   slice.
+||||||| parent of 9037a4fdc9fc7 (board(RC-NATIVE-MATRIX): resolve umbrella re-mine — all legs owned by live sibling rows)
+- **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-EXECUTION** — recorded at
+  `wiki/drafts/rc_native_matrix_host_execution.md` (revision 4dbdaa9bc3,
+  linux-x86_64): 558 pass / 112 fail / 1 expected skip across 670 legs of
+  omega-native-differential-test in ~1695 s; two binaries (pipeline_ownership,
+  abstract_publication) do not compile at this revision and are excluded
+  under sibling fences. Failures reduce to the Service<R>-carrier spelling,
+  checked-body exact-arithmetic/service-reach obligations, the
+  omega_language_std → platform shim rename, proof-decode fingerprint drift,
+  natural-writer fuel expectations, ProgramEntry receiver provisioning, and
+  one pinned terminal-bytes drift. Re-run when those families close.
+- **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
   `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
   linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
