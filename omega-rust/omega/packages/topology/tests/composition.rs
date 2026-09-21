@@ -644,4 +644,21 @@ fn declaration_order_normalizes_to_the_identical_plan() {
         encode_plan(&declared_plan).unwrap(),
         "declaration order must normalize to the identical plan"
     );
+
+    // Instance and binding orders vary independently of each other: a partial
+    // swap of both rosters — not a mirror of the earlier reversal — still
+    // yields the identical canonical plan.
+    let mut swapped_instances = payment_instances();
+    swapped_instances.swap(0, 1);
+    let mut swapped_bindings = payment_bindings();
+    swapped_bindings.swap(0, 1);
+    let (swapped_plan, swapped_outcomes) =
+        compose(&request, swapped_instances, swapped_bindings, &components)
+            .expect("independently reordered declarations compose");
+    assert_eq!(swapped_outcomes, declared_outcomes);
+    assert_eq!(
+        encode_plan(&swapped_plan).unwrap(),
+        encode_plan(&declared_plan).unwrap(),
+        "independent roster orders must normalize to the identical plan"
+    );
 }
