@@ -744,6 +744,50 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   the separate-tool route required by the spec; do not infer publication,
   confinement, or usability from observation-only tests.
 
+## Requirement-based tests
+
+Implement [the settled testing contract](wiki/spec/build/testing.md) through
+ordinary requirements, Build selections, and verified Terminal Psi execution.
+No test attribute, special method name, test-only calling mode, or parallel
+compiler pipeline. The [guide](wiki/language_guide/chapter_23_testing.md) gives
+the source shape; these items track implementation, not further design.
+
+- **BUILD-TEST-GROUPS.** (new-scope) Deliver the service-free end-to-end path:
+  `builder.tests.group<ExactRequirement>()`, normalized group enablement,
+  package-local concrete satisfaction discovery, separate runner roots, and
+  Terminal Psi execution gating successful build publication. Own registration
+  in `omega-rust/omega/build/`, compose existing Psi production/verification and
+  interpretation through `omega-rust/omega/compiler/`, and report invocation
+  outcomes through the normal compile result. Preserve exact product-reference
+  identity, private visibility, and source/target provenance; do not discover by
+  strings or infer generic applications. Add the optional ordinary std testing
+  requirement without compiler recognition or an implicit dependency.
+  Acceptance: an ordinary project build discovers two tests without per-test
+  registration; a failing check prevents publication; disabling its group reports
+  not-run; a second requirement in the same trait stays a distinct group.
+  Cover duplicate/inherited-identity registration, non-runnable signatures,
+  unresolved generics, dependency non-discovery, and exhaustion versus failure.
+  Run a no-std project. Application Psi/native output excludes test-only roots,
+  while an ordinary native harness can explicitly call a visible test machine.
+  Receiver/service execution remains fail-closed until BUILD-TEST-AUTHORITY;
+  isolated discovery or interpreter helper tests do not close this item.
+
+- **BUILD-TEST-AUTHORITY.** (split-of:BUILD-TEST-GROUPS) Extend that same project
+  path with group-scoped providers, ordinary provisioned test receivers, fresh
+  mock state, and restricted-test review before execution. Owners are existing
+  Build/provider and entry-establishment code, package review/lock acceptance,
+  the Terminal interpreter's service boundary, and compiler publication. Reuse
+  their authority and custody rules; do not put build policy in constant-evaluator
+  admission or add a second approval file. Acceptance: two tests receive fresh
+  virtual filesystems and genuine established Service fields; missing bindings
+  reject. A child requesting host filesystem/network/process access cannot widen
+  the root grant or escape virtual backing. Install/update surfaces new test
+  requests, locked builds cannot approve them, and acceptance without an executor
+  grant still rejects. Test selected-provider and target mismatches, unsupported
+  execution with no native fallback, disabled-to-enabled rechecking, and crash
+  containment without invented unwind/rollback. Production provider selection
+  and emitted application roots remain unchanged by mock configuration.
+
 ## Build-level behavior exclusions
 
 Implement [the accepted exclusion contract](wiki/spec/build/behavior_exclusions.md)
@@ -1531,54 +1575,37 @@ Owners include
   and sum/record interiors; do not add depth-specific implementations or
   per-shape report channels.
 
-  Remaining work:
+   Settled: symbolic array lengths are a recorded design boundary, not
+   pending capacity. A `ConstParameter`/`ConstCall` length can only live
+   inside an unapplied template and `build_layout_plan` never lays a
+   template out, so no runtime layout a passed count could describe
+   exists; every concrete use arrives as a synthesized closed instance
+   whose substituted members already carry `Literal` lengths, and
+   runtime-bound `value` counts cannot determine a static layout at all
+   (`value_generic_runtime_static_length` pins that rejection). The
+   recursive owner pins both residual shapes —
+   `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
+   (unapplied template) and
+   `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
+   (member typed by a non-closed application). Closed literal/generic
+   zero-count arrays are not this gap; standalone rungs retain their
+   narrower single-hop and nonzero-length contracts.
 
-  - Array lengths still symbolic at layout time remain fenced, and that
-    fence is now a recorded design boundary rather than pending capacity:
-    a `ConstParameter`/`ConstCall` length can only live inside an unapplied
-    template, and `build_layout_plan` never lays a template out — there is
-    no runtime layout a passed count could describe, and no bindings
-    channel exists to name one. Every concrete use arrives as a synthesized
-    closed instance whose substituted members already carry `Literal`
-    lengths: `Log<const N>` reached through a member typed `Log<2>`
-    materializes under the const-evaluable closed-argument judgment
-    (`require_closed_generic_application`, mirrored backend-side in
-    `validate_closed_copy_record`), and
-    `generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
-    in `layout_plans/writer_lowering.rs` lowers instance record paths —
-    `Neighbor<two()>` beside `[Neighbor<1>; 2]` — on both Linux ISAs (native
-    execution on x86-64). Runtime-bound `value` counts cannot determine a
-    static layout at all (the `value_generic_runtime_static_length` fail
-    corpus pins the rejection), so the residual fence covers exactly the
-    shapes no closed checked identity can name: open templates and
-    non-closed applications. The recursive owner pins both shapes of that
-    boundary:
-    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
-    covers the unapplied template, and
-    `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
-    covers a member typed by a non-closed application (`Log<two()>`): it
-    joins the ordinary fields, keeps whole-field writes, and rejects
-    traversal below the boundary for want of a carrier. Closed
-    literal/generic zero-count arrays are no longer this gap.
-    Standalone rungs retain their narrower single-hop and nonzero-length
-    contracts.
-  - Obtain matching-host Linux AArch64 execution evidence — the sole
-    residual. The writer harness validates both Linux ISA fragments on every
-    host and executes the host-matching one on Linux x86-64/AArch64 or macOS
-    AArch64; macOS execution does not close the Linux runtime row. Linux
-    x86-64 leg re-verified at `340e2b5ca4`: `cargo nextest run -p compiler
-    --test layout_plans -E 'test(~writer_lowering)' — 13/13 green, each test
-    replay-validating both ISA fragments and natively executing the x86-64
-    writer against the reference image; fence pins
-    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
-    and
-    `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
-    green under `cargo nextest run -p layout --lib -E 'test(~fenced)'` (3/3).
-    Resume on Linux AArch64 with the same filtered run; the harness's
-    `cfg`-selected arm branch then executes the AArch64 fragment natively.
-    The empty-array regression in `layout_plans/writer_lowering.rs` also
-    pins direct/indexed-write rejection, live sibling writes and empty
-    nested/generic carriers.
+   Remaining work:
+
+   - Obtain matching-host Linux AArch64 execution evidence — the sole
+     residual, and a host-availability gate rather than an engineering
+     one. The writer harness validates both Linux ISA fragments on every
+     host and natively executes only the host-matching one; macOS
+     execution does not close the Linux runtime row. Re-verified green at
+     `e5492eee179` on macOS AArch64: `cargo nextest run -p compiler --test
+     layout_plans -E 'test(~writer_lowering)'` 13/13 (each leg
+     replay-validating both Linux ISA fragments) and `cargo nextest run -p
+     layout --lib -E 'test(~fenced)'` 3/3. The Linux x86-64 leg was
+     verified at `340e2b5ca4` with native execution against the reference
+     image. Resume on Linux AArch64 with the same two filtered runs; the
+     harness's `cfg`-selected arm branch then executes the AArch64
+     fragment natively.
 
   Acceptance: nested field/index canaries execute on both Linux ISAs and compare
   destination bytes with the reference image, including guard bytes. Both ISAs
@@ -1999,8 +2026,20 @@ Owners include
 
   Remaining work:
 
-  - Add a Terminal Trapping operation family with its `terminal-verifier`
-    rule, `terminal-interpreter` case and Omega realization.
+  - DESIGN-BLOCKED on OWNER_QUESTIONS.md question 3
+    (`terminal-operation-level-trap-crash-site`): add a Terminal Trapping
+    operation family with its `terminal-verifier` rule,
+    `terminal-interpreter` case and Omega realization. The blocker is not
+    the family but its crash site. `observations.md` enumerates the
+    reconstructed profile as a closed row list, and only two groups carry a
+    crash — group 3 keyed by edge (`terminal_trace_v1.rs:232`,
+    `(MachineId, BlockId, EdgeId)`) and group 4 keyed by a `BoundaryCall`'s
+    operation plus its boundary public identity and route bucket
+    (`terminal_trace_v1.rs:236`). A trapping `a + b` has neither an edge nor
+    a boundary identity, and the same section forbids fabricating a
+    terminator edge for an operation-level crash, so no admitted encoding
+    exists for it. Resuming means choosing a profile row shape and moving
+    `omega.terminal.observation-profile.v1` with it.
     `checked-trees-to-lowered-psi/src/expression_preparation/`
     (`prepare_expression.rs`, `bindings/mod.rs`) refuses `IntegerTrappingCast`
     and now the checked `TrappingShiftLeft`/`TrappingShiftRight` forms with
@@ -2150,7 +2189,13 @@ Owners include
     names the `add` application itself, so two-sided monotonicity and
     the checked endpoint-sum equation land the bound on `add l r` —
     an endpoint sum outside the representable numeral range keeps the
-    explicit instance assumption. An already admitted
+    explicit instance assumption. The direct subtract form reuses it
+    with the antitone flip: the right operand's endpoint follows the
+    direction opposite the conclusion's, a fixed
+    `a ≤ b → d ≤ c → sub a c ≤ sub b d` law combines the operands, and
+    a checked `sub lb rb = k` numeral equation lands the literal —
+    including the `(Exact, Carrier)` boundary cases and negative bounds
+    over unsigned carriers. An already admitted
     open expression stays opaque
     if composing a child would introduce a resource refusal. The remaining
     fixed-integer scalar operations — multiply, divide, remainder, bitwise,
@@ -8528,7 +8573,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   own live claim. Sibling stubs on the same surface:
   GENERIC-DYNAMIC-FAMILY-DISPATCH, GENERIC-VIRTUAL-DISPATCH,
   GENERIC-VIRTUAL-CALLS (resolved as the same leg).
-- **FIXED-ARRAY-ZERO-EXTENT-FENCE** — mined candidate; verify scope then implement.
 - **FLOATING-MATCH-SUBJECTS.** Resolved — the mined row re-covered a stale
   limitation note, not missing work. Floating Match subjects are implemented
   end-to-end: `IeeeFloatCompare` (six explicit relations) is retained through
@@ -9670,37 +9714,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests/native-differential) is under sibling live claims this wave. No
   independent slice exists here; the row stays a re-mine pointer to
   PER-RULE-COVERAGE.
-- **ORPHAN-ENTRANCE-AUDIT.** Mined candidate — resolved; the audit exists
-  and is self-reconciling. Two landed artifacts cover it: the mechanical
-  [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
-  (all 21 `omega-rust/*/pipeline/*` crates at `d3d3193d59`, 61 top-level
-  `pub fn`s resolved — no orphans beyond the already-cataloged rewrite
-  catalog, spill sequencing, and wrapper-placement surfaces), and the
-  in-tree `selected-instructions-to-selected-instructions/src/rewrites/
-  module_catalog.rs`, whose `REWRITE_MODULE_CATALOG` holds one disposition
-  row per `mod` with a reconcile test enforcing mod.rs order, `Routed`
-  caller/evidence presence, and `Orphaned` owner liveness against
-  TASKS_OPTIMIZER.md. Re-verified at `d210421f02`: catalog reads 38
-  Orphaned (35 EXACT-MACHINE-SIMPLIFICATIONS, 3 ALIAS-AWARE-MEMORY —
-  dead_store, load_forwarding, store_motion), 6 Routed, 8 Shared, 1
-  TestSupport; `unsequenced_spill_stages/` still 18 families. The
-  retain/delete residual is owned by the named items, not an audit.
-  Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
-  ORPHAN-REWRITE-MODULES-CATALOG, STAGE-ENTRANCE-ORPHAN-AUDIT,
-  PIPELINE-ORPHAN-ELIMINATION.
-- **ORPHAN-STAGE-ENTRANCE-AUDIT.** Resolved — covered alias of
-  ORPHAN-ENTRANCE-AUDIT (row above, resolved): the stage-entrance orphan audit
-  exists as two landed artifacts — the mechanical
-  [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
-  (all 21 `omega-rust/*/pipeline/*` crates, 61 top-level `pub fn`s resolved,
-  no orphans beyond the already-cataloged rewrite/spill/wrapper-placement
-  surfaces) and the self-reconciling in-tree `REWRITE_MODULE_CATALOG` in
-  `selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs`
-  (38 Orphaned / 6 Routed / 8 Shared / 1 TestSupport at `d210421f02`). A
-  sibling sweep resolution explicitly names this stub for retirement as a
-  re-mine. The retain/delete residual belongs to the per-module owner items
-  (POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*, POC-WRAPPER-OBJECT-
-  PLACEMENT), not an audit.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER.** Mined candidate — resolved:
   the name re-covers the edge-level cleanup gate order already pinned by
@@ -9951,16 +9964,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   external-roots `ProgramLocalRootInstallationLedger`, image-emission
   hosted_receiver). Sibling re-mine names on this surface:
   PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
-- **PIPELINE-ORPHAN-ELIMINATION.** The audit's residual slice: one dead stage
-  output eliminated —
-  `checked-compilation-to-terminal-artifact::validate_lowered_integer_comparison_custody`
-  was exported but uncalled; `inspect-terminal` now runs the join (wired on
-  `main` by `92fff9c073a` via the `compiler` facade) and this slice pins it —
-  `omega/tests/inspect_terminal/integer_comparison_custody.rs` drives a real
-  selected `==` occurrence through the route and rejects a negated recorded
-  triple. Remaining audit surface: other stage and coordinator entrances — the
-  named families belong to PIPELINE-REWRITE-ORPHANS,
-  PIPELINE-SPILL-FAMILY-ORPHANS, and PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **PIPELINE-OWNER-CONSOLIDATION.** Mined candidate — scope verified; this stub
   is a self-mine of the canonical coordinator row in `TASKS_OPTIMIZER.md`
   (~line 26), not a separate task. At `54e321bdf0` every enumerated leg is
@@ -10095,21 +10098,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION, WRAPPER-OBJECT-OWNERSHIP,
   PIPELINE-WRAPPER-OBJECT-ORPHAN.
-- **POC-ORPHAN-ENTRANCE-AUDIT.** Resolved — the
-  [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
-  now covers the post-allocation chain and `unsequenced_spill_stages/`
-  family the POC cluster orbits: every post-allocation stage entrance is
-  wired (native-realization physical pipeline, machine-emission
-  `function_realization`/`exit_contract`, native-differential
-  `optimizer_corpus`/layout stages, architecture coordination markers), all
-  19 spill-stage modules' entrances are driven by native-differential
-  `register_allocation` tests and architecture gates, and the per-stage
-  `*_identity` helpers are internally routed plumbing called by their own
-  validators and generalized siblings. No orphans found; the one durable
-  note for a future automated gate is that spill codec names (`encode`,
-  `decode`) collide workspace-wide and need qualified identities to be
-  machine-attributable.
-- **POC-REWRITE-ORPHANS** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG, ORPHAN-ENTRANCE-AUDIT, STAGE-ENTRANCE-ORPHAN-AUDIT, PIPELINE-ORPHAN-ELIMINATION.
+- **POC-REWRITE-ORPHANS** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG.
 - **POC-SELECTED-REWRITE-CATALOG.** Mined candidate — scope verified,
   covered. Re-mines the catalog-execution leg already scoped by
   SELECTED-REWRITE-CATALOG-EXECUTION (which folds into
@@ -10132,7 +10121,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
 ||||||| parent of 5ab5bceff2e (omega: delete orphan literal_compare and literal_arithmetic rewrites)
-- **POC-REWRITE-ORPHANS** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG, ORPHAN-ENTRANCE-AUDIT, STAGE-ENTRANCE-ORPHAN-AUDIT, PIPELINE-ORPHAN-ELIMINATION.
 - **POC-SELECTED-REWRITE-CATALOG** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-SEQUENCING** — mined candidate; verify scope then implement.
@@ -10515,12 +10503,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-BUILD-AND-PACKAGES** — mined candidate; scope verified at `f1675418b1`,
   gate row recorded at
   [wiki/drafts/rc_build_and_packages_linux_x86_64.md](wiki/drafts/rc_build_and_packages_linux_x86_64.md).
-  The gate is **red** on linux x86-64: the 7-crate package/build nextest block
-  fails 109 tests (package-evidence policy digest/identity drift dominant),
-  doc tests pass, and the 6-target compiler block fails 11
-  (x86_feature_admission FMA rows + package entry-selection drift). The row
-  stays open; repair legs belong to the feature owners.
-- **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
+  The gate is **red** on linux x86-64 at `ea698be648` (re-measured
+  2026-09-21, superseding the `f1675418b1` record): the 7-crate
+  package/build nextest block fails 107 of 1684 tests, doc tests pass, and
+  the 6-target compiler block fails 12 of 355 (6 x86_feature_admission FMA
+  rows + 2 entry-selection + 3 build-config + 1 new build_log_facet).
+  Dominant package-side families: repository/canary roster drift (12),
+  child-execution fixture selectors (27), service/provider realization
+  drift (~20), checked-side evidence-row rejections (~45). The row stays
+  open; repair legs belong to the feature owners.
+- **RC-BUILD-AND-PACKAGES-GATE** — the gate-measurement leg of
+  RC-BUILD-AND-PACKAGES. Scope verified at `ea698be648`: re-measure the
+  three command blocks on linux x86-64 and refresh
+  [rc_build_and_packages_linux_x86_64](wiki/drafts/rc_build_and_packages_linux_x86_64.md).
+  Landed — record updated to RED at `ea698be648` (107+12 failures), with
+  the per-cluster inventory and signatures. Repair legs (roster drift,
+  fixture selectors, service-schema legs) are fenced to
+  BUILD-PACKAGES-GATE's companion-fixture lane and the feature owners.
 - **RC-CLOSURE-EVIDENCE-RETENTION.** Scope verified at `797e99ead7`,
   re-verified holding at `d74f2145b9` —
   mined candidate naming the post-closure directive in
@@ -11728,64 +11727,51 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-
   OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
   REMOVAL, STAGED-ANCESTRY-ELIMINATION.
-- **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; scope verified, covered — the stage-crate ownership audit is the sweep already executed on the adjacent STAGE-ENTRANCE-ORPHAN-AUDIT row (audit at `280c4a83b6`, the residual leg of PIPELINE-OWNER-CONSOLIDATION): every `omega-rust/{psi,omega}/pipeline/*` crate's `pub fn` cross-referenced against callers outside its crate and tests, findings enumerated (the ~40 `rewrites/` entrances, 18 `unsequenced_spill_stages/`, `optimized_semantic_wrapper_{encoding,object}` entrances, plus the four named stage-entrance families). That row explicitly retires this stub as a re-mine of the same sweep; remediation of the named entrances belongs to the sibling rows it routes to (POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*, POC-WRAPPER-OBJECT-PLACEMENT). No independent slice exists here. Re-verified on linux x86-64 at `7110606f46` (z146): the referenced sweep commit `280c4a83b6` exists and the routing rows it names are present on the board.
-- **STAGE-ENTRANCE-ORPHAN-AUDIT.** Resolved — the stage-entrance
-  orphan audit is executed and its findings re-verified; remediation is
-  routed to the sibling rows named below.
-  Audit executed at `280c4a83b6` (the residual leg of
-  PIPELINE-OWNER-CONSOLIDATION: "a public stage entrance that no
-  coordinator or successor stage calls is an orphan output"). Method: for
-  every `omega-rust/{psi,omega}/pipeline/*` crate, every `pub fn` was
-  cross-referenced against all callers outside its own crate and outside
-  its own tests. Findings beyond the three named families (the ~40
-  `rewrites/` entrances, 18 `unsequenced_spill_stages/`, and the
-  `optimized_semantic_wrapper_{encoding,object}` entrances — all still
-  caller-less at this rev):
-  - `selected-instructions-to-register-homes`: `stage_fixed_view_
-    register_allocation` (assignment/recovery.rs) — a second allocation
-    stage entrance re-exported beside `stage_register_allocation`; no
-    caller.
-  - `symbol-resolved-trees-to-typed-trees`: `lower_symbol_resolved_trees_
-    owned` — owned-input sibling of the used `lower_symbol_resolved_trees`
-    entrance; def + lib.rs re-export only.
-  - `checked-trees-to-lowered-psi`: uncalled `lower_*`/`install_*`/`produce_*`
-    proof sub-passes re-exported at lib.rs
-    (`lower_content_conservation_plan`,
+- **PIPELINE-ORPHAN-ENTRANCE-RESIDUE** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT) —
+  retire or wire the public stage entrances the executed stage-entrance
+  orphan sweep named but no sibling row owns. Each is `pub`, re-exported at
+  its crate's `lib.rs`, and has no caller outside its own crate or tests;
+  re-verified at `e5492eee179`:
+  - `selected-instructions-to-register-homes::stage_fixed_view_register_allocation`
+    (def `assignment/recovery.rs`) — a second allocation stage entrance
+    beside the used `stage_register_allocation`; route_tests only.
+  - `checked-trees-to-lowered-psi` proof sub-passes, crate-confined:
+    `lower_content_conservation_plan`,
     `install_non_executable_quotient_correspondences`,
     `lower_boundary_content_guarantees`,
     `lower_content_identity_reshuffles`,
     `lower_content_partition_compositions`,
     `lower_float_meaning_{equality,projection}`,
-    `produce_checked_canonical_integer_proof`).
-  - `abstract-operations-to-abstract-operations`: a large specialization
-    proposal/validation surface (`propose_*`,
-    `validate_*_specialization`, `bind_revision`/`commit_revision`,
-    `replay_psi_registry`, `compute_cold_parallel`, …) is def+re-export
-    only; `optimization-unit-semantics` touches a same-named
-    `validate_state_argument_specialization`, so per-name audit needed
-    before any removal.
-  - `abstract-operations-to-target-operations`: `lower_to_target_
-    operations_and_native_callbacks` is re-exported at lib.rs beside the
-    used `lower_optimized_to_target_operations` entrance but is still
-    delegated to internally — competing public entrance, not dead code.
-  Test-support `*_for_test`/`corrupt_*` helpers and crate-internal
-  methods are excluded (not stage entrances). Remediation belongs to the
-  sibling rows: POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*,
-  POC-WRAPPER-OBJECT-PLACEMENT (live claims: PIPELINE-WRAPPER-OBJECT-
-  ORPHAN 22:46Z) plus a new slice for the entrances named above; the
-  coordinator should also retire ORPHAN-ENTRANCE-AUDIT, ORPHAN-STAGE-
-  ENTRANCE-AUDIT, ORPHAN-STAGE-OUTPUT-AUDIT, STAGE-ANCESTRY-DIRECT-READS,
-  STAGE-CRATE-OWNERSHIP-AUDIT as re-mines of this same sweep.
-  Re-verified at `c267df86acb` (linux x86-64): every named entrance
-  still has no caller outside its own crate and tests —
-  `stage_fixed_view_register_allocation` (def `assignment/recovery.rs`,
-  re-exported at lib.rs, route_tests only), all seven
-  checked-trees-to-lowered-psi `lower_*`/`install_*`/`produce_*`
-  sub-passes (crate-confined), and `lower_to_target_operations_and_
-  native_callbacks` (internally delegated competing entrance). One
-  finding is stale: `lower_symbol_resolved_trees_owned` no longer
-  exists in the tree (removed since `280c4a83b6`). Orphan census moved
-  from ~40 to 42 `Orphaned` rows in `rewrites/module_catalog.rs`.
+    `produce_checked_canonical_integer_proof`.
+  - `abstract-operations-to-target-operations::lower_to_target_operations_and_native_callbacks`
+    — a competing public entrance beside the used
+    `lower_optimized_to_target_operations`, still delegated to internally,
+    so this one is a naming/ownership decision rather than dead code.
+  - `abstract-operations-to-abstract-operations`: the `propose_*` /
+    `validate_*_specialization` / `bind_revision` / `commit_revision` /
+    `replay_psi_registry` / `compute_cold_parallel` surface is
+    def+re-export only, but `optimization-unit-semantics` touches a
+    same-named `validate_state_argument_specialization` — audit per name
+    before removing anything here.
+
+  For each entrance decide one of: delete it, demote it to crate-private, or
+  wire it to the coordinator that should call it — grounded in the owning
+  stage's spec text, not in caller counts alone. Test-support
+  `*_for_test`/`corrupt_*` helpers and crate-internal methods are out of
+  scope; they are not stage entrances. The `rewrites/`,
+  `unsequenced_spill_stages/` and wrapper-object families are NOT this row —
+  they belong to POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-* and
+  POC-WRAPPER-OBJECT-PLACEMENT.
+
+
+  Durable note carried from the retired POC-ORPHAN-ENTRANCE-AUDIT row: spill
+  codec entrance names (`encode`, `decode`) collide workspace-wide, so any
+  future automated orphan gate needs qualified identities to attribute them
+  to a machine.
+  Acceptance: every entrance above is deleted, demoted, or called by a real
+  coordinator route with a test driving it; `cargo check --workspace
+  --all-targets` stays clean.
+
 - **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **STAGED-LOCAL-CRASH-LOWERING.** Mined candidate — resolved:
   re-mines the explicit-crash leg of the resolved
@@ -12253,27 +12239,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `terminal_psi_indexed_receivers`, not a store-specific emitter; the
   shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
   independent slice exists here.
-- **ZERO-BYTE-ARRAY-FENCE-PLACEMENT.** Resolved — re-mines the fence-placement leg of the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row. The fences are placed and pinned: check-time rejection covers unprovable `x[0]` into `[u8; 0]` and non-exact fixed literals (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` + `zero_length_byte_literal_length_rejected`, driven by `zero_length_byte_array_use_fences_reject_at_check`), and the non-scalar-leaf `[T; 0]` fence sits in the terminal verifier at `terminal-verifier/src/validation/foundation/structural_types.rs:51` (`InvalidStructuralArrayLength`), mirrored in optimization-unit-semantics — i.e. the placement decision is already made and named. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE, ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-EXTENT-BYTE-ARRAY-FENCE, ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE, ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. The remaining named residual is the native-route corpus pin, which the landed row assigns to the ACTIVE_FAIL roster — not this stub.
-- **ZERO-EXTENT-BYTE-ARRAY-FENCE** — mined candidate; scope verified, covered — re-mines the same landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** cluster (TASKS.md:6195) already settled on resolved siblings ZERO-BYTE-ARRAY-FENCE-PLACEMENT (adjacent row) and ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. Re-verified at `1b2d3fff02`: `[u8; 0]` admission and the use-site fences stand unchanged — check-time rejection fixtures `fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` + `zero_length_byte_literal_length_rejected` all present, `pass/collections/zero_length_byte_array_admission` intact, and the non-scalar-leaf `[T; 0]` fence still sits at `terminal-verifier/src/validation/foundation/structural_types.rs:51` (`InvalidStructuralArrayLength`). The fence itself needs no new leg; the only named residual is the native-route corpus pin assigned to the ACTIVE_FAIL roster by the landed row — not this stub. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE, ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE.
-- **ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE** — mined candidate; scope verified,
-  resolved — re-mines the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row
-  (TASKS.md:5804). `[u8; 0]` admits at check in every value position,
-  constructed exactly by `[]`/`""` (`pass/collections/
-  zero_length_byte_array_admission`, `zero_length_byte_array_is_admitted_
-  at_check`); the use-site fences are pinned — unprovable `x[0]` index and
-  non-exact fixed literals reject at check (`fail/data/
-  zero_length_byte_array_{index_rejected,literal_arity_rejected}` +
-  `zero_length_byte_literal_length_rejected`, driven by
-  `zero_length_byte_array_use_fences_reject_at_check`), and the
-  non-scalar-leaf `[T; 0]` fence sits in the terminal verifier as
-  `InvalidStructuralArrayLength` (BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE).
-  The only named residual — a native-route corpus pin — belongs to the
-  ACTIVE_FAIL roster per the landed row, not this stub. Sibling re-mines
-  already resolved with this same record: ZERO-BYTE-ARRAY-FENCE-PLACEMENT,
-  ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-EXTENT-BYTE-ARRAY-FENCE;
-  remaining stubs: FIXED-ARRAY-ZERO-EXTENT-FENCE,
-  ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE.
-
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;

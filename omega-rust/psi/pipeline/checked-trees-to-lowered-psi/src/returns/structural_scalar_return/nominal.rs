@@ -417,6 +417,22 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         if receiver_place_rebase.contains_key(&receiver) {
             continue;
         }
+        // A receiver that names the hook's borrowed `self` parameter is a
+        // declared place, not a proof-local root — it stays put.
+        let receiver_is_hook_parameter = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == cleanup.cleanup_machine)
+            .is_some_and(|machine| {
+                machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self && parameter.place == receiver)
+            });
+        if receiver_is_hook_parameter {
+            continue;
+        }
         next_proof_root = next_proof_root
             .checked_add(1)
             .ok_or(LoweringError::Unsupported(

@@ -7,13 +7,15 @@
 //! Emission borrows those records in the single shared namespace:
 //! `ordinary_machine` emits each ordinary body and `composed_control::callable`
 //! each composed one.
+use std::collections::BTreeMap;
+
 use super::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, ClaimTransfer, CompletionReceipt, LoweredPsi, LoweringError,
-    MachineContract, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    MachineContract, MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
+    ProofBundle, ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ScalarQualificationCatalog, ScalarType,
     SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -753,6 +755,19 @@ fn assemble_unit_closure(
     // A nominal consuming member (a seeded `drop<T>` specialization) emitted
     // the ordinary complete-only body; its return edge still invokes the exact
     // owner-attached `::drop` hook the roster selected for each parameter.
+    // A hook that keeps a borrowed `self` receiver declares it as its terminal
+    // `is_self` parameter; collect each emitted hook's receiver place so the
+    // edge can lend the consumed place into the callee frame.
+    let cleanup_receivers: BTreeMap<MachineId, PlaceId> = machines
+        .iter()
+        .filter_map(|machine| {
+            machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.is_self)
+                .map(|parameter| (machine.id, parameter.place))
+        })
+        .collect();
     for nominal in &checked
         .facts
         .flow
@@ -777,6 +792,7 @@ fn assemble_unit_closure(
             member,
             &type_ids,
             &machine_ids,
+            &cleanup_receivers,
         )?;
     }
 

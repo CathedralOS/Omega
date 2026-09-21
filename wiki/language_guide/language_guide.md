@@ -44,4 +44,8 @@ Boundary and low-level topics:
 - [Chapter 20: Memory Layout And ABI](chapter_20_memory_layout_abi.md)
 - [Chapter 21: Semantic Reflection](chapter_21_reflection.md)
 - [Chapter 22: Inline Assembly](chapter_22_inline_assembly.md)
+
+Building and testing:
+
+- [Chapter 23: Testing](chapter_23_testing.md)
 - [Using source packages](packages.md)
