@@ -235,13 +235,14 @@ fn source_scalar_case_results_reach_canonical_terminal() {
 }
 
 #[test]
-fn scalar_case_returns_and_calls_publish_on_direct_aggregate_targets() {
+fn scalar_case_returns_and_calls_publish_on_supported_targets() {
     for entry in ["choose", "collect"] {
         let artifact = produce(entry);
         for target in [
             NativeTarget::linux_x64(),
             NativeTarget::linux_arm64(),
             NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
         ] {
             publish(&artifact, target);
         }
@@ -265,6 +266,7 @@ fn scalar_case_borrowed_callee_loop_preserves_storage_and_result() {
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
         NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
     ] {
         let (image, offset) = publish(&artifact, target);
         #[cfg(any(
