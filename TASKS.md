@@ -9926,6 +9926,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   omega-native-differential-test --all-targets` green, only dead-code
   warnings in `terminal_psi_conditional.rs`). The feature-families
   residual stays upstream-gated as recorded; no leg remains here.
+  Re-verified at `a43a1929b1` (linux x86-64, 2026-09-21 ~07:39Z): the
+  claim map rotated — `pass_manager/` is no longer claim-held — but the
+  residual remains authorization-gated, not claim-gated: the feature
+  families are training/evaluation machinery the spec forbids in the
+  reference compiler and they wait on the versioned workload corpus
+  (currently being drafted under GRAPH-COST-EVIDENCE-CORPUS /
+  WORKLOAD-MULTIVERSIONING claims, exp ~11:04Z/11:11Z). No leg remains.
 - **HOST-ALIAS-BUILD-DIR-DETECTION.** Advanced — the race-window residual
   verified at `7452910c6e` (a host alias planted between admission's
   `overlap_key` check and the first write is invisible to the
