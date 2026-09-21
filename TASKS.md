@@ -11727,18 +11727,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     producer from outside this crate." The comment was right and this row
     was wrong.
   - `selected-instructions-to-register-homes::stage_fixed_view_register_allocation`
-    was demoted at `f44a1177ed` and is no longer re-exported, but it is not
-    finished: it now raises a `dead_code` warning in every workspace check,
-    because demoting it revealed it has no caller at all — not even a test.
-    Its only remaining mention is a **negative** assertion,
-    `register_allocation/route_tests.rs:76`, which asserts the entrance does
-    NOT contain `stage_fixed_view_register_allocation(legality`, and
-    references the name as a string rather than calling it. So the
-    disposition is deletion, not demotion, and that assertion has to go with
-    it — what the assertion pins, that the route does not take the fixed-view
-    path, survives deletion of the function it names. Fenced: the crate is
-    under a live POC-SPILL-FAMILY-SEQUENCING claim, so partition before
-    picking this up.
+    — **retired**. Demoted at `f44a1177ed`; the now-callerless body deleted at
+    `504679f2a0a` once the assignment-level claim settled; the trailing
+    negative assertion it named at `register_allocation/route_tests.rs` was
+    removed on the same branch under this claim (what the assertion pinned —
+    that the route does not take the fixed-view path — survives deletion).
+    The name no longer appears anywhere in the crate at `3a1304c93e`.
   - `abstract-operations-to-target-operations::lower_to_target_operations_and_native_callbacks`
     is the one that survives. It is re-exported at `lib.rs:27` with every
     caller inside its own crate — `lowering.rs:67` delegates to it,
