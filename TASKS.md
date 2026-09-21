@@ -6374,27 +6374,6 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   (`bf8769cce13`). The crate is excluded from the landing gate
   (`--exclude omega-native-differential-test`), so nothing else watches it. The
   sibling `--test terminal_psi_source_payloadless_optimizer` is also green, 3/3.
-- **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane. Current red state is a
-  compile-broken test target at `62c502f9f6` (linux x86-64,
-  `cargo nextest run -p omega-native-differential-test --test
-  pipeline_ownership` exits 101 before running): four callers pass
-  `selected.optimized_target()`/`x86.optimized_target()` —
-  `&ValidatedOptimizedTargetOperations` — where
-  `validate_optimized_selection_custody` takes
-  `&Arc<ValidatedOptimizedTargetOperations>` (the
-  `optimized_target_owner()` accessor already yields that Arc; call sites
-  at `stages/realization/structural_units/structural_return.rs:33`,
-  `stages/selection/custody.rs:62`, `validation.rs:400,409` carry the
-  pre-change spelling), and `fixtures/ordinary_graph_controls.rs:32`
-  matches `LegalizedScalarTerminator` without the `Crash { .. }` arm the
-  variant added. Both repairs are confined to
-  `tests/native-differential/tests/pipeline_ownership{,.rs}`, which is
-  live-fenced to STRUCTURAL-UNIT-CALL-GRAPH-JOINS (exp 20:13Z) — no
-  unclaimed slice exists this wave; the repair ownership stays with that
-  claim's holder and the lane's underlying red legs are enumerated below.
-
-Language/semantic gaps:
-
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics. Landed: already-landed `f32`/`f64` constants now compose in constant expressions through the `FloatSemantics` provider — `Add`/`Subtract`/`Multiply`/`Divide` and all six comparisons produce determined bits at the landed format, an anonymous operand lands at its peer's format before the operation, NaN results reject without explicit representation bits, and substituted-declaration literal roots (`const Q: f32 = A`) replay dependency/operator custody through the existing probe path (`landed_float_leaves_compose_at_their_own_format`, `float_literal_alias_roots_keep_witnessed_declaration_custody`, `public_float_constants_carry_landed_identity_through_composition`). Remaining: authored NaN literal bits and non-arithmetic float operators in const position.
 - **STRUCTURAL-UNIT-LOWERING.** Scope verified on `a4ffd1aff8` — structural-unit
   lowering in checked-trees-to-lowered-psi is landed for the bounded subset
@@ -6658,10 +6637,7 @@ Platform/cross-host (structurally gated — document host limits):
   UEFI-PHYSICAL-SEMANTIC-ENTRY at dispatch time), the hosted-receiver bridge
   arm in `hosted_receiver.rs` (fenced by ENTRY-CONTENT-ROOTS), the
   `native_hosted_target()` cfg arm in `compiler/tests/canary_suite.rs`
-  (fenced by PRIVILEGED-PORT-EFFECT-SETTLEMENTS), the installation-record
-  pairing dispatch in `record_validation.rs` (fenced by
-  FAULT-INJECTED-TARGET-READER — x86_64 Mach-O images with thunk regions
-  fail-closed there until it lands), and a real x86_64-apple-darwin host run
+  (fenced by PRIVILEGED-PORT-EFFECT-SETTLEMENTS), and a real x86_64-apple-darwin host run
   (requires the Intel host; this session ran on linux x86-64).
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
   validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a
