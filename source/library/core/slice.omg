@@ -16,7 +16,10 @@
 
 boundary operator Slice::Length<T>(items: &[T]) -> u64;
 
-boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T
+// index returns the element by value: copying it out of a shared borrow
+// requires a copyable element type. The view-returning operators below carry
+// no such bound.
+boundary machine [] Slice::index<T [copy]>(items: &[T], index: u64) -> T
 requires
     index < items.len;
 
