@@ -15403,7 +15403,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; folded — spelling alias
   of canonical RC-NATIVE-MATRIX-LINUX-X86-64 (~:12746). No independent
   slice.
-||||||| parent of 9037a4fdc9fc7 (board(RC-NATIVE-MATRIX): resolve umbrella re-mine — all legs owned by live sibling rows)
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
