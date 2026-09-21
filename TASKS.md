@@ -3495,17 +3495,22 @@ Owners include
     bind a shared identity like `InterruptEntry::enter` through the root's own
     selected plan while unscoped lookups fail closed on ambiguity — so a
     second `InterruptEntry`-inheriting trait no longer trips roster
-    uniqueness; remaining seams for the timer member: provider-planning's
-    `derive_selected_installation_reach_resolutions` + nested-reach
-    substitution (`installation_reach.rs`) still name requirements by
-    identity alone, `ResolvedRootServiceReach::from_*` constructors
-    (`root_validation.rs`) must adopt the plan-scoped resolvers with the
-    candidate's plan identity, `receipt_binding.rs`'s admitted-evidence
-    match may still reject a shared requirement that satisfies multiple
-    granted plans, and the authored `TimerRoot` + acknowledge/record/wake
-    member still needs declaring in `interrupt_table_canary` plus the
-    compiler-side `admit_interrupt_table_member` drive; emitted-image
-    machine-state evidence still needs the image-emission join above.
+    uniqueness; the producer side now matches: `installation_reach.rs`'s
+    nested-reach substitution resolves each pending row through its own
+    plan's resolution first and treats an identity published by more than
+    one selected plan (resolved or still in flight) as ambiguous rather than
+    binding a foreign plan's row, `root_validation.rs`'s `from_*` constructors
+    adopt the plan-scoped resolvers with the candidate's plan identity
+    (`from_selected_provider_closure_for_plan` etc., landed with the second
+    heir), `receipt_binding.rs` prefers the granted plan whose schema binds
+    the requirement's owner trait and keeps the fail-closed duplicate match
+    when no owner slot is granted, and the authored `TimerRoot` +
+    `TimerProvider::enter` acknowledge member is declared in
+    `interrupt_table_canary` and driven end-to-end by
+    `authored_timer_root_installs_through_selected_provider`; the device
+    source, tick record, and wake consequences stay with the later device
+    leg, and emitted-image machine-state evidence still needs the
+    image-emission join above.
   - Descriptor table. The authored half now exists:
     `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
     package whose `InterruptGate` layout splits the entry-offset fields into
