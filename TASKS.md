@@ -9512,6 +9512,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (swarm-z143, exp 13:57Z) and family 1's surface
   `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
   (devin-848972c1, exp 13:59Z). No independent slice remains.
+||||||| parent of 2ccef088fb73 (board: re-witness CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET attributions)
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
+- **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
+- **CLI-COMMANDS** — mined candidate; verify scope then implement.
+- **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION). Re-witnessed at
+  `38054732a3cd` (linux x86-64): both family-1 reds unchanged —
+  `ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
+  still reads `0x600000000` segments at :1497 and
+  `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64` still
+  `BoundOverflow` at :1890; family 2's closed-projection replay stays
+  green. Doc-recording leg now fenced by KNOWN-BASELINE-FAILURES-REFRESH
+  (exp 09:29Z); repair remains the PSIIR ranked-segment lane's decision
+  (carrier-wide bound vs verified countdown).
+- **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
+- **CLI-COMMANDS** — mined candidate; verify scope then implement.
+- **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
+
   Verified scope: re-mines NORMALIZED-ABI-LOWERING's callback-transport
   bullet (TASKS.md:2273) — "the common route rejects every request carrying
   a callback in `native_realization/object_emission.rs`". That recorded
