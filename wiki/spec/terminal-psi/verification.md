@@ -274,8 +274,13 @@ Each entry states its exact licensed premises/conclusion, dependencies,
 implementation identity/site and soundness status: `Proved`, `ExplicitlyTrusted`
 or `Unfinished`. A source path locates code; it does not identify its semantics.
 `Proved` binds checked evidence and its assumptions. `ExplicitlyTrusted` needs
-an identified accepting root/policy and rationale. `Unfinished` cannot establish
-an independent claim merely because the implementation returns success.
+an identified accepting root/policy and rationale. `Unfinished` names the gap
+that keeps it open and cannot establish an independent claim merely because the
+implementation returns success. Only an `Unfinished` row may depend on an
+`Unfinished` row. The `Proved` set is recorded explicitly and reconciled on
+every run: a row marked `Proved` outside the record fails, and a recorded row
+that regresses to `ExplicitlyTrusted` or `Unfinished` fails, so a
+soundness-status change cannot hide inside an ordinary entry edit.
 
 Mechanically check coverage of accepted checker dispatch paths and reconstructed
 fact kinds. A new accepted variant without its entry fails before publication.
