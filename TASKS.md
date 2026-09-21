@@ -2047,7 +2047,17 @@ Owners include
     coverage. Reuse the ordinary native bounded-field store and exact
     live-length replay, not a new byte-view adapter.
     `compiler/tests/byte_field_replacement/indexed.rs` covers direct and nested
-    source writes only.
+    source writes, and (landed beside this row) a composed cyclic-Unit leg:
+    `Record::rewrite` carries `position`/`byte` through bounded fields
+    (`want_position: u64 [0..=2]`, `want_byte: u8 [0..=127]` — states cannot
+    name machine parameters), stores into `self.out[position]` inside a
+    `write`/`again` cycle, and passes verification plus native publication on
+    all four targets — `cyclic_indexed_replacement`,
+    `cyclic_indexed_byte_field_replacement_publishes_native`, and the
+    host-native `cyclic_indexed_store_updates_original_backing_
+    without_changing_extent` (exact live length, sibling custody, `turns`
+    counter round-trips). The customer-closure half (an authored customer
+    reaching this shape) remains open.
   - Extend bounded safety/proof admission to qualified and partial owned
     custody, structural results, projected claims and effectful calls.
     `unranked_cycles.rs` admits claims pinned on owned entry parameters and
