@@ -11,7 +11,6 @@ pub const RUNTIME_ATOMIC_COMPARE_EXCHANGE_EXIT: &str =
     "atomics/runtime_atomic_compare_exchange_exit";
 pub const ATOMIC_GLOBAL_ORDER_OPERATIONS: &str = "atomics/atomic_global_order_operations";
 pub const SHARED_RECEIVER_ATOMIC_STORE: &str = "atomics/shared_receiver_atomic_store";
-pub const SHARED_RECEIVER_PLAIN_FIELD_WRITE: &str = "atomics/shared_receiver_plain_field_write";
 pub const RUNTIME_CONSOLE_BYTE_ECHO_EXIT: &str = "host/runtime_console_byte_echo_exit";
 pub const EFI_VTABLE_FIELD_CALL: &str = "targets/efi_vtable_field_call";
 pub const SYSV_VTABLE_FIELD_CALL: &str = "targets/sysv_vtable_field_call";

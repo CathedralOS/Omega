@@ -90,6 +90,9 @@ fn decode_parameter_records(
 ) -> Result<Vec<UnitParameterRecord>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
+    if count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut parameters = Vec::with_capacity(count);
     for _ in 0..count {
         let place = PlaceId::new(reader.u64()?).ok_or(
@@ -121,6 +124,9 @@ fn decode_parameter_homes(
 ) -> Result<Vec<UnitParameterHomeRecord>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
+    if count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut homes = Vec::with_capacity(count);
     for _ in 0..count {
         let place = PlaceId::new(reader.u64()?).ok_or(

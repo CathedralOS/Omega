@@ -1,7 +1,8 @@
 //! Independent replay of two conditional frontiers and three effect leaves.
 
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, checked_source, lower_machine,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, checked_source,
+    checked_source_with_core_service, lower_machine,
 };
 use checked_trees::{
     CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpression,
@@ -158,13 +159,13 @@ fn checked_boundary_prefixed_nested_control() -> CheckedTrees {
 }
 
 fn checked_provider_boundary_prefixed_nested_control() -> CheckedTrees {
-    checked_source(
+    checked_source_with_core_service(
         r#"
-            boundary trait Console {
+            pub boundary trait Console {
                 machine tick() reaches Console;
                 machine exit(code: i32) reaches Console;
             }
-            data Main { console: Console; }
+            data Main { console: Service<Console>; }
             machine Main::main(&mut self, first: bool, second: bool) reaches Console {
                 self.console.tick();
                 transition first { true -> dispatch(second) _ -> no() }

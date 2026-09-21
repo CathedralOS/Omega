@@ -16,7 +16,7 @@ use omega::language::core::service;
 pub boundary trait ClockHost { machine ticks(value: u64) -> u64; }
 data Clock {}
 machine Clock::ticks(value: u64) -> u64 satisfies ClockHost::ticks { value }
-pub data Board { clock: Service<ClockHost> in Bound; marker: u64; other: u64; }
+pub data Board { clock: Service<ClockHost>; marker: u64; other: u64; }
 pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
     self.marker = 1;
     self.clock.ticks(7)
@@ -181,7 +181,7 @@ pub machine FloatProvider::negate(value: f32) -> f32
 pub boundary trait ClockHost { machine ticks(value: f32) -> f32; }
 data Clock {}
 machine Clock::ticks(value: f32) -> f32 satisfies ClockHost::ticks { value }
-pub data Board { clock: Service<ClockHost> in Bound; }
+pub data Board { clock: Service<ClockHost>; }
 pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
     F32::negate(self.clock.ticks(7.0f32))
 }

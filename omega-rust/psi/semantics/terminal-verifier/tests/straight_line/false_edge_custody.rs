@@ -29,6 +29,7 @@ fn declaration(identity: u64) -> ValueDeclaration {
 fn constant(identity: u64, result: u64, integer: u128) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(declaration(result)),
         kind: OperationKind::IntegerConstant {
@@ -40,6 +41,7 @@ fn constant(identity: u64, result: u64, integer: u128) -> Operation {
 fn comparison(identity: u64, result: u64, operand: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -64,6 +66,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(1),
             parameters: Vec::new(),
@@ -76,6 +79,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                     target: block(2),
                     arguments: vec![value(1)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -84,12 +88,14 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                     target: block(3),
                     arguments: vec![value(1)],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(2),
             parameters: vec![declaration(10)],
@@ -105,6 +111,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     if with_alias_hop {
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(3),
             parameters: vec![declaration(11)],
@@ -115,6 +122,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                 target: block(4),
                 arguments: vec![value(11)],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -122,6 +130,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
     }
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block(if with_alias_hop { 4 } else { 3 }),
         parameters: vec![declaration(divisor)],
@@ -129,6 +138,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
             constant(4, 13, 7),
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(5).unwrap(),
                 result: OperationResult::Scalar(declaration(12)),
                 kind: OperationKind::ExactIntegerDivide {
@@ -252,6 +262,7 @@ fn false_edge_only_fact_cannot_escape_a_reconverged_join() {
         target: block(4),
         arguments: vec![value(10)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };

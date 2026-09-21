@@ -14,11 +14,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "impl LegalizedScalarCall",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/mod.rs",
+        path: "omega-rust/omega/representations/register-homes/src/register_homes/recovery/fixed_view_copy/codec/mod.rs",
         coordination_marker: "impl FixedViewCopyPlan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/selected/mod.rs",
+        path: "omega-rust/omega/representations/register-homes/src/register_homes/recovery/fixed_view_copy/codec/selected/mod.rs",
         coordination_marker: "fn decode_selected_plan",
     },
     RequiredCoordinationEntrance {
@@ -114,27 +114,27 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn choose_spill_victims",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs",
         coordination_marker: "pub fn plan_logical_spill_operations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute/mod.rs",
         coordination_marker: "action::compute_action(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate/mod.rs",
         coordination_marker: "replay::replay_action(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs",
         coordination_marker: "pub fn color_logical_spill_stack_slots",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/mod.rs",
         coordination_marker: "color_intervals_first_fit(function, logical.machine, intervals)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/validate/mod.rs",
         coordination_marker: "let expected = replay::replay(source)?;",
     },
     RequiredCoordinationEntrance {

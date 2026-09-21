@@ -1,0 +1,22 @@
+// A case payload field declared `[erased]` contributes no runtime value:
+// destructuring may bind it for proofs or another erased initializer, but a
+// runtime body may not read it back. The arm below returns `proof` as
+// runtime data, which would charge runtime storage for a proof-side binding.
+data Certified {
+    case Proven(value: i32, proof [erased]: i32);
+}
+
+data Main {
+    total: i32;
+}
+
+machine Main::main(&mut self) {
+    let certified: Certified = Certified::Proven { value: 7, proof: 11 };
+    self.total = inspect(certified);
+}
+
+machine inspect(certified: Certified) -> i32 {
+    transition certified {
+        Certified::Proven { value as _, proof } -> proof
+    }
+}

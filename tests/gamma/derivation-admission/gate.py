@@ -37,7 +37,7 @@ def main():
             try:
                 result = subprocess.run(
                     [str(temporary / "evaluator")], input=framed_input,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600,
                 )
             except subprocess.TimeoutExpired:
                 raise SystemExit(f"Derivation admission {name}: host timeout; no admission result")

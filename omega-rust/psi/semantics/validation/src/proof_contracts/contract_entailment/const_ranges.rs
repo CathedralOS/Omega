@@ -941,6 +941,8 @@ fn call_bindings(
 
 /// Every resolved call checks the complete symbolic parameter range in the
 /// caller's namespace. This does not replace carrier/access/arity validation.
+/// Call points that cannot supply a live value environment keep the
+/// declaration-envelope behavior.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_const_range_call(
     program: &TypedTrees,
@@ -949,6 +951,33 @@ pub(crate) fn validate_const_range_call(
     target: SymbolHandle,
     selections: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_const_range_call_in_environment(
+        program,
+        caller,
+        state,
+        target,
+        selections,
+        arguments,
+        None,
+        diagnostics,
+    );
+}
+
+/// `validate_const_range_call` with the caller's live write-invalidated
+/// environment: ordered scalar facts (a dominating guard's `value <= limit`,
+/// an equality subject) discharge the callee's declared binder ranges against
+/// the realized argument at this exact call.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_const_range_call_in_environment(
+    program: &TypedTrees,
+    caller: &Machine,
+    state: Option<&State>,
+    target: SymbolHandle,
+    selections: &[StaticMachineArgument],
+    arguments: &[ExpressionHandle],
+    environment: Option<&ValueEnv>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((callee, entry)) =
@@ -968,7 +997,7 @@ pub(crate) fn validate_const_range_call(
         return;
     }
     let proven = (|| {
-        let mut engine = scope_engine(program, caller, state, None)?;
+        let mut engine = scope_engine(program, caller, state, environment)?;
         let bindings = call_bindings(
             program,
             caller,

@@ -139,10 +139,14 @@
 //! anywhere in a fully crossed block, or at or before the covering store in
 //! its block — are rejected outright: a boundary event in that interval could
 //! observe the dead bytes.
-//! Proposal and independent replay share only the admission predicates and
-//! the settlement remap. Validation consumes the proposed program, requires
-//! the block, roster, and settlements to equal the independently computed
-//! removals, and restores the complete source by content.
+//! Validation re-derives the same legality contract from the source
+//! records on its own audit — the store's roster row and shape, the
+//! forward walk to a covering write or a permanently clear region, the
+//! crossed-edge and boundary-settlement checks — and never consults the
+//! producer's admission routine. It then requires the proposal to equal
+//! the function that audit produces and restores the complete source by
+//! content, so a wrong legality decision fails validation even when the
+//! proposal matches the emitted edit.
 
 mod admission;
 mod rewrite;

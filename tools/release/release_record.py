@@ -20,10 +20,17 @@ PowerShell on Windows and sh on macOS/Linux. Commands run through `mbx` when
 it is installed and through Cargo otherwise, per AGENTS.md.
 
     python3 tools/release/release_record.py plan
-    python3 tools/release/release_record.py run --target linux_x86_64 --all
+    python3 tools/release/release_record.py run --target linux_x86_64 \
+        --native-execution "mbx nextest run -p omega-native-differential-test"
     python3 tools/release/release_record.py run --target linux_arm64 \
-        --emulator "qemu-aarch64 9.0.0" --gate RC-NATIVE-MATRIX
+        --emulator "qemu-aarch64 9.0.0" --gate RC-NATIVE-MATRIX \
+        --native-execution "qemu-aarch64 <emitted-elf>"
     python3 tools/release/release_record.py check records/<file>.json
+
+A runner row is only `recorded` when the record carries a passing
+`--native-execution` observation — direct execution of the emitted programs —
+and `run` refuses a lane this host cannot execute (the `linux_arm64` lane
+also accepts any host under a named emulator).
 """
 
 import argparse
@@ -143,16 +150,24 @@ GATES = {
     },
 }
 
-# Required platform runs from the completion contract's runner table.
+# Required platform runs from the completion contract's runner table. Each
+# lane's `hosts` enumerates the (platform.system(), platform.machine()) pairs,
+# lowercased, that may record the row — the contract requires direct execution
+# of the emitted programs on the matching host. The `linux_arm64` lane alone
+# also accepts any host when the record names the emulator used.
 PLATFORM_RUNNERS = (
     {"runner": "Linux x86-64", "target": "linux_x86_64",
-     "execution": "direct"},
+     "execution": "direct",
+     "hosts": (("linux", "x86_64"), ("linux", "amd64"))},
     {"runner": "Linux AArch64", "target": "linux_arm64",
-     "execution": "direct-or-named-emulator"},
+     "execution": "direct-or-named-emulator",
+     "hosts": (("linux", "aarch64"), ("linux", "arm64"))},
     {"runner": "macOS AArch64", "target": "macos_arm64",
-     "execution": "direct"},
+     "execution": "direct",
+     "hosts": (("darwin", "arm64"), ("darwin", "aarch64"))},
     {"runner": "Windows x86-64", "target": "windows_x86_64",
-     "execution": "direct"},
+     "execution": "direct",
+     "hosts": (("windows", "amd64"), ("windows", "x86_64"))},
 )
 
 NEXTEST_SKIPPED = re.compile(r"^\s*SKIP\s+\S+\s+(\S+)\s*$", re.M)
@@ -163,6 +178,23 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 TARGET_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Captured output is evidence, not a log store: keep the tail bounded.
 OUTPUT_TAIL_BYTES = 64 * 1024
+
+
+def lane_host_match(target, emulator=None, os_name=None, machine=None):
+    """Whether the given (or current) host may record the lane's row.
+
+    Direct lanes require the contract's matching host. The `linux_arm64` row
+    additionally accepts a named emulator from any host, per the contract's
+    "emulation is acceptable only when the release record names the emulator
+    and version" allowance.
+    """
+    os_name = (os_name if os_name is not None else platform.system()).lower()
+    machine = (machine if machine is not None
+               else platform.machine()).lower()
+    hosts = {row["target"]: row["hosts"] for row in PLATFORM_RUNNERS}[target]
+    if (os_name, machine) in hosts:
+        return True
+    return target == "linux_arm64" and bool(emulator)
 
 
 def runner():
@@ -242,8 +274,8 @@ def parse_expected_skip(entry):
     return {"gate": gate, "test": test, "reason": reason}
 
 
-def build_record(target, emulator, gate_names, results, expected_skips,
-                 selected_runner):
+def build_record(target, emulator, observation, gate_names, results,
+                 expected_skips, selected_runner):
     gates = []
     for name in gate_names:
         gate = GATES[name]
@@ -264,8 +296,12 @@ def build_record(target, emulator, gate_names, results, expected_skips,
     platform_runs = [{
         "runner": row["runner"],
         "target": row["target"],
-        "status": ("recorded" if row["target"] == target else "open"),
+        # A lane reads recorded only with a passed direct-execution
+        # observation; a red or missing probe leaves the row open.
+        "status": ("recorded" if row["target"] == target
+                   and observation["exit"] == 0 else "open"),
         "emulator": (emulator if row["target"] == target else None),
+        "observation": (observation if row["target"] == target else None),
     } for row in PLATFORM_RUNNERS]
     open_rows = (
         [gate["name"] for gate in gates if gate["status"] != "pass"]
@@ -366,12 +402,33 @@ def validate_record(record, path):
                  "expected skip {} was declared but not observed in {}".format(
                      skip.get("test"), skip.get("gate")))
     runs = {row.get("target"): row for row in record.get("platform_runs") or []}
+    host = record.get("host") or {}
     for row in PLATFORM_RUNNERS:
-        need(row["target"] in runs,
+        lane = runs.get(row["target"])
+        need(lane is not None,
              "platform run {} is missing".format(row["target"]))
+        if not isinstance(lane, dict) or lane.get("status") != "recorded":
+            continue
+        # A row may only be recorded by its own lane's record — the sibling
+        # rows are evidence produced by each lane's own host.
+        need(row["target"] == record.get("target"),
+             "platform run {} cannot be recorded by another lane's record"
+             .format(row["target"]))
+        observation = lane.get("observation")
+        need(isinstance(observation, dict)
+             and isinstance(observation.get("command"), str)
+             and observation["command"].strip()
+             and isinstance(observation.get("argv"), list)
+             and observation.get("exit") == 0
+             and isinstance(observation.get("elapsed_ms"), (int, float)),
+             "platform run {} is recorded without a passing "
+             "direct-execution observation".format(row["target"]))
+        need(lane_host_match(
+                row["target"], emulator=record.get("emulator"),
+                os_name=host.get("os"), machine=host.get("machine")),
+             "recorded host {}/{} cannot execute lane {}"
+             .format(host.get("os"), host.get("machine"), row["target"]))
     recorded = runs.get(record.get("target")) or {}
-    need(recorded.get("status") == "recorded",
-         "the record's own platform row must be recorded")
     if recorded.get("emulator") is not None:
         need(record["target"] == "linux_arm64",
              "emulator is permitted only on the linux_arm64 row")
@@ -401,8 +458,15 @@ def command_plan(args):
         print("    capability: {}".format(gate["capability"]))
         for command in gate["commands"]:
             print("    $ {}".format(command))
-    print("required platform runs: {}".format(
-        ", ".join(row["target"] for row in PLATFORM_RUNNERS)))
+    print("required platform runs:")
+    for row in PLATFORM_RUNNERS:
+        hosts = ", ".join(
+            "{}/{}".format(os_name, machine)
+            for os_name, machine in row["hosts"])
+        emulator = "; or any host under a named emulator" \
+            if row["target"] == "linux_arm64" else ""
+        print("    {} — {} [{}]: {}{}".format(
+            row["target"], row["runner"], row["execution"], hosts, emulator))
     return 0
 
 
@@ -415,6 +479,16 @@ def command_run(args):
         raise ValueError(
             "--emulator is permitted only on the linux_arm64 row; every other"
             " runner requires direct execution")
+    if not lane_host_match(args.target, emulator=args.emulator):
+        raise ValueError(
+            "host {}/{} cannot record lane {}: the contract requires direct "
+            "execution on the matching host".format(
+                platform.system().lower(), platform.machine().lower(),
+                args.target))
+    if not args.native_execution:
+        raise ValueError(
+            "--native-execution is required: a runner row is only recorded "
+            "with evidence of directly executing the emitted programs")
     expected_skips = [parse_expected_skip(entry)
                       for entry in args.expect_skip]
     selected = runner()
@@ -430,10 +504,18 @@ def command_run(args):
                 " ({} skipped)".format(row["skipped_tests"])
                 if row["skipped_tests"] else ""), flush=True)
         results[name] = rows
-    record = build_record(args.target, args.emulator, gate_names, results,
-                          expected_skips, selected)
+    print("$ {}".format(args.native_execution), flush=True)
+    observation = run_command(args.native_execution, selected)
+    print("    exit {} in {:.0f} ms{}".format(
+        observation["exit"], observation["elapsed_ms"],
+        " — lane {} open (observation failed)".format(args.target)
+        if observation["exit"] != 0 else ""), flush=True)
+    record = build_record(args.target, args.emulator, observation, gate_names,
+                          results, expected_skips, selected)
     path = write_record(record, args.records_dir)
-    print("record: {}".format(path))
+    lane = next(row for row in record["platform_runs"]
+                if row["target"] == args.target)
+    print("record: {} (lane {})".format(path, lane["status"]))
     print("closure: {} (open rows: {})".format(
         record["closure"]["status"],
         ", ".join(record["closure"]["open_rows"]) or "none"))
@@ -466,6 +548,10 @@ def main():
     run.add_argument("--gate", action="append", default=[],
                      choices=list(GATES), metavar="GATE",
                      help="run only these gates (default: all eight)")
+    run.add_argument("--native-execution", metavar="COMMAND",
+                     help="command that directly executes emitted programs "
+                     "for --target on this host (required; must exit 0, e.g. "
+                     "a native differential test or an emulator invocation)")
     run.add_argument("--expect-skip", action="append", default=[],
                      dest="expect_skip", metavar="GATE|TEST|REASON",
                      help="declare an expected skip, e.g. "

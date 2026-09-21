@@ -188,6 +188,48 @@ pub(super) fn validate(
             )
         })
         .unwrap_or(statements.len());
+    // A record local may draw its whole initial value straight from an affine
+    // owned parameter; the local's own custody ledger (which must succeed
+    // before the graph publishes) then owns the follow-on disposition.
+    for (statement_index, statement) in statements[..prefix_end].iter().enumerate() {
+        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(local.initial_value)
+        else {
+            continue;
+        };
+        if !path.symbol.is_valid() || path.symbol != path.head_symbol || path.members.count() != 1 {
+            continue;
+        }
+        let Some((position, source)) = program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .find(|(_, source)| source.symbol == path.symbol)
+        else {
+            continue;
+        };
+        if source.is_self || source.is_const || source.is_mutable {
+            continue;
+        }
+        if !parameters.iter().any(|parameter| {
+            parameter.position as usize == position
+                && parameter.access == CheckedStructuralAccess::Owned
+                && parameter.multiplicity == Multiplicity::Affine
+        }) {
+            continue;
+        }
+        let transfer = (
+            PermissionEventSource::Statement { statement_index },
+            facts::PlaceRoot::Symbol(source.symbol),
+        );
+        if expected_transfers.contains(&transfer) {
+            return None;
+        }
+        expected_transfers.push(transfer);
+    }
     // A selected source parameter keeps no exit drop: its conditional custody
     // and residual death ride the owned-selection receipt instead, so it joins
     // neither the expected discard roster nor the event stream.
@@ -220,7 +262,7 @@ pub(super) fn validate(
         }
         let transferred_in_prefix = expected_transfers.iter().any(|(source, transferred)| {
             *transferred == root
-                && matches!(source, PermissionEventSource::Call { statement_index, .. } if *statement_index < prefix_end)
+                && matches!(source, PermissionEventSource::Call { statement_index, .. } | PermissionEventSource::Statement { statement_index } if *statement_index < prefix_end)
         });
         if !transferred_in_prefix {
             expected_discards.push(root);

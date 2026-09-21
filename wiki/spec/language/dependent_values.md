@@ -1,6 +1,6 @@
 # Value-dependent facts and views
 
-Runtime ranges, contracts, and layout/view conditions may name in-scope program
+Range predicates, contracts, and layout/view conditions may name in-scope program
 values. These are flow-sensitive facts about exact values and places, not
 arbitrary runtime computation of nominal types. This systems contract does not
 restrict the general mathematical quantification of the
@@ -77,19 +77,19 @@ own writes. See [state contracts](state_contracts.md).
 
 ## Default domains and zero initialization
 
-A data declaration's field constraints and `where` clauses define its default
+A data declaration's field qualifications and `where` clauses define its default
 domain; omission adds no predicates beyond its ordinary field/type obligations.
 This does not mean an uninhabited domain. Zero-initializability is a storage
 representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established
 value only after its default-domain obligations hold.
 
-Compiler-known `Service<R>` additionally requires established binding custody as
+Compiler-known `Binding<R>` additionally requires established binding custody as
 part of carrier validity. It needs no authored domain qualification. Zeroing its
 storage does not create a service; containing values remain unavailable until
 authorized provisioning or transfer establishes the field. This uses the same
 storage-versus-value distinction, not a user-definable validity mechanism. See
-[service bindings](../build/component_publication.md#service-bindings-and-era-entry).
+[service bindings](../build/component_publication.md#bindings-and-era-entry).
 
 [Case-local `where` clauses](data_and_literals.md#case-constraints) contribute
 conditions only for the active case. Common-field and type-wide obligations
@@ -168,8 +168,8 @@ one. Include argument/index evaluation writes as well as callee writes.
 
 Invalidate flow refinements atom by atom on overlapping written places; exact
 outcome guarantees may restore them or preserve untouched paths. Default-domain
-obligations and declared ranges must be re-established before consumption, not
-assumed to be unchanged values. Body-derived frames are implementation evidence,
+obligations and explicit domain qualifications must be re-established before
+consumption, not assumed to be unchanged values. Body-derived frames are implementation evidence,
 not changes to public contract or specialization identity.
 
 Frames retain exact subject substitution across aliases, calls, and state

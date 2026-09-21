@@ -44,7 +44,7 @@ pub struct NativeProductRequest {
 /// [`NativeInputReuse`], which prepares each exact Terminal input once.
 pub fn prepare_native_product(
     request: NativeProductRequest,
-    checked: CheckedCompilation,
+    mut checked: CheckedCompilation,
 ) -> Result<PreparedNativeCompilation, Vec<Diagnostic>> {
     admission::reject_unconsumed_callbacks(&checked)?;
     let production_subject = checked.production_subject()?;
@@ -63,6 +63,10 @@ pub fn prepare_native_product(
             &admission.program_entry,
             rollback.effective(),
         )?;
+    // The program-entry leg measured its production beside the borrowed
+    // checked record; rejoin those rows so the accumulator the checked record
+    // carries onward keeps the full sequence.
+    *checked.timings_mut() = terminal.stage_timings().clone();
     Ok(PreparedNativeCompilation::new(
         request,
         checked,

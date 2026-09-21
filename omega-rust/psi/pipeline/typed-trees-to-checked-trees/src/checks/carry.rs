@@ -232,10 +232,7 @@ pub(super) fn check_suspension_carry(
     let mut suspension_crossings = Vec::new();
 
     for state_borrows in facts.borrow.states.iter().map(|(_, state)| state) {
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == state_borrows.machine_symbol)
+        let Some(machine) = crate::lookup::machine_by_symbol(program, state_borrows.machine_symbol)
         else {
             continue;
         };

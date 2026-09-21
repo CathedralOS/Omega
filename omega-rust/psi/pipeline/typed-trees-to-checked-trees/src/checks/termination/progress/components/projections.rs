@@ -46,18 +46,22 @@ pub(super) fn finite_projection_limit(
             .filter(|(_, state)| state.machine_symbol == machine.symbol)
         {
             for call in flow.control.calls.span_or_empty(state.calls) {
-                let private_component_call = program.machines().iter().any(|callee| {
-                    component.contains(&callee.symbol)
-                        && matches!(
-                            callee.termination_plan.interface,
-                            language_semantics::TerminationInterface::InternalDerived
-                        )
-                        && (callee.symbol == call.target_symbol
-                            || program
-                                .machine_states(callee)
-                                .iter()
-                                .any(|state| state.symbol == call.target_symbol))
-                });
+                let private_component_call =
+                    crate::lookup::machine_by_symbol(program, call.target_symbol)
+                        .or_else(|| {
+                            crate::semantic_calls::find_state_with_machine(
+                                program,
+                                call.target_symbol,
+                            )
+                            .map(|(machine, _)| machine)
+                        })
+                        .is_some_and(|callee| {
+                            component.contains(&callee.symbol)
+                                && matches!(
+                                    callee.termination_plan.interface,
+                                    language_semantics::TerminationInterface::InternalDerived
+                                )
+                        });
                 if !private_component_call
                     && let Some(selected) =
                         selected_call_summary(program, call.target_symbol, summaries)

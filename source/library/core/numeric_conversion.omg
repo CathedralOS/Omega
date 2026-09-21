@@ -44,10 +44,7 @@ pub machine narrow_u16_to_u8_wrapping(value: u16) -> u8 {
 }
 
 pub machine narrow_u16_to_u8_saturating(value: u16) -> u8 {
-    transition value > 255 {
-        true -> (255)
-        _ -> (value as u8)
-    }
+    (value as u8 in Saturating) as u8
 }
 
 pub machine narrow_u16_to_u8_trapping(value: u16) -> u8 {
@@ -82,10 +79,7 @@ pub machine narrow_u32_to_u8_wrapping(value: u32) -> u8 {
 }
 
 pub machine narrow_u32_to_u8_saturating(value: u32) -> u8 {
-    transition value > 255 {
-        true -> (255)
-        _ -> (value as u8)
-    }
+    (value as u8 in Saturating) as u8
 }
 
 pub machine narrow_u32_to_u8_trapping(value: u32) -> u8 {
@@ -106,10 +100,7 @@ pub machine narrow_u32_to_u16_wrapping(value: u32) -> u16 {
 }
 
 pub machine narrow_u32_to_u16_saturating(value: u32) -> u16 {
-    transition value > 65535 {
-        true -> (65535)
-        _ -> (value as u16)
-    }
+    (value as u16 in Saturating) as u16
 }
 
 pub machine narrow_u32_to_u16_trapping(value: u32) -> u16 {
@@ -140,10 +131,7 @@ pub machine narrow_u64_to_u8_wrapping(value: u64) -> u8 {
 }
 
 pub machine narrow_u64_to_u8_saturating(value: u64) -> u8 {
-    transition value > 255 {
-        true -> (255)
-        _ -> (value as u8)
-    }
+    (value as u8 in Saturating) as u8
 }
 
 pub machine narrow_u64_to_u8_trapping(value: u64) -> u8 {
@@ -164,10 +152,7 @@ pub machine narrow_u64_to_u16_wrapping(value: u64) -> u16 {
 }
 
 pub machine narrow_u64_to_u16_saturating(value: u64) -> u16 {
-    transition value > 65535 {
-        true -> (65535)
-        _ -> (value as u16)
-    }
+    (value as u16 in Saturating) as u16
 }
 
 pub machine narrow_u64_to_u16_trapping(value: u64) -> u16 {
@@ -188,10 +173,7 @@ pub machine narrow_u64_to_u32_wrapping(value: u64) -> u32 {
 }
 
 pub machine narrow_u64_to_u32_saturating(value: u64) -> u32 {
-    transition value > 4294967295 {
-        true -> (4294967295)
-        _ -> (value as u32)
-    }
+    (value as u32 in Saturating) as u32
 }
 
 pub machine narrow_u64_to_u32_trapping(value: u64) -> u32 {
