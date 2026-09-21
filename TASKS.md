@@ -9702,7 +9702,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS.** Resolved — the
   duplicate-overload canary corpus exists and is driven. Re-verified green
-  on linux x86-64 at `00e1da7ae2a`:
+  on linux x86-64 at `d648f6862e47`:
   `cargo nextest run -p compiler --test canary_suite -E
   'test(=surface_and_targets::duplicate_overload_and_visibility_
   admissions_reject) or test(=surface_and_targets::repeated_exact_
