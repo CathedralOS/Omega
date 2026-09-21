@@ -4,11 +4,13 @@ Start at [terminal_interpreter.rs](src/terminal_interpreter.rs). Execution follo
 [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
 and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 
-The domain entrance owns artifact admission, startup, and resumable dispatch.
-[Call frames](src/terminal_interpreter/call_frames.rs) bind invocations and save
-live caller state; [custody](src/terminal_interpreter/custody.rs) checks and
+The domain entrance owns artifact admission and startup: every entry decodes,
+verifies, constructs and runs. [execution.rs](src/execution.rs) is the engine —
+the live state and the resumable dispatch loop. [Call frames](src/calls/frames.rs)
+bind invocations and save live caller state; [custody](src/custody.rs) checks and
 transfers structural ownership and claims. Storage-specific operations remain
-under their named reference, record, array, primitive, and byte-storage owners.
+under their named reference, record, array, primitive, and byte-storage owners
+([byte_sequences.rs](src/byte_sequences.rs) and its subordinates).
 
 Admission moves decoded, verified machine code into one immutable program owner.
 Frames retain machine/block identities, not cloned block graphs. A resume borrows
@@ -51,7 +53,7 @@ checks exact subtraction before creating resumable state. This interpreter
 acceptance grants no native, fixed-fuel, provider-installation, or mixed-work
 authority.
 
-[block_bindings.rs](src/terminal_interpreter/block_bindings.rs) captures all selected operands before
+[block_bindings.rs](src/terminators/block_bindings.rs) captures all selected operands before
 cleanup and simultaneous successor installation. Affine inputs move once;
 Unrestricted descriptors remain reusable. Rebinding changes the descriptor place,
 not its referent or field backing. Missing/duplicate owners and transfer/discard
@@ -76,7 +78,7 @@ only a normal return composes the caller's remaining work.
 
 ## Primitive array results
 
-[scalar_array.rs](src/terminal_interpreter/scalar_array.rs) owns complete primitive-array construction
+[scalar_array.rs](src/scalar_array.rs) owns complete primitive-array construction
 and return. Ordinary structural calls return the exact unrestricted payload into
 their saved caller's fresh result place. Earlier caller arrays survive alongside
 that result. Return preflight precedes fuel charging and frame restoration, so
@@ -91,7 +93,7 @@ unsupported; existing borrowed byte-array backing is a separate route.
 
 ## Primitive local storage
 
-[primitive_storage.rs](src/terminal_interpreter/primitive_storage.rs) establishes fresh referents on
+[primitive_storage.rs](src/primitive_storage.rs) establishes fresh referents on
 each activation or loop reentry. Borrowed calls share their backing; reads copy
 the current scalar, so earlier snapshots survive later writes. Suspension retains
 the storage, and departure reclaims it without affine cleanup. Local identities
@@ -101,9 +103,9 @@ does not provide native allocation or permit owned local escape; see
 
 ## References stored in records
 
-[record.rs](src/terminal_interpreter/record.rs) stages descriptor relocation together with ordinary
+[record.rs](src/record.rs) stages descriptor relocation together with ordinary
 record payload construction. Nested packing changes the carrier's owner and
-field path, never the original primitive backing. [reference.rs](src/terminal_interpreter/reference.rs)
+field path, never the original primitive backing. [reference.rs](src/reference.rs)
 resolves typed field paths ending in `Referent`; whole-owner cleanup removes
 descriptor subtrees without disposing the borrowed storage. The verifier checks
 loan ancestry and cleanup order independently. The source-free
@@ -199,7 +201,7 @@ does not implement source-owned array construction or native array/view storage.
 
 ## Boundary responses
 
-[effect_results.rs](src/terminal_interpreter/effect_results.rs) distinguishes Unit, scalar, and opaque
+[effects/results.rs](src/effects/results.rs) distinguishes Unit, scalar, and opaque
 structural values from an explicit `Crash(Trap | Abort)` response. A crash is
 admitted only against the published same-cause route with the invocation's
 already evaluated scalar inputs. A true guard permits normal completion too.

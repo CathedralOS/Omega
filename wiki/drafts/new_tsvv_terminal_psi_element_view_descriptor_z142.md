@@ -143,8 +143,8 @@ Historical — the last four, and the fence that held them:
 
 
 
-- `terminal-interpreter/src/terminal_interpreter/` ×4 (`custody.rs:380`,
-  `effect_results.rs:127`, `structural_scalar_fields/entry.rs:54,129`) —
+- `terminal-interpreter/src/` ×4 (`custody.rs:380`,
+  `effects/results.rs:127`, `structural_inputs/scalar_fields/entry.rs:54,129`) —
   REGISTERED-CALLBACK-LIFETIME, Devin / z139-registered-callback-lifetime,
   to 14:09Z.
 

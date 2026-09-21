@@ -1603,7 +1603,7 @@ syntax and other terminal services are not prerequisites.
   qualifications/claims and an authored provider/customer. The installed-provider
   path still rejects projected result qualifications and admits affine results
   only without claims/qualifications
-  (`terminal-interpreter/src/terminal_interpreter/call_operations.rs`).
+  (`terminal-interpreter/src/calls.rs`).
   Success must join the exact live-registration capacity occurrence to the
   external root and code/component leases; rejection preserves that capacity
   without a root. Teardown requires quiescence before lease release.
