@@ -9117,7 +9117,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   package-review gate — the recorded scratch-copy ceremony applies; that
   is checkout state, not subject state.
 - **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
-- **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-ROW-RESUMPTION.** Mined candidate; scope verified at
+  `39317a770b1f` — re-mines the resumption surface inside benchmark row
+  production, both halves of which are already landed contract: (a) the
+  package-review settlement ceremony is restartable — `measure` (or the
+  explicit `prepare` step) runs `omega update`, rewrites every `pending`
+  decision token to `accept` via `accept_pending_decisions`
+  (tools/benchmark/benchmark.py:353), then `omega update --resume`
+  publishes `omega.lock`, which is deliberately left in place so a
+  resumed row does not re-settle (README "Package-review preparation");
+  (b) a row's record production is idempotent — rerunning a
+  (subject, target, selection) row overwrites its own record rather than
+  duplicating it (README "Record schema"). Pinned by
+  `tools/tests/test_benchmark.py`'s `accept_pending_decisions` tests
+  (pending decision rows rewritten, non-decision `pending` text
+  untouched). On this worktree's stale base the suite reads 20/21 — the
+  one failure is `test_doc_embeds_the_current_matrix`, the
+  benchmarks.md matrix embed lagging newly committed records; that file
+  plus `tools/benchmark/records` are live-fenced to
+  BENCHMARK-PROOF-SUBJECT-SELECTION (exp 14:19Z), so the repair belongs
+  to that lane. No independent slice exists under this name.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-ISOLATION-ROWS.** Resolved — the per-selection row
   isolation the name asks for is the record contract itself and is already
