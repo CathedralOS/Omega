@@ -6774,6 +6774,19 @@ Platform/cross-host (structurally gated — document host limits):
   the same Reject(InvalidSourceByte) at offset 558,918 — same defect class
   at an earlier pinned-source revision. The gate halts on the canonical
   divergence, so the eight refusal serves did not run at this revision.
+- **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION.** Mined candidate — scope
+  verified at `f501d377d81` (linux x86-64): the native validation of the
+  AlphaBootstrapV5 `MEMSIZE = 0x2000000000` (128 GiB) startup extent
+  (TASKS_BOOTSTRAP.md "the Alpha realization supplies the extent"). The
+  linux x86-64 leg is already landed and witnessed on this host —
+  `alpha_x64_linux.s` issues `mmap(NULL, 0x2000000000, …)` at startup and
+  `tests/bootstrap/alpha-beta-edge.sh --edge` runs the seed through its
+  conformance battery: alpha conformance 34/34 PASS at this revision, so
+  the flat 128-GiB `M` obtains and executes on a live host kernel, not
+  just under structural checks. Remaining legs are host-gated and named
+  by the bootstrap board: Windows x64 (ALPHA-WINDOWS-CONFORMANCE-HOST /
+  ALPHA-WINDOWS-SEED-EXECUTION), macOS arm64 (`svc #0x80` mmap path), and
+  QEMU — none runnable on this host. No unfenced slice.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
   host. The edge gate's provenance leg now runs the committed forge
   (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including
