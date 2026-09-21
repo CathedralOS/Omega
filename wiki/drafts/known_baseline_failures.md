@@ -11,6 +11,14 @@ failure in affected behavior, and this file is not validation policy (see
 Rows verified by independent stash-baseline reproduction at revision
 `8220f55febc1` on 2026-09-13, macOS arm64, unless noted otherwise.
 
+> **Whole-doc caveat at `2dbfecd98e` (2026-09-21):** the workspace does not
+> compile — `StructuralTypeShape::ElementView` (`04f2fdbb853`, merged via
+> `48873065b72`) left every `StructuralTypeShape` match non-exhaustive
+> (terminal-verifier ×8, optimization-unit, image-emission codec, downstream
+> lowering). Every row below that names a nextest/cargo witness is
+> unmeasurable at this HEAD until the ElementView consumer legs land;
+> per-row memberships are carried from their last measurable readings.
+
 ## typed-trees-to-checked-trees
 
 `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
@@ -1119,6 +1127,20 @@ passes; the `borrowed_subslices` members now live under the crate's
 
 ## workspace `--lib` red cluster
 
+> Refresh at `2dbfecd98e` (2026-09-21, linux x86-64, NEW-KBF-LIB-CLUSTER-AND-
+> STALE-ROWS-REFRESH leg): the gate is **unmeasurable** — the workspace does
+> not compile. `StructuralTypeShape::ElementView` (`04f2fdbb853`, merged via
+> `48873065b72`) makes every exhaustive match non-exhaustive;
+> `terminal-verifier` (8 sites: `validation/foundation.rs:555`,
+> `foundation/structural_types.rs:55/:114`, `references.rs:119`,
+> `affine_cleanup.rs:581`, `structural_operations/structural_arguments.rs:307`,
+> `structural_paths.rs:25`, `structural_result_contracts.rs:174`) and
+> `optimization-unit` (`identity/structural_encoding.rs:379`) fail E0004,
+> and the `image-emission` structural-type codec encode match needs the new
+> variant plus a wire tag. Every named member below depends on that chain and
+> is unwitnessable — unwitnessable is not green; membership pending the
+> consumer legs is carried from the last measurable reading.
+
 `cargo nextest run --workspace --lib --no-fail-fast` members that fail on
 linux x86-64 at `0f75a052f09` (2026-09-21), carried into this doc by exact
 name per **KNOWN-BASELINE-FAILURES-REFRESH**; the owning row is
@@ -1245,3 +1267,13 @@ operand resolution), the unqualified
 refusal, and the ranked component-scale segment-bound family
 (`7591b2607c77`'s component-scale charging; the external-roots member now
 exhibits it — re-run at `55f2c09f15699`) — no unexplained failures.
+
+Refresh at `2dbfecd98e` (2026-09-21, linux x86-64): superseded by the
+build-break — `04f2fdbb853`'s `StructuralTypeShape::ElementView` vocabulary
+addition (merged `48873065b72`) left every consumer match non-exhaustive
+(terminal-verifier ×8, optimization-unit ×1, image-emission codec, plus
+downstream lowering crates), so `cargo nextest run -p package-manager --lib`
+cannot even link the dep chain. The 9 live names above are **unwitnessable
+at this HEAD, not repaired** — re-run them once the consumer legs land
+(ElementView arms + codec tag + the checked-trees-to-lowered-psi emission
+flip for `borrowed slice view has no Terminal descriptor`).
