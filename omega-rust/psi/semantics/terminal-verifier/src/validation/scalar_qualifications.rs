@@ -11,7 +11,8 @@ use semantic_vocabulary::{
     Proposition, ScalarDomainId, ScalarQualificationSetId, ScalarTerm, ScalarType,
 };
 use terminal_psi::{
-    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCoercion, ValueDeclaration,
+    ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
+    ScalarQualificationCoercion, ValueDeclaration,
 };
 
 fn invalid(reason: &'static str) -> ModuleError {
@@ -232,7 +233,179 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
             return Err(invalid("qualified scalar provider boundary is unsupported"));
         }
     }
+    // Retained issuer routes resolve against the module's own issuer rows in
+    // the same normalized identity vocabularies the producer emits: boundary
+    // requirement routes join the boundary declarations and the provider
+    // conformance rows that name those requirements; checked requirement
+    // routes join the provider rows and the closed conformance and dynamic
+    // dispatch identities; exact-machine routes join the callable identities
+    // provider candidates, conformance realizations, dispatch rows, proof
+    // output calls, and proof recursion members carry. A route that names no
+    // retained issuer fails closed — it cannot borrow authority a private
+    // issuer never published into this artifact.
+    let mut boundary_issuers = BTreeSet::new();
+    let mut requirement_issuers = BTreeSet::new();
+    let mut machine_issuers = BTreeSet::new();
+    // The same rows also bind every issuer identity to the dense machine
+    // that supplies it. An establishment route authorizes a coercion only
+    // inside the machine those rows name: a consumer that merely calls an
+    // admitted requirement cannot mint membership inside its own body.
+    let mut machine_boundaries: BTreeMap<MachineId, BTreeSet<&str>> = BTreeMap::new();
+    let mut machine_requirements: BTreeMap<MachineId, BTreeSet<&str>> = BTreeMap::new();
+    let mut machine_identities: BTreeMap<MachineId, BTreeSet<&str>> = BTreeMap::new();
+    let boundary_identities: BTreeMap<_, &str> = module
+        .boundary_machines
+        .iter()
+        .map(|declaration| (declaration.id, declaration.identity.as_str()))
+        .collect();
+    for declaration in &module.boundary_machines {
+        boundary_issuers.insert(declaration.identity.as_str());
+    }
+    for provider in &module.provider_candidates {
+        boundary_issuers.insert(provider.requirement_identity.as_str());
+        requirement_issuers.insert(provider.requirement_identity.as_str());
+        machine_issuers.insert(provider.candidate_identity.as_str());
+        let boundaries = machine_boundaries.entry(provider.candidate).or_default();
+        boundaries.insert(provider.requirement_identity.as_str());
+        if let Some(identity) = boundary_identities.get(&provider.boundary) {
+            boundaries.insert(identity);
+        }
+        machine_requirements
+            .entry(provider.candidate)
+            .or_default()
+            .insert(provider.requirement_identity.as_str());
+        machine_identities
+            .entry(provider.candidate)
+            .or_default()
+            .insert(provider.candidate_identity.as_str());
+    }
+    for application in &module.closed_conformance_applications {
+        for callable in &application.realization_callables {
+            machine_issuers.insert(callable.source_callable_identity.as_str());
+            machine_identities
+                .entry(callable.machine)
+                .or_default()
+                .insert(callable.source_callable_identity.as_str());
+        }
+        for row in &application.rows {
+            requirement_issuers.insert(row.public_requirement_identity.as_str());
+            requirement_issuers.insert(row.requirement_identity.as_str());
+            machine_issuers.insert(row.realization_identity.as_str());
+            if let Some(callable) = &row.realization_callable_identity {
+                machine_issuers.insert(callable.as_str());
+                if let Some(machine) = application
+                    .realization_callables
+                    .iter()
+                    .find(|entry| entry.source_callable_identity == *callable)
+                    .map(|entry| entry.machine)
+                {
+                    let requirements = machine_requirements.entry(machine).or_default();
+                    requirements.insert(row.public_requirement_identity.as_str());
+                    requirements.insert(row.requirement_identity.as_str());
+                    let identities = machine_identities.entry(machine).or_default();
+                    identities.insert(row.realization_identity.as_str());
+                    identities.insert(callable.as_str());
+                }
+            }
+        }
+    }
+    for parameter in &module.dynamic_dispatch.parameters {
+        for requirement in &parameter.requirements {
+            requirement_issuers.insert(requirement.public_requirement_identity.as_str());
+        }
+    }
+    for dispatch in module
+        .dynamic_dispatch
+        .direct_dispatches
+        .iter()
+        .map(|dispatch| {
+            (
+                dispatch.public_requirement_identity.as_str(),
+                dispatch.requirement_identity.as_str(),
+                dispatch.realization_identity.as_str(),
+                dispatch.realization_callable_identity.as_str(),
+                dispatch.realization,
+            )
+        })
+        .chain(
+            module
+                .dynamic_dispatch
+                .indirect_dispatches
+                .iter()
+                .map(|dispatch| {
+                    (
+                        dispatch.public_requirement_identity.as_str(),
+                        dispatch.requirement_identity.as_str(),
+                        dispatch.realization_identity.as_str(),
+                        dispatch.realization_callable_identity.as_str(),
+                        dispatch.realization,
+                    )
+                }),
+        )
+        .chain(
+            module
+                .dynamic_dispatch
+                .stored_dispatches
+                .iter()
+                .map(|dispatch| {
+                    (
+                        dispatch.public_requirement_identity.as_str(),
+                        dispatch.requirement_identity.as_str(),
+                        dispatch.realization_identity.as_str(),
+                        dispatch.realization_callable_identity.as_str(),
+                        dispatch.realization,
+                    )
+                }),
+        )
+    {
+        requirement_issuers.insert(dispatch.0);
+        requirement_issuers.insert(dispatch.1);
+        machine_issuers.insert(dispatch.2);
+        machine_issuers.insert(dispatch.3);
+        let requirements = machine_requirements.entry(dispatch.4).or_default();
+        requirements.insert(dispatch.0);
+        requirements.insert(dispatch.1);
+        let identities = machine_identities.entry(dispatch.4).or_default();
+        identities.insert(dispatch.2);
+        identities.insert(dispatch.3);
+    }
+    for call in &module.proof_output_calls {
+        machine_issuers.insert(call.target_machine_identity.as_str());
+        if let Some(runtime_call) = &call.runtime_call {
+            machine_identities
+                .entry(runtime_call.callee)
+                .or_default()
+                .insert(call.target_machine_identity.as_str());
+        }
+        if let Some(dispatch) = &call.static_requirement_dispatch {
+            let requirements = machine_requirements
+                .entry(dispatch.realization)
+                .or_default();
+            requirements.insert(dispatch.public_requirement_identity.as_str());
+            requirements.insert(dispatch.requirement_identity.as_str());
+            let identities = machine_identities.entry(dispatch.realization).or_default();
+            identities.insert(dispatch.realization_identity.as_str());
+            identities.insert(dispatch.realization_callable_identity.as_str());
+        }
+    }
+    for component in &module.proof_recursive_components {
+        for member in &component.members {
+            machine_issuers.insert(member.machine_identity.as_str());
+            if let Some(machine) = module
+                .machines
+                .iter()
+                .find(|machine| machine.contract.id == member.contract)
+            {
+                machine_identities
+                    .entry(machine.id)
+                    .or_default()
+                    .insert(member.machine_identity.as_str());
+            }
+        }
+    }
     let mut domains = BTreeMap::new();
+    let mut domain_routes: BTreeMap<ScalarDomainId, &[ScalarDomainEstablishmentRoute]> =
+        BTreeMap::new();
     let mut semantics = BTreeSet::new();
     let mut identities = BTreeSet::new();
     let mut previous = None;
@@ -250,8 +423,34 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                 "noncanonical or conflicting scalar domain definition",
             ));
         }
+        if domain
+            .establishment_routes
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid("noncanonical scalar domain establishment routes"));
+        }
+        for route in &domain.establishment_routes {
+            let resolved = match route {
+                ScalarDomainEstablishmentRoute::CheckedRequirement {
+                    requirement_identity,
+                } => requirement_issuers.contains(requirement_identity.as_str()),
+                ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                    requirement_identity,
+                } => boundary_issuers.contains(requirement_identity.as_str()),
+                ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
+                    machine_issuers.contains(machine_identity.as_str())
+                }
+            };
+            if route.identity().is_empty() || !resolved {
+                return Err(invalid(
+                    "scalar domain establishment route has no retained issuer",
+                ));
+            }
+        }
         previous = Some(domain.id);
         domains.insert(domain.id, domain.carrier);
+        domain_routes.insert(domain.id, domain.establishment_routes.as_slice());
     }
     let mut sets: BTreeMap<ScalarQualificationSetId, &[ScalarDomainId]> = BTreeMap::new();
     let mut memberships = BTreeSet::new();
@@ -421,7 +620,8 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
             let mut arrival = |edge,
                                target,
                                arguments: &[ValueId],
-                               erased_arguments: &[semantic_vocabulary::ScalarTerm]|
+                               erased_arguments: &[semantic_vocabulary::ScalarTerm],
+                               erased_proof_arguments: &[semantic_vocabulary::ProofTerm]|
              -> Result<(), ModuleError> {
                 let target = machine
                     .blocks
@@ -430,8 +630,45 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     .ok_or_else(|| invalid("unknown scalar qualification successor"))?;
                 if arguments.len() != target.parameters.len()
                     || erased_arguments.len() != target.erased_scalar_formals.len()
+                    || erased_proof_arguments.len() != target.erased_proof_formals.len()
                 {
                     return Err(invalid("scalar qualification successor arity"));
+                }
+                // The entry block's roster lives on the machine contract;
+                // every other block redeclares it.
+                let source_formals = if block.erased_proof_formals.is_empty() {
+                    machine.contract.erased_proof_formals.as_slice()
+                } else {
+                    block.erased_proof_formals.as_slice()
+                };
+                for (formal, term) in target
+                    .erased_proof_formals
+                    .iter()
+                    .zip(erased_proof_arguments.iter())
+                {
+                    term.validate().map_err(ModuleError::MalformedProposition)?;
+                    let mut in_scope = true;
+                    term.visit_formal_positions(|position| {
+                        in_scope &= source_formals
+                            .get(usize::try_from(position).unwrap_or(usize::MAX))
+                            .is_some();
+                    });
+                    if !in_scope {
+                        return Err(invalid("erased proof argument out of scope"));
+                    }
+                    match term {
+                        semantic_vocabulary::ProofTerm::Construction { type_identity, .. }
+                            if *type_identity == formal.type_identity => {}
+                        semantic_vocabulary::ProofTerm::Formal { position }
+                            if source_formals
+                                .get(usize::try_from(*position).unwrap_or(usize::MAX))
+                                .is_some_and(|source| {
+                                    source.type_identity == formal.type_identity
+                                }) => {}
+                        _ => {
+                            return Err(invalid("erased proof successor argument mismatch"));
+                        }
+                    }
                 }
                 for (ordinal, (argument, destination)) in
                     arguments.iter().zip(&target.parameters).enumerate()
@@ -443,7 +680,17 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                         .map_err(|_| invalid("scalar qualification argument ordinal overflow"))?;
                     let coercion = coercions.remove(&(machine.id, edge, ordinal));
                     if let Some(coercion) = coercion {
-                        validate_coercion(coercion, source, destination, &sets)?;
+                        validate_coercion(
+                            machine.id,
+                            coercion,
+                            source,
+                            destination,
+                            &sets,
+                            &domain_routes,
+                            &machine_requirements,
+                            &machine_boundaries,
+                            &machine_identities,
+                        )?;
                     } else if source.qualifications != destination.qualifications {
                         return Err(invalid(
                             "scalar edge changed qualification without coercion",
@@ -458,8 +705,17 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     target,
                     arguments,
                     erased_arguments,
+                    erased_proof_arguments,
                     ..
-                } => arrival(*edge, *target, arguments, erased_arguments)?,
+                } => {
+                    arrival(
+                        *edge,
+                        *target,
+                        arguments,
+                        erased_arguments,
+                        erased_proof_arguments,
+                    )?;
+                }
                 Terminator::Conditional {
                     when_true,
                     when_false,
@@ -474,6 +730,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                             successor.target,
                             &successor.arguments,
                             &successor.erased_arguments,
+                            &successor.erased_proof_arguments,
                         )?;
                     }
                 }
@@ -514,11 +771,17 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_coercion(
+    machine: MachineId,
     coercion: &ScalarQualificationCoercion,
     source: &ValueDeclaration,
     destination: &ValueDeclaration,
     sets: &BTreeMap<ScalarQualificationSetId, &[ScalarDomainId]>,
+    domain_routes: &BTreeMap<ScalarDomainId, &[ScalarDomainEstablishmentRoute]>,
+    machine_requirements: &BTreeMap<MachineId, BTreeSet<&str>>,
+    machine_boundaries: &BTreeMap<MachineId, BTreeSet<&str>>,
+    machine_identities: &BTreeMap<MachineId, BTreeSet<&str>>,
 ) -> Result<(), ModuleError> {
     let source_members = if source.qualifications.is_empty() {
         &[][..]
@@ -552,6 +815,42 @@ fn validate_coercion(
         return Err(invalid(
             "scalar coercion is not an exact fresh same-carrier introduction or erasure",
         ));
+    }
+    if strict_subset(source_members, destination_members) {
+        // Introduction establishes membership: every gained domain with
+        // named issuers must resolve to a route bound to the enclosing
+        // machine. A domain without retained routes is a vacuous tag any
+        // machine may introduce; a routed domain rejects a coercion whose
+        // machine is only a caller of the issuer's public requirement.
+        let requirements = machine_requirements.get(&machine);
+        let boundaries = machine_boundaries.get(&machine);
+        let identities = machine_identities.get(&machine);
+        let unauthorized = destination_members
+            .iter()
+            .filter(|domain| !source_members.contains(domain))
+            .any(|domain| {
+                let routes = domain_routes.get(domain).copied().unwrap_or(&[]);
+                !routes.is_empty()
+                    && !routes.iter().any(|route| match route {
+                        ScalarDomainEstablishmentRoute::CheckedRequirement {
+                            requirement_identity,
+                        } => requirements
+                            .is_some_and(|bound| bound.contains(requirement_identity.as_str())),
+                        ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                            requirement_identity,
+                        } => boundaries
+                            .is_some_and(|bound| bound.contains(requirement_identity.as_str())),
+                        ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
+                            identities
+                                .is_some_and(|bound| bound.contains(machine_identity.as_str()))
+                        }
+                    })
+            });
+        if unauthorized {
+            return Err(invalid(
+                "scalar qualification introduction has no issuer route bound to this machine",
+            ));
+        }
     }
     Ok(())
 }

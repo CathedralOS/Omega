@@ -7,6 +7,11 @@
 //! denotation-lane searches and emit [`SuppliedCertificate`] rosters, while the
 //! accepting paths only re-decide supplied nodes against goals they reconstruct
 //! themselves. No search runs inside a check.
+//!
+//! The producer-side counterpart of this search is
+//! `checked_trees_to_lowered_psi::entry_requirement_certificates`; moving the
+//! supply onto the artifact and deleting this verifier-side search is the
+//! remaining leg.
 
 use proof_admission::{
     CheckedPredicateDenotations, PredicateDenotationError, PrimitiveJudgment, ProofNode, ProofRule,
@@ -937,6 +942,7 @@ mod tests {
                 id: semantic_id(1, BlockId::new),
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::ReturnUnit {
@@ -948,6 +954,7 @@ mod tests {
                 id: semantic_id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 requires: vec![boolean(true), bounded.clone()],
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),

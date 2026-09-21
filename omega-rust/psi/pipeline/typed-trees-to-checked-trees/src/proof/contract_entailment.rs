@@ -98,10 +98,7 @@ fn reconstruct_discharge(
     stand_down: ContractEntailmentStandDown,
 ) -> Result<Option<ReconstructedDischarge>, CheckedContractEntailmentAssumptionDischargeRecheckError>
 {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == stand_down.machine_symbol)
+    let machine = crate::lookup::machine_by_symbol(program, stand_down.machine_symbol)
         .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::MachineMissing)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return Err(

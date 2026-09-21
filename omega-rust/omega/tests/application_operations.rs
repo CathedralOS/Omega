@@ -4,7 +4,9 @@ use compiler::CompileOptions;
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, compile_project,
 };
-use omega::execution::{ExecutionOutcome, InterpreterComparison, RunRequest, run_project};
+use omega::execution::{
+    ExecutionOutcome, InterpreterComparison, ProcessExitObservation, RunRequest, run_project,
+};
 use omega::inspection::{InspectTerminalRequest, inspect_terminal};
 use std::path::PathBuf;
 
@@ -205,10 +207,16 @@ fn run_returns_host_output_and_comparison_then_cross_target_without_execution() 
             keep_artifacts: false,
         })
         .unwrap();
-        let ExecutionOutcome::Host { output, comparison } = outcome.execution else {
+        let ExecutionOutcome::Host {
+            output,
+            exit,
+            comparison,
+        } = outcome.execution
+        else {
             panic!("expected host execution");
         };
         assert_eq!(output.status.code(), Some(0));
+        assert_eq!(exit, ProcessExitObservation::Exited(0));
         assert!(matches!(
             comparison,
             InterpreterComparison::Agrees { exit_code: 0 }

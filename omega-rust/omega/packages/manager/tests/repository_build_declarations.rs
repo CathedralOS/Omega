@@ -101,6 +101,20 @@ fn expected_omega_case_application_name(root: &Path) -> String {
 
 const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
 
+/// Samples that bind hosted entries without any package dependency, each
+/// stating why in its own `build.omg`: `uefi/uefi_hello` is freestanding, the
+/// two wrapping-arithmetic subjects and `cli/basics/standalone` are
+/// dependency-free benchmark subjects `tools/benchmark` measures without
+/// settling a dependency graph, and `cli/proofs/structural_proofs` emits no
+/// runtime code. Every other sample declares the ordinary std edge.
+const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
+    "cli/arithmetic/wrapping_collatz_max",
+    "cli/arithmetic/wrapping_square_sum",
+    "cli/basics/standalone",
+    "cli/proofs/structural_proofs",
+    "uefi/uefi_hello",
+];
+
 /// Corpus roots that are package members of a sibling case rather than
 /// applications, keyed like `DECLARATION_REJECTION_CASES` with their declared
 /// package names.
@@ -246,7 +260,7 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     let samples = repository_root().join("samples");
     let mut roots = Vec::new();
     collect_build_roots(&samples, &mut roots);
-    assert_eq!(roots.len(), 141, "unexpected executable sample population");
+    assert_eq!(roots.len(), 148, "unexpected executable sample population");
 
     for root in roots {
         let expected_name = expected_sample_application_name(&root);
@@ -266,7 +280,10 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
             root.display()
         );
 
-        let expected_dependencies = if root.ends_with("samples/uefi/uefi_hello") {
+        let expected_dependencies = if DEPENDENCY_FREE_SAMPLES
+            .iter()
+            .any(|sample| root.ends_with(sample))
+        {
             Vec::new()
         } else {
             let location = if root.starts_with(samples.join("cli")) {
@@ -407,9 +424,15 @@ fn assert_mixed_canary_category_standard_library_edges(
             .iter()
             .filter(|dependency| *dependency == &expected_dependency)
             .count();
+        // The managed `Quotient::define` admission refuses the
+        // standalone-source identity a fixture compiles under without a
+        // package dependency, so this canary's std edge is load-bearing
+        // provenance rather than an import. No other packaged canary declares
+        // an edge it does not name through `omega_language_std`.
+        let provenance_only_edge = root.ends_with("pass/proofs/quotient_define_managed_compile");
         assert_eq!(
             standard_library_edges,
-            usize::from(uses_dependency_alias),
+            usize::from(uses_dependency_alias || provenance_only_edge),
             "std import/dependency mismatch in {}",
             root.display()
         );
@@ -435,7 +458,7 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
 fn filesystem_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/filesystem"),
-        85,
+        86,
     );
 }
 
@@ -452,8 +475,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("errors", 1),
         ("generics", 37),
         ("layouts", 19),
-        ("proofs", 14),
-        ("recast", 23),
+        ("recast", 24),
         ("structs", 13),
     ] {
         assert_canaries_declare_ordinary_standard_library_edges(
@@ -461,6 +483,20 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
             expected_count,
         );
     }
+}
+
+/// `proofs` holds both std-free kernel canaries and std consumers, plus the
+/// one packaged root whose std edge carries package provenance instead of an
+/// import: `quotient_define_managed_compile` compiles under the
+/// standalone-source identity its managed `Quotient::define` admission
+/// refuses when the edge is absent.
+#[test]
+fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/proofs"),
+        15,
+        13,
+    );
 }
 
 #[test]
@@ -475,7 +511,7 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
 #[test]
 fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("expressions", 52, 51), ("storage", 11, 10)]
+        [("expressions", 53, 51), ("storage", 12, 10)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -489,8 +525,8 @@ fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_
 fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/wire"),
-        44,
-        37,
+        46,
+        39,
     );
 }
 
@@ -516,8 +552,8 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
 fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/arithmetic"),
-        140,
-        139,
+        142,
+        141,
     );
 }
 
@@ -525,15 +561,15 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
-        176,
-        174,
+        181,
+        179,
     );
 }
 
 #[test]
 fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("capabilities", 16, 2), ("control_flow", 60, 50)]
+        [("capabilities", 16, 2), ("control_flow", 61, 51)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -556,7 +592,7 @@ fn float_canaries_declare_only_their_consumed_standard_library_edges() {
 fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/traits"),
-        32,
+        33,
         29,
     );
 }
@@ -565,8 +601,8 @@ fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
 fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/operators"),
-        10,
-        9,
+        12,
+        11,
     );
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/types"),
@@ -609,7 +645,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("range", 6, 6),
         ("core", 14, 7),
         ("dungeon", 19, 15),
-        ("domains", 28, 26),
+        ("domains", 29, 27),
         ("host", 23, 22),
         ("providers", 35, 19),
     ] {
@@ -688,5 +724,58 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     assert_eq!(
         applications + declaration_rejections + package_members,
         root_count
+    );
+}
+
+/// Declared path dependencies are load-bearing, not just spelled:
+/// `pass/proofs/kernel_theorem_equality_certificates` once declared six
+/// `../` segments where five reach the repository root, so its authored path
+/// pointed outside the repository entirely while only the declared location
+/// string was checked. Every declared `Path` dependency in the Omega case
+/// corpus must resolve inside the repository to a directory bearing its own
+/// `build.omg`.
+#[test]
+fn declared_path_dependencies_resolve_to_repository_package_roots() {
+    let repository = repository_root()
+        .canonicalize()
+        .expect("canonical repository root");
+    let cases = repository_root().join("tests/omega");
+    let mut roots = Vec::new();
+    collect_build_roots(&cases, &mut roots);
+    assert!(!roots.is_empty(), "Omega case corpus must not be empty");
+
+    let mut path_dependencies = 0;
+    for root in roots {
+        let Ok(projection) = extract_build_dependency_projection(&root) else {
+            continue;
+        };
+        for dependency in projection.product_dependencies() {
+            let DependencySourceRequest::Path { location, .. } = dependency else {
+                continue;
+            };
+            let resolved = root.join(location).canonicalize().unwrap_or_else(|error| {
+                panic!(
+                    "declared dependency path {location} in {} does not resolve: {error}",
+                    root.display()
+                )
+            });
+            assert!(
+                resolved.starts_with(&repository),
+                "declared dependency path {location} in {} resolves outside the repository to {}",
+                root.display(),
+                resolved.display()
+            );
+            assert!(
+                resolved.join("build.omg").is_file(),
+                "declared dependency path {location} in {} resolves to {} which is not a package root",
+                root.display(),
+                resolved.display()
+            );
+            path_dependencies += 1;
+        }
+    }
+    assert!(
+        path_dependencies > 0,
+        "the Omega case corpus must declare path dependencies"
     );
 }

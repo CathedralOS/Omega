@@ -224,11 +224,7 @@ pub(crate) fn owned_call_operand_places(
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
 ) -> Vec<CanonicalPlace> {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller_machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, caller_machine_symbol) else {
         return Vec::new();
     };
     let Some(state) = program

@@ -1,6 +1,6 @@
 // RUN CANARY (exit 2) + interpreter differential. The R1 relational
 // SUBTRACTION rule (the one closed rule interval arithmetic cannot
-// express): `self.count - i` with `i: u32 [0..=self.count]` proves
+// express): `self.count - i` with `i: u32, requires param <= self.count` proves
 // non-negative in EXACT u32 -- the dependent atom `i <= count` gives
 // `count - i >= 0` (the capacity-minus-used idiom; the exclusive sugar's
 // -1 offset gives `>= 1`). Refinement lives in the decision-17 overflow
@@ -12,12 +12,14 @@
 // exits: 8 - 6 = 2.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; count: u32 [0..=11]; j: u32; out: i32; }
+data Main where count <= 11 { console: Service<Console>; count: u32; j: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 8;
     self.j = 6;
     transition self.j <= self.count { true -> read(self.j) _ -> bad() }
-    state read(&mut self, i: u32 [0..=self.count]) {
+    state read(&mut self, i: u32)
+        requires i <= self.count
+    {
         let remaining: u32 = self.count - i;
         self.out = remaining as i32;
         self.console.exit_process(self.out);

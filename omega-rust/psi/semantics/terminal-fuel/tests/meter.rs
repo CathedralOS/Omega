@@ -94,6 +94,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         },
         OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: MachineId::new(1).unwrap(),
             structural_arguments: Vec::new(),
@@ -126,6 +127,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         target: semantic_vocabulary::BlockId::new(2).unwrap(),
         arguments: vec![value_id(1)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: vec![place_id(1)],
     };
@@ -241,9 +243,11 @@ fn sponsor_allowance_exhausts_atomically_before_execution() {
 fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
     let establish = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(31),
         result: terminal_psi::OperationResult::Structural(
             terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(23),
                 structural_type: semantic_vocabulary::StructuralTypeId::new(7).unwrap(),
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
@@ -258,6 +262,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
     };
     let read = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(32),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -314,6 +319,7 @@ fn operation() -> Operation {
     );
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

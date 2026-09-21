@@ -14,6 +14,7 @@ mod copy_propagation;
 mod dead_pure_scalar_elimination;
 mod global_value_numbering;
 mod proof_check_elision;
+mod representation_specialization;
 mod sparse_conditional_constant_propagation;
 mod state_specialization;
 

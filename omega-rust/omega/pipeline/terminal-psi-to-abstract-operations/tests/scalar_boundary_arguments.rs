@@ -97,11 +97,13 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation,
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
@@ -118,6 +120,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -236,6 +239,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         });
     module.machines[0].blocks[0].operations[0].result =
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
@@ -270,6 +274,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
     assert_eq!(
         result,
         &AbstractBoundaryResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,

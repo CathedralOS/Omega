@@ -11,13 +11,11 @@ pub(super) fn result_type(
     state_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    program.machines().iter().find_map(|machine| {
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_symbol)?;
-        validation::expression_result_type_reference(program, machine, state, expression)
-    })
+    crate::semantic_calls::find_state_with_machine(program, state_symbol).and_then(
+        |(machine, state)| {
+            validation::expression_result_type_reference(program, machine, state, expression)
+        },
+    )
 }
 
 pub(super) fn has_declared_domains(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {

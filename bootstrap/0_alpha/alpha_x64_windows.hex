@@ -237,6 +237,11 @@ h_mul:
 48 89 04 CB
 E9 .rel32 next
 h_div:
+; field note (review 6165a54d4d4b..82741ec43919): this h_div/h_mod pair runs a bare
+; cqo; idiv r8 with no divisor-zero / INT64_MIN÷-1 pre-check, unlike
+; alpha_x64_linux.s and the arm64 seed, so a real #DE leaks as 0xC0000094 (exit 148
+; under wine) instead of the semantic Trap (132). Re-forging the guards changes the
+; bound identity in seed_env.sh — adjudicate on the audited-seed lane before touching.
 0F B6 0E
 48 FF C6
 0F B6 16

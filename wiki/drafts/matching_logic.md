@@ -49,7 +49,24 @@ Then examine:
   The encoding is drafted in
   [matching_logic_sort_encoding.md](matching_logic_sort_encoding.md).
 - One small external arithmetic proof with its exact source axiom closure and
-  checked proof-object translation. Semantic expressibility alone is insufficient.
+  checked proof-object translation. Semantic expressibility alone is
+  insufficient. Pinned in
+  `omega-rust/psi/semantics/terminal-codec/tests/arithmetic_import.rs`: a
+  producer signature carries `Nat`, `zero`, `succ`, `add` plus the two
+  recursion axioms `addZero`/`addSucc` as named assumptions; the checked
+  object derives `add n (succ zero) = succ n` by transporting the step
+  axiom along the base axiom through `subst`, and the decoded judgment
+  re-verifies with `certificate_assumption_closure` equal to exactly the
+  six arithmetic rows. The direct-axiom variant confirms uncited axioms
+  (`succ`, `addSucc`) never enter the closure.
+  The inductive carrier's base/step certificate is already exercised on
+  the same bridge by `theorem_certificate.rs` (`indexCorrect`, proved by
+  `iindW`, transports through decode and re-verify).
+  Size and checking cost are pinned by the same file's
+  `the_imported_arithmetic_derivation_has_a_measured_size_and_step_cost`:
+  the wire encoding is exactly 716 bytes and re-verification consumes
+  exactly 6 conversion steps — a budget of 5 rejects with `StepCeiling`
+  and 6 suffices, so the imported check is both small and hard-bounded.
 
 All evidence retains logical fragment, rule/semantics versions, exact subject,
 target capsule, observation profile, bridge graph, and admissions. The paper's

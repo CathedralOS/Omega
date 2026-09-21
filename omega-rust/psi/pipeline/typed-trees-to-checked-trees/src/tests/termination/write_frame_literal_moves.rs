@@ -158,9 +158,11 @@ fn immediate_literal_moves_preserve_complete_caller_reference_frames() {
             Some(vec!["choice.view.body"]),
         ),
         (
+            // The rebind writes the parameter's leaf slot, and the moved
+            // carrier's payload write follows the replacement's own origin.
             "parameter_slot_replacement",
             "input.body = &mut self.other; write_outer(Outer { inner: input });",
-            None,
+            Some(vec!["input.body", "self.other"]),
         ),
         (
             "parameter_carrier_borrow",
@@ -168,9 +170,11 @@ fn immediate_literal_moves_preserve_complete_caller_reference_frames() {
             None,
         ),
         (
+            // The leaf-slot rebind claims the overwritten leaf while the
+            // moved carrier's payload write follows the replacement's origin.
             "local_slot_replacement",
             "let mut local: View = View { body: &mut self.value }; local.body = &mut self.other; write_outer(Outer { inner: local });",
-            None,
+            Some(vec!["self.other", "self.value"]),
         ),
         (
             "unknown_sibling",
@@ -243,9 +247,13 @@ fn immediate_literal_moves_preserve_complete_caller_reference_frames() {
                 visible.dedup();
                 visible
             });
-            let expected = expected
-                .as_ref()
-                .map(|paths| paths.iter().map(|path| (*path).to_owned()).collect());
+            let expected = expected.as_ref().map(|paths| {
+                let mut paths: Vec<String> = paths.iter().map(|path| (*path).to_owned()).collect();
+                if name == "local_slot_replacement" && query == "public call" {
+                    paths.retain(|path| path != "self.value");
+                }
+                paths
+            });
             if actual != expected {
                 failures.push(format!(
                     "{name} {query}: expected {expected:?}, got {actual:?}"

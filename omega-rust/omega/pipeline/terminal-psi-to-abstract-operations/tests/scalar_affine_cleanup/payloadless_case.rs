@@ -104,13 +104,16 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             entry: block_id(91),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(91),
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation,
                     result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: operation_place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -132,6 +135,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(91),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -198,13 +202,16 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         entry: block_id(91),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(91),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: call,
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: place_id(93),
                     structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -231,6 +238,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(91),
             crash_routes: Vec::new(),
             requires: Vec::new(),

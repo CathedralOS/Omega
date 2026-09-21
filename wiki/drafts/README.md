@@ -31,6 +31,9 @@ the existing task boards, not in a second tracking system.
   for future scheduling and selection comparisons.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository
   ownership and dependency map for OS bring-up.
+- [Swarm commit signal](swarm_commit_signal.md): 1,000-commit noise measurement
+  against published swarm-orchestration evidence; remove when superseded or the
+  board/landing workflow changes make it stale.
 
 Keep useful temporary residue here after review; delete obsolete or redundant
 history. Concrete proposed language or toolchain changes belong in proposals.

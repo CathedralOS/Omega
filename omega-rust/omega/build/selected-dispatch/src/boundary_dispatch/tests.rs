@@ -15,19 +15,118 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
+/// The toolchain core service declaration, resident so fixture sources can
+/// spell `Service<R>` against the real core declaration. These bare pipelines
+/// build a `SourceMap` with no package scope, so `use
+/// omega::language::core::service` cannot resolve; installing the source with
+/// `SourceOrigin::Toolchain` gives the typed-trees service classifier the exact
+/// identity it requires.
+const CORE_SERVICE_OMG: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../source/library/core/service.omg"
+));
+
+/// Type `source` with the core `Service` declaration resident as a Toolchain
+/// source. Fixtures spelling `Service<R>` carriers must declare the closed-over
+/// requirement trait `pub`.
+fn typed_with_core_service(name: &str, source: &str) -> TypedTrees {
+    let mut sources = source::SourceMap::default();
+    let service_source_id = sources
+        .add_with_metadata(
+            std::path::PathBuf::from("source/library/core/service.omg"),
+            CORE_SERVICE_OMG.to_owned(),
+            std::path::PathBuf::from("source/library/core"),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let fixture_source_id = sources
+        .add(std::path::PathBuf::from(name), source.to_owned())
+        .source_id;
+    let service_tokens = source_files_to_tokens::Lexer::new(CORE_SERVICE_OMG)
+        .tokenize()
+        .expect("tokenize core service declaration");
+    let mut syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(service_source_id, &service_tokens)
+            .expect("parse core service declaration");
+    let fixture_tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize dispatch fixture");
+    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
+        &mut syntax,
+        fixture_source_id,
+        &fixture_tokens,
+    )
+    .expect("parse dispatch fixture");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .expect("resolve dispatch fixture");
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type dispatch fixture")
+}
+
+/// Select every derived plan, one per boundary slot — the shape settled
+/// orchestration hands checking, where every declared requirement keeps a
+/// selected provider.
+fn selected_every_plan(plans: &[ProviderPlan]) -> effects::SelectedProviderPlanFacts {
+    let selected_names = plans
+        .iter()
+        .map(|plan| plan.name.clone())
+        .collect::<Vec<_>>();
+    effects::SelectedProviderPlanFacts::from_selection(plans, &selected_names)
+        .expect("select every fixture plan")
+}
+
+/// Bind the fused-service erasure each selected boundary plan authorizes, the
+/// way settled orchestration does before checking: one authorization per
+/// selected boundary plan carrying that plan's identity digest. A fixture's
+/// `Service<R>` fields and routed `Service<R>` parameters join adapters through
+/// this digest, so plans must be selected first.
+fn bind_fixture_fused_service_erasures(
+    typed: &mut TypedTrees,
+    selected: &effects::SelectedProviderPlanFacts,
+) {
+    let authorizations = selected
+        .plans()
+        .iter()
+        .filter_map(|plan| {
+            typed
+                .traits()
+                .iter()
+                .find(|definition| {
+                    definition.is_boundary && definition.name.as_str() == plan.schema.trait_name
+                })
+                .map(
+                    |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
+                        requirement: definition.symbol,
+                        provider_plan_digest: *plan.identity_digest().as_bytes(),
+                    },
+                )
+        })
+        .collect();
+    typed
+        .bind_fused_service_erasures(authorizations)
+        .expect("fixture boundary traits admit fused service authorizations");
+}
+
 const SOURCE: &str = r#"
-    boundary trait Echo {
+    pub boundary trait Echo {
         machine echo(value: i32) -> i32;
         machine emit(value: i32);
     }
-    boundary trait Other {
+    pub boundary trait Other {
         machine echo(value: i32) -> i32;
         machine emit(value: i32);
     }
-    boundary trait Stateful {
+    pub boundary trait Stateful {
         machine touch(&mut self);
     }
-    boundary trait Forward {
+    pub boundary trait Forward {
         machine send(value: i32);
         machine reflect(value: i32) -> i32;
     }
@@ -55,19 +154,19 @@ const SOURCE: &str = r#"
         transition { _ -> (value) }
     }
 
-    data EchoClient { service: Echo; }
+    data EchoClient { service: Service<Echo>; }
     machine EchoClient::run(&mut self) -> i32 reaches Echo {
         self.service.emit(1);
         transition { _ -> (self.service.echo(35)) }
     }
 
-    data OtherClient { service: Other; }
+    data OtherClient { service: Service<Other>; }
     machine OtherClient::run(&mut self) -> i32 reaches Other {
         self.service.emit(2);
         transition { _ -> (self.service.echo(35)) }
     }
 
-    data ForwardClient { service: Forward; }
+    data ForwardClient { service: Service<Forward>; }
     machine ForwardClient::run(&mut self) -> i32 reaches Forward {
         self.service.send(3);
         transition { _ -> (self.service.reflect(35)) }
@@ -80,17 +179,7 @@ struct Fixture {
 }
 
 fn fixture() -> Fixture {
-    let tokens = source_files_to_tokens::Lexer::new(SOURCE)
-        .tokenize()
-        .expect("tokenize exact adapter-dispatch fixture");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-        .expect("parse exact adapter-dispatch fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve exact adapter-dispatch fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type exact adapter-dispatch fixture");
+    let mut typed = typed_with_core_service("selected-dispatch/dispatch.omg", SOURCE);
     let plans = provider_planning::derive_satisfies_plans(
         &typed,
         ProviderPlanDerivation::unevaluated(None),
@@ -98,6 +187,7 @@ fn fixture() -> Fixture {
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
+    bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
     Fixture { typed, plans }
 }
 
@@ -578,16 +668,8 @@ fn adapter_entry_symbol(checked: &CheckedTrees, machine_name: &str) -> symbols::
 
 #[test]
 fn selected_execution_keeps_source_and_records_exact_and_forwarding_targets() {
-    for (
-        trait_name,
-        statement_name,
-        expression_name,
-        statement_adapter,
-        expression_adapter,
-        forwarding,
-    ) in [
+    for (statement_name, expression_name, statement_adapter, expression_adapter, forwarding) in [
         (
-            "Echo",
             "emit",
             "echo",
             "EchoProvider::emit_adapter",
@@ -595,7 +677,6 @@ fn selected_execution_keeps_source_and_records_exact_and_forwarding_targets() {
             false,
         ),
         (
-            "Forward",
             "send",
             "reflect",
             "ForwardProvider::send_adapter",
@@ -604,7 +685,7 @@ fn selected_execution_keeps_source_and_records_exact_and_forwarding_targets() {
         ),
     ] {
         let (checked, plans) = checked_fixture();
-        let selected = selected_plan(&plans, trait_name);
+        let selected = selected_every_plan(&plans);
         let (_, _, statement) = statement_call(&checked, statement_name);
         let (_, expression) = expression_call(&checked, expression_name);
         let original = Arc::new(checked);
