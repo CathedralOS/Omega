@@ -11231,6 +11231,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `a84ebca9720` for the CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING
   stub: the bullet stays struck in TASKS_BOOTSTRAP.md (:278), the closing
   commit `e1fba5f523` is an ancestor of main, and no residual exists under
+  this stub's name. Re-verified again at `138ed79a677`: bullet still struck
+  (TASKS_BOOTSTRAP.md:279), `e1fba5f523` still an ancestor of `main`.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING.** — mined candidate;
   scope verified, resolved — re-mine stub of the same struck bullet
   as GATE-LOCAL-PREFIX-BINDING above (TASKS_BOOTSTRAP.md:279).
@@ -11247,10 +11249,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   at `e1fba5f523` (`EPSILON_EXECUTION_DRIVER_*` pins +
   `require_epsilon_execution_driver_identity`), closing commit is an
   ancestor of main. No residual exists under this stub's name.
-
-  this stub's name.
-  this stub's name. Re-verified again at `138ed79a677`: bullet still struck
-  (TASKS_BOOTSTRAP.md:279), `e1fba5f523` still an ancestor of `main`.
+  Re-verified at `dd4e53e91a` (z116): the bullet stays struck at
+  TASKS_BOOTSTRAP.md:279, `e1fba5f523` is still an ancestor of `main`,
+  and the orphaned `138ed79a677` -PACKING fragment above the row was
+  reattached to the GATE-LOCAL-PREFIX-BINDING row it was cut from.
 - **GENERAL-LICM.** — mined candidate; verify scope then implement.
 - **GENERAL-RELOCATION-ADMISSION.** Mined candidate — slice landed
   2026-09-21. Re-mines the same EXACT-MACHINE-SIMPLIFICATIONS "one
