@@ -374,6 +374,34 @@ pub(super) fn encode_candidate(
                 bytes.extend_from_slice(&row.resolved_target.get().to_le_bytes());
             }
         }
+        PsiRewritePatch::SpecializeCaseMembership(patch) => {
+            bytes.push(18);
+            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.place.get().to_le_bytes());
+            bytes.extend_from_slice(
+                &patch
+                    .producer
+                    .map(|producer| producer.get())
+                    .unwrap_or(0)
+                    .to_le_bytes(),
+            );
+            encode_len(&mut bytes, patch.memberships.len());
+            for row in &patch.memberships {
+                encode_location(&mut bytes, row.site);
+                bytes.extend_from_slice(&row.psi_operation.get().to_le_bytes());
+                bytes.extend_from_slice(&row.result.get().to_le_bytes());
+                bytes.extend_from_slice(&row.source.get().to_le_bytes());
+                bytes.extend_from_slice(
+                    &row.producer
+                        .map(|producer| producer.get())
+                        .unwrap_or(0)
+                        .to_le_bytes(),
+                );
+                bytes.extend_from_slice(&row.observed_case.get().to_le_bytes());
+                bytes.extend_from_slice(&row.proven_case.get().to_le_bytes());
+                bytes.push(u8::from(row.outcome));
+            }
+        }
     }
     bytes
 }

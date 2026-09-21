@@ -33,6 +33,7 @@ pub enum PsiRewritePatch {
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
     EliminateTotalScalarIdentity(TotalScalarIdentityRewrite),
     SpecializeStateArgument(StateArgumentSpecializationRewrite),
+    SpecializeCaseMembership(CaseMembershipSpecializationRewrite),
 }
 
 impl PsiRewritePatch {

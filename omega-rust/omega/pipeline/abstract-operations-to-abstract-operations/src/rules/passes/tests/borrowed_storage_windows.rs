@@ -519,7 +519,7 @@ fn budget() -> OptimizationWorkBudget {
 
 /// Every Psi selection the pass catalog owns. `PSI_PASS_CATALOG` order is the
 /// canonical schedule order.
-const PSI_SELECTIONS: [Optimization; 7] = [
+const PSI_SELECTIONS: [Optimization; 8] = [
     Optimization::SparseConditionalConstantPropagation,
     Optimization::ControlFlowCleanup,
     Optimization::CopyPropagation,
@@ -527,6 +527,7 @@ const PSI_SELECTIONS: [Optimization; 7] = [
     Optimization::ProofCheckElision,
     Optimization::DeadPureScalarElimination,
     Optimization::StateSpecialization,
+    Optimization::RepresentationSpecialization,
 ];
 
 #[test]

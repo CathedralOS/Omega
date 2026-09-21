@@ -923,9 +923,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   three rewrites and the commutation audit. `place_storage.rs` is the start
   of that owner.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
-  invariant-window specialization. One bounded family exists in
-  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`:
-  a `StructuralCaseMembership` reading a place whose case the unit itself
+  invariant-window specialization. The bounded case-membership family in
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`
+  is now wired into the pass pipeline: `Optimization::RepresentationSpecialization`
+  selects `omega.psi-pass.representation-specialization.v1` (rule
+  `omega.psi-rule.case-membership-specialization.v1`) by exact name through
+  `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
+  independently under the evidence-matrix legs with
+  `omega.validator.case-membership-specialization.v1` re-deriving the proof.
+  A `StructuralCaseMembership` reading a place whose case the unit itself
   proves — established in the same machine by `EstablishScalarCase`, or
   declared under a closed `Sum`/`Mixed` roster of exactly one case — folds
   to a `BooleanConstant` carrying the proven verdict, with separate
@@ -934,16 +940,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   non-`EstablishScalarCase` operation results), and a membership's non-empty
   path folds when the position it resolves to — a `Record`/`Mixed` common
   field, `FixedArray` element, or `Reference` referent — closes over exactly
-  one case. `lib.rs` exports it, but it has no `PSI_PASS_CATALOG` entry,
-  selection name, or caller outside its tests. It declines memberships whose
-  observed position carries no proof — unestablished multi-case roots and
-  paths ending on multi-case or non-structural positions — and machines
-  holding cyclic components. Field relevance on `EstablishRecord` results
-  still lacks operand-substitution machinery, and no invariant-window
-  operation reaches this stage yet.
-  Acceptance: a source-produced machine selects the rule by exact name
-  through `optimize_abstract_operations`, publishes, and replays
-  independently, with forged or stale membership provenance behaving as
+  one case. It declines memberships whose observed position carries no
+  proof — unestablished multi-case roots and paths ending on multi-case or
+  non-structural positions — and machines holding cyclic components stay
+  frozen byte-exact. Field relevance on `EstablishRecord` results still
+  lacks operand-substitution machinery, and no invariant-window operation
+  reaches this stage yet; both remain open under this item.
+  The bounded family's acceptance chain is witnessed: a source-produced
+  machine selects the rule by exact name through
+  `optimize_abstract_operations`, publishes, and replays independently, with
+  forged or stale membership provenance, disabled selection, and the cyclic
+  freeze behaving as
   [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
   requires.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without

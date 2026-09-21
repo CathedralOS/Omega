@@ -50,11 +50,12 @@ pub use proof::*;
 pub use range::*;
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
-    ConstantConditionalRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
-    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
-    LocalScalarCommonSubexpressionRewrite, NodeLocation, NonAdjacentBlockMergeRewrite,
-    OwnershipFrontierWitness, OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite,
-    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
+    CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
+    DominatingScalarCommonSubexpressionRewrite, FoldedCaseMembershipRow, IntegerConstantRewrite,
+    IntegerEvaluationWitness, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
+    NodeLocation, NonAdjacentBlockMergeRewrite, OwnershipFrontierWitness,
+    OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite, PhiTranslatedScalarGvnRewrite,
+    PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
     ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint,
     PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,

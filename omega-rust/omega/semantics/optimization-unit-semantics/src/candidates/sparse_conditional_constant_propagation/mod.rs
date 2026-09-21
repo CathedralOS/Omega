@@ -58,7 +58,8 @@ pub fn validate_scalar_evaluation_candidate(
         | PsiRewritePatch::EliminateProofCertifiedScalarIdentity(_)
         | PsiRewritePatch::EliminateTotalScalarIdentity(_)
         | PsiRewritePatch::PruneUnreachablePrivateMachines(_)
-        | PsiRewritePatch::SpecializeStateArgument(_) => {
+        | PsiRewritePatch::SpecializeStateArgument(_)
+        | PsiRewritePatch::SpecializeCaseMembership(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }
     }

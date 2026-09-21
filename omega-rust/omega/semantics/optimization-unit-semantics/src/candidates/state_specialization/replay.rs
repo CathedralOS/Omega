@@ -39,7 +39,7 @@ use std::cmp::Ordering;
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block
 /// projection so no session or proposal authority is consulted.
-fn cyclic_machines(unit: &PsiOptimizationUnit) -> BTreeSet<MachineId> {
+pub(crate) fn cyclic_machines(unit: &PsiOptimizationUnit) -> BTreeSet<MachineId> {
     unit.functions
         .iter()
         .filter_map(|function| {
