@@ -1,0 +1,44 @@
+// A const-generic argument whose const machine invokes a selected boundary
+// operator by NAME must execute the provider's ordinary checked body during
+// semantic const evaluation -- never a builtin spelling. `Provider::remainder`
+// computes `left | right` = 7 where builtin `%` would fold 1, so the byte-6
+// write below only type-checks when the selected provider body actually ran.
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega::language::core::service;
+
+data Math {}
+
+boundary machine % Math::remainder(left: u64, right: u64) -> u64;
+
+data Provider {}
+
+machine Provider::remainder(left: u64, right: u64) -> u64
+satisfies Math::remainder
+{
+    transition { _ -> (left | right) }
+}
+
+machine limit() -> u64 {
+    let left: u64 = 7;
+    let right: u64 = 2;
+    transition { _ -> (Math::remainder(left, right)) }
+}
+
+data Buffer<const N: u64> {
+    values: [u8; N];
+}
+
+data Main {
+    exit: Service<ProcessExit>;
+    value: Buffer<limit()>;
+    spare: Buffer<limit()>;
+}
+
+machine Main::main(&mut self) reaches
+    ProcessExit
+{
+    self.value.values[6] = 70;
+    self.spare.values[5] = 70;
+    self.exit.exit_process(70);
+}
