@@ -7356,33 +7356,50 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and
   C2L-RESIDUAL-FAILURE-ATTRIBUTION). No independent slice remains; sibling
   stub LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES carries the same resolution.
-- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.** Own the still-red
-  scalar-return source-custody family in `checked-trees-to-lowered-psi`.
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION names this row as its open owner;
-  the co-owner it also names, C2L-RESIDUAL-FAILURE-ATTRIBUTION, no longer
-  exists as a row. Members are attributed one by one in
-  `wiki/drafts/known_baseline_failures.md:415-434` and `:604-616`:
-  `owned_record_return_source` (3-4 members) plus
-  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`.
+- **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES.** The slice this row was opened
+  for has landed; what remains is one dead negative control and two reds owned
+  elsewhere. `source_replay_requires_the_exact_affine_return_transfer` passes
+  as of `eb376f7340` ("terminal-production: re-verify the checked permission
+  ledger before lowering"), which added
+  `psi/compiler/terminal-production/src/checked_ledger.rs`, called from
+  `terminal_production.rs:593` before lowering.
+  `wiki/drafts/known_baseline_failures.md:604-616` already records it repaired.
 
-  Two members route to **WRITE-ONLY-BORROW**'s claimed surfaces
-  (`src/unit/attached_unit*`, `src/scalar_graph`). One is owned nowhere else
-  and is the landable slice here:
-  `source_replay_requires_the_exact_affine_return_transfer` — mutating a
-  return transfer's `machine_symbol` is not rejected by
-  `terminal_production::TerminalProductionRequest::produce_artifact`, so a
-  substituted transfer replays instead of refusing. That is a source-replay
-  verification gap against the Responsibilities table in
-  [verification](wiki/spec/terminal-psi/verification.md), which holds that the
-  artifact verifier "cannot choose a weaker question based on the evidence
-  supplied". Owning files, each confirmed present:
-  `tests/owned_record_return_source.rs` (`:392` is the second member's panic
-  site), `tests/guarded_scalar_returns_source.rs`, `src/returns/`, and
-  `src/unit/attached_unit/composed_control/admission.rs`.
+  Measured at `f44a1177ed`: `cargo nextest run -p checked-trees-to-lowered-psi
+  -E 'test(~owned_record_return_source)'` selects **9** tests, not the 4 this
+  row's earlier acceptance named, and reads 6 passed, 3 failed.
 
-  Acceptance: `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~owned_record_return_source)'` green 4/4, with the substituted return
-  transfer rejected rather than replayed.
+  All three reds share one root cause: a `retain` body with a discarded-call
+  prefix is no longer planned as an ordinary unit-effect plan, it is a
+  composed-control plan.
+  - `discarded_scalar_invocation_precedes_whole_owned_return` asserts
+    `terminal_unit_effects.for_machine(..)` is `Some`. A stale plan-ownership
+    assertion; no production change needed.
+  - `effectful_discarded_call_writes_before_return_across_fuel` is a real
+    production refusal, "composed Unit scalar call requires structural call
+    custody", from `src/unit/attached_unit/composed_control/`.
+  - `source_replay_rejects_return_parameter_and_carrier_substitution` is a
+    **dead negative control**: it panics on
+    `plan.structural_result.as_mut().unwrap()` before reaching its first
+    assertion, because the `[copy] Record` case now has no ordinary plan to
+    tamper with, so its `[Entry; 3]` and `Buffer<Entry>` cases never run
+    either. It currently verifies nothing. The production rejection it means
+    to pin does exist and is source-derived — mutating the terminator result,
+    `plan.result` and `states[0].structural_parameters[1]` together, so the
+    plan stays internally consistent, still refuses with "structural return
+    exchanged its owned parameter" and "structural graph result signature
+    disagrees with source". The repair is test-side: re-point it at whichever
+    planner owns the machine, ordinary `machines` or `composed_machines`.
+
+  Fenced, so partition before picking this up: `tests/owned_record_return_source.rs`,
+  `tests/guarded_scalar_returns_source.rs` and `src/returns` sit under a live
+  C2L-RESIDUAL-FAILURE-ATTRIBUTION claim, and `src/unit` under
+  STRUCTURAL-UNIT-LOWERING.
+
+  Acceptance: the `~owned_record_return_source` filter is green across all 9
+  members, and the substitution control actually executes its three carrier
+  cases rather than panicking before its first assertion.
+
 - **C2L-UNATTRIBUTED-FAILURE-TAIL.** Mined candidate; scope verified, tail
   still empty — fresh member-by-member reading at `23392bc467` (linux
   x86-64): 2183 run, 2127 passed, 56 failed. All 55 FAIL + the
