@@ -746,3 +746,41 @@ fn checked_boundary_operator_scope(
     lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, artifact, lowered)
         .map_err(LoweringError::Unsupported)
 }
+
+#[cfg(test)]
+mod tests {
+    use checked_trees::CheckedTrees;
+
+    use crate::TerminalProductionRequest;
+
+    fn check_source(source: &str) -> CheckedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
+    }
+
+    /// Production lowering runs the correspondence retention route: the batch
+    /// is extracted from the checked program's typed trees and installed on
+    /// the module the artifact publishes. Ordinary programs produce an empty
+    /// batch, so the published module carries no quotient rows and still
+    /// decodes to identical identity.
+    #[test]
+    fn production_installs_the_extracted_quotient_correspondence_batch() {
+        let checked = check_source(
+            "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        assert!(module.quotient_correspondences.is_empty());
+    }
+}

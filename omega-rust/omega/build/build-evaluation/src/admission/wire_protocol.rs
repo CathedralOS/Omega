@@ -2,12 +2,15 @@
 //! migration is validated against the build's compatibility demands, and
 //! the report the compiler emits is built from the same walk.
 
+use std::collections::BTreeMap;
+
 use arena::HandleSpan;
 use artifacts::{
     WireCaseReportEntry, WireCompatibilityDemandReportEntry, WireCompatibilityFactReport,
     WireCompatibilityVerdicts, WireFieldRelevance, WireFieldReportEntry, WireProtocolReport,
     WireRealizationOrigin, WireSchemaReportEntry, WireTrustClass, WireVersionReportEntry,
 };
+use checked_interpreter::WireCodecVerification;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::wire::{WireMember, WireSchema};
@@ -16,7 +19,42 @@ pub fn validate_wire_protocol(
     typed: &TypedTrees,
     compatibility_demands: &[crate::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
+    // Independent verification of every generated codec FIRST: a codec that
+    // provably diverges from the public compact_binary requirement is a
+    // compile-time diagnostic, not an admission.
+    let verifications: BTreeMap<String, Result<WireCodecVerification, String>> = typed
+        .wire_schemas()
+        .iter()
+        .map(|schema| {
+            (
+                qualified_schema_path(typed, schema.symbol, schema.name.as_str()),
+                checked_interpreter::verify_wire_schema_codec(typed, schema),
+            )
+        })
+        .collect();
+    let report = build_wire_protocol_report(typed, compatibility_demands, &verifications);
+    let verification_diagnostics: Vec<Diagnostic> = verifications
+        .iter()
+        .filter_map(|(path, result)| {
+            result.as_ref().err().map(|divergence| {
+                Diagnostic::error(format!(
+                    "generated wire codec `{path}` failed independent verification against the \
+                     public compact_binary requirement: {divergence}"
+                ))
+            })
+        })
+        .collect();
+    match (
+        validate_wire_protocol_report(&report),
+        verification_diagnostics,
+    ) {
+        (Ok(()), empty) if empty.is_empty() => Ok(()),
+        (Ok(()), diagnostics) => Err(diagnostics),
+        (Err(mut report_diagnostics), mut verification_diagnostics) => {
+            report_diagnostics.append(&mut verification_diagnostics);
+            Err(report_diagnostics)
+        }
+    }
 }
 
 fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<Diagnostic>> {
@@ -67,6 +105,7 @@ struct SchemaRow {
 fn build_wire_protocol_report(
     typed: &TypedTrees,
     compatibility_demands: &[crate::WireCompatibilityDemand],
+    verifications: &BTreeMap<String, Result<WireCodecVerification, String>>,
 ) -> WireProtocolReport {
     let mut rows = typed
         .wire_schemas()
@@ -159,32 +198,106 @@ fn build_wire_protocol_report(
             generator: "Omega compiler compact_binary generator".to_owned(),
         });
         // Trust class follows the codec spec's realization table: the
-        // generated body reports Derived only when its recorded plan carries
-        // `policy_verified` — the authored `CompactBinary::plan` grammar
-        // policy agreeing with the codec walk IS the independent check of
-        // the public requirement. Absent the policy the realization stays
-        // admitted under the compiler's authority.
+        // generated body reports Derived when an independent check of the
+        // public requirement passes — either the authored
+        // `CompactBinary::plan` grammar policy agreeing with the codec
+        // walk, or the interpreter's generated-codec verification closing
+        // with no coverage gaps. A proven divergence never reports Derived.
+        let plan_evidence =
+            "normalized compact_binary plan validated against the schema walk".to_owned();
         let policy_verified = typed.wire_schema_plan_policy_verified(source_schema.symbol);
-        schema.trust_class = if policy_verified {
-            Some(WireTrustClass::Derived)
-        } else {
-            Some(WireTrustClass::Admitted {
-                authority: "Omega compiler".to_owned(),
-            })
+        let policy_evidence = || {
+            "generated codec plan independently checked against the authored \
+             `CompactBinary::plan` grammar policy; disagreement is a compile error"
+                .to_owned()
         };
-        schema.realization_evidence = vec![
-            "normalized compact_binary plan validated against the schema walk".to_owned(),
-            if policy_verified {
-                "generated codec plan independently checked against the authored \
-                 `CompactBinary::plan` grammar policy; disagreement is a compile error"
-                    .to_owned()
-            } else {
-                "generated body is not yet independently checked against the public codec \
-                 requirement"
-                    .to_owned()
-            },
-            "differential canaries are validation evidence, not derived-contract proof".to_owned(),
-        ];
+        match verifications.get(&row.qualified_path) {
+            // The whole requirement exercised and passed: the codec's trust
+            // is derived from the check, not the generator's authority.
+            Some(Ok(verification)) if verification.gaps.is_empty() => {
+                schema.trust_class = Some(WireTrustClass::Derived);
+                let mut evidence = vec![
+                    plan_evidence,
+                    format!(
+                        "independently checked against the public codec requirement: {}",
+                        verification.checks.join("; ")
+                    ),
+                ];
+                if policy_verified {
+                    evidence.push(policy_evidence());
+                }
+                schema.realization_evidence = evidence;
+            }
+            // Partially exercised: report what was verified. The authored
+            // grammar policy remains an independent check for the rest;
+            // without it the uncovered portion stays generator-admitted.
+            Some(Ok(verification)) => {
+                schema.trust_class = if policy_verified {
+                    Some(WireTrustClass::Derived)
+                } else {
+                    Some(WireTrustClass::Admitted {
+                        authority: "Omega compiler".to_owned(),
+                    })
+                };
+                let mut evidence = vec![
+                    plan_evidence,
+                    format!(
+                        "independent verification passed: {}",
+                        verification.checks.join("; ")
+                    ),
+                ];
+                if policy_verified {
+                    evidence.push(policy_evidence());
+                    evidence.push(format!(
+                        "interpreter verification coverage gap: {}",
+                        verification.gaps.join("; ")
+                    ));
+                } else {
+                    evidence.push(format!(
+                        "coverage gap keeps generator-admitted trust: {}",
+                        verification.gaps.join("; ")
+                    ));
+                }
+                schema.realization_evidence = evidence;
+            }
+            // A proven divergence: validation turns it into a diagnostic;
+            // the row still records why the codec is untrusted.
+            Some(Err(divergence)) => {
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
+                schema.realization_evidence = vec![
+                    plan_evidence,
+                    format!("independent verification found a codec divergence: {divergence}"),
+                ];
+            }
+            None => {
+                schema.trust_class = if policy_verified {
+                    Some(WireTrustClass::Derived)
+                } else {
+                    Some(WireTrustClass::Admitted {
+                        authority: "Omega compiler".to_owned(),
+                    })
+                };
+                schema.realization_evidence = if policy_verified {
+                    vec![
+                        plan_evidence,
+                        policy_evidence(),
+                        "differential canaries are validation evidence, not derived-contract proof"
+                            .to_owned(),
+                    ]
+                } else {
+                    vec![
+                        plan_evidence,
+                        "generated body is not yet independently checked against the public codec \
+                         requirement"
+                            .to_owned(),
+                        "differential canaries are validation evidence, not derived-contract proof"
+                            .to_owned(),
+                    ]
+                };
+            }
+        }
     }
     rows.sort_by(|left, right| left.entry.name.cmp(&right.entry.name));
     let demands = compatibility_demands
@@ -1212,9 +1325,13 @@ mod tests {
     use super::{
         ScopeTable, build_wire_protocol_report, codec_requirement_report_identity,
         compatibility_verdicts, encode_requirement_report_identity, fields_equal,
-        normalized_wire_plan_report_identity, schema_accepts, search_route,
+        normalized_wire_plan_report_identity, qualified_schema_path, schema_accepts,
+        search_route,
     };
-    use artifacts::{WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry};
+    use artifacts::{
+        WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry, WireTrustClass,
+    };
+    use std::collections::BTreeMap;
     use typed_trees::wire::WirePlacement;
 
     fn field(
@@ -1342,6 +1459,47 @@ mod tests {
         assert!(
             !schema_accepts(&reader, &writer),
             "compact-equal schema reports cannot authorize an incompatible exact wire shape"
+        );
+    }
+
+    #[test]
+    fn independently_verified_generated_codec_reports_derived_trust() {
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+        use tokens_to_syntax_trees::parse_syntax_trees;
+
+        let tokens = Lexer::new(
+            "data Packet { #0 tag: u32; #1 depth: i32; } \
+             machine main() -> i32 { transition true { true -> 7 false -> 0 } }",
+        )
+        .tokenize()
+        .expect("wire tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("wire syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("wire symbols");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("wire types");
+
+        let verifications: BTreeMap<_, _> = typed
+            .wire_schemas()
+            .iter()
+            .map(|schema| {
+                (
+                    qualified_schema_path(&typed, schema.symbol, schema.name.as_str()),
+                    checked_interpreter::verify_wire_schema_codec(&typed, schema),
+                )
+            })
+            .collect();
+        let report = build_wire_protocol_report(&typed, &[], &verifications);
+        let row = report
+            .schemas
+            .iter()
+            .find(|row| row.name == "Packet")
+            .expect("packet row");
+        assert_eq!(row.trust_class, Some(WireTrustClass::Derived));
+        assert!(
+            row.realization_evidence
+                .iter()
+                .any(|entry| entry.contains("independently checked"))
         );
     }
 
@@ -1473,7 +1631,7 @@ mod tests {
         let mut typed = typed_fixture(source_text);
         build_time_evaluation::compute_wire_plans(&mut typed, None, 0)
             .expect("wire plan pass accepts the fixture");
-        build_wire_protocol_report(&typed, &[])
+        build_wire_protocol_report(&typed, &[], &BTreeMap::new())
     }
 
     #[test]

@@ -111,17 +111,19 @@ sh tests/bootstrap/omega-executable/run.sh --controls-e
 sh tests/bootstrap/omega-executable/run.sh --controls-f
 sh tests/bootstrap/omega-executable/run.sh --controls-g
 sh tests/bootstrap/omega-executable/run.sh --controls-h
+sh tests/bootstrap/omega-executable/run.sh --controls-i
 ```
 
-The ordinary Epsilon controls reuse one compiler across sixty-six
+The ordinary Epsilon controls reuse one compiler across seventy-four
 invocations split among [controls.epsilon](controls.epsilon),
 [controls_b.epsilon](controls_b.epsilon),
 [controls_c.epsilon](controls_c.epsilon),
 [controls_d.epsilon](controls_d.epsilon),
 [controls_e.epsilon](controls_e.epsilon),
 [controls_f.epsilon](controls_f.epsilon),
-[controls_g.epsilon](controls_g.epsilon), and
-[controls_h.epsilon](controls_h.epsilon): zero and maximum byte results,
+[controls_g.epsilon](controls_g.epsilon),
+[controls_h.epsilon](controls_h.epsilon), and
+[controls_i.epsilon](controls_i.epsilon): zero and maximum byte results,
 folded arithmetic, bitwise and shift operations with precedence and grouping,
 multiple declarations and selection of a non-first entry, duplicate names,
 missing entry, out-of-range and oversized decimal values, an out-of-range
@@ -136,8 +138,11 @@ forward-declared callee, machine-scoped state resolution, unresolved call
 and state targets, call and transition arity mismatches, an empty authored
 state, an unmatched subject, duplicate authored state names, an unreachable
 statement after a transition block, receiver and `self` call paths, a
-parameterized state, a multi-arm or non-wildcard subjectless block, and an
-integer arm under a Boolean subject.
+parameterized state, a multi-arm or non-wildcard subjectless block, an
+integer arm under a Boolean subject, truncating division, additive-versus-shift
+and bitwise-tier precedence, an ungrouped terminal call, two sequential call
+statements, a wildcard arm ahead of a matching literal arm, and a Boolean arm
+under an integer subject.
 Every rejection requires an empty unsealed
 tape. A final exact literal byte comparison precedes execution of the actual
 emitted tape; the expected bytes are never used as the executable input.
@@ -153,7 +158,7 @@ checks the same observation and executes the same emitted program.
 ## Bound customer entries
 
 Every entry the harness may select is bound: `main_ocreq.epsilon`,
-`main.epsilon`, and the eight controls files are gate-local inputs packed on
+`main.epsilon`, and the nine controls files are gate-local inputs packed on
 top of the bound member closure, never part of the manifested members.
 
 | Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
@@ -168,6 +173,7 @@ top of the bound member closure, never part of the manifested members.
 | `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 566,219 | `b1d0bd4a7608367c56f2473d86d45541b7471ac799bff3e2438b54a2bf5db460` |
 | `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 564,921 | `89c1c23ef356f3875db54645cbccfe17ea9977dc80814013d0eee4da7e07cbf0` |
 | `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 564,987 | `a409990e78c521a20aff59ccfbb69666318a35ec983edf953c581b036135877b` |
+| `controls_i.epsilon` | 3,863 | `8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0` | 565,657 | `67bcbc3a8b734d81f84870b2544b0ee079dc09d65de9cb7fbc766470bcab9c8f` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and

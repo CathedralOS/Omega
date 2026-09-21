@@ -137,7 +137,8 @@ pub use filesystem::{
 };
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions, ProductEntryCompatibility,
-    evaluate_build_machine_arguments, evaluate_build_time_machine, evaluate_const_machine,
-    evaluate_const_machine_measured, evaluate_granted_build_machine_arguments, interpret_entry,
-    interpret_entry_symbol,
+    WireCodecVerification, evaluate_build_machine_arguments, evaluate_build_time_machine,
+    evaluate_const_machine, evaluate_const_machine_measured,
+    evaluate_granted_build_machine_arguments, interpret_entry, interpret_entry_symbol,
+    verify_wire_schema_codec,
 };

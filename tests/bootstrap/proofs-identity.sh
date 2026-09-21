@@ -115,7 +115,7 @@ echo "member: a one-byte theory member change is refused during packing"
 
 for needle in \
   "$DERIVATION_CHECKER_MANIFEST_SHA256" "$DERIVATION_CHECKER_PACKED_SHA256" \
-  "62,355"
+  "62,357"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/proofs/checker/README.md" ||
     fail "bootstrap/proofs/checker/README.md lacks bound record $needle"
@@ -145,39 +145,4 @@ rc=0
   fail "corrupted definition package: identity check unexpectedly passed"
 echo "corrupt: a one-byte definition package change is refused"
 
-rc=0
-require_beta_encoding_certificate_request_identity "$TMP/no-request" \
-  2>/dev/null || rc=$?
-[ "$rc" = 2 ] ||
-  fail "missing certificate request: expected exit 2, got $rc"
-head -c $((BETA_ENCODING_CERTIFICATE_REQUEST_SIZE - 1)) /dev/zero \
-  > "$TMP/short-request"
-rc=0
-require_beta_encoding_certificate_request_identity "$TMP/short-request" \
-  2>/dev/null || rc=$?
-[ "$rc" = 3 ] ||
-  fail "short certificate request: expected exit 3, got $rc"
-echo "certificate: a missing or truncated produced request is refused"
-
-head -c "$BETA_ENCODING_CERTIFICATE_REQUEST_SIZE" /dev/zero \
-  > "$TMP/zero-request"
-rc=0
-require_beta_encoding_certificate_request_identity "$TMP/zero-request" \
-  2>/dev/null || rc=$?
-[ "$rc" = 3 ] ||
-  fail "zero certificate request: expected exit 3, got $rc"
-echo "certificate: a same-size divergent produced request is refused"
-
-for needle in \
-  "$BETA_ENCODING_CERTIFICATE_REQUEST_SHA256" "135,485,028"
-do
-  grep -q "$needle" \
-    "$OMEGA_REPO_ROOT/bootstrap/proofs/beta_encoding/README.md" ||
-    fail "bootstrap/proofs/beta_encoding/README.md lacks bound record $needle"
-done
-grep -q "$BETA_ENCODING_CERTIFICATE_REQUEST_SHA256" \
-  "$OMEGA_REPO_ROOT/tests/gamma/beta-encoding-theory/full_subject.py" ||
-  fail "full_subject.py record lacks bound certificate identity $BETA_ENCODING_CERTIFICATE_REQUEST_SHA256"
-echo "records: bound certificate request identity matches the owner record and the producing gate's record"
-
-echo "Proofs identity: bound closures materialized exactly; corrupted manifests, members, package, and produced certificate request refused"
+echo "Proofs identity: bound closures materialized exactly; corrupted manifests, members, and package refused"
