@@ -4,6 +4,7 @@ data Counter {
 
 trait BoundedCounter {
     machine increment(&mut self, amount: u32)
+        requires amount >= 0
         ensures amount >= 0;
     machine snapshot(&self);
 }

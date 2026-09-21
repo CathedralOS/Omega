@@ -664,6 +664,7 @@ fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan 
         AbstractOperation::EstablishRecord {
             psi_operation: OperationId::new(11).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: tally_place,
                 structural_type: tally,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -682,6 +683,7 @@ fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan 
         AbstractOperation::EstablishRecord {
             psi_operation: OperationId::new(12).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: main_place,
                 structural_type: main,
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -817,6 +819,7 @@ fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
     let caller_machine = MachineId::new(1).unwrap();
     let callee_machine = MachineId::new(2).unwrap();
     let result = |identity| terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: PlaceId::new(identity).unwrap(),
         structural_type: array,
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -985,6 +988,7 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
         }],
     };
     let result = |place| terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place,
         structural_type: carrier,
         multiplicity: StructuralMultiplicity::Affine,

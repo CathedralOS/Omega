@@ -84,12 +84,14 @@ fn ledger_fixture() -> TerminalModule {
         entry: block_id(10),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(10),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(10),
                     result: OperationResult::Scalar(value(20)),
                     kind: OperationKind::ExactIntegerSubtract {
@@ -100,10 +102,12 @@ fn ledger_fixture() -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(11),
                     result: OperationResult::Scalar(value(27)),
                     kind: OperationKind::Call {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         callee: machine_id(2),
                         arguments: vec![value_id(10), value_id(11)],
                         requirement_obligations: vec![obligation_id(105), obligation_id(106)],
@@ -119,6 +123,7 @@ fn ledger_fixture() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(1),
             crash_routes: Vec::new(),
             requires: caller_requires,
@@ -148,6 +153,7 @@ fn ledger_fixture() -> TerminalModule {
         entry: block_id(20),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(20),
             parameters: Vec::new(),
@@ -160,6 +166,7 @@ fn ledger_fixture() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: Vec::new(),
             requires: callee_requires,

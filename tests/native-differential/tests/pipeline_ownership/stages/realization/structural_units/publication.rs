@@ -135,7 +135,7 @@ fn installed_structural_provider_call_reaches_shared_publication() {
 }
 
 #[test]
-fn claim_completion_prefixes_publish_as_metadata_without_instruction_spans() {
+fn claim_completion_machines_fail_closed_at_native_lowering() {
     let (semantic, proof, boundary) = completion_artifact();
     let execution = omega_native_differential_test::admit_native_provider(
         NativeTarget::uefi_x64(),
@@ -155,72 +155,30 @@ fn claim_completion_prefixes_publish_as_metadata_without_instruction_spans() {
         OptimizationSelections::default(),
         OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
     ] {
-        let source = stage(&semantic, &proof, selections, &[], &settlements);
-        let published = publish(&source, &[&execution]);
-        assert_eq!(published.text_bytes(), &[0xc3]);
-        assert_eq!(published.boundary_settlements().len(), 2);
-        for (index, row) in published.boundary_settlements().iter().enumerate() {
-            assert_eq!(row.settlement.code_offset, 0);
-            assert_eq!(row.settlement.byte_count, 0);
-            assert_eq!(row.settlement.operation_ordinal, index);
-            assert_eq!(row.settlement.completion_receipts.len(), 1);
-        }
-        let settlement_site = machine_code::SemanticCodeSite::Operation(
-            published.boundary_settlements()[0].settlement.psi_operation,
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            compiler_baseline_request_v1(&selections),
+        )
+        .expect("verified structural source");
+        let result = lower_optimized_to_target_operations(
+            optimized,
+            OptimizedTargetLoweringRequest {
+                target: NativeTarget::uefi_x64(),
+                settlements: &settlements,
+                installation: None,
+                ieee_float_fma: &[],
+                native_callbacks: &[],
+            },
         );
-        let attribution_position = published
-            .semantic_code_attribution()
-            .iter()
-            .position(|row| row.attribution.site == settlement_site)
-            .unwrap();
-        for mutation in 0..5 {
-            let mut changed = published.clone();
-            let rows = changed.semantic_code_attribution_mut_for_test();
-            match mutation {
-                0 => {
-                    rows.remove(attribution_position);
-                }
-                1 => {
-                    // Keep the correct row and add the same site with a different
-                    // extent. Filtering by site must not hide this extra record.
-                    let mut duplicate = rows[attribution_position].clone();
-                    duplicate.attribution.byte_count = 1;
-                    rows.insert(attribution_position + 1, duplicate);
-                }
-                2 => rows[attribution_position].attribution.operation_ordinal += 1,
-                3 => {
-                    rows[attribution_position].attribution.code_offset += 1;
-                    rows[attribution_position].text_offset += 1;
-                }
-                _ => rows[attribution_position].attribution.byte_count = 1,
-            }
-            assert!(
-                image_emission::validate_function_fragment_object_artifact(&source, &changed)
-                    .is_err(),
-                "settlement attribution mutation {mutation} must fail independent replay"
-            );
-        }
-        let mut changed = published.clone();
-        changed.boundary_settlements_mut_for_test().pop();
-        assert!(
-            image_emission::validate_function_fragment_object_artifact(&source, &changed).is_err()
-        );
-        let mut changed = published.clone();
-        changed.boundary_settlements_mut_for_test()[0]
-            .settlement
-            .completion_receipts[0]
-            .argument_index = 1;
-        assert!(
-            image_emission::validate_function_fragment_object_artifact(&source, &changed).is_err()
-        );
-        let image = image_emission::emit_executable_image(&published, 10).unwrap();
-        assert!(
-            image_emission::build_installation_record(
-                &image,
-                semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+        assert_eq!(
+            result.map(|_| ()),
+            Err(
+                abstract_operations_to_target_operations::LoweringError::UnsupportedControlFlow(
+                    semantic_vocabulary::MachineId::new(3_602).unwrap()
+                )
             )
-            .is_err(),
-            "metadata-only settlement still requires its admitted execution"
         );
     }
 }
@@ -397,6 +355,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
         .enumerate()
         .map(|(index, claim)| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(3_632 + index as u64).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

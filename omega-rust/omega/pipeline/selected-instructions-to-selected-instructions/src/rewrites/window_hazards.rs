@@ -176,6 +176,40 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
     )
 }
 
+/// Whether an instruction's effect is pure register and condition-state
+/// work that adds no observable execution on arrivals it never ran on.
+/// `schedulable` already cleared barrier kinds, call contracts, and
+/// unaccounted memory-capable kinds, but a row-less load or private-slot
+/// `Store64` still performs a memory access: sinking it would add the
+/// access — and any fault or slot write it carried — to every traversal
+/// entering the relocation's landing through the other inflows. The same
+/// holds for kinds whose target encoding may architecturally fault: their
+/// proof obligations establish definedness for the source operation, but
+/// this audit runs at the selected level where the encoded trap behavior
+/// is the honest bound — an execution that could fault must still run
+/// only on the paths that ran it before.
+pub(super) fn speculatable(instruction: &SelectedInstruction) -> bool {
+    use SelectedInstructionKind::*;
+    !matches!(
+        instruction.kind,
+        CopyBytes
+            | LoadPacked { .. }
+            | StorePacked { .. }
+            | Store { .. }
+            | Load8Indexed
+            | Load64 { .. }
+            | Load8 { .. }
+            | Load16 { .. }
+            | Load32 { .. }
+            | Store64 { .. }
+            | ExactDivideU64 { .. }
+            | ExactDivideI64 { .. }
+            | ExactRemainderI64 { .. }
+            | SaturatingDivide { .. }
+            | SaturatingRemainder { .. }
+    )
+}
+
 /// Whether the roster accounts for the instruction's memory reach. Rows
 /// name the instruction by identity, so the relocation retains them
 /// unchanged.
@@ -338,10 +372,12 @@ pub(super) fn admit_run_relocation(
     for settlement in &function.boundary_settlements {
         let index = settlement.instruction_index as usize;
         let refused = if settlement.block == run_block && run_block == destination_block {
-            // In-block: the window's span runs from the earlier of the
-            // run's start and the landing index through the later of the
-            // run's end and the landing index, endpoints included.
-            index >= crossing.run_start.min(crossing.landing_index)
+            // In-block: the window's span runs from just after the earlier
+            // of the run's start and the landing index through the later of
+            // the run's end and the landing index. The earlier endpoint
+            // itself observes an unchanged prefix — a settlement at it sees
+            // only positions before the window, identical on either order.
+            index > crossing.run_start.min(crossing.landing_index)
                 && index <= crossing.run_end.max(crossing.landing_index)
         } else if settlement.block == run_block {
             // Cross-block: the run vacates from `run_start` on, so any
@@ -353,10 +389,15 @@ pub(super) fn admit_run_relocation(
             index > crossing.landing_index
         } else {
             // An intermediate block's whole body is crossed — any
-            // settlement in it observes a changed executed prefix.
-            crossing.positions.iter().any(|(block_index, positions)| {
-                !positions.is_empty() && function.blocks[*block_index].id == settlement.block
-            })
+            // settlement in it observes a changed executed prefix. The
+            // block key decides rather than its position list: an
+            // empty-bodied intermediate records no ordinals, yet a
+            // settlement at index 0 still trades which side of that
+            // point the member executes on.
+            crossing
+                .positions
+                .iter()
+                .any(|(block_index, _)| function.blocks[*block_index].id == settlement.block)
         };
         if refused {
             return Err(RunRelocationRejection::Settlement);
@@ -383,7 +424,7 @@ mod tests {
     };
 
     use super::{RunRelocationRejection, admit_run_relocation};
-    use crate::rewrites::block_edges::crossed_window;
+    use crate::rewrites::block_edges::{CrossingDirection, crossed_window};
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
     const BLOCK_B: SelectedBlockId = SelectedBlockId(1);
@@ -485,7 +526,8 @@ mod tests {
     }
 
     fn admit(function: &SelectedFunction) -> Result<(), RunRelocationRejection> {
-        let crossing = crossed_window(function, 0, 0, 1, 1, 1, 64).unwrap();
+        let crossing =
+            crossed_window(function, 0, 0, 1, 1, 1, CrossingDirection::Forward, 64).unwrap();
         let members: Vec<&SelectedInstruction> =
             function.blocks[0].instructions[0..=1].iter().collect();
         admit_run_relocation(function, &members, &crossing)
@@ -624,7 +666,8 @@ mod tests {
     fn an_unreachable_destination_refuses() {
         let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
         function.blocks[1].id = SelectedBlockId(9); // sever the edge target
-        let crossing = crossed_window(&function, 0, 0, 1, 1, 1, 64).unwrap();
+        let crossing =
+            crossed_window(&function, 0, 0, 1, 1, 1, CrossingDirection::Forward, 64).unwrap();
         let members: Vec<&SelectedInstruction> =
             function.blocks[0].instructions[0..=1].iter().collect();
         assert_eq!(

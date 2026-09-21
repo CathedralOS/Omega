@@ -120,10 +120,17 @@ pub(super) fn append_constraints(
 }
 
 /// Reuse the canonical input banks without retaining source-signature permutations.
+/// After the plain rows, one family per (input bank, integer-bank position)
+/// carries a private callback slot: that parameter's register is pinned by the
+/// materialization bytes inside the call encoding, so it is an implicit unit
+/// use rather than an operand.
 pub(super) fn append_normalized_foreign_constraints(
     constraints: &mut Vec<RegisterInstructionConstraint>,
     model: &ValidatedPhysicalRegisterModel,
 ) {
+    let Some(integer_class) = model.model().view_named("x0").map(|view| view.class) else {
+        return;
+    };
     for (inputs, keys) in [
         (
             aarch64_aapcs64_register_unit_call_keys()
@@ -139,7 +146,7 @@ pub(super) fn append_normalized_foreign_constraints(
         ),
     ] {
         let mut keys = keys.into_iter();
-        for input in inputs {
+        for input in inputs.clone() {
             let Some(base) = constraints.iter().find(|row| row.key == input).cloned() else {
                 return;
             };
@@ -147,26 +154,68 @@ pub(super) fn append_normalized_foreign_constraints(
                 let Some(key) = keys.next() else { return };
                 let mut row = base.clone();
                 row.key = key;
-                if let Some(result_name) = result_name {
-                    let Some(result) = model.model().view_named(result_name) else {
-                        return;
-                    };
-                    row.operands.push(RegisterOperandConstraint {
-                        operand: row.operands.len() as u16,
-                        access: RegisterOperandAccess::Def,
-                        class: result.class,
-                        fixed_view: Some(result.id),
-                        tied_to: None,
-                        early_clobber: false,
-                    });
-                    // The explicit result defines its full architectural write
-                    // footprint. Every other caller-save unit stays clobbered.
-                    row.clobbers
-                        .retain(|unit| !result.write_units.contains(unit));
-                }
+                append_result_operand(&mut row, model, result_name);
                 constraints.push(row);
             }
         }
+        for input in inputs {
+            let Some(base) = constraints.iter().find(|row| row.key == input).cloned() else {
+                return;
+            };
+            for position in 0..base.operands.len() {
+                if base.operands[position].access != RegisterOperandAccess::Use {
+                    continue;
+                }
+                let Some(callback_view) = base.operands[position]
+                    .fixed_view
+                    .and_then(|view_id| model.model().views.iter().find(|view| view.id == view_id))
+                else {
+                    return;
+                };
+                if callback_view.class != integer_class {
+                    continue;
+                }
+                for result_name in [None, Some("x0"), Some("d0")] {
+                    let Some(key) = keys.next() else { return };
+                    let mut row = base.clone();
+                    row.key = key;
+                    row.operands.remove(position);
+                    for (operand, slot) in row.operands.iter_mut().enumerate() {
+                        slot.operand = operand as u16;
+                    }
+                    row.implicit_uses
+                        .extend(callback_view.units.iter().copied());
+                    row.implicit_uses.sort_unstable();
+                    row.implicit_uses.dedup();
+                    append_result_operand(&mut row, model, result_name);
+                    constraints.push(row);
+                }
+            }
+        }
+    }
+}
+
+fn append_result_operand(
+    row: &mut RegisterInstructionConstraint,
+    model: &ValidatedPhysicalRegisterModel,
+    result_name: Option<&str>,
+) {
+    if let Some(result_name) = result_name {
+        let Some(result) = model.model().view_named(result_name) else {
+            return;
+        };
+        row.operands.push(RegisterOperandConstraint {
+            operand: row.operands.len() as u16,
+            access: RegisterOperandAccess::Def,
+            class: result.class,
+            fixed_view: Some(result.id),
+            tied_to: None,
+            early_clobber: false,
+        });
+        // The explicit result defines its full architectural write
+        // footprint. Every other caller-save unit stays clobbered.
+        row.clobbers
+            .retain(|unit| !result.write_units.contains(unit));
     }
 }
 

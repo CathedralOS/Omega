@@ -330,6 +330,26 @@ fn substitute_nested_installation_reaches(
     mut pending: Vec<PendingInstallationReachRow<'_>>,
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
+    // Every selected plan publishes one row per requirement identity, so the
+    // publisher set for an identity is resolutions plus rows still pending —
+    // counting only resolved rows would misread a shared identity as
+    // unambiguous while a second plan's row is still in flight.
+    let mut identity_publishers: std::collections::BTreeMap<
+        String,
+        std::collections::BTreeSet<u64>,
+    > = std::collections::BTreeMap::new();
+    for resolution in resolutions.iter() {
+        identity_publishers
+            .entry(resolution.requirement_identity.clone())
+            .or_default()
+            .insert(resolution.provider_plan_report_identity);
+    }
+    for row in &pending {
+        identity_publishers
+            .entry(row.requirement_identity.clone())
+            .or_default()
+            .insert(row.provider_plan_report_identity);
+    }
     loop {
         let mut next = Vec::new();
         let mut progressed = false;
@@ -338,9 +358,12 @@ fn substitute_nested_installation_reaches(
             row.unresolved.retain(|reach| {
                 let resolved =
                     nested_requirement_identity(typed, reach.requirement).and_then(|identity| {
-                        resolutions
-                            .iter()
-                            .find(|resolution| resolution.requirement_identity == identity)
+                        plan_scoped_resolution(
+                            resolutions,
+                            &identity_publishers,
+                            row.provider_plan_report_identity,
+                            &identity,
+                        )
                     });
                 match resolved {
                     Some(child) => {
@@ -377,6 +400,36 @@ fn substitute_nested_installation_reaches(
             row.unresolved.len(),
         ));
     }
+}
+
+/// One nested requirement's resolution addressed the way
+/// `SelectedProviderPlanFacts::resolve_installation_reach_for_plan` resolves
+/// the root closure: the pending row's own plan's resolution first, then a
+/// requirement realized by exactly one selected plan. An identity published
+/// by several plans with none under this row's plan is ambiguous for this
+/// row — it stays unresolved rather than binding a foreign plan's row by
+/// roster order.
+fn plan_scoped_resolution<'a>(
+    resolutions: &'a [effects::InstallationReachResolution],
+    identity_publishers: &std::collections::BTreeMap<String, std::collections::BTreeSet<u64>>,
+    provider_plan_report_identity: u64,
+    requirement_identity: &str,
+) -> Option<&'a effects::InstallationReachResolution> {
+    if let Some(own) = resolutions.iter().find(|resolution| {
+        resolution.requirement_identity == requirement_identity
+            && resolution.provider_plan_report_identity == provider_plan_report_identity
+    }) {
+        return Some(own);
+    }
+    if identity_publishers
+        .get(requirement_identity)
+        .is_some_and(|publishers| publishers.len() > 1)
+    {
+        return None;
+    }
+    resolutions
+        .iter()
+        .find(|resolution| resolution.requirement_identity == requirement_identity)
 }
 
 /// The requirement identity a nested installation-bound row refers to: a
@@ -425,4 +478,143 @@ fn unresolved_realization_reach_diagnostic(
         "selected provider row `{requirement_identity}` realization `{}` of provider `{}` retains {unresolved} unresolved installation-bound requirement(s); its checked reach is a conservative bound, not a resolved row",
         realization.name, plan.provider_type,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plan_scoped_resolution;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    fn resolution(
+        plan: u64,
+        requirement_identity: &str,
+        resolved_row: &[&str],
+    ) -> effects::InstallationReachResolution {
+        effects::InstallationReachResolution {
+            requirement_identity: requirement_identity.to_owned(),
+            provider_plan_report_identity: plan,
+            upper_bound: Vec::new(),
+            resolved_row: resolved_row
+                .iter()
+                .map(|service| (*service).to_owned())
+                .collect(),
+        }
+    }
+
+    fn roster(rows: &[(&str, u64)]) -> BTreeMap<String, BTreeSet<u64>> {
+        let mut publishers: BTreeMap<String, BTreeSet<u64>> = BTreeMap::new();
+        for (identity, plan) in rows {
+            publishers
+                .entry((*identity).to_owned())
+                .or_default()
+                .insert(*plan);
+        }
+        publishers
+    }
+
+    /// A requirement identity published by two selected plans binds the
+    /// pending row's own plan's resolution — the pair-keyed pick, not the
+    /// first row the roster happens to hold.
+    #[test]
+    fn shared_identity_binds_the_pending_rows_own_plan() {
+        let resolutions = vec![
+            resolution(0xAAAA, "InterruptEntry::enter", &["PortIo"]),
+            resolution(0xBBBB, "InterruptEntry::enter", &["MachineControl"]),
+        ];
+        let publishers = roster(&[
+            ("InterruptEntry::enter", 0xAAAA),
+            ("InterruptEntry::enter", 0xBBBB),
+        ]);
+
+        assert_eq!(
+            plan_scoped_resolution(&resolutions, &publishers, 0xBBBB, "InterruptEntry::enter")
+                .map(|row| row.resolved_row.as_slice()),
+            Some([String::from("MachineControl")].as_slice())
+        );
+        assert_eq!(
+            plan_scoped_resolution(&resolutions, &publishers, 0xAAAA, "InterruptEntry::enter")
+                .map(|row| row.resolved_row.as_slice()),
+            Some([String::from("PortIo")].as_slice())
+        );
+    }
+
+    /// A requirement realized by exactly one selected plan still resolves
+    /// unscoped for a pending row under another plan.
+    #[test]
+    fn singly_published_identity_resolves_unscoped() {
+        let resolutions = vec![
+            resolution(0xAAAA, "InterruptAcknowledgement::complete", &["PortIo"]),
+            resolution(0xBBBB, "InterruptEntry::enter", &["MachineControl"]),
+        ];
+        let publishers = roster(&[
+            ("InterruptAcknowledgement::complete", 0xAAAA),
+            ("InterruptEntry::enter", 0xBBBB),
+        ]);
+
+        assert_eq!(
+            plan_scoped_resolution(
+                &resolutions,
+                &publishers,
+                0xCCCC,
+                "InterruptAcknowledgement::complete",
+            )
+            .map(|row| row.resolved_row.as_slice()),
+            Some([String::from("PortIo")].as_slice())
+        );
+    }
+
+    /// A shared identity with no row under the pending row's own plan stays
+    /// unresolved rather than silently binding another plan's row.
+    #[test]
+    fn shared_identity_without_an_own_plan_row_stays_unresolved() {
+        let resolutions = vec![
+            resolution(0xAAAA, "InterruptEntry::enter", &["PortIo"]),
+            resolution(0xBBBB, "InterruptEntry::enter", &["MachineControl"]),
+        ];
+        let publishers = roster(&[
+            ("InterruptEntry::enter", 0xAAAA),
+            ("InterruptEntry::enter", 0xBBBB),
+        ]);
+
+        assert!(
+            plan_scoped_resolution(&resolutions, &publishers, 0xCCCC, "InterruptEntry::enter")
+                .is_none()
+        );
+    }
+
+    /// A row published by one plan but not yet resolved stays pending until
+    /// its publisher resolves — the publisher set counts rows in flight, not
+    /// just rows already emitted.
+    #[test]
+    fn pending_publisher_keeps_the_identity_shared() {
+        // Only plan 0xBBBB's row is resolved so far; 0xAAAA's row for the
+        // same identity is still pending. A foreign pending row must not
+        // bind 0xBBBB's row while the identity is shared.
+        let resolutions = vec![resolution(
+            0xBBBB,
+            "InterruptEntry::enter",
+            &["MachineControl"],
+        )];
+        let publishers = roster(&[
+            ("InterruptEntry::enter", 0xAAAA),
+            ("InterruptEntry::enter", 0xBBBB),
+        ]);
+
+        assert!(
+            plan_scoped_resolution(&resolutions, &publishers, 0xCCCC, "InterruptEntry::enter")
+                .is_none()
+        );
+    }
+
+    /// A requirement nobody publishes resolves to nothing, which leaves the
+    /// pending row's nested reach unsubstituted for the rejection diagnostic.
+    #[test]
+    fn unpublished_identity_stays_unresolved() {
+        let resolutions = vec![resolution(0xAAAA, "InterruptEntry::enter", &["PortIo"])];
+        let publishers = roster(&[("InterruptEntry::enter", 0xAAAA)]);
+
+        assert!(
+            plan_scoped_resolution(&resolutions, &publishers, 0xAAAA, "Endpoint::step").is_none()
+        );
+    }
 }

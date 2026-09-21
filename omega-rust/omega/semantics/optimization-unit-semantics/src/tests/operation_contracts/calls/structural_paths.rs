@@ -66,6 +66,7 @@ fn rejects_structural_call_path_type_multiplicity_and_qualification_corruption()
     let mut qualified = baseline;
     let domain = id(343, semantic_vocabulary::StructuralDomainId::new);
     qualified.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: id(344, semantic_vocabulary::DomainSemanticId::new),
         identity: "validation::structural-call-domain".into(),

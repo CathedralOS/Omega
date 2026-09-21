@@ -185,6 +185,7 @@ pub(crate) fn emit_scalar_binding(
             };
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     id,
@@ -210,6 +211,7 @@ pub(crate) fn emit_scalar_binding(
             let negation = operations.allocate();
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: negation,
                 result: OperationResult::Scalar(ValueDeclaration {
                     id: negated_id,
@@ -233,6 +235,7 @@ pub(crate) fn emit_scalar_binding(
                     structural_type,
                 } => (
                     OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -253,6 +256,7 @@ pub(crate) fn emit_scalar_binding(
             };
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: producer,
                 result,
                 kind,

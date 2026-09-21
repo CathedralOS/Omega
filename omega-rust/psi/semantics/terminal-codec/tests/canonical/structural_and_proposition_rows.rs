@@ -9,8 +9,9 @@ use crate::canonical::{
     structural_type_id, value_id,
 };
 use semantic_vocabulary::{
-    IntegerValue, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
-    StructuralTypeId,
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceVersion,
+    ContentProjectionIdentity, ContentStructuralPlace, ContentTerm, IntegerValue, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use terminal_psi::{
@@ -697,6 +698,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
         1, 0, 0, 0, 0, 0, 0, 0, // ContractId(1)
         0, 0, 0, 0, // zero crash route buckets
         0, 0, 0, 0, // zero erased scalar formals
+        0, 0, 0, 0, // zero erased proof formals
         8, 0, 0, 0, // eight requirements
         1, 2, 3, // Truth, Falsehood, Atom
     ];
@@ -704,7 +706,7 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
         .windows(contract_prefix.len())
         .position(|window| window == contract_prefix)
         .expect("fixture contract prefix should be unique");
-    reordered_requirements.swap(contract_offset + 20, contract_offset + 21);
+    reordered_requirements.swap(contract_offset + 24, contract_offset + 25);
     assert_eq!(
         decode_module(&reordered_requirements),
         Err(CodecError::NonCanonicalOrder("requires propositions"))
@@ -842,6 +844,42 @@ fn scalar_term_nesting_has_a_total_bound() {
     );
 }
 
+#[test]
+fn content_term_nesting_has_a_total_bound() {
+    let mut module = fixture();
+    let leaf = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(70).expect("domain"),
+            projection_report_fingerprint: 0x7071,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: PlaceId::new(71).expect("place"),
+            segments: Vec::new(),
+        },
+    };
+    // Direct `Separate` construction keeps nested separations reachable for the
+    // guard, unlike the canonicalizing `ContentTerm::separate` constructor.
+    let mut term = leaf.clone();
+    for _ in 0..257 {
+        term = ContentTerm::Separate(vec![term, leaf.clone()]);
+    }
+    module.machines[0].contract.ensures[0].proposition =
+        Proposition::ContentConservation(ContentConservation::new(
+            ContentAlgebra {
+                kind: ContentAlgebraKind::CountedQuantity,
+                parameter: "Byte".to_owned(),
+            },
+            leaf,
+            term,
+        ));
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::ContentTermNestingTooDeep)
+    );
+}
+
 /// The record field an inline byte presentation projects, and the container
 /// field a nested presentation crosses before reaching it.
 const BYTE_FIELD: &str = "payload";
@@ -962,6 +1000,7 @@ fn boundary_inline_byte_module(
     }];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(901),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -1018,6 +1057,7 @@ fn ordinary_inline_byte_module(
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: callee.id,
         arguments: Vec::new(),
         structural_arguments,

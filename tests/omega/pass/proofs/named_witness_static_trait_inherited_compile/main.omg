@@ -1,0 +1,45 @@
+// A static named-witness requirement call whose requirement is declared on a
+// `requires` parent: the closed conformance to `Producer` satisfies the
+// inherited `Base::produce` row, and the dispatch keeps the parent's
+// declaring-trait identity.
+
+trait Evidence {
+}
+
+proposition ready() evidence Evidence;
+
+trait Base {
+    machine Self::produce() -> i32
+    requires public_in: ready()
+    ensures public_out: ready();
+}
+
+trait Producer {
+    requires Base;
+}
+
+data Token {
+}
+
+TokenProducer: Token satisfies Producer {
+    machine produce() -> i32
+    requires local_in: ready()
+    ensures public_out: ready()
+    {
+        public_out = local_in;
+        17i32
+    }
+}
+
+machine invoke<Element, Order: Element satisfies Producer>() -> i32
+requires incoming: ready()
+{
+    let (value; public_out: result) = Order::produce(; incoming);
+    value
+}
+
+machine caller() -> i32
+requires incoming: ready()
+{
+    invoke<Token, TokenProducer>(; incoming)
+}

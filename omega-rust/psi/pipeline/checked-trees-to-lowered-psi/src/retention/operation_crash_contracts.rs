@@ -801,4 +801,78 @@ mod tests {
             "a second install must not silently rewrite contracts: {error:?}"
         );
     }
+    /// A guarded float operator route now carries a structured scalar
+    /// proposition: `!(left == right)` over `f64` formals lowers to the atomic
+    /// scalar IEEE comparison, and `left != right` lowers without the negation.
+    /// Both use the operator's formal telescope (operand `k` is formal `k + 1`)
+    /// and the verifier accepts the installed row.
+    #[test]
+    fn crash_contract_installs_a_scalar_ieee_float_guard() {
+        use semantic_vocabulary::{
+            IeeeFloatComparisonKind, IeeeFloatFormat, Proposition, ScalarTerm, ScalarType, ValueId,
+        };
+        use terminal_psi::CrashRouteGuard;
+
+        let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+        let formal = |raw: u64| ScalarTerm::value(ValueId::new(raw).expect("formal"), float);
+        for (guard, kind) in [
+            ("!(left == right)", IeeeFloatComparisonKind::NotEqual),
+            ("left != right", IeeeFloatComparisonKind::NotEqual),
+            ("left == right", IeeeFloatComparisonKind::Equal),
+        ] {
+            let checked = checked(&format!(
+                "boundary operator == Float::equal(left: f64, right: f64) -> bool\n\
+                 crashes Trap {guard};\n\
+                 machine compare(left: f64, right: f64) -> bool crashes Trap {{ left == right }}"
+            ));
+            let lowered = crate::lower_machine(&checked, "compare")
+                .unwrap_or_else(|error| panic!("{guard} lowers: {error:?}"));
+            let [row] = lowered.semantic_module.operation_crash_contracts.as_slice() else {
+                panic!("{guard}: one float use installs one operation crash contract")
+            };
+            let [
+                terminal_psi::CrashRouteBucket {
+                    cause,
+                    alternatives,
+                },
+            ] = row.published_routes.as_slice()
+            else {
+                panic!("{guard}: one published route")
+            };
+            assert_eq!(*cause, terminal_psi::CrashCause::Trap);
+            let [CrashRouteGuard::Predicate(term)] = alternatives.as_slice() else {
+                panic!("{guard}: the guard is one predicate")
+            };
+            assert_eq!(
+                term.proposition(),
+                &Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format: IeeeFloatFormat::Binary64,
+                    left: formal(1),
+                    right: formal(2),
+                },
+                "{guard}: scalar IEEE comparison over the formal telescope"
+            );
+            terminal_verifier::validate_module(&lowered.semantic_module)
+                .unwrap_or_else(|error| panic!("{guard}: verifier accepts the row: {error:?}"));
+        }
+    }
+
+    /// IEEE ordering guards keep failing closed: `>=` on float formals has no
+    /// structured scalar form even though `==`/`!=` now lower.
+    #[test]
+    fn crash_contract_still_rejects_float_ordering_guards() {
+        let checked = checked(
+            "boundary operator == Float::equal(left: f64, right: f64) -> bool\n\
+             crashes Trap !(right >= 0.0);\n\
+             machine compare(left: f64, right: f64) -> bool crashes Trap { left == right }",
+        );
+        let error = crate::lower_machine(&checked, "compare")
+            .expect_err("an ordering guard has no structured scalar form");
+        assert!(
+            format!("{error:?}")
+                .contains("guarded crash route is outside structured scalar predicate lowering"),
+            "{error:?}"
+        );
+    }
 }

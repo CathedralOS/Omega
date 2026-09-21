@@ -131,6 +131,7 @@ pub(super) fn validate<'a>(
                 service_reach,
                 scalar_arguments,
                 erased_scalar_arguments: _,
+                erased_proof_arguments: _,
                 structural_arguments,
                 claim_transfers,
             } => {
@@ -426,6 +427,8 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {}
         }
     }

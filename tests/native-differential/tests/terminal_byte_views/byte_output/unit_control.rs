@@ -26,6 +26,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     selected.operations.truncate(1);
     let jump = |edge| Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(140).unwrap(),
         arguments: Vec::new(),
@@ -46,6 +47,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(132).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -62,6 +64,7 @@ pub(super) fn conditional_unit_byte_output_module() -> TerminalModule {
     continuation.operations.remove(0);
     let successor = |edge, target| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
         arguments: Vec::new(),

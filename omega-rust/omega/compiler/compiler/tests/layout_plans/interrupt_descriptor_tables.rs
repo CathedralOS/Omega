@@ -73,8 +73,9 @@ use executable_installation::{
 use extents::{
     AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappedExtent, MappingEraId, MappingGrant, MappingGrantId,
-    MappingId, MappingSourceMode, TranslationActivationFactId, TranslationActivationReceipt,
-    TranslationInstallObligations, TranslationReleaseObligations, map_owned,
+    MappingId, MappingSourceMode, PeerWriteRevocationObligations, TranslationActivationFactId,
+    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+    map_owned,
 };
 use external_roots::{
     AcknowledgementPolicyId, BoundEpochStackCompositionInput, ComponentArtifactId,
@@ -701,6 +702,7 @@ fn activated_table_mapping(seed: u64, base: u64, length: u64) -> MappedExtent<'s
         extent_identity(seed + 7000, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::from_normalized_facts([activation]),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         extent_grant(seed + 8000, 0x20_0000, length, rights.clone()),

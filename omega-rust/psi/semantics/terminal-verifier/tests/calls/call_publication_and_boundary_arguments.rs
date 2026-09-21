@@ -145,6 +145,7 @@ fn scalar_calls_publish_every_reachable_service() {
     module.machines[1].published_service_ceiling.push(service);
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: terminal_psi::OperationResult::Unit,
         kind: OperationKind::PortWrite {
@@ -186,6 +187,7 @@ fn installation_reach_dependencies_are_exact_closed_service_rows() {
 
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {
@@ -258,6 +260,7 @@ fn boundary_scalar_arguments_fail_closed_on_arity_definedness_and_type() {
     *boundary_arguments_mut(&mut undefined) = vec![value_id(2)];
     undefined.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Scalar(boolean_declaration(value_id(2))),
         kind: OperationKind::BooleanConstant { value: false },

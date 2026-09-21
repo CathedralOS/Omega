@@ -112,6 +112,9 @@ pub(super) struct MachineEmission<'a> {
     next_call_obligation: u64,
     operations: OperationBuffer,
     evaluation: argument_evaluation::Evaluation,
+    /// Open borrowed-storage repair windows on the current emission path.
+    /// Empty for bodies without move-out/restore statements.
+    borrowed_windows: crate::emission::borrowed_window::BorrowedWindowLedger,
     scalar_result_values: Vec<ValueDeclaration>,
     primitive_local_places: Vec<primitive_locals::PrimitiveLocal>,
     structural_result_places: Vec<(StructuralPlaceDeclaration, bool)>,
@@ -357,6 +360,7 @@ pub(super) fn emit(
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -427,6 +431,7 @@ pub(super) fn emit(
         scalar_parameter_count,
         claim_bindings: claim_bindings.clone(),
         next_claim: dense_identity(claim_bindings.len())?,
+        borrowed_windows: Default::default(),
         structural_types,
         type_ids,
         domain_ids,
@@ -484,8 +489,10 @@ pub(super) fn emit(
         literal_places,
         next_literal_argument,
         subslice_places,
+        borrowed_windows,
         ..
     } = emission;
+    borrowed_windows.require_closed()?;
 
     if next_literal_argument != call_literal_count {
         return unsupported("byte-sequence literal argument consumption is incomplete");
@@ -728,6 +735,7 @@ pub(super) fn emit(
         id: block,
         parameters: evaluation.parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: evaluation.block_structural_parameters,
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: if let Some((source, _)) = &scalar_return {
@@ -880,6 +888,10 @@ pub(super) fn emit(
             id: contract_id(terminal_machine.get()),
             crash_routes,
             erased_scalar_formals: signature.erased_scalar_parameters.clone(),
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &signature.erased_proof_parameters,
+                ),
             requires: signature.requires.clone(),
             ensures: normal_guarantees,
             outcome_specific_ensures: Vec::new(),
@@ -1164,6 +1176,12 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore { .. } => {
                 self.structural_scalar_field_store(operation)?
             }
+            CheckedUnitEffectOperationPlan::MoveStructuralField { .. } => {
+                self.move_structural_field(operation)?
+            }
+            CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
+                self.store_structural_field(operation)?
+            }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
                 return unsupported("Unit return is not the final checked operation");
@@ -1195,6 +1213,7 @@ impl MachineEmission<'_> {
         }
         self.operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: terminal_psi::OperationResult::Unit,
             kind,

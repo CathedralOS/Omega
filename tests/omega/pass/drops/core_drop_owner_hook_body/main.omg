@@ -1,0 +1,46 @@
+// The owner hook body is an ordinary Unit machine invoked as the cleanup
+// edge's action: it may read and write `self`, call helpers with arguments,
+// repeat calls, and reach nested helpers. `inspect-terminal` shows the
+// `drop<Guard>` specialization's `ReturnUnitNominalAffine` edge invoking
+// `Guard::drop`, whose own terminal body carries the receiver parameter, the
+// field load, the argumented call, the repeated call, and the field store.
+
+use omega::language::core::drop;
+
+machine sweep() {
+}
+
+data Ledger {
+}
+
+machine Ledger::note(amount: i32) {
+}
+
+machine Ledger::trace() {
+    sweep();
+}
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+    Ledger::note(self.handle);
+    Ledger::trace();
+    Ledger::trace();
+    self.handle = 0;
+}
+
+data Carrier {
+    payload: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+    let c: Carrier = Carrier { payload: 1 };
+    drop(g);
+    drop(c);
+}

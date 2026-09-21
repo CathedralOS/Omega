@@ -26,6 +26,8 @@ use syntax_trees::types::{
 };
 
 mod applications;
+#[cfg(test)]
+mod domain_application_tests;
 
 pub(super) fn collect_binder_mentions(
     syntax: &SyntaxTrees,
@@ -293,6 +295,14 @@ impl Solver<'_, '_> {
                 Ok(())
             }
             TypeReferenceNode::Generic { .. } => self.match_application(pattern, actual, span),
+            TypeReferenceNode::Constrained { constraints, .. }
+                if matches!(
+                    self.syntax.type_references.constraints(constraints),
+                    [TypeConstraintNode::Domain(_)]
+                ) =>
+            {
+                self.match_application(pattern, actual, span)
+            }
             _ => {
                 self.require_closed_pattern(pattern, span)?;
                 self.require_equal_type_structure(pattern, actual, span)
@@ -325,7 +335,7 @@ impl Solver<'_, '_> {
         Ok(())
     }
 
-    fn require_equal_type_structure(
+    pub(super) fn require_equal_type_structure(
         &self,
         expected: TypeReferenceHandle,
         actual: TypeReferenceHandle,
@@ -341,10 +351,27 @@ impl Solver<'_, '_> {
             (Some(_), Some(_)) => {
                 Err(self.type_structure_error("has conflicting element types", span))
             }
+            _ if self.application_shape(expected) || self.application_shape(actual) => {
+                self.require_equal_application_structure(expected, actual, span)
+            }
             _ => Err(self.type_structure_error(
                 "cannot decide an open or unsupported element type; supply explicit arguments",
                 span,
             )),
+        }
+    }
+
+    /// The shapes the constructor matcher can decompose without a closed
+    /// identity: a generic application, or a carrier carrying one declared
+    /// domain constraint.
+    fn application_shape(&self, reference: TypeReferenceHandle) -> bool {
+        match self.syntax.type_references.type_reference(reference) {
+            TypeReferenceNode::Generic { .. } => true,
+            TypeReferenceNode::Constrained { constraints, .. } => matches!(
+                self.syntax.type_references.constraints(*constraints),
+                [TypeConstraintNode::Domain(_)]
+            ),
+            _ => false,
         }
     }
 
@@ -424,6 +451,14 @@ impl Solver<'_, '_> {
                 )));
             }
             TypeReferenceNode::Generic { .. } => return self.construct_application(pattern, span),
+            TypeReferenceNode::Constrained { constraints, .. }
+                if matches!(
+                    self.syntax.type_references.constraints(constraints),
+                    [TypeConstraintNode::Domain(_)]
+                ) =>
+            {
+                return self.construct_application(pattern, span);
+            }
             _ => {}
         }
         self.require_closed_pattern(pattern, span)?;

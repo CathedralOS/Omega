@@ -295,3 +295,45 @@ Measured optimization targets in route order: the flow fixed-point sweep
 schedule, `check_call_requires`, `validate_specialized_program`, then the
 multiplicity/borrow/ranges trio (~250 s combined). Release-profile timings were
 not measured; no whole-route speedup is claimed for any phase.
+
+## Linux package-review route phase attribution
+
+On 2026-09-21, Linux x86-64 (Intel Xeon Platinum 8559C, 8 vCPUs, 31 GiB),
+cargo (mbx absent), worktree base `e9ae9dba24ad`, the same hosted-consumer
+review test ran with `Instant` timers appended at call sites — reverted after
+the run, probe cost ~µs per call:
+
+```sh
+RUST_MIN_STACK=67108864 cargo nextest run -p package-manager --test suite \
+  --no-fail-fast --success-output immediate-final \
+  -E 'test(=semantic_binding_review::macos_entry::target_entry_dependency_discovery_requires_explicit_consumer_acceptance)'
+```
+
+The route on this revision drives 36 `check_program` passes (each fires the
+counter set once) and took 3,123.725 s total — about 2.4–5.9× the recorded
+540–830 s routes on this slower shared host. Per-call counters split into 18
+small passes (application-sized) and 18 large passes (standard-library-sized):
+
+| Instrumented span | Route total | Share | Median per small pass | Median per large pass |
+| --- | ---: | ---: | ---: | ---: |
+| `build_check_facts` (whole fact construction) | 2,608.2 s | 83.5% | 4,434 ms | 126,874 ms |
+| `build_flow_facts_with_service_reaches` | 2,153.3 s | 68.9% | 1,914 ms | 105,945 ms |
+| `validate_typed_program` (whole check pass) | 498.9 s | 16.0% | 1,315 ms | 23,477 ms |
+| `validate_specialized_program` | 479.4 s | 15.4% | 1,272 ms | 22,549 ms |
+| `build_proof_plan` + `check_proof_plan` | 12.0 s | 0.4% | — | — |
+| `validate_behavior_plan` + call acknowledgements + boundary-value gate | 7.5 s | 0.2% | — | — |
+| `validate_atomic_result_custody` | ~0 s | 0.0% | — | — |
+
+This resolves the named residual above: `build_flow_facts` owns about 69% of
+the route — about 83% of the fact-construction phase — making it the dominant
+candidate by an order of magnitude on Linux. `validate_specialized_program`
+owns 15.4% (nearly all of `validate_typed_program`'s 16.0%). Fact construction
+outside flow construction accounts for the remaining ~14.6%; every other
+measured leg is under half a percent, consistent with the earlier finding that
+crash-guard classification (~0.15%) is a minor share. Non-checking route
+overhead (resolution, compile orchestration, review joins) is the residual
+~0.5%. One instrumented run, no repeat; shares are the recordable result since
+per-call medians dominate within their bands by 50–100× the small/large split,
+and run-to-run variance on this class of host is far below the 4:1 phase
+separation. No optimization target is chosen by this measurement alone;
+`build_flow_facts` internals are the next attribution leg.

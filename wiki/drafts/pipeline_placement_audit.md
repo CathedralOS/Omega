@@ -6,6 +6,9 @@ which ownership bucket each retained construct sits in, not whether the
 construct itself is correct. A finding means the code lives in the wrong
 bucket; it does not mean the code is wrong.
 
+Re-swept at `be496d9a90` — see [Re-sweep](#re-sweep-at-be496d9a90) and
+[Rulings](#rulings) below.
+
 ## Method
 
 - `rg 'pub struct \w*Identity'` over every `omega-rust/*/pipeline/` `src/`
@@ -74,3 +77,78 @@ borderline semantics-side wire-codec files (`checked-interpreter`,
 `validation`) should get a written ruling on whether "evaluator models the
 wire call's semantics" satisfies the table, so the exception is recorded once
 rather than re-audited each sweep.
+
+## Re-sweep at `be496d9a90`
+
+Same method, same commands. Deltas against the `37d18e2104` picture:
+
+**Resolved since the sweep**
+
+- `allocation_recovery/fixed_view_copy/codec/` — the ~50-file durable codec
+  subtree moved out of the rewrite to
+  `representations/register-homes/src/register_homes/recovery/fixed_view_copy/codec/`.
+  Row-1 satisfied; drop it from DURABLE-CODEC-RELOCATION's leg (3).
+
+**Still open (unchanged substance)**
+
+- `selected_lowering/literal_fold/identity.rs` — still the lone
+  `LiteralFoldIdentity` Sha256 producer inside the transform.
+- `unsequenced_spill_stages/` — 17 families (was 18); each retained family's
+  `model.rs` still defines a `*Identity` newtype with a Sha256 `identity.rs`.
+- `logical_spill_operations/codec/` — moved within the same crate from
+  `unsequenced_spill_stages/` to `assignment/`; still a durable codec inside
+  the pipeline crate, path updated.
+- `assignment/post_allocation_manifest/{model,codec}.rs`,
+  `preservation/identity.rs`, `native-realization/optimized_semantic_wrapper_object/`,
+  `psi/semantics/terminal-codec/` — all still where the sweep found them.
+
+**New finding**
+
+- `psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
+  `CheckedTreeProductSelectionIdentity([u8; 32])` newtype plus a `Sha256`
+  producer inside the transform. Row-1 violation; add to the
+  DURABLE-CODEC-RELOCATION leg list (move to `representations/typed-trees` or
+  the checked-trees representation crate).
+
+**Reviewed, not row-1 hits** (name-shape matches, different semantics)
+
+- `abstract-operations-to-abstract-operations/.../global_value_numbering/identities/*`
+  and `proof_check_elision/scalar_identities.rs` — `*IdentityRule` structs are
+  algebraic rule names, not durable content identities; no Sha256 producer.
+- `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs` —
+  `LoweredContentIdentityReshuffles` is transform working state (private
+  bookkeeping a pipeline crate may own), not a durable identity newtype.
+- `checked-interpreter/src/filesystem_sponsor.rs` `NEXT_ACCOUNT_ID:
+  AtomicU64` — synthetic account-ID mint inside the interpreter's filesystem
+  simulation, i.e. modeled program state, not a compile-phase allocation
+  counter; `tooling/artifacts` owns telemetry counters, this is not one.
+
+All previously clean rows re-verified clean: zero `psi/`→`omega-*` manifest
+deps, zero `rewrite_/optimize_/lower_` under either `representations/`, zero
+`Arena`/`Interner` under `omega-rust/omega/`, every `pipeline/` member still
+`X-to-Y`/`X-to-X`.
+
+## Rulings
+
+Recorded once per the residual-risk note; future sweeps cite these rather
+than re-audit.
+
+- **`checked-interpreter/src/interpreter/evaluator/wire_codec.rs` —
+  satisfies the table.** The evaluator arm *is* the semantic definition of
+  the `Schema::encode` machine call (era discriminator varint, field-number
+  order, bounded write). `semantics/` owns language meaning; this is meaning.
+  The durable wire framing primitives it sequences (`WireFieldEncoding`,
+  `wire_varint_bytes`) already live in `typed_trees::wire`, so row 1's codec
+  ownership is intact — the interpreter contributes the call's evaluation,
+  not a second wire format.
+- **`validation/src/machine_calls/calls/write_frames/wire_codecs.rs` —
+  satisfies the table.** It derives write frames for the synthesized
+  `Schema::encode`/`decode` calls — custody validation of arguments, squarely
+  the `semantics/` bucket. Same distinction as above: the durable schema and
+  framing vocabulary live in `typed_trees`; this leaf judges the call.
+- **Boundary rule for future findings:** row 1 covers codecs that persist or
+  transport a *compiler artifact* (representation round-trip formats).
+  Implementations of a *language-level* wire encode/decode call — its
+  evaluation in the interpreter and its validation — are semantics-side even
+  though they emit bytes, because the emitted format is a user-program
+  construct whose canonical primitives already live in representations.

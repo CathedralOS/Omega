@@ -19,8 +19,10 @@ use symbols::SymbolHandle;
 pub enum ProofOnlyReason {
     /// The compiler's unbounded mathematical integer has no runtime layout.
     Integer,
-    /// An N6 quotient is an equivalence class with no runtime representative.
-    Quotient,
+    /// An N6 quotient is stored as its carrier's canonical representative, so
+    /// it is proof-only exactly when the carrier is (the equivalence class
+    /// cannot materialize a representative whose own type has no layout).
+    Quotient { carrier: Identifier },
     /// The definition reaches itself through inline fields.
     Recursive,
     /// A field (or case payload field) holds a proof-only type inline.
@@ -49,8 +51,8 @@ impl ProofOnlyClassification {
             ProofOnlyReason::Integer => {
                 format!("`{name}` is proof-only: mathematical integers have no runtime layout")
             }
-            ProofOnlyReason::Quotient => {
-                format!("`{name}` is proof-only: quotient data has no representative layout")
+            ProofOnlyReason::Quotient { carrier } => {
+                format!("`{name}` is proof-only: quotient carrier holds proof-only `{carrier}`")
             }
             ProofOnlyReason::Recursive => {
                 format!("`{name}` is proof-only: recursive data has no layout")
@@ -71,42 +73,53 @@ impl ProofOnlyClassification {
         program: &TypedTrees,
         type_reference: TypeReferenceHandle,
     ) -> Option<Identifier> {
-        if !type_reference.is_valid() {
-            return None;
+        proof_only_mention_in(&self.reasons, program, type_reference)
+    }
+}
+
+/// The `proof_only_mention` walk against a reason table still being computed
+/// -- `classify` resolves quotient carriers through it inside the contagion
+/// fixpoint, before a `ProofOnlyClassification` exists to call the method on.
+fn proof_only_mention_in(
+    reasons: &HashMap<u32, ProofOnlyReason>,
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<Identifier> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, name } => reasons
+            .contains_key(&symbol.arena_index())
+            .then(|| name.clone()),
+        TypeReferenceNode::Reference { referee, .. } => {
+            proof_only_mention_in(reasons, program, *referee)
         }
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, name } => {
-                self.is_proof_only(*symbol).then(|| name.clone())
-            }
-            TypeReferenceNode::Reference { referee, .. } => {
-                self.proof_only_mention(program, *referee)
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                self.proof_only_mention(program, *base_type)
-            }
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => {
-                self.proof_only_mention(program, *element_type)
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                arguments,
-                ..
-            } => {
-                if self.is_proof_only(*base_symbol) {
-                    return Some(base_name.clone());
-                }
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .find_map(|argument| self.proof_only_mention(program, *argument))
-            }
-            TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Unit => None,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            proof_only_mention_in(reasons, program, *base_type)
         }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            proof_only_mention_in(reasons, program, *element_type)
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } => {
+            if reasons.contains_key(&base_symbol.arena_index()) {
+                return Some(base_name.clone());
+            }
+            program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .find_map(|argument| proof_only_mention_in(reasons, program, *argument))
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => None,
     }
 }
 
@@ -271,14 +284,6 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
         }
     }
 
-    // Quotients are proof-only by construction: an equivalence class does not
-    // expose or store a chosen representative.
-    for definition in definitions {
-        if definition.quotient.is_some() {
-            reasons.insert(definition.symbol.arena_index(), ProofOnlyReason::Quotient);
-        }
-    }
-
     // Recursion seeds: definitions that can reach themselves.
     for (start, definition) in definitions.iter().enumerate() {
         if reaches(start, start, &edges) {
@@ -287,7 +292,10 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
     }
 
     // Contagion fixpoint: holding a proof-only type inline makes the holder
-    // proof-only.
+    // proof-only. Quotients realize through their carrier's representative, so
+    // a quotient is proof-only exactly when its carrier is -- resolved in the
+    // same loop because the carrier may itself be a quotient (chained
+    // equivalence classes) or hold proof-only content.
     loop {
         let mut changed = false;
         for (index, definition) in definitions.iter().enumerate() {
@@ -304,6 +312,16 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
                         field: field.clone(),
                         held: held.clone(),
                     },
+                );
+                changed = true;
+                continue;
+            }
+            if let Some(quotient) = definition.quotient.as_ref()
+                && let Some(carrier) = proof_only_mention_in(&reasons, program, quotient.carrier)
+            {
+                reasons.insert(
+                    definition.symbol.arena_index(),
+                    ProofOnlyReason::Quotient { carrier },
                 );
                 changed = true;
             }

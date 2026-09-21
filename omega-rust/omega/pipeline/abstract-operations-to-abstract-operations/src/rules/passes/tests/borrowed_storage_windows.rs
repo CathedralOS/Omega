@@ -102,8 +102,10 @@ fn structural_types() -> Vec<StructuralTypeDeclaration> {
 fn extract(operation: u64, result: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(operation),
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id::<PlaceId>(result),
             structural_type: cell(),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -123,6 +125,7 @@ fn extract(operation: u64, result: u64) -> Operation {
 fn repair(operation: u64, value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(operation),
         result: OperationResult::Unit,
         kind: OperationKind::StoreStructuralField {
@@ -186,6 +189,7 @@ fn window_machine(blocks: Vec<Block>) -> TerminalMachine {
         blocks,
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id::<ContractId>(60),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -235,6 +239,7 @@ fn module(machine: TerminalMachine) -> TerminalModule {
 fn window_module() -> TerminalModule {
     module(window_machine(vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id::<BlockId>(20),
         parameters: Vec::new(),
@@ -252,6 +257,7 @@ fn window_module() -> TerminalModule {
 fn cycle_machine() -> TerminalMachine {
     let successor = |edge, target, arguments| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: id::<EdgeId>(edge),
         target: id::<BlockId>(target),
         arguments,
@@ -282,12 +288,14 @@ fn cycle_machine() -> TerminalMachine {
         blocks: vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(71),
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     edge: id::<EdgeId>(72),
                     target: id::<BlockId>(73),
                     arguments: vec![id::<ValueId>(80)],
@@ -298,6 +306,7 @@ fn cycle_machine() -> TerminalMachine {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(73),
                 parameters: vec![ValueDeclaration {
@@ -307,6 +316,7 @@ fn cycle_machine() -> TerminalMachine {
                 }],
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id::<OperationId>(74),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -325,6 +335,7 @@ fn cycle_machine() -> TerminalMachine {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: id::<BlockId>(77),
                 parameters: Vec::new(),
@@ -337,6 +348,7 @@ fn cycle_machine() -> TerminalMachine {
         ],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id::<ContractId>(79),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -352,6 +364,7 @@ fn cycle_machine() -> TerminalMachine {
 fn window_cycle_module() -> TerminalModule {
     let mut combined = module(window_machine(vec![Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id::<BlockId>(20),
         parameters: Vec::new(),
@@ -506,7 +519,7 @@ fn budget() -> OptimizationWorkBudget {
 
 /// Every Psi selection the pass catalog owns. `PSI_PASS_CATALOG` order is the
 /// canonical schedule order.
-const PSI_SELECTIONS: [Optimization; 7] = [
+const PSI_SELECTIONS: [Optimization; 8] = [
     Optimization::SparseConditionalConstantPropagation,
     Optimization::ControlFlowCleanup,
     Optimization::CopyPropagation,
@@ -514,6 +527,7 @@ const PSI_SELECTIONS: [Optimization; 7] = [
     Optimization::ProofCheckElision,
     Optimization::DeadPureScalarElimination,
     Optimization::StateSpecialization,
+    Optimization::RepresentationSpecialization,
 ];
 
 #[test]

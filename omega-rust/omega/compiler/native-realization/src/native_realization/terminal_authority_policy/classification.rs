@@ -111,6 +111,9 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmWriteCr0
         | BuiltinFunction::AsmWriteCr3
         | BuiltinFunction::AsmWriteCr4
+        | BuiltinFunction::AsmWriteBackInvalidate
+        | BuiltinFunction::AsmInvalidate
+        | BuiltinFunction::AsmWriteBackNoInvalidate
         | BuiltinFunction::AsmReadSctlrEl1
         | BuiltinFunction::AsmReadTcrEl1
         | BuiltinFunction::AsmReadTtbr0El1
@@ -142,6 +145,11 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmInstructionSyncBarrier
         | BuiltinFunction::AsmSpinPause
         | BuiltinFunction::AsmYieldHint
+        | BuiltinFunction::AsmNop
+        | BuiltinFunction::AsmWaitForEvent
+        | BuiltinFunction::AsmWaitForInterrupt
+        | BuiltinFunction::AsmSendEvent
+        | BuiltinFunction::AsmSendEventLocal
         | BuiltinFunction::AsmSnapshotFlags
         | BuiltinFunction::FloatIsNan
         | BuiltinFunction::FloatMultiplyThenAddF32

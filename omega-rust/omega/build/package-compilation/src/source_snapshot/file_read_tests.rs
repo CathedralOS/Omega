@@ -234,3 +234,17 @@ fn file_read_rejects_path_replacement_while_original_handle_is_open() {
     assert_eq!(consumed, bytes, "reads retain the originally opened handle");
     assert!(error.contains("changed"), "{error}");
 }
+
+/// The three drift-rejection legs above depend on unix inode identity,
+/// kernel-managed change time, and unlinking a path while a handle stays
+/// open; none of those semantics exist on this host. Record the absent
+/// coverage explicitly rather than letting a non-unix run drop it silently.
+#[cfg(not(unix))]
+#[test]
+fn unix_drift_rejection_legs_recorded_as_unavailable_on_this_host() {
+    eprintln!(
+        "SKIP: replacement/in-place-restore/open-handle path-substitution \
+         rejection coverage requires a unix host (inode identity and kernel \
+         change time)"
+    );
+}

@@ -169,7 +169,7 @@ fn parameter_relative_place_origins_in(
             })
             .collect()
         }
-        ExpressionNode::Member(member) => parameter_relative_place_origins_in(
+        ExpressionNode::Member(member) => match parameter_relative_place_origins_in(
             program,
             current_machine,
             member.receiver,
@@ -178,20 +178,36 @@ fn parameter_relative_place_origins_in(
             symbols,
             inference,
             admit_carrier_roots,
-        )?
-        .into_iter()
-        .map(|mut origin| {
-            if origin.place.precision == FramePathPrecision::Exact {
-                origin.place.path = format!("{}.{}", origin.place.path, member.member.as_str());
-            }
-            origin.place.source =
-                origin
-                    .place
-                    .source
-                    .projected(program, expression, member.receiver);
-            origin
-        })
-        .collect(),
+        ) {
+            Some(origins) => origins
+                .into_iter()
+                .map(|mut origin| {
+                    if origin.place.precision == FramePathPrecision::Exact {
+                        origin.place.path =
+                            format!("{}.{}", origin.place.path, member.member.as_str());
+                    }
+                    origin.place.source =
+                        origin
+                            .place
+                            .source
+                            .projected(program, expression, member.receiver);
+                    origin
+                })
+                .collect(),
+            // A member off an owned aggregate call result names a leaf inside
+            // fresh result storage, never the call's own place: `helper(..).slot`
+            // lends the leaf's proven referents, re-rooted on this machine's
+            // parameters.
+            None => parameter_relative_aggregate_leaf_origins(
+                program,
+                current_machine,
+                expression,
+                parameters,
+                symbols,
+                inference,
+                admit_carrier_roots,
+            )?,
+        },
         ExpressionNode::Name(_) => parameter_relative_name_origins(
             program,
             current_machine,
@@ -332,6 +348,46 @@ fn parameter_relative_name_origins(
             })
             .collect(),
     )
+}
+
+/// A member chain off a call returning an owned aggregate names a leaf inside
+/// fresh result storage, never the call's own place: `helper(..).slot` lends
+/// the leaf's proven referents. Each referent must re-root on a declared
+/// parameter; private or unresolvable storage stays opaque.
+fn parameter_relative_aggregate_leaf_origins(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    admit_carrier_roots: bool,
+) -> Option<Vec<ParameterRelativeFrameOrigin>> {
+    let origins = reference_origins::projected_carrier_reference_origins(
+        program,
+        current_machine,
+        expression,
+        symbols,
+        inference,
+    )?;
+    origins
+        .into_iter()
+        .map(|origin| {
+            let (root, _) = split_place_root(&origin.path);
+            parameters
+                .iter()
+                .find(|parameter| {
+                    (origin.source.root == parameter.symbol
+                        || (parameter.is_self && root == "self"))
+                        && (admit_carrier_roots
+                            || type_reference_is_reference(program, parameter.type_reference))
+                })
+                .map(|parameter| ParameterRelativeFrameOrigin {
+                    place: origin,
+                    parameter_symbol: parameter.symbol,
+                })
+        })
+        .collect()
 }
 
 /// One candidate per proven callee-result route. Each candidate instantiates

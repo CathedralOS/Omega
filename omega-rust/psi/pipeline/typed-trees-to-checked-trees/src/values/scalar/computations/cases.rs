@@ -19,11 +19,7 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        let machine = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == self.machine)?;
+        let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
         let state = self
             .program
             .machine_states(machine)

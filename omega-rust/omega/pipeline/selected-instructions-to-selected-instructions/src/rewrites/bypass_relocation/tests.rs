@@ -1,7 +1,7 @@
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
     SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
@@ -27,40 +27,7 @@ use super::{
     BypassRelocationError, BypassRelocationReceipt, ValidatedBypassRelocation,
     relocate_selected_instruction_through_bypass, validate_bypass_relocation,
 };
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
 const MOVING: SelectedInstructionId = SelectedInstructionId(3);
@@ -1809,8 +1776,10 @@ fn memory_roster_binds_the_window() {
 /// inside the source block's executed prefix, and one positioned past the
 /// landing index observes it inside the join's — both refuse, while
 /// positions at or before either boundary keep the executed set they
-/// always had. A settlement inside the arm never observed the member: the
-/// member never enters the arm's body, so every arm prefix is unchanged.
+/// always had. A settlement inside the crossed arm refuses too: the
+/// member runs after the arm's point after the move where it ran before
+/// it before, so every arm prefix changes which side of it the member
+/// executed on.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
@@ -1830,15 +1799,19 @@ fn boundary_settlements_bound_the_window() {
             "source-block settlement at {position}"
         );
     }
-    // The member never enters the arm's body: no arm prefix ever contained
-    // or loses it, so a settlement anywhere in the arm admits.
+    // The arm's whole body is crossed: the member moved past it observes a
+    // changed executed prefix at every arm position, so each refuses.
     for position in [0u32, 1, 2] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        relocate(&settled, &environment, MOVING, HEAD).unwrap();
+        assert_eq!(
+            relocate(&settled, &environment, MOVING, HEAD).unwrap_err(),
+            BypassRelocationError::UnsupportedPair,
+            "arm settlement at {position}"
+        );
     }
     // In the join block the bound is the landing index: at or before it
     // the executed prefix is unchanged; past it the member joins the
@@ -2049,28 +2022,31 @@ fn target_mismatch_rejects() {
 }
 
 /// The bounded audit is measured: the bypass window prices every scan,
-/// crossed-surface pair, and roster row against the work budget, and a
-/// budget one step short refuses rather than skimping. The head landing
-/// crosses the member's own tail, the branch with its two edges, and the
-/// arm with its terminator and edge — thirteen crossed-surface pairs — and
-/// naming `MID` lands the member one position deeper, adding the join
-/// head's pair.
+/// crossed-surface pair, successor edge, path-walk bound, and roster row
+/// against the work budget, and a budget one step short refuses rather
+/// than skimping. The head landing crosses the member's own tail, the
+/// branch with its two edges, and the arm with its terminator and edge —
+/// three crossed positions and three crossed edges — and naming `MID`
+/// lands the member one position deeper, adding the join head's pair.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
     // Each block contributes its body plus its terminator once to the
-    // whole-function scan and once to this function's blocks: 11 + 11.
-    // The crossed surfaces pair the member (1) against TRAIL (1), the arm
-    // body (1 each), the arm `Jump` terminator (1 use + 1 definition on
-    // x86-64), and the branch terminator (2 uses + 1 definition):
-    // 2+2+2+3+4 = 13 steps.
-    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */ + 13;
-    let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
+    // whole-function scan and once to this function's blocks: 11 + 11,
+    // then one step per successor edge: 2 + 1 + 0. The path walk prices
+    // the branch-edge bound: 2 * 2. The crossed positions pair the member
+    // (1) against TRAIL (1) and the arm body (1 each): 3 * 2 = 6. The
+    // crossed edges pair the member (1) against the branch terminator
+    // (2 uses + 1 definition on x86-64) on both branch edges and the arm's
+    // `Jump` terminator (1 use + 1 definition): 4 + 4 + 3 = 11.
+    let steps: u64 = 11 /* whole plan */ + 11 /* this function's blocks */
+        + 3 /* successor edges */ + 4 /* path-walk bound */ + 6 + 11;
+    let exact = measured_step_budget(steps);
     relocate_selected_instruction_through_bypass(&source, 0, MOVING, HEAD, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps - 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps - 1);
     assert_eq!(
         relocate_selected_instruction_through_bypass(
             &source,
@@ -2083,11 +2059,11 @@ fn measured_validation_step_boundary() {
         .unwrap_err(),
         BypassRelocationError::WorkBudgetExceeded
     );
-    // Landing at `MID` crosses one more surface pair — the join head.
-    let exact = OptimizationWorkBudget::new(1, 1, steps + 2, 1, 1).unwrap();
+    // Landing at `MID` crosses one more position pair — the join head.
+    let exact = measured_step_budget(steps + 2);
     relocate_selected_instruction_through_bypass(&source, 0, MOVING, MID, &environment, exact)
         .unwrap();
-    let starved = OptimizationWorkBudget::new(1, 1, steps + 1, 1, 1).unwrap();
+    let starved = measured_step_budget(steps + 1);
     assert_eq!(
         relocate_selected_instruction_through_bypass(
             &source,
@@ -2178,4 +2154,278 @@ fn bypass_relocation_is_deterministic_and_re_admitted() {
             .collect::<Vec<_>>(),
         vec![MOVING, HEAD, TAIL, MID]
     );
+}
+
+/// The validator proves its legality reconstruction is its own: a forged
+/// proposal — the same edit a producer would publish — is produced
+/// directly on the source's plan without consulting admission, so the
+/// validator's verdict cannot ride on the producer's admission record. A
+/// legal forged move validates; forged moves the producer's gates would
+/// refuse fail with the legality error, not a replay mismatch.
+mod independence_tests {
+    use super::{
+        BLOCK_J, BLOCK_T, BypassRelocationError, HEAD, MID, MOVING, NativeTarget, OperationId,
+        POINTER, PlaceId, R_HEAD, R_MOVE, R_TTAIL, RET, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccessRole, T_TAIL,
+        ValidatedBypassRelocation, access, baseline_target_register_environment, budget, fixture,
+        instruction, mutated, settlement, validate_bypass_relocation,
+    };
+
+    /// Relocate `member` out of the head onto `landing_index` inside the
+    /// join block's body — the edit a producer emitting that relocation
+    /// would publish — without asking admission whether the window is
+    /// legal.
+    fn forged(
+        source: &ValidatedBypassRelocation,
+        member: SelectedInstructionId,
+        landing_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let (block_index, member_index) = function
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block_index, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.id == member)
+                    .map(|member_index| (block_index, member_index))
+            })
+            .unwrap();
+        let instruction = function.blocks[block_index]
+            .instructions
+            .remove(member_index);
+        let join_index = function
+            .blocks
+            .iter()
+            .position(|block| block.id == BLOCK_J)
+            .unwrap();
+        function.blocks[join_index]
+            .instructions
+            .insert(landing_index, instruction);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the member and the crossed positions carry no hazards,
+    /// no roster rows, and no barriers, so the audit derives the move and
+    /// the content comparison accepts it.
+    #[test]
+    fn forged_member_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_bypass_relocation(
+            &source,
+            0,
+            MOVING,
+            HEAD,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 0),
+        )
+        .unwrap();
+    }
+
+    /// The same forged move validates at the body end: naming the join's
+    /// terminator-carried return instruction lands the member past every
+    /// body position, and the validator derives that landing itself.
+    #[test]
+    fn forged_member_move_to_the_body_end_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_bypass_relocation(
+            &source,
+            0,
+            MOVING,
+            RET,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 3),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the member moved past a crossed position reading the
+    /// register it defines — here `HEAD` mutated to read `R_MOVE`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`, not
+    /// a replay mismatch, because it reconstructs the window's hazards
+    /// instead of trusting the producer's admission record.
+    #[test]
+    fn forged_member_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[2].instructions[0] = instruction(
+                HEAD,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE, R_HEAD],
+            );
+        });
+        assert_eq!(
+            validate_bypass_relocation(
+                &source,
+                0,
+                MOVING,
+                MID,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 1),
+            )
+            .unwrap_err(),
+            BypassRelocationError::UnsupportedPair
+        );
+        // Landing the member at `HEAD`'s position keeps the coupled `HEAD`
+        // behind it as the source had it, so the validator's audit derives
+        // that window legal as well.
+        validate_bypass_relocation(
+            &source,
+            0,
+            MOVING,
+            HEAD,
+            &environment,
+            budget(),
+            forged(&source, MOVING, 0),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a second memory actor anyway would publish
+    /// the member moved across an arm position that also carries roster
+    /// rows — the recorded accesses' order would change, so the
+    /// validator's own accounting refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_member_past_a_second_memory_actor_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[1] = instruction(
+                MOVING,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, R_MOVE],
+            );
+            function.memory_accesses.push(access(
+                MOVING,
+                PlaceId::new(1).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+            let store = environment
+                .constraint(environment.selected_keys().store.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[1] = instruction(
+                T_TAIL,
+                SelectedInstructionKind::Store {
+                    byte_offset: 0,
+                    byte_size: 8,
+                },
+                &store,
+                &[POINTER, R_TTAIL],
+            );
+            function.memory_accesses.push(access(
+                T_TAIL,
+                PlaceId::new(2).unwrap(),
+                SelectedMemoryAccessRole::WritePlace,
+            ));
+        });
+        assert_eq!(
+            validate_bypass_relocation(
+                &source,
+                0,
+                MOVING,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 0),
+            )
+            .unwrap_err(),
+            BypassRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a settled window anyway would publish the
+    /// member moved across a boundary settlement inside a crossed arm —
+    /// the member executes after the arm's point after the move where it
+    /// ran before it before, so the validator's own audit refuses with
+    /// `UnsupportedPair`.
+    #[test]
+    fn forged_member_past_an_interior_settlement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function
+                .boundary_settlements
+                .push(settlement(BLOCK_T, 1, 51));
+        });
+        assert_eq!(
+            validate_bypass_relocation(
+                &source,
+                0,
+                MOVING,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, MOVING, 0),
+            )
+            .unwrap_err(),
+            BypassRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal that leaves the named member unmoved is a
+    /// proposal for a different (absent) rewrite: no position in the join
+    /// carries the member, so the window content comparison rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_bypass_relocation(
+                &source,
+                0,
+                MOVING,
+                HEAD,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            BypassRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged member move plus an unrelated extra edit still fails
+    /// restore: the member sits at the landing index, but the drifted
+    /// instruction in an arm keeps the restore-by-content comparison
+    /// from reproducing the source.
+    #[test]
+    fn forged_window_with_drifted_content_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, MOVING, 0);
+        proposed.functions[0].blocks[1].instructions[1]
+            .provenance
+            .operations = vec![OperationId::new(77).unwrap()];
+        assert_eq!(
+            validate_bypass_relocation(&source, 0, MOVING, HEAD, &environment, budget(), proposed,)
+                .unwrap_err(),
+            BypassRelocationError::ReplayMismatch
+        );
+    }
 }

@@ -82,6 +82,7 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
                 AbstractOperation::ByteSequenceSubslice {
                     psi_operation: OperationId::new(2).unwrap(),
                     result: StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: derived,
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
