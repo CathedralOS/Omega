@@ -42,10 +42,15 @@
 //! arguments: every in-closure call site feeding that parameter contributes
 //! its exact selection or rebound descriptor, so the dispatch's admitted
 //! target set is the resolved realization of each supplied conformance
-//! application. A parameter the module's entries can still receive from the
-//! host, a feed missing its descriptor row, or a source whose retained
-//! conformance application cannot name the requirement's realization leaves
-//! the site an evidence gap.
+//! application. A dispatch the catalog cannot settle stays unenumerated —
+//! a descriptor dispatch with no retained realization row, a parameter the
+//! module's entries can still receive from the host, a feed missing its
+//! descriptor row, or a source whose retained conformance application
+//! cannot name the requirement's realization. An unenumerated site is
+//! bounded by the operation's retained crash contract: an excluded crash
+//! cause in it is a prohibited site, and the closed bucket list decides
+//! crash-only exclusion sets; service and physical-authority reach stay
+//! unenumerated and remain gaps.
 //!
 //! The build authoring surface is `builder.exclude_crash(CrashCause::X)`, a
 //! toolchain Build machine recorded only when executed against the original
@@ -78,8 +83,8 @@ use semantic_vocabulary::{BlockId, BoundaryMachineId, MachineId, OperationId, Se
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    CrashCause, OperationKind, ProviderCandidateConformance, TerminalDynamicDescriptorSource,
-    TerminalMachine, TerminalModule, Terminator,
+    CrashCause, CrashRouteBucket, OperationKind, ProviderCandidateConformance,
+    TerminalDynamicDescriptorSource, TerminalMachine, TerminalModule, Terminator,
 };
 
 /// One exact exclusion selected by the build root.
@@ -283,6 +288,13 @@ pub enum ProhibitedSite {
         block: BlockId,
         operation: OperationId,
         boundary: BoundaryMachineId,
+    },
+    /// A bounded dynamic dispatch whose retained crash contract includes the
+    /// excluded cause. The target set stays unenumerated; the contract is the
+    /// bound on possible crash behavior.
+    DynamicCall {
+        block: BlockId,
+        operation: OperationId,
     },
     PortWrite {
         block: BlockId,
@@ -550,13 +562,15 @@ pub fn establish_behavior_exclusions_with_owners(
                 match parameter_dispatch_targets(module, &feeds, site) {
                     ParameterDispatchVerdict::Pending => {}
                     ParameterDispatchVerdict::Gap => {
-                        report.gaps.push(EvidenceGap {
+                        bound_unenumerated_dynamic_call(
+                            &site.crash_continuations,
+                            exclusions,
                             entry,
-                            machine: site.machine,
-                            block: Some(site.block),
-                            operation: Some(site.operation),
-                            kind: EvidenceGapKind::DynamicCall,
-                        });
+                            site.machine,
+                            site.block,
+                            site.operation,
+                            &mut report,
+                        );
                         gapped_sites.insert(site.operation);
                     }
                     ParameterDispatchVerdict::Targets(targets) => {
@@ -602,6 +616,47 @@ struct ParameterDispatchSite {
     operation: OperationId,
     parameter_ordinal: u32,
     requirement_slot: u32,
+    crash_continuations: Vec<CrashRouteBucket>,
+}
+
+/// Bound one dynamic dispatch the walk could not enumerate by its retained
+/// crash contract, exactly like a boundary's declared crash routes: an
+/// excluded cause is a prohibited site, and the closed bucket list decides
+/// crash-only exclusion sets. Service and physical-authority reach stay
+/// unenumerated, so the site remains an evidence gap while either kind of
+/// exclusion is selected — and an empty contract bounds nothing, so it is
+/// always a gap.
+fn bound_unenumerated_dynamic_call(
+    crash_continuations: &[CrashRouteBucket],
+    exclusions: &BehaviorExclusions,
+    entry: MachineId,
+    machine: MachineId,
+    block: BlockId,
+    operation: OperationId,
+    report: &mut BehaviorExclusionReport,
+) {
+    for bucket in crash_continuations {
+        if exclusions.excludes_crash_cause(bucket.cause) {
+            report.prohibited.push(ProhibitedBehavior {
+                exclusion: BehaviorExclusion::CrashCause(bucket.cause),
+                entry,
+                machine,
+                site: ProhibitedSite::DynamicCall { block, operation },
+            });
+        }
+    }
+    if crash_continuations.is_empty()
+        || !exclusions.services().is_empty()
+        || !exclusions.physical_authority_classes().is_empty()
+    {
+        report.gaps.push(EvidenceGap {
+            entry,
+            machine,
+            block: Some(block),
+            operation: Some(operation),
+            kind: EvidenceGapKind::DynamicCall,
+        });
+    }
 }
 
 /// What one in-closure call edge supplies to one callee parameter: the exact
@@ -1107,7 +1162,14 @@ fn inspect_machine<'module>(
                         });
                     }
                 }
-                OperationKind::CallDynamicScalar { .. } | OperationKind::CallDynamicUnit { .. } => {
+                OperationKind::CallDynamicScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicUnit {
+                    crash_continuations,
+                    ..
+                } => {
                     match dynamic_dispatch_realization(module, machine.id, operation.id) {
                         Some(realization) => {
                             match module
@@ -1125,23 +1187,27 @@ fn inspect_machine<'module>(
                                 }),
                             }
                         }
-                        None => report.gaps.push(EvidenceGap {
+                        None => bound_unenumerated_dynamic_call(
+                            crash_continuations,
+                            exclusions,
                             entry,
-                            machine: machine.id,
-                            block: Some(block.id),
-                            operation: Some(operation.id),
-                            kind: EvidenceGapKind::DynamicCall,
-                        }),
+                            machine.id,
+                            block.id,
+                            operation.id,
+                            report,
+                        ),
                     }
                 }
                 OperationKind::CallDynamicParameterScalar {
                     parameter_ordinal,
                     requirement_slot,
+                    crash_continuations,
                     ..
                 }
                 | OperationKind::CallDynamicParameterUnit {
                     parameter_ordinal,
                     requirement_slot,
+                    crash_continuations,
                     ..
                 } => {
                     // The target arrives with the caller's descriptor table:
@@ -1155,6 +1221,7 @@ fn inspect_machine<'module>(
                             operation: operation.id,
                             parameter_ordinal: *parameter_ordinal,
                             requirement_slot: *requirement_slot,
+                            crash_continuations: crash_continuations.clone(),
                         },
                     );
                 }

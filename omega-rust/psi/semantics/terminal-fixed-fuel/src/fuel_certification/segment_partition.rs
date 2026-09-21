@@ -634,11 +634,13 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// members left off every cycle are crossed at most once, plus the
     /// committing edge's ordered cleanup work. When no member terminator
     /// carries the endpoint, the walk must leave the component through a
-    /// member exit before it can commit, so the same split bounds the
-    /// interior over the members that can still reach an exit — charged
-    /// exactly like the acyclic walk, once for a member left off every
-    /// surviving cycle and at the rank ceiling for one still re-enterable —
-    /// plus the worst exit's own continuation. Both reads restrict the
+    /// member exit before it can commit, so each exit-taking member pairs
+    /// its own interior — the members that can still reach it alone, a
+    /// longest path when that remainder is acyclic and the rank-ceiling
+    /// split when a surviving cycle keeps revisits possible — with the
+    /// worst continuation its own exits still commit, rather than the
+    /// union of every exit-reaching member against the worst exit's tail.
+    /// Both reads restrict the
     /// interior to the members `entry` can still traverse: a member the
     /// walk cannot reach from the entry member is never visited, so it is
     /// never billed. A component cannot be re-entered once left, and a
@@ -767,34 +769,63 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         }
         // The endpoint commits beyond the component, so a committing walk
         // leaves through one of the exit edges and can never return. Only
-        // members the entry member can still reach and that can still
-        // reach an exit participate — once a walk leaves that set it can
-        // never commit the endpoint. When no exit target can commit, the
-        // component is a dead end exactly as the old whole-component
+        // members the entry member can still reach participate, and a walk
+        // leaving through a member crosses only the members that can still
+        // reach it — the interior and the continuation pair per exit
+        // member rather than the union of every exit-reaching member
+        // against the worst exit's tail. When no exit target can commit,
+        // the component is a dead end exactly as the old whole-component
         // charge read it.
-        let (adjacency, reaching) =
-            self.exit_reach(component, index, geometry, walk.end_edge, &live)?;
+        let adjacency =
+            self.interior_adjacency(component, index, geometry, walk.end_edge, &live)?;
         let forward = Self::forward_reaching(&adjacency, entry);
-        let traversable: BTreeSet<BlockId> = forward.intersection(&reaching).copied().collect();
-        let mut continuation = None;
+        let mut exits_by_member: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
         for (member, target) in exits {
-            if !traversable.contains(&member) {
-                continue;
+            if forward.contains(&member) {
+                exits_by_member.entry(member).or_default().push(target);
             }
-            continuation = maximum_u128(
-                continuation,
-                self.node_to_edge_bound(target, components, geometry, walk)?,
-            );
         }
-        let Some(tail) = continuation else {
+        let mut bound = None;
+        for (member, targets) in exits_by_member {
+            let member_reach = Self::reverse_reaching(&adjacency, &BTreeSet::from([member]));
+            let member_traversable: BTreeSet<BlockId> =
+                forward.intersection(&member_reach).copied().collect();
+            // The walk exits on a successor edge of `member`, so its last
+            // interior visit is `member`'s own traversal — the same sink a
+            // committing member without cleanup machines bills — with the
+            // longest-path bound when its reaching remainder is acyclic and
+            // the rank-ceiling split when a surviving cycle keeps revisits
+            // possible.
+            let interior = match self.interior_committing_bound(
+                &BTreeSet::from([member]),
+                &adjacency,
+                &member_traversable,
+                entry,
+                walk,
+            )? {
+                InteriorBound::Acyclic(bound) => bound,
+                InteriorBound::Cyclic => {
+                    self.split_interior_units(component, &adjacency, &member_traversable, walk)?
+                }
+                InteriorBound::Unreachable => continue,
+            };
+            for target in targets {
+                if let Some(tail) = self.node_to_edge_bound(target, components, geometry, walk)? {
+                    bound = maximum_u128(
+                        bound,
+                        Some(
+                            interior
+                                .checked_add(tail)
+                                .ok_or(FixedFuelError::BoundOverflow)?,
+                        ),
+                    );
+                }
+            }
+        }
+        if bound.is_none() {
             self.remember_reachable_terminal(component, &forward, walk);
-            return Ok(None);
-        };
-        let interior = self.split_interior_units(component, &adjacency, &traversable, walk)?;
-        interior
-            .checked_add(tail)
-            .map(Some)
-            .ok_or(FixedFuelError::BoundOverflow)
+        }
+        Ok(bound)
     }
 
     /// A committing walk that cannot reach the frontier ends on a member's
@@ -821,46 +852,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 reached_terminal: terminal_edge,
             });
         }
-    }
-
-    /// The member subgraph an exiting walk can still traverse: the
-    /// component's internal adjacency and the members that can still reach
-    /// an exit-taking member — one whose terminator carries a non-member
-    /// successor — through it. Once a walk leaves the reaching set it can
-    /// never take an exit, so it can never commit the endpoint beyond the
-    /// component; the exit path's interior bound is computed over this
-    /// subgraph. `end_edge` stays excluded for symmetry even though no
-    /// member terminator carries it on this path.
-    fn exit_reach(
-        &self,
-        component: &TerminalNaturalCycle,
-        index: usize,
-        geometry: &NaturalGeometry,
-        end_edge: EdgeId,
-        live: &BTreeSet<BlockId>,
-    ) -> Result<(BTreeMap<BlockId, Vec<BlockId>>, BTreeSet<BlockId>), FixedFuelError> {
-        let mut exiting = BTreeSet::new();
-        for rank in &component.ranks {
-            let block = self
-                .blocks
-                .get(&rank.block)
-                .copied()
-                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
-            // An exit edge belongs to a committing walk only when the
-            // member carrying it can complete its own traversal — the
-            // `live` set the exit collection in
-            // `component_node_to_edge_bound` already established.
-            if live.contains(&rank.block)
-                && super::outcome_bounds::terminator_targets(&block.terminator)
-                    .iter()
-                    .any(|target| geometry.member_of.get(target) != Some(&index))
-            {
-                exiting.insert(rank.block);
-            }
-        }
-        let adjacency = self.interior_adjacency(component, index, geometry, end_edge, live)?;
-        let reaching = Self::reverse_reaching(&adjacency, &exiting);
-        Ok((adjacency, reaching))
     }
 
     /// The component's internal adjacency for an interior bound: every

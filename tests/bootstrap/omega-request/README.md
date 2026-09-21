@@ -68,10 +68,10 @@ semantics.
 
 ## Bound request boundary subjects
 
-The [entry](main.epsilon) is bound at 4,115 bytes, SHA-256
-`0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0`, and packs
-on top of the bound member closure to 574,035 bytes, SHA-256
-`9ee93e13f56ed6937be21e0a24c9469d817a5498806dc0c4c03089e6c98a4bfc`. The
+The [entry](main.epsilon) is bound at 4,112 bytes, SHA-256
+`9368297baef947465d5f1ee11df8f1a0fdf60a01e369836ce0555df02890d9ca`, and packs
+on top of the bound member closure to 574,032 bytes, SHA-256
+`236195acd6e62c28a8bc9670549b731ac5e813460b831a48b311c7d76c55d721`. The
 canonical request fixture is bound at 132 bytes, SHA-256
 `ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062`.
 `tools/bootstrap/omega/compiler_env.sh` checks both identities before every

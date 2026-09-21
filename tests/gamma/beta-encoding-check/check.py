@@ -39,12 +39,12 @@ from stepper import Stepper, Theory  # noqa: E402
 REQUEST_EXTENT = 136_314_880
 WORK_PROVISION = 67_108_864
 
-# The first native run (Linux x86-64) measured a request_bytes refusal from
-# the checker's still-pinned 8,388,608-byte request bound; no complete-check
-# wall-clock figure exists yet.  The bound is deliberately generous for the
-# projected 45-52M work units, and a timeout is a failed observation, not a
-# verdict.
-CHECK_TIMEOUT = 21_600
+# A native run (Linux x86-64) measured a request_bytes refusal from the
+# checker's then-pinned 8,388,608-byte request bound, and a follow-up run
+# reached 21,600s without a verdict; host-side calibration measures ~2,800
+# work units/s, so the full 67,108,864-unit provision bounds the observation
+# near 8h.  A timeout is a failed observation, not a verdict.
+CHECK_TIMEOUT = 43_200
 
 
 def build_request(theory_bytes):

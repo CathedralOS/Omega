@@ -1741,6 +1741,291 @@ mod machine_bounds {
         );
     }
 
+    /// A `Natural` component {2,3,4,8,9,10} whose two cyclic branches meet
+    /// only at merge member 10: entry 1 passes machine parameter `initial`
+    /// into header 2's rank parameter `rank`; 2 conditionally enters work
+    /// member 3 (preserving) or work member 8 (preserving); 3 enters 4
+    /// (preserving) or exits to heavy tail 11; 4 returns to 3 (strict) or
+    /// forwards to 10 (preserving); 8 enters 9 (preserving) or exits to
+    /// light tail 12; 9 returns to 8 (strict) or forwards to 10
+    /// (preserving); 10's crash-only call means no traversal of it
+    /// completes, severing the branches — its strict edge back to 2 can
+    /// never commit. The two tails join at return block 13, so a segment
+    /// committing 13's return edge leaves through member 3 or member 8.
+    fn severed_merge_exit_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let successor =
+            |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                edge: id::<EdgeId>(edge),
+                target: id::<BlockId>(target),
+                arguments,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            };
+        let branch_conditional = |internal_edge: u64, internal: u64, exit_edge: u64, exit: u64| {
+            Terminator::Conditional {
+                condition: id(9_000),
+                when_true: successor(internal_edge, internal, Vec::new()),
+                when_false: successor(exit_edge, exit, Vec::new()),
+            }
+        };
+        // Merge member 10's call republishes callee 5's Trap route
+        // verbatim: a call's crash continuations must match the callee
+        // contract the semantic identity replays, or the module is
+        // malformed before fuel runs.
+        let mut crash_call = call_unit(101, 5);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &mut crash_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let mut tail_operations = Vec::new();
+        for offset in 0..10_u64 {
+            tail_operations.push(rank_constant(110 + offset, 1_100 + offset));
+        }
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: branch_conditional(2, 3, 3, 8),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300)],
+                    branch_conditional(4, 4, 5, 11),
+                ),
+                block(
+                    4,
+                    vec![rank_constant(40, 400)],
+                    branch_conditional(6, 3, 7, 10),
+                ),
+                block(
+                    8,
+                    vec![rank_constant(80, 800)],
+                    branch_conditional(8, 9, 9, 12),
+                ),
+                block(
+                    9,
+                    vec![rank_constant(90, 900)],
+                    branch_conditional(10, 8, 11, 10),
+                ),
+                block(
+                    10,
+                    vec![rank_constant(100, 1_000), crash_call],
+                    jump_with(12, 2, vec![id(1_000)]),
+                ),
+                block(11, tail_operations, jump_with(13, 13, Vec::new())),
+                block(12, Vec::new(), jump_with(14, 13, Vec::new())),
+                block(13, Vec::new(), return_unit(60)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3, 4, 8, 9, 10]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(3),
+                        source: id(2),
+                        target: id(8),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(4),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(6),
+                        source: id(4),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(7),
+                        source: id(4),
+                        target: id(10),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(8),
+                        source: id(8),
+                        target: id(9),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(10),
+                        source: id(9),
+                        target: id(8),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(11),
+                        source: id(9),
+                        target: id(10),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(12),
+                        source: id(10),
+                        target: id(2),
+                        successor_rank: id(1_000),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        // The caller republishes the Trap route the call propagates:
+        // uncovered continuations are malformed before fuel accounting.
+        semantic.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        semantic
+    }
+
+    /// A mid-component exit segment pairs each exit member with the
+    /// interior that can still reach it alone, not the union of every
+    /// exit-reaching member against the worst tail. In the
+    /// `severed_merge_exit_machine` component, merge member 10's dead
+    /// traversal severs the branches, so a walk exiting through member 3
+    /// traverses only {2,3,4} — its surviving 3 <-> 4 cycle at the rank
+    /// ceiling plus once-only header 2 — before the heavy tail, while a
+    /// walk exiting through member 8 crosses {2,8,9} before the light
+    /// tail: the bound is the worse of the two pairings rather than the
+    /// five-member union against the worst tail. Uses the internal
+    /// surface because the verifier requires discharged rank obligations
+    /// that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_exit_segment_pairs_each_exit_with_its_own_interior() {
+        // callee 5 always crashes (returned: None, crashed: Some(1)); the
+        // contract publishes the Trap route coverage semantic identity
+        // validation requires.
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![severed_merge_exit_machine(), callee]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        // Branch interiors: visit(2) once + 256 * (visit(3) + visit(4))
+        // or visit(2) + 256 * (visit(8) + visit(9)) — the severed merge
+        // keeps either branch's members off the other's walk. Tails:
+        // tail 11 charges ten operations plus its jump and the return
+        // edge (12), tail 12 charges the jump and the return (2).
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(60), &mut BTreeMap::new())
+                .expect("fork-entry exit segment derives")
+                .ceiling_units,
+            2 + 4 * 256 + 12,
+            "the worse pairing — branch 3 <-> 4 at rank scale plus tail \
+             11 — not the five-member union against the worst tail"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(60), &mut BTreeMap::new())
+                .expect("entry-to-exit segment derives")
+                .ceiling_units,
+            1 + 2 + 4 * 256 + 12,
+            "entry edge plus the worst exit pairing"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(3), id(60), &mut BTreeMap::new())
+                .expect("branch-entry exit segment derives")
+                .ceiling_units,
+            4 * 256 + 12,
+            "entering inside branch 3 <-> 4 bills that branch alone: \
+             members 8, 9, and header 2 stay unreachable"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(8), id(60), &mut BTreeMap::new())
+                .expect("other-branch entry segment derives")
+                .ceiling_units,
+            4 * 256 + 2,
+            "entering inside branch 8 <-> 9 bills its own interior plus \
+             its own light tail"
+        );
+    }
+
     /// A `Natural` countdown whose work member calls a callee that can only
     /// crash: entry 1 passes machine parameter `initial` into header 2's
     /// rank parameter `rank`; 2 conditionally enters work 3 (preserving) or

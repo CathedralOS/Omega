@@ -224,7 +224,7 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
 pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
         path: "omega-rust/psi/foundation/semantic-vocabulary/src/content.rs",
-        sha256: Some("c19e7b811e13165463f7c49f6b11bf095f6adf1ae9ff6fa58fc70780b0a59faa"),
+        sha256: Some("75ecc9dc5a2f553888617d36540bde58910028bbfbfa21287e420f0be4d7102f"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -779,7 +779,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/crash/entry_requirements.rs",
-        sha256: Some("c946a8a2f1a31ac93577f3b3f6b440a3545fb5f08595a25c60fa64577954a8a3"),
+        sha256: Some("f3b5568db044b08a91024f79abba448d4e4628731bde354d0d9092f41db248bc"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1279,7 +1279,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs",
-        sha256: Some("43e69c913ca04fcfbef2b33e89ca7f03f60c9ac460ead112052b96369a803a49"),
+        sha256: Some("6af1a2bc097d381f9c40655fd7d374589891ca28fe9d78079a337e8e67002686"),
         inventory_machinery: false,
     },
     ImplementationSite {

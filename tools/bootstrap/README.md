@@ -50,6 +50,11 @@ driver and receipt refusals and every consuming gate's record.
 entries the omega-parser, omega-outcome, omega-request, and omega-executable
 gates append on top of the bound member bytes, and the omega-request gate's
 canonical sealed request fixture, each recorded in its gate's README.
+The same env binds D's OCREQ request entry — `program.omg`, the canonical
+174-byte Omega source the request names as the compilation subject, SHA-256
+`b880031336a824e41ce6021dda44e1a64aaa9e849a6b25ab658ea6fc612c1b2e` — a
+separate input fed to the bound customer as sealed bytes, not a manifested
+member.
 `tools/bootstrap/proofs/sources_env.sh` binds the
 `implementation.gamma.sources` and `theory.gamma.sources` manifests and their
 repacked member closures against `bootstrap/proofs/checker/README.md` and
