@@ -916,24 +916,20 @@ fn installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence() {
     assert_eq!(binding.installed_code(), installed.identity());
     assert_eq!(binding.artifact(), installed.artifact());
     assert_eq!(binding.entry(), selected_entry);
-    // A ranked component's ceiling is its rank carrier's type maximum plus
-    // one member visits: `rank` here is the unbounded u32 parameter
-    // `initial`, so each interior segment charges the whole component's
-    // per-visit units (header + decrement = 6) across `2^32` visits.
-    let component_segment_ceiling = 6 * (u64::from(u32::MAX) + 1);
+    // A safe-point catalog row is per-traversal evidence: each row's
+    // endpoint rides its start block's own terminator, so the row bounds a
+    // single visit of that block — header and decrement each charge their
+    // two operations plus terminator (3), while preheader and done charge
+    // the terminator alone (1). The rank carrier's type maximum multiplies
+    // member visits only in whole-entry composition (`derive_fixed_entry_
+    // fuel`), never inside a per-edge segment row.
     assert_eq!(
         binding
             .segments()
             .iter()
             .map(|segment| segment.ceiling_units())
             .collect::<Vec<_>>(),
-        vec![
-            1,
-            component_segment_ceiling,
-            component_segment_ceiling,
-            component_segment_ceiling,
-            1,
-        ],
+        vec![1, 3, 3, 3, 1],
     );
     validate_installed_segment_fuel_catalog(&binding, &installed, selected_entry)
         .expect("exact installed ranked roster replays");
