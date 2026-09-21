@@ -9319,6 +9319,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   surfaces under CRASH-CONTRACT 04:27Z + PROOF-RELEVANCE-MIGRATION
   11:29Z). The nominal_affine SIGTERM leg is un-rerun — its file sits
   under RC-GATE-STABILITY-REPAIR (12:15Z). Still no unowned slice.
+- **LOWERED-UNIT-FAILURE-ATTRIBUTION.** Owns the
+  `wiki/drafts/known_baseline_failures.md` attribution sweep the
+  sibling rows keep deferring to. Executed at `e7c0099cb2b7` (linux
+  x86-64): `cargo nextest run -p checked-trees-to-lowered-psi
+  --no-fail-fast` with the PROOF-SEARCH-MEASUREMENT blowup member
+  filtered out reads 2206 run / 2183 passed / 23 failed / 1 skipped —
+  same headline as 7b224763615, different composition. The doc now
+  carries the fresh member-level attribution: the missing-transitive-
+  machine-plan family shifted to 18 members (provider_attachment_source
+  ×6, unit_plan_omissions ×3, guarded_scalar_returns ×1 drained;
+  conformance_applications ×3, composed_operand_catalogs ×5,
+  composed_unit_internal_calls ×1 joined; unit_state_graph::
+  provider_attachments holds at 9 under reworked names), scalar-return
+  custody is down to the single structural-custody member, the
+  fixed-fuel verdict closed, and a new 4-member family opened —
+  `scalar_array_source::cyclic` index-out-of-bounds panic at
+  `call_lowering.rs:419` (erased-proof-argument roster zip; entered with
+  f0f808f419989/576b9a76dc49a — a lowering bug for the scalar-graph/LICM
+  lane, not an authored rejection). Unattributed tail: empty. The
+  earlier pass-canary and staged-local refreshes stand; the doc's
+  remaining stale spots are now current at this revision.
 - **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Remove the cubic lowering cost that
   makes `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
   never return. **The name is wrong and this row's earlier hypothesis is
