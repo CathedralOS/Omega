@@ -11315,7 +11315,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
-- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; resolved, re-verified
+  at `72fc66d6c3` (linux x86-64). Retired alias of the landed
+  terminal-verifier edge-cleanup ordering already adjudicated on sibling
+  SUCCESSOR-DISCARD-ORDER and OWNED-SUCCESSOR-EDGE-ORDERING: edge validation
+  consumes owned successor sources before the residual and trivial discard
+  rosters (`validation/frontier/block_parameters.rs` documents the order,
+  `terminators.rs` runs it), Jump-edge residual discards close the projected
+  argument root as the exact complement in canonical order
+  (`InvalidPartialAffineCleanup` otherwise), and naming a residual-retired
+  root in the trivial roster is `EdgeAffineDiscardsInvalid`. Fresh witness:
+  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
+  test(~owned_successors)' --no-fail-fast` — 16/16 pass, including
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
+  `jump_edge_residual_discards_close_the_projected_argument_root_in_order`,
+  `branched_local_cleanup_rejects_missing_reordered_and_double_discard` and
+  `unit_return_requires_exact_reverse_order_affine_discards`. The
+  lowered-psi cleanup-roster emission leg stays with
+  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. No independent slice.
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Mined candidate —
