@@ -52,7 +52,7 @@ when this block drifts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28129.6 ms | measured 150441984 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 1.68124e+06 ms | measured 246046720 B compile | measured 8192 B | measured 1.93834 ms |
-| linux_x86_64 | linux x86_64 | structural_proofs | default | measured 34932.9 ms | measured 150704128 B compile | measured 8192 B | skipped (--no-run was passed) |
+| linux_x86_64 | linux x86_64 | structural_proofs | default | measured 32407.2 ms | measured 148152320 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 33396.8 ms | measured 155660288 B compile | measured 8192 B | measured 4.37554 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-9c09e32a82fb | measured 29846.9 ms | measured 148590592 B compile | measured 8192 B | measured 4.17697 ms |
@@ -121,9 +121,13 @@ The failure was selection-independent and subject-independent:
 `cli_mvp`'s authored code contains no integer comparisons, so the
 uncovered occurrence lived in the shared `std`/entry plumbing every
 `depend()`-ing subject compiles. The only subjects without a
-`build.omg` dependency — `math_proofs` and `structural_proofs` — emit
-no runtime code (no selected `ProgramEntry`) and one fails earlier at
-checked-call selection.
+`build.omg` dependency — `math_proofs` and `structural_proofs` — were
+blocked on selection (no authored `ProgramEntry`). `structural_proofs`
+now carries an authored `build.omg` + `ProgramEntry` and its compile-only
+`linux_x86_64` record is committed (`records/structural_proofs__
+linux_x86_64__default.json`, measured this host); `math_proofs` still
+fails earlier at checked-call selection — that fix stays with
+PROOF-SAMPLES-CHECKED-CALL-SELECTION.
 
 The blocking gate — the comparison-occurrence producer/validator pair
 tracked under CRASH-CONTRACT, the same failure `euclid_gcd`'s README
