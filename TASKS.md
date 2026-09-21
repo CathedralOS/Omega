@@ -16448,6 +16448,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
   SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
   STAGED-ANCESTRY-ELIMINATION.
+- **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — resolved as already
+  landed: this stub mines the stage-ancestry flag (TASKS_OPTIMIZER stage
+  walks), whose remaining bullet named `selected_optimization.rs` still
+  obtaining selections through
+  `ranges.liveness_stage().selected_stage().optimized_target().optimized()`.
+  At HEAD the crate's staged carriers own that data directly —
+  `de70fc300b730` staged admission data on the carriers
+  (`selected`/`register_environment`/`selections` and friends on
+  `StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
+  `StagedOptimizedAllocationLegality`), and `3148b857987de` named the one
+  sanctioned ancestry walk `optimized_target_owner` for the retained
+  proof-input `Arc` custody compares by identity. A crate-wide read finds
+  zero multi-level `*_stage().*_stage()` chains; the surviving one-level
+  hops (`liveness.selected_stage()`, `ranges.liveness_stage()`,
+  `source.source_legality_stage()`) are the named custody-input hops the
+  register-homes pin explicitly retains. Sibling stubs mining the same
+  flag: SELECTED-OPTIMIZATION-ANCESTRY-READS,
+  SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL,
+  SELECTED-REWRITE-ANCESTRY-REMOVAL, and SELECTED-OPTIMIZATION-DIRECT-READS.
 - **SELECTED-REWRITE-ANCESTRY-REMOVAL.** — mined candidate; resolved
   alias of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface
   (carrier row above). Re-verified at `8f58b6676b0` on linux x86-64:
