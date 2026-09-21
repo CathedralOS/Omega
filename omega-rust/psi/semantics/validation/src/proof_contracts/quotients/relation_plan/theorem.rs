@@ -105,17 +105,15 @@ fn selected_theorem_machine_state(
 }
 
 pub(super) fn unconditional_selected_theorem_termination(
-    program: &TypedTrees,
+    termination: &dyn crate::proof_contracts::quotients::CheckedTerminationOracle,
     theorem: &SelectedTheoremTelescope,
 ) -> Option<SelectedTheoremTermination> {
-    crate::machine_calls::denotational_calls::unconditionally_terminates(
-        program,
-        theorem.machine_symbol,
-    )
-    .then_some(SelectedTheoremTermination {
-        machine_symbol: theorem.machine_symbol,
-        state_symbol: theorem.state_symbol,
-    })
+    termination
+        .unconditionally_terminates(theorem.machine_symbol)
+        .then_some(SelectedTheoremTermination {
+            machine_symbol: theorem.machine_symbol,
+            state_symbol: theorem.state_symbol,
+        })
 }
 
 pub(super) fn pure_selected_theorem_effect(

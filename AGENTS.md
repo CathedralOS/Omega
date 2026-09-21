@@ -35,7 +35,10 @@ use Cargo without asking for permission. Nextest does not run doctests;
 use `mbx test --doc` when doctest coverage is needed.
 
 Keep using `cargo fmt` and `cargo clean` directly; `mbx clean` has different
-semantics. The examples below assume `mbx` is available.
+semantics. For whole-workspace formatting use `python tools/fmt.py` instead of
+`cargo fmt --all`: cargo-fmt batches all targets into one rustfmt command line,
+and at this workspace's size that exceeds the Windows command-line limit.
+The examples below assume `mbx` is available.
 
 ### Validation scope
 
@@ -65,7 +68,7 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 Use these gates when establishing or refreshing a full checkout baseline:
 
 ```bash
-cargo fmt --all -- --check
+python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'

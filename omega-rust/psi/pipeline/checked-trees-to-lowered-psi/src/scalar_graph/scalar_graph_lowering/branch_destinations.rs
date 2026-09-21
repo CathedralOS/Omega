@@ -11,6 +11,7 @@ use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_scalar_grap
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use semantic_vocabulary::ProofTerm;
 
 pub(crate) fn validate_coordinates(
     guard: u32,
@@ -61,6 +62,7 @@ pub(super) fn lower_destination(
         usize,
         Vec<LoweredDirectExpression>,
         Vec<LoweredDirectExpression>,
+        Vec<ProofTerm>,
     ),
     LoweringError,
 > {
@@ -78,12 +80,14 @@ pub(super) fn lower_destination(
                 structural_effects: Vec::new(),
                 parameter_types: source_value_types.to_vec(),
                 erased_formal_types: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 bindings: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Crash(crash),
             });
             Ok((
                 target,
                 computations::parameters(source_value_types),
+                Vec::new(),
                 Vec::new(),
             ))
         }
@@ -135,6 +139,7 @@ pub(super) fn lower_destination(
                     entry,
                     computations::parameters(source_value_types),
                     Vec::new(),
+                    Vec::new(),
                 ));
             }
             let expression =
@@ -145,7 +150,7 @@ pub(super) fn lower_destination(
                 );
             }
             validate_direct_parameter_types(&expression, &scalar_carriers(source_value_types))?;
-            Ok((target, vec![expression], Vec::new()))
+            Ok((target, vec![expression], Vec::new(), Vec::new()))
         }
     }
 }

@@ -69,6 +69,23 @@ pub(super) fn sequenced_logical_operations(
     .ok()
 }
 
+/// The sequenced stack-slot coloring boundary over a retained logical spill
+/// plan: assigns target-neutral, spill-area-relative storage to the plan's
+/// spills under the closed first-fit policy. `None` records a declined
+/// boundary rather than a recovered failure; replay re-derives the same
+/// verdict from the re-derived plan.
+pub(super) fn sequenced_slot_coloring(
+    operations: &crate::ValidatedLogicalSpillOperations,
+    budget: optimization_core::OptimizationWorkBudget,
+) -> Option<crate::ValidatedStackSlotColoring> {
+    crate::color_logical_spill_stack_slots(
+        operations,
+        crate::StackSlotColoringPolicy::BlockLocalNonAddressUnsignedU64ClosedIntervalFirstFitV1,
+        budget,
+    )
+    .ok()
+}
+
 pub(super) fn analyze(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     availability: &crate::ValidatedAllocatorAvailability,
@@ -389,8 +406,12 @@ fn recover_over(
     let budget = source.budget_per_pass();
     // The sequenced logical spill boundary plans over this recovery's input
     // facts once; the produced evidence is retained on the allocation and
-    // re-derived during replay.
+    // re-derived during replay. The stack-slot coloring boundary colors that
+    // retained plan the same way.
     let logical_operations = sequenced_logical_operations(&source);
+    let slot_coloring = logical_operations
+        .as_ref()
+        .and_then(|operations| sequenced_slot_coloring(operations, budget));
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
     let mut roster = candidates(source.base().plan());
     let mut current_ranges = source.ranges().clone();
@@ -467,6 +488,7 @@ fn recover_over(
                                 homes,
                                 manifest,
                                 logical_operations,
+                                slot_coloring,
                             };
                             replay::validate(&result)?;
                             return Ok(result);
@@ -521,6 +543,7 @@ fn recover_over(
                     homes,
                     manifest,
                     logical_operations,
+                    slot_coloring,
                 };
                 replay::validate(&result)?;
                 return Ok(result);

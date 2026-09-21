@@ -8,7 +8,7 @@ mod mutating_realizations_and_effects;
 mod plan_isolation;
 mod rebound_dynamic_custody;
 
-use crate::tests::{LoweringError, checked_source, lower_machine};
+use crate::tests::{LoweringError, checked_source_with_core_service, lower_machine};
 use terminal_psi::OperationKind;
 
 const DIRECT_DYNAMIC_SOURCE: &str = r#"
@@ -71,7 +71,7 @@ const STORED_DYNAMIC_SOURCE: &str = r#"
 "#;
 
 const STORED_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -92,7 +92,7 @@ const STORED_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         item: Item;
     }
 
@@ -202,7 +202,7 @@ const PROJECTED_MUTATING_REALIZATION_SOURCE: &str = r#"
 "#;
 
 const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -219,7 +219,7 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         item: Item;
     }
 
@@ -237,7 +237,7 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
 "#;
 
 const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -254,7 +254,7 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         decoy: Item;
         selected: Item;
     }
@@ -274,7 +274,7 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
 "#;
 
 const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -291,7 +291,7 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         decoy: Item;
         selected: Item;
     }
@@ -547,7 +547,7 @@ const MULTI_HOP_DYNAMIC_INTEGER_SOURCE: &str = r#"
 "#;
 
 const MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
-    boundary trait Console {
+    pub boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
     }
 
@@ -564,7 +564,7 @@ const MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Console;
+        console: Service<Console>;
         selected: Item;
     }
 
@@ -904,7 +904,7 @@ const FAMILY_DYNAMIC_UNIT_SOURCE: &str = r#"
 "#;
 
 fn direct_dynamic_checked() -> checked_trees::CheckedTrees {
-    checked_source(DIRECT_DYNAMIC_SOURCE)
+    checked_source_with_core_service(DIRECT_DYNAMIC_SOURCE)
 }
 
 fn direct_plan(

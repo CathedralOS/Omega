@@ -912,6 +912,10 @@ pub(super) fn build_traced(
                 crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
                     program, state,
                 )?,
+            erased_proof_parameters:
+                crate::execution::terminal_unit::types::erased_proof_parameter_plans(
+                    program, state,
+                )?,
             requires: state_requires[state_index].clone(),
             entry_claims: state_entry_claims[state_index].clone(),
             bindings,
@@ -1071,6 +1075,7 @@ enum SuccessorGuard {
     ParameterTransfer,
     ScalarArguments,
     ErasedArguments,
+    ErasedProofArguments,
     EdgeCleanup,
 }
 
@@ -1107,6 +1112,9 @@ impl SuccessorEdge {
             (Self::Jump, SuccessorGuard::ErasedArguments) => {
                 "state graph: terminator: jump successor: erased arguments"
             }
+            (Self::Jump, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: jump successor: erased proof arguments"
+            }
             (Self::Jump, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: jump successor: edge cleanup"
             }
@@ -1140,6 +1148,9 @@ impl SuccessorEdge {
             (Self::Conditional, SuccessorGuard::ErasedArguments) => {
                 "state graph: terminator: conditional successors: erased arguments"
             }
+            (Self::Conditional, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: conditional successors: erased proof arguments"
+            }
             (Self::Conditional, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: conditional successors: edge cleanup"
             }
@@ -1172,6 +1183,9 @@ impl SuccessorEdge {
             }
             (Self::ClosedCase, SuccessorGuard::ErasedArguments) => {
                 "state graph: terminator: closed-sum case successor: erased arguments"
+            }
+            (Self::ClosedCase, SuccessorGuard::ErasedProofArguments) => {
+                "state graph: terminator: closed-sum case successor: erased proof arguments"
             }
             (Self::ClosedCase, SuccessorGuard::EdgeCleanup) => {
                 "state graph: terminator: closed-sum case successor: edge cleanup"
@@ -1531,12 +1545,30 @@ fn successor_bindings(
                 })
             })
             .collect::<Option<Vec<_>>>()?;
+    mark(SuccessorGuard::ErasedProofArguments);
+    // Erased proof-only formals carry proof terms, not scalar expressions:
+    // each actual lowers to a construction or a forwarded caller formal.
+    let proof_only = typed_trees::proof_only::classify(program);
+    let erased_proof_arguments =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, target)?
+            .iter()
+            .map(|target| {
+                let argument = argument_at(target.source_position)?;
+                crate::values::lower_proof_term(
+                    program,
+                    argument,
+                    program.state_parameters(source),
+                    &proof_only,
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
     Some(CheckedStructuralControlSuccessorPlan {
         statement_ordinal: ordinal,
         target_state: target.symbol,
         transfers,
         scalar_arguments,
         erased_arguments,
+        erased_proof_arguments,
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
 }

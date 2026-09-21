@@ -2,6 +2,7 @@
 
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -17,7 +18,7 @@ class BaselineCommandTests(unittest.TestCase):
         commands = dict(gate.baseline_commands("mbx"))
         self.assertEqual(
             commands["fmt"],
-            ["cargo", "fmt", "--all", "--", "--check"])
+            [sys.executable, "tools/fmt.py", "--check"])
         self.assertEqual(
             commands["clippy"],
             ["mbx", "clippy", "--workspace", "--all-targets", "--",

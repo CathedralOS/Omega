@@ -3,7 +3,7 @@ use super::{
     MUTATING_REALIZATION_SOURCE, PROJECTED_MUTATING_REALIZATION_SOURCE, direct_dynamic_checked,
     direct_plan, direct_plan_mut, unsupported_message,
 };
-use crate::tests::{checked_source, lower_machine};
+use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use terminal_psi::{OperationKind, Terminator};
 
@@ -383,7 +383,7 @@ fn rejects_third_mutating_realization_store_identity_drift() {
 
 #[test]
 fn lowers_dynamic_scalar_result_into_console_effect_control() {
-    let checked = checked_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let checked = checked_source_with_core_service(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
     assert!(
         direct_plan(&checked)
             .caller_structural_scalar_field_store
@@ -457,7 +457,7 @@ fn lowers_dynamic_scalar_result_into_console_effect_control() {
 
 #[test]
 fn rejects_tampered_checked_dynamic_store_custody() {
-    let mut guard = checked_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let mut guard = checked_source_with_core_service(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
     direct_plan_mut(&mut guard)
         .unit_continuation
         .as_mut()
@@ -473,7 +473,7 @@ fn rejects_tampered_checked_dynamic_store_custody() {
         .caller_structural_scalar_field_store
         .clone()
         .expect("checked caller field store");
-    let mut combined = checked_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let mut combined = checked_source_with_core_service(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
     direct_plan_mut(&mut combined).caller_structural_scalar_field_store = Some(store);
     assert_eq!(
         unsupported_message(&combined),

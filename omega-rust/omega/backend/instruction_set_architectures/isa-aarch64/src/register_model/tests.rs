@@ -18,8 +18,8 @@ use crate::register_model::physical_model::GPR64;
 use calling_conventions::MachineRegister;
 use register_model::{
     RegisterConstraintCatalog, RegisterConstraintId, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnit, RegisterUnitId,
-    RegisterUnitKind,
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint, RegisterUnit,
+    RegisterUnitId, RegisterUnitKind,
 };
 use register_model::{
     RegisterConstraintCatalogValidationError, RegisterModelValidationError,
@@ -499,26 +499,29 @@ fn normalized_foreign_scalar_rows_cover_banks_results_and_caller_saves() {
         register_model::validate_physical_register_model(super::aarch64_physical_register_model())
             .unwrap();
     let catalog = super::aarch64_register_constraint_catalog(&model);
+    let integer_class = model.model().view_named("x0").unwrap().class;
     for (inputs, keys, expected_count) in [
         (
             super::aarch64_aapcs64_register_unit_call_keys()
                 .into_iter()
-                .chain(super::aarch64_aapcs64_mixed_unit_call_keys()),
+                .chain(super::aarch64_aapcs64_mixed_unit_call_keys())
+                .collect::<Vec<_>>(),
             super::aarch64_aapcs64_normalized_foreign_call_keys(),
-            243,
+            1215,
         ),
         (
             super::aarch64_darwin_register_unit_call_keys()
                 .into_iter()
-                .chain(super::aarch64_darwin_mixed_unit_call_keys()),
+                .chain(super::aarch64_darwin_mixed_unit_call_keys())
+                .collect::<Vec<_>>(),
             super::aarch64_darwin_normalized_foreign_call_keys(),
-            243,
+            1215,
         ),
     ] {
         assert_eq!(keys.len(), expected_count);
         let mut keys = keys.into_iter();
         let mut layouts = Vec::new();
-        for input in inputs {
+        for input in inputs.iter().copied() {
             let unit = catalog
                 .constraints
                 .iter()
@@ -556,6 +559,66 @@ fn normalized_foreign_scalar_rows_cover_banks_results_and_caller_saves() {
                     assert_eq!(row.operands.len(), input_count);
                 }
                 assert_eq!(row.clobbers, clobbers, "{key:?}");
+            }
+        }
+        // The callback-position tail: each integer-bank operand position of
+        // each input bank drops out of the operand list and reappears as an
+        // implicit unit use, once per result choice.
+        for input in inputs.iter().copied() {
+            let unit = catalog
+                .constraints
+                .iter()
+                .find(|row| row.key == input)
+                .unwrap();
+            for position in 0..unit.operands.len() {
+                let operand = &unit.operands[position];
+                if operand.access != RegisterOperandAccess::Use {
+                    continue;
+                }
+                let callback_view = model
+                    .model()
+                    .views
+                    .iter()
+                    .find(|view| view.id == operand.fixed_view.unwrap())
+                    .unwrap();
+                if callback_view.class != integer_class {
+                    continue;
+                }
+                let mut expected_uses = unit.implicit_uses.clone();
+                expected_uses.extend(callback_view.units.iter().copied());
+                expected_uses.sort_unstable();
+                expected_uses.dedup();
+                for result_name in [None, Some("x0"), Some("d0")] {
+                    let key = keys.next().unwrap();
+                    let row = catalog
+                        .constraints
+                        .iter()
+                        .find(|row| row.key == key)
+                        .unwrap();
+                    let mut expected_operands = unit.operands.clone();
+                    expected_operands.remove(position);
+                    for (index, operand) in expected_operands.iter_mut().enumerate() {
+                        operand.operand = index as u16;
+                    }
+                    assert_eq!(row.implicit_uses, expected_uses, "{key:?}");
+                    assert_eq!(row.implicit_defs, unit.implicit_defs);
+                    let mut clobbers = unit.clobbers.clone();
+                    if let Some(result_name) = result_name {
+                        let result = model.model().view_named(result_name).unwrap();
+                        let operand = RegisterOperandConstraint {
+                            operand: expected_operands.len() as u16,
+                            access: RegisterOperandAccess::Def,
+                            class: result.class,
+                            fixed_view: Some(result.id),
+                            tied_to: None,
+                            early_clobber: false,
+                        };
+                        expected_operands.push(operand);
+                        clobbers.retain(|unit| !result.write_units.contains(unit));
+                    }
+                    assert_eq!(row.operands, expected_operands, "{key:?}");
+                    assert_eq!(row.clobbers, clobbers, "{key:?}");
+                }
             }
         }
         assert_eq!(keys.next(), None);

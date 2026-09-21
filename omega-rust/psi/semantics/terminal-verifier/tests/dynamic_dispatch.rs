@@ -33,6 +33,7 @@ fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
 fn empty_contract(raw: u64) -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id::<ContractId>(raw),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -210,6 +211,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 entry: id::<BlockId>(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id::<BlockId>(1),
                     parameters: Vec::new(),
@@ -223,6 +225,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                         }),
                         kind: OperationKind::CallStructuralScalar {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             callee: realization,
                             arguments: Vec::new(),
                             structural_arguments: vec![source],
@@ -260,6 +263,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 entry: id::<BlockId>(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id::<BlockId>(2),
                     parameters: Vec::new(),
@@ -393,6 +397,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
     }];
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: helper,
         arguments: Vec::new(),
         structural_arguments: Vec::new(),
@@ -422,6 +427,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
         entry: id::<BlockId>(3),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(3),
             parameters: Vec::new(),

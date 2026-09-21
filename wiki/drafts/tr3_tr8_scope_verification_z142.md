@@ -57,3 +57,32 @@ Every implementing surface it would touch is inside a live claim at
 No code change made. Residual stays on TR3-TR8; dependents (ATOMIC-MEMORY-
 MODEL concurrent-activation controls, WAIT-WAKE-SUBSTRATE, concurrent
 activation rows) keep waiting on this execution route.
+
+## Re-verification (2026-09-21, `0a0662ad27a`, z30)
+
+All six landed halves re-verified green at HEAD:
+
+- `cargo nextest run -p task-plans`: 82/82 pass (activation plans, WCSU
+  stack composition and unresolved-call roster sealing, admission-time call
+  target bindings, lifecycle ledger park/resume/cancellation,
+  provider-admission conservation, runtime-invocation receipts).
+- `cargo nextest run -p compiler --test canary_suite -E
+  'test(~task_runtime)'`: 8/8 pass (lifecycle claim conservation,
+  parked-continuation non-addressability, blocking-executor package checks,
+  machine-selection sidecar, custody claims, depend-edge consumer).
+
+The remaining leg is unchanged: a real selected runtime executing the
+transitions the ledger models. No task-runtime vocabulary exists in
+`source/library/std` (no `runtime.start`/`Task` surface), so the leg is
+greenfield — language surface, selected runtime, native stack switching,
+and safe-point machinery — and remains beyond a bounded slice.
+
+Fence rotation since z142: PLACED-ACCESS-NATIVE-OPS' wholesale claim on
+`native-realization/providers`, `terminal-psi/src`,
+`lowered-psi-to-terminal-psi/src`, and
+`abstract-operations-to-target-operations/src/lowering` has drained; those
+surfaces are unfenced at 07:35Z. The shallow dependencies stay fenced:
+t2c `execution/unit/{providers.rs,types/mod.rs}` under
+PROVIDER-ATTACHMENT-MACHINE-PLAN (09:49Z) and c2l `src/unit` under
+STRUCTURAL-UNIT-LOWERING (09:16Z). `task-plans` and `provider-planning`
+remain unclaimed — the blocker is the leg's scale, not its fences.

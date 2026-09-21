@@ -1,3 +1,5 @@
+mod independence_tests;
+
 use super::Arc;
 use crate::RuntimeRematerializationError;
 use crate::RuntimeRematerializationReceipt;

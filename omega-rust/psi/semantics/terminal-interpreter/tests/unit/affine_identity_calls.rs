@@ -65,6 +65,7 @@ fn identity_call_module(scalar_types: &[ScalarType]) -> TerminalModule {
     result.claims.clear();
     operation.kind = OperationKind::CallStructuralWithScalarArguments {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: caller
             .parameters

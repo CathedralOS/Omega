@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 
 use semantic_vocabulary::{ObligationId, Proposition};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
-use terminal_verifier::ReconstructedTerminalObligationOwner;
+use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
 use crate::lowering_error::LoweringError;
 use crate::proofs::nonzero_divisor_certificate::{
@@ -36,21 +36,31 @@ pub(crate) fn retain_provable(lowered: &mut LoweredPsi) -> Result<(), LoweringEr
     if !lowered.semantic_module.scalar_block_invariants.is_empty() {
         return Ok(());
     }
-    retain_provable_roster(lowered)?;
+    let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+        .map_err(LoweringError::InvalidTerminalModule)?;
+    retain_provable_roster(lowered, &original)?;
     // A cyclic machine's guarantee may still be open once the ordinary
     // roster is retained; its strengthening is a separate all-or-nothing
     // transaction that leaves this roster unchanged when it cannot help.
-    cyclic_guarantees::strengthen(lowered)
+    //
+    // The roster pass writes nothing but `scalar_block_invariants`, and this
+    // entrance runs only on an empty roster, so an empty roster afterwards is
+    // the same module the reconstruction above was taken from and the
+    // strengthening reads that reconstruction instead of repeating it. A
+    // retained roster is a different module and reconstructs its own.
+    let retained_nothing = lowered.semantic_module.scalar_block_invariants.is_empty();
+    cyclic_guarantees::strengthen(lowered, retained_nothing.then_some(&original))
 }
 
-fn retain_provable_roster(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
+fn retain_provable_roster(
+    lowered: &mut LoweredPsi,
+    original: &ReconstructedTerminalObligationSet,
+) -> Result<(), LoweringError> {
     let module = &mut lowered.semantic_module;
-    let original = terminal_verifier::reconstruct_terminal_obligations(module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
     let mut remaining = 4096usize;
     let mut candidates = entry_ranges::candidates(module);
-    candidates.extend(field_bounds::candidates(module, &original, &mut remaining));
-    candidates.extend(joins::candidates(module, &original, &mut remaining));
+    candidates.extend(field_bounds::candidates(module, original, &mut remaining));
+    candidates.extend(joins::candidates(module, original, &mut remaining));
     // A guarded bound the cycle's own update can break is rewritten into the
     // lockstep family the induction step needs; the prove-or-drop boundary
     // below still decides every clause.
@@ -206,7 +216,7 @@ fn retain_provable_roster(lowered: &mut LoweredPsi) -> Result<(), LoweringError>
             // indexes. Optional inference must not make them stale. If a changed
             // question cannot replay its retained certificate, keep the original
             // module rather than silently discard its source-derived evidence.
-            if !retained_evidence::replays(module, &original, &questions, &lowered.proof_bundle)? {
+            if !retained_evidence::replays(module, original, &questions, &lowered.proof_bundle)? {
                 if restore_seeds(&mut module.scalar_block_invariants, &mut seeds) {
                     continue;
                 }
