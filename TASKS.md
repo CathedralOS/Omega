@@ -13397,6 +13397,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the representative machine (axiom-dependent equality additionally needs the
   named transitive-assumption-closure dependency, quotients.md#formation). No
   independent slice exists under this name until the admission legs land.
+  Re-verified at `53817f8759` (linux x86-64): the value-path exits are all
+  still in place — `quotient_operation.is_some()` early-outs at
+  checks/termination/progress/origins.rs:230, ranges/call_results.rs:27,
+  ranges/facts/dependencies/reads.rs:128, c2l emission/call_source_custody/
+  nested.rs:165 + expression_preparation/mixed_arguments.rs:139 +
+  proofs/quotient_correspondence.rs:103 — and module validation still
+  rejects nonempty correspondence tables with
+  `NonExecutableQuotientCorrespondence`
+  (terminal-verifier/src/validation/quotient_correspondence.rs). Claim
+  rotation: the row's earlier QUOTIENT-RUNTIME-REALIZATION lease expired
+  (~10:57Z); the admission-leg owner QUOTIENT-THEOREM-LIFT is re-held
+  (Devin/f8ad694c, ~16:19Z) and the corpus's fail twins are under
+  NEW-QTL-INVALID-LAW-FAIL-TWINS (Zergling-165, ~16:26Z). Two bare
+  same-named stubs further down re-mine this row. No independent slice.
 - **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6, re-verified at `29983459ec` — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side still admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/state_graph + composed_control AND the native admission file itself (GENERAL-CYCLIC-EXECUTION-OPTIMIZER, exp ~03:48Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, exp ~04:33Z). No independent unclaimed slice remains here.
 - **RC-BUILD-AND-PACKAGES.** — mined candidate; scope verified at `f1675418b1`,
 ||||||| parent of e5a620b04d9c (board: mark PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY resolved)
