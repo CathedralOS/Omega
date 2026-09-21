@@ -12496,7 +12496,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   surface: RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
   -HOSTS. (Superseded row: main's 7b259409073 run re-records the
   same draft at 22 pass / 16 fail with the pipeline_ownership compile
-  drift repaired.)
+  drift repaired.) Re-checked at `f72122f71e4` (swarm-w9-ffival): claim probe exit 2 — the linux_x86_64 draft is live-fenced to the canonical owner RC-NATIVE-MATRIX-LINUX-X86-64 (devin-swarm-rnmx, ~11:30Z Sep 21); the recorded run at 7b259409073 (22 pass / 16 fail, pipeline_ownership drift repaired upstream) is the current record.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
