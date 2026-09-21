@@ -10,8 +10,15 @@ pub const ASM_X86_PIPELINE_DIRECTIVES_COMPILE: &str =
     "inline_asm/asm_x86_pipeline_directives_compile";
 pub const ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE: &str =
     "inline_asm/asm_aarch64_pipeline_directives_compile";
+pub const ASM_CACHE_MAINTENANCE_COMPILE: &str = "inline_asm/asm_cache_maintenance_compile";
 pub const ASM_CLI_REQUIRES_MACHINE_AUTHORITY: &str =
     "inline_asm/asm_cli_requires_machine_authority";
+pub const ASM_WBINVD_REQUIRES_MACHINE_AUTHORITY: &str =
+    "inline_asm/asm_wbinvd_requires_machine_authority";
+pub const ASM_INVD_REQUIRES_MACHINE_AUTHORITY: &str =
+    "inline_asm/asm_invd_requires_machine_authority";
+pub const ASM_WBNOINVD_REQUIRES_MACHINE_AUTHORITY: &str =
+    "inline_asm/asm_wbnoinvd_requires_machine_authority";
 
 pub const PASS_CANARIES: &[&str] = &[
     ASM_FENCES_COMPILE,
@@ -22,12 +29,16 @@ pub const PASS_CANARIES: &[&str] = &[
     ASM_REGISTER_MOVE_COMPILE,
     ASM_X86_PIPELINE_DIRECTIVES_COMPILE,
     ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE,
+    ASM_CACHE_MAINTENANCE_COMPILE,
 ];
 
 pub const FAIL_CANARIES: &[&str] = &[
     ASM_CLI_REQUIRES_MACHINE_AUTHORITY,
     ASM_PAUSE_REJECTS_OPERANDS,
     ASM_SERIALIZE_REJECTS_CLOBBER_CONTRACT,
+    ASM_WBINVD_REQUIRES_MACHINE_AUTHORITY,
+    ASM_INVD_REQUIRES_MACHINE_AUTHORITY,
+    ASM_WBNOINVD_REQUIRES_MACHINE_AUTHORITY,
 ];
 
 pub const ASM_PAUSE_REJECTS_OPERANDS: &str = "inline_asm/asm_pause_rejects_operands";
@@ -45,6 +56,23 @@ pub const PIPELINE_DIRECTIVE_FAIL_CANARIES: &[(&str, &str)] = &[
     (
         ASM_SERIALIZE_REJECTS_CLOBBER_CONTRACT,
         "not clobbered `rax`",
+    ),
+];
+
+/// The cache-maintenance operations are privileged: hosted programs naming
+/// MachineControl still refuse because they do not own the machine.
+pub const CACHE_OPERATION_FAIL_CANARIES: &[(&str, &str)] = &[
+    (
+        ASM_WBINVD_REQUIRES_MACHINE_AUTHORITY,
+        "asm instruction `wbinvd`, which requires a FREESTANDING boundary root",
+    ),
+    (
+        ASM_INVD_REQUIRES_MACHINE_AUTHORITY,
+        "asm instruction `invd`, which requires a FREESTANDING boundary root",
+    ),
+    (
+        ASM_WBNOINVD_REQUIRES_MACHINE_AUTHORITY,
+        "asm instruction `wbnoinvd`, which requires a FREESTANDING boundary root",
     ),
 ];
 

@@ -7,8 +7,7 @@ use crate::entry_settlement::validate_native_program_entry_settlement;
 
 use super::realization_diagnostics::realization_error;
 use super::{
-    NativeRealizationRequest, RequestedNativeArtifactError, SettledNativeArtifact,
-    realize_native_artifact,
+    NativeRealizationRequest, RequestedNativeArtifactError, SettledNativeArtifact, realize_image,
 };
 
 /// Realize a receipt-coupled checked `ProgramEntry` artifact and return its
@@ -65,16 +64,23 @@ pub fn realize_program_entry_native_artifact(
             });
         }
     };
-    let artifact = realize_native_artifact(
+    let image_request = request.image_request.clone();
+    let (artifact, semantic_wrapper_object) = realize_image(
         artifact,
-        NativeRealizationRequest {
+        &NativeRealizationRequest {
             checked_scope: Some(&checked_scope),
             program_entry: request.program_entry.with_checked_entry(&checked_entry),
             ..request
         },
-    )?;
+        &build_evaluation::BehaviorExclusions::default(),
+    )
+    .map_err(|diagnostics| RequestedNativeArtifactError {
+        image_request,
+        diagnostics,
+    })?;
     Ok(SettledNativeArtifact {
         artifact,
         program_entry,
+        semantic_wrapper_object,
     })
 }

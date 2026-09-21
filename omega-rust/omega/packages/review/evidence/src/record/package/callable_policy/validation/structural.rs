@@ -26,7 +26,8 @@ pub(super) fn validate(
             validate(left, parameters, depth + 1)?;
             validate(right, parameters, depth + 1)
         }
-        Expression::IntegerComparison { left, right, .. } => {
+        Expression::IntegerComparison { left, right, .. }
+        | Expression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar(left, parameters, depth + 1)?;
             scalar(right, parameters, depth + 1)
         }

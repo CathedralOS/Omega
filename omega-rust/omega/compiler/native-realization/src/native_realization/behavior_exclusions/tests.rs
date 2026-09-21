@@ -13,13 +13,27 @@ fn leaf(
     exercised: &[TerminalAuthorityClass],
     permitted: Option<Vec<TerminalAuthorityClass>>,
 ) -> TerminalAuthorityClosureLeaf {
+    leaf_with_mechanism(
+        requirement,
+        TerminalMechanismIdentity::CompilerIntrinsic(
+            CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
+        ),
+        exercised,
+        permitted,
+    )
+}
+
+fn leaf_with_mechanism(
+    requirement: &str,
+    mechanism: TerminalMechanismIdentity,
+    exercised: &[TerminalAuthorityClass],
+    permitted: Option<Vec<TerminalAuthorityClass>>,
+) -> TerminalAuthorityClosureLeaf {
     TerminalAuthorityClosureLeaf::new(
         ServiceSchemaDigest::from_digest([1; 32]),
         requirement.to_owned(),
         ProviderPlanDigest::from_digest([2; 32]),
-        TerminalMechanismIdentity::CompilerIntrinsic(
-            CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
-        ),
+        mechanism,
         TerminalAuthorityDisposition::from_classes(exercised.iter().copied()),
         permitted.map(TerminalAuthorityDisposition::from_classes),
     )
@@ -143,6 +157,41 @@ fn every_violating_leaf_is_reported() {
     assert!(message.contains("test::Console::write()"));
     assert!(message.contains("test::Serial::send()"));
     assert!(!message.contains("test::Store::read()"));
+}
+
+#[test]
+fn a_foreign_mechanism_leaf_exercising_an_excluded_class_rejects() {
+    // An imported mechanism carries the same exercised-class axis as a
+    // compiler intrinsic, so a requested physical absence adjudicates it
+    // identically and the diagnostic names the foreign mechanism.
+    let locator = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::ElfVersioned {
+            object: b"libforeign.so".to_vec(),
+            symbol: b"foreign_write".to_vec(),
+            version: b"FOREIGN_1".to_vec(),
+        },
+        target::TargetProfile::LinuxX64,
+    )
+    .expect("fixture locator normalizes");
+    let foreign = effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+        &locator,
+        effects::provider_plan::BoundaryCallingPlanCommitment::from_digest([34; 32]),
+    );
+    let receipt = receipt(
+        vec![leaf_with_mechanism(
+            "test::Foreign::write()",
+            TerminalMechanismIdentity::NormalizedForeign(foreign),
+            &[TerminalAuthorityClass::ProcessOutput],
+            None,
+        )],
+        None,
+    );
+    let exclusions = physical_exclusions(&[TerminalAuthorityClass::ProcessOutput]);
+    let diagnostics =
+        admit_behavior_exclusion_closure(&exclusions, &receipt).expect_err("exclusion must reject");
+    let message = format!("{diagnostics:?}");
+    assert!(message.contains("test::Foreign::write()"));
+    assert!(message.contains("NormalizedForeign"));
 }
 
 #[test]

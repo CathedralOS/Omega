@@ -397,7 +397,7 @@ fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
     let arm = staged_conditional(NativeTarget::linux_arm64());
     assert_eq!(
         validate_optimized_selection_custody(
-            x86.optimized_target(),
+            x86.optimized_target_owner(),
             arm.register_environment(),
             x86.legalized(),
             x86.selected(),
@@ -406,7 +406,7 @@ fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
     );
     assert_eq!(
         validate_optimized_selection_custody(
-            x86.optimized_target(),
+            x86.optimized_target_owner(),
             x86.register_environment(),
             x86.legalized(),
             arm.selected(),

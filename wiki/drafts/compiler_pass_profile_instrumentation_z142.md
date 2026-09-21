@@ -44,3 +44,20 @@ legs belong to INTERNAL-PASS-PROFILE-TIMINGS (enable), COMPILER-OBSERVATION-
 OUTPUTS (print), and a Psi-carrier design decision on the parent
 COMPILER-PASS-PROFILE-TIMINGS row. Coordinator may collapse this stub into
 that row.
+
+## Re-verification (2026-09-20, `dccdfd1fd1`, z151)
+
+The fences lapsed and the legs themselves have since landed: `c115576398`
+("compiler: carry the recorded stage-timings ladder to the report under
+`--timings`") wires `CompileArguments.timings` through
+`CompileProjectRequest.timings` → `PreparedCheckedSource`'s
+`collect_timings` → `CompileTimings::enabled()`, merges the per-target
+stage ladder into `CompileReport::timings` via `with_timings`, and
+`cli/compilation.rs` prints `outcome.timings.phases()` +
+`report.timings()` rows plus `total elapsed` to stderr. The opt-in
+contract is pinned by `timings_are_opt_in_stderr_output_without_debug_files`
+(`omega/tests/command_line.rs`), re-verified green on this host. Only the
+per-Psi-stage decomposition remains, and it is a design decision on the
+parent row: `terminal-production` cannot depend on `artifacts` under
+`psi_does_not_depend_on_omega`, so finer rows need a Psi-owned timing
+carrier.

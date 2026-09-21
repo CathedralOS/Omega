@@ -116,6 +116,7 @@ pub(super) fn identity_reshuffle_module() -> (TerminalModule, Proposition, Oblig
         entry: BlockId::new(90).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(90).expect("block"),
             parameters: Vec::new(),
@@ -129,6 +130,7 @@ pub(super) fn identity_reshuffle_module() -> (TerminalModule, Proposition, Oblig
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(90).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -269,6 +271,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
         entry: BlockId::new(1).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
@@ -315,6 +318,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(1).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -356,6 +360,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
         entry: BlockId::new(2).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(2).unwrap(),
             parameters: Vec::new(),
@@ -369,6 +374,7 @@ pub(super) fn structural_call_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(2).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -652,6 +658,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
         entry: BlockId::new(90).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(90).expect("block"),
             parameters: Vec::new(),
@@ -681,6 +688,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(90).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -820,6 +828,7 @@ pub(super) fn reflexive_content_module() -> (TerminalModule, Proposition, Obliga
         entry: BlockId::new(80).expect("block"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(80).expect("block"),
             parameters: Vec::new(),
@@ -832,6 +841,7 @@ pub(super) fn reflexive_content_module() -> (TerminalModule, Proposition, Obliga
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(80).expect("contract"),
             crash_routes: Vec::new(),
             requires: Vec::new(),

@@ -14,6 +14,18 @@ use terminal_psi::{
     TerminalMachineResult,
 };
 
+/// A candidate's entry claims may bind only the roots of its own structural
+/// parameters — the caller's claims transfer in by position at invocation.
+fn entry_claims_bind_parameters(candidate: &TerminalMachine) -> bool {
+    candidate.entry_claims.iter().all(|claim| {
+        claim.path.is_empty()
+            && candidate
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == claim.input)
+    })
+}
+
 pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &TerminalMachine) -> bool {
     match (&boundary.result, &candidate.result) {
         (BoundaryMachineResult::Unit, TerminalMachineResult::Unit) => true,
@@ -23,7 +35,7 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
                 && boundary.requires.is_empty()
                 && boundary.content_guarantees.is_empty()
                 && boundary.program_local_root_introductions.is_empty()
-                && candidate.entry_claims.is_empty()
+                && entry_claims_bind_parameters(candidate)
                 && candidate.content_entry_claims.is_empty()
                 && candidate.contract.requires.is_empty()
                 && candidate.contract.ensures.is_empty()
@@ -34,16 +46,22 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
             BoundaryMachineResult::Structural(required),
             TerminalMachineResult::Structural(actual),
         ) => {
+            // A linear requirement may publish minted claims and introduced
+            // qualifications: the boundary route mints `result.claims` on the
+            // caller at resume, and the candidate's matching declared
+            // qualifications introduce the domains its return produces.
             required.structural_type == actual.structural_type
-                && required.multiplicity == StructuralMultiplicity::Affine
+                && matches!(
+                    required.multiplicity,
+                    StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
+                )
                 && actual.multiplicity == required.multiplicity
-                && required.qualifications.is_empty()
                 && actual.qualifications == required.qualifications
                 && actual.projected_qualifications.is_empty()
                 && boundary.requires.is_empty()
                 && boundary.content_guarantees.is_empty()
                 && boundary.program_local_root_introductions.is_empty()
-                && candidate.entry_claims.is_empty()
+                && entry_claims_bind_parameters(candidate)
                 && candidate.content_entry_claims.is_empty()
                 && candidate.contract.requires.is_empty()
                 && candidate.contract.ensures.is_empty()

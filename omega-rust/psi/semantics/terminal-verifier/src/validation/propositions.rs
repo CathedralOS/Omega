@@ -89,7 +89,8 @@ fn proposition_observation_sites(proposition: &Proposition) -> Vec<ObservationSi
         match proposition {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 collect_term(left, sites);
                 collect_term(right, sites);
             }
@@ -177,6 +178,7 @@ pub(super) fn proposition_contains_content(proposition: &Proposition) -> bool {
         | Proposition::IntegerMathLessThan(_, _)
         | Proposition::IntegerMathLessOrEqual(_, _)
         | Proposition::IeeeFloatComparison { .. }
+        | Proposition::ScalarIeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }
         | Proposition::StructuralCaseMembership { .. } => false,
     }

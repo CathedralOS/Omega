@@ -684,6 +684,7 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
         &admitted_providers.settlements,
         None,
         None,
+        &artifact,
         &request,
     )
     .expect("emission alone never provisions the receiver");
@@ -701,16 +702,24 @@ fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
         fused_service_establishments: Vec::new(),
         placed_view_establishments: Vec::new(),
     };
-    let diagnostics = super::validate_emitted_receiver_binding(&emitted.object, Some(&settlement))
-        .expect_err("an admitted receiver that never reached the object must reject");
+    let diagnostics = super::validate_emitted_receiver_binding(
+        &emitted.object,
+        emitted.semantic_wrapper_object.is_some(),
+        Some(&settlement),
+    )
+    .expect_err("an admitted receiver that never reached the object must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
             .contains("did not reach the emitted object")),
         "unexpected diagnostics: {diagnostics:?}"
     );
-    super::validate_emitted_receiver_binding(&emitted.object, None)
-        .expect("no admitted receiver and no binding stays consistent");
+    super::validate_emitted_receiver_binding(
+        &emitted.object,
+        emitted.semantic_wrapper_object.is_some(),
+        None,
+    )
+    .expect("no admitted receiver and no binding stays consistent");
 }
 
 #[test]
@@ -756,6 +765,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         &admitted_providers.settlements,
         None,
         None,
+        &artifact,
         &request,
     )
     .expect("emission alone never provisions the receiver");
@@ -787,7 +797,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
     assert!(object.hosted_receiver_binding().is_some());
 
     // Bypassed provisioning: an emitted binding no admission ever granted.
-    let diagnostics = super::validate_emitted_receiver_binding(&object, None)
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, None)
         .expect_err("an emitted binding without admission must reject");
     assert!(
         diagnostics
@@ -808,7 +818,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         fused_service_establishments: Vec::new(),
         placed_view_establishments: Vec::new(),
     };
-    let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, Some(&settlement))
         .expect_err("a settlement without the emitted contract must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
@@ -836,7 +846,7 @@ fn emitted_receiver_binding_rejects_unadmitted_and_substituted_identities() {
         source: redirected_source,
         ..settlement
     };
-    let diagnostics = super::validate_emitted_receiver_binding(&object, Some(&settlement))
+    let diagnostics = super::validate_emitted_receiver_binding(&object, false, Some(&settlement))
         .expect_err("a substituted receiver source signature must reject");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

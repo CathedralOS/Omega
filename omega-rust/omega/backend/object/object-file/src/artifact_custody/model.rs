@@ -218,7 +218,11 @@ impl ValidatedOptimizedObjectArtifactManifest {
 #[must_use = "an optimized Omega object artifact owns semantic, proof, and object custody"]
 pub struct StagedValidatedOptimizedObjectArtifact {
     pub(super) terminal: terminal_codec::CanonicalTerminalArtifact,
-    pub(super) source: StagedOptimizedRelocationFreeObjectContainer,
+    /// Shared custody of the relocation-free container this artifact seals.
+    /// The same staged container can remain custody of the emitted fragment
+    /// object's fragment replay while this artifact carries the semantic,
+    /// proof and object join — `Arc` is the share, mutation stays impossible.
+    pub(super) source: std::sync::Arc<StagedOptimizedRelocationFreeObjectContainer>,
     pub(super) artifact: OptimizedObjectArtifactRecord,
     pub(super) manifest: ValidatedOptimizedObjectArtifactManifest,
     pub(super) custody: OptimizedObjectArtifactCustodyReceipt,
@@ -229,7 +233,7 @@ impl StagedValidatedOptimizedObjectArtifact {
         &self.terminal
     }
 
-    pub const fn source(&self) -> &StagedOptimizedRelocationFreeObjectContainer {
+    pub fn source(&self) -> &StagedOptimizedRelocationFreeObjectContainer {
         &self.source
     }
 
