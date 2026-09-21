@@ -2,7 +2,14 @@
 
 use diagnostics::Diagnostic;
 
+use crate::optimized_semantic_wrapper_object::{bind_semantic_contract, receiver_layout};
+
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
+    /// The canonical Terminal artifact the emitted object seals. The semantic
+    /// wrapper route re-stages the fragment container under this exact
+    /// artifact so its custody replay binds the same canonical bytes the
+    /// realized product carries; `None` only where no wrapper route can run.
+    pub(super) terminal: Option<&'request terminal_codec::CanonicalTerminalArtifact>,
     /// The validated admission custody the binder must satisfy exactly. This
     /// is the replayed settlement, not the caller-supplied declaration: its
     /// source signature, storage contract, and Fused establishment roster were
@@ -23,6 +30,7 @@ pub(super) fn emit_optimized_fragments(
     (
         image_emission::ObjectArtifact,
         native_artifact::NativePhysicalEvidenceScope,
+        Option<crate::StagedValidatedOptimizedProgramStorageSemanticWrapperObject>,
     ),
     Vec<Diagnostic>,
 > {
@@ -49,41 +57,117 @@ pub(super) fn emit_optimized_fragments(
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
+    let mut semantic_wrapper_object = None;
     if let Some(entry) = request.hosted_receiver {
         // The settlement is the boundary that would lend each bound
-        // placed-view referent; the hosted receiver bridge does not carry
-        // that custody yet, so a nonempty bound set fails closed here rather
-        // than publishing an entry whose loans nobody emits.
+        // placed-view referent; neither the hosted receiver bridge nor the
+        // semantic wrapper carries that custody yet, so a nonempty bound set
+        // fails closed here rather than publishing an entry whose loans
+        // nobody emits.
         if !entry.placed_view_establishments().is_empty() {
             return Err(super::realization_diagnostics::realization_error(
                 "ProgramEntry placed-view custody",
                 "bound placed-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
             ));
         }
-        let contract = entry
-            .storage_entry()
-            .and_then(|storage| storage.physical_contract())
-            .ok_or_else(|| {
+        if entry.target() == target::NativeTarget::uefi_x64() {
+            // The UEFI entry is the authored semantic-entry route: the
+            // compiler-owned wrapper provisions `self` inside its own frame
+            // and calls the semantic child by private symbol. Stage the whole
+            // evidence chain over the same relocation-free container this
+            // object publishes — authored contract, semantic wrapper plan,
+            // x86-64 template, joined object, manifest and custody receipt —
+            // and retain it for the settlement's caller.
+            let terminal = request.terminal.ok_or_else(|| {
                 super::realization_diagnostics::realization_error(
-                    "ProgramEntry receiver provisioning",
-                    "missing exact hosted physical contract",
+                    "semantic entry object staging",
+                    "semantic wrapper custody requires the canonical artifact",
                 )
             })?;
-        let demand =
-            image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
+            let source_artifact = object_file::stage_validated_optimized_object_artifact_shared(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&terminal.to_bytes())
+                    .map_err(|error| {
+                        super::realization_diagnostics::realization_error(
+                            "semantic entry object staging",
+                            format!("canonical artifact reproduction failed: {error:?}"),
+                        )
+                    })?,
+                std::sync::Arc::clone(&source),
+            )
+            .map_err(|error| {
                 super::realization_diagnostics::realization_error(
-                    "ProgramEntry receiver stack demand",
-                    error,
+                    "semantic entry object staging",
+                    format!("emitted object artifact replay failed: {error:?}"),
                 )
             })?;
-        image_emission::bind_hosted_receiver(
-            &mut object,
-            entry.source(),
-            contract,
-            entry.fused_service_establishments(),
-            &demand,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+            let contract = bind_semantic_contract(entry).map_err(|error| {
+                super::realization_diagnostics::realization_error(
+                    "semantic entry contract",
+                    format!("settlement did not bind its retained semantic contract: {error:?}"),
+                )
+            })?;
+            let receiver =
+                receiver_layout(&source_artifact, entry, &contract).map_err(|error| {
+                    super::realization_diagnostics::realization_error(
+                        "semantic entry receiver",
+                        format!("selected receiver shape is not wrapper-provisionable: {error:?}"),
+                    )
+                })?;
+            let plan = program_entry_plan::plan_optimized_program_storage_semantic_wrapper(
+                contract, receiver,
+            )
+            .map_err(|error| {
+                super::realization_diagnostics::realization_error(
+                    "semantic entry wrapper plan",
+                    format!("semantic wrapper recipe rejected: {error:?}"),
+                )
+            })?;
+            let encoding = crate::select_optimized_program_storage_semantic_wrapper_encoding(plan)
+                .map_err(|error| {
+                    super::realization_diagnostics::realization_error(
+                        "semantic entry wrapper encoding",
+                        format!("target encoding replay rejected: {error:?}"),
+                    )
+                })?;
+            semantic_wrapper_object = Some(
+                crate::stage_validated_optimized_program_storage_semantic_wrapper_object(
+                    entry.clone(),
+                    source_artifact,
+                    encoding,
+                )
+                .map_err(|error| {
+                    super::realization_diagnostics::realization_error(
+                        "semantic entry object staging",
+                        format!("wrapper object join rejected: {error:?}"),
+                    )
+                })?,
+            );
+        } else {
+            let contract = entry
+                .storage_entry()
+                .and_then(|storage| storage.physical_contract())
+                .ok_or_else(|| {
+                    super::realization_diagnostics::realization_error(
+                        "ProgramEntry receiver provisioning",
+                        "missing exact hosted physical contract",
+                    )
+                })?;
+            let demand =
+                image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
+                    super::realization_diagnostics::realization_error(
+                        "ProgramEntry receiver stack demand",
+                        error,
+                    )
+                })?;
+            image_emission::bind_hosted_receiver(
+                &mut object,
+                entry.source(),
+                contract,
+                entry.fused_service_establishments(),
+                &demand,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+        }
     }
     let scope = match request.boundary_application_coverage {
         Some(coverage) => {
@@ -105,7 +189,7 @@ pub(super) fn emit_optimized_fragments(
         }
         None => native_artifact::NativePhysicalEvidenceScope::Unavailable,
     };
-    Ok((object, scope))
+    Ok((object, scope, semantic_wrapper_object))
 }
 
 /// Empty and selected phases publish through the same frame/text/object owners.

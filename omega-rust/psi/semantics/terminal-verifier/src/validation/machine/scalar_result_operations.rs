@@ -104,6 +104,7 @@ pub(super) fn register_scalar_result_operation(
             callee,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             requirement_obligations,
             crash_continuations,
         } => {
@@ -228,6 +229,12 @@ pub(super) fn register_scalar_result_operation(
                 machine,
                 operation.id,
                 &erased_arguments,
+            )?;
+            crate::validation::validate_erased_proof_terms(
+                crate::validation::proof_formals_in_scope(machine, operation.id),
+                &callee.contract.erased_proof_formals,
+                erased_proof_arguments.as_slice(),
+                operation.id,
             )?;
 
             for obligation in requirement_obligations {

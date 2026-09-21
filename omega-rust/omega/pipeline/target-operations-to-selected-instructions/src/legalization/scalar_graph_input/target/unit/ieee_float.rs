@@ -143,7 +143,10 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AbstractOperation, IeeeFloatFormat, ScalarType, Source, TargetIeeeFloatFmaOperand,
+        TargetUnitOperation, TargetUnitScalarHomeRequirement, ValueId, ValueShape, validate,
+    };
     use semantic_vocabulary::{IeeeFloatValue, OperationId};
     use target::{
         AdmittedX86ScalarFmaProvider, TargetProfile, X86_SCALAR_FMA_REQUIRED_FEATURES,

@@ -38,6 +38,7 @@ fn subslice_calls() -> AbstractOperationPlan {
         AbstractOperation::ByteSequenceSubslice {
             psi_operation: OperationId::new(21).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,

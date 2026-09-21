@@ -86,6 +86,7 @@ fn minimal_module() -> TerminalModule {
             entry: BlockId::new(1).expect("block identity"),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: BlockId::new(1).expect("block identity"),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -97,6 +98,7 @@ fn minimal_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -128,6 +130,7 @@ fn boundary_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -231,6 +234,7 @@ fn bounded_provider_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -936,6 +940,7 @@ fn described_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -947,6 +952,7 @@ fn described_module() -> TerminalModule {
     });
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(3).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

@@ -414,7 +414,9 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
         OPERATION_FACTS,
         "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs",
     ],
-    soundness: TRUSTED,
+    soundness: SoundnessStatus::Proved {
+        evidence: "the row emits no fact of its own shape: each bound it contributes is produced by `declared_carrier_bounds` — the `fact:scalar-carrier-bounds` certifying procedure — and joins the roster only when that fixed-shape `ConjunctionElimination` certificate (declared interval invariant as assumption zero, bound eliminated at its conjunct index) is accepted by proof-admission's checker; a rejected certificate emits nothing rather than joining trusted",
+    },
 };
 
 static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry {

@@ -60,9 +60,13 @@ pub(crate) fn fused_node(
             block: dispatch,
             node: 0,
         })?;
-    let [dispatch_node] = dispatch_block.nodes.as_slice() else {
-        return Err(StateArgumentSpecializationError::CandidateMismatch);
-    };
+    // The dispatch terminator may trail a pure scalar-computation prefix —
+    // an integer state argument's `parameter CMP literal` — so the arm edges
+    // live on the block's final node rather than its only node.
+    let dispatch_node = dispatch_block
+        .nodes
+        .last()
+        .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
     match &predecessor.operation {
         O::Jump {
             psi_edge,

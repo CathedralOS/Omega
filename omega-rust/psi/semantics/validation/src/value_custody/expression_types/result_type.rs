@@ -101,7 +101,7 @@ mod domain_carrier_subjects {
 
 #[cfg(test)]
 mod named_call_result_fabrication {
-    use super::*;
+    use super::{ExpressionHandle, PrimitiveType, TypedTrees, expression_result_type_reference};
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};

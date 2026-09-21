@@ -7,14 +7,14 @@ use crate::{
 use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication,
-    OptimizedProgramStorageSemanticEntryContract,
-    bind_optimized_program_storage_semantic_entry_contract,
+    OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticReceiverLayout,
+    ProgramEntrySourceReceiverSignature, bind_optimized_program_storage_semantic_entry_contract,
     plan_optimized_program_storage_semantic_wrapper,
 };
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
-    BindingRelevance, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeShape, TerminalMachineResult,
+    BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult,
 };
 
 pub(crate) fn replay_settlement(
@@ -55,9 +55,14 @@ pub(crate) fn replay_settlement(
     Ok(())
 }
 
-pub(crate) fn replay_semantic_contract(
+/// Re-bind the semantic entry contract from the settlement's retained calling
+/// application. The schema commits to the application identity (requirement,
+/// target, source shape graph, ABI plan), never to the raw ABI plan, so the
+/// bind replays the retained application's validated plan and re-checks the
+/// recorded fingerprint, commitment, and boundary entry plan before the
+/// contract is derived.
+pub(crate) fn bind_semantic_contract(
     settlement: &ValidatedNativeProgramEntrySettlement,
-    encoding: &StagedOptimizedProgramStorageSemanticWrapperEncoding,
 ) -> Result<
     OptimizedProgramStorageSemanticEntryContract,
     OptimizedProgramStorageSemanticWrapperObjectError,
@@ -68,11 +73,6 @@ pub(crate) fn replay_semantic_contract(
     let storage = settlement
         .storage_entry()
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans)?;
-    // Re-replay the retained calling application for this join rather than
-    // inheriting settlement custody unchecked: the schema commits to the
-    // application identity (requirement, target, source shape graph, ABI plan),
-    // never to the raw ABI plan, so the contract bind must receive the
-    // replayed application pair beside the exact canonical plan it covers.
     let (validated_plan, report_fingerprint, commitment) = semantic
         .replayed_validated_application()
         .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
@@ -87,19 +87,179 @@ pub(crate) fn replay_semantic_contract(
         report_fingerprint,
         commitment,
     );
-    let contract = bind_optimized_program_storage_semantic_entry_contract(
+    bind_optimized_program_storage_semantic_entry_contract(
         settlement.target(),
         storage,
         settlement.source(),
         &application,
     )
+    .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)
+}
+
+pub(crate) fn replay_semantic_contract(
+    settlement: &ValidatedNativeProgramEntrySettlement,
+    encoding: &StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    source: &StagedValidatedOptimizedObjectArtifact,
+) -> Result<
+    OptimizedProgramStorageSemanticEntryContract,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+> {
+    let contract = bind_semantic_contract(settlement)?;
+    let expected = plan_optimized_program_storage_semantic_wrapper(
+        contract.clone(),
+        receiver_layout(source, settlement, &contract)?,
+    )
     .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
-    let expected = plan_optimized_program_storage_semantic_wrapper(contract.clone())
-        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
     if &expected != encoding.source() {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::SemanticWrapperPlanMismatch);
     }
     Ok(contract)
+}
+
+/// The wrapper provisions `self` itself, so its checked referent layout is a
+/// fact of the emitted child — the selected plan's structural contract — not
+/// of the boundary inputs. The native `self` parameter carries a borrowed
+/// reference whose `ValueShape` retains the referent's byte extent and
+/// alignment. Every field of the attached record must be zero-valid so the
+/// zero-fill inside the wrapper's own frame establishes the receiver: erased
+/// provider-backed fields cannot be installed by zero-fill and reject here.
+pub(crate) fn receiver_layout(
+    source: &StagedValidatedOptimizedObjectArtifact,
+    settlement: &ValidatedNativeProgramEntrySettlement,
+    contract: &OptimizedProgramStorageSemanticEntryContract,
+) -> Result<
+    Option<OptimizedProgramStorageSemanticReceiverLayout>,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+> {
+    if !matches!(
+        contract.source_signature().receiver(),
+        ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+    ) {
+        return Ok(None);
+    }
+    let entry_machine = settlement.checked_entry().terminal_entry();
+    let function = source
+        .selected_plan()
+        .functions
+        .iter()
+        .find(|function| function.machine == entry_machine)
+        .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
+    let structural = function
+        .structural
+        .as_ref()
+        .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
+    let Some(receiver) = structural
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.is_self)
+    else {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    };
+    let shape = receiver.target.shape;
+    if shape.class != calling_conventions::ValueClass::BorrowedReference
+        || !shape.alignment.is_power_of_two()
+        || shape.byte_size == 0
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    }
+    let mut declarations = structural
+        .structural_types
+        .as_slice()
+        .iter()
+        .filter(|declaration| declaration.id == receiver.semantic.structural_type);
+    let Some(declaration) = declarations.next() else {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    };
+    if declarations.next().is_some()
+        || !matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+            if fields.iter().all(|field| zero_valid_field(
+                structural.structural_types.as_slice(), field, &mut vec![receiver.semantic.structural_type])))
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    }
+    Ok(Some(OptimizedProgramStorageSemanticReceiverLayout::new(
+        u32::from(shape.byte_size),
+        u32::from(shape.alignment),
+    )))
+}
+
+/// Whether zero-filled storage is an established value of one nested
+/// declaration. Mirrors the hosted-receiver bridge's discipline exactly:
+/// scalar leaves, bounded integers containing zero, owned byte carriers,
+/// records, fixed arrays, and the first declared case of a closed sum are
+/// established; references, erased fields, unknown or duplicated declarations,
+/// and cycles reject.
+fn zero_valid_record_storage(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+) -> bool {
+    if visiting.contains(&structural_type) {
+        return false;
+    }
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let Some(declaration) = matches.next() else {
+        return false;
+    };
+    if matches.next().is_some() {
+        return false;
+    }
+    visiting.push(structural_type);
+    let valid = match &declaration.shape {
+        StructuralTypeShape::Record { fields } => fields
+            .iter()
+            .all(|field| zero_valid_field(declarations, field, visiting)),
+        StructuralTypeShape::FixedArray { element, .. } => {
+            zero_valid_record_storage(declarations, *element, visiting)
+        }
+        StructuralTypeShape::Sum { cases } => cases.first().is_some_and(|case| {
+            case.fields
+                .iter()
+                .all(|field| zero_valid_field(declarations, field, visiting))
+        }),
+        StructuralTypeShape::Mixed { fields, cases } => {
+            fields
+                .iter()
+                .all(|field| zero_valid_field(declarations, field, visiting))
+                && cases.first().is_some_and(|case| {
+                    case.fields
+                        .iter()
+                        .all(|field| zero_valid_field(declarations, field, visiting))
+                })
+        }
+        StructuralTypeShape::PrimitiveScalar(
+            ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
+        )
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+        _ => false,
+    };
+    visiting.pop();
+    valid
+}
+
+fn zero_valid_field(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    field: &terminal_psi::StructuralFieldDeclaration,
+    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+) -> bool {
+    !field.relevance.is_erased()
+        && match field.field_type {
+            StructuralFieldType::Scalar(
+                ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
+            )
+            | StructuralFieldType::IeeeFloat(_) => true,
+            StructuralFieldType::BoundedInteger(integer) => {
+                integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
+                    || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
+            }
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+            StructuralFieldType::Structural(child) => {
+                zero_valid_record_storage(declarations, child, visiting)
+            }
+            _ => false,
+        }
 }
 
 pub(crate) fn validate_entry_shape(
@@ -116,17 +276,49 @@ pub(crate) fn validate_entry_shape(
         .iter()
         .find(|machine| machine.id == settlement.checked_entry().terminal_entry())
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
-    let [image, storage] = entry.structural_parameters.as_slice() else {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    // The selected source shape is the authority: a provisioned-mutable
+    // receiver adds one `self` parameter at position 0 ahead of the two
+    // visible Extent roots; a free source carries the roots alone.
+    let (receiver, image, storage) = match entry.structural_parameters.as_slice() {
+        [image, storage] => (None, image, storage),
+        [receiver, image, storage] => (Some(receiver), image, storage),
+        _ => {
+            return Err(
+                OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch,
+            );
+        }
     };
+    let receiver_shift = u32::from(receiver.is_some());
+    if receiver.is_some()
+        != matches!(
+            contract.source_signature().receiver(),
+            ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
+        )
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    }
+    if let Some(receiver) = receiver {
+        if !receiver.is_self
+            || receiver.position != 0
+            || receiver.multiplicity != StructuralMultiplicity::Unrestricted
+            || receiver.access != StructuralAccess::MutableBorrow
+            || !receiver.qualifications.is_empty()
+            || !receiver.projected_qualifications.is_empty()
+            || entry.attachment != Some(receiver.structural_type)
+            || !matches!(entry.structural_places.as_slice(), [receiver_place, ..]
+                if receiver_place.id == receiver.place
+                    && receiver_place.kind == StructuralPlaceKind::Parameter { position: 0, is_self: true })
+        {
+            return Err(
+                OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch,
+            );
+        }
+    }
     let [image_root, storage_root] = contract.roots();
-    // A statically attached namespace does not imply a runtime receiver. The
-    // checked source signature and `is_self` flags below remain the authority
-    // for the receiver-free ProgramStorage contract.
     if !entry.parameters.is_empty()
         || entry.result != TerminalMachineResult::Unit
-        || image.position != 0
-        || storage.position != 1
+        || image.position != receiver_shift
+        || storage.position != receiver_shift + 1
         || image.is_self
         || storage.is_self
         || image.place == storage.place
@@ -180,11 +372,19 @@ pub(crate) fn validate_entry_shape(
                 && length.identity == "length"
                 && length.relevance == BindingRelevance::Relevant
                 && matches!(length.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64))
-        || !matches!(entry.structural_places.as_slice(), [image_place, storage_place]
-            if image_place.id == image.place
-                && image_place.kind == StructuralPlaceKind::Parameter { position: 0, is_self: false }
-                && storage_place.id == storage.place
-                && storage_place.kind == StructuralPlaceKind::Parameter { position: 1, is_self: false })
+    {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    }
+    let visible_places = &entry.structural_places[receiver_shift as usize..];
+    if !matches!(visible_places, [image_place, storage_place]
+    if image_place.id == image.place
+        && image_place.kind == StructuralPlaceKind::Parameter {
+            position: image.position, is_self: false,
+        }
+        && storage_place.id == storage.place
+        && storage_place.kind == StructuralPlaceKind::Parameter {
+            position: storage.position, is_self: false,
+        })
         || !matches!(entry.entry_claims.as_slice(), [image_claim, storage_claim]
             if image_claim.input == image.place
                 && image_claim.path.is_empty()

@@ -257,6 +257,18 @@ fn carrier_result_accepts_inputs_sharing_the_result_lifetime() {
 
 #[test]
 fn carrier_result_ambiguous_inputs_and_access_escalation_reject() {
+    // Every input carrying the result's explicit lifetime is a possible
+    // source: a shared `'source` across two carriers is a union of sources,
+    // not an ambiguity.
+    check_program(
+        r#"
+        data View<'source> { body: &'source mut i32; }
+        machine choose<'source>(first: View<'source>, second: View<'source>) -> View<'source> {
+            first
+        }
+    "#,
+    )
+    .expect("every 'source input is a possible source of the returned view");
     let cases = [
         (
             r#"

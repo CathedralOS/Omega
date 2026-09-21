@@ -5,6 +5,7 @@
 mod capability_conflicts;
 
 mod build_named_inputs;
+mod build_scope_topology_confinement;
 mod candidate_policy_retention;
 mod dependency_generated_sources;
 mod dependency_purposes;

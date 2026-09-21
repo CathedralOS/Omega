@@ -163,6 +163,10 @@ pub(super) fn validate_asm_statement_call(
             "asm#invd" => ("invd", 0),
             "asm#wbnoinvd" => ("wbnoinvd", 0),
             "asm#nop" => ("nop", 0),
+            "asm#wfe" => ("wfe", 0),
+            "asm#wfi" => ("wfi", 0),
+            "asm#sev" => ("sev", 0),
+            "asm#sevl" => ("sevl", 0),
             "asm#popfq" => ("popfq", 1),
             "asm#wrmsr" => ("wrmsr", 2),
             other => {

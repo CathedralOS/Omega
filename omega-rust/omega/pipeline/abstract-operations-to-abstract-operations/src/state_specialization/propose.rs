@@ -1,11 +1,15 @@
-//! Optimizer module role: proposal leaf. Constant-fact-derived exact specialization candidates.
+//! Optimizer module role: proposal leaf. Constant-proof-derived exact specialization candidates.
 //!
 //! A dispatch state is eligible only in a machine the authenticated Terminal
 //! component roster leaves acyclic — cyclic machines are frozen byte-exact
 //! under the immutable-body custody rules, so no edge there may be retargeted.
 //! The state argument must not already be a proven global constant: when every
 //! incoming edge agrees on one value the dispatch belongs to constant
-//! conditional folding, not this family.
+//! conditional folding, not this family. An incoming edge qualifies when its
+//! bound argument is proven constant either by the sparse lattice directly
+//! or — the result specialization — by resolving through single-predecessor
+//! forwarding-block parameters to an in-function `Call` result whose
+//! single-return callee's lattice proves that result constant.
 
 use super::{
     AnalysisProduct, BlockId, DispatchSpecializationPlan, PsiOptimizationFunction,

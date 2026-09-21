@@ -357,6 +357,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                     StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_)
+                    | StructuralTypeShape::ElementView { .. }
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
                     | StructuralTypeShape::Mixed { .. } => None,

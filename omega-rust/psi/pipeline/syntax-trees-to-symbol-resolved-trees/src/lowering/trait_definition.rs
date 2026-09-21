@@ -79,6 +79,7 @@ pub(crate) fn lower_trait_definition(
                 .as_ref()
                 .map(crate::lowering::name::lower_name),
             signature: lowered.signature,
+            service_reach_keyword_source_spans: lowered.service_reach_keyword_source_spans,
             service_reaches: lowered.service_reaches,
         });
     }

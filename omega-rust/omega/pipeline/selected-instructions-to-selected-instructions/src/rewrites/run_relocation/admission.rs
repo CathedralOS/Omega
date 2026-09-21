@@ -1,18 +1,23 @@
 //! Shared admission for in-block run relocation: locate the named `first`
 //! and `last` members bounding one contiguous run inside a block's body,
 //! locate the named destination instruction outside the run in the same
-//! block, and prove the window they bound independent — no register or
-//! condition-state hazard between any member and any crossed instruction,
-//! no roster-carrying run sharing the window with a second memory-access
-//! actor, no call, hosted-effect, or terminator barrier anywhere in the
-//! window, and no boundary settlement inside its span.
+//! block, and hand the window they bound to the shared derivation and run
+//! audit: `crossed_window` takes the same-block branch and derives the
+//! positions between the run and the landing (no edges are crossed
+//! in-block), and `admit_run_relocation` proves the window independent
+//! once — no register or condition-state hazard between any member and
+//! any crossed instruction, no roster-carrying run sharing the window
+//! with a second memory-access actor, no call, hosted-effect, or
+//! terminator barrier anywhere in the window, and no boundary settlement
+//! inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionId;
 
 use super::RunRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
+use crate::rewrites::block_edges::{CrossingDirection, all_edges, crossed_window};
+use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
 pub(super) struct Admission {
     pub block_index: usize,
@@ -77,43 +82,26 @@ pub(super) fn admit<'source>(
         .filter(|position| !(first_index..=last_index).contains(position))
         .ok_or(RunRelocationError::UnsupportedPair)?;
     let run = &block.instructions[first_index..=last_index];
-    // Every member meets the schedulable bar itself; the run's memory
-    // accounting is the union of its members' roster rows.
-    let mut run_accounted = false;
-    for member in run {
-        run_accounted |=
-            schedulable(function, member).ok_or(RunRelocationError::UnsupportedInstruction)?;
-    }
-    let (first, last) = (
-        first_index.min(destination_index),
-        last_index.max(destination_index),
-    );
-    let window = &block.instructions[first..=last];
-    for (offset, crossed) in window.iter().enumerate() {
-        if (first_index..=last_index).contains(&(first + offset)) {
-            continue;
-        }
-        // Every crossed instruction meets the same schedulable bar as the
-        // members: no barrier kind, no call contract, and no unaccounted
-        // memory reach. Its roster rows may keep their relative order only
-        // while no member records any — a row-carrying run passing a
-        // second accounted actor would reorder recorded accesses.
-        let crossed_accounted =
-            schedulable(function, crossed).ok_or(RunRelocationError::UnsupportedInstruction)?;
-        if run_accounted && crossed_accounted {
-            return Err(RunRelocationError::UnsupportedPair);
-        }
-        // Every member trades order with every crossed position, so each
-        // direction of every hazard applies against each pair.
-        for member in run {
-            if coupled(member, crossed) {
-                return Err(RunRelocationError::UnsupportedPair);
-            }
-        }
-    }
-    if interior_settlement(function, block.id, first + 1..=last) {
-        return Err(RunRelocationError::UnsupportedPair);
-    }
+    // The crossed window is the shared derivation rather than this
+    // family's own enumeration: an in-block move crosses no edge, so the
+    // same-block branch of `crossed_window` derives exactly the positions
+    // between the run and the landing, and the direction is inert. The
+    // shared audit applies the schedulable, hazard, memory-roster, and
+    // settlement checks once.
+    let edge_limit = all_edges(function).count();
+    let crossing = crossed_window(
+        function,
+        block_index,
+        first_index,
+        last_index,
+        block_index,
+        destination_index,
+        CrossingDirection::Forward,
+        edge_limit,
+    )
+    .ok_or(RunRelocationError::WorkBudgetExceeded)?;
+    let members: Vec<_> = run.iter().collect();
+    admit_run_relocation(function, &members, &crossing).map_err(rejection)?;
     // The search scans the plan's body and terminator instructions once;
     // the window audit walks every member-against-crossed operand and unit
     // surface plus the function's three rosters.
@@ -127,16 +115,14 @@ pub(super) fn admit<'source>(
         })
         .and_then(|total| {
             run.iter().try_fold(total, |total, member| {
-                window
+                crossing
+                    .positions
                     .iter()
-                    .enumerate()
-                    .try_fold(total, |total, (offset, crossed)| {
-                        if (first_index..=last_index).contains(&(first + offset)) {
-                            return Some(total);
-                        }
+                    .flat_map(|(_, positions)| positions.iter())
+                    .try_fold(total, |total, position| {
                         total
                             .checked_add(surface(member))?
-                            .checked_add(surface(crossed))
+                            .checked_add(surface(&block.instructions[*position]))
                     })
             })
         })
@@ -158,4 +144,16 @@ pub(super) fn admit<'source>(
         last_index,
         destination_index,
     })
+}
+
+fn rejection(rejection: RunRelocationRejection) -> RunRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => RunRelocationError::UnsupportedInstruction,
+        RunRelocationRejection::UnreachableDestination
+        | RunRelocationRejection::Coupled
+        | RunRelocationRejection::MemoryOrdering
+        | RunRelocationRejection::TransportConflict
+        | RunRelocationRejection::NonPlainEdge
+        | RunRelocationRejection::Settlement => RunRelocationError::UnsupportedPair,
+    }
 }

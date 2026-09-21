@@ -18,7 +18,7 @@ class Observation:
     uses: tuple[tuple[int, int, int, int, int], ...]
     members: tuple[tuple[int, int, int], ...]
     data_items: tuple[
-        tuple[int, int, int, int, int, int, int, int, int, int, bool, int, int, int],
+        tuple[int, int, int, int, int, int, int, int, int, int, bool, int, int, int, int, int],
         ...,
     ]
     data_members: tuple[tuple[int, int, int, int, int], ...]
@@ -27,6 +27,9 @@ class Observation:
     cases: tuple[tuple[int, int, int, int, int, int, int, int], ...]
     type_references: tuple[
         tuple[int, int, int, int, int, int, int, int, int, int, int], ...
+    ]
+    generic_parameters: tuple[
+        tuple[int, int, int, int, int, int, int, int, int, int], ...
     ]
 
 
@@ -52,8 +55,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR7\0"
-    assert reader.u64() == 7
+    assert reader.bytes(8) == b"OMGPAR8\0"
+    assert reader.u64() == 8
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -82,6 +85,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.byte(),
             reader.byte() == 1,
+            reader.u64(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -145,6 +150,21 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    generic_parameters = tuple(
+        (
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing parser observation bytes"
     return Observation(
         accepted,
@@ -159,6 +179,7 @@ def decode(payload: bytes) -> Observation:
         payload_fields,
         cases,
         type_references,
+        generic_parameters,
     )
 
 
@@ -186,6 +207,9 @@ def accepted(
         tuple[int, int, int, int, int, int, int, int, int, int, int], ...
     ] = (),
     payload_fields: tuple[tuple[int, int, int, int, int, int, int], ...] = (),
+    generic_parameters: tuple[
+        tuple[int, int, int, int, int, int, int, int, int, int], ...
+    ] = (),
 ) -> None:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
@@ -203,6 +227,7 @@ def accepted(
         payload_fields,
         cases,
         type_references,
+        generic_parameters,
     )
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
@@ -221,6 +246,7 @@ def rejected(
     payload_field_count: int = 0,
     case_count: int = 0,
     type_reference_count: int = 0,
+    generic_parameter_count: int = 0,
 ) -> None:
     status, payload = run(program, source)
     assert status == 250, f"{name}: status {status}"
@@ -236,6 +262,7 @@ def rejected(
     assert len(actual.payload_fields) == payload_field_count, (name, actual)
     assert len(actual.cases) == case_count, (name, actual)
     assert len(actual.type_references) == type_reference_count, (name, actual)
+    assert len(actual.generic_parameters) == generic_parameter_count, (name, actual)
 
 
 def main() -> None:
@@ -302,7 +329,7 @@ def main() -> None:
         ((2, 0, 1, 0, 23),),
         (),
         (),
-        ((1, 5, 11, 0, 0, 0, 0, 0, 0, 2, False, 1, 0, 23),),
+        ((1, 5, 11, 0, 0, 0, 0, 0, 0, 2, False, 1, 0, 23, 0, 0),),
     )
     accepted(
         program,
@@ -311,7 +338,7 @@ def main() -> None:
         ((2, 0, 1, 0, 19),),
         (),
         (),
-        ((1, 5, 6, 0, 0, 0, 0, 0, 0, 1, False, 1, 0, 19),),
+        ((1, 5, 6, 0, 0, 0, 0, 0, 0, 1, False, 1, 0, 19, 0, 0),),
     )
     accepted(
         program,
@@ -320,7 +347,7 @@ def main() -> None:
         ((2, 0, 1, 0, 19),),
         (),
         (),
-        ((1, 5, 6, 0, 0, 0, 0, 0, 0, 2, False, 1, 0, 19),),
+        ((1, 5, 6, 0, 0, 0, 0, 0, 0, 2, False, 1, 0, 19, 0, 0),),
     )
     accepted(
         program,
@@ -329,7 +356,7 @@ def main() -> None:
         ((2, 0, 1, 0, 33),),
         (),
         (),
-        ((1, 5, 8, 0, 1, 0, 0, 0, 1, 2, False, 1, 0, 33),),
+        ((1, 5, 8, 0, 1, 0, 0, 0, 1, 2, False, 1, 0, 33, 0, 0),),
         ((2, 0, 1, 20, 31),),
         (),
         ((1, 25, 30, 1, 20, 31, 0, 0),),
@@ -341,7 +368,7 @@ def main() -> None:
         ((2, 0, 1, 0, 45),),
         (),
         (),
-        ((1, 5, 10, 0, 2, 0, 1, 0, 1, 2, False, 1, 0, 45),),
+        ((1, 5, 10, 0, 2, 0, 1, 0, 1, 2, False, 1, 0, 45, 0, 0),),
         ((1, 0, 1, 22, 31), (2, 0, 1, 32, 43)),
         ((1, 22, 27, 0, 1, 22, 31),),
         ((1, 37, 42, 1, 32, 43, 0, 0),),
@@ -361,9 +388,9 @@ def main() -> None:
         ((0, 1, 1, 46, 54),),
         ((1, 50, 53),),
         (
-            (1, 9, 14, 0, 0, 0, 0, 0, 0, 0, True, 1, 0, 17),
-            (1, 23, 27, 0, 1, 0, 1, 0, 0, 0, False, 1, 18, 45),
-            (1, 60, 64, 1, 3, 1, 3, 0, 0, 0, False, 1, 55, 116),
+            (1, 9, 14, 0, 0, 0, 0, 0, 0, 0, True, 1, 0, 17, 0, 0),
+            (1, 23, 27, 0, 1, 0, 1, 0, 0, 0, False, 1, 18, 45, 0, 0),
+            (1, 60, 64, 1, 3, 1, 3, 0, 0, 0, False, 1, 55, 116, 0, 0),
         ),
         (
             (1, 0, 1, 30, 43),
@@ -393,7 +420,7 @@ def main() -> None:
         ((2, 0, 1, 0, 76),),
         (),
         (),
-        ((1, 9, 14, 0, 4, 0, 2, 0, 2, 1, True, 1, 0, 76),),
+        ((1, 9, 14, 0, 4, 0, 2, 0, 2, 1, True, 1, 0, 76, 0, 0),),
         (
             (2, 0, 1, 24, 35),
             (1, 0, 1, 36, 49),
@@ -420,7 +447,7 @@ def main() -> None:
         ((2, 0, 1, 0, 27),),
         (),
         (),
-        ((1, 5, 10, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 27),),
+        ((1, 5, 10, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 27, 0, 0),),
         ((2, 0, 1, 13, 25),),
         (),
         ((1, 18, 22, 1, 13, 25, 0, 0),),
@@ -432,7 +459,7 @@ def main() -> None:
         ((2, 0, 1, 0, 33),),
         (),
         (),
-        ((1, 5, 8, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 33),),
+        ((1, 5, 8, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 33, 0, 0),),
         ((2, 0, 1, 11, 31),),
         (),
         ((1, 16, 20, 1, 11, 31, 0, 1),),
@@ -446,7 +473,7 @@ def main() -> None:
         ((2, 0, 1, 0, 43),),
         (),
         (),
-        ((1, 5, 9, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 43),),
+        ((1, 5, 9, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 43, 0, 0),),
         ((2, 0, 1, 12, 41),),
         (),
         ((1, 17, 21, 1, 12, 41, 0, 2),),
@@ -466,7 +493,7 @@ def main() -> None:
         ((2, 0, 1, 0, 39),),
         (),
         (),
-        ((1, 5, 13, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 39),),
+        ((1, 5, 13, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 39, 0, 0),),
         ((2, 0, 1, 16, 37),),
         (),
         ((1, 21, 25, 1, 16, 37, 0, 1),),
@@ -480,7 +507,7 @@ def main() -> None:
         ((2, 0, 1, 0, 66),),
         (),
         (),
-        ((1, 5, 10, 0, 4, 0, 2, 0, 2, 0, False, 1, 0, 66),),
+        ((1, 5, 10, 0, 4, 0, 2, 0, 2, 0, False, 1, 0, 66, 0, 0),),
         (
             (1, 0, 1, 13, 23),
             (2, 0, 1, 24, 34),
@@ -509,7 +536,7 @@ def main() -> None:
         ((2, 0, 1, 0, 30),),
         (),
         (),
-        ((1, 5, 6, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, 30),),
+        ((1, 5, 6, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, 30, 0, 0),),
         ((1, 0, 1, 9, 28),),
         ((1, 9, 14, 0, 1, 9, 28),),
         (),
@@ -522,7 +549,7 @@ def main() -> None:
         ((2, 0, 1, 0, 29),),
         (),
         (),
-        ((1, 5, 6, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 29),),
+        ((1, 5, 6, 0, 1, 0, 0, 0, 1, 0, False, 1, 0, 29, 0, 0),),
         ((2, 0, 1, 9, 27),),
         (),
         ((1, 14, 15, 1, 9, 27, 0, 1),),
@@ -536,11 +563,137 @@ def main() -> None:
         ((2, 0, 1, 0, 30),),
         (),
         (),
-        ((1, 5, 6, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, 30),),
+        ((1, 5, 6, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, 30, 0, 0),),
         ((1, 0, 1, 9, 28),),
         ((1, 9, 14, 0, 1, 9, 28),),
         (),
         ((2, 1, 16, 17, 1, 16, 27, 1, 1, 21, 27),),
+    )
+    accepted(
+        program,
+        "generic-type-parameter",
+        b"data Vec<T> {}",
+        ((2, 0, 1, 0, 14),),
+        (),
+        (),
+        ((1, 5, 8, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 14, 0, 1),),
+        (),
+        (),
+        (),
+        (),
+        (),
+        ((2, 1, 9, 10, 0, 0, 0, 1, 9, 10),),
+    )
+    accepted(
+        program,
+        "generic-type-and-const-parameters",
+        b"pub data BoundedQueue<T, const N: u64> [linear] {}",
+        ((2, 0, 1, 0, 50),),
+        (),
+        (),
+        ((1, 9, 21, 0, 0, 0, 0, 0, 0, 2, True, 1, 0, 50, 0, 2),),
+        (),
+        (),
+        (),
+        ((1, 1, 34, 37, 1, 34, 37, 0, 0, 0, 0),),
+        (),
+        (
+            (2, 1, 22, 23, 0, 0, 0, 1, 22, 23),
+            (3, 1, 31, 32, 1, 0, 0, 1, 25, 37),
+        ),
+    )
+    accepted(
+        program,
+        "generic-lifetime-then-type",
+        b"data Pair<'a, T> {}",
+        ((2, 0, 1, 0, 20),),
+        (),
+        (),
+        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 20, 0, 2),),
+        (),
+        (),
+        (),
+        (),
+        (),
+        (
+            (1, 1, 12, 13, 0, 0, 0, 1, 11, 13),
+            (2, 1, 15, 16, 0, 0, 0, 1, 15, 16),
+        ),
+    )
+    accepted(
+        program,
+        "generic-value-binder",
+        b"data Sized<u: u64> {}",
+        ((2, 0, 1, 0, 22),),
+        (),
+        (),
+        ((1, 5, 10, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 22, 0, 1),),
+        (),
+        (),
+        (),
+        ((1, 1, 15, 18, 1, 15, 18, 0, 0, 0, 0),),
+        (),
+        ((4, 1, 12, 13, 1, 0, 0, 1, 12, 18),),
+    )
+    accepted(
+        program,
+        "generic-machine-binder",
+        b"data Exec<machine M> {}",
+        ((2, 0, 1, 0, 24),),
+        (),
+        (),
+        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 24, 0, 1),),
+        (),
+        (),
+        (),
+        (),
+        (),
+        ((5, 1, 19, 20, 0, 0, 0, 1, 11, 20),),
+    )
+    accepted(
+        program,
+        "generic-type-parameter-bounds",
+        b"data Cell<T [copy]> {}",
+        ((2, 0, 1, 0, 23),),
+        (),
+        (),
+        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 23, 0, 1),),
+        (),
+        (),
+        (),
+        (),
+        (),
+        ((2, 1, 11, 12, 0, 0, 1, 1, 11, 19),),
+    )
+    accepted(
+        program,
+        "generic-const-parameter-bounds",
+        b"data Box<const N: u64 [linear]> {}",
+        ((2, 0, 1, 0, 35),),
+        (),
+        (),
+        ((1, 5, 8, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 35, 0, 1),),
+        (),
+        (),
+        (),
+        ((1, 1, 19, 22, 1, 19, 22, 0, 0, 0, 0),),
+        (),
+        ((3, 1, 16, 17, 1, 0, 2, 1, 10, 31),),
+    )
+    accepted(
+        program,
+        "generic-qualified-const-type",
+        b"data Rate<const N: u64 in Domain> {}",
+        ((2, 0, 1, 0, 36),),
+        (),
+        (),
+        ((1, 5, 9, 0, 0, 0, 0, 0, 0, 0, False, 1, 0, 36, 0, 1),),
+        (),
+        (),
+        (),
+        ((2, 1, 19, 22, 1, 19, 32, 1, 1, 26, 32),),
+        (),
+        ((3, 1, 16, 17, 1, 0, 0, 1, 10, 32),),
     )
 
     rejected(program, "missing-first-member", b"use;", 3, (3, 4))
@@ -601,6 +754,20 @@ def main() -> None:
         ("second-type-qualifier", b"data X { field: T in A in B; }", 14, (23, 25)),
         ("qualified-domain-union", b"data X { field: T in A | B; }", 14, (23, 24)),
         ("missing-payload-qualified-domain", b"data X { case A(v: T in ); }", 31, (24, 25)),
+        ("empty-generic-list", b"data X<> {}", 32, (7, 8)),
+        ("unterminated-generic-list", b"data X<T", 36, (8, 8)),
+        ("generic-parameter-missing-after-comma", b"data X<T,", 32, (9, 9)),
+        ("generic-lifetime-after-runtime", b"data X<T 'a> {}", 38, (9, 10)),
+        ("duplicate-generic-parameter", b"data Dup<T, T> {}", 39, (12, 13)),
+        ("const-binder-missing-name", b"data X<const> {}", 33, (12, 13)),
+        ("const-binder-missing-colon", b"data X<const N u64> {}", 34, (15, 18)),
+        ("const-binder-missing-type", b"data X<const N:> {}", 35, (15, 16)),
+        ("const-binder-unclosed-after-colon", b"data X<const N:", 35, (15, 15)),
+        ("machine-binder-missing-name", b"data X<machine> {}", 33, (14, 15)),
+        ("proposition-binder-not-admitted", b"data X<prop R> {}", 36, (12, 13)),
+        ("generic-lifetime-bounds-rejected", b"data X<'a [copy]> {}", 36, (10, 11)),
+        ("generic-bounds-without-parameter", b"data X<[copy] T> {}", 32, (7, 8)),
+        ("value-binder-missing-type", b"data X<u:> {}", 35, (9, 10)),
     )
     for name, source, diagnostic, span in data_rejections:
         rejected(program, name, source, diagnostic, span)
@@ -656,6 +823,23 @@ def main() -> None:
     assert len(exact_field_observation.data_members) == 1024
     assert len(exact_field_observation.fields) == 1024
     assert len(exact_field_observation.type_references) == 1024
+    exact_generics = (
+        b"data G<" + b",".join(f"p{i}".encode() for i in range(256)) + b"> {}"
+    )
+    exact_generic_status, exact_generic_payload = run(program, exact_generics)
+    assert exact_generic_status == 0
+    exact_generic_observation = decode(exact_generic_payload)
+    assert len(exact_generic_observation.generic_parameters) == 256
+    overflow_generic_start = len(exact_generics) - 4 + 1
+    rejected(
+        program,
+        "generic-capacity-plus-one",
+        exact_generics[:-4] + b",overflow> {}",
+        37,
+        (overflow_generic_start, overflow_generic_start + 8),
+        generic_parameter_count=256,
+    )
+
     overflow_field_start = len(exact_fields) - 1
     rejected(
         program,
@@ -741,7 +925,7 @@ def main() -> None:
     second = run(program, repeat_source)
     assert first == second, "parser observation is not deterministic"
 
-    print("Psi parser slices: 68 cases passed")
+    print("Psi parser slices: 94 cases passed")
 
 
 if __name__ == "__main__":

@@ -72,7 +72,7 @@ pub(super) fn all(
 /// carries every proven membership observing the place, in node order: each
 /// row's basis is the place's root proof at an empty path or the sole-case
 /// roster at the resolved nested position.
-pub(super) fn plan(
+pub(crate) fn plan(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     place: PlaceId,

@@ -10,11 +10,13 @@ use sha2::{Digest, Sha256};
 mod exact_linux_arm64;
 mod exact_linux_x86_64;
 mod exact_macos;
+mod exact_macos_x86_64;
 mod exact_uefi;
 mod exact_windows_x86_64;
 pub use exact_linux_arm64::*;
 pub use exact_linux_x86_64::*;
 pub use exact_macos::*;
+pub use exact_macos_x86_64::*;
 pub use exact_uefi::*;
 pub use exact_windows_x86_64::*;
 
@@ -133,6 +135,14 @@ impl ProgramEntryPhysicalContractPlan {
                 target::TargetProfile::MacosArm64,
                 Some(target::ProgramEntryCallingConvention::Aapcs64),
             ) => (calling_conventions::CallingPolicy::Aapcs64, 4, None),
+            // The Intel dyld `appMain` entry receives argc, argv, envp and
+            // apple in registers under System V x86-64 and returns the status
+            // in eax; the authored contract publishes no numeric stack
+            // guarantee.
+            (
+                target::TargetProfile::MacosX64,
+                Some(target::ProgramEntryCallingConvention::SystemVAMD64),
+            ) => (calling_conventions::CallingPolicy::SystemVAMD64, 4, None),
             // The Linux kernel enters through the initial process-stack image
             // in rsp and receives completion through exit_group; the authored
             // contract publishes no numeric stack guarantee.

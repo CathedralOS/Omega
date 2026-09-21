@@ -15,6 +15,7 @@
 
 use std::collections::BTreeSet;
 
+use diagnostics::Diagnostic;
 use package_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -25,6 +26,7 @@ use crate::lock::{
     PackagePolicyAcceptance,
 };
 use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
+use crate::review::timings;
 
 /// One normalized restricted build request a checked package occurrence
 /// projected without identical retained accepted-request meaning. Its
@@ -38,7 +40,7 @@ use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosu
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
-    purpose: DependencyPurpose,
+    context: PackageCheckedContext,
     request_meaning: String,
     request_path: Option<DependencyRequestPath>,
 }
@@ -50,9 +52,17 @@ impl UngrantedRestrictedBuildRequest {
         self.package
     }
 
+    /// The complete checked context — purpose, selected target, and build
+    /// execution profile — whose request lacks retained accepted meaning.
+    /// Sibling occurrences of one package grant independently, so the
+    /// context is the attribution, not an optional refinement.
+    pub const fn context(&self) -> PackageCheckedContext {
+        self.context
+    }
+
     /// The authorized context — product or build — the request belongs to.
     pub const fn purpose(&self) -> DependencyPurpose {
-        self.purpose
+        self.context.purpose()
     }
 
     /// The complete normalized request meaning the accepted policy did not
@@ -78,10 +88,14 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
         }
         writeln!(
             formatter,
-            "package {identity}… {} occurrence requests:\n    {}",
-            self.purpose.name(),
+            "package {identity}… {} {} occurrence requests:\n    {}",
+            self.context.purpose().name(),
+            self.context.target().identity().as_str(),
             self.request_meaning
         )?;
+        if let Some(profile) = self.context.build_execution_profile() {
+            writeln!(formatter, "    build host {}", profile.identity().as_str())?;
+        }
         match &self.request_path {
             Some(path) => {
                 write!(formatter, "    path ")?;
@@ -170,11 +184,81 @@ impl RestrictedBuildCheckpoint {
             .filter(|meaning| granted.is_none_or(|texts| !texts.contains(*meaning)))
             .map(|meaning| UngrantedRestrictedBuildRequest {
                 package,
-                purpose: context.purpose(),
+                context,
                 request_meaning: meaning.to_owned(),
                 request_path: request_path.clone(),
             })
             .collect()
+    }
+
+    /// Arm the checkpoint for one admitted activation: the returned binding
+    /// crosses to the compile worker and joins each restricted request the
+    /// occurrence's build machine projects — by canonical accepted-request
+    /// meaning — before that request's own build effect executes. An
+    /// occurrence absent from the accepted target carries an empty grant
+    /// view: every request it projects refuses.
+    pub fn grants(
+        &self,
+        package: PackageKeyIdentity,
+        context: PackageCheckedContext,
+        request_path: Option<DependencyRequestPath>,
+    ) -> CheckpointRestrictedBuildGrants {
+        CheckpointRestrictedBuildGrants {
+            package,
+            context,
+            request_path,
+            granted: self
+                .grants
+                .iter()
+                .find(|(identity, granted_context, _)| {
+                    *identity == package && *granted_context == context
+                })
+                .map(|(_, _, texts)| texts.clone())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// Occurrence-bound consent one consuming compile hands to `checking`: each
+/// restricted build-host request the activation's admitted build machine
+/// projects joins here — in issue order — before that request's own build
+/// effect executes, so an absent or widened request never runs.
+///
+/// The binding is owned data (`Send` across the compile thread): it consults
+/// the request's canonical acceptance-row meaning against the granted
+/// meanings retained for this exact package identity and checked context.
+/// A refusal fails the compile with the pending meaning attached, the same
+/// record the post-pass join would surface.
+pub struct CheckpointRestrictedBuildGrants {
+    package: PackageKeyIdentity,
+    context: PackageCheckedContext,
+    request_path: Option<DependencyRequestPath>,
+    granted: BTreeSet<String>,
+}
+
+impl compiler::RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
+    fn admit(
+        &mut self,
+        request: &build_evaluation::RestrictedBuildRequest,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let meaning = package_evidence::encoding::restricted_build_request_acceptance_text(
+            self.package,
+            self.context.target(),
+            request,
+        )
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        if self.granted.contains(&meaning) {
+            return Ok(());
+        }
+        Err(vec![Diagnostic::error(
+            UngrantedRestrictedBuildRequest {
+                package: self.package,
+                context: self.context,
+                request_meaning: meaning,
+                request_path: self.request_path.clone(),
+            }
+            .to_string(),
+        )])
     }
 }
 
@@ -192,6 +276,7 @@ pub fn ungranted_restricted_build_requests(
     reviews: &CompilerIssuedPackageReviewSet,
     closure: &ResolvedPackageSourceClosure,
 ) -> Result<Vec<UngrantedRestrictedBuildRequest>, PackageLockError> {
+    let _stage = timings::stage("restricted_build_grant_join");
     let checkpoint = RestrictedBuildCheckpoint::derive(accepted);
     let mut ungranted = Vec::new();
     for review in reviews.reviews() {

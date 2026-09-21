@@ -1,7 +1,5 @@
 //! State-argument specialization pass entrance and rule registration.
 
-use std::collections::BTreeSet;
-
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -10,22 +8,21 @@ use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, SpecializedStateEdgeRow,
     StateArgumentSpecializationRewrite,
 };
-use semantic_vocabulary::MachineId;
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::state_specialization;
-use crate::{
-    AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
-    StronglyConnectedComponentAnalysis,
-};
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 use super::STATE_SPECIALIZATION_PASS_NAME;
 
-/// Binds the proven Boolean constant on an incoming edge — an unconditional
-/// `Jump` successor or one arm of a `Conditional` predecessor — to a
-/// single-`Conditional` dispatch block's parameter and fuses the resolved
+/// Binds the proven constant on an incoming edge — an unconditional `Jump`
+/// successor or one arm of a `Conditional` predecessor — to a
+/// `Conditional`-terminated dispatch block's parameter and fuses the resolved
 /// arm, keeping both edges' provenance and fuel settlements on the fused
-/// traversal. Machines holding an authenticated cyclic component stay frozen.
+/// traversal. The condition reads the parameter directly (a Boolean
+/// argument) or through an in-block `parameter CMP literal` integer
+/// comparison against a pure scalar-constant prefix (an integer argument).
+/// Machines holding an authenticated cyclic component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StateArgumentSpecializationRule;
 
@@ -58,44 +55,6 @@ impl StateArgumentSpecializationRule {
         )
         .expect("built-in rule has nonzero version")
     }
-
-    /// Machines whose block projection contains a cyclic component —
-    /// a multi-block SCC or a singleton self-loop — are frozen byte-exact,
-    /// matching the bespoke family's cycle roster.
-    fn frozen_machines(
-        unit: &PsiOptimizationUnit,
-        scc: &StronglyConnectedComponentAnalysis,
-    ) -> BTreeSet<MachineId> {
-        unit.functions
-            .iter()
-            .filter(|function| {
-                let Some((_, components)) = scc
-                    .functions
-                    .iter()
-                    .find(|(machine, _)| *machine == function.machine)
-                else {
-                    return false;
-                };
-                components.iter().any(|component| {
-                    component.len() > 1
-                        || component.iter().any(|block| {
-                            function
-                                .blocks
-                                .iter()
-                                .find(|candidate| candidate.id == *block)
-                                .is_some_and(|owner| {
-                                    owner
-                                        .nodes
-                                        .iter()
-                                        .flat_map(|node| &node.successors)
-                                        .any(|edge| edge.target == *block)
-                                })
-                        })
-                })
-            })
-            .map(|function| function.machine)
-            .collect()
-    }
 }
 
 impl PsiOptimizationRule for StateArgumentSpecializationRule {
@@ -122,7 +81,7 @@ impl PsiOptimizationRule for StateArgumentSpecializationRule {
                 AnalysisKind::StronglyConnectedComponents,
             ));
         };
-        let frozen = Self::frozen_machines(unit, scc);
+        let frozen = super::support::frozen_machines(unit, scc);
         let mut candidates = Vec::new();
         for function in &unit.functions {
             if frozen.contains(&function.machine) {

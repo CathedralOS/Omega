@@ -5,7 +5,7 @@
 // field, the cardinal sin); it surfaces as the unit-plan local-construction
 // omission at the assignment, reported through ProgramEntry establishment.
 // Remove when field-target byte reads gain a lowering.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {

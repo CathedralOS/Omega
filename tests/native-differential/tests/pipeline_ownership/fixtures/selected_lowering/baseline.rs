@@ -55,6 +55,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
     };
     let integer_operation = |id, result, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,
@@ -107,6 +108,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -115,6 +117,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                         condition,
                         when_true: SuccessorEdge {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_041).unwrap(),
                             target: when_true,
@@ -123,6 +126,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                         },
                         when_false: SuccessorEdge {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_042).unwrap(),
                             target: when_false,
@@ -133,6 +137,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
@@ -177,6 +182,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),
@@ -222,6 +228,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(5_051).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -268,6 +275,7 @@ pub(crate) fn single_block_exact_add_fold_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let integer_operation = |id, result, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,
@@ -319,6 +327,7 @@ pub(crate) fn single_block_exact_add_fold_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -371,6 +380,7 @@ pub(crate) fn single_block_exact_add_fold_artifact() -> (Vec<u8>, Vec<u8>) {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(5_351).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

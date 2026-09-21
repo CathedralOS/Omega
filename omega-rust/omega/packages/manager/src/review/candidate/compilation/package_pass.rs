@@ -32,7 +32,9 @@ use super::ledger::{
 };
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
-use crate::lock::{PackageAcceptanceRow, PackageOccurrenceRoster, PackagePolicyAcceptance};
+use crate::lock::{
+    PackageAcceptanceRow, PackageCheckedContext, PackageOccurrenceRoster, PackagePolicyAcceptance,
+};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
@@ -84,8 +86,9 @@ pub(super) fn compile_dependency_closure(
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     // A consuming compile supplies the accepted target's restricted-request
     // checkpoint so each occurrence's projected requests join its granted
-    // meanings — bound to its exact checked context — before the review is
-    // retained or its generated-source bundle hands off to a consumer.
+    // meanings — bound to its exact checked context — before its own build
+    // effect executes, before the review is retained, and before its
+    // generated-source bundle hands off to a consumer.
     // `None` is audit-only observation: requests still project for review
     // material and the pass issues no grants.
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
@@ -357,6 +360,17 @@ pub(super) fn compile_dependency_closure(
                 filesystem_sponsor: Some(filesystem_sponsor.clone()),
                 evaluation_sponsor: Some(evaluation_sponsor.clone()),
                 build_snapshot: Some(build_snapshot.clone()),
+                // An armed checkpoint binds the admitted activation's
+                // restricted requests to this occurrence's granted meanings
+                // before each request's own build effect executes.
+                restricted_build_grants: restricted_build_checkpoint.map(|checkpoint| {
+                    Box::new(checkpoint.grants(
+                        key.identity(),
+                        PackageCheckedContext::new(purpose, checked_target, execution_profile),
+                        closure.dependency_path(&key),
+                    )) as Box<dyn compiler::RestrictedBuildGrants>
+                }),
+                collect_timings: preparation.collect_timings,
                 ..CheckedCompileRequest::new(entry, Some(target))
             };
             // A populated slot supplies only this package's binding-independent
@@ -422,6 +436,21 @@ pub(super) fn compile_dependency_closure(
                         filesystem_sponsor: Some(filesystem_sponsor.clone()),
                         evaluation_sponsor: Some(evaluation_sponsor.clone()),
                         build_snapshot: Some(build_snapshot),
+                        // The retried activation is the same checked
+                        // occurrence: consent re-arms identically.
+                        restricted_build_grants: restricted_build_checkpoint.map(|checkpoint| {
+                            Box::new(checkpoint.grants(
+                                key.identity(),
+                                PackageCheckedContext::new(
+                                    purpose,
+                                    checked_target,
+                                    execution_profile,
+                                ),
+                                closure.dependency_path(&key),
+                            ))
+                                as Box<dyn compiler::RestrictedBuildGrants>
+                        }),
+                        collect_timings: preparation.collect_timings,
                         ..CheckedCompileRequest::new(entry, Some(target))
                     };
                     request.prepared_source_output = Some(&mut retained);

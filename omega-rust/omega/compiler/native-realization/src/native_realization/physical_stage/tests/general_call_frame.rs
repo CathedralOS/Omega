@@ -36,6 +36,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
     let third = ValueId::new(CALLER_BASE + 5).unwrap();
     let operation = |id: u64, result: u64, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(value(result)),
         kind,
@@ -46,6 +47,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
             result,
             OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: MachineId::new(CALLEE).unwrap(),
                 arguments,
                 requirement_obligations: Vec::new(),
@@ -71,6 +73,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
         entry: BlockId::new(CALLER_BASE).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALLER_BASE).unwrap(),
             parameters: Vec::new(),
@@ -101,6 +104,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(CALLER_BASE + 8).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),
@@ -126,6 +130,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
         entry: BlockId::new(CALLEE_BASE).unwrap(),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(CALLEE_BASE).unwrap(),
             parameters: Vec::new(),
@@ -138,6 +143,7 @@ pub(super) fn preserving_call_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(CALLEE_BASE + 4).unwrap(),
             requires: Vec::new(),
             ensures: Vec::new(),

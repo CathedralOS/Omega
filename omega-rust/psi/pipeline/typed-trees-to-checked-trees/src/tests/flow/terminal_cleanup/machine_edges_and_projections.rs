@@ -978,3 +978,60 @@ fn projected_transition_shape_helper_rejects_nominal_root_cleanup() {
         "a record-level nominal destructor must fence projected cleanup"
     );
 }
+
+#[test]
+fn projected_transition_cleanup_admits_multi_state_machines() {
+    // The projected-edge plan is keyed by (machine, state, statement) and
+    // revalidates custody per edge, so a machine with more than two states
+    // admits the same bounded cohort as long as the forwarding state and its
+    // target keep the one-parameter Unit shape.
+    let checked = checked(
+        r#"
+        data Token { value: i32; }
+        data Pair { left: Token; right: Token; }
+        data Root {}
+        machine Root::route(pair: Pair) {
+            transition { _ -> mid(pair.left) }
+            state mid(token: Token) {
+                transition { _ -> sink(token) }
+            }
+            state sink(token: Token) {}
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "route");
+    let edge = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_projected_edge(machine, entry, 0)
+        .expect("the multi-state machine keeps its projected entry-edge cleanup");
+    assert_eq!(edge.machine, machine);
+    assert_eq!(edge.state, entry);
+    assert_eq!(edge.transfer.source_parameter_position, 0);
+    assert_eq!(edge.transfer.path.len(), 1);
+    let [sibling] = edge.residual_affine_discards.as_slice() else {
+        panic!("exactly one maximal sibling residual should remain")
+    };
+    assert_eq!(
+        sibling.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    );
+    assert!(matches!(
+        &sibling.path[0],
+        checked_trees::CheckedUnitStructuralPathSegment::Field(identity)
+            if identity.ends_with("right")
+    ));
+
+    // The downstream consumer replays the recorded evidence exactly, so a
+    // drifted row still cannot join.
+    let rebuilt =
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            &checked.facts,
+        );
+    assert_eq!(
+        rebuilt,
+        checked.facts.flow.terminal_structural_control_cleanups
+    );
+}

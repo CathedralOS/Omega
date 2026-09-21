@@ -76,7 +76,8 @@ pub(super) fn register_structural_types(
                     }
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => {
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => {
                 if !types.contains_key(element) {
                     return Err(ModuleError::UnknownStructuralType(*element));
                 }
@@ -144,7 +145,8 @@ pub(super) fn register_structural_types(
                     }
                 })
                 .collect(),
-            StructuralTypeShape::FixedArray { element, .. } => vec![*element],
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => vec![*element],
             StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. } => Vec::new(),

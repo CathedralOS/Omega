@@ -344,9 +344,13 @@ pub(super) fn append_operation(
             // A valid referent retains its declared interval. Capture that
             // invariant on this read's SSA value, which survives later writes
             // without asserting that the mutable field keeps its old value.
+            // The emission is certificate-gated: only a bound whose fixed-shape
+            // elimination certificate re-decides joins under this row.
             let value = ScalarTerm::value(result.id, result.scalar_type);
             for fact in declared_carrier_bounds(context.proposition_context(), bounds, value) {
-                axioms.push(fact.proposition);
+                if fact.certified {
+                    axioms.push(fact.proposition);
+                }
             }
         }
         if let Some(equation) =

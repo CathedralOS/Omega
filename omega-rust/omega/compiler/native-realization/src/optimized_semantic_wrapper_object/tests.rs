@@ -176,7 +176,7 @@ fn encoding() -> StagedOptimizedProgramStorageSemanticWrapperEncoding {
     )
     .unwrap();
     crate::select_optimized_program_storage_semantic_wrapper_encoding(
-        plan_optimized_program_storage_semantic_wrapper(contract).unwrap(),
+        plan_optimized_program_storage_semantic_wrapper(contract, None).unwrap(),
     )
     .unwrap()
 }
@@ -257,7 +257,9 @@ fn composition_prefixes_resolved_wrapper_and_shifts_terminal_symbols() {
 #[test]
 fn object_and_manifest_codecs_reject_identity_drift() {
     let object = composed();
-    let container = encode_optimized_program_storage_semantic_wrapper_object(&object).unwrap();
+    let container =
+        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding().template())
+            .unwrap();
     assert_eq!(
         decode_optimized_program_storage_semantic_wrapper_object(&container.bytes).unwrap(),
         object
@@ -279,7 +281,7 @@ fn wrapper_cannot_be_reclassified_as_a_machine_symbol() {
     object.symbols[0].machine = Some(MachineId::new(99).unwrap());
     object.identity = object.recomputed_identity().unwrap();
     assert_eq!(
-        validate_object(&object),
+        validate_object(&object, encoding().template()),
         Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject)
     );
 }
@@ -287,7 +289,9 @@ fn wrapper_cannot_be_reclassified_as_a_machine_symbol() {
 #[test]
 fn manifest_replay_detects_drift() {
     let object = composed();
-    let container = encode_optimized_program_storage_semantic_wrapper_object(&object).unwrap();
+    let container =
+        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding().template())
+            .unwrap();
     let mut validated = ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
         record: construct_manifest(&object, &container).unwrap(),
     };
@@ -303,7 +307,7 @@ fn retained_object_identity_rejects_text_drift() {
     let mut object = composed();
     object.text_bytes[90] ^= 1;
     assert_eq!(
-        validate_object(&object),
+        validate_object(&object, encoding().template()),
         Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject)
     );
 }

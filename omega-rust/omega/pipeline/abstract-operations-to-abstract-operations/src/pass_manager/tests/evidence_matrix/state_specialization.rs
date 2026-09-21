@@ -17,10 +17,14 @@ fn expected_rule() -> OptimizationRuleIdentity {
 const CASE: SelectionMatrix = SelectionMatrix {
     selection: Optimization::StateSpecialization,
     expected_rule,
-    // Only the constant-supplied incoming edges fuse — one jump successor and
-    // one conditional arm — inside a single candidate commit; the
-    // parameter-supplied edge keeps the dispatch reachable.
-    expected_commits: 1,
+    // Three dispatch sites commit independently: the Boolean state argument
+    // fuses its constant-supplied jump and conditional-arm edges, the
+    // integer state argument's `istate < 4` dispatch fuses its one
+    // constant-supplied jump edge, and the result specialization fuses
+    // `ccall_pred`'s edge whose bound argument is `Call{leaf}`'s scalar
+    // result — proven constant by `leaf`'s own single-Return lattice — while
+    // each parameter-supplied variable edge keeps its dispatch reachable.
+    expected_commits: 3,
     positive: verified_dispatch_specialization_unit,
     boundary: verified_dispatch_all_constant_unit,
     sibling: Optimization::GlobalValueNumbering,
