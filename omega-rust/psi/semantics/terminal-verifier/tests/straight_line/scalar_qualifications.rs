@@ -373,12 +373,14 @@ fn routed_issuer(module: &mut TerminalModule) -> MachineId {
         entry: BlockId::new(951).unwrap(),
         blocks: vec![
             Block {
+                erased_proof_formals: Vec::new(),
                 erased_scalar_formals: Vec::new(),
                 id: BlockId::new(951).unwrap(),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
+                    erased_proof_arguments: Vec::new(),
                     edge: EdgeId::new(951).unwrap(),
                     target: BlockId::new(952).unwrap(),
                     arguments: vec![value(951, 0).id],
@@ -389,6 +391,7 @@ fn routed_issuer(module: &mut TerminalModule) -> MachineId {
                 },
             },
             Block {
+                erased_proof_formals: Vec::new(),
                 erased_scalar_formals: Vec::new(),
                 id: BlockId::new(952).unwrap(),
                 parameters: vec![value(952, 1)],
@@ -401,6 +404,7 @@ fn routed_issuer(module: &mut TerminalModule) -> MachineId {
             },
         ],
         contract: MachineContract {
+            erased_proof_formals: Vec::new(),
             erased_scalar_formals: Vec::new(),
             id: ContractId::new(950).unwrap(),
             crash_routes: Vec::new(),
