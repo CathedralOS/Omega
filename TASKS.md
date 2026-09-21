@@ -14528,6 +14528,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   offenders, plus new upstream drift
   `compact_identity_inventory::every_u64_fingerprint_declaration_requires_explicit_classification`.
   Gate still red; the surviving bare-stub duplicate at :12834 folds here.
+  Re-measured at `53817f8759e` (z203 leg): `python tools/fmt.py --check`
+  GREEN; `omega-architecture-test --all-targets` now **574/576** — the
+  `compact_identity_inventory` offender is repaired in this commit
+  (`program-entry-plan/.../optimized_semantic_wrapper/recipe.rs`: the
+  `expected_steps` parameter renamed `fingerprint` → `report_fingerprint`,
+  matching the report vocabulary the field already lands under as
+  `semantic_calling_plan_report_fingerprint`; `cargo check
+  -p program-entry-plan` clean, its 30/30 tests green, and the
+  architecture family now passes). Rebased onto `d7d4a88331b` the leg
+  narrows further to **575/576**: `custody_mutation_matrix`'s
+  `compilation-report/.../custody_tests.rs` residual closed upstream
+  between the two bases, leaving `glob_self_imports` as the sole red —
+  the single `foundation/extents` offender, fenced to
+  DEVICE-EXTENT-ACCESS (~11:04Z; the `validation` offender repaired
+  upstream). Gate still red on that one fenced offender; no unfenced
+  architecture offender remains.
 - **REPRESENTATION-OWNERSHIP.** — mined candidate; scope verified, coverage recorded — the stub re-mines the same-named real item on the optimizer board (`TASKS_OPTIMIZER.md`), which owns the `omega-rust/{omega,psi}/representations/` ownership finish. Both stage-ancestry legs are landed there: staged types expose `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly with per-crate pins (`selected_stages_read_current_data_not_producer_ancestry`, `register_home_stages_read_current_data_not_producer_ancestry`; resolved sibling RO-STAGE-ANCESTRY-ELIMINATION re-verified 2/2 green at 39e156c73a), and `representations/optimization-unit` settled at 11eaa140cb. The only residual on that item is the durable-codec relocation (`post_allocation_manifest/codec`, `rewrites/allocation_recovery/fixed_view_copy/codec`, `optimized_semantic_wrapper_object/codec`), shared with DURABLE-CODEC-RELOCATION — the board's own row, not this stub's slice. Row stays a pointer to the optimizer item; no leg remains here. Re-verified at a1daf35f2e: the optimizer item and its stage-ancestry annotations are current, the per-crate ancestry pins exist (`tests/architecture/representation_ownership.rs:1080`/`:1118` plus the `selected_optimization_stages` extension at `stage_crate_ownership.rs:354`), and all three residual codec sites remain where the row places them (`post_allocation_manifest/codec.rs`, `fixed_view_copy/codec/`, `optimized_semantic_wrapper_object/codec.rs`).
 - **RESOLVER-SCOPE-CANDIDATE-FILTERING.** — mined candidate; scope verified, resolved — the name is a retired alias (annotated at `a8993c14af`, cited under its parent row's sibling re-mine list) for the landed source-scoped candidate narrowing in symbol lookup. Re-verified at `3a1304c93e`: `prefer_module_local_domain` still narrows a candidate list to the reference's own module when a same-module candidate exists (`syntax-trees-to-symbol-resolved-trees/src/symbols/lookup.rs:39`), and `source_reference_can_see_symbol` still gates candidate visibility from the reference's provenance span (`foundation/symbols/src/table.rs:864`, consulted at `table.rs:686`, `:795` and `table/modules.rs:551` for scope-candidate filtering). No independent slice exists.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.

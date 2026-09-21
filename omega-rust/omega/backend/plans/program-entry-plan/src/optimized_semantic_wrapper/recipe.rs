@@ -59,7 +59,7 @@ impl OptimizedProgramStorageSemanticReceiverLayout {
 }
 
 pub(super) fn expected_steps(
-    fingerprint: u64,
+    report_fingerprint: u64,
     receiver: Option<OptimizedProgramStorageSemanticReceiverStorage>,
 ) -> Vec<OptimizedProgramStorageSemanticWrapperStep> {
     use OptimizedProgramStorageSemanticWrapperStep::*;
@@ -143,7 +143,7 @@ pub(super) fn expected_steps(
     }
     steps.push(CallPrivateTerminalContinuation {
         calling_policy: CallingPolicy::MicrosoftX64,
-        semantic_calling_plan_report_fingerprint: fingerprint,
+        semantic_calling_plan_report_fingerprint: report_fingerprint,
         disposition:
             OptimizedProgramStorageSemanticWrapperContinuationDisposition::PrivateTerminalSymbolRequiredV1,
     });
