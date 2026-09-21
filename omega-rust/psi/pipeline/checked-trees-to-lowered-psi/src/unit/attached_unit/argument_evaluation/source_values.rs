@@ -259,7 +259,8 @@ impl Evaluation {
         )
         .with_arrays(&self.arrays)
         .with_cases(&self.cases)
-        .with_fields(&self.record_fields);
+        .with_fields(&self.record_fields)
+        .enter_proof_scope(&self.erased_proof_formals);
         let entry = match value {
             CheckedCallScalarArgument::Pure(_) => expansion.retained_pure_value(
                 state,

@@ -599,6 +599,9 @@ pub enum PropositionError {
         first: StructuralPlaceKind,
         second: StructuralPlaceKind,
     },
+    EmptyProofTermTypeIdentity,
+    EmptyProofTermCaseIdentity,
+    EmptyProofTermFieldIdentity,
 }
 
 impl std::fmt::Display for PropositionError {

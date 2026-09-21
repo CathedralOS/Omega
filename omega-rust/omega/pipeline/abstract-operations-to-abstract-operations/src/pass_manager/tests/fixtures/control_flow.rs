@@ -8,6 +8,7 @@ fn empty_contract(id: u64) -> terminal_psi::MachineContract {
     use semantic_vocabulary::ContractId;
     terminal_psi::MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(id).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -110,6 +111,7 @@ pub(in crate::pass_manager::tests) fn verified_linear_empty_block_unit()
     };
     let jump = |edge, target, arguments| Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge,
         target,
         arguments,
@@ -126,6 +128,7 @@ pub(in crate::pass_manager::tests) fn verified_linear_empty_block_unit()
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -151,6 +154,7 @@ pub(in crate::pass_manager::tests) fn verified_linear_empty_block_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: empty,
                     parameters: vec![declaration(a), declaration(b)],
@@ -159,6 +163,7 @@ pub(in crate::pass_manager::tests) fn verified_linear_empty_block_unit()
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: target,
                     parameters: vec![declaration(x), declaration(y)],
@@ -203,6 +208,7 @@ pub(in crate::pass_manager::tests) fn verified_merge_parameter_unit(
     };
     let successor = |edge: u64, arguments| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: merge,
         arguments,
@@ -222,6 +228,7 @@ pub(in crate::pass_manager::tests) fn verified_merge_parameter_unit(
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -237,6 +244,7 @@ pub(in crate::pass_manager::tests) fn verified_merge_parameter_unit(
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: merge,
                     parameters: vec![declaration(parameter, scalar_type)],
@@ -277,6 +285,7 @@ pub(in crate::pass_manager::tests) fn verified_conditional_distinct_returns_unit
     let condition = ValueId::new(5_405).unwrap();
     let successor = |edge: u64, target| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target,
         arguments: Vec::new(),
@@ -300,6 +309,7 @@ pub(in crate::pass_manager::tests) fn verified_conditional_distinct_returns_unit
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
@@ -312,6 +322,7 @@ pub(in crate::pass_manager::tests) fn verified_conditional_distinct_returns_unit
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
@@ -320,6 +331,7 @@ pub(in crate::pass_manager::tests) fn verified_conditional_distinct_returns_unit
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),

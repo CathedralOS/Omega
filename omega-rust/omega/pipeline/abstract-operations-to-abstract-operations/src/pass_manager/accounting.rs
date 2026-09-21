@@ -296,13 +296,15 @@ pub(super) fn convergence_measure(
 
 /// Non-decreasing convergence measure for the state-specialization pass: the
 /// sum, over every edge, of the dispatch-nesting depth of its target — where a
-/// dispatch block (a single `Conditional` node) contributes `1 + max` of its
-/// arm targets' depths and any other block contributes `0`. Fusing one
-/// constant-supplied incoming edge retargets it from a dispatch (depth `>= 1`)
-/// to a resolved arm target (depth `< dispatch depth`), so every committed
-/// rewrite strictly lowers the measure even when the resolved target is itself
-/// a dispatch. Eligible machines are acyclic; an on-stack revisit contributes
-/// `0` so the traversal is total on arbitrary input.
+/// `Conditional`-terminated block (a direct parameter dispatch, or an integer
+/// state argument's `parameter CMP literal` dispatch trailing its pure
+/// scalar-computation prefix) contributes `1 + max` of its arm targets'
+/// depths and any other block contributes `0`. Fusing one constant-supplied
+/// incoming edge retargets it from a dispatch (depth `>= 1`) to a resolved
+/// arm target (depth `< dispatch depth`), so every committed rewrite strictly
+/// lowers the measure even when the resolved target is itself a dispatch.
+/// Eligible machines are acyclic; an on-stack revisit contributes `0` so the
+/// traversal is total on arbitrary input.
 fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
     use std::collections::BTreeSet;
 
@@ -326,8 +328,9 @@ fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
             .blocks
             .iter()
             .find(|candidate| candidate.id == block)
-            .and_then(|owner| match owner.nodes.as_slice() {
-                [node] => match &node.operation {
+            .and_then(|owner| {
+                let node = owner.nodes.last()?;
+                match &node.operation {
                     AbstractOperation::Conditional { .. } => Some(
                         node.successors
                             .iter()
@@ -337,8 +340,7 @@ fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
                             + 1,
                     ),
                     _ => None,
-                },
-                _ => None,
+                }
             })
             .unwrap_or(0);
         visiting.remove(&block);

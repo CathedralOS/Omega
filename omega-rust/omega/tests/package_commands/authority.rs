@@ -324,7 +324,7 @@ use host_services::console;
 use host_services::filesystem_host;
 use omega::language::core::service;
 
-pub machine write_and_exit(console: Service<Console> in Bound, files: FilesystemHost, descriptor: i32, line: &[u8])
+pub machine write_and_exit(console: Service<Console>, files: Service<FilesystemHost>, descriptor: i32, line: &[u8])
 reaches FilesystemHost + Console
 invokes console;
 invokes files;
@@ -344,7 +344,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
         .replace('"', "\\\"")
         .replace('\n', "\\n");
     let build = GENERATED_BUILD
-        .replace("builder.package(\"generated-table\");", "builder.package(\"generated-table\");\n    builder.depend(Source::Path { location: \"../host-services\" });\n    builder.select_provider<Console, ConsoleNativeProvider>();")
+        .replace("builder.package(\"generated-table\");", "builder.package(\"generated-table\");\n    builder.depend(Source::Path { location: \"../host-services\" });\n    builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>();")
         .replace("pub machine table_size() -> u64 {\\n    3\\n}\\n", &generated_source);
     assert!(build.contains(callable));
     // Imports belong to the pre-build source closure; generation adds the

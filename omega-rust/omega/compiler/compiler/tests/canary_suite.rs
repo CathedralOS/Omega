@@ -295,9 +295,11 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
     // unclassified zero-width row`, `needs mutation lowering`, runtime
     // storage write lowering, unmeasured self-recursion) were removed
     // upstream; checked semantics now admits those six fixtures, so they
-    // cannot stay on this Check route. They remain in
+    // cannot stay on this Check route. The rest remain in
     // `ACTIVE_FAIL_CANARIES`, where the native route still refuses them at
-    // the transitive Unit-plan admission wall.
+    // the transitive Unit-plan admission wall; `machine_self_call_recursion`
+    // graduated to `ACTIVE_PASS_CANARIES` once the admission started
+    // producing its plan.
 ];
 
 /// Pure checked-semantics canaries. These deliberately do not enter native
@@ -319,6 +321,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "structural/local_record_receivers",
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
+    // Routed scalar-domain establishment: the source compiles through
+    // checked semantics, but the artifact's unit-plan admission does not yet
+    // emit machines carrying routed scalar qualifications.
+    "domains/scalar_domain_issuer_route",
     // `drop<T>` specializations check through checked semantics and lower to
     // terminal nominal cleanup; the native codec route is not yet realized.
     "drops/core_drop_explicit_consume",
@@ -851,6 +857,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // its spelling evaluates to.
     "termination/lexicographic_component_constant_step_compile",
     "termination/joint_machine_call_cycle_forwarding_compile",
+    // A joint call cycle may rank on a bounded increasing cursor: the
+    // rank-preserving edge transports index unchanged and the strict edge
+    // increases it toward the authored range's bound.
+    "termination/joint_increasing_rank_range_compile",
     "termination/mutual_recursion_countdown_compile",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
@@ -1065,6 +1075,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/case_call_wrong_subject",
     "proofs/case_citation_wrong_result",
     "proofs/constructor_omitted_field_wrong_guarantee",
+    "proofs/quotient_lift_unproved_termination_rejected",
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
     "relevance/erased_state_parameter_runtime_read",
@@ -1251,6 +1262,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/boundary_requirement_direct_call_unselected",
     "providers/boundary_requirement_statement_call_unselected",
     "providers/private_boundary_requirement_direct_call",
+    "providers/generic_boundary_requirement_direct_call_rejected",
     "providers/via_on_axiom_rejected",
     "providers/via_requires_satisfies",
     "providers/via_repeated_effects_rejected",
@@ -1470,6 +1482,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/authored_const_call_operator_requires_selection",
     "generics/authored_const_call_operator_unselected_provider",
     "generics/authored_const_operator_requires_selection",
+    "generics/const_application_type_parameter_destination_rejected",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_argument_requires_value",
     "generics/const_data_expression_division_by_zero",
@@ -2815,6 +2828,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_field_equality_exit",
     "traits/equatable_string_not_equals_exit",
     "traits/equatable_string_equality_guard_exit",
+    "traits/equatable_qualified_field_reference_exit",
     "data/runtime_whole_struct_mutation_copy_exit",
     "operators/compound_assignment_exit",
     "operators/unary_negation_exit",
@@ -3928,6 +3942,9 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+    // Unmeasured call-spelled self-recursion folds onto the loop-back edge
+    // (MR1); the transitive Unit-plan admission plans it, so it compiles.
+    "calls/machine_self_call_recursion_compile",
     "control_flow/runtime_tuple_transition_exit",
     "errors/runtime_result_match_exit",
     "expressions/runtime_enum_match_breadth_exit",
@@ -4723,6 +4740,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_not_equals_exit",
     "traits/equatable_string_equality_guard_exit",
     "traits/equatable_sum_payload_equality_exit",
+    "traits/equatable_qualified_field_reference_exit",
     "traits/transparent_refinement_declaration",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
@@ -4979,7 +4997,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",
     "wire/layout_domain_on_non_bytes",
-    "calls/machine_self_call_recursion_rejected",
     "calls/ambiguous_spliced_second_receiver_rejected",
     "wire/wire_policy_plan_disagrees",
     "wire/wire_compatibility_preservation_unmet",

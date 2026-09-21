@@ -169,11 +169,7 @@ fn has_external_caller(root: &Path, crate_root: &Path, ident: &str, name: &str) 
 /// plumbing delegates and test-only helpers re-exported for crate-internal or
 /// integration-test consumers, cataloged by the stage-entrance orphan audit.
 /// Adding an entry needs the same audit disposition, not an unexamined pass.
-const PLUMBING_REEXPORTS: [(&str, &str); 3] = [
-    (
-        "abstract-operations-to-target-operations",
-        "lower_to_target_operations_and_native_callbacks",
-    ),
+const PLUMBING_REEXPORTS: [(&str, &str); 2] = [
     (
         "selected-instructions-to-selected-instructions",
         "optimize_analyzed_selected_instructions",

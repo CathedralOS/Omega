@@ -321,6 +321,7 @@ pub(super) fn lower(
         id: caller_block,
         parameters: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: caller_operations,
         terminator: Terminator::Conditional {
             condition,
@@ -500,6 +501,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
         target,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     })
 }

@@ -1,0 +1,56 @@
+// Qualified-type equality: `Filter.range` is declared `leaf::region::Region`
+// and `==` operands are typed through the same qualified reference. Synthesized
+// equality joins types by resolved symbol to their declared names, so the
+// field's conformance is found and `Filter == Filter` expands structurally.
+// Exits 70 only when qualified-spelling field conformance, qualified-spelling
+// operands, and unqualified references all agree.
+
+use omega_language_std::console;
+use omega::language::core::service;
+use leaf::region;
+
+data Filter {
+    range: leaf::region::Region;
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+FilterEquatable: Filter satisfies Equatable;
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let first: Filter = Filter { range: leaf::region::Region { base_address: 100, region_size: 16 } };
+    let same: Filter = Filter { range: leaf::region::Region { base_address: 100, region_size: 16 } };
+    let different: Filter = Filter { range: leaf::region::Region { base_address: 100, region_size: 8 } };
+    let equal_result: bool = first == same;
+    let different_result: bool = first != different;
+
+    transition equal_result && different_result {
+        true -> direct_operands()
+        _ -> missed()
+    }
+
+    state direct_operands(&mut self) {
+        let left: leaf::region::Region = leaf::region::Region { base_address: 5, region_size: 4 };
+        let right: leaf::region::Region = leaf::region::Region { base_address: 5, region_size: 4 };
+        let operand_result: bool = left == right;
+
+        transition operand_result {
+            true -> matched()
+            _ -> missed()
+        }
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

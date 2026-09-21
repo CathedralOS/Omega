@@ -248,10 +248,26 @@ class HostRowMatrix(unittest.TestCase):
         )
         self.assertIn("measurable", unchecked)
         self.assertNotIn("unavailable", unchecked)
+        # The leg's own row is the one with no subject: a committed
+        # non-applicable pairing sits beside it and must not retire it.
         uefi = next(
-            line for line in output.splitlines() if "uefi_x86_64" in line
+            line for line in output.splitlines()
+            if "uefi_x86_64" in line and "QEMU or UEFI hardware" in line
         )
         self.assertIn("unavailable (needs QEMU or UEFI hardware)", uefi)
+
+    def test_non_applicable_pairing_renders_beside_its_host_leg(self):
+        output = self.matrix()
+        pairing = next(
+            line for line in output.splitlines()
+            if "uefi_x86_64" in line and "wrapping_square_sum" in line
+        )
+        self.assertIn("non-applicable", pairing)
+        self.assertIn("no bound required root slot", pairing)
+        # Its host leg keeps its own explicit row.
+        self.assertTrue(any(
+            "uefi_x86_64" in line and "QEMU or UEFI hardware" in line
+            for line in output.splitlines()))
 
     def test_measured_records_render_measured_cells(self):
         row = next(
@@ -265,6 +281,56 @@ class HostRowMatrix(unittest.TestCase):
         start = lines.index("<!-- benchmark-matrix:start -->")
         end = lines.index("<!-- benchmark-matrix:end -->")
         self.assertEqual("\n".join(lines[start + 1 : end]), self.matrix())
+
+
+class Applicability(unittest.TestCase):
+    def test_absent_applicability_still_validates(self):
+        record = minimal_record()
+        self.assertNotIn("applicability", record)
+        self.assertEqual(benchmark.validate_record(record, "<fixture>"), [])
+
+    def test_non_applicable_record_validates(self):
+        record = minimal_record()
+        reason = "no bound required root slot `uefi_x86_64::ProgramEntry`"
+        record["applicability"] = {
+            "status": "non_applicable", "reason": reason}
+        for name in benchmark.METRIC_NAMES:
+            unit = "bytes" if "bytes" in name else "ms"
+            record["metrics"][name] = benchmark.unavailable(unit, reason)
+        self.assertEqual(benchmark.validate_record(record, "<fixture>"), [])
+
+    def test_non_applicable_rejects_an_unknown_status(self):
+        record = minimal_record()
+        record["applicability"] = {"status": "maybe", "reason": "x"}
+        problems = benchmark.validate_record(record, "<fixture>")
+        self.assertTrue(any("non_applicable" in p for p in problems))
+
+    def test_non_applicable_requires_a_reason(self):
+        record = minimal_record()
+        record["applicability"] = {"status": "non_applicable", "reason": ""}
+        problems = benchmark.validate_record(record, "<fixture>")
+        self.assertTrue(any("reason is required" in p for p in problems))
+
+    def test_non_applicable_cannot_carry_a_measured_metric(self):
+        record = minimal_record()
+        record["applicability"] = {
+            "status": "non_applicable", "reason": "unbound root"}
+        problems = benchmark.validate_record(record, "<fixture>")
+        self.assertTrue(
+            any("cannot carry a measured metric" in p for p in problems))
+
+    def test_settlement_rejection_becomes_a_non_applicable_signal(self):
+        text = ("error: no bound required root slot "
+                "`uefi_x86_64::ProgramEntry`\n")
+        found = benchmark.UNBOUND_ROOT_SLOT.search(text)
+        self.assertIsNotNone(found)
+        self.assertEqual(
+            found.group(0),
+            "no bound required root slot `uefi_x86_64::ProgramEntry`")
+
+    def test_an_ordinary_settlement_failure_is_not_non_applicable(self):
+        self.assertIsNone(
+            benchmark.UNBOUND_ROOT_SLOT.search("error: package acceptance is missing"))
 
 
 class ReviewSettlement(unittest.TestCase):

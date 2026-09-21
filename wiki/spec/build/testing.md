@@ -7,6 +7,11 @@ special calling permission. The runner executes verified Terminal Psi before
 reporting the requested build successful. These are accepted contracts;
 [implementation tasks](../../../TASKS.md#requirement-based-tests) track delivery.
 
+Runner instances use the same [embedding lifecycle](embedding.md) as other Psi
+consumers, with selected group providers and fresh guest state. Test discovery
+and verdict policy do not justify a second interpreter or weaker loan/custody
+rules. A fresh guest instance does not roll back effects in a genuine host provider.
+
 ## Registration and discovery
 
 Register an exact ordinary trait machine requirement, not a trait name or a
@@ -62,7 +67,7 @@ It is either a free machine or an attached machine with one `&mut self`
 receiver. The requirement declares the corresponding shape. Reuse
 [entry provisioning](entry_roots.md#entry-shape-and-arrival-bridge): initialize
 ordinary receiver fields only when ZII-valid and establish each direct
-`Service<R>` field against the selected authorized binding before entry.
+`Binding<R>` field against the selected authorized binding before entry.
 Provider selection alone cannot construct arbitrary service values. Missing
 bindings or unestablishable receiver fields reject before invocation. Other
 fixture construction and parameterized helper calls are ordinary test code.

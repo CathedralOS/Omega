@@ -119,10 +119,10 @@ Hosted writable-image placement and freestanding storage partitioning must
 preserve the same occurrence, root lineage, backing, and initial exclusive borrow.
 Knowing the receiver's size never creates a new physical root.
 
-Each direct `Service<R>` receiver field requires occurrence evidence binding
+Each direct `Binding<R>` receiver field requires occurrence evidence binding
 source signature/slot, receiver/attachment/field, exact carrier application,
 service schema, and selected plan digest. Establishment is intrinsic to
-[service validity](component_publication.md#service-bindings-and-era-entry), not
+[service validity](component_publication.md#bindings-and-era-entry), not
 an authored domain qualification. A missing or incompatible selected provider
 or missing establishment rejects compilation; no erased-field fallback or
 late provider discovery is permitted. A bare boundary-trait field rejects as
@@ -132,7 +132,7 @@ For selected Fused service fields, Terminal replay independently joins the erase
 field and plan. ZII bytes alone cannot satisfy that join. This establishes the
 provisioned occurrence, not a runtime-published slot, era handle, or Independent
 execution. Other records obtain services by ordinary transfer of established
-values, not automatic injection merely because their field type is `Service<R>`.
+values, not automatic injection merely because their field type is `Binding<R>`.
 
 ## Authority, identity, and resources
 

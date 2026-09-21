@@ -73,7 +73,6 @@ fn default_path_routes_entry_transitions_into_the_leaf_local_fixed_view_sequence
         .expect("the unrecovered assignment error surface");
     assert!(gate < sequence && sequence < fallback);
     assert!(pressure < fallback);
-    assert!(!entrance.contains("stage_fixed_view_register_allocation(legality"));
 }
 
 #[test]

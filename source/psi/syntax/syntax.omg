@@ -59,8 +59,33 @@ pub data DataMultiplicity [copy] {
     case Linear;
 }
 
+pub data GenericParameterKind [copy] {
+    case Lifetime;
+    case Type;
+    case Const;
+    case Value;
+    case Machine;
+}
+
+// One declared generic parameter on a `data` header: `'a`, `T`,
+// `const N: Ty`, `u: Ty`, or `machine M`. `name_decoded_*` are the name's
+// range inside TokenStream::decoded, retained so later parameters can compare
+// spellings for the duplicate-declaration rejection without re-reading source.
+pub data GenericParameter [copy] {
+    kind: GenericParameterKind;
+    name: IdentifierSpan;
+    name_decoded_start: u64 in Trapping;
+    name_decoded_length: u64 in Trapping;
+    has_type_reference: bool;
+    type_reference: u64 in Trapping;
+    bounds: DataMultiplicity;
+    source_span: SourceSpan;
+}
+
 pub data DataItem [copy] {
     name: IdentifierSpan;
+    first_generic_parameter: u64 in Trapping;
+    generic_parameter_count: u64 in Trapping;
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
     first_field: u64 in Trapping;
@@ -116,6 +141,14 @@ pub data ParseDiagnosticCode [copy] {
     case DuplicateDataMultiplicity;
     case ConflictingDataMultiplicity;
     case ExpectedTypeQualifierDomain;
+    case ExpectedDataGenericParameter;
+    case ExpectedDataGenericParameterName;
+    case ExpectedDataGenericParameterColon;
+    case ExpectedDataGenericParameterType;
+    case ExpectedDataGenericParameterEnd;
+    case DataGenericParameterCapacityExceeded;
+    case DataGenericLifetimeOrdering;
+    case DuplicateDataGenericParameter;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -132,6 +165,8 @@ pub data SyntaxTrees {
     member_count: u64 [0..=1024];
     data_items: [DataItem; 256] in Trapping;
     data_count: u64 [0..=256];
+    generic_parameters: [GenericParameter; 256] in Trapping;
+    generic_parameter_count: u64 [0..=256];
     fields: [DataField; 1024] in Trapping;
     field_count: u64 [0..=1024];
     data_members: [DataMember; 1024] in Trapping;
@@ -151,6 +186,7 @@ pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
     self.use_count = 0;
     self.member_count = 0;
     self.data_count = 0;
+    self.generic_parameter_count = 0;
     self.field_count = 0;
     self.data_member_count = 0;
     self.case_count = 0;

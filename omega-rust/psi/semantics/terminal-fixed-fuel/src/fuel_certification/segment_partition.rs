@@ -500,8 +500,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
 
     /// Maximum charge from condensed `node` until `end_edge` commits, or
     /// `None` when no walk through the node takes that edge — the segment
-    /// read of the same condensed DAG `natural_condensed_bound` bounds for
-    /// the entry certificate.
+    /// read of the same condensed DAG `natural_condensed_bound_returned`
+    /// bounds for the entry certificate's returned outcome.
     fn node_to_edge_bound(
         &self,
         node: NaturalGraphNode,
@@ -641,7 +641,12 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             .transpose()
     }
 
-    /// A component's charge to the endpoint. Walks committing `end_edge` on
+    /// A component's charge to the endpoint. A member takes a terminator
+    /// edge only by completing its own traversal, so a member whose visit
+    /// is a dead end — an all-crash call, say — can neither carry the
+    /// endpoint nor leave through an exit; its edges contribute nothing
+    /// and the recorded dead end stands in for the walks that die inside
+    /// it. Walks committing `end_edge` on
     /// a member terminator cannot re-enter the component once they leave it,
     /// so when the members that can still reach a committing traversal form
     /// an acyclic interior, every such walk is one pass bounded by its
@@ -675,6 +680,23 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 .get(&rank.block)
                 .copied()
                 .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            // A member takes a terminator edge only by completing its own
+            // traversal: when the visit is a dead end — an all-crash call,
+            // say — the member can neither commit the endpoint nor leave
+            // through an exit, so its edges contribute nothing and the
+            // recorded dead end stands in for the walk that died.
+            if self
+                .block_charge_units(
+                    block,
+                    rank.block,
+                    walk.memoized_machines,
+                    walk.active_machines,
+                    &mut walk.first_dead_end,
+                )?
+                .is_none()
+            {
+                continue;
+            }
             if block.terminator.edges().any(|edge| edge == walk.end_edge) {
                 let cleanup = compose_cleanup_outcomes(
                     terminator_cleanup_machines(&block.terminator),
@@ -749,7 +771,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         };
         // Only members that can still reach an exit participate; the same
         // split the committing path uses bounds the interior over them.
-        let (adjacency, reaching) = self.exit_reach(component, index, geometry, walk.end_edge)?;
+        let (adjacency, reaching) =
+            self.exit_reach(component, index, geometry, walk.end_edge, walk)?;
         let interior = self.split_interior_units(component, &adjacency, &reaching, walk)?;
         interior
             .checked_add(tail)
@@ -807,6 +830,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         index: usize,
         geometry: &NaturalGeometry,
         end_edge: EdgeId,
+        walk: &mut NaturalSegmentWalk<'_>,
     ) -> Result<(BTreeMap<BlockId, Vec<BlockId>>, BTreeSet<BlockId>), FixedFuelError> {
         let mut exiting = BTreeSet::new();
         for rank in &component.ranks {
@@ -815,9 +839,22 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 .get(&rank.block)
                 .copied()
                 .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            // An exit edge belongs to a committing walk only when the
+            // member carrying it can complete its own traversal — the same
+            // rule the exit collection in `component_node_to_edge_bound`
+            // applies before charging the exit's continuation.
             if super::outcome_bounds::terminator_targets(&block.terminator)
                 .iter()
                 .any(|target| geometry.member_of.get(target) != Some(&index))
+                && self
+                    .block_charge_units(
+                        block,
+                        rank.block,
+                        walk.memoized_machines,
+                        walk.active_machines,
+                        &mut walk.first_dead_end,
+                    )?
+                    .is_some()
             {
                 exiting.insert(rank.block);
             }

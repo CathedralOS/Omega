@@ -1,0 +1,4424 @@
+// verify — the independent source-free plan consumer
+// (wiki/spec/packages/topology.md; reference:
+// omega-rust/omega/packages/topology/src/plan_verification.rs).
+//
+// `Verify::verify` is given the candidate plan bytes, the *current* owner
+// request bytes, and the admitted-component facts the consumer actually
+// verified — staged as package-owned canonical byte streams through the
+// `open_*`/`feed_*` machines, never the plan's own claim about any of
+// them. It decodes both artifacts under the wire's canonical-order and
+// tag-table rules, reconstructs the graph from the plan's records,
+// compares the request exactly, replays every required predicate itself,
+// and checks the recorded certificates against the real edges. Nothing is
+// trusted: a stored success flag, a stale request commitment, a roster
+// that merely names the right subjects, a policy executable the owner did
+// not select, and a component record or endpoint inventory substituted
+// for what the admission establishes all reject by comparison or replay —
+// never by loading code.
+//
+// Streams (all `open_stream`-staged):
+//   stream 0 — request.bin:   canonical TopologyRequest bytes.
+//   stream 1 — plan.bin:      canonical DeploymentPlan bytes.
+//   stream 2 — components.bin: {u32 n} + n x canonical admitted-facts
+//             records — subject[32] | profile[32] | closure[32] |
+//             {u32 n_asm, n_asm x [32]} | {u32 n_ep, n_ep x
+//             (u32 slot, u8 dir, [32] contract)} — the package-defined
+//             admitted-facts encoding the caller's component verifier
+//             publishes (the AdmittedComponent artifact's complete
+//             facts, re-encoded; the artifact codec itself lives with
+//             component-description under COMPONENT-SUBSTRATE).
+//
+// `self.ok` is the parse/dispatch latch; `self.verdict` reports the
+// outcome: 0 = CheckedPlan ("composition checked" — not installation
+// admission), otherwise the PlanRejection category:
+//   1 MalformedRequest      2 MalformedPlan          3 UnverifiedCompleteness
+//   4 StaleRequest          5 RosterMismatch         6 UnacceptedAssumption
+//   7 MissingVerifiedComponent   8 ExternalSubjectVerified
+//   9 Substituted(profile) 10 Substituted(completeness)
+//  11 Substituted(assumptions) 12 Substituted(endpoints)
+//  13 UnselectedTransport  14 UnselectedPolicyExecutable
+//  15 MissingRequiredPolicy   16 UnexpectedPolicy
+//  17 InvalidPolicy(selectors)  18 PolicyNotSatisfied  19 ReplayMismatch
+//  20 InvalidCertificate   21 InvalidGraph(generic)
+//  22 DuplicateInstance    23 DuplicateEndpoint      24 UnknownInstance
+//  25 UnknownEndpoint      26 WrongDirection         27 DuplicateBinding
+//  28 UnboundImport        29 NullIdentity           30 LimitExceeded
+
+module verify;
+
+use digest;
+
+pub data Verify {
+    // ---- verdict + latch -------------------------------------------------
+    ok: bool;
+    verdict: u64 in Wrapping;
+    errtag: [u8; 8];
+
+    // ---- staged input streams --------------------------------------------
+    req: [u8; 8192];
+    req_n: u64 in Wrapping;
+    plan: [u8; 16384];
+    plan_n: u64 in Wrapping;
+    meta: [u8; 8192];
+    meta_n: u64 in Wrapping;
+
+    // ---- reader state ------------------------------------------------------
+    // `src` selects the stream rd() consumes (0=req, 1=plan, 2=meta).
+    src: u64 in Wrapping;
+    rq: u64 in Wrapping;
+    pq: u64 in Wrapping;
+    mq: u64 in Wrapping;
+    pos: u64 in Wrapping;
+    sn: u64 in Wrapping;
+
+    b8: u8;
+    w8: u8;
+    w32: u32;
+    acc: u64 in Wrapping;
+    t64: u64 in Wrapping;
+    cur: u64 in Wrapping;
+    cp: u64 in Wrapping;
+    cb: u64 in Wrapping;
+    cb2: u64 in Wrapping;
+    dig: digest::Sha256;
+
+    i: u64 in Wrapping;
+    j: u64 in Wrapping;
+    k: u64 in Wrapping;
+    m: u64 in Wrapping;
+    h0: u64 in Wrapping;
+    h1: u64 in Wrapping;
+    h2: u64 in Wrapping;
+    h3: u64 in Wrapping;
+    d0: u64 in Wrapping;
+    d1: u64 in Wrapping;
+    ja: u64 in Wrapping;
+    jb: u64 in Wrapping;
+    jc: u64 in Wrapping;
+    jd: u64 in Wrapping;
+    je: u64 in Wrapping;
+    jf: u64 in Wrapping;
+    jg: u64 in Wrapping;
+
+    strbuf: [u8; 256];
+    str_n: u64 in Wrapping;
+    ident: [u8; 2048];
+
+    // ---- decoded request ---------------------------------------------------
+    n_inst: u64 in Wrapping;
+    n_pol: u64 in Wrapping;
+    n_tr: u64 in Wrapping;
+    n_acp: u64 in Wrapping;
+    // Instance roster: names 8 x 128 bytes, lengths, subjects 8 x 32.
+    names: [u8; 1024];
+    name_len: [u64 in Wrapping; 8];
+    subjects: [u8; 2048];
+    // Request policies: tag + three selector index lists + member masks.
+    pol_tag: [u8; 8];
+    pol_s: [u64 in Wrapping; 8];
+    pol_t: [u64 in Wrapping; 8];
+    pol_v: [u64 in Wrapping; 8];
+    pol_sn: [u64 in Wrapping; 8];
+    pol_tn: [u64 in Wrapping; 8];
+    pol_vn: [u64 in Wrapping; 8];
+    pol_slist: [u64 in Wrapping; 64];
+    pol_tlist: [u64 in Wrapping; 64];
+    pol_vlist: [u64 in Wrapping; 64];
+    pol_off: [u64 in Wrapping; 8];
+    pol_len: [u64 in Wrapping; 8];
+    // Selector scratch: member mask + index list + count.
+    sel_mask: u64 in Wrapping;
+    sel_n: u64 in Wrapping;
+    sel_prev: u64 in Wrapping;
+    sel_list: [u64 in Wrapping; 8];
+    verifier: [u8; 2048];
+    transports: [u8; 2048];
+    accepted: [u8; 2048];
+
+    // ---- decoded plan --------------------------------------------------------
+    p_commit: [u8; 2048];
+    p_n: u64 in Wrapping;
+    p_names: [u8; 1024];
+    p_name_len: [u64 in Wrapping; 8];
+    p_subjects: [u8; 2048];
+    p_role: [u8; 8];
+    p_profile: [u8; 2048];
+    p_closure: [u8; 2048];
+    p_asm_n: [u64 in Wrapping; 8];
+    p_asm: [u8; 2048];
+    p_ep_n: [u64 in Wrapping; 8];
+    p_ep_slot: [u64 in Wrapping; 64];
+    p_ep_dir: [u8; 64];
+    p_ep_contract: [u8; 2048];
+    n_bind: u64 in Wrapping;
+    b_ii: [u64 in Wrapping; 16];
+    b_is: [u64 in Wrapping; 16];
+    b_ei: [u64 in Wrapping; 16];
+    b_es: [u64 in Wrapping; 16];
+    b_tr: [u8; 2048];
+    p_npol: u64 in Wrapping;
+    q_ver: [u8; 2048];
+    q_tag: [u8; 8];
+    q_s: [u64 in Wrapping; 8];
+    q_t: [u64 in Wrapping; 8];
+    q_v: [u64 in Wrapping; 8];
+    q_sn: [u64 in Wrapping; 8];
+    q_tn: [u64 in Wrapping; 8];
+    q_vn: [u64 in Wrapping; 8];
+    q_slist: [u64 in Wrapping; 64];
+    q_tlist: [u64 in Wrapping; 64];
+    q_vlist: [u64 in Wrapping; 64];
+    q_out: [u8; 8];
+    q_path_n: [u64 in Wrapping; 8];
+    q_path: [u64 in Wrapping; 64];
+    q_reach: [u64 in Wrapping; 8];
+
+    // ---- admitted component facts -------------------------------------------
+    n_comp: u64 in Wrapping;
+    c_subj: [u8; 2048];
+    c_prof: [u8; 2048];
+    c_clo: [u8; 2048];
+    c_asm_n: [u64 in Wrapping; 8];
+    c_asm: [u8; 2048];
+    c_ep_n: [u64 in Wrapping; 8];
+    c_ep_slot: [u64 in Wrapping; 64];
+    c_ep_dir: [u8; 64];
+    c_ep_contract: [u8; 2048];
+
+    // ---- graph + replay scratch ----------------------------------------------
+    adj: [u8; 64];
+    bound_imp: [u8; 64];
+    seen: [u8; 8];
+    reach: u64 in Wrapping;
+    work: [u64 in Wrapping; 8];
+    work_n: u64 in Wrapping;
+    matched: [u8; 8];
+}
+
+// ---- staging ---------------------------------------------------------------
+// The caller opens a stream with its byte length, then feeds bytes in
+// order. A feed outside the opened extent or capacity latches `ok` false;
+// nothing reads un-staged bytes (decoders bound by `*_n`, not capacity).
+
+pub machine Verify::open_stream(&mut self, stream: u64 in Wrapping, n: u64 in Wrapping) {
+    self.cur = stream;
+    self.sn = n;
+    self.pos = 0;
+    transition stream == 0 {
+        true -> open_req(n)
+        _ -> open_plan_g(stream, n)
+    }
+
+    state open_req(&mut self, n: u64 in Wrapping) {
+        transition n <= 8192 {
+            true -> apply_req(n)
+            _ -> bad()
+        }
+    }
+    state apply_req(&mut self, n: u64 in Wrapping) {
+        self.req_n = n;
+        transition { _ -> done() }
+    }
+    state open_plan_g(&mut self, stream: u64 in Wrapping, n: u64 in Wrapping) {
+        transition stream == 1 {
+            true -> open_plan(n)
+            _ -> open_meta_g(stream, n)
+        }
+    }
+    state open_plan(&mut self, n: u64 in Wrapping) {
+        transition n <= 16384 {
+            true -> apply_plan(n)
+            _ -> bad()
+        }
+    }
+    state apply_plan(&mut self, n: u64 in Wrapping) {
+        self.plan_n = n;
+        transition { _ -> done() }
+    }
+    state open_meta_g(&mut self, stream: u64 in Wrapping, n: u64 in Wrapping) {
+        transition stream == 2 {
+            true -> open_meta(n)
+            _ -> bad()
+        }
+    }
+    state open_meta(&mut self, n: u64 in Wrapping) {
+        transition n <= 8192 {
+            true -> apply_meta(n)
+            _ -> bad()
+        }
+    }
+    state apply_meta(&mut self, n: u64 in Wrapping) {
+        self.meta_n = n;
+        transition { _ -> done() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Feed one byte into the opened stream at `pos`. Over-extent or
+// over-capacity feeds latch `ok` false and leave the stream short-read,
+// which the decoder's end checks reject as truncation.
+pub machine Verify::feed(&mut self, b: u8) {
+    transition self.cur == 0 && self.pos < self.req_n && self.pos < 8192 {
+        true -> put_req(b)
+        _ -> feed_plan_g(b)
+    }
+
+    state put_req(&mut self, b: u8) {
+        self.h0 = self.pos;
+        transition self.h0 < 8192 {
+            true -> wr_req(b)
+            _ -> bad()
+        }
+    }
+    state wr_req(&mut self, b: u8) {
+        self.req[self.h0] = b;
+        self.pos = self.pos + 1;
+        transition { _ -> done() }
+    }
+    state feed_plan_g(&mut self, b: u8) {
+        transition self.cur == 1 && self.pos < self.plan_n && self.pos < 16384 {
+            true -> put_plan(b)
+            _ -> feed_meta_g(b)
+        }
+    }
+    state put_plan(&mut self, b: u8) {
+        self.h0 = self.pos;
+        transition self.h0 < 16384 {
+            true -> wr_plan(b)
+            _ -> bad()
+        }
+    }
+    state wr_plan(&mut self, b: u8) {
+        self.plan[self.h0] = b;
+        self.pos = self.pos + 1;
+        transition { _ -> done() }
+    }
+    state feed_meta_g(&mut self, b: u8) {
+        transition self.cur == 2 && self.pos < self.meta_n && self.pos < 8192 {
+            true -> put_meta(b)
+            _ -> bad()
+        }
+    }
+    state put_meta(&mut self, b: u8) {
+        self.h0 = self.pos;
+        transition self.h0 < 8192 {
+            true -> wr_meta(b)
+            _ -> bad()
+        }
+    }
+    state wr_meta(&mut self, b: u8) {
+        self.meta[self.h0] = b;
+        self.pos = self.pos + 1;
+        transition { _ -> done() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- byte readers ------------------------------------------------------------
+// rd() consumes one byte of the `src`-selected stream into `b8`; out of
+// bytes is a hard `ok` failure (truncation rejects at the outer check, not
+// here — rd_bad only fires when a decoder overruns the declared extent).
+
+machine Verify::rd(&mut self) {
+    transition self.src == 0 && self.rq < 8192 && self.rq < self.req_n {
+        true -> rd_req()
+        _ -> rd_plan_g()
+    }
+
+    state rd_plan_g(&mut self) {
+        transition self.src == 1 && self.pq < 16384 && self.pq < self.plan_n {
+            true -> rd_plan()
+            _ -> rd_meta_g()
+        }
+    }
+    state rd_meta_g(&mut self) {
+        transition self.src == 2 && self.mq < 8192 && self.mq < self.meta_n {
+            true -> rd_meta()
+            _ -> rd_bad()
+        }
+    }
+    state rd_req(&mut self) {
+        self.b8 = self.req[self.rq];
+        self.rq = self.rq + 1;
+        transition { _ -> rd_done() }
+    }
+    state rd_plan(&mut self) {
+        self.b8 = self.plan[self.pq];
+        self.pq = self.pq + 1;
+        transition { _ -> rd_done() }
+    }
+    state rd_meta(&mut self) {
+        self.b8 = self.meta[self.mq];
+        self.mq = self.mq + 1;
+        transition { _ -> rd_done() }
+    }
+    state rd_bad(&mut self) {
+        self.ok = false;
+        self.errtag[0] = 114;
+        self.errtag[1] = 100;
+        self.errtag[2] = 88;
+        self.errtag[3] = 88;
+        transition { _ -> rd_done() }
+    }
+    state rd_done(&mut self) {
+    }
+}
+
+// Little-endian u32 -> `w32`.
+machine Verify::ru32(&mut self) {
+    self.acc = 0;
+    self.rd();
+    self.acc = self.acc + (self.b8 as u64 in Wrapping);
+    self.rd();
+    self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 8);
+    self.rd();
+    self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 16);
+    self.rd();
+    self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 24);
+    self.w32 = (self.acc as u32 in Wrapping) as u32;
+}
+
+// 32 identity bytes -> `ident`.
+machine Verify::rdident(&mut self) {
+    self.j = 0;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.j < 32 && self.ok {
+            true -> apply()
+            _ -> done()
+        }
+    }
+    state apply(&mut self) {
+        self.h0 = self.j;
+        transition self.h0 < 32 {
+            true -> wr()
+            _ -> bad()
+        }
+    }
+    state wr(&mut self) {
+        self.rd();
+        self.ident[self.h0] = self.b8;
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// u32-length-prefixed name -> `strbuf`/`str_n` (bounded at 256).
+machine Verify::rdname(&mut self) {
+    self.ru32();
+    self.t64 = self.w32 as u64 in Wrapping;
+    transition self.t64 > 0 && self.t64 <= 256 && self.ok {
+        true -> init()
+        _ -> bad()
+    }
+    state init(&mut self) {
+        self.str_n = self.t64;
+        self.j = 0;
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.j < self.str_n && self.j < 256 && self.ok {
+            true -> apply()
+            _ -> done()
+        }
+    }
+    state apply(&mut self) {
+        self.h0 = self.j;
+        transition self.h0 < 256 {
+            true -> wr()
+            _ -> bad()
+        }
+    }
+    state wr(&mut self) {
+        self.rd();
+        self.strbuf[self.h0] = self.b8;
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Resolve `strbuf`/`str_n` against the request roster into `sel`-style
+// index — `d0` receives the member index or 255 when unknown. Names are
+// canonical so roster index order is name order.
+machine Verify::resolve_name(&mut self) {
+    self.d0 = 255;
+    self.i = 0;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.i < self.n_inst && self.i < 8 && self.ok {
+            true -> len_ck()
+            _ -> done()
+        }
+    }
+    state len_ck(&mut self) {
+        transition self.name_len[self.i] == self.str_n {
+            true -> cmp_init()
+            _ -> next()
+        }
+    }
+    state cmp_init(&mut self) {
+        self.j = 0;
+        self.jg = 1;
+        transition { _ -> cmp_loop() }
+    }
+    state cmp_loop(&mut self) {
+        transition self.j < self.str_n && self.j < 128 && self.jg == 1 {
+            true -> prep_c()
+            _ -> cmp_done()
+        }
+    }
+    state prep_c(&mut self) {
+        self.h0 = self.i * 128 + self.j;
+        self.h1 = self.j;
+        transition self.h0 < 1024 && self.h1 < 256 {
+            true -> do_c()
+            _ -> bad()
+        }
+    }
+    state do_c(&mut self) {
+        self.w8 = self.names[self.h0];
+        transition self.w8 == self.strbuf[self.h1] {
+            true -> c_next()
+            _ -> c_diff()
+        }
+    }
+    state c_diff(&mut self) {
+        self.jg = 0;
+        transition { _ -> cmp_loop() }
+    }
+    state c_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> cmp_loop() }
+    }
+    state cmp_done(&mut self) {
+        transition self.jg == 1 {
+            true -> hit()
+            _ -> next()
+        }
+    }
+    state hit(&mut self) {
+        self.d0 = self.i;
+        transition { _ -> done() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Compare stored roster names `a` (names[a*128..]) and `b` —
+// `d0` = 0 equal, 1 a<b, 2 a>b. Byte-lexicographic, prefix-shorter first.
+machine Verify::cmp_names(&mut self, a: u64 in Wrapping, b: u64 in Wrapping) {
+    self.j = 0;
+    self.d0 = 0;
+    self.ja = a;
+    self.jb = b;
+    transition self.ja < 8 && self.jb < 8 {
+        true -> min_len()
+        _ -> bad()
+    }
+
+    state min_len(&mut self) {
+        transition self.name_len[self.ja] < self.name_len[self.jb] {
+            true -> a_shorter()
+            _ -> b_shorter()
+        }
+    }
+    state a_shorter(&mut self) {
+        self.d1 = self.name_len[self.ja];
+        transition { _ -> loop_s() }
+    }
+    state b_shorter(&mut self) {
+        self.d1 = self.name_len[self.jb];
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.j < self.d1 && self.j < 128 && self.d0 == 0 {
+            true -> prep()
+            _ -> tail()
+        }
+    }
+    state prep(&mut self) {
+        self.h0 = self.ja * 128 + self.j;
+        self.h1 = self.jb * 128 + self.j;
+        transition self.h0 < 1024 && self.h1 < 1024 {
+            true -> apply()
+            _ -> bad()
+        }
+    }
+    state apply(&mut self) {
+        self.w8 = self.names[self.h0];
+        transition self.w8 == self.names[self.h1] {
+            true -> next()
+            _ -> diff()
+        }
+    }
+    state diff(&mut self) {
+        transition self.names[self.h0] < self.names[self.h1] {
+            true -> lt()
+            _ -> gt()
+        }
+    }
+    state lt(&mut self) {
+        self.d0 = 1;
+        transition { _ -> done() }
+    }
+    state gt(&mut self) {
+        self.d0 = 2;
+        transition { _ -> done() }
+    }
+    state next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state tail(&mut self) {
+        transition self.d0 != 0 {
+            true -> done()
+            _ -> len_cmp()
+        }
+    }
+    state len_cmp(&mut self) {
+        transition self.ja < 8 && self.jb < 8 {
+            true -> len_cmp_rd()
+            _ -> bad()
+        }
+    }
+    state len_cmp_rd(&mut self) {
+        transition self.name_len[self.ja] == self.name_len[self.jb] {
+            true -> done()
+            _ -> len_ne()
+        }
+    }
+    state len_ne(&mut self) {
+        transition self.ja < 8 && self.jb < 8 {
+            true -> len_ne_rd()
+            _ -> bad()
+        }
+    }
+    state len_ne_rd(&mut self) {
+        transition self.name_len[self.ja] < self.name_len[self.jb] {
+            true -> lt()
+            _ -> gt()
+        }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Read one selector (u32 count + names) into `sel_mask` (index bitmask),
+// `sel_list` (member indices in wire order) and `sel_n`. Wire canonical
+// order is enforced as strictly increasing member indices — the roster is
+// name-sorted, so increasing index order is exactly the codec's
+// canonical-order and no-duplicate rule.
+machine Verify::rd_selector(&mut self) {
+    self.ru32();
+    self.sel_n = self.w32 as u64 in Wrapping;
+    self.sel_mask = 0;
+    self.sel_prev = 0;
+    transition self.sel_n <= 8 && self.ok {
+        true -> init()
+        _ -> bad()
+    }
+    state init(&mut self) {
+        self.j = 0;
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.j < self.sel_n && self.j < 8 && self.ok {
+            true -> one()
+            _ -> done()
+        }
+    }
+    state one(&mut self) {
+        self.rdname();
+        self.resolve_name();
+        transition self.d0 < 8 && self.ok {
+            true -> order_ck()
+            _ -> bad()
+        }
+    }
+    state order_ck(&mut self) {
+        transition self.j == 0 || self.d0 > self.sel_prev {
+            true -> record()
+            _ -> bad()
+        }
+    }
+    state record(&mut self) {
+        self.h0 = self.j;
+        transition self.h0 < 8 {
+            true -> record_w()
+            _ -> bad()
+        }
+    }
+    state record_w(&mut self) {
+        self.sel_list[self.h0] = self.d0;
+        self.sel_prev = self.d0;
+        self.sel_mask = self.sel_mask | ((1 as u64 in Wrapping) << self.d0);
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- request decode ---------------------------------------------------------
+// Layout (canonical TopologyRequest, v1): magic "OTQL" u32 | ver u32 |
+// n_inst u32 | {name, subject[32]} x n_inst — names strictly increasing |
+// n_pol u32 | {tag u8, 3 selectors} x n_pol — canonical-key order, pairwise
+// disjoint selector sets | verifier[32] | n_tr u32 | tr[32] x n_tr —
+// strictly increasing | n_acp u32 | asm[32] x n_acp — strictly increasing |
+// end. Counts bound to this realization's roster scale; over-limit is a
+// LimitExceeded failure, never a satisfied verdict.
+
+machine Verify::decode_req(&mut self) {
+    self.src = 0;
+    self.rq = 0;
+    self.ru32();
+    transition self.w32 == 1280332881 && self.ok {
+        true -> ver()
+        _ -> bad()
+    }
+    state ver(&mut self) {
+        self.ru32();
+        transition self.w32 == 1 && self.ok {
+            true -> insts()
+            _ -> bad()
+        }
+    }
+    state insts(&mut self) {
+        self.ru32();
+        self.n_inst = self.w32 as u64 in Wrapping;
+        transition self.n_inst > 0 && self.n_inst <= 8 && self.ok {
+            true -> inst_init()
+            _ -> bad()
+        }
+    }
+    state inst_init(&mut self) {
+        self.i = 0;
+        self.jg = 1;
+        transition { _ -> inst_loop() }
+    }
+    state inst_loop(&mut self) {
+        transition self.i < self.n_inst && self.i < 8 && self.ok {
+            true -> inst_name()
+            _ -> pols()
+        }
+    }
+    state inst_name(&mut self) {
+        self.rdname();
+        self.h0 = self.i;
+        transition self.h0 < 8 && self.ok {
+            true -> set_len()
+            _ -> bad()
+        }
+    }
+    state set_len(&mut self) {
+        self.name_len[self.h0] = self.str_n;
+        self.k = 0;
+        transition { _ -> name_copy() }
+    }
+    state name_copy(&mut self) {
+        transition self.k < self.str_n && self.k < 128 {
+            true -> prep_nc()
+            _ -> order_ck()
+        }
+    }
+    state prep_nc(&mut self) {
+        self.h1 = self.i * 128 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 1024 && self.h2 < 256 {
+            true -> do_nc()
+            _ -> bad()
+        }
+    }
+    state do_nc(&mut self) {
+        self.names[self.h1] = self.strbuf[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> name_copy() }
+    }
+    // Canonical roster: each stored name strictly greater than its
+    // predecessor — duplicates and out-of-order both reject.
+    state order_ck(&mut self) {
+        transition self.i == 0 {
+            true -> inst_subj()
+            _ -> ord_run()
+        }
+    }
+    state ord_run(&mut self) {
+        self.d0 = 0;
+        self.cmp_names(self.i - 1, self.i);
+        transition self.d0 == 2 {
+            true -> inst_subj()
+            _ -> bad()
+        }
+    }
+    state inst_subj(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> subj_copy() }
+    }
+    state subj_copy(&mut self) {
+        transition self.k < 32 {
+            true -> prep_sc()
+            _ -> subj_zero_ck()
+        }
+    }
+    state prep_sc(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> do_sc()
+            _ -> bad()
+        }
+    }
+    state do_sc(&mut self) {
+        self.subjects[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> subj_copy() }
+    }
+    // The reserved zero identity is never a valid subject.
+    state subj_zero_ck(&mut self) {
+        self.k = 0;
+        self.jg = 1;
+        transition { _ -> szc_loop() }
+    }
+    state szc_loop(&mut self) {
+        transition self.k < 32 && self.jg == 1 {
+            true -> szc_one()
+            _ -> szc_done()
+        }
+    }
+    state szc_one(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        transition self.h1 < 256 {
+            true -> szc_rd()
+            _ -> bad()
+        }
+    }
+    state szc_rd(&mut self) {
+        transition self.subjects[self.h1] != 0 {
+            true -> szc_done()
+            _ -> szc_next()
+        }
+    }
+    state szc_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> szc_loop() }
+    }
+    state szc_done(&mut self) {
+        transition self.jg == 1 {
+            true -> inst_next()
+            _ -> bad()
+        }
+    }
+    state inst_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> inst_loop() }
+    }
+    state pols(&mut self) {
+        self.ru32();
+        self.n_pol = self.w32 as u64 in Wrapping;
+        transition self.n_pol <= 8 && self.ok {
+            true -> pol_init()
+            _ -> bad()
+        }
+    }
+    state pol_init(&mut self) {
+        self.cp = 0;
+        transition { _ -> pol_loop() }
+    }
+    state pol_loop(&mut self) {
+        transition self.cp < self.n_pol && self.cp < 8 && self.ok {
+            true -> pol_tag_r()
+            _ -> verifier_r()
+        }
+    }
+    state pol_tag_r(&mut self) {
+        self.rd();
+        transition self.ok && self.cp < 8 {
+            true -> pol_tag_set()
+            _ -> bad()
+        }
+    }
+    state pol_tag_set(&mut self) {
+        self.pol_tag[self.cp] = self.b8;
+        transition self.b8 == 1 || self.b8 == 2 {
+            true -> pol_s_r()
+            _ -> bad()
+        }
+    }
+    state pol_s_r(&mut self) {
+        self.rd_selector();
+        transition self.ok && self.cp < 8 {
+            true -> pol_s_set()
+            _ -> bad()
+        }
+    }
+    state pol_s_set(&mut self) {
+        transition self.sel_n > 0 {
+            true -> pol_s_ok()
+            _ -> bad()
+        }
+    }
+    state pol_s_ok(&mut self) {
+        self.pol_s[self.cp] = self.sel_mask;
+        self.pol_sn[self.cp] = self.sel_n;
+        self.k = 0;
+        transition { _ -> pol_s_cp() }
+    }
+    state pol_s_cp(&mut self) {
+        transition self.k < self.sel_n && self.k < 8 {
+            true -> pol_s_cp_one()
+            _ -> pol_t_r()
+        }
+    }
+    state pol_s_cp_one(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.k;
+        transition self.h0 < 64 && self.h1 < 8 {
+            true -> pol_s_cp_w()
+            _ -> bad()
+        }
+    }
+    state pol_s_cp_w(&mut self) {
+        self.pol_slist[self.h0] = self.sel_list[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> pol_s_cp() }
+    }
+    state pol_t_r(&mut self) {
+        self.rd_selector();
+        transition self.ok && self.cp < 8 {
+            true -> pol_t_set()
+            _ -> bad()
+        }
+    }
+    state pol_t_set(&mut self) {
+        transition self.sel_n > 0 {
+            true -> pol_t_ok()
+            _ -> bad()
+        }
+    }
+    state pol_t_ok(&mut self) {
+        self.pol_t[self.cp] = self.sel_mask;
+        self.pol_tn[self.cp] = self.sel_n;
+        self.k = 0;
+        transition { _ -> pol_t_cp() }
+    }
+    state pol_t_cp(&mut self) {
+        transition self.k < self.sel_n && self.k < 8 {
+            true -> pol_t_cp_one()
+            _ -> pol_v_r()
+        }
+    }
+    state pol_t_cp_one(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.k;
+        transition self.h0 < 64 && self.h1 < 8 {
+            true -> pol_t_cp_w()
+            _ -> bad()
+        }
+    }
+    state pol_t_cp_w(&mut self) {
+        self.pol_tlist[self.h0] = self.sel_list[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> pol_t_cp() }
+    }
+    state pol_v_r(&mut self) {
+        self.rd_selector();
+        transition self.ok && self.cp < 8 {
+            true -> pol_v_set()
+            _ -> bad()
+        }
+    }
+    state pol_v_set(&mut self) {
+        self.pol_v[self.cp] = self.sel_mask;
+        self.pol_vn[self.cp] = self.sel_n;
+        self.k = 0;
+        transition { _ -> pol_v_cp() }
+    }
+    state pol_v_cp(&mut self) {
+        transition self.k < self.sel_n && self.k < 8 {
+            true -> pol_v_cp_one()
+            _ -> pol_arity_ck()
+        }
+    }
+    state pol_v_cp_one(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.k;
+        transition self.h0 < 64 && self.h1 < 8 {
+            true -> pol_v_cp_w()
+            _ -> bad()
+        }
+    }
+    state pol_v_cp_w(&mut self) {
+        self.pol_vlist[self.h0] = self.sel_list[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> pol_v_cp() }
+    }
+    // via arity: empty for no_route, non-empty for only_via.
+    state pol_arity_ck(&mut self) {
+        transition self.cp < 8 {
+            true -> pol_arity_rd()
+            _ -> bad()
+        }
+    }
+    state pol_arity_rd(&mut self) {
+        transition (self.pol_tag[self.cp] == 1 && self.sel_n == 0) || (self.pol_tag[self.cp] == 2 && self.sel_n > 0) {
+            true -> pol_disj()
+            _ -> bad()
+        }
+    }
+    // sources/targets/via are pairwise disjoint.
+    state pol_disj(&mut self) {
+        transition self.cp < 8 {
+            true -> pol_disj_rd()
+            _ -> bad()
+        }
+    }
+    state pol_disj_rd(&mut self) {
+        self.t64 = (self.pol_s[self.cp] & self.pol_t[self.cp]) | (self.pol_s[self.cp] & self.pol_v[self.cp]) | (self.pol_t[self.cp] & self.pol_v[self.cp]);
+        transition self.t64 == 0 {
+            true -> pol_next()
+            _ -> bad()
+        }
+    }
+    state pol_next(&mut self) {
+        self.cp = self.cp + 1;
+        transition { _ -> pol_loop() }
+    }
+    state verifier_r(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> ver_copy() }
+    }
+    state ver_copy(&mut self) {
+        transition self.k < 32 {
+            true -> prep_vc()
+            _ -> transports_r()
+        }
+    }
+    state prep_vc(&mut self) {
+        self.h2 = self.k;
+        transition self.h2 < 32 {
+            true -> do_vc()
+            _ -> bad()
+        }
+    }
+    state do_vc(&mut self) {
+        self.verifier[self.h2] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> ver_copy() }
+    }
+    state transports_r(&mut self) {
+        self.ru32();
+        self.n_tr = self.w32 as u64 in Wrapping;
+        transition self.n_tr > 0 && self.n_tr <= 8 && self.ok {
+            true -> tr_init()
+            _ -> bad()
+        }
+    }
+    state tr_init(&mut self) {
+        self.i = 0;
+        transition { _ -> tr_loop() }
+    }
+    state tr_loop(&mut self) {
+        transition self.i < self.n_tr && self.i < 8 && self.ok {
+            true -> tr_one()
+            _ -> acp_r()
+        }
+    }
+    state tr_one(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> tr_copy() }
+    }
+    state tr_copy(&mut self) {
+        transition self.k < 32 {
+            true -> prep_tc()
+            _ -> tr_next()
+        }
+    }
+    state prep_tc(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> do_tc()
+            _ -> bad()
+        }
+    }
+    state do_tc(&mut self) {
+        self.transports[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> tr_copy() }
+    }
+    state tr_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> tr_loop() }
+    }
+    state acp_r(&mut self) {
+        self.ru32();
+        self.n_acp = self.w32 as u64 in Wrapping;
+        transition self.n_acp <= 32 && self.ok {
+            true -> acp_init()
+            _ -> bad()
+        }
+    }
+    state acp_init(&mut self) {
+        self.i = 0;
+        transition { _ -> acp_loop() }
+    }
+    state acp_loop(&mut self) {
+        transition self.i < self.n_acp && self.i < 32 && self.ok {
+            true -> acp_one()
+            _ -> fin()
+        }
+    }
+    state acp_one(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> acp_copy() }
+    }
+    state acp_copy(&mut self) {
+        transition self.k < 32 {
+            true -> prep_ac()
+            _ -> acp_next()
+        }
+    }
+    state prep_ac(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 1024 && self.h2 < 32 {
+            true -> do_ac()
+            _ -> bad()
+        }
+    }
+    state do_ac(&mut self) {
+        self.accepted[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> acp_copy() }
+    }
+    state acp_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> acp_loop() }
+    }
+    state fin(&mut self) {
+        transition self.rq == self.req_n && self.ok {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Compare two stored plan-roster names `a`/`b` (p_names) — same protocol
+// as cmp_names: `d0` = 0 equal, 1 a<b, 2 a>b.
+machine Verify::cmp_pnames(&mut self, a: u64 in Wrapping, b: u64 in Wrapping) {
+    self.j = 0;
+    self.d0 = 0;
+    self.ja = a;
+    self.jb = b;
+    transition self.ja < 8 && self.jb < 8 {
+        true -> min_len()
+        _ -> bad()
+    }
+
+    state min_len(&mut self) {
+        transition self.p_name_len[self.ja] < self.p_name_len[self.jb] {
+            true -> a_shorter()
+            _ -> b_shorter()
+        }
+    }
+    state a_shorter(&mut self) {
+        self.d1 = self.p_name_len[self.ja];
+        transition { _ -> loop_s() }
+    }
+    state b_shorter(&mut self) {
+        self.d1 = self.p_name_len[self.jb];
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.j < self.d1 && self.j < 128 && self.d0 == 0 {
+            true -> prep()
+            _ -> tail()
+        }
+    }
+    state prep(&mut self) {
+        self.h0 = self.ja * 128 + self.j;
+        self.h1 = self.jb * 128 + self.j;
+        transition self.h0 < 1024 && self.h1 < 1024 {
+            true -> apply()
+            _ -> bad()
+        }
+    }
+    state apply(&mut self) {
+        self.w8 = self.p_names[self.h0];
+        transition self.w8 == self.p_names[self.h1] {
+            true -> next()
+            _ -> diff()
+        }
+    }
+    state diff(&mut self) {
+        transition self.p_names[self.h0] < self.p_names[self.h1] {
+            true -> lt()
+            _ -> gt()
+        }
+    }
+    state lt(&mut self) {
+        self.d0 = 1;
+        transition { _ -> done() }
+    }
+    state gt(&mut self) {
+        self.d0 = 2;
+        transition { _ -> done() }
+    }
+    state next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state tail(&mut self) {
+        transition self.d0 != 0 {
+            true -> done()
+            _ -> len_cmp()
+        }
+    }
+    state len_cmp(&mut self) {
+        transition self.ja < 8 && self.jb < 8 {
+            true -> len_cmp_rd()
+            _ -> bad()
+        }
+    }
+    state len_cmp_rd(&mut self) {
+        transition self.p_name_len[self.ja] == self.p_name_len[self.jb] {
+            true -> done()
+            _ -> len_ne()
+        }
+    }
+    state len_ne(&mut self) {
+        transition self.ja < 8 && self.jb < 8 {
+            true -> len_ne_rd()
+            _ -> bad()
+        }
+    }
+    state len_ne_rd(&mut self) {
+        transition self.p_name_len[self.ja] < self.p_name_len[self.jb] {
+            true -> lt()
+            _ -> gt()
+        }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Compare 32-byte identities across tables: left = table `cb` at index
+// `a`, right = table `cb2` at index `b` — `d0` = 0 equal, 1 a<b, 2 a>b.
+// Table codes (both selectors): 0=subjects(request) 1=p_subjects
+// 2=p_profile 3=p_closure 4=p_asm 5=c_subj 6=c_prof 7=c_clo 8=c_asm
+// 9=transports 10=accepted 11=verifier 12=p_commit 13=q_ver 14=b_tr
+// 15=ident 16=p_ep_contract 17=c_ep_contract. For the per-record blocks
+// (p_asm, c_asm, p_ep_contract, c_ep_contract) `a`/`b` are flat 32-byte
+// row indices.
+machine Verify::cmp_ident(&mut self, a: u64 in Wrapping, b: u64 in Wrapping) {
+    self.j = 0;
+    self.d0 = 0;
+    self.ja = a;
+    self.jb = b;
+    transition { _ -> loop_s() }
+
+    state loop_s(&mut self) {
+        transition self.j < 32 && self.d0 == 0 {
+            true -> offs()
+            _ -> done()
+        }
+    }
+    state offs(&mut self) {
+        self.h0 = self.ja * 32 + self.j;
+        self.h1 = self.jb * 32 + self.j;
+        transition self.h0 < 2048 && self.h1 < 2048 {
+            true -> lload()
+            _ -> bad()
+        }
+    }
+    state lload(&mut self) {
+        self.load_l();
+        self.load_r();
+        transition { _ -> cmp() }
+    }
+    state cmp(&mut self) {
+        transition self.w8 == self.b8 {
+            true -> eq()
+            _ -> ne()
+        }
+    }
+    state eq(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state ne(&mut self) {
+        transition self.w8 < self.b8 {
+            true -> lt()
+            _ -> gt()
+        }
+    }
+    state lt(&mut self) {
+        self.d0 = 1;
+        transition { _ -> done() }
+    }
+    state gt(&mut self) {
+        self.d0 = 2;
+        transition { _ -> done() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Read table `cb` at `h0` into `w8`.
+machine Verify::load_l(&mut self) {
+    transition self.h0 < 2048 {
+        true -> dispatch()
+        _ -> bad()
+    }
+    state dispatch(&mut self) {
+        transition self.cb == 0 {
+            true -> t0()
+            _ -> g1()
+        }
+    }
+    state t0(&mut self) { self.w8 = self.subjects[self.h0]; }
+    state g1(&mut self) {
+        transition self.cb == 1 { true -> t1() _ -> g2() }
+    }
+    state t1(&mut self) { self.w8 = self.p_subjects[self.h0]; }
+    state g2(&mut self) {
+        transition self.cb == 2 { true -> t2() _ -> g3() }
+    }
+    state t2(&mut self) { self.w8 = self.p_profile[self.h0]; }
+    state g3(&mut self) {
+        transition self.cb == 3 { true -> t3() _ -> g4() }
+    }
+    state t3(&mut self) { self.w8 = self.p_closure[self.h0]; }
+    state g4(&mut self) {
+        transition self.cb == 4 { true -> t4() _ -> g5() }
+    }
+    state t4(&mut self) { self.w8 = self.p_asm[self.h0]; }
+    state g5(&mut self) {
+        transition self.cb == 5 { true -> t5() _ -> g6() }
+    }
+    state t5(&mut self) { self.w8 = self.c_subj[self.h0]; }
+    state g6(&mut self) {
+        transition self.cb == 6 { true -> t6() _ -> g7() }
+    }
+    state t6(&mut self) { self.w8 = self.c_prof[self.h0]; }
+    state g7(&mut self) {
+        transition self.cb == 7 { true -> t7() _ -> g8() }
+    }
+    state t7(&mut self) { self.w8 = self.c_clo[self.h0]; }
+    state g8(&mut self) {
+        transition self.cb == 8 { true -> t8() _ -> g9() }
+    }
+    state t8(&mut self) { self.w8 = self.c_asm[self.h0]; }
+    state g9(&mut self) {
+        transition self.cb == 9 { true -> t9() _ -> g10() }
+    }
+    state t9(&mut self) { self.w8 = self.transports[self.h0]; }
+    state g10(&mut self) {
+        transition self.cb == 10 { true -> t10() _ -> g11() }
+    }
+    state t10(&mut self) { self.w8 = self.accepted[self.h0]; }
+    state g11(&mut self) {
+        transition self.cb == 11 { true -> t11() _ -> g12() }
+    }
+    state t11(&mut self) { self.w8 = self.verifier[self.h0]; }
+    state g12(&mut self) {
+        transition self.cb == 12 { true -> t12() _ -> g13() }
+    }
+    state t12(&mut self) { self.w8 = self.p_commit[self.h0]; }
+    state g13(&mut self) {
+        transition self.cb == 13 { true -> t13() _ -> g14() }
+    }
+    state t13(&mut self) { self.w8 = self.q_ver[self.h0]; }
+    state g14(&mut self) {
+        transition self.cb == 14 { true -> t14() _ -> g15() }
+    }
+    state t14(&mut self) { self.w8 = self.b_tr[self.h0]; }
+    state g15(&mut self) {
+        transition self.cb == 15 { true -> t15() _ -> g16() }
+    }
+    state t15(&mut self) { self.w8 = self.ident[self.h0]; }
+    state g16(&mut self) {
+        transition self.cb == 16 { true -> t16() _ -> g17() }
+    }
+    state t16(&mut self) { self.w8 = self.p_ep_contract[self.h0]; }
+    state g17(&mut self) {
+        transition self.cb == 17 { true -> t17() _ -> bad() }
+    }
+    state t17(&mut self) { self.w8 = self.c_ep_contract[self.h0]; }
+    state bad(&mut self) {
+        self.ok = false;
+    }
+}
+
+// Read table `cb2` at `h1` into `b8`.
+machine Verify::load_r(&mut self) {
+    transition self.h1 < 2048 {
+        true -> dispatch()
+        _ -> bad()
+    }
+    state dispatch(&mut self) {
+        transition self.cb2 == 0 {
+            true -> t0()
+            _ -> g1()
+        }
+    }
+    state t0(&mut self) { self.b8 = self.subjects[self.h1]; }
+    state g1(&mut self) {
+        transition self.cb2 == 1 { true -> t1() _ -> g2() }
+    }
+    state t1(&mut self) { self.b8 = self.p_subjects[self.h1]; }
+    state g2(&mut self) {
+        transition self.cb2 == 2 { true -> t2() _ -> g3() }
+    }
+    state t2(&mut self) { self.b8 = self.p_profile[self.h1]; }
+    state g3(&mut self) {
+        transition self.cb2 == 3 { true -> t3() _ -> g4() }
+    }
+    state t3(&mut self) { self.b8 = self.p_closure[self.h1]; }
+    state g4(&mut self) {
+        transition self.cb2 == 4 { true -> t4() _ -> g5() }
+    }
+    state t4(&mut self) { self.b8 = self.p_asm[self.h1]; }
+    state g5(&mut self) {
+        transition self.cb2 == 5 { true -> t5() _ -> g6() }
+    }
+    state t5(&mut self) { self.b8 = self.c_subj[self.h1]; }
+    state g6(&mut self) {
+        transition self.cb2 == 6 { true -> t6() _ -> g7() }
+    }
+    state t6(&mut self) { self.b8 = self.c_prof[self.h1]; }
+    state g7(&mut self) {
+        transition self.cb2 == 7 { true -> t7() _ -> g8() }
+    }
+    state t7(&mut self) { self.b8 = self.c_clo[self.h1]; }
+    state g8(&mut self) {
+        transition self.cb2 == 8 { true -> t8() _ -> g9() }
+    }
+    state t8(&mut self) { self.b8 = self.c_asm[self.h1]; }
+    state g9(&mut self) {
+        transition self.cb2 == 9 { true -> t9() _ -> g10() }
+    }
+    state t9(&mut self) { self.b8 = self.transports[self.h1]; }
+    state g10(&mut self) {
+        transition self.cb2 == 10 { true -> t10() _ -> g11() }
+    }
+    state t10(&mut self) { self.b8 = self.accepted[self.h1]; }
+    state g11(&mut self) {
+        transition self.cb2 == 11 { true -> t11() _ -> g12() }
+    }
+    state t11(&mut self) { self.b8 = self.verifier[self.h1]; }
+    state g12(&mut self) {
+        transition self.cb2 == 12 { true -> t12() _ -> g13() }
+    }
+    state t12(&mut self) { self.b8 = self.p_commit[self.h1]; }
+    state g13(&mut self) {
+        transition self.cb2 == 13 { true -> t13() _ -> g14() }
+    }
+    state t13(&mut self) { self.b8 = self.q_ver[self.h1]; }
+    state g14(&mut self) {
+        transition self.cb2 == 14 { true -> t14() _ -> g15() }
+    }
+    state t14(&mut self) { self.b8 = self.b_tr[self.h1]; }
+    state g15(&mut self) {
+        transition self.cb2 == 15 { true -> t15() _ -> g16() }
+    }
+    state t15(&mut self) { self.b8 = self.ident[self.h1]; }
+    state g16(&mut self) {
+        transition self.cb2 == 16 { true -> t16() _ -> g17() }
+    }
+    state t16(&mut self) { self.b8 = self.p_ep_contract[self.h1]; }
+    state g17(&mut self) {
+        transition self.cb2 == 17 { true -> t17() _ -> bad() }
+    }
+    state t17(&mut self) { self.b8 = self.c_ep_contract[self.h1]; }
+    state bad(&mut self) {
+        self.ok = false;
+    }
+}
+
+// ---- components.bin decode ---------------------------------------------------
+// {u32 n} + n admitted-facts records, each:
+//   subject[32] | profile[32] | closure[32] |
+//   u32 n_asm + asm[32] x n_asm (n_asm <= 4) |
+//   u32 n_ep + (u32 slot, u8 dir, contract[32]) x n_ep (n_ep <= 8,
+//   (slot,dir) strictly increasing).
+// The caller publishes what its component verifier established; the plan's
+// component record must equal it field-for-field.
+machine Verify::decode_meta(&mut self) {
+    self.src = 2;
+    self.mq = 0;
+    self.ru32();
+    self.n_comp = self.w32 as u64 in Wrapping;
+    transition self.n_comp <= 8 && self.ok {
+        true -> init()
+        _ -> bad()
+    }
+    state init(&mut self) {
+        self.i = 0;
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.i < self.n_comp && self.i < 8 && self.ok {
+            true -> subj()
+            _ -> fin()
+        }
+    }
+    state subj(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> subj_cp() }
+    }
+    state subj_cp(&mut self) {
+        transition self.k < 32 {
+            true -> subj_p()
+            _ -> prof()
+        }
+    }
+    state subj_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> subj_w()
+            _ -> bad()
+        }
+    }
+    state subj_w(&mut self) {
+        self.c_subj[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> subj_cp() }
+    }
+    state prof(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> prof_cp() }
+    }
+    state prof_cp(&mut self) {
+        transition self.k < 32 {
+            true -> prof_p()
+            _ -> clo()
+        }
+    }
+    state prof_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> prof_w()
+            _ -> bad()
+        }
+    }
+    state prof_w(&mut self) {
+        self.c_prof[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> prof_cp() }
+    }
+    state clo(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> clo_cp() }
+    }
+    state clo_cp(&mut self) {
+        transition self.k < 32 {
+            true -> clo_p()
+            _ -> asm_n()
+        }
+    }
+    state clo_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> clo_w()
+            _ -> bad()
+        }
+    }
+    state clo_w(&mut self) {
+        self.c_clo[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> clo_cp() }
+    }
+    state asm_n(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        self.h0 = self.i;
+        transition self.t64 <= 4 && self.h0 < 8 && self.ok {
+            true -> asm_set()
+            _ -> bad()
+        }
+    }
+    state asm_set(&mut self) {
+        self.c_asm_n[self.h0] = self.t64;
+        self.k = 0;
+        transition { _ -> asm_loop() }
+    }
+    state asm_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 4 && self.ok {
+            true -> asm_one()
+            _ -> ep_n()
+        }
+    }
+    state asm_one(&mut self) {
+        self.rdident();
+        self.j = 0;
+        transition { _ -> asm_cp() }
+    }
+    state asm_cp(&mut self) {
+        transition self.j < 32 {
+            true -> asm_p()
+            _ -> asm_next()
+        }
+    }
+    state asm_p(&mut self) {
+        self.h1 = (self.i * 4 + self.k) * 32 + self.j;
+        self.h2 = self.j;
+        transition self.h1 < 1024 && self.h2 < 32 {
+            true -> asm_w()
+            _ -> bad()
+        }
+    }
+    state asm_w(&mut self) {
+        self.c_asm[self.h1] = self.ident[self.h2];
+        self.j = self.j + 1;
+        transition { _ -> asm_cp() }
+    }
+    state asm_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> asm_loop() }
+    }
+    state ep_n(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        self.h0 = self.i;
+        transition self.t64 <= 8 && self.h0 < 8 && self.ok {
+            true -> ep_set()
+            _ -> bad()
+        }
+    }
+    state ep_set(&mut self) {
+        self.c_ep_n[self.h0] = self.t64;
+        self.k = 0;
+        self.jd = 0;
+        transition { _ -> ep_loop() }
+    }
+    state ep_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 8 && self.ok {
+            true -> ep_slot()
+            _ -> next()
+        }
+    }
+    state ep_slot(&mut self) {
+        self.ru32();
+        self.h1 = self.i * 8 + self.k;
+        transition self.h1 < 64 && self.ok {
+            true -> ep_slot_w()
+            _ -> bad()
+        }
+    }
+    state ep_slot_w(&mut self) {
+        self.c_ep_slot[self.h1] = self.w32 as u64 in Wrapping;
+        transition { _ -> ep_dir() }
+    }
+    state ep_dir(&mut self) {
+        self.rd();
+        transition self.ok && self.h1 < 64 {
+            true -> ep_dir_ck()
+            _ -> bad()
+        }
+    }
+    state ep_dir_ck(&mut self) {
+        transition self.b8 == 0 || self.b8 == 1 {
+            true -> ep_dir_w()
+            _ -> bad()
+        }
+    }
+    state ep_dir_w(&mut self) {
+        self.c_ep_dir[self.h1] = self.b8;
+        // Canonical (slot,direction) order: packed key must strictly increase.
+        self.je = self.c_ep_slot[self.h1] * 2 + (self.b8 as u64 in Wrapping);
+        transition self.k == 0 || self.je > self.jd {
+            true -> ep_ord()
+            _ -> bad()
+        }
+    }
+    state ep_ord(&mut self) {
+        self.jd = self.je;
+        transition { _ -> ep_contract() }
+    }
+    state ep_contract(&mut self) {
+        self.rdident();
+        self.j = 0;
+        transition { _ -> ep_cp() }
+    }
+    state ep_cp(&mut self) {
+        transition self.j < 32 {
+            true -> ep_p()
+            _ -> ep_next()
+        }
+    }
+    state ep_p(&mut self) {
+        self.h2 = self.j;
+        transition self.h1 < 64 && self.h2 < 32 {
+            true -> ep_p2()
+            _ -> bad()
+        }
+    }
+    state ep_p2(&mut self) {
+        self.h3 = self.h1 * 32 + self.h2;
+        transition self.h3 < 2048 {
+            true -> ep_w()
+            _ -> bad()
+        }
+    }
+    state ep_w(&mut self) {
+        self.c_ep_contract[self.h3] = self.ident[self.h2];
+        self.j = self.j + 1;
+        transition { _ -> ep_cp() }
+    }
+    state ep_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> ep_loop() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    state fin(&mut self) {
+        transition self.mq == self.meta_n && self.ok {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Resolve `strbuf`/`str_n` against the PLAN roster — `d0` = member index
+// or 255 when unknown.
+machine Verify::resolve_pname(&mut self) {
+    self.d0 = 255;
+    self.i = 0;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.i < self.p_n && self.i < 8 && self.ok {
+            true -> len_ck()
+            _ -> done()
+        }
+    }
+    state len_ck(&mut self) {
+        transition self.p_name_len[self.i] == self.str_n {
+            true -> cmp_init()
+            _ -> next()
+        }
+    }
+    state cmp_init(&mut self) {
+        self.j = 0;
+        self.jg = 1;
+        transition { _ -> cmp_loop() }
+    }
+    state cmp_loop(&mut self) {
+        transition self.j < self.str_n && self.j < 128 && self.jg == 1 {
+            true -> prep_c()
+            _ -> cmp_done()
+        }
+    }
+    state prep_c(&mut self) {
+        self.h0 = self.i * 128 + self.j;
+        self.h1 = self.j;
+        transition self.h0 < 1024 && self.h1 < 256 {
+            true -> do_c()
+            _ -> bad()
+        }
+    }
+    state do_c(&mut self) {
+        self.w8 = self.p_names[self.h0];
+        transition self.w8 == self.strbuf[self.h1] {
+            true -> c_next()
+            _ -> c_diff()
+        }
+    }
+    state c_diff(&mut self) {
+        self.jg = 0;
+        transition { _ -> cmp_loop() }
+    }
+    state c_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> cmp_loop() }
+    }
+    state cmp_done(&mut self) {
+        transition self.jg == 1 {
+            true -> hit()
+            _ -> next()
+        }
+    }
+    state hit(&mut self) {
+        self.d0 = self.i;
+        transition { _ -> done() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Plan-side selector read — same canonical rule as rd_selector but
+// resolves against the plan roster.
+machine Verify::rd_pselector(&mut self) {
+    self.ru32();
+    self.sel_n = self.w32 as u64 in Wrapping;
+    self.sel_mask = 0;
+    self.sel_prev = 0;
+    transition self.sel_n <= 8 && self.ok {
+        true -> init()
+        _ -> bad()
+    }
+    state init(&mut self) {
+        self.j = 0;
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.j < self.sel_n && self.j < 8 && self.ok {
+            true -> one()
+            _ -> done()
+        }
+    }
+    state one(&mut self) {
+        self.rdname();
+        self.resolve_pname();
+        transition self.d0 < 8 && self.ok {
+            true -> order_ck()
+            _ -> bad()
+        }
+    }
+    state order_ck(&mut self) {
+        transition self.j == 0 || self.d0 > self.sel_prev {
+            true -> record()
+            _ -> bad()
+        }
+    }
+    state record(&mut self) {
+        self.h0 = self.j;
+        transition self.h0 < 8 {
+            true -> record_w()
+            _ -> bad()
+        }
+    }
+    state record_w(&mut self) {
+        self.sel_list[self.h0] = self.d0;
+        self.sel_prev = self.d0;
+        self.sel_mask = self.sel_mask | ((1 as u64 in Wrapping) << self.d0);
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- plan decode --------------------------------------------------------------
+// Layout (canonical DeploymentPlan, v1): magic "OTPL" u32 (0x4C505450 =
+// 1280332880) | ver u32 | request_commitment[32] | n_inst u32 |
+// per-instance {name, role u8 (0 component / 1 external), subject[32],
+// profile[32], completeness u8, [closure[32]], n_asm u32 + asm[32]x,
+// n_ep u32 + (slot u32, dir u8, contract[32]) x n_ep} | n_bind u32 |
+// {ii,is,ei,es u32 + transport[32]} x n_bind — canonical packed order |
+// n_pol u32 | {verifier[32], tag u8, 3 selectors, outcome} x n_pol |
+// end. Completeness tag 1 = VerifiedComplete carries the closure;
+// producer-declared (0) and early-frontier (2) are the named
+// UnverifiedCompleteness rejections; any other tag is malformed.
+
+machine Verify::decode_plan(&mut self) {
+    self.src = 1;
+    self.pq = 0;
+    self.ru32();
+    transition self.w32 == 1280332880 && self.ok {
+        true -> ver()
+        _ -> bad()
+    }
+    state ver(&mut self) {
+        self.ru32();
+        transition self.w32 == 1 && self.ok {
+            true -> commit()
+            _ -> bad()
+        }
+    }
+    state commit(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> commit_cp() }
+    }
+    state commit_cp(&mut self) {
+        transition self.k < 32 {
+            true -> commit_p()
+            _ -> insts()
+        }
+    }
+    state commit_p(&mut self) {
+        self.h2 = self.k;
+        transition self.h2 < 32 {
+            true -> commit_w()
+            _ -> bad()
+        }
+    }
+    state commit_w(&mut self) {
+        self.p_commit[self.h2] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> commit_cp() }
+    }
+    state insts(&mut self) {
+        self.ru32();
+        self.p_n = self.w32 as u64 in Wrapping;
+        transition self.p_n > 0 && self.p_n <= 8 && self.ok {
+            true -> inst_init()
+            _ -> bad()
+        }
+    }
+    state inst_init(&mut self) {
+        self.i = 0;
+        transition { _ -> inst_loop() }
+    }
+    state inst_loop(&mut self) {
+        transition self.i < self.p_n && self.i < 8 && self.ok {
+            true -> inst_name()
+            _ -> binds()
+        }
+    }
+    state inst_name(&mut self) {
+        self.rdname();
+        self.h0 = self.i;
+        transition self.h0 < 8 && self.ok {
+            true -> set_len()
+            _ -> bad()
+        }
+    }
+    state set_len(&mut self) {
+        self.p_name_len[self.h0] = self.str_n;
+        self.k = 0;
+        transition { _ -> name_copy() }
+    }
+    state name_copy(&mut self) {
+        transition self.k < self.str_n && self.k < 128 {
+            true -> prep_nc()
+            _ -> order_ck()
+        }
+    }
+    state prep_nc(&mut self) {
+        self.h1 = self.i * 128 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 1024 && self.h2 < 256 {
+            true -> do_nc()
+            _ -> bad()
+        }
+    }
+    state do_nc(&mut self) {
+        self.p_names[self.h1] = self.strbuf[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> name_copy() }
+    }
+    state order_ck(&mut self) {
+        transition self.i == 0 {
+            true -> role()
+            _ -> ord_run()
+        }
+    }
+    state ord_run(&mut self) {
+        self.d0 = 0;
+        self.cmp_pnames(self.i - 1, self.i);
+        transition self.d0 == 2 {
+            true -> role()
+            _ -> bad()
+        }
+    }
+    state role(&mut self) {
+        self.rd();
+        transition self.ok && self.i < 8 {
+            true -> role_set()
+            _ -> bad()
+        }
+    }
+    state role_set(&mut self) {
+        transition self.b8 == 0 || self.b8 == 1 {
+            true -> role_w()
+            _ -> bad()
+        }
+    }
+    state role_w(&mut self) {
+        self.p_role[self.i] = self.b8;
+        transition { _ -> psubj() }
+    }
+    state psubj(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> psubj_cp() }
+    }
+    state psubj_cp(&mut self) {
+        transition self.k < 32 {
+            true -> psubj_p()
+            _ -> pprof()
+        }
+    }
+    state psubj_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> psubj_w()
+            _ -> bad()
+        }
+    }
+    state psubj_w(&mut self) {
+        self.p_subjects[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> psubj_cp() }
+    }
+    state pprof(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> pprof_cp() }
+    }
+    state pprof_cp(&mut self) {
+        transition self.k < 32 {
+            true -> pprof_p()
+            _ -> comp_tag()
+        }
+    }
+    state pprof_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> pprof_w()
+            _ -> bad()
+        }
+    }
+    state pprof_w(&mut self) {
+        self.p_profile[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> pprof_cp() }
+    }
+    // Completeness tag: 1 = VerifiedComplete{closure} admitted; 0 or 2 are
+    // the contract's named UnverifiedCompleteness rejections (verdict 3);
+    // anything else is a malformed plan (verdict 2).
+    state comp_tag(&mut self) {
+        self.rd();
+        transition self.b8 == 1 && self.ok {
+            true -> clo()
+            _ -> comp_other()
+        }
+    }
+    state comp_other(&mut self) {
+        transition self.b8 == 0 || self.b8 == 2 {
+            true -> comp_unv()
+            _ -> bad()
+        }
+    }
+    state comp_unv(&mut self) {
+        self.verdict = 3;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state clo(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> clo_cp() }
+    }
+    state clo_cp(&mut self) {
+        transition self.k < 32 {
+            true -> clo_p()
+            _ -> asm_n()
+        }
+    }
+    state clo_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> clo_w()
+            _ -> bad()
+        }
+    }
+    state clo_w(&mut self) {
+        self.p_closure[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> clo_cp() }
+    }
+    state asm_n(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        transition self.t64 <= 4 && self.i < 8 && self.ok {
+            true -> asm_set()
+            _ -> bad()
+        }
+    }
+    state asm_set(&mut self) {
+        self.p_asm_n[self.i] = self.t64;
+        self.k = 0;
+        transition { _ -> asm_loop() }
+    }
+    state asm_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 4 && self.ok {
+            true -> asm_one()
+            _ -> ep_n()
+        }
+    }
+    state asm_one(&mut self) {
+        self.rdident();
+        self.j = 0;
+        transition { _ -> asm_cp() }
+    }
+    state asm_cp(&mut self) {
+        transition self.j < 32 {
+            true -> asm_p()
+            _ -> asm_next()
+        }
+    }
+    state asm_p(&mut self) {
+        self.h1 = (self.i * 4 + self.k) * 32 + self.j;
+        self.h2 = self.j;
+        transition self.h1 < 1024 && self.h2 < 32 {
+            true -> asm_w()
+            _ -> bad()
+        }
+    }
+    state asm_w(&mut self) {
+        self.p_asm[self.h1] = self.ident[self.h2];
+        self.j = self.j + 1;
+        transition { _ -> asm_cp() }
+    }
+    state asm_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> asm_loop() }
+    }
+    state ep_n(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        transition self.t64 <= 8 && self.i < 8 && self.ok {
+            true -> ep_set()
+            _ -> bad()
+        }
+    }
+    state ep_set(&mut self) {
+        self.p_ep_n[self.i] = self.t64;
+        self.k = 0;
+        self.jd = 0;
+        transition { _ -> ep_loop() }
+    }
+    state ep_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 8 && self.ok {
+            true -> ep_slot()
+            _ -> inst_next()
+        }
+    }
+    state ep_slot(&mut self) {
+        self.ru32();
+        self.h1 = self.i * 8 + self.k;
+        transition self.h1 < 64 && self.ok {
+            true -> ep_slot_w()
+            _ -> bad()
+        }
+    }
+    state ep_slot_w(&mut self) {
+        self.p_ep_slot[self.h1] = self.w32 as u64 in Wrapping;
+        transition { _ -> ep_dir() }
+    }
+    state ep_dir(&mut self) {
+        self.rd();
+        transition self.ok && self.h1 < 64 {
+            true -> ep_dir_ck()
+            _ -> bad()
+        }
+    }
+    state ep_dir_ck(&mut self) {
+        transition self.b8 == 0 || self.b8 == 1 {
+            true -> ep_dir_w()
+            _ -> bad()
+        }
+    }
+    state ep_dir_w(&mut self) {
+        self.p_ep_dir[self.h1] = self.b8;
+        self.je = self.p_ep_slot[self.h1] * 2 + (self.b8 as u64 in Wrapping);
+        transition self.k == 0 || self.je > self.jd {
+            true -> ep_ord()
+            _ -> bad()
+        }
+    }
+    state ep_ord(&mut self) {
+        self.jd = self.je;
+        transition { _ -> ep_contract() }
+    }
+    state ep_contract(&mut self) {
+        self.rdident();
+        self.j = 0;
+        transition { _ -> ep_cp() }
+    }
+    state ep_cp(&mut self) {
+        transition self.j < 32 {
+            true -> ep_p()
+            _ -> ep_next()
+        }
+    }
+    state ep_p(&mut self) {
+        self.h2 = self.j;
+        transition self.h1 < 64 && self.h2 < 32 {
+            true -> ep_p2()
+            _ -> bad()
+        }
+    }
+    state ep_p2(&mut self) {
+        self.h3 = self.h1 * 32 + self.h2;
+        transition self.h3 < 2048 {
+            true -> ep_w()
+            _ -> bad()
+        }
+    }
+    state ep_w(&mut self) {
+        self.p_ep_contract[self.h3] = self.ident[self.h2];
+        self.j = self.j + 1;
+        transition { _ -> ep_cp() }
+    }
+    state ep_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> ep_loop() }
+    }
+    state inst_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> inst_loop() }
+    }
+    state binds(&mut self) {
+        self.ru32();
+        self.n_bind = self.w32 as u64 in Wrapping;
+        transition self.n_bind <= 16 && self.ok {
+            true -> bind_init()
+            _ -> bad()
+        }
+    }
+    state bind_init(&mut self) {
+        self.i = 0;
+        self.jd = 0;
+        transition { _ -> bind_loop() }
+    }
+    state bind_loop(&mut self) {
+        transition self.i < self.n_bind && self.i < 16 && self.ok {
+            true -> b_ii()
+            _ -> pols()
+        }
+    }
+    state b_ii(&mut self) {
+        self.ru32();
+        transition self.i < 16 && self.ok {
+            true -> b_ii_w()
+            _ -> bad()
+        }
+    }
+    state b_ii_w(&mut self) {
+        self.b_ii[self.i] = self.w32 as u64 in Wrapping;
+        transition { _ -> b_is() }
+    }
+    state b_is(&mut self) {
+        self.ru32();
+        transition self.i < 16 && self.ok {
+            true -> b_is_w()
+            _ -> bad()
+        }
+    }
+    state b_is_w(&mut self) {
+        self.b_is[self.i] = self.w32 as u64 in Wrapping;
+        transition { _ -> b_ei() }
+    }
+    state b_ei(&mut self) {
+        self.ru32();
+        transition self.i < 16 && self.ok {
+            true -> b_ei_w()
+            _ -> bad()
+        }
+    }
+    state b_ei_w(&mut self) {
+        self.b_ei[self.i] = self.w32 as u64 in Wrapping;
+        transition { _ -> b_es() }
+    }
+    state b_es(&mut self) {
+        self.ru32();
+        transition self.i < 16 && self.ok {
+            true -> b_es_w()
+            _ -> bad()
+        }
+    }
+    state b_es_w(&mut self) {
+        self.b_es[self.i] = self.w32 as u64 in Wrapping;
+        transition { _ -> b_tr() }
+    }
+    state b_tr(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> b_tr_cp() }
+    }
+    state b_tr_cp(&mut self) {
+        transition self.k < 32 {
+            true -> b_tr_p()
+            _ -> b_ord()
+        }
+    }
+    state b_tr_p(&mut self) {
+        self.h1 = self.i * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 512 && self.h2 < 32 {
+            true -> b_tr_w()
+            _ -> bad()
+        }
+    }
+    state b_tr_w(&mut self) {
+        self.b_tr[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> b_tr_cp() }
+    }
+    // Canonical binding order: the packed (import,export) key must
+    // strictly increase — packing is injective at this scale
+    // (ii,ei<8; is,es<4096 after the endpoint bound).
+    state b_ord(&mut self) {
+        transition self.i < 16 {
+            true -> b_ord_rd()
+            _ -> bad()
+        }
+    }
+    state b_ord_rd(&mut self) {
+        self.je = ((self.b_ii[self.i] * 65536 + self.b_is[self.i]) * 65536 + self.b_ei[self.i]) * 65536 + self.b_es[self.i];
+        transition self.i == 0 || self.je > self.jd {
+            true -> b_ord_w()
+            _ -> bad()
+        }
+    }
+    state b_ord_w(&mut self) {
+        self.jd = self.je;
+        transition { _ -> bind_next() }
+    }
+    state bind_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> bind_loop() }
+    }
+    state pols(&mut self) {
+        self.ru32();
+        self.p_npol = self.w32 as u64 in Wrapping;
+        transition self.p_npol <= 8 && self.ok {
+            true -> pol_init()
+            _ -> bad()
+        }
+    }
+    state pol_init(&mut self) {
+        self.cp = 0;
+        transition { _ -> pol_loop() }
+    }
+    state pol_loop(&mut self) {
+        transition self.cp < self.p_npol && self.cp < 8 && self.ok {
+            true -> q_ver_r()
+            _ -> fin()
+        }
+    }
+    state q_ver_r(&mut self) {
+        self.rdident();
+        self.k = 0;
+        transition { _ -> q_ver_cp() }
+    }
+    state q_ver_cp(&mut self) {
+        transition self.k < 32 {
+            true -> q_ver_p()
+            _ -> q_tag_r()
+        }
+    }
+    state q_ver_p(&mut self) {
+        self.h1 = self.cp * 32 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 256 && self.h2 < 32 {
+            true -> q_ver_w()
+            _ -> bad()
+        }
+    }
+    state q_ver_w(&mut self) {
+        self.q_ver[self.h1] = self.ident[self.h2];
+        self.k = self.k + 1;
+        transition { _ -> q_ver_cp() }
+    }
+    state q_tag_r(&mut self) {
+        self.rd();
+        transition self.ok && self.cp < 8 {
+            true -> q_tag_set()
+            _ -> bad()
+        }
+    }
+    state q_tag_set(&mut self) {
+        transition self.b8 == 1 || self.b8 == 2 {
+            true -> q_tag_w()
+            _ -> bad()
+        }
+    }
+    state q_tag_w(&mut self) {
+        self.q_tag[self.cp] = self.b8;
+        transition { _ -> q_s_r() }
+    }
+    state q_s_r(&mut self) {
+        self.rd_pselector();
+        transition self.ok && self.cp < 8 {
+            true -> q_s_set()
+            _ -> bad()
+        }
+    }
+    state q_s_set(&mut self) {
+        self.q_s[self.cp] = self.sel_mask;
+        self.q_sn[self.cp] = self.sel_n;
+        self.k = 0;
+        transition { _ -> q_s_cp() }
+    }
+    state q_s_cp(&mut self) {
+        transition self.k < self.sel_n && self.k < 8 {
+            true -> q_s_cp_one()
+            _ -> q_t_r()
+        }
+    }
+    state q_s_cp_one(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.k;
+        transition self.h0 < 64 && self.h1 < 8 {
+            true -> q_s_cp_w()
+            _ -> bad()
+        }
+    }
+    state q_s_cp_w(&mut self) {
+        self.q_slist[self.h0] = self.sel_list[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> q_s_cp() }
+    }
+    state q_t_r(&mut self) {
+        self.rd_pselector();
+        transition self.ok && self.cp < 8 {
+            true -> q_t_set()
+            _ -> bad()
+        }
+    }
+    state q_t_set(&mut self) {
+        self.q_t[self.cp] = self.sel_mask;
+        self.q_tn[self.cp] = self.sel_n;
+        self.k = 0;
+        transition { _ -> q_t_cp() }
+    }
+    state q_t_cp(&mut self) {
+        transition self.k < self.sel_n && self.k < 8 {
+            true -> q_t_cp_one()
+            _ -> q_v_r()
+        }
+    }
+    state q_t_cp_one(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.k;
+        transition self.h0 < 64 && self.h1 < 8 {
+            true -> q_t_cp_w()
+            _ -> bad()
+        }
+    }
+    state q_t_cp_w(&mut self) {
+        self.q_tlist[self.h0] = self.sel_list[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> q_t_cp() }
+    }
+    state q_v_r(&mut self) {
+        self.rd_pselector();
+        transition self.ok && self.cp < 8 {
+            true -> q_v_set()
+            _ -> bad()
+        }
+    }
+    state q_v_set(&mut self) {
+        self.q_v[self.cp] = self.sel_mask;
+        self.q_vn[self.cp] = self.sel_n;
+        self.k = 0;
+        transition { _ -> q_v_cp() }
+    }
+    state q_v_cp(&mut self) {
+        transition self.k < self.sel_n && self.k < 8 {
+            true -> q_v_cp_one()
+            _ -> q_out_r()
+        }
+    }
+    state q_v_cp_one(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.k;
+        transition self.h0 < 64 && self.h1 < 8 {
+            true -> q_v_cp_w()
+            _ -> bad()
+        }
+    }
+    state q_v_cp_w(&mut self) {
+        self.q_vlist[self.h0] = self.sel_list[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> q_v_cp() }
+    }
+    // outcome: 1 Satisfied {certificate} / 2 Violated {violation}.
+    // Satisfied: NoRoute → {u32 n, sorted u32 reachable}; OnlyVia →
+    // {u32 path_n, ordered path} then {u32 n, sorted reachable}.
+    // Violated: 1 Bypass{u32 n, ordered path} / 2 Disconnected{}.
+    state q_out_r(&mut self) {
+        self.rd();
+        transition self.ok && self.cp < 8 && (self.b8 == 1 || self.b8 == 2) {
+            true -> q_out_set()
+            _ -> bad()
+        }
+    }
+    state q_out_set(&mut self) {
+        self.q_out[self.cp] = self.b8;
+        transition self.b8 == 1 {
+            true -> q_sat()
+            _ -> q_vio()
+        }
+    }
+    state q_sat(&mut self) {
+        transition self.q_tag[self.cp] == 1 {
+            true -> q_reach_r()
+            _ -> q_path_r()
+        }
+    }
+    // OnlyVia certificate: path first, then reachable.
+    state q_path_r(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        self.q_path_n[self.cp] = self.t64;
+        transition self.t64 > 0 && self.t64 <= 8 && self.cp < 8 && self.ok {
+            true -> q_path_init()
+            _ -> bad()
+        }
+    }
+    state q_path_init(&mut self) {
+        self.k = 0;
+        transition { _ -> q_path_loop() }
+    }
+    state q_path_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 8 && self.ok {
+            true -> q_path_one()
+            _ -> q_reach_r()
+        }
+    }
+    state q_path_one(&mut self) {
+        self.ru32();
+        self.h0 = self.cp * 8 + self.k;
+        self.d0 = self.w32 as u64 in Wrapping;
+        transition self.h0 < 64 && self.d0 < 8 && self.ok {
+            true -> q_path_w()
+            _ -> bad()
+        }
+    }
+    state q_path_w(&mut self) {
+        self.q_path[self.h0] = self.d0;
+        self.k = self.k + 1;
+        transition { _ -> q_path_loop() }
+    }
+    state q_reach_r(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        transition self.t64 <= 8 && self.cp < 8 && self.ok {
+            true -> q_reach_w0()
+            _ -> bad()
+        }
+    }
+    state q_reach_w0(&mut self) {
+        self.q_reach[self.cp] = 0;
+        transition { _ -> q_reach_init() }
+    }
+    state q_reach_init(&mut self) {
+        self.k = 0;
+        self.sel_prev = 0;
+        transition { _ -> q_reach_loop() }
+    }
+    state q_reach_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 8 && self.ok {
+            true -> q_reach_one()
+            _ -> q_next()
+        }
+    }
+    state q_reach_one(&mut self) {
+        self.ru32();
+        self.d0 = self.w32 as u64 in Wrapping;
+        transition self.d0 < 8 && self.ok {
+            true -> q_reach_ord()
+            _ -> bad()
+        }
+    }
+    // Certificate sets arrive sorted (canonical) — strictly increasing.
+    state q_reach_ord(&mut self) {
+        transition self.k == 0 || self.d0 > self.sel_prev {
+            true -> q_reach_w()
+            _ -> bad()
+        }
+    }
+    state q_reach_w(&mut self) {
+        transition self.cp < 8 {
+            true -> q_reach_w2()
+            _ -> bad()
+        }
+    }
+    state q_reach_w2(&mut self) {
+        self.sel_prev = self.d0;
+        self.q_reach[self.cp] = self.q_reach[self.cp] | ((1 as u64 in Wrapping) << self.d0);
+        self.k = self.k + 1;
+        transition { _ -> q_reach_loop() }
+    }
+    state q_vio(&mut self) {
+        self.rd();
+        transition self.ok && (self.b8 == 1 || self.b8 == 2) {
+            true -> q_vio_tag()
+            _ -> bad()
+        }
+    }
+    state q_vio_tag(&mut self) {
+        transition self.b8 == 1 {
+            true -> q_byp_r()
+            _ -> q_next()
+        }
+    }
+    // Bypass witness: ordered vertex list — bounded decode, kept so the
+    // row stays well-formed input.
+    state q_byp_r(&mut self) {
+        self.ru32();
+        self.t64 = self.w32 as u64 in Wrapping;
+        transition self.t64 <= 8 && self.ok {
+            true -> q_byp_init()
+            _ -> bad()
+        }
+    }
+    state q_byp_init(&mut self) {
+        self.k = 0;
+        transition { _ -> q_byp_loop() }
+    }
+    state q_byp_loop(&mut self) {
+        transition self.k < self.t64 && self.k < 8 && self.ok {
+            true -> q_byp_one()
+            _ -> q_next()
+        }
+    }
+    state q_byp_one(&mut self) {
+        self.ru32();
+        transition self.ok {
+            true -> q_byp_next()
+            _ -> bad()
+        }
+    }
+    state q_byp_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> q_byp_loop() }
+    }
+    state q_next(&mut self) {
+        self.cp = self.cp + 1;
+        transition { _ -> pol_loop() }
+    }
+    state fin(&mut self) {
+        transition self.pq == self.plan_n && self.ok {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- compare helpers ----------------------------------------------------------
+
+// 32-byte equality between stored array `cb` at index `a` and `ident` —
+// `d0` = 1 equal / 0 different. (cmp_ident compares two stored rows;
+// this compares a stored row against the just-read `ident`.)
+machine Verify::id_eq(&mut self, a: u64 in Wrapping) {
+    self.j = 0;
+    self.d0 = 1;
+    self.ja = a;
+    transition { _ -> loop_s() }
+
+    state loop_s(&mut self) {
+        transition self.j < 32 && self.d0 == 1 {
+            true -> offs()
+            _ -> done()
+        }
+    }
+    state offs(&mut self) {
+        self.h0 = self.ja * 32 + self.j;
+        self.h1 = self.j;
+        transition self.h0 < 2048 && self.h1 < 32 {
+            true -> load()
+            _ -> bad()
+        }
+    }
+    state load(&mut self) {
+        transition self.cb == 0 {
+            true -> s0()
+            _ -> c1()
+        }
+    }
+    state s0(&mut self) {
+        self.w8 = self.subjects[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c1(&mut self) {
+        transition self.cb == 1 {
+            true -> s1()
+            _ -> c2()
+        }
+    }
+    state s1(&mut self) {
+        self.w8 = self.p_subjects[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c2(&mut self) {
+        transition self.cb == 2 {
+            true -> s2()
+            _ -> c3()
+        }
+    }
+    state s2(&mut self) {
+        self.w8 = self.p_profile[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c3(&mut self) {
+        transition self.cb == 3 {
+            true -> s3()
+            _ -> c4()
+        }
+    }
+    state s3(&mut self) {
+        self.w8 = self.p_closure[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c4(&mut self) {
+        transition self.cb == 4 {
+            true -> s4()
+            _ -> c5()
+        }
+    }
+    state s4(&mut self) {
+        self.w8 = self.p_asm[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c5(&mut self) {
+        transition self.cb == 5 {
+            true -> s5()
+            _ -> c6()
+        }
+    }
+    state s5(&mut self) {
+        self.w8 = self.c_subj[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c6(&mut self) {
+        transition self.cb == 9 {
+            true -> s9()
+            _ -> c7()
+        }
+    }
+    state s9(&mut self) {
+        self.w8 = self.transports[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c7(&mut self) {
+        transition self.cb == 10 {
+            true -> s10()
+            _ -> c8()
+        }
+    }
+    state s10(&mut self) {
+        self.w8 = self.accepted[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c8(&mut self) {
+        transition self.cb == 11 {
+            true -> s11()
+            _ -> c9()
+        }
+    }
+    state s11(&mut self) {
+        self.w8 = self.verifier[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c9(&mut self) {
+        transition self.cb == 13 {
+            true -> s13()
+            _ -> c10()
+        }
+    }
+    state s13(&mut self) {
+        self.w8 = self.q_ver[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state c10(&mut self) {
+        transition self.cb == 14 {
+            true -> s14()
+            _ -> bad()
+        }
+    }
+    state s14(&mut self) {
+        self.w8 = self.b_tr[self.h0];
+        self.b8 = self.ident[self.h1];
+        transition { _ -> cmp() }
+    }
+    state cmp(&mut self) {
+        transition self.w8 == self.b8 {
+            true -> eq()
+            _ -> ne()
+        }
+    }
+    state eq(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> loop_s() }
+    }
+    state ne(&mut self) {
+        self.d0 = 0;
+        transition { _ -> done() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Membership: does stored array `cb` (n entries of 32 bytes starting at
+// field offset `base`... no — the stored arrays are per-record blocks)
+// contain `ident`? Scans `self.m` entries of the selected table;
+// `d0` = 1 found / 0 absent, `d1` = the matching index when found.
+machine Verify::id_member(&mut self, n: u64 in Wrapping) {
+    self.m = 0;
+    self.d0 = 0;
+    self.d1 = 255;
+    self.jb = n;
+    transition { _ -> loop_s() }
+
+    state loop_s(&mut self) {
+        transition self.m < self.jb && self.m < 32 && self.d0 == 0 {
+            true -> one()
+            _ -> done()
+        }
+    }
+    state one(&mut self) {
+        self.id_eq(self.m);
+        transition self.d0 == 1 {
+            true -> hit()
+            _ -> next()
+        }
+    }
+    state hit(&mut self) {
+        self.d1 = self.m;
+        transition { _ -> done() }
+    }
+    state next(&mut self) {
+        self.m = self.m + 1;
+        transition { _ -> loop_s() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- request commitment ------------------------------------------------------
+// SHA-256 over the staged request bytes, compared against the plan's
+// recorded request_commitment — a stale or correctly-formed-but-superseded
+// request rejects (verdict 4).
+machine Verify::check_commitment(&mut self) {
+    self.i = 0;
+    transition { _ -> copy_loop() }
+
+    state copy_loop(&mut self) {
+        transition self.i < self.req_n && self.i < 8192 {
+            true -> copy_one()
+            _ -> hash()
+        }
+    }
+    state copy_one(&mut self) {
+        self.h0 = self.i;
+        transition self.h0 < 8192 {
+            true -> copy_w()
+            _ -> bad()
+        }
+    }
+    state copy_w(&mut self) {
+        self.dig.msg[self.h0] = self.req[self.h0];
+        self.i = self.i + 1;
+        transition { _ -> copy_loop() }
+    }
+    state hash(&mut self) {
+        self.dig.msg_n = self.req_n;
+        self.dig.digest();
+        transition { _ -> compare() }
+    }
+    state compare(&mut self) {
+        self.j = 0;
+        transition { _ -> cmp_loop() }
+    }
+    state cmp_loop(&mut self) {
+        transition self.j < 32 && self.ok {
+            true -> cmp_one()
+            _ -> done()
+        }
+    }
+    state cmp_one(&mut self) {
+        self.h0 = self.j;
+        transition self.h0 < 32 {
+            true -> cmp_w()
+            _ -> bad()
+        }
+    }
+    state cmp_w(&mut self) {
+        transition self.dig.out32[self.h0] == self.p_commit[self.h0] {
+            true -> cmp_next()
+            _ -> stale()
+        }
+    }
+    state cmp_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> cmp_loop() }
+    }
+    state stale(&mut self) {
+        self.verdict = 4;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- roster exact match --------------------------------------------------------
+// Same count, same names, same subjects — an added, renamed, removed, or
+// code-swapped instance mismatches here (verdict 5).
+machine Verify::check_roster(&mut self) {
+    transition self.p_n == self.n_inst {
+        true -> init()
+        _ -> bad()
+    }
+    state init(&mut self) {
+        self.i = 0;
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.i < self.n_inst && self.i < 8 && self.ok {
+            true -> one()
+            _ -> done()
+        }
+    }
+    state one(&mut self) {
+        transition self.name_len[self.i] == self.p_name_len[self.i] {
+            true -> name_init()
+            _ -> bad()
+        }
+    }
+    state name_init(&mut self) {
+        self.j = 0;
+        transition { _ -> name_loop() }
+    }
+    state name_loop(&mut self) {
+        transition self.i < 8 {
+            true -> name_bound()
+            _ -> bad()
+        }
+    }
+    state name_bound(&mut self) {
+        transition self.j < self.name_len[self.i] && self.j < 128 && self.ok {
+            true -> name_one()
+            _ -> subj_init()
+        }
+    }
+    state name_one(&mut self) {
+        self.h0 = self.i * 128 + self.j;
+        transition self.h0 < 1024 {
+            true -> name_cmp()
+            _ -> bad()
+        }
+    }
+    state name_cmp(&mut self) {
+        transition self.names[self.h0] == self.p_names[self.h0] {
+            true -> name_next()
+            _ -> bad()
+        }
+    }
+    state name_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> name_loop() }
+    }
+    state subj_init(&mut self) {
+        self.j = 0;
+        transition { _ -> subj_loop() }
+    }
+    state subj_loop(&mut self) {
+        transition self.j < 32 && self.ok {
+            true -> subj_one()
+            _ -> next()
+        }
+    }
+    state subj_one(&mut self) {
+        self.h0 = self.i * 32 + self.j;
+        transition self.h0 < 256 {
+            true -> subj_cmp()
+            _ -> bad()
+        }
+    }
+    state subj_cmp(&mut self) {
+        transition self.subjects[self.h0] == self.p_subjects[self.h0] {
+            true -> subj_next()
+            _ -> bad()
+        }
+    }
+    state subj_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> subj_loop() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        self.verdict = 5;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+
+// ---- component admission binding ----------------------------------------------
+// Stage plan-subject[i] into `ident` and scan the admitted component
+// table — `d1` = matching component index or 255.
+machine Verify::find_component(&mut self) {
+    self.j = 0;
+    transition { _ -> cp_loop() }
+    state cp_loop(&mut self) {
+        transition self.j < 32 {
+            true -> cp_one()
+            _ -> scan()
+        }
+    }
+    state cp_one(&mut self) {
+        self.h0 = self.i * 32 + self.j;
+        self.h1 = self.j;
+        transition self.h0 < 256 && self.h1 < 32 {
+            true -> cp_w()
+            _ -> bad()
+        }
+    }
+    state cp_w(&mut self) {
+        self.ident[self.h1] = self.p_subjects[self.h0];
+        self.j = self.j + 1;
+        transition { _ -> cp_loop() }
+    }
+    state scan(&mut self) {
+        self.cb = 5;
+        self.id_member(self.n_comp);
+        transition { _ -> done() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Per-instance binding: a Component instance must bind an admitted
+// component with identical profile, closure, assumptions and endpoints
+// (a forged or mismatched record rejects); an External instance must
+// NOT alias an admitted subject (substitution rejects).
+machine Verify::check_admissions(&mut self) {
+    self.i = 0;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.i < self.p_n && self.i < 8 && self.ok {
+            true -> role_ck()
+            _ -> done()
+        }
+    }
+    state role_ck(&mut self) {
+        transition self.p_role[self.i] == 1 {
+            true -> ext()
+            _ -> comp()
+        }
+    }
+    // External subject must not appear among admitted components.
+    state ext(&mut self) {
+        self.find_component();
+        transition self.d1 == 255 && self.ok {
+            true -> next()
+            _ -> ext_bad()
+        }
+    }
+    state ext_bad(&mut self) {
+        self.verdict = 8;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state comp(&mut self) {
+        self.find_component();
+        transition self.d1 != 255 && self.ok {
+            true -> prof_ck()
+            _ -> miss()
+        }
+    }
+    state miss(&mut self) {
+        self.verdict = 7;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // The bound component's facts must equal the plan's record.
+    state prof_ck(&mut self) {
+        self.cb = 2;
+        self.cb2 = 6;
+        self.cmp_ident(self.i, self.d1);
+        transition self.d0 == 0 && self.ok {
+            true -> clo_ck()
+            _ -> prof_bad()
+        }
+    }
+    state prof_bad(&mut self) {
+        self.verdict = 9;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state clo_ck(&mut self) {
+        self.cb = 3;
+        self.cb2 = 7;
+        self.cmp_ident(self.i, self.d1);
+        transition self.d0 == 0 && self.ok {
+            true -> asm_ck()
+            _ -> clo_bad()
+        }
+    }
+    state clo_bad(&mut self) {
+        self.verdict = 10;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Assumption sets: same count, then membership both directions
+    // (identical sets in either order). asm_member does each direction.
+    state asm_ck(&mut self) {
+        self.j = self.d1;
+        transition self.i < 8 && self.j < 8 {
+            true -> asm_ck_rd()
+            _ -> asm_bad()
+        }
+    }
+    state asm_ck_rd(&mut self) {
+        transition self.p_asm_n[self.i] == self.c_asm_n[self.j] {
+            true -> asm_scan()
+            _ -> asm_bad()
+        }
+    }
+    state asm_bad(&mut self) {
+        self.verdict = 11;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state asm_scan(&mut self) {
+        self.k = 0;
+        transition { _ -> asm_loop() }
+    }
+    state asm_loop(&mut self) {
+        transition self.i < 8 {
+            true -> asm_loop_rd()
+            _ -> asm_bad()
+        }
+    }
+    state asm_loop_rd(&mut self) {
+        transition self.k < self.p_asm_n[self.i] && self.k < 4 && self.ok {
+            true -> asm_member_f()
+            _ -> ep_ck()
+        }
+    }
+    // Row (i*4+k) of p_asm must appear among component j's rows.
+    state asm_member_f(&mut self) {
+        self.cb = 4;
+        self.cb2 = 8;
+        self.ja = self.i * 4 + self.k;
+        self.m = 0;
+        self.d0 = 1;
+        transition { _ -> asm_m_loop() }
+    }
+    state asm_m_loop(&mut self) {
+        transition self.j < 8 {
+            true -> asm_m_loop_rd()
+            _ -> asm_bad()
+        }
+    }
+    state asm_m_loop_rd(&mut self) {
+        transition self.m < self.c_asm_n[self.j] && self.m < 4 && self.d0 == 1 {
+            true -> asm_m_one()
+            _ -> asm_m_done()
+        }
+    }
+    state asm_m_one(&mut self) {
+        self.jb = self.j * 4 + self.m;
+        self.cmp_ident(self.ja, self.jb);
+        transition self.d0 == 0 {
+            true -> asm_found()
+            _ -> asm_m_next()
+        }
+    }
+    state asm_m_next(&mut self) {
+        self.d0 = 1;
+        self.m = self.m + 1;
+        transition { _ -> asm_m_loop() }
+    }
+    state asm_found(&mut self) {
+        transition { _ -> asm_m_done() }
+    }
+    state asm_m_done(&mut self) {
+        transition self.d0 == 0 {
+            true -> asm_next()
+            _ -> asm_bad()
+        }
+    }
+    state asm_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> asm_loop() }
+    }
+    // Endpoint sets: canonical order on both sides, so same count +
+    // pairwise (slot,dir,contract) equality at the same index.
+    state ep_ck(&mut self) {
+        transition self.i < 8 && self.j < 8 {
+            true -> ep_ck_rd()
+            _ -> ep_bad()
+        }
+    }
+    state ep_ck_rd(&mut self) {
+        transition self.p_ep_n[self.i] == self.c_ep_n[self.j] {
+            true -> ep_scan()
+            _ -> ep_bad()
+        }
+    }
+    state ep_bad(&mut self) {
+        self.verdict = 12;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state ep_scan(&mut self) {
+        self.k = 0;
+        transition { _ -> ep_loop() }
+    }
+    state ep_loop(&mut self) {
+        transition self.i < 8 {
+            true -> ep_loop_rd()
+            _ -> ep_bad()
+        }
+    }
+    state ep_loop_rd(&mut self) {
+        transition self.k < self.p_ep_n[self.i] && self.k < 8 && self.ok {
+            true -> ep_one()
+            _ -> next()
+        }
+    }
+    state ep_one(&mut self) {
+        self.h0 = self.i * 8 + self.k;
+        self.h1 = self.j * 8 + self.k;
+        transition self.h0 < 64 && self.h1 < 64 {
+            true -> ep_sd()
+            _ -> bad()
+        }
+    }
+    state ep_sd(&mut self) {
+        transition self.p_ep_slot[self.h0] == self.c_ep_slot[self.h1] && self.p_ep_dir[self.h0] == self.c_ep_dir[self.h1] {
+            true -> ep_ctr()
+            _ -> ep_bad()
+        }
+    }
+    state ep_ctr(&mut self) {
+        self.cb = 16;
+        self.cb2 = 17;
+        self.cmp_ident(self.h0, self.h1);
+        transition self.d0 == 0 && self.ok {
+            true -> ep_next()
+            _ -> ep_bad()
+        }
+    }
+    state ep_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> ep_loop() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- accepted assumptions ------------------------------------------------------
+// Every declared assumption on every bound instance must be a member
+// of the request's accepted-assumptions digest list (verdict 6).
+machine Verify::check_assumptions(&mut self) {
+    self.i = 0;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.i < self.p_n && self.i < 8 && self.ok {
+            true -> inst()
+            _ -> done()
+        }
+    }
+    state inst(&mut self) {
+        self.k = 0;
+        transition { _ -> asm_loop() }
+    }
+    state asm_loop(&mut self) {
+        transition self.i < 8 {
+            true -> asm_loop_rd()
+            _ -> bad()
+        }
+    }
+    state asm_loop_rd(&mut self) {
+        transition self.k < self.p_asm_n[self.i] && self.k < 4 && self.ok {
+            true -> stage()
+            _ -> next()
+        }
+    }
+    state stage(&mut self) {
+        self.h0 = (self.i * 4 + self.k) * 32;
+        self.j = 0;
+        transition { _ -> cp_loop() }
+    }
+    state cp_loop(&mut self) {
+        transition self.j < 32 {
+            true -> cp_one()
+            _ -> member()
+        }
+    }
+    state cp_one(&mut self) {
+        self.h1 = self.h0 + self.j;
+        self.h2 = self.j;
+        transition self.h1 < 1024 && self.h2 < 32 {
+            true -> cp_w()
+            _ -> bad()
+        }
+    }
+    state cp_w(&mut self) {
+        self.ident[self.h2] = self.p_asm[self.h1];
+        self.j = self.j + 1;
+        transition { _ -> cp_loop() }
+    }
+    state member(&mut self) {
+        self.cb = 10;
+        self.id_member(self.n_acp);
+        transition self.d0 == 1 && self.ok {
+            true -> asm_next()
+            _ -> unacc()
+        }
+    }
+    state unacc(&mut self) {
+        self.verdict = 6;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state asm_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> asm_loop() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- bindings + normalized graph ------------------------------------------------
+// Each row must name in-range instance indices, resolve its import
+// endpoint slot (direction Consumer on instance ii) and export endpoint
+// slot (direction Producer on instance ei), point at a non-null
+// admitted transport, and not duplicate an import endpoint. Accepted
+// rows then populate `adj` — the normalized edge structure every
+// policy replays against.
+machine Verify::check_bindings(&mut self) {
+    self.i = 0;
+    transition { _ -> zloop() }
+    // Clear bound_import and adjacency.
+    state zloop(&mut self) {
+        transition self.i < 64 {
+            true -> ztwo()
+            _ -> zseen()
+        }
+    }
+    state ztwo(&mut self) {
+        self.bound_imp[self.i] = 0;
+        self.adj[self.i] = 0;
+        self.i = self.i + 1;
+        transition { _ -> zloop() }
+    }
+    state zseen(&mut self) {
+        self.i = 0;
+        transition { _ -> loop_s() }
+    }
+    state loop_s(&mut self) {
+        transition self.i < self.n_bind && self.i < 16 && self.ok {
+            true -> range()
+            _ -> unbound()
+        }
+    }
+    state range(&mut self) {
+        transition self.b_ii[self.i] < self.p_n && self.b_ei[self.i] < self.p_n {
+            true -> imp_find()
+            _ -> out_of_range()
+        }
+    }
+    state out_of_range(&mut self) {
+        self.verdict = 24;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Locate endpoint index `b_is` on instance `b_ii` with direction 0.
+    state imp_find(&mut self) {
+        self.k = 0;
+        self.d0 = 0;
+        transition { _ -> imp_loop() }
+    }
+    state imp_loop(&mut self) {
+        transition self.i < 16 && self.k < 8 && self.d0 == 0 && self.ok {
+            true -> imp_scan()
+            _ -> imp_after()
+        }
+    }
+    state imp_scan(&mut self) {
+        self.jb = self.b_ii[self.i];
+        transition self.jb < 8 {
+            true -> imp_ck()
+            _ -> bad()
+        }
+    }
+    state imp_ck(&mut self) {
+        self.h0 = self.jb * 8 + self.k;
+        transition self.k < self.p_ep_n[self.jb] && self.h0 < 64 {
+            true -> imp_cmp()
+            _ -> imp_after()
+        }
+    }
+    state imp_cmp(&mut self) {
+        transition self.h0 < 64 && self.i < 16 {
+            true -> imp_cmp_rd()
+            _ -> bad()
+        }
+    }
+    state imp_cmp_rd(&mut self) {
+        transition self.p_ep_slot[self.h0] == self.b_is[self.i] && self.p_ep_dir[self.h0] == 0 {
+            true -> imp_hit()
+            _ -> imp_next()
+        }
+    }
+    state imp_hit(&mut self) {
+        self.d0 = 1;
+        self.jf = self.jb * 8 + self.k;
+        transition { _ -> imp_loop() }
+    }
+    state imp_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> imp_loop() }
+    }
+    state imp_after(&mut self) {
+        transition self.d0 == 1 {
+            true -> exp_find()
+            _ -> imp_bad()
+        }
+    }
+    state imp_bad(&mut self) {
+        self.verdict = 25;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Locate endpoint index `b_es` on instance `b_ei` with direction 1.
+    state exp_find(&mut self) {
+        self.k = 0;
+        self.d0 = 0;
+        transition { _ -> exp_loop() }
+    }
+    state exp_loop(&mut self) {
+        transition self.i < 16 && self.k < 8 && self.d0 == 0 && self.ok {
+            true -> exp_scan()
+            _ -> exp_after()
+        }
+    }
+    state exp_scan(&mut self) {
+        self.jb = self.b_ei[self.i];
+        transition self.jb < 8 {
+            true -> exp_ck()
+            _ -> bad()
+        }
+    }
+    state exp_ck(&mut self) {
+        self.h0 = self.jb * 8 + self.k;
+        transition self.k < self.p_ep_n[self.jb] && self.h0 < 64 {
+            true -> exp_cmp()
+            _ -> exp_after()
+        }
+    }
+    state exp_cmp(&mut self) {
+        transition self.h0 < 64 && self.i < 16 {
+            true -> exp_cmp_rd()
+            _ -> bad()
+        }
+    }
+    state exp_cmp_rd(&mut self) {
+        transition self.p_ep_slot[self.h0] == self.b_es[self.i] && self.p_ep_dir[self.h0] == 1 {
+            true -> exp_hit()
+            _ -> exp_next()
+        }
+    }
+    state exp_hit(&mut self) {
+        self.d0 = 1;
+        transition { _ -> exp_loop() }
+    }
+    state exp_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> exp_loop() }
+    }
+    state exp_after(&mut self) {
+        transition self.d0 == 1 {
+            true -> tr_stage()
+            _ -> exp_bad()
+        }
+    }
+    state exp_bad(&mut self) {
+        self.verdict = 26;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Transport: stage the row's identity, require it non-null and a
+    // member of the request's admitted transports.
+    state tr_stage(&mut self) {
+        self.k = 0;
+        self.h0 = self.i * 32;
+        transition self.h0 < 512 {
+            true -> tr_cp()
+            _ -> bad()
+        }
+    }
+    state tr_cp(&mut self) {
+        transition self.k < 32 {
+            true -> tr_one()
+            _ -> tr_null()
+        }
+    }
+    state tr_one(&mut self) {
+        self.h1 = self.h0 + self.k;
+        self.h2 = self.k;
+        transition self.h1 < 512 && self.h2 < 32 {
+            true -> tr_w()
+            _ -> bad()
+        }
+    }
+    state tr_w(&mut self) {
+        self.ident[self.h2] = self.b_tr[self.h1];
+        self.k = self.k + 1;
+        transition { _ -> tr_cp() }
+    }
+    state tr_null(&mut self) {
+        self.k = 0;
+        self.d1 = 0;
+        transition { _ -> tr_null_loop() }
+    }
+    state tr_null_loop(&mut self) {
+        transition self.k < 32 {
+            true -> tr_null_one()
+            _ -> tr_null_ck()
+        }
+    }
+    state tr_null_one(&mut self) {
+        self.h2 = self.k;
+        transition self.h2 < 32 {
+            true -> tr_null_w()
+            _ -> bad()
+        }
+    }
+    state tr_null_w(&mut self) {
+        transition self.ident[self.h2] == 0 {
+            true -> tr_null_acc()
+            _ -> tr_nonnull()
+        }
+    }
+    state tr_null_acc(&mut self) {
+        self.d1 = self.d1 + 1;
+        transition { _ -> tr_null_next() }
+    }
+    state tr_nonnull(&mut self) {
+        transition { _ -> tr_member() }
+    }
+    state tr_null_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> tr_null_loop() }
+    }
+    state tr_null_ck(&mut self) {
+        transition self.d1 == 32 {
+            true -> tr_zero()
+            _ -> tr_member()
+        }
+    }
+    state tr_zero(&mut self) {
+        self.verdict = 29;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state tr_member(&mut self) {
+        self.cb = 9;
+        self.id_member(self.n_tr);
+        transition self.d0 == 1 && self.ok {
+            true -> dup_ck()
+            _ -> tr_bad()
+        }
+    }
+    state tr_bad(&mut self) {
+        self.verdict = 13;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Duplicate import endpoints are malformed — each (ii, slot) admits
+    // at most one binding row.
+    state dup_ck(&mut self) {
+        self.h0 = self.jf;
+        transition self.h0 < 64 {
+            true -> dup_w()
+            _ -> bad()
+        }
+    }
+    state dup_w(&mut self) {
+        transition self.bound_imp[self.h0] == 0 {
+            true -> dup_set()
+            _ -> dup_bad()
+        }
+    }
+    state dup_set(&mut self) {
+        self.bound_imp[self.h0] = 1;
+        transition { _ -> adj_w() }
+    }
+    state dup_bad(&mut self) {
+        self.verdict = 27;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Accepted row → normalized edge ii → ei.
+    state adj_w(&mut self) {
+        transition self.i < 16 {
+            true -> adj_w_rd()
+            _ -> bad()
+        }
+    }
+    state adj_w_rd(&mut self) {
+        self.h1 = self.b_ii[self.i] * 8 + self.b_ei[self.i];
+        transition self.h1 < 64 {
+            true -> adj_set()
+            _ -> bad()
+        }
+    }
+    state adj_set(&mut self) {
+        self.adj[self.h1] = 1;
+        transition { _ -> next() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_s() }
+    }
+    // Every declared import endpoint must be bound — an unbound import
+    // leaks a capability request the composition never satisfied.
+    state unbound(&mut self) {
+        self.i = 0;
+        transition { _ -> ub_inst() }
+    }
+    state ub_inst(&mut self) {
+        transition self.i < self.p_n && self.i < 8 && self.ok {
+            true -> ub_eps()
+            _ -> done()
+        }
+    }
+    state ub_eps(&mut self) {
+        self.k = 0;
+        transition { _ -> ub_loop() }
+    }
+    state ub_loop(&mut self) {
+        transition self.i < 8 {
+            true -> ub_loop_rd()
+            _ -> bad()
+        }
+    }
+    state ub_loop_rd(&mut self) {
+        transition self.k < self.p_ep_n[self.i] && self.k < 8 && self.ok {
+            true -> ub_one()
+            _ -> ub_next()
+        }
+    }
+    state ub_one(&mut self) {
+        self.h0 = self.i * 8 + self.k;
+        transition self.h0 < 64 {
+            true -> ub_dir()
+            _ -> bad()
+        }
+    }
+    state ub_dir(&mut self) {
+        transition self.p_ep_dir[self.h0] == 0 {
+            true -> ub_bound()
+            _ -> ub_skip()
+        }
+    }
+    state ub_bound(&mut self) {
+        self.h1 = self.h0;
+        transition self.h1 < 64 {
+            true -> ub_ck()
+            _ -> bad()
+        }
+    }
+    state ub_ck(&mut self) {
+        transition self.bound_imp[self.h1] == 1 {
+            true -> ub_skip()
+            _ -> ub_bad()
+        }
+    }
+    state ub_bad(&mut self) {
+        self.verdict = 28;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state ub_skip(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> ub_loop() }
+    }
+    state ub_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> ub_inst() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- policy coverage -----------------------------------------------------------
+// Set equality between the request's required policy rows and the plan's
+// verified rows — same count, and every request row has an identical
+// plan row (tag + all three selector sets). An absent required row
+// rejects as MissingRequiredPolicy (15); a plan row without a request
+// counterpart rejects as UnexpectedPolicy (16). Each plan row must also
+// carry the request's declared verifier identity (17).
+machine Verify::check_coverage(&mut self) {
+    transition self.p_npol == self.n_pol {
+        true -> fwd_init()
+        _ -> cov_bad()
+    }
+    state cov_bad(&mut self) {
+        self.verdict = 15;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state fwd_init(&mut self) {
+        self.i = 0;
+        transition { _ -> fwd_loop() }
+    }
+    state fwd_loop(&mut self) {
+        transition self.i < self.n_pol && self.i < 8 && self.ok {
+            true -> fwd_scan()
+            _ -> bwd_init()
+        }
+    }
+    state fwd_scan(&mut self) {
+        self.j = 0;
+        self.d0 = 1;
+        transition { _ -> fwd_m() }
+    }
+    state fwd_m(&mut self) {
+        transition self.j < self.p_npol && self.j < 8 && self.d0 == 1 {
+            true -> fwd_one()
+            _ -> fwd_done()
+        }
+    }
+    state fwd_one(&mut self) {
+        transition self.i < 8 && self.j < 8 {
+            true -> fwd_one_rd()
+            _ -> bad()
+        }
+    }
+    state fwd_one_rd(&mut self) {
+        transition self.pol_tag[self.i] == self.q_tag[self.j] && self.pol_s[self.i] == self.q_s[self.j] && self.pol_t[self.i] == self.q_t[self.j] && self.pol_v[self.i] == self.q_v[self.j] {
+            true -> fwd_hit()
+            _ -> fwd_next()
+        }
+    }
+    state fwd_hit(&mut self) {
+        self.d0 = 0;
+        transition { _ -> fwd_m() }
+    }
+    state fwd_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> fwd_m() }
+    }
+    state fwd_done(&mut self) {
+        transition self.d0 == 0 {
+            true -> fwd_next_i()
+            _ -> miss_bad()
+        }
+    }
+    state miss_bad(&mut self) {
+        self.verdict = 15;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state fwd_next_i(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> fwd_loop() }
+    }
+    state bwd_init(&mut self) {
+        self.i = 0;
+        transition { _ -> bwd_loop() }
+    }
+    state bwd_loop(&mut self) {
+        transition self.i < self.p_npol && self.i < 8 && self.ok {
+            true -> bwd_scan()
+            _ -> ver_init()
+        }
+    }
+    state bwd_scan(&mut self) {
+        self.j = 0;
+        self.d0 = 1;
+        transition { _ -> bwd_m() }
+    }
+    state bwd_m(&mut self) {
+        transition self.j < self.n_pol && self.j < 8 && self.d0 == 1 {
+            true -> bwd_one()
+            _ -> bwd_done()
+        }
+    }
+    state bwd_one(&mut self) {
+        transition self.i < 8 && self.j < 8 {
+            true -> bwd_one_rd()
+            _ -> bad()
+        }
+    }
+    state bwd_one_rd(&mut self) {
+        transition self.pol_tag[self.j] == self.q_tag[self.i] && self.pol_s[self.j] == self.q_s[self.i] && self.pol_t[self.j] == self.q_t[self.i] && self.pol_v[self.j] == self.q_v[self.i] {
+            true -> bwd_hit()
+            _ -> bwd_next()
+        }
+    }
+    state bwd_hit(&mut self) {
+        self.d0 = 0;
+        transition { _ -> bwd_m() }
+    }
+    state bwd_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> bwd_m() }
+    }
+    state bwd_done(&mut self) {
+        transition self.d0 == 0 {
+            true -> bwd_next_i()
+            _ -> extra_bad()
+        }
+    }
+    state extra_bad(&mut self) {
+        self.verdict = 16;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state bwd_next_i(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> bwd_loop() }
+    }
+    // Each row must name the request's declared verifier — a row issued
+    // by any other engine is evidence out of scope.
+    state ver_init(&mut self) {
+        self.i = 0;
+        transition { _ -> ver_loop() }
+    }
+    state ver_loop(&mut self) {
+        transition self.i < self.p_npol && self.i < 8 && self.ok {
+            true -> ver_one()
+            _ -> done()
+        }
+    }
+    state ver_one(&mut self) {
+        self.cb = 13;
+        self.cb2 = 11;
+        self.cmp_ident(self.i, 0);
+        transition self.d0 == 0 && self.ok {
+            true -> ver_next()
+            _ -> ver_bad()
+        }
+    }
+    state ver_bad(&mut self) {
+        self.verdict = 17;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state ver_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> ver_loop() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- reachability ---------------------------------------------------------------
+// BFS over `adj` from the sources in `src` (bitmask), excluding vertices
+// in `excl` (bitmask) — `self.reach` collects the reached mask.
+machine Verify::reachable(&mut self, src: u64 in Wrapping, excl: u64 in Wrapping) {
+    self.ja = src;
+    self.jb = excl;
+    self.reach = src;
+    self.cur = src & ~excl;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.cur != 0 {
+            true -> pop()
+            _ -> done()
+        }
+    }
+    // Lowest set bit of `cur` → `w8` reused as vertex index `self.m`.
+    state pop(&mut self) {
+        self.m = 0;
+        self.d0 = 0;
+        transition { _ -> pop_scan() }
+    }
+    state pop_scan(&mut self) {
+        transition self.m < 8 && self.d0 == 0 {
+            true -> pop_bit()
+            _ -> exp_init()
+        }
+    }
+    state pop_bit(&mut self) {
+        transition (self.cur >> self.m) & 1 == 1 {
+            true -> pop_hit()
+            _ -> pop_next()
+        }
+    }
+    state pop_hit(&mut self) {
+        self.d0 = 1;
+        self.cur = self.cur & ~((1 as u64 in Wrapping) << self.m);
+        transition { _ -> exp_init() }
+    }
+    state pop_next(&mut self) {
+        self.m = self.m + 1;
+        transition { _ -> pop_scan() }
+    }
+    // Expand vertex `self.m` over successors j.
+    state exp_init(&mut self) {
+        self.j = 0;
+        transition { _ -> exp_loop() }
+    }
+    state exp_loop(&mut self) {
+        transition self.j < 8 {
+            true -> exp_one()
+            _ -> loop_s()
+        }
+    }
+    state exp_one(&mut self) {
+        self.h0 = self.m * 8 + self.j;
+        transition self.h0 < 64 && self.adj[self.h0] == 1 {
+            true -> exp_eligible()
+            _ -> exp_next()
+        }
+    }
+    state exp_eligible(&mut self) {
+        transition (self.reach >> self.j) & 1 == 0 && (self.jb >> self.j) & 1 == 0 {
+            true -> exp_add()
+            _ -> exp_next()
+        }
+    }
+    state exp_add(&mut self) {
+        self.reach = self.reach | ((1 as u64 in Wrapping) << self.j);
+        self.cur = self.cur | ((1 as u64 in Wrapping) << self.j);
+        transition { _ -> exp_next() }
+    }
+    state exp_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> exp_loop() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- predicate replay -----------------------------------------------------------
+// Re-evaluate every plan policy row against `adj` and validate its
+// certificate. A satisfied row must hold in the normalized graph; a
+// violated row is inadmissible input (a plan proving a broken request
+// is itself broken). Certificate failures reject as verdict 20;
+// predicate failures as 19; a non-satisfied outcome as 18.
+machine Verify::check_policies(&mut self) {
+    self.cp = 0;
+    transition { _ -> loop_s() }
+    state loop_s(&mut self) {
+        transition self.cp < self.p_npol && self.cp < 8 && self.ok {
+            true -> out_ck()
+            _ -> done()
+        }
+    }
+    state out_ck(&mut self) {
+        transition self.q_out[self.cp] == 1 {
+            true -> tag_ck()
+            _ -> out_bad()
+        }
+    }
+    state out_bad(&mut self) {
+        self.verdict = 18;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state tag_ck(&mut self) {
+        transition self.q_tag[self.cp] == 1 {
+            true -> nr_eval()
+            _ -> ov_eval()
+        }
+    }
+    // NoRoute: no source vertex may reach a target vertex at all.
+    state nr_eval(&mut self) {
+        self.reachable(self.q_s[self.cp], 0);
+        transition (self.reach & self.q_t[self.cp]) == 0 {
+            true -> nr_cert_sup()
+            _ -> pred_bad()
+        }
+    }
+    state pred_bad(&mut self) {
+        self.verdict = 19;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    // Certificate: superset of sources, edge-closed, disjoint targets.
+    state nr_cert_sup(&mut self) {
+        transition self.cp < 8 {
+            true -> nr_cert_sup_rd()
+            _ -> bad()
+        }
+    }
+    state nr_cert_sup_rd(&mut self) {
+        transition (self.q_s[self.cp] & ~self.q_reach[self.cp]) == 0 {
+            true -> nr_closed()
+            _ -> cert_bad()
+        }
+    }
+    state nr_closed(&mut self) {
+        transition self.cp < 8 {
+            true -> nr_closed_rd()
+            _ -> bad()
+        }
+    }
+    state nr_closed_rd(&mut self) {
+        self.ja = self.q_reach[self.cp];
+        self.jb = 0;
+        self.closed_ck();
+        transition self.d0 == 1 && self.ok {
+            true -> nr_disj()
+            _ -> cert_bad()
+        }
+    }
+    state nr_disj(&mut self) {
+        transition self.cp < 8 {
+            true -> nr_disj_rd()
+            _ -> bad()
+        }
+    }
+    state nr_disj_rd(&mut self) {
+        transition (self.q_reach[self.cp] & self.q_t[self.cp]) == 0 {
+            true -> next()
+            _ -> cert_bad()
+        }
+    }
+    // OnlyVia: a direct source→target path exists, and no source
+    // reaches a target while avoiding the via set.
+    state ov_eval(&mut self) {
+        self.reachable(self.q_s[self.cp], 0);
+        transition (self.reach & self.q_t[self.cp]) != 0 {
+            true -> ov_indirect()
+            _ -> pred_bad()
+        }
+    }
+    state ov_indirect(&mut self) {
+        self.reachable(self.q_s[self.cp], self.q_v[self.cp]);
+        transition (self.reach & self.q_t[self.cp]) == 0 {
+            true -> ov_path_ck()
+            _ -> pred_bad()
+        }
+    }
+    // Path witness: every hop is a real edge, first hop in sources,
+    // last vertex in targets.
+    state ov_path_ck(&mut self) {
+        self.k = 0;
+        transition { _ -> ov_path_loop() }
+    }
+    state ov_path_loop(&mut self) {
+        transition self.cp < 8 && self.k < 8 && self.ok {
+            true -> ov_path_one()
+            _ -> ov_cert_sup()
+        }
+    }
+    state ov_path_one(&mut self) {
+        transition self.k + 1 < self.q_path_n[self.cp] {
+            true -> ov_hop()
+            _ -> ov_endpoints()
+        }
+    }
+    state ov_hop(&mut self) {
+        self.h0 = self.cp * 8 + self.k;
+        self.h1 = self.cp * 8 + self.k + 1;
+        transition self.h0 < 64 && self.h1 < 64 {
+            true -> ov_hop_ck()
+            _ -> bad()
+        }
+    }
+    state ov_hop_ck(&mut self) {
+        self.h2 = self.q_path[self.h0] * 8 + self.q_path[self.h1];
+        transition self.h2 < 64 && self.adj[self.h2] == 1 {
+            true -> ov_hop_next()
+            _ -> cert_bad()
+        }
+    }
+    state ov_hop_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> ov_path_loop() }
+    }
+    state ov_endpoints(&mut self) {
+        self.h0 = self.cp * 8;
+        transition self.h0 < 64 {
+            true -> ov_first()
+            _ -> bad()
+        }
+    }
+    state ov_first(&mut self) {
+        transition (self.q_s[self.cp] >> self.q_path[self.h0]) & 1 == 1 {
+            true -> ov_last()
+            _ -> cert_bad()
+        }
+    }
+    state ov_last(&mut self) {
+        self.h0 = self.cp * 8 + (self.q_path_n[self.cp] - 1);
+        transition self.h0 < 64 {
+            true -> ov_last_ck()
+            _ -> bad()
+        }
+    }
+    state ov_last_ck(&mut self) {
+        transition (self.q_t[self.cp] >> self.q_path[self.h0]) & 1 == 1 {
+            true -> ov_cert_sup()
+            _ -> cert_bad()
+        }
+    }
+    // Reachable set: superset of sources, closed under edges whose
+    // destination is outside `via`, disjoint from targets.
+    state ov_cert_sup(&mut self) {
+        transition self.cp < 8 {
+            true -> ov_cert_sup_rd()
+            _ -> bad()
+        }
+    }
+    state ov_cert_sup_rd(&mut self) {
+        transition (self.q_s[self.cp] & ~self.q_reach[self.cp]) == 0 {
+            true -> ov_closed()
+            _ -> cert_bad()
+        }
+    }
+    state ov_closed(&mut self) {
+        transition self.cp < 8 {
+            true -> ov_closed_rd()
+            _ -> bad()
+        }
+    }
+    state ov_closed_rd(&mut self) {
+        self.ja = self.q_reach[self.cp];
+        self.jb = self.q_v[self.cp];
+        self.closed_ck();
+        transition self.d0 == 1 && self.ok {
+            true -> ov_disj()
+            _ -> cert_bad()
+        }
+    }
+    state ov_disj(&mut self) {
+        transition self.cp < 8 {
+            true -> ov_disj_rd()
+            _ -> bad()
+        }
+    }
+    state ov_disj_rd(&mut self) {
+        transition (self.q_reach[self.cp] & self.q_t[self.cp]) == 0 {
+            true -> next()
+            _ -> cert_bad()
+        }
+    }
+    state cert_bad(&mut self) {
+        self.verdict = 20;
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state next(&mut self) {
+        self.cp = self.cp + 1;
+        transition { _ -> loop_s() }
+    }
+    state bad(&mut self) {
+        self.ok = false;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// Edge-closure check for a certificate set `ja` (bitmask) under edges
+// whose destination is outside `jb` (bitmask): every edge a→b with
+// a ∈ set and b ∉ excl must have b ∈ set. `d0` = 1 closed / 0 violated.
+machine Verify::closed_ck(&mut self) {
+    self.d0 = 1;
+    self.i = 0;
+    transition { _ -> a_loop() }
+    state a_loop(&mut self) {
+        transition self.i < 8 && self.d0 == 1 {
+            true -> a_in()
+            _ -> done()
+        }
+    }
+    state a_in(&mut self) {
+        transition (self.ja >> self.i) & 1 == 1 {
+            true -> b_init()
+            _ -> a_next()
+        }
+    }
+    state b_init(&mut self) {
+        self.j = 0;
+        transition { _ -> b_loop() }
+    }
+    state b_loop(&mut self) {
+        transition self.j < 8 && self.d0 == 1 {
+            true -> b_one()
+            _ -> a_next()
+        }
+    }
+    state b_one(&mut self) {
+        self.h0 = self.i * 8 + self.j;
+        transition self.h0 < 64 && self.adj[self.h0] == 1 {
+            true -> b_excl()
+            _ -> b_next()
+        }
+    }
+    state b_excl(&mut self) {
+        transition (self.jb >> self.j) & 1 == 0 {
+            true -> b_req()
+            _ -> b_next()
+        }
+    }
+    state b_req(&mut self) {
+        transition (self.ja >> self.j) & 1 == 1 {
+            true -> b_next()
+            _ -> b_bad()
+        }
+    }
+    state b_bad(&mut self) {
+        self.d0 = 0;
+        transition { _ -> done() }
+    }
+    state b_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> b_loop() }
+    }
+    state a_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> a_loop() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// ---- driver ----------------------------------------------------------------------
+// `verify` runs the full pipeline in the reference order: request
+// decode → plan decode → components decode → request commitment →
+// roster match → component binding + completeness admission →
+// unaccepted-assumption check → binding validation + graph
+// normalization → policy coverage + verifier identity → predicate
+// replay + certificate checks. Any stage short-circuits into `fin`,
+// which maps a bare decode failure to verdict 2 when the stage itself
+// did not name a code.
+pub machine Verify::verify(&mut self) {
+    self.ok = true;
+    self.verdict = 0;
+    transition { _ -> req() }
+
+    state req(&mut self) {
+        self.decode_req();
+        transition self.ok {
+            true -> plan()
+            _ -> fin()
+        }
+    }
+    state plan(&mut self) {
+        self.decode_plan();
+        transition self.ok {
+            true -> meta()
+            _ -> fin()
+        }
+    }
+    state meta(&mut self) {
+        self.decode_meta();
+        transition self.ok {
+            true -> commit()
+            _ -> fin()
+        }
+    }
+    state commit(&mut self) {
+        self.check_commitment();
+        transition self.ok {
+            true -> roster()
+            _ -> fin()
+        }
+    }
+    state roster(&mut self) {
+        self.check_roster();
+        transition self.ok {
+            true -> adm()
+            _ -> fin()
+        }
+    }
+    state adm(&mut self) {
+        self.check_admissions();
+        transition self.ok {
+            true -> asum()
+            _ -> fin()
+        }
+    }
+    state asum(&mut self) {
+        self.check_assumptions();
+        transition self.ok {
+            true -> bind()
+            _ -> fin()
+        }
+    }
+    state bind(&mut self) {
+        self.check_bindings();
+        transition self.ok {
+            true -> cov()
+            _ -> fin()
+        }
+    }
+    state cov(&mut self) {
+        self.check_coverage();
+        transition self.ok {
+            true -> replay()
+            _ -> fin()
+        }
+    }
+    state replay(&mut self) {
+        self.check_policies();
+        transition self.ok {
+            true -> pass()
+            _ -> fin()
+        }
+    }
+    state pass(&mut self) {
+        self.verdict = 1;
+        transition { _ -> fin() }
+    }
+    state fin(&mut self) {
+        transition self.verdict == 0 {
+            true -> malformed()
+            _ -> done()
+        }
+    }
+    state malformed(&mut self) {
+        self.verdict = 2;
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+    }
+}
+
+// The verdict code the caller publishes: 0 = malformed input (should
+// not survive `verify` — a defensive default), 1 = verified, 2 = plan
+// or request malformed, 3 = unverified completeness, 4 = stale
+// request, 5 = roster mismatch, 6 = unaccepted assumption, 7 = missing
+// verified component, 8 = external subject verified, 9–12 = component
+// binding substitution, 13 = transport not admitted, 14/15/16 = policy
+// coverage, 17 = verifier identity, 18 = inadmissible outcome,
+// 19 = predicate does not hold, 20 = invalid certificate,
+// 24–29 = malformed bindings.
+pub machine Verify::result(&mut self) -> u64 in Wrapping {
+    transition { _ -> done() }
+    state done(&mut self) -> u64 in Wrapping {
+        self.verdict
+    }
+}

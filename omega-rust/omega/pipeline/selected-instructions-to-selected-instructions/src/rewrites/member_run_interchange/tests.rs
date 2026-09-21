@@ -1600,3 +1600,248 @@ fn interchange_is_deterministic_and_re_admitted() {
         MemberRunInterchangeError::UnsupportedPair
     );
 }
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_member_run_interchange`
+/// directly, so every rejection comes from the validator's own window
+/// audit.
+mod independence_tests {
+    use super::{
+        DIFF, HEAD, MAT_A, MAT_C, MAT_Z, MemberRunInterchangeError, NativeTarget, OperationId,
+        POINTER, PlaceId, SIXTH, SUM, SelectedInstructionKind, SelectedInstructionPlan,
+        SelectedMemoryAccessRole, THIRD, ValidatedMemberRunInterchange, access,
+        baseline_target_register_environment, budget, fixture, instruction, mutated, settlement,
+        validate_member_run_interchange,
+    };
+
+    /// Rearrange the window the member index and the two run indices bound
+    /// in the source's first block to later-side ++ interior ++
+    /// earlier-side — the edit a producer emitting that interchange would
+    /// publish — without asking admission whether the window is legal.
+    /// The indices are block-body positions; the member may sit on either
+    /// side of the run's span.
+    fn forged(
+        source: &ValidatedMemberRunInterchange,
+        member_index: usize,
+        run_first_index: usize,
+        run_last_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let first = member_index.min(run_first_index);
+        let last = member_index.max(run_last_index);
+        let window: Vec<_> = instructions.drain(first..=last).collect();
+        let run_len = run_last_index - run_first_index + 1;
+        let member_earlier = member_index < run_first_index;
+        let earlier_len = if member_earlier { 1 } else { run_len };
+        let later_len = if member_earlier { run_len } else { 1 };
+        let interior_len = window.len() - earlier_len - later_len;
+        let rearranged: Vec<_> = window[earlier_len + interior_len..]
+            .iter()
+            .chain(&window[earlier_len..earlier_len + interior_len])
+            .chain(&window[..earlier_len])
+            .cloned()
+            .collect();
+        instructions.splice(first..first, rearranged);
+        proposed
+    }
+
+    /// A forged interchange of a window the validator's own audit admits
+    /// validates in each direction: the member `HEAD` ahead of the
+    /// `MAT_C; DIFF` run and the member `MAT_Z` behind the `MAT_A; SUM`
+    /// run each trade places around the interior, every hazard direction
+    /// and the roster accounting hold, and the content comparison accepts
+    /// the rearrangement.
+    #[test]
+    fn forged_interchange_of_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_member_run_interchange(
+            &source,
+            0,
+            HEAD,
+            MAT_C,
+            DIFF,
+            &environment,
+            budget(),
+            forged(&source, 0, 4, 5),
+        )
+        .unwrap();
+        validate_member_run_interchange(
+            &source,
+            0,
+            MAT_Z,
+            MAT_A,
+            SUM,
+            &environment,
+            budget(),
+            forged(&source, 6, 1, 2),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the sides traded — the run's difference reading the
+    /// member's materialization. The validator's own legality audit
+    /// refuses with `UnsupportedPair`, not a replay mismatch, because it
+    /// reconstructs the window's hazards instead of trusting the
+    /// producer's admission record.
+    #[test]
+    fn forged_interchange_across_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        // DIFF's first read moves to SIXTH — the member HEAD defines it,
+        // so the sides cannot trade.
+        let source = mutated(target, |function, _| {
+            function.blocks[0].instructions[5].operands[0].virtual_register = SIXTH;
+        });
+        assert_eq!(
+            validate_member_run_interchange(
+                &source,
+                0,
+                HEAD,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            MemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a second memory actor anyway would publish
+    /// the sides traded while both carry roster rows — the recorded
+    /// accesses' order would change, so the validator's own accounting
+    /// refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_past_a_second_memory_actor_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[0] = instruction(
+                HEAD,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, SIXTH],
+            );
+            function.blocks[0].instructions[4] = instruction(
+                MAT_C,
+                SelectedInstructionKind::Load8 { byte_offset: 8 },
+                &load,
+                &[POINTER, THIRD],
+            );
+            function.memory_accesses.push(access(
+                HEAD,
+                PlaceId::new(1).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+            function.memory_accesses.push(access(
+                MAT_C,
+                PlaceId::new(2).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            validate_member_run_interchange(
+                &source,
+                0,
+                HEAD,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            MemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a settled window anyway would publish the
+    /// sides traded across a boundary settlement inside the span — the
+    /// settlement would observe a different executed prefix, so the
+    /// validator's own audit refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_interchange_past_an_interior_settlement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function.boundary_settlements.push(settlement(3, 41));
+        });
+        assert_eq!(
+            validate_member_run_interchange(
+                &source,
+                0,
+                HEAD,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                forged(&source, 0, 4, 5),
+            )
+            .unwrap_err(),
+            MemberRunInterchangeError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal that leaves the named sides unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the later
+    /// side on the earlier side's span, so the window content comparison
+    /// rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_member_run_interchange(
+                &source,
+                0,
+                HEAD,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            MemberRunInterchangeError::ReplayMismatch
+        );
+    }
+
+    /// A forged interchange plus an unrelated extra edit still fails
+    /// restore: the window's rearrangement is right, but the drifted
+    /// instruction behind the window keeps the restore-by-content
+    /// comparison from reproducing the source.
+    #[test]
+    fn forged_window_with_drifted_content_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, 0, 4, 5);
+        proposed.functions[0].blocks[0].instructions[6]
+            .provenance
+            .operations = vec![OperationId::new(77).unwrap()];
+        assert_eq!(
+            validate_member_run_interchange(
+                &source,
+                0,
+                HEAD,
+                MAT_C,
+                DIFF,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            MemberRunInterchangeError::ReplayMismatch
+        );
+    }
+}

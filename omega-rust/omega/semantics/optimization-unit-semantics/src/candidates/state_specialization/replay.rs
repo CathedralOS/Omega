@@ -33,6 +33,8 @@ use crate::ValueUse;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::validate_psi_optimization_unit;
 use crate::validator_scalar_constant_facts;
+use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use std::cmp::Ordering;
 
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block
@@ -100,26 +102,181 @@ fn has_cycle(graph: &BTreeMap<BlockId, Vec<BlockId>>) -> bool {
     false
 }
 
+/// The comparison an in-block dispatch condition computes against its bound
+/// operand. Mirrors the producer's ordering vocabulary exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntegerComparisonOrdering {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+/// How a dispatch `Conditional` resolves one bound argument's proven constant
+/// into the arm that edge takes — the same two admitted shapes the producer
+/// recognizes, reconstructed here independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DispatchCondition {
+    /// The condition is the block's own scalar parameter directly: a proven
+    /// `ScalarConstantValue::Boolean` is the taken arm.
+    DirectParameter,
+    /// The condition is produced in-block by `parameter CMP bound`, `bound`
+    /// carried by an in-block `IntegerConstant`: a proven
+    /// `ScalarConstantValue::Integer` evaluates under the operand type's own
+    /// ordering via `IntegerType::compare`.
+    IntegerComparison {
+        ordering: IntegerComparisonOrdering,
+        bound: IntegerValue,
+        parameter_on_left: bool,
+        integer_type: IntegerType,
+    },
+}
+
+impl DispatchCondition {
+    /// The Boolean the dispatch condition takes when the bound argument is
+    /// `constant`, or `None` when the constant is not the kind this condition
+    /// resolves.
+    fn resolve(&self, constant: &ScalarConstantValue) -> Option<bool> {
+        match (self, constant) {
+            (Self::DirectParameter, ScalarConstantValue::Boolean(value)) => Some(*value),
+            (
+                Self::IntegerComparison {
+                    ordering,
+                    bound,
+                    parameter_on_left,
+                    integer_type,
+                },
+                ScalarConstantValue::Integer(argument),
+            ) => {
+                let (left, right) = if *parameter_on_left {
+                    (*argument, *bound)
+                } else {
+                    (*bound, *argument)
+                };
+                let order = integer_type.compare(left, right)?;
+                Some(match ordering {
+                    IntegerComparisonOrdering::Equal => order == Ordering::Equal,
+                    IntegerComparisonOrdering::LessThan => order == Ordering::Less,
+                    IntegerComparisonOrdering::LessOrEqual => order != Ordering::Greater,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The integer-comparison dispatch shape, or `None` when `prefix` is not a
+/// pure scalar computation of `condition` as `parameter CMP literal`: every
+/// prefix node must be a scalar constant, except exactly one integer
+/// comparison producing `condition` whose operands pair one of the block's
+/// own scalar parameters with an in-block `IntegerConstant`.
+fn integer_comparison_condition(
+    block: &optimization_unit::OptimizationBlock,
+    prefix: &[OptimizationNode],
+    condition: ValueId,
+) -> Option<(ValueId, DispatchCondition)> {
+    let mut resolved = None;
+    for node in prefix {
+        let (ordering, result, left, right) = match &node.operation {
+            O::IntegerConstant { .. } | O::BooleanConstant { .. } => continue,
+            O::IntegerEqual {
+                result,
+                left,
+                right,
+                ..
+            } => (IntegerComparisonOrdering::Equal, *result, *left, *right),
+            O::IntegerLessThan {
+                result,
+                left,
+                right,
+                ..
+            } => (IntegerComparisonOrdering::LessThan, *result, *left, *right),
+            O::IntegerLessOrEqual {
+                result,
+                left,
+                right,
+                ..
+            } => (
+                IntegerComparisonOrdering::LessOrEqual,
+                *result,
+                *left,
+                *right,
+            ),
+            _ => return None,
+        };
+        if result != condition || resolved.is_some() {
+            return None;
+        }
+        resolved = Some(comparison_operands(block, prefix, ordering, left, right)?);
+    }
+    resolved
+}
+
+/// Split one comparison's operands into the dispatch parameter (one of the
+/// block's own scalar parameters, on exactly one side) and the bound literal
+/// (an in-block `IntegerConstant`, on the other).
+fn comparison_operands(
+    block: &optimization_unit::OptimizationBlock,
+    prefix: &[OptimizationNode],
+    ordering: IntegerComparisonOrdering,
+    left: ValueId,
+    right: ValueId,
+) -> Option<(ValueId, DispatchCondition)> {
+    let left_is_parameter = block.parameters.iter().any(|p| p.value == left);
+    let right_is_parameter = block.parameters.iter().any(|p| p.value == right);
+    let (parameter, bound, parameter_on_left) = match (left_is_parameter, right_is_parameter) {
+        (true, false) => (left, right, true),
+        (false, true) => (right, left, false),
+        _ => return None,
+    };
+    let (bound_value, integer_type) = prefix.iter().find_map(|node| {
+        let O::IntegerConstant {
+            result,
+            scalar_type,
+            value,
+            ..
+        } = &node.operation
+        else {
+            return None;
+        };
+        if *result != bound {
+            return None;
+        }
+        let ScalarType::Integer(integer_type) = scalar_type else {
+            return None;
+        };
+        Some((*value, *integer_type))
+    })?;
+    Some((
+        parameter,
+        DispatchCondition::IntegerComparison {
+            ordering,
+            bound: bound_value,
+            parameter_on_left,
+            integer_type,
+        },
+    ))
+}
+
 /// Independently derived specialization rows for one dispatch block, or `None`
 /// when the block is not an eligible dispatch state. Mirrors the proposal's
-/// exact admission: non-entry, structurally clean, single-`Conditional` block
-/// whose condition is one of its own scalar parameters, no globally proven
-/// Boolean for that parameter, and only constant-supplied unconditional
-/// `Jump` edges with empty affine and structural custody. When every incoming
+/// exact admission: non-entry, structurally clean block whose terminator is a
+/// `Conditional` reading one of its own scalar parameters — directly, or
+/// through an in-block integer comparison against a literal — no globally
+/// proven constant for that parameter, and only constant-supplied incoming
+/// edges with empty affine and structural custody — an unconditional `Jump`
+/// successor or one arm of a `Conditional` predecessor. When every incoming
 /// edge qualifies the dispatch would be orphaned, so the plan reports no rows.
 fn plan_dispatch(
     function: &PsiOptimizationFunction,
     dispatch: BlockId,
-    constants: &BTreeMap<ValueId, bool>,
+    constants: &BTreeMap<ValueId, ScalarConstantValue>,
 ) -> Option<Vec<SpecializedStateEdgeRow>> {
     let machine = function.machine;
     let block = function.blocks.iter().find(|block| block.id == dispatch)?;
     if block.id == function.entry || !block.structural_parameters.is_empty() {
         return None;
     }
-    let [node] = block.nodes.as_slice() else {
-        return None;
-    };
+    let (node, prefix) = block.nodes.split_last()?;
     let O::Conditional {
         condition,
         when_true,
@@ -128,11 +285,16 @@ fn plan_dispatch(
     else {
         return None;
     };
-    let parameter = block
-        .parameters
-        .iter()
-        .find(|parameter| parameter.value == *condition)?;
-    if constants.contains_key(&parameter.value) {
+    let (parameter, condition_kind) = if prefix.is_empty() {
+        let parameter = block
+            .parameters
+            .iter()
+            .find(|parameter| parameter.value == *condition)?;
+        (parameter.value, DispatchCondition::DirectParameter)
+    } else {
+        integer_comparison_condition(block, prefix, *condition)?
+    };
+    if constants.contains_key(&parameter) {
         return None;
     }
     let arm_edge = |edge: EdgeId| {
@@ -164,23 +326,50 @@ fn plan_dispatch(
             block: *owner_block,
             node: u32::try_from(*node_index).ok()?,
         };
-        let O::Jump {
-            psi_edge,
-            target,
-            structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } = &owner_node.operation
-        else {
-            continue;
-        };
-        if *psi_edge != edge.psi_edge
-            || *target != dispatch
-            || !structural_bindings.is_empty()
-            || !trivial_affine_discards.is_empty()
-            || !residual_affine_discards.is_empty()
-            || !edge.structural_bindings.is_empty()
+        match &owner_node.operation {
+            O::Jump {
+                psi_edge,
+                target,
+                structural_bindings,
+                trivial_affine_discards,
+                residual_affine_discards,
+                ..
+            } => {
+                if *psi_edge != edge.psi_edge
+                    || *target != dispatch
+                    || !structural_bindings.is_empty()
+                    || !trivial_affine_discards.is_empty()
+                    || !residual_affine_discards.is_empty()
+                {
+                    continue;
+                }
+            }
+            O::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                // The admitted edge is exactly one arm of the conditional;
+                // the sibling arm is not part of this traversal and keeps
+                // its own custody untouched. A conditional successor carries
+                // no residual affine discards, so only the arm's own fields
+                // can refuse.
+                let Some(arm) = [when_true, when_false]
+                    .into_iter()
+                    .find(|arm| arm.psi_edge == edge.psi_edge)
+                else {
+                    continue;
+                };
+                if arm.target != dispatch
+                    || !arm.structural_bindings.is_empty()
+                    || !arm.trivial_affine_discards.is_empty()
+                {
+                    continue;
+                }
+            }
+            _ => continue,
+        }
+        if !edge.structural_bindings.is_empty()
             || !edge.trivial_affine_discards.is_empty()
             || !edge.residual_affine_discards.is_empty()
         {
@@ -189,11 +378,14 @@ fn plan_dispatch(
         let Some(binding) = edge
             .bindings
             .iter()
-            .find(|binding| binding.parameter == parameter.value)
+            .find(|binding| binding.parameter == parameter)
         else {
             continue;
         };
-        let Some(&constant) = constants.get(&binding.argument) else {
+        let Some(constant) = constants
+            .get(&binding.argument)
+            .and_then(|constant| condition_kind.resolve(constant))
+        else {
             continue;
         };
         let (resolved, rejected) = if constant {
@@ -220,7 +412,7 @@ fn plan_dispatch(
         edges.push(SpecializedStateEdgeRow {
             incoming_edge: edge.psi_edge,
             predecessor,
-            parameter: parameter.value,
+            parameter,
             argument: binding.argument,
             constant,
             taken_edge: resolved.psi_edge,
@@ -235,60 +427,192 @@ fn plan_dispatch(
     Some(edges)
 }
 
-/// The fused node a specialization admits at one predecessor site: the
-/// retargeted `Jump`, its single fused successor edge, and the derived use
-/// roster. The fused edge keeps the incoming edge's own Psi identity first in
-/// provenance and appends the resolved arm edge's complete custody.
+/// The fused node a specialization admits at one predecessor site: every
+/// admitted row naming this site applied to a single reconstruction — the
+/// retargeted `Jump` and its fused successor edge, or the `Conditional`
+/// whose admitted arms each carry their own fused successor edge while the
+/// unadmitted arms stay byte-exact — plus the derived use roster. The fused
+/// edge keeps the incoming edge's own Psi identity first in provenance and
+/// appends the resolved arm edge's complete custody.
 fn fused_node(
-    row: &SpecializedStateEdgeRow,
+    site_rows: &[&SpecializedStateEdgeRow],
     dispatch: BlockId,
     function: &PsiOptimizationFunction,
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
+    let Some(first) = site_rows.first() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    // A site fold is exact only when every row names this same predecessor;
+    // a row drifted onto a different site would silently fuse the wrong arm.
+    if site_rows
+        .iter()
+        .any(|row| row.predecessor != first.predecessor)
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
     let block = function
         .blocks
         .iter()
-        .find(|block| block.id == row.predecessor.block)
+        .find(|block| block.id == first.predecessor.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let predecessor = block
         .nodes
         .get(
-            usize::try_from(row.predecessor.node)
+            usize::try_from(first.predecessor.node)
                 .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
         )
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let O::Jump {
-        psi_edge,
-        target,
-        structural_bindings,
-        trivial_affine_discards,
-        residual_affine_discards,
-        ..
-    } = &predecessor.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
-    if row.predecessor.machine != function.machine
-        || *psi_edge != row.incoming_edge
-        || *target != dispatch
-        || !structural_bindings.is_empty()
-        || !trivial_affine_discards.is_empty()
-        || !residual_affine_discards.is_empty()
-    {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
-    let incoming = predecessor
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == row.incoming_edge)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let dispatch_block = function
         .blocks
         .iter()
         .find(|block| block.id == dispatch)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let [dispatch_node] = dispatch_block.nodes.as_slice() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    // The dispatch terminator may trail a pure scalar-computation prefix —
+    // an integer state argument's `parameter CMP literal` — so the arm edges
+    // live on the block's final node rather than its only node.
+    let dispatch_node = dispatch_block
+        .nodes
+        .last()
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    match &predecessor.operation {
+        O::Jump {
+            psi_edge,
+            target,
+            structural_bindings,
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => {
+            // A jump owns exactly one edge, so exactly one row may land here.
+            if site_rows.len() != 1 {
+                return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+            }
+            if first.predecessor.machine != function.machine
+                || *psi_edge != first.incoming_edge
+                || *target != dispatch
+                || !structural_bindings.is_empty()
+                || !trivial_affine_discards.is_empty()
+                || !residual_affine_discards.is_empty()
+            {
+                return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+            }
+            let incoming = predecessor
+                .successors
+                .iter()
+                .find(|edge| edge.psi_edge == first.incoming_edge)
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            if incoming.target != dispatch
+                || !incoming.structural_bindings.is_empty()
+                || !incoming.trivial_affine_discards.is_empty()
+                || !incoming.residual_affine_discards.is_empty()
+            {
+                return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+            }
+            let fused_edge = fused_edge(first, incoming, dispatch_node)?;
+            let operation = O::Jump {
+                psi_edge: incoming.psi_edge,
+                target: fused_edge.target,
+                bindings: fused_edge.bindings.clone(),
+                structural_bindings: structural_bindings.clone(),
+                trivial_affine_discards: trivial_affine_discards.clone(),
+                residual_affine_discards: residual_affine_discards.clone(),
+            };
+            Ok(OptimizationNode {
+                uses: node_uses(&operation, first.predecessor),
+                operation,
+                provenance: predecessor.provenance.clone(),
+                fuel: predecessor.fuel.clone(),
+                effect: predecessor.effect,
+                definitions: predecessor.definitions.clone(),
+                successors: vec![fused_edge],
+                ownership: predecessor.ownership.clone(),
+            })
+        }
+        O::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            if first.predecessor.machine != function.machine {
+                return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+            }
+            // Each admitted row fuses one arm of this conditional: the arm's
+            // successor record and its successor edge retarget together while
+            // the sibling arm and edge stay byte-exact. A repeated row reuses
+            // the fused arm's kept identity but misses the dispatch target
+            // check, so a duplicated incoming edge still fails.
+            let mut fused_when_true = when_true.clone();
+            let mut fused_when_false = when_false.clone();
+            let mut successors = predecessor.successors.clone();
+            for row in site_rows {
+                let arm = if fused_when_true.psi_edge == row.incoming_edge {
+                    &mut fused_when_true
+                } else if fused_when_false.psi_edge == row.incoming_edge {
+                    &mut fused_when_false
+                } else {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                };
+                if arm.target != dispatch
+                    || !arm.structural_bindings.is_empty()
+                    || !arm.trivial_affine_discards.is_empty()
+                {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                }
+                let Some(index) = successors
+                    .iter()
+                    .position(|edge| edge.psi_edge == row.incoming_edge)
+                else {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                };
+                let incoming = &successors[index];
+                if incoming.target != dispatch
+                    || !incoming.structural_bindings.is_empty()
+                    || !incoming.trivial_affine_discards.is_empty()
+                    || !incoming.residual_affine_discards.is_empty()
+                {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                }
+                let fused = fused_edge(row, incoming, dispatch_node)?;
+                *arm = abstract_operations::AbstractSuccessor {
+                    psi_edge: fused.psi_edge,
+                    target: fused.target,
+                    bindings: fused.bindings.clone(),
+                    structural_bindings: fused.structural_bindings.clone(),
+                    trivial_affine_discards: fused.trivial_affine_discards.clone(),
+                };
+                successors[index] = fused;
+            }
+            let operation = O::Conditional {
+                condition: *condition,
+                when_true: fused_when_true,
+                when_false: fused_when_false,
+            };
+            Ok(OptimizationNode {
+                uses: node_uses(&operation, first.predecessor),
+                operation,
+                provenance: predecessor.provenance.clone(),
+                fuel: predecessor.fuel.clone(),
+                effect: predecessor.effect,
+                definitions: predecessor.definitions.clone(),
+                successors,
+                ownership: predecessor.ownership.clone(),
+            })
+        }
+        _ => Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    }
+}
+
+/// The fused edge one admitted row admits: the incoming edge's own Psi
+/// identity and custody first, the resolved arm edge's complete custody
+/// appended, and the resolved arm's bindings composed through the incoming
+/// edge's bindings — each resolved-arm argument naming a dispatch parameter
+/// maps to the argument this edge bound to that parameter; every other
+/// argument keeps its value.
+fn fused_edge(
+    row: &SpecializedStateEdgeRow,
+    incoming: &OptimizationEdge,
+    dispatch_node: &OptimizationNode,
+) -> Result<OptimizationEdge, OptimizationUnitValidationError> {
     let resolved = dispatch_node
         .successors
         .iter()
@@ -327,7 +651,7 @@ fn fused_node(
     }
     let mut fuel = incoming.fuel.clone();
     fuel.extend_from_slice(&resolved.fuel);
-    let fused_edge = OptimizationEdge {
+    Ok(OptimizationEdge {
         psi_edge: incoming.psi_edge,
         target: resolved.target,
         bindings,
@@ -336,39 +660,45 @@ fn fused_node(
         residual_affine_discards: Vec::new(),
         provenance,
         fuel,
-    };
-    let operation = O::Jump {
-        psi_edge: incoming.psi_edge,
-        target: resolved.target,
-        bindings: fused_edge.bindings.clone(),
-        structural_bindings: structural_bindings.clone(),
-        trivial_affine_discards: trivial_affine_discards.clone(),
-        residual_affine_discards: residual_affine_discards.clone(),
-    };
-    let uses = fused_edge
-        .bindings
-        .iter()
-        .map(|binding| ValueUse {
-            value: binding.argument,
-            block: row.predecessor.block,
-            node: row.predecessor.node,
-        })
-        .collect();
-    Ok(OptimizationNode {
-        operation,
-        provenance: predecessor.provenance.clone(),
-        fuel: predecessor.fuel.clone(),
-        effect: predecessor.effect,
-        definitions: predecessor.definitions.clone(),
-        uses,
-        successors: vec![fused_edge],
-        ownership: predecessor.ownership.clone(),
     })
 }
 
+/// The use roster of a fused control node, in the same order unit
+/// construction derives it from the operation — condition first, then
+/// `when_true` and `when_false` arm arguments for a conditional, or the jump
+/// bindings for an unconditional edge — so the reconstructed node carries
+/// exactly the metadata an independent rebuild recomputes.
+fn node_uses(
+    operation: &abstract_operations::AbstractOperation,
+    location: NodeLocation,
+) -> Vec<ValueUse> {
+    let arguments: Vec<ValueId> = match operation {
+        O::Jump { bindings, .. } => bindings.iter().map(|binding| binding.argument).collect(),
+        O::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => std::iter::once(*condition)
+            .chain(when_true.bindings.iter().map(|binding| binding.argument))
+            .chain(when_false.bindings.iter().map(|binding| binding.argument))
+            .collect(),
+        _ => Vec::new(),
+    };
+    arguments
+        .into_iter()
+        .map(|value| ValueUse {
+            value,
+            block: location.block,
+            node: location.node,
+        })
+        .collect()
+}
+
 /// The accepted custody ledger: each fused edge records the incoming edge's
-/// retained occurrence, the resolved arm edge's fan-out onto the fused edge,
-/// and the resolved edge's surviving dispatch occurrence.
+/// retained occurrence and the resolved arm edge's fan-out onto the fused
+/// edge, and each resolved arm edge records its surviving dispatch occurrence
+/// once — two incoming edges may legitimately resolve to the same dispatch
+/// arm, so that occurrence is a per-edge row, not a per-specialization row.
 fn accepted_provenance(
     function: &PsiOptimizationFunction,
     machine: MachineId,
@@ -384,6 +714,7 @@ fn accepted_provenance(
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)
     };
     let mut provenance = Vec::new();
+    let mut resolved_edges = BTreeSet::new();
     for row in rows {
         let incoming = find_edge(row.incoming_edge)?;
         let resolved = find_edge(row.taken_edge)?;
@@ -407,6 +738,14 @@ fn accepted_provenance(
             sources: resolved.provenance.clone(),
             fuel: resolved.fuel.clone(),
         });
+        resolved_edges.insert(row.taken_edge);
+    }
+    for taken_edge in resolved_edges {
+        let resolved = find_edge(taken_edge)?;
+        let resolved_site = PsiRealizationSite::Edge {
+            machine,
+            edge: taken_edge,
+        };
         provenance.push(ProvenanceRewrite {
             input: resolved_site,
             disposition: ProvenanceDisposition::RealizedAt(resolved_site),
@@ -459,11 +798,8 @@ pub(super) fn validate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let constants = validator_scalar_constant_facts(input.identity, function)
         .into_iter()
-        .filter_map(|(value, constant, _)| match constant {
-            ScalarConstantValue::Boolean(constant) => Some((value, constant)),
-            ScalarConstantValue::Integer(_) => None,
-        })
-        .collect::<BTreeMap<ValueId, bool>>();
+        .map(|(value, constant, _)| (value, constant))
+        .collect::<BTreeMap<ValueId, ScalarConstantValue>>();
     let replayed = plan_dispatch(function, patch.dispatch, &constants)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if replayed.is_empty() {
@@ -484,11 +820,18 @@ pub(super) fn validate(
     }
 
     let input_function = function;
-    let fused = patch
-        .edges
-        .iter()
-        .map(|row| {
-            fused_node(row, patch.dispatch, input_function).map(|node| (row.predecessor, node))
+    // Rows sharing one predecessor site — both constant arms of one
+    // conditional — fold into a single node reconstruction; applied
+    // independently, the later row would overwrite the earlier arm's fusion
+    // while the candidate still claims both.
+    let mut sites = BTreeMap::<NodeLocation, Vec<&SpecializedStateEdgeRow>>::new();
+    for row in &patch.edges {
+        sites.entry(row.predecessor).or_default().push(row);
+    }
+    let fused = sites
+        .into_iter()
+        .map(|(location, rows)| {
+            fused_node(&rows, patch.dispatch, input_function).map(|node| (location, node))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut output = input.clone();
