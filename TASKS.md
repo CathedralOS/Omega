@@ -8787,6 +8787,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `crossed_window` break that forced the prior reading onto
   `3533f7d0e8` is resolved). The remaining x86_64-Mach-O residual — a
   real x86_64-apple-darwin host run — stays host-gated on
+  Re-verified at `74c2bfc605` (z181): the Mach-O x86_64 pairing
+  dispatch still reaches `image_macho::validate_macho_x86_64_import_
+  binding_pairing` from `record_validation.rs` (dispatch on
+  `image.target().architecture` intact); no same-item claim live;
+  the x86_64-apple-darwin host run stays host-gated on
+  MACOS-X64-HOST-PROFILE.
+
   MACOS-X64-HOST-PROFILE's row. No unbound slice remains here.
 - **FILESYSTEM-SNAPSHOT-ISOLATION.** Verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
   already holds in `build-evaluation/src/evidence/filesystem_scope/
