@@ -226,6 +226,14 @@ SWE-2 Max and never plan.
   origin/main` immediately before `push -f`, with the worker resolving its own
   conflicts (it has the intent context) and re-running its scoped check. The
   Overlord queue is the fallback for lanes that still conflict when merged.
+- **Route a queued lane back to its owner first.** Lanes are one-per-zergling
+  (`zergling/z<N>`), so when z<N> settles and its own lane is in the resolve
+  queue, prepend to its next assignment: rebase that lane onto `origin/main`,
+  resolve, scoped check, `push -f`, post `resolved`, then start the new item on
+  top. Mark the lane busy under that zergling; count only Overlord-held lanes
+  against the ≤2 resolver cap. Drop queue/busy entries for lanes that merge or
+  prune. First run: 27 lanes routed in one cycle, 15 `resolved` over the next
+  two, conflicted 75→56 — vs ~1/cycle from Overlords alone.
 - **Reviewer `duplicate_lanes` are advisory, never authoritative.** Reviewers
   get the resolve queue and may list lanes whose content "already landed via a
   sibling". Every one checked so far still differed from main in non-board
