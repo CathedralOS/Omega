@@ -90,17 +90,26 @@ wire decode, foundation validation, path projection, cycle traversal),
 optimization-unit ×1, legalized-operations ×1, register-homes ×1,
 checked-trees-to-lowered-psi ×5.
 
-**Remaining (11), all behind live claims** — untouched deliberately:
+**Update 11:45Z — 27 of 32 landed.** The REPRESENTATION-SPECIALIZATION fence
+on `optimization-unit-semantics/src/unit_validation/` drained early, so its six
+legs are done on the same semantics: `references.rs` and
+`structural_catalog/{catalog.rs ×3, type_declarations.rs}` traverse or collect
+the viewed element exactly where they do for `FixedArray`, per-declaration
+validation admits a borrowed view with nothing to check, and
+`operation_contracts/structural_access.rs` refuses it as an owned argument
+beside `ByteSequence` and `Reference`. That crate's lib compiles clean.
 
-- `optimization-unit-semantics/src/unit_validation/` ×7
-  (`operation_contracts/structural_access.rs:380`, `references.rs:66`,
-  `structural_catalog/catalog.rs:40,69,132`,
-  `structural_catalog/type_declarations.rs:134`) — REPRESENTATION-SPECIALIZATION,
-  Devin / linw2-field-value-specialization, to 18:46Z.
+**Remaining (4), behind one live claim** — untouched deliberately:
+
 - `terminal-interpreter/src/terminal_interpreter/` ×4 (`custody.rs:380`,
   `effect_results.rs:127`, `structural_scalar_fields/entry.rs:54,129`) —
   REGISTERED-CALLBACK-LIFETIME, Devin / z139-registered-callback-lifetime,
   to 14:09Z.
+
+Those four are now the *only* thing keeping `cargo check --workspace` red.
+They also block testing anything that dev-depends on
+`checked-trees-to-lowered-psi`, which is why `optimization-unit-semantics`'s own
+test target still cannot build even though its lib is clean.
 
 Until those land, `cargo check --workspace` still fails on those two crates
 and anything that dev-depends on them (`checked-trees-to-lowered-psi`'s test
