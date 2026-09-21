@@ -1956,6 +1956,17 @@ Owners include
   lanes until claimed. Interpretation, native lowering and installation
   custody remain the open legs as recorded.
 
+  Re-verified at `bc772bf7cd7e` (linux x86-64): `cargo nextest run -p
+  terminal-fixed-fuel` holds 73/73, and `cargo nextest run -p
+  terminal-codec --all-targets` reads 366 pass / 18 fail — the identical
+  three drift families (semantic_module::block_wire roundtrips ×10,
+  ledger_spike gamma byte-pins ×3, canonical decoder/identity ×2,
+  publication boundary/tool/substitution ×3). The interpretation leg is
+  currently fenced (`terminal-interpreter` under
+  REGISTERED-CALLBACK-LIFETIME); relevant-precondition derivation and
+  the remaining absence-of-bound causes still wait on the
+  dependent-bound machinery as recorded above.
+
 - **GENERAL-CYCLIC-EXECUTION.** Complete the
   [cyclic control contract](wiki/spec/terminal-psi/control_flow.md) and
   [separate safety/progress rules](wiki/spec/language/termination.md) for
