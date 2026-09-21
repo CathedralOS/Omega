@@ -1478,6 +1478,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "generics/authored_const_call_operator_requires_selection",
     "generics/authored_const_call_operator_unselected_provider",
     "generics/authored_const_operator_requires_selection",
+    "generics/const_application_type_parameter_destination_rejected",
     "generics/const_data_argument_out_of_range",
     "generics/const_data_argument_requires_value",
     "generics/const_data_expression_division_by_zero",
