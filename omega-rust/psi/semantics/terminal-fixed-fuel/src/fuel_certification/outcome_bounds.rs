@@ -128,6 +128,10 @@ pub(super) fn operation_callees(
     }
 }
 
+/// Per-outcome machine bounds. `returned` bounds every normal-return walk and
+/// `crashed` bounds every crash-terminal walk; each is `None` when no walk of
+/// its outcome exists, so callers composing one outcome never inherit work
+/// from a path the callee cannot take.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct OutcomeBounds {
     pub(super) returned: Option<u64>,
@@ -234,7 +238,7 @@ pub(super) fn maximum_machine_outcomes(
     })
 }
 
-/// Maximum entry-to-outcome bound for a verified `Natural`-ranked machine.
+/// Per-outcome entry bound for a verified `Natural`-ranked machine.
 ///
 /// The verifier's components partition the machine's complete cyclic topology.
 /// Within one component every cycle crosses a strict edge that decreases an
@@ -242,10 +246,14 @@ pub(super) fn maximum_machine_outcomes(
 /// Each member block therefore executes at most `rank_maximum + 1` times per
 /// component entry, and a component cannot be re-entered once left (an edge
 /// back would make the outside block part of the same component). The
-/// condensation of components and ordinary blocks is acyclic, so a
-/// longest-path bound over it covers every admitted execution's operation,
-/// call, edge, and cleanup costs. The rank bound is the carrier's type
-/// maximum, covering every input the admitted ranking can take.
+/// condensation of components and ordinary blocks is acyclic, so each outcome
+/// class takes its own longest-path bound over it — the returned derivation
+/// charges commit-reachable visits and reports `None` when no normal-return
+/// walk exists, and the crashed derivation charges crash-terminal walks and
+/// reports `None` when no execution can crash. The rank bound is the
+/// carrier's type maximum, covering every input the admitted ranking can
+/// take, and the certificate's merged bound is the maximum of the two
+/// outcome classes rather than a single ceiling billed against both.
 fn natural_machine_outcomes(
     machine: &TerminalMachine,
     components: &[TerminalNaturalCycle],
@@ -268,26 +276,6 @@ fn natural_machine_outcomes(
         active_machines,
     )?;
     let entry_node = geometry.node_for(machine.entry);
-    let bound = natural_condensed_bound(
-        entry_node,
-        machine,
-        components,
-        &geometry,
-        blocks,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
-    let ceiling = u64::try_from(bound).map_err(|_| FixedFuelError::BoundOverflow)?;
-    // The crash outcome keeps the whole-graph ceiling: a crash-terminal walk
-    // is a commit-reachable prefix plus one crash event, so the bound that
-    // counts every admitted walk covers it without a second derivation.
-    // The returned outcome is tighter and honest about reachability: it
-    // charges only normal-return call and cleanup outcomes and reports
-    // `None` when no commit-reachable walk exists, exactly like the
-    // acyclic derivation's `returned` field and the segment partition's
-    // per-visit accounting — callers composing `.returned` (segment call
-    // charges, cleanup chains, reachability scans) must not inherit crash
-    // work or a return path that does not exist.
     let returned = natural_condensed_bound_returned(
         entry_node,
         machine,
@@ -299,24 +287,33 @@ fn natural_machine_outcomes(
     )?
     .map(|units| u64::try_from(units).map_err(|_| FixedFuelError::BoundOverflow))
     .transpose()?;
-    Ok(OutcomeBounds {
-        returned,
-        crashed: Some(ceiling),
-    })
+    let crashed = natural_condensed_bound_crashed(
+        entry_node,
+        machine,
+        components,
+        &geometry,
+        blocks,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?
+    .map(|units| u64::try_from(units).map_err(|_| FixedFuelError::BoundOverflow))
+    .transpose()?;
+    Ok(OutcomeBounds { returned, crashed })
 }
 
 /// Shared geometry of a verified `Natural` ranking: the component index each
-/// cyclic block belongs to, each block's single-visit bound, and every
-/// component's charged bound — the rank carrier's type maximum plus one
-/// visits times the summed member visits. The `*_returned` fields replay the
-/// same shape under commit-reachable accounting: a block visit is `None`
-/// when no walk through it can return, and a component's returned bound
-/// sums only the members a returning walk can still traverse.
+/// cyclic block belongs to, and each block's per-outcome single-visit bound.
+/// `visit_units_returned` is `None` when no walk through the block can
+/// return, `visit_units_crashed` is `None` when no traversal of it can
+/// crash, and a component's returned bound sums only the members a
+/// completing walk can still traverse at the rank carrier's type maximum
+/// plus one visits each. The completing-member sum doubles as the
+/// crash-bound interior: a crash-terminal walk's visits complete until the
+/// one crashing visit ends it.
 pub(super) struct NaturalGeometry {
     pub(super) member_of: BTreeMap<BlockId, usize>,
-    pub(super) visit_units: BTreeMap<BlockId, u64>,
     pub(super) visit_units_returned: BTreeMap<BlockId, Option<u64>>,
-    pub(super) component_units: Vec<u128>,
+    pub(super) visit_units_crashed: BTreeMap<BlockId, Option<u64>>,
     pub(super) component_units_returned: Vec<Option<u128>>,
 }
 
@@ -333,14 +330,14 @@ impl NaturalGeometry {
 }
 
 /// Compute the condensed geometry of a verified component partition:
-/// membership is total and disjoint, each block's visit bound composes its
-/// operations, admitted call maxima, terminator, and cleanup, and a component
-/// charges the type-maximum visit count times its member sum. The returned
-/// fields charge the same shape for commit-reachable walks only: a block
-/// whose call or cleanup can never return has no returning visit, and a
-/// component multiplies only the members a returning walk can traverse —
-/// the same discipline the acyclic derivation and the segment partition
-/// already apply to `OutcomeBounds::returned`.
+/// membership is total and disjoint, and each block's per-outcome visit
+/// bound composes its operations, admitted call outcomes, terminator, and
+/// cleanup under that outcome's accounting. A block whose call or cleanup
+/// can never return has no returning visit, one that can never crash has no
+/// crashing visit, and a component multiplies only the members a completing
+/// walk can traverse — the same discipline the acyclic derivation and the
+/// segment partition already apply to `OutcomeBounds::returned`, extended
+/// here to the crash outcome.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn natural_component_geometry(
     machine: &TerminalMachine,
@@ -360,22 +357,9 @@ pub(super) fn natural_component_geometry(
             }
         }
     }
-    let mut visit_units = BTreeMap::new();
     let mut visit_units_returned = BTreeMap::new();
+    let mut visit_units_crashed = BTreeMap::new();
     for block in &machine.blocks {
-        visit_units.insert(
-            block.id,
-            block_visit_units(
-                machine,
-                block,
-                machines,
-                dynamic_call_targets,
-                provider_candidates,
-                schedule,
-                memoized_machines,
-                active_machines,
-            )?,
-        );
         visit_units_returned.insert(
             block.id,
             block_return_visit_units(
@@ -389,31 +373,28 @@ pub(super) fn natural_component_geometry(
                 active_machines,
             )?,
         );
+        visit_units_crashed.insert(
+            block.id,
+            block_crash_visit_units(
+                machine,
+                block,
+                machines,
+                dynamic_call_targets,
+                provider_candidates,
+                schedule,
+                memoized_machines,
+                active_machines,
+            )?,
+        );
     }
-    let mut component_units = Vec::with_capacity(components.len());
     let mut component_units_returned = Vec::with_capacity(components.len());
     for component in components {
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
             return Err(FixedFuelError::InvalidRankedScc(machine.id));
         };
-        let member_units = component.ranks.iter().try_fold(0_u128, |units, rank| {
-            let visit = visit_units
-                .get(&rank.block)
-                .copied()
-                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
-            units
-                .checked_add(u128::from(visit))
-                .ok_or(FixedFuelError::BoundOverflow)
-        })?;
-        component_units.push(
-            rank_maximum
-                .checked_add(1)
-                .and_then(|visits| visits.checked_mul(member_units))
-                .ok_or(FixedFuelError::BoundOverflow)?,
-        );
-        // A returning walk never completes a visit to a member whose own
+        // A completing walk never finishes a visit to a member whose own
         // visit cannot return, so non-returning members contribute nothing.
-        // When no member can return at all the component admits no
+        // When no member can complete at all the component admits no
         // commit-reachable traversal and reports `None`.
         let member_units_returned = component.ranks.iter().try_fold(0_u128, |units, rank| {
             let visit = visit_units_returned
@@ -438,9 +419,8 @@ pub(super) fn natural_component_geometry(
     }
     Ok(NaturalGeometry {
         member_of,
-        visit_units,
         visit_units_returned,
-        component_units,
+        visit_units_crashed,
         component_units_returned,
     })
 }
@@ -452,98 +432,10 @@ pub(super) enum NaturalGraphNode {
     Component(usize),
 }
 
-/// Longest-path bound over the condensed control DAG. A verified component
+/// The `returned` read of the condensed control DAG. A verified component
 /// partition makes this graph acyclic; the active set is defense against
-/// malformed input, not a search mechanism.
-#[allow(clippy::too_many_arguments)]
-fn natural_condensed_bound(
-    node: NaturalGraphNode,
-    machine: &TerminalMachine,
-    components: &[TerminalNaturalCycle],
-    geometry: &NaturalGeometry,
-    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
-    memoized: &mut BTreeMap<NaturalGraphNode, u128>,
-    active: &mut BTreeSet<NaturalGraphNode>,
-) -> Result<u128, FixedFuelError> {
-    if let Some(bound) = memoized.get(&node) {
-        return Ok(*bound);
-    }
-    if !active.insert(node) {
-        let cycle_block = match node {
-            NaturalGraphNode::Block(block) => block,
-            NaturalGraphNode::Component(index) => components
-                .get(index)
-                .and_then(|component| component.ranks.first())
-                .map_or(machine.entry, |rank| rank.block),
-        };
-        return Err(FixedFuelError::ControlCycle(cycle_block));
-    }
-    let (self_units, successors) = match node {
-        NaturalGraphNode::Block(block) => {
-            let block_semantics = blocks
-                .get(&block)
-                .copied()
-                .ok_or(FixedFuelError::UnknownBlock(block))?;
-            (
-                u128::from(
-                    geometry
-                        .visit_units
-                        .get(&block)
-                        .copied()
-                        .ok_or(FixedFuelError::UnknownBlock(block))?,
-                ),
-                terminator_targets(&block_semantics.terminator),
-            )
-        }
-        NaturalGraphNode::Component(index) => {
-            let component = components
-                .get(index)
-                .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?;
-            let mut exits = Vec::new();
-            for rank in &component.ranks {
-                let block = blocks
-                    .get(&rank.block)
-                    .copied()
-                    .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
-                exits.extend(
-                    terminator_targets(&block.terminator)
-                        .into_iter()
-                        .filter(|target| geometry.member_of.get(target) != Some(&index)),
-                );
-            }
-            (
-                geometry
-                    .component_units
-                    .get(index)
-                    .copied()
-                    .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?,
-                exits,
-            )
-        }
-    };
-    let mut continuation = 0_u128;
-    for target in successors {
-        continuation = continuation.max(natural_condensed_bound(
-            geometry.node_for(target),
-            machine,
-            components,
-            geometry,
-            blocks,
-            memoized,
-            active,
-        )?);
-    }
-    let bound = self_units
-        .checked_add(continuation)
-        .ok_or(FixedFuelError::BoundOverflow)?;
-    active.remove(&node);
-    memoized.insert(node, bound);
-    Ok(bound)
-}
-
-/// The `returned` read of the same condensed control DAG
-/// `natural_condensed_bound` walks for the whole-entry ceiling. Nodes charge
-/// the commit-reachable visit units: an ordinary block contributes its
+/// malformed input, not a search mechanism. Nodes charge the
+/// commit-reachable visit units: an ordinary block contributes its
 /// normal-return visit (`None` when no traversal through it can return), a
 /// component contributes its returned-member bound, and a component's exits
 /// are taken only through members whose own visit can return — a member
@@ -701,6 +593,179 @@ fn natural_condensed_bound_returned(
     Ok(bound)
 }
 
+/// The `crashed` read of the same condensed control DAG
+/// `natural_condensed_bound_returned` walks: a crash-terminal walk either
+/// crashes inside a node's own traversal or completes the node and crashes
+/// downstream. An ordinary block contributes its crash-visit bound — a
+/// call site that can crash, a `Crash` terminator, or a cleanup machine
+/// that crashes after the committed edge — or its complete-visit charge
+/// plus a successor's crash bound. A component contributes the
+/// completing-member interior at the rank ceiling plus one crash visit
+/// when any member traversal can crash — a crash ends the walk, so a
+/// crashable member is visited at most once, never at the rank multiplier
+/// the old whole-graph ceiling billed — or the same interior plus the
+/// worst exit's crash continuation, exits riding only members whose visit
+/// can complete. `None` propagates as "no crash-terminal walk": a machine
+/// that can only return reports no crash outcome at all, so callers never
+/// inherit crash work the callee cannot commit.
+#[allow(clippy::too_many_arguments)]
+fn natural_condensed_bound_crashed(
+    node: NaturalGraphNode,
+    machine: &TerminalMachine,
+    components: &[TerminalNaturalCycle],
+    geometry: &NaturalGeometry,
+    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
+    memoized: &mut BTreeMap<NaturalGraphNode, Option<u128>>,
+    active: &mut BTreeSet<NaturalGraphNode>,
+) -> Result<Option<u128>, FixedFuelError> {
+    if let Some(bound) = memoized.get(&node) {
+        return Ok(*bound);
+    }
+    if !active.insert(node) {
+        let cycle_block = match node {
+            NaturalGraphNode::Block(block) => block,
+            NaturalGraphNode::Component(index) => components
+                .get(index)
+                .and_then(|component| component.ranks.first())
+                .map_or(machine.entry, |rank| rank.block),
+        };
+        return Err(FixedFuelError::ControlCycle(cycle_block));
+    }
+    let bound = match node {
+        NaturalGraphNode::Block(block) => {
+            let block_semantics = blocks
+                .get(&block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(block))?;
+            let mut best = geometry
+                .visit_units_crashed
+                .get(&block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(block))?
+                .map(u128::from);
+            // A walk that continues pays the complete visit — every call
+            // returns and the terminator edge commits — then crashes
+            // downstream. A block that cannot complete contributes its
+            // own crash visit only.
+            let completes = geometry
+                .visit_units_returned
+                .get(&block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(block))?;
+            for target in terminator_targets(&block_semantics.terminator) {
+                if let (Some(visit), Some(tail)) = (
+                    completes,
+                    natural_condensed_bound_crashed(
+                        geometry.node_for(target),
+                        machine,
+                        components,
+                        geometry,
+                        blocks,
+                        memoized,
+                        active,
+                    )?,
+                ) {
+                    best = maximum_u128(
+                        best,
+                        Some(
+                            u128::from(visit)
+                                .checked_add(tail)
+                                .ok_or(FixedFuelError::BoundOverflow)?,
+                        ),
+                    );
+                }
+            }
+            best
+        }
+        NaturalGraphNode::Component(index) => {
+            let component = components
+                .get(index)
+                .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?;
+            // The completing-member interior: visits on a crash-terminal
+            // walk complete until the one crashing visit ends it, so every
+            // member still bills at most `rank_maximum + 1` visits and a
+            // member that can never complete contributes nothing.
+            let interior = geometry
+                .component_units_returned
+                .get(index)
+                .copied()
+                .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?;
+            let mut best = None;
+            // Crash inside the component: the interior plus exactly one
+            // crashing visit — the crash ends the walk, so the crashing
+            // member is visited at most once rather than at the rank
+            // ceiling.
+            let mut crash_visit = None;
+            for rank in &component.ranks {
+                if let Some(visit) = geometry
+                    .visit_units_crashed
+                    .get(&rank.block)
+                    .copied()
+                    .ok_or(FixedFuelError::UnknownBlock(rank.block))?
+                {
+                    crash_visit = maximum_u128(crash_visit, Some(u128::from(visit)));
+                }
+            }
+            if let Some(crash_visit) = crash_visit {
+                best = Some(
+                    interior
+                        .unwrap_or(0)
+                        .checked_add(crash_visit)
+                        .ok_or(FixedFuelError::BoundOverflow)?,
+                );
+            }
+            // Crash beyond the component: the interior plus the worst
+            // exit's crash continuation. An exit edge belongs to a
+            // crash-terminal walk only when the member carrying it can
+            // complete its own traversal — the same rule the returned
+            // read applies.
+            if interior.is_some() {
+                for rank in &component.ranks {
+                    let member_completes = matches!(
+                        geometry.visit_units_returned.get(&rank.block),
+                        Some(Some(_))
+                    );
+                    if !member_completes {
+                        continue;
+                    }
+                    let block = blocks
+                        .get(&rank.block)
+                        .copied()
+                        .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+                    for target in terminator_targets(&block.terminator)
+                        .into_iter()
+                        .filter(|target| geometry.member_of.get(target) != Some(&index))
+                    {
+                        if let Some(tail) = natural_condensed_bound_crashed(
+                            geometry.node_for(target),
+                            machine,
+                            components,
+                            geometry,
+                            blocks,
+                            memoized,
+                            active,
+                        )? {
+                            best = maximum_u128(
+                                best,
+                                Some(
+                                    interior
+                                        .unwrap_or(0)
+                                        .checked_add(tail)
+                                        .ok_or(FixedFuelError::BoundOverflow)?,
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+            best
+        }
+    };
+    active.remove(&node);
+    memoized.insert(node, bound);
+    Ok(bound)
+}
+
 fn maximum_u128(left: Option<u128>, right: Option<u128>) -> Option<u128> {
     match (left, right) {
         (Some(left), Some(right)) => Some(left.max(right)),
@@ -709,11 +774,16 @@ fn maximum_u128(left: Option<u128>, right: Option<u128>) -> Option<u128> {
     }
 }
 
-/// Maximum work one execution of `block` can charge: every operation, each
-/// call's worst outcome (return or crash; a crash ends the path, so one
-/// charge covers it), the terminator edge, and nominal cleanup machines the
-/// terminator invokes.
-pub(super) fn block_visit_units(
+/// The crash read of one block visit: the maximum charge a traversal of
+/// `block` accrues before crashing — inside a call (the earlier calls must
+/// have returned for the walk to reach it), at a `Crash` terminator, or
+/// inside a nominal cleanup machine a return-family terminator suspends
+/// into after the edge commits. `None` when no traversal of the block can
+/// crash. The derivation still runs every callee bound so malformed
+/// targets (missing dispatch rows, call cycles) fail closed exactly like
+/// the return charge.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn block_crash_visit_units(
     machine: &TerminalMachine,
     block: &terminal_psi::Block,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -722,28 +792,25 @@ pub(super) fn block_visit_units(
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
-) -> Result<u64, FixedFuelError> {
-    let mut units = block
-        .operations
-        .iter()
-        .try_fold(0_u64, |units, operation| {
-            units
-                .checked_add(schedule.operation_units(&operation.kind))
-                .ok_or(FixedFuelError::BoundOverflow)
-        })?;
+) -> Result<Option<u64>, FixedFuelError> {
+    let mut normal_units = Some(0_u64);
+    let mut crash_units = None;
     for operation in &block.operations {
-        // The possible callees are mutually exclusive dispatch outcomes:
-        // one visit invokes at most one of them, so the visit bound takes
-        // the maximum rather than the sum. A candidate with no terminal
-        // path admits an unbounded installation, so it rejects outright.
-        let mut invoked = 0_u64;
-        for callee in operation_callees(
+        normal_units =
+            checked_optional_add(normal_units, schedule.operation_units(&operation.kind))?;
+        let callees = operation_callees(
             machine.id,
             operation,
             dynamic_call_targets,
             provider_candidates,
-        )? {
-            let callee_bounds = maximum_machine_outcomes(
+        )?;
+        // Mutually exclusive dispatch targets merge as a maximum: a
+        // crashing walk pays the largest crash bound a selected callee can
+        // commit, then a continuing walk pays the largest normal-return
+        // bound across the same candidates.
+        let mut invoked = OutcomeBounds::default();
+        for &callee in &callees {
+            invoked = invoked.merge(maximum_machine_outcomes(
                 callee,
                 machines,
                 dynamic_call_targets,
@@ -751,49 +818,67 @@ pub(super) fn block_visit_units(
                 schedule,
                 memoized_machines,
                 active_machines,
-            )?;
-            invoked = invoked.max(
-                callee_bounds
-                    .maximum()
-                    .ok_or(FixedFuelError::NoTerminalPath(callee))?,
+            )?);
+        }
+        if !callees.is_empty()
+            && let Some(prefix) = normal_units
+        {
+            crash_units =
+                maximum_optional(crash_units, checked_optional_add(invoked.crashed, prefix)?);
+            normal_units = checked_optional_add(invoked.returned, prefix)?;
+        }
+    }
+    let Some(prefix) = normal_units else {
+        // A call on this block admits no returning target, so no traversal
+        // reaches the terminator — every crash the visit can commit is
+        // already accounted above.
+        return Ok(crash_units);
+    };
+    match &block.terminator {
+        Terminator::Crash { .. } => {
+            crash_units = maximum_optional(
+                crash_units,
+                checked_optional_add(Some(prefix), schedule.terminator_units(&block.terminator))?,
             );
         }
-        units = units
-            .checked_add(invoked)
-            .ok_or(FixedFuelError::BoundOverflow)?;
+        Terminator::Return { .. } | Terminator::ReturnUnitNominalAffine { .. } => {
+            // The committed edge suspends into each nominal cleanup machine
+            // in order; a crash inside one is a machine crash after the
+            // completed prefix — the same crash column
+            // `compose_cleanup_outcomes` accumulates for the entry
+            // derivation.
+            crash_units = compose_cleanup_outcomes(
+                terminator_cleanup_machines(&block.terminator),
+                OutcomeBounds {
+                    returned: Some(
+                        prefix
+                            .checked_add(schedule.terminator_units(&block.terminator))
+                            .ok_or(FixedFuelError::BoundOverflow)?,
+                    ),
+                    crashed: crash_units,
+                },
+                machines,
+                dynamic_call_targets,
+                provider_candidates,
+                schedule,
+                memoized_machines,
+                active_machines,
+            )?
+            .crashed;
+        }
+        _ => {}
     }
-    units = units
-        .checked_add(schedule.terminator_units(&block.terminator))
-        .ok_or(FixedFuelError::BoundOverflow)?;
-    for cleanup_machine in terminator_cleanup_machines(&block.terminator) {
-        let cleanup_bounds = maximum_machine_outcomes(
-            cleanup_machine,
-            machines,
-            dynamic_call_targets,
-            provider_candidates,
-            schedule,
-            memoized_machines,
-            active_machines,
-        )?;
-        units = units
-            .checked_add(
-                cleanup_bounds
-                    .maximum()
-                    .ok_or(FixedFuelError::NoTerminalPath(cleanup_machine))?,
-            )
-            .ok_or(FixedFuelError::BoundOverflow)?;
-    }
-    Ok(units)
+    Ok(crash_units)
 }
 
-/// The same visit charge `block_visit_units` composes, restricted to walks
-/// that return normally: each call site charges the maximum normal-return
-/// bound across its admitted targets instead of the worst outcome, a
-/// terminator-suspended cleanup composes only its own return, and a block
-/// whose call or cleanup can never return — or whose terminator is a crash —
-/// reports `None` because no commit-reachable traversal crosses it. The
-/// derivation still runs every callee bound so malformed targets (missing
-/// dispatch rows, call cycles) fail closed exactly like the maximum charge.
+/// The visit charge restricted to walks that return normally: each call
+/// site charges the maximum normal-return bound across its admitted
+/// targets instead of the worst outcome, a terminator-suspended cleanup
+/// composes only its own return, and a block whose call or cleanup can
+/// never return — or whose terminator is a crash — reports `None` because
+/// no commit-reachable traversal crosses it. The derivation still runs
+/// every callee bound so malformed targets (missing dispatch rows, call
+/// cycles) fail closed exactly like the crash charge.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn block_return_visit_units(
     machine: &TerminalMachine,

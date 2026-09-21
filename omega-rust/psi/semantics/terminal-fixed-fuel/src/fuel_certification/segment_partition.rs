@@ -500,8 +500,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
 
     /// Maximum charge from condensed `node` until `end_edge` commits, or
     /// `None` when no walk through the node takes that edge — the segment
-    /// read of the same condensed DAG `natural_condensed_bound` bounds for
-    /// the entry certificate.
+    /// read of the same condensed DAG `natural_condensed_bound_returned`
+    /// bounds for the entry certificate's returned outcome.
     fn node_to_edge_bound(
         &self,
         node: NaturalGraphNode,

@@ -851,8 +851,11 @@ mod machine_bounds {
         assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(132354));
     }
 
-    /// A callee that can only crash still contributes its crash bound through
-    /// the cyclic member's per-visit work via `maximum()`.
+    /// A callee that can only crash still bounds every crash-terminal walk:
+    /// the completing interior charges header 2 at the rank ceiling, and
+    /// member 3's crashing visit commits once — its call operation plus the
+    /// callee's crash edge — rather than at the rank multiplier the
+    /// crash-inclusive ceiling billed.
     #[test]
     fn natural_cycle_crash_only_callee_still_bounds_crash() {
         // callee 5 always crashes (returned: None, crashed: Some(1)).
@@ -870,10 +873,10 @@ mod machine_bounds {
         callee.contract.crash_routes = Vec::new();
         let walk = cyclic_machine(32, vec![call_unit(10, 5)]);
         let module = module(1, vec![walk, callee]);
-        // member3 visit = 1 op + callee max(=crash bound 1) + 1 jump = 3;
-        // member2 visit = 1; member_units = 4; component = 4*2^32;
-        // bound = 1 + 4*2^32 + 1.
-        let expected = 1 + 4 * (u64::from(u32::MAX) + 1) + 1;
+        // interior = member2 visit (1) at the 2^32 rank ceiling;
+        // crash visit = member3's call op (1) + callee crash edge (1) = 2;
+        // bound = 1 entry edge + 2^32 + 2.
+        let expected = 1 + (u64::from(u32::MAX) + 1) + 2;
         assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(expected));
     }
 
@@ -1912,14 +1915,17 @@ mod machine_bounds {
         );
         assert_eq!(
             bounds.crashed,
-            Some(1 + 6 * 256 + 1),
-            "the whole-entry ceiling still counts crash-terminal walks \
-             through member 3"
+            Some(1 + 2 * 256 + 3),
+            "the crash read keeps the completing interior — header 2 at \
+             the rank scale — then ends inside the component on member \
+             3's one crashing visit: its two operations plus callee 5's \
+             crash edge, never the exit block the walk cannot reach"
         );
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Ok(1 + 6 * 256 + 1),
-            "the certificate bound is unchanged: it covers both outcomes"
+            Ok(1 + 2 * 256 + 3),
+            "the certificate bound drops to the worse of the two honest \
+             outcome lanes"
         );
 
         let caller_bounds = machine_outcomes(&module, 7);
@@ -1930,7 +1936,7 @@ mod machine_bounds {
         );
         assert_eq!(
             caller_bounds.crashed,
-            Some(1 + (1 + 6 * 256 + 1)),
+            Some(1 + (1 + 2 * 256 + 3)),
             "the crash walk commits the call then the callee's crash"
         );
     }
@@ -1999,13 +2005,16 @@ mod machine_bounds {
         );
         assert_eq!(
             bounds.crashed,
-            Some(1 + 7 * 256 + 1),
-            "the ceiling still certifies the crash-terminal walks"
+            Some(1 + 2 * 256 + 4),
+            "the crash read still certifies every walk: header 2's \
+             completing visits at the rank scale plus member 3's one \
+             crashing visit — three operations and callee 5's crash edge"
         );
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Ok(1 + 7 * 256 + 1),
-            "the entry certificate is unaffected by the empty return lane"
+            Ok(1 + 2 * 256 + 4),
+            "the entry certificate follows the crash lane when no walk \
+             returns"
         );
 
         let caller_bounds = machine_outcomes(&module, 6);
@@ -2013,7 +2022,7 @@ mod machine_bounds {
             caller_bounds.returned, None,
             "the caller inherits the callee's honest no-return verdict"
         );
-        assert_eq!(caller_bounds.crashed, Some(2 + (1 + 7 * 256 + 1)));
+        assert_eq!(caller_bounds.crashed, Some(2 + (1 + 2 * 256 + 4)));
 
         // The unreachable return edge names the call that ends every walk
         // rather than fabricating an interior bound through member 3's exit.
@@ -2037,6 +2046,65 @@ mod machine_bounds {
                 .is_empty(),
             "a block whose call can never return has no reachable terminator \
              and publishes no safe-point segment"
+        );
+    }
+
+    /// When no block, call, or cleanup can crash there is no crash-terminal
+    /// walk to bound: the `crashed` lane is `None`, not a phantom
+    /// whole-graph ceiling, so a caller composing it inherits nothing the
+    /// callee cannot commit — while the returned lane keeps the
+    /// rank-amplified bound unchanged.
+    #[test]
+    fn natural_cycle_without_crash_path_reports_no_crash_outcome() {
+        let callee = machine(5, 5, vec![block(5, Vec::new(), return_unit(6))], None);
+        let module = module(1, vec![cyclic_machine(8, vec![call_unit(10, 5)]), callee]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.crashed, None,
+            "every member completes and every edge commits, so no walk crashes"
+        );
+        // member_units = visit2(1) + visit3(1 call + callee 1 + 1 jump) = 4;
+        // component = 4*256 = 1024; bound = 1 + 1024 + 1 = 1026.
+        assert_eq!(bounds.returned, Some(1 + 4 * 256 + 1));
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 256 + 1)
+        );
+    }
+
+    /// A crash past the component boundary rides the same exit discipline
+    /// the returned lane uses: the walk completes the interior at the rank
+    /// ceiling, leaves through a member whose visit can complete, and
+    /// crashes inside the successor — here the exit block's own `Crash`
+    /// terminator — so no walk returns at all.
+    #[test]
+    fn natural_cycle_exit_into_crashing_block_composes_the_tail() {
+        let mut walk = cyclic_machine(8, vec![integer_constant(10, 11, 0)]);
+        walk.blocks[3].terminator = Terminator::Crash {
+            edge: id(50),
+            cause: terminal_psi::CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+        walk.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![walk]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.returned, None,
+            "the only exit ends on a Crash terminator, so no walk returns"
+        );
+        // interior = (visit2 1 + visit3 2) * 256 = 768; exit 3 -> 4 leaves
+        // through completing member 2, then block 4's crash edge charges 1;
+        // bound = 1 entry + 768 + 1.
+        assert_eq!(bounds.crashed, Some(1 + 3 * 256 + 1));
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 3 * 256 + 1)
         );
     }
 }
