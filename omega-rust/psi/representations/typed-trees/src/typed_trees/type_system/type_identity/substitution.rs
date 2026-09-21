@@ -4,6 +4,7 @@ use crate::typed_trees::type_system::type_identity::constraint_identity::compoun
 use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_const_or_nominal_name;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_index_expression;
+use crate::typed_trees::type_system::type_identity::identity_context::normalize_type_reference;
 use crate::{
     TypedTrees,
     expression::ExpressionNode,
@@ -67,7 +68,7 @@ fn index_reference(
         TypeReferenceNode::ConstExpression(expression) => {
             normalize_index_expression(program, *expression, context)
         }
-        _ => rejected(context),
+        _ => normalize_type_reference(program, reference, context),
     }
 }
 
@@ -121,7 +122,14 @@ pub(super) fn range_endpoint(
                     }
                 }
             }
-            _ => rejected(&nested),
+            _ => {
+                let identity = normalize_type_reference(program, reference, &nested);
+                if end_inclusive {
+                    identity
+                } else {
+                    compound("exclusive-end", [identity])
+                }
+            }
         },
     )
 }
@@ -169,7 +177,7 @@ pub(super) fn array_length(
                     ),
                 }
             }
-            _ => rejected(context),
+            _ => normalize_type_reference(program, reference, &nested),
         },
     )
 }
