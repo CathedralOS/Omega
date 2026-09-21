@@ -7230,6 +7230,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   fresh checkout — it reads as an empty directory and every SQUALR row looks
   unverifiable until `git submodule update --init samples/apps/squalr` runs. The
   sibling SQUALR-REGION-ALIGNMENT-EXPANSION row shares that precondition.
+- **GEOMETRY-ALIGNMENT-PARSING.** Implemented on submodule branch
+  `zergling/z157-squalr-alignment-parsing` (tip `833ce36`, commits `c587ab4`
+  + `833ce36`) — the parse machine named by SQUALR-ALIGNMENT-STRING-PARSING's
+  residue. `memory_alignment.omg` gains `MemoryAlignment::from_str(text:
+  &[u8]) -> AlignmentParseResult` porting upstream `FromStr` verbatim: only
+  the spelled bytes "1"/"2"/"4"/"8" parse; every other length or byte refuses
+  via `AlignmentParseResult::Invalid` (first case — an untouched value reads
+  as failure). Named deviation: upstream `Err` echoes the input text; a data
+  case cannot retain a borrowed byte view, so `Invalid` drops the echo.
+  `AlignmentParseResult::parsed_size` and `from_str_consistent` exercise all
+  four spellings plus both refusal shapes in-package, matching the
+  wire-codec exercise convention (borrowed-slice receivers do not cross the
+  package boundary under selected ProgramEntry establishment). Verified at
+  `e7c0099cb2b70` on Linux x86-64: `omega --check` compiles all 30 package
+  sources clean against the bundled std. One implementation fix surfaced
+  during checking: `text.len == 1` does not establish index bounds — the
+  admissible shape is `text.len > 0` enabling `text[0]`, then a state-level
+  `len == 1` guard (the `console_write_bytes` pattern). Parent pin NOT
+  bumped — submodule integration is the coordinator merge step; the checked-in
+  `squalr-tests` `omega.lock` will need ordinary update/review against the
+  merged pin. Workspace `omega update` on this host exceeded 15min twice
+  (recompiling all package candidates) and produced no review file; the
+  direct package check is the scoped witness.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity. Scope
   verified at `10d93dd448`, fenced — the residual the app board lists under
   GEOMETRY-PARITY ("clone/serialization", samples/apps/squalr/TASKS.md):
