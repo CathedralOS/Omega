@@ -394,11 +394,7 @@ pub(crate) fn contract_target_from_state_symbol(
 
     // Named calls may carry the machine symbol rather than its entry-state
     // symbol. Resolve both forms to the same exact invocation contract.
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == target_state_symbol)
-    {
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, target_state_symbol) {
         let entry = program.machine_states(machine).first()?;
         return Some((machine.symbol, entry.symbol));
     }
