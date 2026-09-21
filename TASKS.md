@@ -12693,6 +12693,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
 - **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
+||||||| parent of 61dc6416a0be (board: OMEGA-PARSER-GATE-WINDOWS-VALIDATION re-witnessed at 577d6ac2ba3)
+  Re-witnessed green on linux x86-64 at `577d6ac2ba3` (Zergling-52):
+  `--identity` still binds cleanly — "identity legs green; execution legs
+  need a seed host", 622933-byte receipt request, 566377-byte customer
+  (SHA-256 `ed3cd51c…` unchanged since the `9b75533b9c7` restamp).
 - **OMEGA-PARSER-WINDOWS-ROUTE.** Resolved — sibling re-mine of the
   omega-parser Windows x64 host-leg cluster settled on
   OMEGA-PARSER-GATE-WINDOWS-VALIDATION (:8328, which names
