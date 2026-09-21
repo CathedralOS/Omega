@@ -2438,247 +2438,189 @@ syntax and other terminal services are not prerequisites.
   never represent universal coverage, and arbitrary incoming storage gains
   no ZII facts. Preserve negative controls while migrating revoked syntax.
 
-- **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
-  transfer commitment, including structural sums, nested projections, cycles,
-  calls, and partial initialization, under the
-  [ownership contract](wiki/spec/terminal-psi/ownership.md). Cleanup follows
-  reverse establishment and exact residual custody; trap/abort edges clean
-  nothing. Psi owners: `typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
-  and `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`. Omega owner:
-  `abstract-operations-to-target-operations/src/lowering/`.
+- **CML4.** Complete edge-local residual cleanup under the
+  [ownership contract](wiki/spec/terminal-psi/ownership.md): outgoing values
+  materialize before transfer and disposal, every occurrence has one
+  disposition, and dying roots clean in reverse establishment order.
+  Crash/abort/process-exit abandonment has no cleanup successor.
+  Owners: `typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
+  and `execution/unit/cleanup/`, `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
+  and Omega's `abstract-operations-to-target-operations/src/lowering/`.
 
-  Terminal production carries partial affine residuals on returns, call
-  continuations and Jumps for the bounded forms listed in its
-  [cleanup note](omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup).
-  Native lowering realizes them on Jump edges, since `aa698892c9a62`:
-  `plain_home_cleanup` (`lowering/control_flow/terminator.rs:104-133`) admits
-  both `DiscardRoot` and `DiscardResidual` behind a binding-overlap guard, and
-  `lowering/function/mod.rs` no longer inspects `residual_affine_discards` at
-  all — it is 42 lines whose sole rejection is
-  `ScalarBoundaryArgumentsRequireNativeRealization`, and
-  `UnsupportedPartialAffineContinuation` has zero hits in any `.rs` file.
-  Conditional, structural-case and `ReturnStructural` edges carry no residual
-  roster at all: `SuccessorEdge` has only `trivial_affine_discards`, and
-  `encoding.md` gives the successor-edge wire row no residual slot (the Jump
-  case needed a normative tag-1/tag-10 amendment to carry one). Extending it
-  is therefore a spec amendment plus a five-surface chain, not a bounded
-  slice.
+  Bounded parameter/local/result partial moves already reach encoded Terminal
+  execution. Multiple ordinary or boundary-produced projected temporaries can
+  share a Unit consumer (`partial_affine_result_source::anonymous_projected_operands_share_one_dying_continuation`).
+  Native target lowering admits no-code residual actions on Jump and
+  scalar/Unit-return edges; a lowering test is not native execution coverage.
 
   Remaining work:
 
-  - Native: realize residual cleanup on return and conditional edges of the
-    common control graph, including boundary call-result homes and
-    projected copies (Jump edges landed at `aa698892c9a62`); whole-result disposal does not cover a projected
-    result's residuals. Computed scalar bindings, boundary-result projections,
-    and cyclic control need their own storage and edge replay without
-    delaying cleanup until final return.
-  - Native: extend entry-origin scalar continuation storage to
-    operation-result values and their exact defining identities; per-call
-    argument shuffle snapshots do not preserve a result across earlier calls.
-  - Psi: extend anonymous projected helper-result operands to multiple
-    producers and other effects within one consumer's argument list and to
-    non-Unit consumers, preserving each temporary's exact dying continuation.
-  - Psi: extend the type-directed record/array complement to
-    construction-local roots and mixed dying-root schedules, preserving
-    maximal untouched subtrees, empty complements, and reverse establishment
-    order without runtime liveness flags. Entry-parameter cleanup alone cannot
-    dispose a temporary's remainder.
+  - Carry residual evidence through conditional and structural-case
+    successors and structural returns. `SuccessorEdge`,
+    `StructuralCaseSuccessorEdge` and `ReturnStructural` retain only
+    whole-root discard lists; `ReturnUnitPartialAffine` already exists.
+    Update the encoding contract and representation, producer, codec,
+    independent verifier/interpreter and native consumers together.
+  - Fix whole/residual scheduling across dying roots. The multi-temporary
+    path in `execution/unit/cleanup/anonymous.rs::append_continuation`
+    appends residuals in operand order, and the test above expects that
+    order; it does not establish the required reverse-establishment schedule.
+    Complete construction-local roots, partial construction and mixed dying
+    roots, retaining maximal untouched subtrees and empty complements.
+    No runtime liveness flags, expansion of untouched arrays into leaves, or
+    cleanup deferred until final return.
+  - Generalize projected temporary cleanup beyond empty, effect-free Unit
+    consumers: compose other argument effects, non-Unit consumers,
+    borrowed/owned temporary mixtures and retained claims/qualifications
+    through **STATE-LOCAL-VALUE-FRONTIER**'s ordinary evaluation path.
+    Each temporary retains its producer and exact dying continuation.
+  - Close source-to-native storage and replay for result homes, projected
+    results/copies, computed values across calls and cyclic control.
+    `lowering/unobserved_owned.rs::accepts` still recognizes whole functions
+    to suppress arrival homes; it no longer governs all return cleanup.
+    Retire that support dependency through per-place storage/action evidence,
+    not another allowlist. Executable nominal calls belong to
+    **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP** and must preserve this
+    schedule.
 
-  Acceptance: no affine occurrence disappears, duplicates, or is cleaned after
-  transfer.
+  Acceptance: source-produced artifacts reload and independently reconstruct
+  exact complements and complete transfer/cleanup partitions; native runs
+  preserve values and cleanup timing across the composed edges. Reject missing,
+  duplicate, reordered, overlapping, wrong-root/type and post-transfer cleanup.
+  Fuel exhaustion commits no disposal and retry cannot repeat one.
+  Preserve `terminal-verifier`'s `jump_edge_residual_discards_close_the_projected_argument_root_in_order`
+  and `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
+  controls. No affine occurrence disappears or survives past its required edge.
 
-  Flag: `lowering/unobserved_owned.rs::accepts` admits native cleanup of owned
-  parameters only when the whole function passes an allowlist of operation
-  kinds (integer constants, compares, exact add/subtract, calls, primitive
-  locals) and every parameter type is a plain record or array. That is a
-  whole-function recognizer, which the stage README says no longer supplies
-  support. The general mechanism is a per-action cleanup realization keyed by
-  the action's root home on the control-graph successor, which already
-  carries `cleanup_actions`.
-
-  Landed: return-edge cleanup no longer consults the recognizer.
-  `plain_home_cleanup` realizes each `DiscardRoot` keyed by the root's own
-  evidence — a live affine home, an affine reference leaf, or the arrival
-  declaration of an unobserved owned parameter (function or block-entry) that
-  never received a home. `accepts` now only decides whether owned arrivals
-  suppress their storage homes. Re-verified at `a84ebca9720` (z181): Jump
-  edges realize `residual_affine_discards` since `aa698892c9`, after the
-  binding-overlap guard — the earlier Jump bullet is stale. Still owed:
-  `AbstractSuccessor` (conditional edges) and `ReturnStructural` carry
-  only `trivial_affine_discards` — each needs the residual field through
-  representation + producer before lowering can realize it;
-  `InvokeNominal` is executable cleanup-machine work rejected by
-  `plain_home_cleanup` (needs a real call leg, not a home discard); and
-  `accepts` still decides owned-arrival home suppression, so its
-  retirement waits on those legs. Re-verified at `12ea4941ebd` (z203
-  leg): `c58da7957f6` reworked `accepts` — the recognizer now admits
-  per-action edge discards rather than requiring empty lists
-  (`unobserved_owned.rs` `edge_discards`: Jump trivial+residual discards
-  admitted on declared owned-affine arrivals and their non-overlapping
-  projected residuals; Conditional arms admit only trivial discards —
-  `&[]` residuals still passed). Representation unchanged:
-  `SuccessorEdge`, `StructuralCaseSuccessorEdge`, `ReturnStructural`,
-  and `ReturnUnit` still carry `trivial_affine_discards` only
-  (`control_flow/termination.rs`); producers emit non-empty residuals
-  only at `structural_values/emission.rs:1553` +
-  `argument_evaluation.rs:497`, every Conditional/ReturnUnit site writes
-  `Vec::new()`; Jump residuals realize natively at
-  `control_flow/terminator.rs:386`. All implementing surfaces are
-  unfenced at tip; the residual-field propagation remains a
-  representation + producer + codec + verifier + interpreter + lowering
-  leg — no bounded slice verified under this name.
-
-- **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary evaluation/value transport
-  in Psi argument normalization, checked scalar computations, call/result plans
-  and Terminal production. Remaining operands include dynamic/borrowed/projected
-  storage, effectful state arguments/returns, wider structural returned calls and
-  mixed structural/scalar signatures, including boundary consumers. Materialize
-  each value and activate its staged loan at the authored evaluation point.
-  Retain exact result owners for shared/mutable/write-only temporary borrows,
-  multiple argument producers, self consumers and projected claims; **CML4**
-  owns residual cleanup. Replace remaining flat guarded-call hoisting with the
-  same evaluation graph, not another source-order family. Before removing
-  `rewrite_guarded_transition_argument_calls`, preserve call-result facts at
-  successor entry and invalidate guard facts after earlier operand mutations.
-  The existing `transition_argument_call_result_derives_the_exact_entry_subject`
-  and `jump_operand_mutation_cannot_replay_the_taken_guard` regressions must
-  pass without synthesized source states. A case-edge helper call must also
-  preserve its invocation receiver and local ownership until evaluation ends;
-  capture-by-referenced-name alone loses implicit receiver forwarding.
+- **STATE-LOCAL-VALUE-FRONTIER.** Complete compositional evaluation and
+  value/storage transport through Psi argument normalization, checked
+  computations/call plans and Terminal production, with independent replay
+  and native realization. Follow
+  [evaluation order](wiki/spec/language/expressions.md#evaluation-schedule)
+  and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering).
+  Retain exact producer, parameter position, result owner and loan activation;
+  **CML4** owns residual cleanup.
 
   Remaining work:
 
-  - Extend the ordinary producer/consumer join exercised by
-    `tests/omega/pass/effects/structural_callback_reach` to extracted
-    projections, freshly established returned claims and claims from distinct
-    owned inputs, including mixed scalar/structural operands. Returning a
-    whole fixed array with several indexed claims is the regression baseline
-    in its `projected.omg`; matching claim identities cannot substitute for
-    checked content guarantees.
-  - Complete caller-specific saved-argument and result facts: nonliteral
-    contract arithmetic, borrowed collection lengths, dependent/public-trait
-    results and subslice bounds need exact entry observations and
-    substitutions. An immutable state-local `let` now discharges a callee
-    `requires` from the saved value -- `let n = items.len` then
-    `inner(items, n)` proves `rest.len <= capacity`, and the observation
-    keeps the initializer's arithmetic (`items.len + 1`) -- through
-    `ranking_range/saved_arguments` binding each stable local to its
-    initializer's polynomial before the boundary substitution. A local
-    whose initializer reads a `mut` formal/local, an exclusively borrowed
-    carrier or an exclusive-reference holder yields no observation, so a
-    mutable carrier's incoming value is never conflated with a later
-    write; giving mutable carriers an entry-value atom so that reading
-    also discharges remains open, as do dependent/public-trait results
-    and subslice bounds. **CRASH-CONTRACT** shares the capture path;
-    case-qualified, indexed, generic, reference-valued and floating entry
-    predicates need exact identities/totality. Unchanged entry observations
-    may justify published routes; later writes and current body facts may
-    not. Ranked-loop crash guards require independently checked all-path
-    invariants, never first-pass facts ignoring backedges.
-    Concrete subslice customer: `compiler --test bounded_slice_selectors`
-    retains two inferred endpoint calls over distinct array extents. At
-    `fce78a5bcc` plus the binder-carrier repair on macOS ARM64
-    (`RUST_MIN_STACK=67108864`), source checking
-    and the corresponding `checked-interpreter --test suite borrowed_subslices`
-    execution pass, but Terminal production rejects the missing checked scalar
-    control plan in `checked-trees-to-lowered-psi/src/machine_lowering`.
-    Scalar bounded helpers independently replay and execute natively; that does
-    not close slice transport. Replace the explicit unfinished assertion with
-    source-free Terminal and native execution when the ordinary join exists.
-  - Finish [exact anonymous division/landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-    across generic/evidence-adapted and boundary calls,
-    aggregate/parameter/constant destinations, numeric policies, floats and
-    proof consumers. Preserve result carrier/policy custody, exact rational
-    intermediates and warning origins through suppression/reporting;
-    coordinate selected result types with **MATCH-SELECTIVE-LOWERING**.
-    Acceptance: `7 / 2 * 2` is 7 with a warning, `7 / 2` cannot land in an
-    integer, and typed integer division truncates. `(4097 / 4096) * 4096` is
-    4097 with a warning; its `4097u32` form is 4096.
-  - Complete [typed quotient/remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
-    in resolution, selected constant execution and symbolic proof replay.
-    `syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/`
-    and `build-time-evaluation/src/machine_execution/admission/selection_authority.rs`
-    must retain authored selection across helper calls instead of folding
-    builtin meaning. Controls: `fail/generics/authored_const_operator_requires_selection`,
-    `fail/generics/authored_const_call_operator_requires_selection` and
-    `fail/generics/authored_const_call_operator_unselected_provider`.
-    **OPERATOR-MACHINE-SUPPLY** owns executable supply. Nonconstant proof
-    `Int` terms need independent evidence beyond source entailment in
-    `validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
-    Positive/negative dividend/divisor combinations satisfy the paired integer
-    law; zero divisors reject and exact anonymous division remains unchanged.
+  - Replace synthesized guarded-call states and competing whole-machine
+    plans with ordinary evaluation/control operations. Cover effectful state
+    arguments/returns, dynamic and borrowed/projected storage, mixed
+    scalar/structural operands and boundary consumers. Selected case edges
+    retain the invocation receiver and local ownership. Preserve
+    `transition_argument_call_result_derives_the_exact_entry_subject`,
+    `jump_operand_mutation_cannot_replay_the_taken_guard` and
+    `composed_unit_claims` controls. `machine_lowering/machine_dispatch.rs`
+    still rejects simultaneous scalar/Unit dynamic joins;
+    `rewrite_guarded_transition_argument_calls` still synthesizes states.
+    Delete superseded shape producers as their operations compose; a failed
+    custody rejoin must never fall back to a weaker recognizer.
+  - Extend returned structural custody to extracted projections, freshly
+    established claims and claims from distinct owned inputs. Preserve
+    shared/mutable/write-only temporary loans, self consumers and content
+    guarantees independently of claim identity.
+    `effects/structural_callback_reach/projected.omg` supplies a whole-array
+    forwarding baseline, not extracted-projection or native closure.
+  - Complete aggregate field replacement: nonliteral aggregate sources,
+    nested sums, borrowed case observation and whole nominal receiver
+    replacement, including match-assigned values. The customer is
+    `filesystem/windows_canonicalize_exit`'s stored `UnitResult`.
+    `execution/unit/structural_scalar_store/tests/record_literal_fields.rs`
+    pins rejection of nonliteral records and structural members; scalar-field
+    decomposition is not aggregate replacement. `borrowed_windows.rs`'s
+    `StoreStructuralField` repairs an opened hole, not general overwrites.
+    Coordinate **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
+    **NOMINAL-FIELD-FLOW**; do not dispose a moved value twice.
+  - Complete borrowed local record calls and subsequent observations without
+    the root-expression shape gate in
+    `values/scalar/computations/structural_values.rs::is_record_value`.
+    `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
+    pins a record-copy/borrowed-mutation customer still lacking its scalar
+    control plan. Primitive borrowed-local mutation already has encoded
+    execution coverage in `borrowed_scalar_call_source`.
+  - Complete exact saved-value snapshots across actual writes/exclusive
+    exposure, plus dependent/public-trait results and subslice bounds.
+    `validation/src/proof_contracts/contract_entailment/ranking_range/saved_arguments.rs`
+    already accepts stable unwritten mutable carriers; `mut` alone is not
+    the gap. Share capture with **CRASH-CONTRACT**, preserving case/index/
+    generic/reference/float identities and totality. Current body facts
+    cannot impersonate entry observations; loop invariants cover backedges.
+    `compiler --test bounded_slice_selectors` pins separate endpoint-signature,
+    window-statement-sequence and main scalar-control-plan omissions.
+    Replace those expectations with source-free Terminal and matching-host
+    native slice execution; scalar endpoint success does not close transport.
+  - Carry [exact anonymous arithmetic](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
+    through newly admitted generic/evidence-adapted, boundary, aggregate,
+    parameter/constant, float and proof routes, preserving rational
+    intermediates, result carrier/policy custody and warning origins/suppression.
+    Keep [typed quotient/remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
+    separate. Authored const/helper selection already has resolver and
+    build-time admission controls; preserve them rather than folding builtin
+    meaning. **OPERATOR-MACHINE-SUPPLY** owns executable supply.
+    Nonconstant proof-`Int` arithmetic still needs independent evidence beyond
+    source entailment in `validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs`.
 
-  Overall acceptance: selected arguments execute left-to-right once; skipped
-  calls never execute; serialized/replayed guards and saved values agree with
-  native execution. Explicit renamed state transfers preserve contracts,
-  selected fields, ownership and cleanup without requiring physical copies;
-  implicit cross-state use rejects. Longer dispatches, mixed state signatures,
-  borrowed loop formals and mutable scalar carriers use ordinary joins.
-  Stale writes, mismatched result origins and wrong normal-exit guarantees
-  reject; callee-local IDs and rereads cannot replace captured values.
+  Acceptance: one composed caller tolerates reordered/renamed states and
+  inserted computations; selected operands execute left-to-right once,
+  skipped calls never execute, and saved values/normal guarantees agree in
+  replay and native execution. Explicit state transfers preserve custody
+  without mandatory copies; implicit cross-state use rejects. Forged
+  bindings/origins, stale snapshots, conflicting loans, missing provider
+  authority and incorrect guarantees reject. Keep `7 / 2 * 2 == 7` and
+  `4097 / 4096 * 4096 == 4097` with their warnings, reject fractional
+  integer landing, and retain typed truncation (the `4097u32` case is 4096),
+  signed quotient/remainder laws and zero-divisor rejection.
 
-  Delete the remaining source-shape producers as ordinary graph operations
-  cover their semantics. `checked_trees/flow/terminal/*_plans.rs` still has
-  whole-machine shapes such as `CheckedPayloadlessGuardedCallReturnMachinePlan`.
-  `machine_lowering/machine_dispatch.rs` rejects simultaneous scalar and Unit
-  dynamic joins. Preserve compile-known receiver attachment authority
-  and claim transport when consolidating those routes. `composed_unit_claims.rs`
-  pins shared linear custody across exclusive arms, sequential settlements,
-  and corrupted receipt/fact rejection.
-  A failed source/custody rejoin must never fall back to a weaker recognizer.
-  Acceptance: one caller combines those ordinary operations, with reordered
-  state declarations and inserted computations, while forged edge bindings,
-  missing provider authority and conflicting loans still reject. Do not add a
-  producer family for the combination.
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete ordinary
+  consuming `drop<T>` and exact owner-attached hook execution under
+  [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
+  The generic consumer already selects and lowers eligible hooks, including
+  bodies that read/write `self` and call ordinary helpers. Do not restore a
+  cleanup-body recognizer or expose reserved `T::drop` as an authored call.
 
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Ordinary generic
-  `drop<T>` now checks, lowers, and invokes the exact owner-attached hook
-  selection under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup)
-  and [explicit early disposal](wiki/language_guide/chapter_17_drops_and_cleanup.md#explicit-early-disposal):
-  the call transfers the whole value into the `drop<T>` member
-  specialization, and the member's terminator runs the instantiated type's
-  `T::drop` attachment once as a nominal affine cleanup edge or proves the
-  parameter trivially consumed. `ReturnUnitNominalAffine` is now legal on
-  non-entry member machines while the dispatched entry lane keeps its exact
-  module closure
-  (`terminal-verifier/src/validation/affine_cleanup.rs`), and a completion
-  gate rejects checked plans that would return while a nominal-drop local
-  still owns custody
-  (`typed-trees-to-checked-trees/execution/unit/control/checked_machine.rs`).
-  `tests/omega/pass/drops/core_drop_owner_hook` reaches `inspect-terminal`
-  green: `drop<Guard>`'s return invokes `Guard::drop` exactly once and
-  `drop<Carrier>` discards trivially. Erased fields stay semantically
-  present in record shapes and never produce runtime cleanup:
-  `data_graph_requires_nominal_drop_with_substitutions`
-  (`validation/src/value_custody/cleanup.rs`) skips erased record and case
-  members, so an erased-only owner stays an ordinary affine record — even
-  when the erased member's own type carries a `drop` attachment — and a
-  record literal rejects an erased initializer at lowering ("erased record
-  member has no runtime initializer"). Admitting erased-bearing construction
-  needs `terminal-codec`'s `validate_establish_record` to tolerate erased
-  declarations; that file belongs to PROOF-RELEVANCE-MIGRATION's erased
-  formal/contract slice. Source selection of a reserved `T::drop` already
-  rejects (cleanup.rs). The corpus call sites are
-  `tests/omega/pass/drops/core_drop_explicit_consume` (checked-only) and
-  `drops/core_drop_owner_hook`, both registered in
-  `compiler/tests/canary_suite.rs`; the native codec route is not yet
-  realized. **CML4**
-  owns residual cleanup order; this item owns the hook target, the generic
-  consuming machine and their invocation.
+  Remaining work:
 
-  Acceptance: every path invokes the exact selected hook once or proves the
-  value transferred/consumed.
+  - Realize executable cleanup in the common native graph:
+    `abstract-operations-to-target-operations/src/lowering/control_flow/terminator.rs::plain_home_cleanup`
+    rejects `InvokeNominal`. Preserve the exact receiver, hook contract,
+    action order, result homes and continuation across the real call;
+    no-code disposal is not a substitute. **CML4** owns residual partitions
+    and mixed dying-root schedules.
+  - Reject reads through consumed owners using ordinary ownership/access
+    checking, not a special case for `drop`. Re-witness
+    `frontend_drop_expectations::core_drop_use_after_consume_is_currently_admitted`:
+    it currently expects `g.handle` after `drop(g)` to compile and return 7.
+    `flow/ownership/moves/observations.rs` does not record a read of the base
+    name, while `linear_validation/recorded_events.rs` checks dead custody on
+    transfers/consumption. Replace the admitted-read expectation; include an
+    ordinary consuming helper and a valid snapshot copied before consumption.
+    The fixture has not been rerun during this board audit.
+  - Compose contextual requirements and dying local owners through ordinary
+    cleanup edges. `checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
+    still excludes nonempty caller/hook prerequisites, and
+    `typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`
+    rejects nominal-drop locals left owned at return. Retain independently
+    checked exact-place prerequisites; never infer new caller demands.
+  - Complete erased-bearing record construction without runtime evidence
+    storage or cleanup. Both Unit and scalar-graph record emitters reject
+    erased initializers, while
+    `terminal-codec/src/sections/semantic_module/module_foundation_validation/value_foundations.rs::validate_establish_record`
+    demands a relevant initializer for every declaration. Reconcile semantic
+    fields and proof custody with the physical roster, preserving erased
+    subjects, multiplicity and provenance. **PROOF-RELEVANCE-MIGRATION** owns
+    erased formal/actual transport. This is distinct from an owned dynamic
+    descriptor whose hidden runtime payload still requires cleanup.
 
-  Flag (RETIRED — the prescribed mechanism landed at `4d34752d7e45d`, "cleanup:
-  lower and invoke the real owner-attached drop hook body"). Drop bodies are
-  now checked and lowered as ordinary Unit machine bodies and invoked as the
-  edge's cleanup action, so field stores on the borrowed `self` receiver,
-  repeated calls, argumented calls and bodied helpers all admit — pinned by
-  `tests/native-differential/tests/frontend_drop_expectations.rs:407,436,465,493`.
-  `is_exact_executable_drop_body` and the diagnostic "outside the executable
-  cleanup slice" have zero hits in the tree, and
-  `validation/src/program_validation/statements.rs` carries no cleanup
-  recognizer at all. There is nothing left to delete.
+  Acceptance: `drops/core_drop_owner_hook{,_body}` and
+  `drops/core_drop_explicit_consume` reach encoded, independently checked
+  Terminal and native execution. Observe a nonempty hook's effect exactly
+  once at early disposal and normal scope exit, with valid contextual
+  prerequisites and an erased-field control producing no runtime cleanup.
+  Missing/forged hook identity or premises, duplicate consumption and reads
+  after consumption reject. Preserve ordinary helper calls and reserved-hook
+  selection rejection. `tests/native-differential/tests/frontend_drop_expectations.rs`
+  uses the checked-tree interpreter and explicitly does not observe hook
+  effects; its compile/interpret successes are not native cleanup acceptance.
 
 - **TR3-TR8.** Finish whole-call-graph worst-case stack derivation, exact
   `StackPlan`, nonmoving `StackLease`, suspension/cancellation preservation,
@@ -2996,14 +2938,6 @@ syntax and other terminal services are not prerequisites.
       the function-fragment production writer
       (`function_fragments/production.rs`) and the private callback thunk
       lane (`callback_thunks.rs`) both hardcode `port_effects: Vec::new()`.
-  Fences: PRIVILEGED-PORT-EFFECT-SETTLEMENTS (Zergling-185) owns
-  `machine-code/boundary`, `object_artifact/construction`,
-  `terminal_authority_policy` and the `tests/omega/{pass,fail}/ports`
-  corpus — the production writer and its admission policy live there;
-  PSI-NATIVE-FIELD-STORES (Devin) owns `function_fragments`;
-  PHYSICAL-ACCESS-PROFILES (Devin) owns `native-artifact/src/physical`;
-  NORMALIZED-ABI-LOWERING/imports-leg (Jarod) owns the normalized-import
-  evidence tests. No unfenced slice remains on this host.
 
 - **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources
@@ -4134,7 +4068,6 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   authority collision on an instantiated template method. Re-run the command above
   before attributing any of them, since the roster moves.
   covered — each remaining failure is attributed to an owning leaf; no repair slice under this name
-- **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.** — mined candidate; scope verified, covered — sibling re-mine name recorded on the STATE-LOCAL-VALUE-FRONTIER field-store row: the "structural field store: scalar field type" frontier in `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store` (native customers like `filesystem/windows_canonicalize_exit` store structural `UnitResult`; the closure is nested structural sum construction/extraction, borrowed case observation, whole nominal receiver replacement). Re-verified at `8570ba9ae8`: the frontier site is unchanged (`structural_scalar_store/mod.rs:1182` still traces the scalar-field-type phase). The recorded fence map has rotated — `structural_scalar_store` + `primitive_store.rs` are now claimed by PSI-NATIVE-FIELD-STORES (z78, exp ~14:15Z) instead of CORPUS-RED-FAMILY-TRAPSTORE, while the execution/unit control+state_graph, values, flow and field_domain fences recorded earlier have drained or re-fenced (LOWERED-PSI-BASELINE-TAIL on the unit_state_graph tests, CLEANUP-HOOK-SELECTION on `control/checked_machine.rs`, PROVIDER-ATTACHMENT-MACHINE-PLAN on `providers.rs`/`types`). The surface stays claimed — no uncontested implementation leg here.
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
 - **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
   failure in `external-roots`:
@@ -4300,27 +4233,7 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
   unclaimed slice exists here this wave; the residual stays on the claim
   holders above.
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
-- **TERMINAL-SOURCE-CUSTODY-ORDER.** — mined candidate; scope verified, deliverable landed. The stub names the terminal custody-gate ordering pinned at `be1136849931` ("pin the terminal custody-gate order"): `tests/native-differential/tests/terminal_psi_source/contracts_and_frontend_drop.rs::source_statement_custody_gate_runs_after_the_parameter_custody_gate` proves dropping only the typed statement table leaves the program-level direct-Unit parameter custody gate fully resolved (it is statement-free — machines, states, and state signatures only), so per-machine lowering then reports the narrower authored-statement gap `LoweringError::Unsupported("scalar source custody has no authored statement")` rather than the parameter diagnostic; `wiki/drafts/known_baseline_failures.md` records the ordering as pinned. Re-witnessed green at `39317a770b1` (linux x86-64): `cargo nextest run -p omega-native-differential-test --test terminal_psi_source` — the pin passes (6.9s). The custody-gate expectation slice it left is adjudicated current by STALE-CUSTODY-GATE-EXPECTATIONS (:12024, "the landed custody ordering repins no custody-gate expectation"). Sibling TERMINAL-SOURCE-CUSTODY-GATE-ORDER was swept after landing; no residual leg remains.
-- **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup. Landed: `terminal-verifier` test `structural_unit::jumps_and_crash_routes::jump_edge_residual_discards_close_the_projected_argument_root_in_order` pins the Jump-edge sequence — projected successor arguments open partial custody, the residual roster must close it as the exact complement in canonical order (reorder or re-listing a moved child → `InvalidPartialAffineCleanup`), and residual-retired roots are never eligible for the trivial roster (naming one → `EdgeAffineDiscardsInvalid`).
 - **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
-- **TERMINAL-SOURCE-CUSTODY-ORDER.** Resolved — the frontend-drop custody
-  family is already repaired on `origin/main`: the two terminal_psi_source
-  typed-erasure probes repinned at `27f345e527` to the program-level
-  `validate_direct_unit_parameter_custody` gate, which deliberately runs
-  ahead of per-machine scalar source custody (`machine_lowering.rs` carries
-  the ordering contract at the call site; `expression_preparation/source_custody`
-  fires after). Both tests pass at `5b839c31ab` (omega-native-differential-test
-  terminal_psi_source, linux x86-64). The mined alias
-  TERMINAL-SOURCE-CUSTODY-GATE-ORDER names the same row.
-- **SUCCESSOR-DISCARD-ORDER.** Resolved — same terminal-verifier cleanup-order
-  row as EDGE-CLEANUP-ERROR-PRECEDENCE, already repaired on `origin/main`:
-  edge validation consumes owned successor sources before the residual and
-  trivial discard rosters (`validation/frontier/block_parameters.rs` documents
-  the order; `terminators.rs` runs it), and `d96a0fda39` repinned
-  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to
-  expect `EdgeAffineDiscardsInvalid` — the more precise diagnostic for discard
-  evidence naming an already-transferred place. All 26
-  `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6`.
 - **CANARY-EXACT-ENTRY-SELECTION.** Exact entry selection for division/value canaries and entry binding.
 
 Omega-side / native:
@@ -5221,7 +5134,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   provenance replays under validate_target or per-node dispatch under
   validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
   + `representations/abstract-operations` (read-only enumeration).
-- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** Mined candidate — scope verified, covered — re-mines the checked-trees-to-lowered-psi failure-cluster surface of `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi. The cluster ledger is maintained by CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION (fresh member-by-member reading recorded at `6ef64f6dd6`: 2152 run, 2093 passed, 59 failed, 1 SIGTERM blowup), and every cluster family is already owned by a named row — bare `Service<R>` fixture spellings → ENTRY-CONTENT-ROOTS + BASELINE-SERVICE-CARRIER-FAILURES, missing transitive machine plans → GENERAL-CYCLIC-EXECUTION + UEFI-OS-HANDOFF, site_guard crash-namespace + scalar-return custody → WRITE-ONLY-BORROW + C2L-BASELINE/RESIDUAL-FAILURE-ATTRIBUTION, the proof-search blowup → C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT, crash-member byte entries → resolved under LOWERED-CRASH-MEMBER-BYTE-ENTRIES (48/48 green). No independent slice exists here. Re-verified at `7241e022270d`: live fences on the surface include STRUCTURAL-UNIT-LOWERING (`src/unit`, 09:16Z), C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (10:35Z), PROOF-CERTIFICATION-BRIDGE (`src/tests`, 10:52Z), RC-REPOSITORY-CLOSURE (tests/nominal_affine_source, 12:15Z). Sibling stubs on the same surface: BASELINE-SERVICE-CARRIER-FAILURES, BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR, BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS, LOWERED-PSI-BASELINE-TAIL, LOWERED-CRASH-MEMBER-BYTE-ENTRIES, RC-REPOSITORY-CLOSURE.
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** Mined candidate — scope verified, covered — re-mines the checked-trees-to-lowered-psi failure-cluster surface of `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi. The cluster ledger is maintained by CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION (fresh member-by-member reading recorded at `6ef64f6dd6`: 2152 run, 2093 passed, 59 failed, 1 SIGTERM blowup), and every cluster family is already owned by a named row — bare `Service<R>` fixture spellings → ENTRY-CONTENT-ROOTS + BASELINE-SERVICE-CARRIER-FAILURES, missing transitive machine plans → GENERAL-CYCLIC-EXECUTION + UEFI-OS-HANDOFF, site_guard crash-namespace + scalar-return custody → WRITE-ONLY-BORROW + C2L-BASELINE/RESIDUAL-FAILURE-ATTRIBUTION, the proof-search blowup → C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT, crash-member byte entries → resolved under LOWERED-CRASH-MEMBER-BYTE-ENTRIES (48/48 green). No independent slice exists here. Re-verified at `7241e022270d`: live fences on the surface include STRUCTURAL-UNIT-LOWERING (`src/unit`, 09:16Z), C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (10:35Z), PROOF-CERTIFICATION-BRIDGE (`src/tests`, 10:52Z), RC-REPOSITORY-CLOSURE (tests/nominal_affine_source, 12:15Z). Sibling stubs on the same surface: BASELINE-SERVICE-CARRIER-FAILURES, STATE-LOCAL-VALUE-FRONTIER, BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS, LOWERED-PSI-BASELINE-TAIL, LOWERED-CRASH-MEMBER-BYTE-ENTRIES, RC-REPOSITORY-CLOSURE.
 - **BASELINE-SERVICE-CARRIER-FAILURES.** Partially advanced at
   `62c502f9f6` — the bare `Service<R>`-carrier family of
   `known_baseline_failures.md`'s c2l attribution: 33 tests spelled
@@ -5263,27 +5176,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **ENTRY-CONTENT-ROOTS**' receiver-lifecycle leg lands; the shared-borrow
   negative control still pins that stop.
 
-- **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
-  baseline row's verifier cleanup-order surface
-  (wiki/drafts/known_baseline_failures.md terminal-verifier section),
-  settled on `origin/main`: phase one consumes each owned source before the
-  residual and trivial cleanup rosters run for the same edge, then
-  parameters establish last (`validation/frontier/block_parameters.rs`,
-  per-terminator close order documented in `validation/frontier/
-  terminators.rs`); a still-live transferred place in a discard roster
-  reports `EdgeAffineDiscardsInvalid` as malformed evidence rather than a
-  bad argument (repin `d96a0fda39`, pass witness `bbfda8bc2e`). Fresh
-  witness at `1a772e4ae1` on linux x86-64: 11/11 ordering pins pass,
-  including `owned_successors_reject_same_arity_aliases_and_transfer_
-  after_disposal`, the `affine_local_frontier` reorder/double/missing
-  rejections, `unranked_frontiers`, and
-  `ranked_preservation_compares_every_frontier_axis_in_diagnostic_order`.
-  Re-witnessed at `97be15c1b5` (zergling-132, linux x86-64): the same 11
-  ordering pins pass — `cargo nextest run -p terminal-verifier -E
-  'test(~owned_successors) | test(~affine_local_frontier) |
-  test(~unranked_frontiers) | test(~ranked_preservation)'` → 11/11 PASS.
-  Sibling aliases: EDGE-CLEANUP-DIAGNOSTIC-ORDER, EDGE-CLEANUP-ERROR-
-  PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER (resolved separately).
 - **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — Resolved at `749794ddeb`.
   The recorded rejection (`Terminal proposal must retain every integer
   comparison occurrence exactly once`, witnessed at `e48558bd41`) came from a
@@ -6902,15 +6794,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cross_package_visibility` tests pass with zero loan-origin diagnostics;
   detail in `wiki/drafts/cross_package_dynamic_loan_origin.md`. No
   independent slice remains.
-- **EDGE-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — sibling alias of the
-  terminal-verifier cleanup-order row recorded under
-  **EDGE-CLEANUP-ERROR-PRECEDENCE**: edge validation consumes owned
-  successor sources before the residual and trivial discard rosters
-  (`validation/frontier/block_parameters.rs` documents the order;
-  `terminators.rs` runs it), and `d96a0fda39` repinned
-  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
-  to expect `EdgeAffineDiscardsInvalid`. Re-verified green on linux
-  x86-64 at this revision (`cargo nextest run -p terminal-verifier`).
 - **EFI-MATRIX-PROMOTION.** Mined candidate; scope verified, authorization
   gate recorded — re-mines the hosted-matrix clause of
   `wiki/drafts/rust_compiler_completion.md`: the required matrix is exactly
@@ -7082,7 +6965,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **FMA-PROVIDER-PIPELINE-TRANSPORT.** — mined candidate; merged alias of
   X86-FMA-PROVIDER-TRANSPORT (verify-scope: the named tests confirmed the
   frontier; see that row for landed legs and the remaining transport work).
-- **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Give generated wire codecs a
   route to `Derived` trust that does not depend on an authored grammar
@@ -8239,56 +8121,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the `terminal_psi_indexed_receivers` legs sit inside the wholesale fence
   regardless of who owns them this wave. Adjudication unchanged — no
   independent slice exists.
-- **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER.** Mined candidate — resolved:
-  the name re-covers the edge-level cleanup gate order already pinned by
-  the resolved sibling BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER row
-  above: owned successor sources consume first, then residual and
-  trivial discard rosters, then target-parameter establishment
-  (`40ff9ad791` doc, `d96a0fda39` repin). Re-verified on this host at
-  `9ff8673b310` (linux x86-64): the terminal-verifier discard/cleanup/
-  successor battery is 89/89 green, including
-  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
-  `branched_local_cleanup_rejects_missing_reordered_and_double_discard`,
-  `unit_return_requires_exact_reverse_order_affine_discards`,
-  `jump_applies_a_canonical_subset_of_affine_discards`, and the
-  `result_residuals` custody rows. No open slice remains; the
-  lowered-psi cleanup-roster emission leg stays owned by
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. Sibling
-  OWNED-SUCCESSOR-DISCARD-ORDER was resolved as the same landed alias
-  at `34f36c13ef` and its row swept at `41a7bde098` — re-verified
-  holding at `66a6ea93f7` (linux x86-64):
-  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
-  test(~owned_successors)' --no-fail-fast` 15/15 pass.
-- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** — mined candidate; scope
-  test(~owned_successors)' --no-fail-fast` 15/15 pass. Sibling re-mine
-  names on this roster: OWNED-SUCCESSOR-DISCARD-ORDER (resolved),
-  OWNED-SUCCESSOR-EDGE-ORDERING (adjacent row), and
-  SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER — the successor-argument
-  (block-parameter) ordering leg is the same edge-validation order
-  documented in `validation/frontier/block_parameters.rs`.
-- **OWNED-SUCCESSOR-EDGE-ORDERING.** Mined candidate — resolved: sibling
-  re-mine of the owned-successor edge-ordering surface already covered on
-  this board. The verifier-side cleanup gate order is pinned by resolved
-  siblings BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER (`40ff9ad791` doc,
-  `d96a0fda39` repin) and OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER above —
-  owned successor sources consume first, then residual and trivial
-  discard rosters, then target-parameter establishment, documented in
-  `validation/frontier/block_parameters.rs` and run by `terminators.rs`.
-  The lowered-psi cleanup-roster emission leg is resolved under
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING (reverse destination/declaration
-  order in `scalar_graph_lowering/structural_values.rs`). Re-witnessed at
-  `25e0c98e32` (linux x86-64):
-  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
-  test(~owned_successors)' --no-fail-fast` 15/15 pass. Sibling
-  OWNED-SUCCESSOR-DISCARD-ORDER resolved as the same landed alias at
-  `34f36c13ef`. No independent slice.
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. Sibling
-  OWNED-SUCCESSOR-DISCARD-ORDER was resolved as the same landed alias
-  at `34f36c13ef` and its row swept at `41a7bde098` — re-verified
-  holding at `66a6ea93f7` (linux x86-64):
-  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
-  test(~owned_successors)' --no-fail-fast` 15/15 pass.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; scope
   verified, covered — re-mines the review-projection input-resolution clause
   in `wiki/spec/packages/review.md` ("read each fact from the earliest
@@ -8305,37 +8137,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (certificates, transitive open obligations, schema migration, admission
   decisions in `src/ledger/obligation_ledger.rs`) stay named under
   PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice.
-- **PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN.** Mined candidate; scope verified —
-  resolved re-mine of the same cross-package dynamic loan-origin cluster
-  closed by SHARED-RECEIVER-LOAN-ORIGIN at `e76d715c8e`: the stub's surface
-  is the package boundary on a dynamic return carrying producer-selected
-  evidence, pinned by
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER.** Omega-written product compiler (verify scope, then implement).
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; folded into the
   canonical row above: scope verified, resolved as a wholesale re-mine of
   OMEGA-PRODUCT-COMPILER-SOURCE with no separable zergling slice (the
   `terminal_psi_indexed_receivers` gate stays owned — STATE-LOCAL-VALUE-FRONTIER
   live claim to ~15:45Z at 53817f8759).
-- **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
-- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; resolved, re-verified
-  at `72fc66d6c3` (linux x86-64). Retired alias of the landed
-  terminal-verifier edge-cleanup ordering already adjudicated on sibling
-  SUCCESSOR-DISCARD-ORDER and OWNED-SUCCESSOR-EDGE-ORDERING: edge validation
-  consumes owned successor sources before the residual and trivial discard
-  rosters (`validation/frontier/block_parameters.rs` documents the order,
-  `terminators.rs` runs it), Jump-edge residual discards close the projected
-  argument root as the exact complement in canonical order
-  (`InvalidPartialAffineCleanup` otherwise), and naming a residual-retired
-  root in the trivial roster is `EdgeAffineDiscardsInvalid`. Fresh witness:
-  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
-  test(~owned_successors)' --no-fail-fast` — 16/16 pass, including
-  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
-  `jump_edge_residual_discards_close_the_projected_argument_root_in_order`,
-  `branched_local_cleanup_rejects_missing_reordered_and_double_discard` and
-  `unit_return_requires_exact_reverse_order_affine_discards`. The
-  lowered-psi cleanup-roster emission leg stays with
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. No independent slice.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Scope verified at
   `d7f3c43e302` — re-mines the fact-source rule of
   `wiki/spec/packages/review.md:46` + `acceptance.md:126` ("read each
@@ -8519,37 +8326,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `manager/tests/locked_source_checking` by Devin's
   PACKAGE-LOCK-SOURCE-IDENTITY. Coordinate with those owners before working
   it.
-- **PARTIAL-OWNERSHIP-CLEANUP-EXPANSION.** Resolved — re-mine of **CML4**'s
-  named remaining work, not an independent item. The surface is partial
-  ownership cleanup per
-  [ownership.md](wiki/spec/terminal-psi/ownership.md#partial-ownership-and-residuals):
-  Terminal production already carries partial affine residuals on returns,
-  call continuations and Jumps for the bounded forms in the
-  terminal-production cleanup note; the unlanded legs are CML4's native
-  bullets — realize residual cleanup on return / Jump / conditional edges
-  (`lowering/function/mod.rs` rejects Jump `residual_affine_discards` with
-  `UnsupportedPartialAffineContinuation`; `plain_home_cleanup` in
-  `lowering/control_flow/terminator.rs` admits only whole-root
-  `DiscardRoot`), covering boundary call-result homes, projected copies,
-  computed scalar bindings, boundary-result projections, and cyclic
-  control without delaying cleanup until final return. Owners are CML4's
-  declared ones (Psi: `typed-trees-to-checked-trees/src/execution/
-  control_cleanup.rs` + `checked-trees-to-lowered-psi/src/unit/
-  unit_cleanup/`; Omega: `abstract-operations-to-target-operations/src/
-  lowering/` + the native-realization lowering legs above). CML4 held a
-  live claim on exactly those surfaces when this row was verified
-  (expires 2026-09-21T00:33Z). Re-verified at `9ff8673b31`: that claim
-  has expired and the named surfaces are currently unfenced. **The rejection
-  gate described above is STALE as of `aa698892c9a62`:**
-  `lowering/function/mod.rs` no longer inspects `residual_affine_discards`
-  (its sole rejection is `ScalarBoundaryArgumentsRequireNativeRealization`),
-  `UnsupportedPartialAffineContinuation` has zero hits in any `.rs` file, and
-  `plain_home_cleanup` realizes `DiscardResidual` alongside `DiscardRoot`
-  (`lowering/control_flow/terminator.rs:104-133`). That correction was written
-  only to `wiki/drafts/partial_ownership_cleanup_expansion.md` at
-  `5136cb11f6f6d`, which never touched this board. The Jump leg is landed; the
-  expansion legs that remain are conditional edges, boundary call-result homes,
-  projected copies and cyclic control, and they remain CML4's named work.
 - **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
   stub names the physical-lane access-profile surface covered at `9ced81e046`
   ("backend: cover every access profile through the mixed structural rejoin"):
@@ -9014,24 +8790,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** Scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (re-verified at `4927883cf353`: filtered corpus still green — `proofs/case_call_*` fail twins reject with expected fragments, `proofs/case_call_premises` compiles), which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; scope verified, no bounded slice this wave (z175, `500878c473f4c`). The namesake surface — `typed-trees-to-checked-trees/src/execution/unit/providers.rs` — already produces the exact `CheckedProviderAttachmentRequirementPlan` roster (`checked_provider_attachment_requirements` + the composed-leaf variant), pinned across `tests/flow/terminal_unit` and rejoined to authored call sites by c2l `unit/attached_unit/provider_attachments/source.rs`. The residual the name carries is BOUNDARY-ISSUANCE's open frontier — the provider-planning/native-settlement join to the installed occurrence — and its implementing surfaces are fenced: `external-roots/src/program_local` under EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), `platform_bringup/secondary_processor` under AP-BRINGUP (~13:50Z), `execution/unit/composed_control/topology.rs` under PASS-CANARY-GUARDED-PAIR-FALLBACK (~17:33Z). Plan-side work left for this item is join design across crates, not a file-local patch. providers.rs itself is unclaimed this wave.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
-- **PSI-BORROWED-LOCAL-CALL-MUTATION.** Closed as superseded at
-  `03a942c3bb` ("close superseded psi-borrowed-local-call-mutation
-  item") — already implemented and pinned: `borrowed_scalar_call_source::
-  borrowed_primitive_local_read_observes_the_callee_write` pins a scalar
-  local borrowed `&mut`, mutated by the callee, observed post-call;
-  `nested_mut_alias_assignment_return` and the `borrows/`/`calls/`
-  pass+run canaries cover &mut locals, fields and indexed places
-  through calls; the gates (`plain_let_reassign_rejected`,
-  `borrow_immutable_parameter_mut`, mutable-receiver and overlapping-
-  alias rejections) behave on both sides. Re-verified holding at
-  `8e870505f7` (linux x86-64):
-  `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~borrowed_scalar_call)'` — 19/19 pass. The one recorded
-  residual — `is_record_value` admitting `ExpressionNode::Borrow` only
-  beneath a `Match` (`declared_range_inference_local_effects_retain_
-  pending_terminal_boundaries`) — stays with its storage owner
-  STATE-LOCAL-VALUE-FRONTIER per MATCH-SELECTIVE-LOWERING's flag note.
-  covered — closed as superseded at `03a942c3bb`, pinned by `borrowed_scalar_call_source` tests
 - **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
   fresh (per-edge constructed) selection results is already implemented and
   pinned (re-verified at `5fdd41efd879`). `checks/multiplicity/claim_outcomes.rs`
@@ -9055,64 +8813,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION.** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green. Re-verified at `ff2f489bbff` (linux x86-64): pass_canaries_compile + fail_canaries_reject under the same filters both green. Re-verified at `832c55e69b` (linux x86-64): same filtered pair still 2/2 green — no independent slice exists here. Re-verified at `836bb681a26` (linux x86-64) (z153): same filtered pair still 2/2 green — `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` rejects with the recorded fragments and `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` compiles; no independent slice exists here.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN.** — mined candidate; verify scope then implement.
   covered — roster already produced in `execution/unit/providers.rs`; residue is cross-crate join design, not a bounded slice
-- **PSI-BORROWED-LOCAL-CALL-MUTATION.** Closed as superseded at
-  `03a942c3bb` ("close superseded psi-borrowed-local-call-mutation
-  item") — already implemented and pinned: `borrowed_scalar_call_source::
-  borrowed_primitive_local_read_observes_the_callee_write` pins a scalar
-  local borrowed `&mut`, mutated by the callee, observed post-call;
-  `nested_mut_alias_assignment_return` and the `borrows/`/`calls/`
-  pass+run canaries cover &mut locals, fields and indexed places
-  through calls; the gates (`plain_let_reassign_rejected`,
-  `borrow_immutable_parameter_mut`, mutable-receiver and overlapping-
-  alias rejections) behave on both sides. Re-verified holding at
-  `8e870505f7` (linux x86-64):
-  `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~borrowed_scalar_call)'` — 19/19 pass. The one recorded
-  residual — `is_record_value` admitting `ExpressionNode::Borrow` only
-  beneath a `Match` (`declared_range_inference_local_effects_retain_
-  pending_terminal_boundaries`) — stays with its storage owner
-  STATE-LOCAL-VALUE-FRONTIER per MATCH-SELECTIVE-LOWERING's flag note.
-  Re-verified holding at `832c55e69b` (linux x86-64): same filtered run —
-  `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~borrowed_scalar_call)' --no-fail-fast` — 19/19 pass.
-  Re-verified holding at `ffa2553e4b1` (linux x86-64): same filtered run —
-  19/19 pass.
-  covered — closed as superseded at `03a942c3bb`, pinned by `borrowed_scalar_call_source` tests
-- **PSI-NATIVE-FIELD-STORES.** Mined candidate; scope verified at
-  b28abc01fe — re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
-  the recorded `structural field store: scalar field type` frontier in
-  `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store`
-  (the path admits scalar fields while native customers like
-  `filesystem/windows_canonicalize_exit` store structural `UnitResult`;
-  the transitive closure is nested structural sum construction/extraction,
-  borrowed case observation, and whole nominal receiver replacement through
-  shared state/value planning, with composed control and native execution).
-  Implementing surfaces are under live claims:
-  CORPUS-RED-FAMILY-TRAPSTORE holds `structural_scalar_store` +
-  `primitive_store.rs` (expires 21:48Z), GENERAL-CYCLIC-EXECUTION holds
-  `execution/unit/{control,state_graph,composed_control}` (19:37Z),
-  WRITE-ONLY-BORROW/integer-entry-ranges holds `values` +
-  `state_graph/mod.rs` (20:07Z), NOMINAL-FIELD-FLOW/flow-leg holds
-  `flow/{reference_places,transfers}` (20:36Z), and
-  DOMAIN-REFINEMENT-CHAINS-EXTRA holds `facts/field_domain.rs` (22:36Z).
-  Sibling re-mine names: BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.
-
-  Re-verified at `3dac85e5cc` (z146, linux x86-64): the frontier trace is
-  unchanged — `structural_scalar_store/mod.rs:1200` still emits the
-  `structural field store: scalar field type` phase (moved from :1182),
-  and the structural-store closure has not landed. The recorded fence map
-  has partially drained: `structural_scalar_store` + `primitive_store.rs`,
-  `execution/unit/{state_graph,composed_control}`, `values`, and
-  `facts/field_domain.rs` are currently unclaimed, but the closure's
-  borrowed-case-observation and store-planning legs still sit under live
-  claims — `flow/{mutation,transfers}` under NOMINAL-FIELD-FLOW (~08:38Z),
-  `control/checked_machine.rs` under CLEANUP-HOOK-SELECTION-AND-ERASED-
-  OWNERSHIP (~08:46Z), `providers.rs` + `types` under
-  PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z), and the parent
-  STATE-LOCAL-VALUE-FRONTIER draft itself is claimed (~15:45Z). No
-  bounded slice lands green while the flow/checked_machine members stay
-  fenced; the item remains closure-sized.
-  covered — re-mine of STATE-LOCAL-VALUE-FRONTIER's field-store leg; closure-sized, owner-laned
 - **QUOTIENT-RUNTIME-REALIZATION.** — mined candidate; scope verified at
   `d74f2145b9`. Re-mines the "executable quotient lowering" leg that
   QUOTIENT-THEOREM-LIFT deliberately defers: today a `Quotient::define`/`lift`
@@ -10251,41 +9951,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
-- **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.** Mined candidate; scope verified
-  at 10d93dd448, resolved — this stub owns the lowered-psi cleanup-roster
-  emission leg (per OWNED-SUCCESSOR-DISCARD-ORDER's sibling note), which is
-  landed: `scalar_graph_lowering/structural_values.rs` emits the cleanup
-  `Jump`'s `trivial_affine_discards` in reverse destination/declaration
-  order, matching the verifier's `expected_trivial_affine_discards`
-  canonical sequence (operation results reverse producer order, then
-  trivial-affine locals reverse declaration order, then affine parameters
-  reverse parameter order) enforced by `apply_edge_trivial_affine_discards`
-  as an in-order subsequence. Witnessed this host at 10d93dd448:
-  `return_disposes_only_surviving_affine_parameters_in_reverse_declaration_order`
-  PASS; the discard battery legs pass (12/13 + 4/6 filtered runs) — the 3
-  failures are the known preexisting `Service<R>`-spelling fixture drift
-  (`bare boundary trait Console`) recorded under RC-REPOSITORY-CLOSURE, not
-  ordering defects. Sibling verifier-side rows (resolved): EDGE-CLEANUP-
-  ERROR-PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER, SUCCESSOR-DISCARD-ORDER,
-  VERIFIER-EDGE-CLEANUP-PHASE-ORDER.
-  Re-verified at `74dda185a131` (z133, linux x86-64): the emission site is
-  unchanged — `structural_values.rs:681` still emits the cleanup Jump's
-  `trivial_affine_discards` via `destinations.iter().rev()` — and both pins
-  re-run green: the named
-  `return_disposes_only_surviving_affine_parameters_in_reverse_declaration_order`
-  plus `cargo nextest run -p terminal-verifier -E 'test(~discard) |
-  test(~owned_successors)' --no-fail-fast` at 16/16 (the earlier run's 3
-  `Service<R>`-spelling drift failures no longer appear in this selection).
-  Fence map at stamp time: the emitter file, `owned_parameters/tests.rs`
-  and `validation/frontier/block_parameters.rs` are all unclaimed —
-  adjacent claims only (PROOF-CERTIFICATION-BRIDGE ~10:52Z on
-  checked-trees-to-lowered-psi exits, NEW-VERIFIER-RETURN-ESTABLISHMENT-
-  AUTHORITY ~18:04Z on terminal-psi/structural_result surfaces,
-  REGISTERED-CALLBACK-LIFETIME ~14:37Z on verifier provider_result,
-  RC-REPOSITORY-CLOSURE ~12:15Z and NEW-C2L-SUITE-ERASED-PROOF-FORMALS-
-  COMPILE-FIX ~13:53Z on unrelated c2l test files). No open slice.
-  covered — lowered-psi cleanup-roster emission landed; verified at 10d93dd448, no open slice
-- **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT.** Scope verified at
   `b8d336adcf2` — re-mines the supervised-startup obligation in
   `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
@@ -10376,33 +10041,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   package-compilation --all-targets` clean; `nextest -p target` 55/55,
   `-p build-evaluation` 90/90.
 - **TASK-RUNTIME-NATIVE-SUPPORT.** — mined candidate; verify scope then implement.
-- **TERMINAL-SOURCE-CUSTODY-GATE-ORDER.** — mined candidate; resolved and
-  re-verified — re-instantiated name of the row board sweep B retired at
-  `41a7bde098`. The landed custody-ordering surface it named is unchanged:
-  every successor-bearing edge still closes in the canonical order
-  documented in `terminal-verifier` `validation/frontier/terminators.rs`'s
-  module header — owned successor sources consumed first (phase one of
-  `block_parameters.rs`), then that edge's residual and trivial discard
-  rosters, then the target's parameters (phase two) — and return-style
-  terminators keep their `close_*` order (cleanup rosters, no partial
-  custody or pending restoration debt, reference release, terminal
-  self-receiver). `40ff9ad791` pinned the diagnostic order and
-  `d96a0fda39` repinned
-  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
-  on `EdgeAffineDiscardsInvalid`; STALE-CUSTODY-GATE-EXPECTATIONS already
-  verified the repinning touched no custody-gate fixture. Re-verified at
-  `a84ebca9720c` (linux x86-64): `cargo nextest run -p terminal-verifier
-  structural_scalar_fields` 62/62 green including the pinning test. No
-  independent slice exists here. Sibling stubs on the same landed order:
-  TERMINAL-SOURCE-CUSTODY-ORDER, EDGE-CLEANUP-ERROR-PRECEDENCE,
-  SUCCESSOR-DISCARD-ORDER, FRONTIER-EDGE-ERROR-ORDERING,
-  OWNED-SUCCESSOR-DISCARD-ORDER. Re-verified at `7241e02227` on linux
-  x86-64 (z146): `terminators.rs` module-header order unchanged (last
-  move c69dfc79f20 — provider boundary claim mints, not ordering), and
-  `cargo nextest run -p terminal-verifier structural_scalar_fields` is
-  again 62/62 green including
-  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`.
-  covered — re-instantiated name of a row retired at 41a7bde098; ordering surface unchanged and green
 - **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
   names the three `rank_ranges` field-endpoint failures recorded in
   `wiki/drafts/known_baseline_failures.md` at `660f5af762`
