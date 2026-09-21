@@ -68,6 +68,9 @@ fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 }
 
 mod machine_bounds {
+    use super::super::outcome_bounds::{
+        boundary_call_candidates, dynamic_call_targets, maximum_machine_outcomes,
+    };
     use super::super::segment_partition::{PreparedFuelModule, PreparedSegments};
     use super::super::{
         derive_fixed_safe_point_segments, derive_fixed_segment_fuel, derive_maximum_entry_bound,
@@ -76,13 +79,13 @@ mod machine_bounds {
     };
     use super::{
         BlockId, EdgeId, FixedFuelError, FuelScheduleIdentity, OperationKind, Proposition,
-        TerminalMachine, TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator,
-        identity,
+        TerminalFuelSchedule, TerminalMachine, TerminalModule, TerminalNaturalCycle,
+        TerminalRankedScc, Terminator, identity,
     };
     use semantic_vocabulary::{
         ContractId, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
     };
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
     use terminal_psi::{
         Block, MachineContract, Operation, OperationResult, ProviderCandidateConformance,
         ProviderRefinement, ProviderSignature, TerminalBlockNaturalRank,
@@ -1607,6 +1610,164 @@ mod machine_bounds {
         semantic
     }
 
+    /// A `Natural` component whose only exit rides a member no traversal can
+    /// complete: header 2 always re-enters work member 3, and 3's call to
+    /// crash-only machine 5 ends every walk before the exit edge to return
+    /// block 4 can commit. Every admitted walk crashes, so the machine has
+    /// no commit-reachable return even though the crash-inclusive ceiling
+    /// still certifies the whole entry.
+    fn never_returning_cyclic_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        let mut crash_call = call_unit(31, 5);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &mut crash_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // Work member 3 carries both the strict backedge and the exit on
+        // its own conditional — its crash-only call means no traversal
+        // completes it, so neither edge can ever commit. The backedge
+        // passes `next` to header 2's rank parameter exactly like the
+        // returning cycle's does.
+        let exit_conditional = {
+            let successor =
+                |edge: u64, target: u64, arguments: Vec<ValueId>| terminal_psi::SuccessorEdge {
+                    edge: id::<EdgeId>(edge),
+                    target: id::<BlockId>(target),
+                    arguments,
+                    erased_arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                };
+            Terminator::Conditional {
+                condition: id(9_001),
+                when_true: successor(4, 2, vec![id(300)]),
+                when_false: successor(7, 4, vec![]),
+            }
+        };
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 6, 3),
+                },
+                block(
+                    3,
+                    vec![
+                        rank_constant(30, 300),
+                        boolean_constant(32, 9_001, true),
+                        crash_call,
+                    ],
+                    exit_conditional,
+                ),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(6),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        semantic.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        semantic
+    }
+
+    /// Machine-level outcome bounds through the same module preparation the
+    /// certificate derivations use, so tests can pin `returned` and
+    /// `crashed` separately rather than only the merged entry ceiling.
+    fn machine_outcomes(
+        module: &TerminalModule,
+        machine: u64,
+    ) -> super::super::outcome_bounds::OutcomeBounds {
+        let machines = module
+            .machines
+            .iter()
+            .map(|machine| (machine.id, machine))
+            .collect::<BTreeMap<_, _>>();
+        maximum_machine_outcomes(
+            id(machine),
+            &machines,
+            &dynamic_call_targets(module),
+            &boundary_call_candidates(module),
+            TerminalFuelSchedule::CURRENT,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .expect("machine outcomes derive")
+    }
+
     /// When no member terminator carries the endpoint, a committing walk
     /// leaves the component through an exit edge — so the interior bound
     /// covers only the members a committing walk can still traverse, at the
@@ -1657,6 +1818,225 @@ mod machine_bounds {
                 .ceiling_units,
             1 + 2 * 256 + 1,
             "entry edge plus the tightened interior"
+        );
+    }
+
+    /// A member whose traversal cannot complete commits none of its
+    /// terminator edges: member 3's call can only crash, so its strict
+    /// backedge 4 is unreachable as an endpoint and a segment naming it
+    /// reports the call that ends every traversal — the same dead end the
+    /// acyclic walk reports — rather than a fabricated interior bound.
+    /// Uses the internal surface because the verifier requires discharged
+    /// rank obligations that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_uncompletable_member_cannot_commit_its_edge() {
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![cyclic_crash_member_machine(), callee]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared.segment_certificate(id(2), id(4), &mut BTreeMap::new()),
+            Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+                block: id(3),
+                callee: id(5),
+            }),
+            "member 3's backedge cannot commit through a crash-only call"
+        );
+        assert_eq!(
+            prepared.segment_certificate(id(1), id(4), &mut BTreeMap::new()),
+            Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+                block: id(3),
+                callee: id(5),
+            }),
+            "the same rejection holds when the walk enters through the entry"
+        );
+    }
+
+    /// The whole-entry ceiling keeps every admitted walk — crash-terminal
+    /// ones included — while the machine's normal-return outcome charges
+    /// only walks that can still commit: member 3's crash-only call drops
+    /// out of `returned` exactly the way it drops out of a committing
+    /// segment, and a caller composing `.returned` inherits the tighter
+    /// figure rather than the crash-inclusive maximum. Uses the internal
+    /// surface because the verifier requires discharged rank obligations
+    /// that a hand-built module cannot carry.
+    #[test]
+    fn natural_cycle_returned_bound_drops_members_that_can_only_crash() {
+        // callee 5 always crashes (returned: None, crashed: Some(1)); the
+        // contract publishes the Trap route coverage semantic identity
+        // validation requires.
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // caller 7 is a single call to machine 1 followed by a return edge.
+        let caller = machine(
+            7,
+            7,
+            vec![block(7, vec![call_unit(70, 1)], return_unit(7))],
+            None,
+        );
+        let module = module(1, vec![cyclic_crash_member_machine(), callee, caller]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.returned,
+            Some(1 + 2 * 256 + 1),
+            "entry edge, re-enterable member 2 at the u8 rank scale, exit \
+             block — member 3's visit can never return so it charges nothing"
+        );
+        assert_eq!(
+            bounds.crashed,
+            Some(1 + 6 * 256 + 1),
+            "the whole-entry ceiling still counts crash-terminal walks \
+             through member 3"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 6 * 256 + 1),
+            "the certificate bound is unchanged: it covers both outcomes"
+        );
+
+        let caller_bounds = machine_outcomes(&module, 7);
+        assert_eq!(
+            caller_bounds.returned,
+            Some(1 + (1 + 2 * 256 + 1) + 1),
+            "a returning caller composes only the callee's returned bound"
+        );
+        assert_eq!(
+            caller_bounds.crashed,
+            Some(1 + (1 + 6 * 256 + 1)),
+            "the crash walk commits the call then the callee's crash"
+        );
+    }
+
+    /// When a component's only exit rides a member whose visit can never
+    /// complete, no admitted walk returns: the machine's `returned` outcome
+    /// is `None`, the crash-inclusive ceiling still certifies every
+    /// (crash-terminal) execution, and a caller sees the callee honestly —
+    /// its own terminator is unreachable, so it derives no safe-point row
+    /// and reports no returned walk of its own.
+    #[test]
+    fn natural_cycle_without_returning_exit_reports_no_normal_walk() {
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        // caller 6 calls the never-returning machine then returns; the call
+        // passes the callee's rank parameter, republishes the Trap route it
+        // propagates, and the caller contract covers it — the same coverage
+        // rule the cyclic machine's call obeys.
+        let mut caller_call = call_unit(60, 1);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            arguments,
+            ..
+        } = &mut caller_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *arguments = vec![id(9_100)];
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let mut caller = machine(
+            6,
+            6,
+            vec![block(
+                6,
+                vec![integer_constant(61, 9_100, 1), caller_call],
+                return_unit(8),
+            )],
+            None,
+        );
+        caller.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![never_returning_cyclic_machine(), callee, caller]);
+
+        let bounds = machine_outcomes(&module, 1);
+        assert_eq!(
+            bounds.returned, None,
+            "every traversal reaches member 3's crash-only call"
+        );
+        assert_eq!(
+            bounds.crashed,
+            Some(1 + 7 * 256 + 1),
+            "the ceiling still certifies the crash-terminal walks"
+        );
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 7 * 256 + 1),
+            "the entry certificate is unaffected by the empty return lane"
+        );
+
+        let caller_bounds = machine_outcomes(&module, 6);
+        assert_eq!(
+            caller_bounds.returned, None,
+            "the caller inherits the callee's honest no-return verdict"
+        );
+        assert_eq!(caller_bounds.crashed, Some(2 + (1 + 7 * 256 + 1)));
+
+        // The unreachable return edge names the call that ends every walk
+        // rather than fabricating an interior bound through member 3's exit.
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared.segment_certificate(id(1), id(5), &mut BTreeMap::new()),
+            Err(FixedFuelError::SegmentEndUnreachableAfterCall {
+                block: id(3),
+                callee: id(5),
+            }),
+            "the exit edge rides a member no traversal can complete"
+        );
+
+        let caller_prepared =
+            PreparedSegments::new(&subject, id(6)).expect("caller machine prepares");
+        assert!(
+            caller_prepared
+                .derive_catalog()
+                .expect("catalog derives")
+                .is_empty(),
+            "a block whose call can never return has no reachable terminator \
+             and publishes no safe-point segment"
         );
     }
 }
