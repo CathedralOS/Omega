@@ -9020,7 +9020,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   07:21Z). Note: a fresh worktree's target compile stops at the
   package-review gate — the recorded scratch-copy ceremony applies; that
   is checkout state, not subject state.
-- **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
+- **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; drained — the
+  same-name row below carries the landed slice (record-schema
+  `applicability` block, `SubjectNotApplicable` settlement route, both
+  committed non-applicable rows, extended validator/matrix coverage).
 - **BENCHMARK-ROW-RESUMPTION.** Mined candidate; scope verified at
   `39317a770b1f` — re-mines the resumption surface inside benchmark row
   production, both halves of which are already landed contract: (a) the
@@ -9083,7 +9086,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   coverage. `python3 tools/tests/test_benchmark.py` 29/29 (from 21), with the
   eight new cases sentinelled: disabling the applicability validation fails
   three by name, and letting a non-applicable record retire the leg fails two
-  more.
+  more. Re-verified at `12ea4941ebd` (z133, linux x86-64): acceptance holds —
+  `wrapping_square_sum__uefi_x86_64__default.json` is committed with
+  `applicability.status == "non_applicable"` and the settlement reason, the
+  `uefi_x86_64`/`macos_x86_64` rows render on their own matrix lines
+  (`benchmarks.md` :63/:60), and `python3 tools/tests/test_benchmark.py`
+  reports 29/29. The same-name mined stub above is drained by this row.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS.** Mined candidate — covered.
   Sibling re-mine of the selection-row coverage recorded on the
   BENCHMARK-SELECTION-ROW-COVERAGE cluster (this section): contrast
