@@ -4773,6 +4773,34 @@ moved to the termination-catalog fence (see that row's refresh note).
   Trait conformance selection, target-default or overridden float provider
   execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
   evaluation keep their separate supply routes.
+
+  Re-verified at `53817f8759e` (linux x86-64): two bullets landed on
+  main — indexing/body-supply rides the attached-receiver loan
+  (`7ec7ee32e8` + `b845a7afd7`; the recorded
+  `indexed_operand_access_preserves_shared_collection_and_owned_index`
+  failure is marked resolved in `known_baseline_failures.md`, and the
+  match-arm-equality/open-ended/build-machine rejections are the
+  contract's intended closed behavior, not a gap), and closed-family
+  cross-package ownership rejects at declaration (`7c01b4c12a`,
+  `symbol_package_identity` in `token_bindings.rs`). Every residual leg
+  is fenced or upstream-gated: call preconditions route through
+  `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
+  (PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION ~16:19Z) and
+  `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs`
+  (RC-REPOSITORY ~14:39Z); licensed normalization's four
+  `IndexAlgebra::plus` fixtures sit under `tests/omega/pass/generics`
+  (NEW-RBRA-PASS-RECAST-GENERICS ~15:22Z) — the
+  `open_index_expressions.rs` rewrite cannot land without them without
+  breaking the fixtures it replaces; native execution waits on
+  STATE-LOCAL-VALUE-FRONTIER (~15:45Z) and MATCH-SELECTIVE-LOWERING;
+  introducer retirement's 171 `boundary operator` rows wait on
+  TOP-LEVEL-BOUNDARY-REQUIREMENTS, the `Nat` pair on the
+  call-preconditions bullet, `IndexAlgebra` on the normalization bullet,
+  and the corpus leg is partially fenced
+  (`tokens-to-syntax-trees/src/declarations/data.rs` under
+  NEW-RVG-DATA-VALUE-BINDER-PARSE ~16:59Z; `tests/omega/fail/termination`
+  under NEW-RBRA-FAIL-TERMINATION ~16:42Z). No unfenced independent
+  slice; no code change.
 - **NEW-ENTRY-RECEIVER-ELIGIBILITY-REJECTION-WITNESS.** Resolved —
   minted name for a rejection-witness pin over `terminal-production`'s
   `receiver_eligibility::derive`; the surface already carries it.
