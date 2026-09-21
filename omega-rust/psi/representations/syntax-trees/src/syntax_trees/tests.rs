@@ -702,6 +702,8 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
         parents: HandleSpan::empty(),
         requires: HandleSpan::empty(),
         machines: HandleSpan::empty(),
+        refines: None,
+        refinement_clauses: Vec::new(),
     }));
     file.push_root_item(Item::Data(DataDefinition {
         name: Identifier::generated("PublicData"),

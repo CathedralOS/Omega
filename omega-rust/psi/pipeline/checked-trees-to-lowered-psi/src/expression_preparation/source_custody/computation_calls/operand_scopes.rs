@@ -68,6 +68,24 @@ pub(super) fn anonymous_match_value(
     })
 }
 
+/// A pure scalar builtin (`min`/`max`, `sqrt`, the float rounding and
+/// classification family) reads its operands and produces a value without a
+/// machine, so its authored operand positions are the call's argument
+/// expressions.
+pub(super) fn pure_scalar_builtin_arguments(
+    checked: &CheckedTrees,
+    source: ExpressionHandle,
+) -> Option<arena::HandleSpan<ExpressionHandle>> {
+    let ExpressionNode::Call(call) = checked.expression_table.expression(source) else {
+        return None;
+    };
+    checked
+        .symbols
+        .builtin_function_for_symbol(call.target_symbol)
+        .is_some_and(symbols::BuiltinFunction::has_empty_write_frame)
+        .then_some(call.arguments)
+}
+
 pub(super) fn folded_match_scope(
     checked: &CheckedTrees,
     mut source: ExpressionHandle,
@@ -140,6 +158,15 @@ pub(super) fn application(
             ExpressionNode::Cast(cast) if arity == 1 => return Ok(vec![cast.value]),
             // A same-carrier cast changes policy without adding an operation.
             ExpressionNode::Cast(cast) => source = cast.value,
+            ExpressionNode::Call(_)
+                if let Some(span) = pure_scalar_builtin_arguments(checked, source) =>
+            {
+                let arguments = checked.expression_table.expression_handles(span);
+                if arguments.len() != arity {
+                    return unsupported("computed application lost its authored operand positions");
+                }
+                return Ok(arguments.to_vec());
+            }
             _ => return unsupported("computed application lost its authored operand positions"),
         }
     }

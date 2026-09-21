@@ -1,0 +1,12 @@
+// FAIL canary: a place inside absent borrowed storage has no value to read.
+// Moving `self.inventory` out opens a restoration window; reading
+// `self.inventory.slots` while the hole is open rejects before the restore.
+data Inventory { slots: i32; }
+data Main { inventory: Inventory; }
+
+machine Main::peek(&mut self) -> i32 {
+    let taken: Inventory = self.inventory;
+    let seen: i32 = self.inventory.slots;
+    self.inventory = move taken;
+    seen
+}

@@ -18,5 +18,6 @@ abstract-operations = { path = "../abstract-operations" }
 legalized-operations = { path = "../legalized-operations" }
 target-operations = { path = "../target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"

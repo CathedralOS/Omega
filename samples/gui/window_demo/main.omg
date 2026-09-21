@@ -13,16 +13,19 @@
 // terminal runs (invisible from Finder). No stdin — a windowed app must never
 // block on a console.
 use omega_language_std::console;
+use omega_language_std::macos_gui;
 use omega::language::core::service;
-pub boundary trait Clock { machine sleep(milliseconds: u32); }
+pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
-    machine get_dc(window: u64) -> u64;
-    machine msg_peek(message: [u64; 6]) -> u32;
-    machine msg_translate(message: [u64; 6]) -> u32;
-    machine msg_dispatch(message: [u64; 6]) -> u64;
-    machine is_window(window: u64) -> u32;
-    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32;
+    machine window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+        invokes ObjectiveC; invokes CoreGraphics;
+    machine get_dc(&mut self, window: u64) -> u64;
+    machine msg_peek(&mut self, message: [u64; 6]) -> u32 invokes ObjectiveC;
+    machine msg_translate(&mut self, message: [u64; 6]) -> u32;
+    machine msg_dispatch(&mut self, message: [u64; 6]) -> u64 invokes ObjectiveC;
+    machine is_window(&mut self, window: u64) -> u32 invokes ObjectiveC;
+    machine blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+        invokes ObjectiveC; invokes CoreGraphics;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
 // ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:
@@ -30,6 +33,246 @@ pub boundary trait Gui {
 // the pixel wash folds through `% 256` (modulo bounds by the divisor, so the
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
+// The selected macOS provider closure: each provider owns the GUI scratch
+// state directly (an adapter over a nested `inner` impl receiver mis-settles
+// the retained write frame) and satisfies its sample boundary nominally —
+// matching method names cannot establish satisfaction.
+data DemoGuiProvider {
+    // The current window + its image-view content (single-window apps).
+    window: u64;
+    view: u64;
+    app: u64;
+    // A device-RGB colorspace, created once at window_create and reused per blit.
+    space: u64;
+    // Staged blit dimensions (a host-call arg must be a storage place / literal,
+    // not a live conversion expression, so the i64/f64 results land in fields).
+    fbw: i64;
+    fbh: i64;
+    stride: i64;
+    fbwf: f64;
+    fbhf: f64;
+    // Pump scratch, built ONCE at window_create (msg_peek used to rebuild the
+    // date/mode/selector EVERY call, leaking an NSString per peek): the
+    // distantPast date, the run-loop-mode NSString, the nextEvent selector,
+    // the event mask, and the last dequeued NSEvent.
+    date: u64;
+    mode: u64;
+    psel: u64;
+    mask: u64;
+    evt: u64;
+    // Cached per-frame selectors (registered once at window_create): release,
+    // sendEvent:, isVisible, keyWindow.
+    relsel: u64;
+    dsel: u64;
+    vsel: u64;
+    ksel: u64;
+    // The rolling autorelease pool: opened at window_create, cycled by every
+    // msg_peek (pop drains the previous peek's autoreleased NSEvent after its
+    // dispatch; push opens the scope for the next one).
+    pool: u64;
+    // Scratch for the objc call sequences.
+    cls: u64;
+    sel: u64;
+    tmp: u64;
+    ctx: u64;
+    cgimg: u64;
+    nsimg: u64;
+    rx: f64;
+    ry: f64;
+    rw: f64;
+    rh: f64;
+    rc: u64;
+    r32: u32;}
+macos_arm64 machine DemoGuiProvider::provider_defaults(defaults: &mut DemoGuiProvider) {
+    defaults.select_provider<Gui, DemoGuiProvider>();
+}
+macos_arm64 machine DemoGuiProvider::window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
+reaches CoreGraphics + ObjectiveC
+{
+    self.rx = F64::from_i32(x);
+    self.ry = F64::from_i32(y);
+    self.rw = F64::from_i32(width);
+    self.rh = F64::from_i32(height);
+    self.rw = self.rw - 16.0;
+    self.rh = self.rh - 39.0;
+    let cbuf1: [u8; 14] = "NSApplication\0";
+    self.cls = objc_get_class(&cbuf1[0]);
+    let cbuf2: [u8; 18] = "sharedApplication\0";
+    self.sel = objc_register_selector(&cbuf2[0]);
+    self.app = objc_send(self.cls, self.sel);
+    let cbuf3: [u8; 21] = "setActivationPolicy:\0";
+    self.sel = objc_register_selector(&cbuf3[0]);
+    self.rc = objc_send_scalar(self.app, self.sel, 0);
+    let cbuf4: [u8; 9] = "NSWindow\0";
+    self.cls = objc_get_class(&cbuf4[0]);
+    let cbuf5: [u8; 6] = "alloc\0";
+    self.sel = objc_register_selector(&cbuf5[0]);
+    self.tmp = objc_send(self.cls, self.sel);
+    let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
+    self.sel = objc_register_selector(&cbuf6[0]);
+    self.window = objc_send_rect(self.tmp, self.sel, self.rx, self.ry, self.rw, self.rh, 15, 2, 0);
+    let cbuf7: [u8; 12] = "NSImageView\0";
+    self.cls = objc_get_class(&cbuf7[0]);
+    let cbuf8: [u8; 6] = "alloc\0";
+    self.sel = objc_register_selector(&cbuf8[0]);
+    self.tmp = objc_send(self.cls, self.sel);
+    let cbuf9: [u8; 15] = "initWithFrame:\0";
+    self.sel = objc_register_selector(&cbuf9[0]);
+    self.view = objc_send_rect(self.tmp, self.sel, self.rx, self.ry, self.rw, self.rh, 0, 0, 0);
+    let cbuf10: [u8; 17] = "setImageScaling:\0";
+    self.sel = objc_register_selector(&cbuf10[0]);
+    self.rc = objc_send_scalar(self.view, self.sel, 1);
+    let cbuf11: [u8; 16] = "setContentView:\0";
+    self.sel = objc_register_selector(&cbuf11[0]);
+    self.rc = objc_send_scalar(self.window, self.sel, self.view);
+    let cbuf12: [u8; 8] = "release\0";
+    self.relsel = objc_register_selector(&cbuf12[0]);
+    let cbuf13: [u8; 9] = "NSString\0";
+    self.cls = objc_get_class(&cbuf13[0]);
+    let cbuf14: [u8; 6] = "alloc\0";
+    self.sel = objc_register_selector(&cbuf14[0]);
+    self.tmp = objc_send(self.cls, self.sel);
+    let cbuf15: [u8; 20] = "initWithUTF8String:\0";
+    self.sel = objc_register_selector(&cbuf15[0]);
+    self.tmp = objc_send_byte_string(self.tmp, self.sel, &title[0]);
+    let cbuf16: [u8; 10] = "setTitle:\0";
+    self.sel = objc_register_selector(&cbuf16[0]);
+    self.rc = objc_send_scalar(self.window, self.sel, self.tmp);
+    self.rc = objc_send(self.tmp, self.relsel);
+    let cbuf17: [u8; 7] = "center\0";
+    self.sel = objc_register_selector(&cbuf17[0]);
+    self.rc = objc_send(self.window, self.sel);
+    let cbuf18: [u8; 22] = "makeKeyAndOrderFront:\0";
+    self.sel = objc_register_selector(&cbuf18[0]);
+    self.rc = objc_send_scalar(self.window, self.sel, 0);
+    let cbuf19: [u8; 27] = "activateIgnoringOtherApps:\0";
+    self.sel = objc_register_selector(&cbuf19[0]);
+    self.rc = objc_send_scalar(self.app, self.sel, 1);
+    self.space = cg_color_space_rgb();
+    // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
+    // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
+    let cbuf20: [u8; 7] = "NSDate\0";
+    self.cls = objc_get_class(&cbuf20[0]);
+    let cbuf21: [u8; 12] = "distantPast\0";
+    self.sel = objc_register_selector(&cbuf21[0]);
+    self.date = objc_send(self.cls, self.sel);
+    let cbuf22: [u8; 9] = "NSString\0";
+    self.cls = objc_get_class(&cbuf22[0]);
+    let cbuf23: [u8; 6] = "alloc\0";
+    self.sel = objc_register_selector(&cbuf23[0]);
+    self.tmp = objc_send(self.cls, self.sel);
+    let cbuf24: [u8; 20] = "initWithUTF8String:\0";
+    self.sel = objc_register_selector(&cbuf24[0]);
+    let cbuf25: [u8; 22] = "kCFRunLoopDefaultMode\0";
+    self.mode = objc_send_string(self.tmp, self.sel, &cbuf25[0]);
+    let cbuf26: [u8; 48] = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
+    self.psel = objc_register_selector(&cbuf26[0]);
+    self.mask = 4294967295;
+    let cbuf27: [u8; 11] = "sendEvent:\0";
+    self.dsel = objc_register_selector(&cbuf27[0]);
+    let cbuf28: [u8; 10] = "isVisible\0";
+    self.vsel = objc_register_selector(&cbuf28[0]);
+    let cbuf29: [u8; 10] = "keyWindow\0";
+    self.ksel = objc_register_selector(&cbuf29[0]);
+    // Open the rolling autorelease pool msg_peek cycles (never popped at exit
+    // on purpose: a later peek after a final pop would pop a dead token, and
+    // process exit reclaims everything anyway).
+    self.pool = objc_pool_push();
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.window }
+}
+macos_arm64 machine DemoGuiProvider::get_dc(&mut self, window: u64) -> u64  satisfies Gui::get_dc
+{
+    transition { _ -> ret(window) }
+    state ret(&mut self, window: u64) -> u64 { window }
+}
+macos_arm64 machine DemoGuiProvider::msg_peek(&mut self, message: [u64; 6]) -> u32 satisfies Gui::msg_peek
+reaches ObjectiveC
+{
+    // Cycle the rolling autorelease pool opened at window_create: the pop
+    // drains the PREVIOUS peek's autoreleased NSEvent (already dispatched by
+    // then), the push opens the scope this peek's event lands in. The date,
+    // mode string, selector, and mask are window_create-cached — this machine
+    // used to rebuild all four (and leak the NSString) on every single peek.
+    self.rc = objc_pool_pop(self.pool);
+    self.pool = objc_pool_push();
+    self.evt = objc_send_scalar4(self.app, self.psel, self.mask, self.date, self.mode, 1);
+    // Arm states must stay side-effect-free (the value-call effect fence):
+    // both arms complete with a pure terminal value instead of mutating r32.
+    transition self.evt != 0 { true -> got() _ -> ret() }
+    state got(&mut self) -> u32 { 1 }
+    state ret(&mut self) -> u32 { 0 }
+}
+macos_arm64 machine DemoGuiProvider::msg_translate(&mut self, message: [u64; 6]) -> u32  satisfies Gui::msg_translate
+{
+    self.r32 = 1;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
+}
+macos_arm64 machine DemoGuiProvider::msg_dispatch(&mut self, message: [u64; 6]) -> u64 satisfies Gui::msg_dispatch
+reaches ObjectiveC
+{
+    self.rc = objc_send_scalar(self.app, self.dsel, self.evt);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.rc }
+}
+macos_arm64 machine DemoGuiProvider::is_window(&mut self, window: u64) -> u32 satisfies Gui::is_window
+reaches ObjectiveC
+{
+    self.rc = objc_send(window, self.vsel);
+    self.r32 = narrow_u64_to_u32_wrapping(self.rc);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
+}
+macos_arm64 machine DemoGuiProvider::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 satisfies Gui::blit
+reaches CoreGraphics + ObjectiveC
+{
+    let source_width_wide: i64 = source_width as i64;
+    let source_height_wide: i64 = source_height as i64;
+    self.fbw = source_width_wide;
+    self.fbh = source_height_wide;
+    self.stride = source_width_wide << 2;
+    self.fbwf = F64::from_u32(source_width);
+    self.fbhf = F64::from_u32(source_height);
+    self.ctx = cg_bitmap_context(&pixels[0], self.fbw, self.fbh, 8, self.stride, self.space, 8198);
+    self.cgimg = cg_bitmap_context_image(self.ctx);
+    let cbuf30: [u8; 8] = "NSImage\0";
+    self.cls = objc_get_class(&cbuf30[0]);
+    let cbuf31: [u8; 6] = "alloc\0";
+    self.sel = objc_register_selector(&cbuf31[0]);
+    self.tmp = objc_send(self.cls, self.sel);
+    let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
+    self.sel = objc_register_selector(&cbuf32[0]);
+    self.nsimg = objc_send_image_size(self.tmp, self.sel, self.cgimg, self.fbwf, self.fbhf);
+    let cbuf33: [u8; 10] = "setImage:\0";
+    self.sel = objc_register_selector(&cbuf33[0]);
+    self.rc = objc_send_scalar(self.view, self.sel, self.nsimg);
+    // Per-frame lifecycle: the context and CGImage are Create-rule owned, and
+    // setImage: retains the NSImage, so drop our +1 on all three — without
+    // these releases every presented frame leaked ~3 objects at ~60fps.
+    self.rc = cg_context_release(self.ctx);
+    self.rc = cg_image_release(self.cgimg);
+    self.rc = objc_send(self.nsimg, self.relsel);
+    // The samples assert `blit == source_height` (every source scanline copied).
+    self.r32 = source_height;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
+}
+
+data DemoClockProvider {
+    rc: i32;
+    ns: u64;
+    scaled: u64;
+    timeout: i32;}
+macos_arm64 machine DemoClockProvider::provider_defaults(defaults: &mut DemoClockProvider) {
+    defaults.select_provider<Clock, DemoClockProvider>();
+}
+macos_arm64 machine DemoClockProvider::sleep(&mut self, milliseconds: u32) satisfies Clock::sleep
+{
+    self.timeout = narrow_u32_to_i32_wrapping(milliseconds);
+    self.rc = darwin_poll(0, 0, self.timeout);
+}
+
 data Main {
     console: Service<Console>;
     clock: Service<Clock>;
@@ -52,7 +295,7 @@ data Main {
     c: i32;
     px: i32;
 }
-machine Main::main(&mut self) reaches Clock + Console + Gui {
+machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClock + Gui + ObjectiveC {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     self.cls[0] = 35;
@@ -103,9 +346,13 @@ machine Main::main(&mut self) reaches Clock + Console + Gui {
     state fill_cell(&mut self) {
         // row + col + phase, folded through % 256: i/64 <= 64, i%64 <= 63,
         // frame*4 <= 240 -- every step provably bounded, no domain needed.
-        self.c = ((self.i / 64) + (self.i % 64) + self.frame * 4) % 256;
+        self.c = (self.i / 64) + (self.i % 64);
+        self.c = self.c + self.frame * 4;
+        self.c = self.c % 256;
         // red ramps up the diagonal while blue ramps down: a scrolling wash.
-        self.px = (self.c * 65536) + ((255 - self.c) * 256) + 64;
+        self.px = self.c * 65536;
+        self.px = self.px + (255 - self.c) * 256;
+        self.px = self.px + 64;
         transition self.i >= 0 && self.i < 4096 { true -> fill_put() _ -> bad() }
     }
     state fill_put(&mut self) {

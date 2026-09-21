@@ -126,6 +126,13 @@ creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
 
+[Test-group registration](../build/testing.md) names one exact requirement and
+collects its checked package-local satisfiers as independent test roots. This
+does not select a whole conformance, require implementations of sibling members,
+or add ambient implementation search to ordinary calls. Several group contracts
+may live in one trait; inherited member paths retain the original requirement
+identity rather than becoming new groups by spelling.
+
 An ordinary direct token-bearing machine owns its body and is not a requirement
 merely because it has an operator token. A satisfaction edge cannot provide its
 missing executable body or replace its declared implementation. See

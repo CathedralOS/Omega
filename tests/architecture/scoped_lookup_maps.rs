@@ -199,6 +199,10 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "provider-plan catalog names bound to provider plans",
     ),
     (
+        "omega-rust/omega/build/provider-planning/src/provider_planning/installation_reach.rs",
+        "requirement identities bound to the plan report identities publishing them",
+    ),
+    (
         "omega-rust/omega/backend/artifacts/component-description/src/component_description.rs",
         "component section names bound to sealed digests",
     ),

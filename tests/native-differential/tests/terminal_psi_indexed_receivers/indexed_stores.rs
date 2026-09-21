@@ -336,6 +336,88 @@ fn live_element_subloan_admits_parent_receiver_calls() {
     }
 }
 
+/// A runtime scalar index with a declared range produces
+/// `WriteOnlyIndexedPrimitiveStore` — the path terminates at the array, the
+/// index stays a `u64` operand, and the bounds obligation is retained. Omega
+/// admission carries it into the verified abstract inventory. This pin is
+/// self-flipping at the `PLACED-ACCESS-NATIVE-OPS` boundary: while target
+/// lowering still refuses the operation it pins the named
+/// `UnsupportedWriteOnlyPrimitiveStore` rejection, and once the native leg
+/// lands the same fixture executes on the host and observes the caller
+/// element mutate while its neighbors stay untouched.
+#[test]
+fn declared_range_runtime_index_store_reaches_verified_abstract_inventory() {
+    for access in ["write", "mut"] {
+        let source = format!(
+            "machine forward(values: &{access} [u16; 4], index: u64 [0..=3]) {{
+                values[index] = 17;
+            }}"
+        );
+        let artifact = artifact(&source);
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let (path, obligation) = module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.blocks.iter())
+            .flat_map(|block| block.operations.iter())
+            .find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore {
+                    path,
+                    obligation,
+                    ..
+                } => Some((path, *obligation)),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{access}: Terminal Psi keeps the indexed store"));
+        assert!(
+            path.is_empty(),
+            "{access}: the runtime selector is an operand; the path terminates at the array"
+        );
+        let _ = obligation;
+        // Omega admission + optimization inventory accept the operation.
+        let _optimized = super::optimize(&artifact);
+        match native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+            super::optimize(&artifact),
+            NativeTarget::host(),
+            &[],
+        ) {
+            // Target lowering stays fail-closed until the native leg lands.
+            Err(error) => {
+                let rendered = format!("{error:?}");
+                assert!(
+                    rendered.contains("UnsupportedWriteOnlyPrimitiveStore"),
+                    "{access}: target-lowering boundary: {rendered}"
+                );
+            }
+            // The pin flipped: the realized host function writes through the
+            // caller-selected element and leaves its neighbors untouched.
+            Ok(_) => {
+                let (bytes, entry) =
+                    primitive_stores::published_text(&source, NativeTarget::host());
+                native_function::assert_c_text(
+                    &bytes,
+                    entry,
+                    r#"
+                    #include <stdint.h>
+                    #include <string.h>
+                    extern void omega_entry(uint64_t index, uint16_t *values);
+                    int main(void) {
+                        struct { uint64_t before; uint16_t values[4]; uint64_t after; } frame;
+                        memset(&frame, 0xa5, sizeof frame);
+                        frame.values[2] = 17;
+                        unsigned char expected[sizeof frame];
+                        memcpy(expected, &frame, sizeof frame);
+                        frame.values[2] = 0;
+                        omega_entry(2, frame.values);
+                        return memcmp(expected, &frame, sizeof frame) != 0;
+                    }
+                "#,
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn indexed_store_contracts_reject_access_and_index_substitution() {
     for (source, indexed_field_store) in [

@@ -7,13 +7,15 @@
 //! Emission borrows those records in the single shared namespace:
 //! `ordinary_machine` emits each ordinary body and `composed_control::callable`
 //! each composed one.
+use std::collections::BTreeMap;
+
 use super::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, ClaimTransfer, CompletionReceipt, LoweredPsi, LoweringError,
-    MachineContract, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    MachineContract, MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
+    ProofBundle, ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ScalarQualificationCatalog, ScalarType,
     SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -701,6 +703,7 @@ fn assemble_unit_closure(
                 composed_control::callable::SharedCatalog {
                     structural_types: &structural_types,
                     type_ids: &type_ids,
+                    structural_domains: &structural_domains,
                     domain_ids: &domain_ids,
                     services: &services,
                     service_ids: &service_ids,
@@ -752,6 +755,19 @@ fn assemble_unit_closure(
     // A nominal consuming member (a seeded `drop<T>` specialization) emitted
     // the ordinary complete-only body; its return edge still invokes the exact
     // owner-attached `::drop` hook the roster selected for each parameter.
+    // A hook that keeps a borrowed `self` receiver declares it as its terminal
+    // `is_self` parameter; collect each emitted hook's receiver place so the
+    // edge can lend the consumed place into the callee frame.
+    let cleanup_receivers: BTreeMap<MachineId, PlaceId> = machines
+        .iter()
+        .filter_map(|machine| {
+            machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.is_self)
+                .map(|parameter| (machine.id, parameter.place))
+        })
+        .collect();
     for nominal in &checked
         .facts
         .flow
@@ -776,14 +792,16 @@ fn assemble_unit_closure(
             member,
             &type_ids,
             &machine_ids,
+            &cleanup_receivers,
         )?;
     }
 
     let mut scalar_evidence = Vec::new();
-    // Floating entry ranges are machine-local rows keyed by each emitted
-    // helper's own identities; they merge into the assembled catalog without
-    // sharing the qualification namespace this path keeps empty.
+    // Floating and integer entry ranges are machine-local rows keyed by each
+    // emitted helper's own identities; they merge into the assembled catalog
+    // without sharing the qualification namespace this path keeps empty.
     let mut float_entry_ranges = Vec::new();
+    let mut integer_entry_ranges = Vec::new();
     for (index, machine) in prepared_scalar_machines.into_iter().enumerate() {
         let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine())?;
         let machine_index = closure
@@ -938,6 +956,12 @@ fn assemble_unit_closure(
                 .scalar_qualifications
                 .float_entry_ranges,
         );
+        integer_entry_ranges.append(
+            &mut lowered
+                .semantic_module
+                .scalar_qualifications
+                .integer_entry_ranges,
+        );
         scalar_evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
         selected_ieee_float_fma_occurrences
@@ -1057,12 +1081,14 @@ fn assemble_unit_closure(
 
     call_evidence.append(&mut scalar_evidence);
     float_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
+    integer_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
     // The verifier reads the roster in exactly (machine, header) order.
     scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: ScalarQualificationCatalog {
                 float_entry_ranges,
+                integer_entry_ranges,
                 ..Default::default()
             },
             scalar_block_invariants,

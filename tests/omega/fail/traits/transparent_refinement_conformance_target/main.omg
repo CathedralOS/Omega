@@ -1,0 +1,18 @@
+// A conformance item names a nominal trait; a transparent refinement is not
+// implemented directly.
+
+trait Logger {
+    machine write(&mut self) suspends;
+}
+
+trait LocalLogger = Logger {
+    machine * suspends false;
+}
+
+data Sink {
+}
+
+machine Sink::write(&mut self) satisfies Logger::write {
+}
+
+SinkLocal: Sink satisfies LocalLogger;

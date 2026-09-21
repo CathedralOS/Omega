@@ -389,6 +389,7 @@ fn materialize_helper_body(
             };
             operations.push(Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: ids.operation,
                 result: OperationResult::Scalar(result),
                 kind: match next_helper {
@@ -396,6 +397,7 @@ fn materialize_helper_body(
                         callee,
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
@@ -442,6 +444,7 @@ fn materialize_helper_body(
         parameters: evaluation.parameters,
         structural_parameters: evaluation.block_structural_parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::Return {
             edge: ids.edge,

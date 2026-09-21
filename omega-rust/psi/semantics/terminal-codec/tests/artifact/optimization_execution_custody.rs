@@ -3,11 +3,16 @@
 //!
 //! The receipt carries five representable content fields — the selected pass
 //! roster plus input and output semantic/proof identities — and derives its
-//! receipt identity from them at construction. A substitution either fails to
-//! form a canonical record on the wire, or decodes to a different record whose
-//! honestly recomputed identity diverges; independent replay then rejects it
-//! through the published artifact-manifest join, and the produced-side
-//! `validate_output` binding rejects output substitutions outright.
+//! receipt identity from them at construction. Every representable field is
+//! substituted independently through the shared
+//! `run_one_field_substitution_matrix` driver: a substitution decodes to a
+//! different record whose honestly recomputed identity diverges, and
+//! independent replay rejects it through the published artifact-manifest
+//! join, with the produced-side `validate_output` binding rejecting output
+//! substitutions outright. The legs that are not representable record fields
+//! — wire framing, vocabulary markers, inner codec axes, truncations, and
+//! the identity-stage receipt's own construction law — stay authored below
+//! the matrix as decode- and construction-level rejections.
 
 use super::{kernel_bundle, semantic_module};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
@@ -21,6 +26,15 @@ use terminal_codec::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use terminal_verifier::verify_module;
+
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
+
+#[path = "optimization_execution_custody_fields.rs"]
+mod optimization_execution_custody_fields;
+
+use optimization_execution_custody_fields::OptimizationExecutionCustodyFieldForTest;
 
 /// Byte offsets of every wire field inside the canonical record encoding.
 struct RecordSpans {
@@ -136,82 +150,120 @@ fn psi_optimization_execution_record_rejects_every_one_field_substitution() {
     .expect("retained artifact manifest");
     assert_eq!(retained_manifest.optimization(), record.identity());
 
-    let divergent = |name: &'static str,
-                     mutated: &[u8],
-                     expect_output_mismatch: bool|
-     -> PsiOptimizationExecutionRecord {
-        let substituted = decode_psi_optimization_execution_record(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, record, "{name} must change the receipt");
-        assert_eq!(
-            encode_psi_optimization_execution_record(&substituted),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            substituted.identity(),
-            record.identity(),
-            "{name} must diverge the honestly recomputed receipt identity"
-        );
-        if expect_output_mismatch {
-            assert_eq!(
-                substituted.validate_output(produced_semantic, produced_proof),
-                Err(PsiOptimizationExecutionRecordError::OutputMismatch),
-                "{name} must reject at the produced-output binding"
-            );
-        } else {
-            assert_eq!(
-                substituted.validate_output(produced_semantic, produced_proof),
-                Ok(()),
-                "{name} keeps the produced-output binding"
-            );
+    // A foreign record of the same family: the substituted-member roster and
+    // foreign input identities, honestly formed so its retained custody
+    // provably differs and supplies donor values for the donor-drawn legs.
+    let donor = PsiOptimizationExecutionRecord::new(
+        selected(&[
+            PsiOptimization::GlobalValueNumbering,
+            PsiOptimization::CopyPropagation,
+        ]),
+        semantic(0xD1),
+        proof(0xD2),
+        produced_semantic,
+        produced_proof,
+    )
+    .expect("the foreign donor receipt forms");
+
+    let honest = || record.clone();
+    let custody = |record: &PsiOptimizationExecutionRecord| record.identity();
+    let substitute = |record: &mut PsiOptimizationExecutionRecord,
+                      field: OptimizationExecutionCustodyFieldForTest,
+                      donor: &PsiOptimizationExecutionRecord| {
+        use OptimizationExecutionCustodyFieldForTest as Leg;
+        let mut selections = record.selections().clone();
+        let mut input_semantic = record.input_semantic();
+        let mut input_proof = record.input_proof();
+        let mut output_semantic = record.output_semantic();
+        let mut output_proof = record.output_proof();
+        match field {
+            Leg::SelectionMemberSubstituted => selections = donor.selections().clone(),
+            Leg::SelectionRosterExtended => {
+                selections = selected(&[
+                    PsiOptimization::ControlFlowCleanup,
+                    PsiOptimization::CopyPropagation,
+                    PsiOptimization::DeadPureScalarElimination,
+                ]);
+            }
+            Leg::SelectionMemberDropped => {
+                selections = selected(&[PsiOptimization::ControlFlowCleanup]);
+            }
+            Leg::InputSemanticSubstituted => input_semantic = donor.input_semantic(),
+            Leg::InputSemanticZeroed => input_semantic = semantic(0x00),
+            Leg::InputProofSubstituted => input_proof = donor.input_proof(),
+            Leg::OutputSemanticSubstituted => output_semantic = semantic(0xE1),
+            Leg::OutputProofSubstituted => output_proof = proof(0xE2),
         }
-        match validate_artifact_manifest(
+        *record = PsiOptimizationExecutionRecord::new(
+            selections,
+            input_semantic,
+            input_proof,
+            output_semantic,
+            output_proof,
+        )
+        .expect("a representable substitution still forms a record");
+    };
+    let check = |record: &PsiOptimizationExecutionRecord| {
+        validate_artifact_manifest(
             &module,
             &bundle,
-            &substituted,
+            record,
             Some(b"installed-section"),
             Some(b"debug-section"),
-            retained_manifest,
-        ) {
-            Err(ArtifactManifestError::ManifestMismatch) => {}
-            Err(ArtifactManifestError::Optimization(
-                PsiOptimizationExecutionRecordError::OutputMismatch,
-            )) if expect_output_mismatch => {}
-            other => panic!("{name} must reject at the manifest replay: {other:?}"),
+            retained_manifest.clone(),
+        )
+        .map(|()| record.identity())
+    };
+    let outcome = |field| {
+        use OptimizationExecutionCustodyFieldForTest as Leg;
+        match field {
+            Leg::OutputSemanticSubstituted | Leg::OutputProofSubstituted => {
+                MutationOutcome::ExactError(ArtifactManifestError::Optimization(
+                    PsiOptimizationExecutionRecordError::OutputMismatch,
+                ))
+            }
+            _ => MutationOutcome::ExactError(ArtifactManifestError::ManifestMismatch),
         }
-        substituted
+    };
+    // The produced-output binding and canonical round-trip are per-leg
+    // authored assertions the matrix does not know about: output-side legs
+    // reject `validate_output` outright while input-side legs keep it, and
+    // every substituted record still decodes and re-encodes canonically.
+    let joined_replay = |record: &PsiOptimizationExecutionRecord,
+                         field: OptimizationExecutionCustodyFieldForTest| {
+        use OptimizationExecutionCustodyFieldForTest as Leg;
+        let expect_output_mismatch = matches!(
+            field,
+            Leg::OutputSemanticSubstituted | Leg::OutputProofSubstituted
+        );
+        assert_eq!(
+            record.validate_output(produced_semantic, produced_proof),
+            if expect_output_mismatch {
+                Err(PsiOptimizationExecutionRecordError::OutputMismatch)
+            } else {
+                Ok(())
+            },
+            "{field:?} must expose the produced-output binding"
+        );
+        let encoded = encode_psi_optimization_execution_record(record);
+        assert_eq!(
+            decode_psi_optimization_execution_record(&encoded),
+            Ok(record.clone()),
+            "{field:?} must still decode canonically"
+        );
     };
 
-    // --- selections roster: substitute, extend, and drop members ---
-
-    for (name, roster) in [
-        (
-            "a substituted roster member",
-            selected(&[
-                PsiOptimization::GlobalValueNumbering,
-                PsiOptimization::CopyPropagation,
-            ]),
-        ),
-        (
-            "an extended roster",
-            selected(&[
-                PsiOptimization::ControlFlowCleanup,
-                PsiOptimization::CopyPropagation,
-                PsiOptimization::DeadPureScalarElimination,
-            ]),
-        ),
-        (
-            "a dropped roster member",
-            selected(&[PsiOptimization::ControlFlowCleanup]),
-        ),
-    ] {
-        divergent(
-            name,
-            &splice_selections(&encoded, &spans, &roster.encode()),
-            false,
-        );
-    }
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "PsiOptimizationExecutionRecord",
+        fields: OptimizationExecutionCustodyFieldForTest::INVENTORY,
+        honest: &honest,
+        donor,
+        custody: &custody,
+        substitute: &substitute,
+        check: &check,
+        outcome: &outcome,
+        joined_replay: Some(&joined_replay),
+    });
 
     // The whole roster clears only for the identity stage: a record claiming
     // changed products with no selected pass is rejected at construction and
@@ -238,42 +290,6 @@ fn psi_optimization_execution_record_rejects_every_one_field_substitution() {
         )),
         "an empty roster claiming changed outputs must reject at decoding"
     );
-
-    // --- input-side identities: representable, replay-bound through the
-    // manifest identity ---
-
-    for (name, range) in [
-        (
-            "the input program fingerprint",
-            spans.input_fingerprint.clone(),
-        ),
-        ("the input proof fingerprint", spans.input_proof.clone()),
-    ] {
-        let mut mutated = encoded.clone();
-        mutated[range.start] ^= 0xFF;
-        divergent(name, &mutated, false);
-    }
-
-    // A zero fingerprint stays representable (the receipt imposes no nonzero
-    // rule); it still decodes to a different record and rejects at replay.
-    let mut mutated = encoded.clone();
-    mutated[spans.input_fingerprint.clone()].copy_from_slice(&[0; 32]);
-    divergent("a zero input program fingerprint", &mutated, false);
-
-    // --- output-side identities: representable, rejected by the produced
-    // output binding before the manifest join is even consulted ---
-
-    for (name, range) in [
-        (
-            "the output program fingerprint",
-            spans.output_fingerprint.clone(),
-        ),
-        ("the output proof fingerprint", spans.output_proof.clone()),
-    ] {
-        let mut mutated = encoded.clone();
-        mutated[range.start] ^= 0xFF;
-        divergent(name, &mutated, true);
-    }
 
     // --- vocabulary markers admit only the current vocabulary ---
 

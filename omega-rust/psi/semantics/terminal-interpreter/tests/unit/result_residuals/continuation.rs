@@ -53,6 +53,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(10),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -70,6 +71,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         target: block_id(4),
         arguments: vec![value_id(1)],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: if complete_transfer {
             Vec::new()
@@ -79,6 +81,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
     };
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(4),
         parameters: vec![ValueDeclaration {
@@ -88,6 +91,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         }],
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(11),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {

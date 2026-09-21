@@ -99,6 +99,7 @@ pub(super) fn check_call_requires(
                             // the call (conservative whole-state scan).
                             incoming_guard_proves_requires(
                                 program,
+                                facts,
                                 state_flow,
                                 call_flow,
                                 expression,
@@ -506,19 +507,18 @@ fn explain_domain_requirement_failure(
 /// exactly (`self.a <= self.b`), as an `&&` conjunct, or through the
 /// multi-arm `(subject) == true` desugar. The caller state itself must also
 /// preserve every field the expression names (whole-state: any assignment
-/// mentioning one, or any call statement, defeats the route).
+/// mentioning one, or any call statement, defeats the route) and every
+/// unqualified operand name the instantiated requirement spells (a rebinding
+/// such as `limit = 0` leaves the label match quoting a stale premise).
 fn incoming_guard_proves_requires(
     program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(state) = program
@@ -573,6 +573,126 @@ fn incoming_guard_proves_requires(
     fields
         .iter()
         .all(|field| caller_state_preserves_field(program, state, field))
+        && caller_state_preserves_label_names(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            state,
+            &required_label,
+        )
+}
+
+/// The guard match above compares display labels, so it stands only while
+/// every unqualified name the instantiated requirement spells still refers to
+/// the caller value the guard was evaluated against. Rebinding such a name
+/// before the call -- `limit = 0`, a shadowing `let`, or a mutation through a
+/// call's write frame (recorded as a pre-call invalidation) -- makes the label
+/// quote a stale premise, and this route must refuse; the remaining provers
+/// may still establish the fact from current evidence. Qualified `self.field`
+/// operands are covered by the field walk above, so `self` itself is skipped.
+fn caller_state_preserves_label_names(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    state: &typed_trees::state::State,
+    required_label: &str,
+) -> bool {
+    let names = unqualified_label_identifiers(required_label);
+    if names.is_empty() {
+        return true;
+    }
+    let rebound_before_call = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(call_flow.statement_index)
+        .any(|statement| match statement {
+            StatementNode::Assignment(assignment) => names
+                .iter()
+                .any(|name| assignment_target_mentions_name(program, assignment.target, name)),
+            StatementNode::LocalData(local) => names
+                .iter()
+                .any(|name| local.name.as_str() == name.as_str()),
+            _ => false,
+        });
+    if rebound_before_call {
+        return false;
+    }
+    !facts
+        .flow
+        .state_call_prior_invalidations(state_flow, call_flow)
+        .any(|invalidation| {
+            let PlaceRoot::Symbol(symbol) = invalidation.mutated_root else {
+                return false;
+            };
+            names
+                .iter()
+                .any(|name| name.as_str() == symbol_name(program, symbol))
+        })
+}
+
+/// Unqualified identifier tokens in a display label, skipping `self` and any
+/// token reached through `.`/`::` (those are member or namespace paths, not
+/// caller-local names).
+fn unqualified_label_identifiers(label: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut cursor = 0usize;
+    while cursor < label.len() {
+        let Some(ch) = label[cursor..].chars().next() else {
+            break;
+        };
+        if ch == '_' || ch.is_alphabetic() {
+            let start = cursor;
+            cursor += ch.len_utf8();
+            while cursor < label.len() {
+                let Some(next) = label[cursor..].chars().next() else {
+                    break;
+                };
+                if next == '_' || next.is_alphanumeric() {
+                    cursor += next.len_utf8();
+                } else {
+                    break;
+                }
+            }
+            let identifier = &label[start..cursor];
+            let qualified =
+                start > 0 && matches!(label.as_bytes().get(start - 1), Some(b'.' | b':'));
+            if !qualified
+                && identifier != "self"
+                && !names.iter().any(|name: &String| name == identifier)
+            {
+                names.push(identifier.to_owned());
+            }
+        } else {
+            cursor += ch.len_utf8();
+        }
+    }
+    names
+}
+
+fn assignment_target_mentions_name(
+    program: &typed_trees::TypedTrees,
+    target: typed_trees::expression::ExpressionHandle,
+    name: &str,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(target) {
+        ExpressionNode::Name(_) => program.expression_table.display_name(target) == name,
+        ExpressionNode::Member(member) => {
+            assignment_target_mentions_name(program, member.receiver, name)
+        }
+        ExpressionNode::Borrow(inner) => {
+            assignment_target_mentions_name(program, inner.target, name)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            assignment_target_mentions_name(program, indexed.collection, name)
+        }
+        _ => false,
+    }
 }
 
 /// Rebind a contract label already instantiated in `state` through the
@@ -671,11 +791,7 @@ fn transition_guard_proves_requires(
     ) {
         return false;
     }
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
     let Some(caller_state) = program
@@ -808,5 +924,301 @@ fn assignment_target_mentions_field(
             assignment_target_mentions_field(program, indexed.collection, field)
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod prerequisite_roster_probes {
+    //! Adversarial probes for the prerequisite-side helpers this file runs
+    //! before an incoming guard or assignment may stand in for a proven
+    //! contract clause: label tokenization never treats a qualified member or
+    //! namespace path as a caller-local name (`unqualified_label_identifiers`,
+    //! `replace_unqualified_identifiers`), guard conjunctions decompose `&&`
+    //! and unwrap `x == true` but never `||` (`guard_conjunct_matches`), and
+    //! assignment targets reach through member/index/borrow receivers only to
+    //! the spelled root (`assignment_target_mentions_name`,
+    //! `assignment_target_mentions_field`). Each pin names the helper it
+    //! exercises.
+
+    use super::{
+        assignment_target_mentions_field, assignment_target_mentions_name, guard_conjunct_matches,
+        replace_unqualified_identifiers, unqualified_label_identifiers,
+    };
+    use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+    use typed_trees::name::Identifier;
+    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+
+    const SOURCE: &str = r#"
+        data Main {
+            value: i64;
+            flag: bool;
+            primed: bool;
+            cells: [u64; 4];
+        }
+
+        machine Main::main(&mut self, k: u64) -> u64 {
+            self.value = 3;
+            self.cells[0] = k;
+            transition self.flag && self.primed {
+                true -> 1
+                false -> 0
+            }
+            state equal(&mut self) -> u64 {
+                transition self.flag == true {
+                    true -> 1
+                    false -> 0
+                }
+            }
+            state fork(&mut self, a: bool, b: bool) -> u64 {
+                transition a || b {
+                    true -> 0
+                    false -> 1
+                }
+            }
+        }
+    "#;
+
+    fn program() -> typed_trees::TypedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(SOURCE)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    fn state_statement<'program>(
+        program: &'program typed_trees::TypedTrees,
+        state_name: &str,
+        index: usize,
+    ) -> &'program StatementNode {
+        // Machine names keep their qualified diagnostic spelling
+        // (`Main::main`); a leaf name matches its final member.
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| {
+                let spelled = machine.name.as_str();
+                spelled == "main" || spelled.ends_with("::main")
+            })
+            .expect("main machine");
+        let state = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| {
+                let spelled = state.name.as_str();
+                spelled == state_name || spelled.ends_with(&format!("::{state_name}"))
+            })
+            .unwrap_or_else(|| panic!("state {state_name}"));
+        &program.statement_table.statements(state.statement_nodes)[index]
+    }
+
+    fn state_guard(
+        program: &typed_trees::TypedTrees,
+        state_name: &str,
+        transition_index: usize,
+    ) -> ExpressionHandle {
+        let StatementNode::Transition(transition) =
+            state_statement(program, state_name, transition_index)
+        else {
+            panic!("statement {transition_index} of {state_name} is not a transition");
+        };
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            panic!("transition {transition_index} of {state_name} is unguarded");
+        };
+        guard
+    }
+
+    fn assignment_target(program: &typed_trees::TypedTrees, index: usize) -> ExpressionHandle {
+        let StatementNode::Assignment(assignment) = state_statement(program, "main", index) else {
+            panic!("statement {index} is not an assignment");
+        };
+        assignment.target
+    }
+
+    fn label(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> String {
+        program.expression_table.display_name(expression)
+    }
+
+    /// Lowering wraps every authored guard in an implicit `== true`; the
+    /// authored expression sits on its left.
+    fn authored_guard(
+        program: &typed_trees::TypedTrees,
+        guard: ExpressionHandle,
+    ) -> ExpressionHandle {
+        let ExpressionNode::Binary(wrapper) = program.expression_table.expression(guard) else {
+            panic!("guard is not a binary expression");
+        };
+        assert_eq!(wrapper.operator, BinaryOperator::Equal);
+        wrapper.left
+    }
+
+    fn and_operands(
+        program: &typed_trees::TypedTrees,
+        guard: ExpressionHandle,
+    ) -> (ExpressionHandle, ExpressionHandle) {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+            panic!("guard is not a binary expression");
+        };
+        assert_eq!(binary.operator, BinaryOperator::And);
+        (binary.left, binary.right)
+    }
+
+    #[test]
+    fn unqualified_label_identifiers_skip_qualified_member_and_namespace_tokens() {
+        // `count` behind `.` is a member path; `self` itself never lists.
+        assert!(unqualified_label_identifiers("self.count > 0").is_empty());
+        // Bare roots list, deduplicated.
+        assert_eq!(unqualified_label_identifiers("x + x"), ["x"]);
+        // `Pkg` is an unqualified root; `limit` behind `::` is not.
+        assert_eq!(
+            unqualified_label_identifiers("Pkg::limit + count"),
+            ["Pkg", "count"]
+        );
+        // Index payloads are ordinary unqualified names.
+        assert_eq!(unqualified_label_identifiers("a.b[c]"), ["a", "c"]);
+        // `_` prefixes and trailing digits stay inside the token.
+        assert_eq!(
+            unqualified_label_identifiers("_hidden + tail_2"),
+            ["_hidden", "tail_2"]
+        );
+        assert!(unqualified_label_identifiers("").is_empty());
+    }
+
+    #[test]
+    fn replace_unqualified_identifiers_never_rewrites_qualified_tokens() {
+        let owned = |name: &str| name.to_owned();
+        assert_eq!(
+            replace_unqualified_identifiers("self.count + a::count", &[("count", owned("w"))]),
+            "self.count + a::count"
+        );
+        // Whole-token matching: `country` is not `count`.
+        assert_eq!(
+            replace_unqualified_identifiers("count + country", &[("count", owned("w"))]),
+            "w + country"
+        );
+        // A root occurrence rewrites while its qualified twin stays.
+        assert_eq!(
+            replace_unqualified_identifiers("count.count", &[("count", owned("w"))]),
+            "w.count"
+        );
+        // `self` is an ordinary unqualified token to this helper; callers keep
+        // it out of the replacement roster instead.
+        assert_eq!(
+            replace_unqualified_identifiers("self.value", &[("self", owned("r"))]),
+            "r.value"
+        );
+    }
+
+    #[test]
+    fn guard_conjunct_matches_walks_and_unwraps_but_not_or() {
+        let program = program();
+        // Every authored guard arrives wrapped: `G` lowers to `G == true`.
+        let main_guard = state_guard(&program, "main", 2);
+        let authored_and = authored_guard(&program, main_guard);
+        let (left, right) = and_operands(&program, authored_and);
+        // The whole lowered guard is its own conjunct.
+        assert!(guard_conjunct_matches(
+            &program,
+            main_guard,
+            &label(&program, main_guard)
+        ));
+        // The `== true` wrapper unwraps, exposing the authored `&&`.
+        assert!(guard_conjunct_matches(
+            &program,
+            main_guard,
+            &label(&program, authored_and)
+        ));
+        // `&&` decomposes on either side beneath the wrapper.
+        assert!(guard_conjunct_matches(
+            &program,
+            main_guard,
+            &label(&program, left)
+        ));
+        assert!(guard_conjunct_matches(
+            &program,
+            main_guard,
+            &label(&program, right)
+        ));
+        // `x == true` is itself unwrap-transparent: `self.flag` inside
+        // `(self.flag == true) == true` is still a conjunct.
+        let equal_guard = state_guard(&program, "equal", 0);
+        let authored_equal = authored_guard(&program, equal_guard);
+        let ExpressionNode::Binary(equality) = program.expression_table.expression(authored_equal)
+        else {
+            panic!("equal guard is not `flag == true`");
+        };
+        assert_eq!(equality.operator, BinaryOperator::Equal);
+        assert!(guard_conjunct_matches(
+            &program,
+            equal_guard,
+            &label(&program, equality.left)
+        ));
+        // A label present nowhere in the guard cannot match.
+        assert!(!guard_conjunct_matches(
+            &program,
+            main_guard,
+            "self.cells > 0"
+        ));
+        // `||` does not decompose: `a` under `a || b` is not a conjunct.
+        let fork_guard = state_guard(&program, "fork", 0);
+        let authored_or = authored_guard(&program, fork_guard);
+        let ExpressionNode::Binary(disjunction) = program.expression_table.expression(authored_or)
+        else {
+            panic!("fork guard is not a binary expression");
+        };
+        assert_eq!(disjunction.operator, BinaryOperator::Or);
+        assert!(guard_conjunct_matches(
+            &program,
+            fork_guard,
+            &label(&program, fork_guard)
+        ));
+        assert!(guard_conjunct_matches(
+            &program,
+            fork_guard,
+            &label(&program, authored_or)
+        ));
+        assert!(!guard_conjunct_matches(
+            &program,
+            fork_guard,
+            &label(&program, disjunction.left)
+        ));
+    }
+
+    #[test]
+    fn assignment_targets_reach_only_the_spelled_root() {
+        let program = program();
+        // `self.value = 3`: the root `self` is mentioned; the field name is not.
+        let member = assignment_target(&program, 0);
+        assert!(assignment_target_mentions_name(&program, member, "self"));
+        assert!(!assignment_target_mentions_name(&program, member, "value"));
+        assert!(assignment_target_mentions_field(
+            &program,
+            member,
+            &Identifier::from("value")
+        ));
+        assert!(!assignment_target_mentions_field(
+            &program,
+            member,
+            &Identifier::from("cells")
+        ));
+        // `self.cells[0] = k`: indexing keeps the collection receiver, so the
+        // root and the `cells` field are still reachable through the target.
+        let indexed = assignment_target(&program, 1);
+        assert!(assignment_target_mentions_name(&program, indexed, "self"));
+        assert!(!assignment_target_mentions_name(&program, indexed, "0"));
+        assert!(assignment_target_mentions_field(
+            &program,
+            indexed,
+            &Identifier::from("cells")
+        ));
+        assert!(!assignment_target_mentions_field(
+            &program,
+            indexed,
+            &Identifier::from("value")
+        ));
     }
 }

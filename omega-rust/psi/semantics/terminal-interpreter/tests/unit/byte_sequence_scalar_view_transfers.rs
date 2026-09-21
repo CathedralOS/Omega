@@ -93,6 +93,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
     caller.blocks[0].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(60),
             result: OperationResult::Scalar(scalar(60, 64)),
             kind: OperationKind::ByteSequenceLength {
@@ -101,6 +102,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(61),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -121,8 +123,10 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
     let mut operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(62),
             result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: place_id(8),
                 structural_type: structural_type_id(1),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -144,6 +148,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
     caller.blocks.extend([
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(8),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -152,6 +157,7 @@ fn subslice_module(bytes: Vec<u8>, start: u64) -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(9),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -196,6 +202,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(50),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishByteSequenceLiteral {
@@ -208,6 +215,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
         3,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(51),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -280,6 +288,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
     };
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(8),
         parameters: Vec::new(),
         structural_parameters: vec![parameter],

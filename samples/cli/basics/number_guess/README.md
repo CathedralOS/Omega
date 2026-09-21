@@ -88,5 +88,13 @@ so the final pause completes on EOF. Expect the stdout above and
 an explicit target makes `run` compile-only.
 
 The ordinary review/resume/run route passed on macOS ARM64 at `ba57b10d5e`.
-Windows x86-64 and both Linux hosts remain unverified; their required runtime
+On Linux x86-64 the compiler-library regression (below, filtered to this
+sample) compiles, publishes, and runs natively to exit 70 with the documented
+stdout and EOF on stdin; it supplies test-owned acceptance, so the ordinary
+CLI review route on Linux is still unverified. On Linux x86-64 the ordinary
+route is gated before review decisions: package candidate checking rejects
+inside `omega-language-std` with `routed service field Filesystem::host has
+no exact Fused selected-provider-plan join`, the shared std-wide gate
+recorded on the board (attempted at `b53c7ea26032`). Windows x86-64 and the
+ordinary Linux routes remain unverified; their required runtime
 coverage stays in [SAMPLE-CORPUS](../../../../TASKS.md).

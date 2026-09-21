@@ -219,6 +219,14 @@ fn decode_kind(
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
+        112 => SelectedInstructionKind::ExactDivideI64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
+        113 => SelectedInstructionKind::ExactRemainderI64 {
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
         93 => SelectedInstructionKind::BitwiseOrI64,
         94 => SelectedInstructionKind::BitwiseNotI64,
         103 => SelectedInstructionKind::SaveFloatingControl {
@@ -484,6 +492,8 @@ fn decode_alternative_for_version(
         90 => MachineAlternativeFamily::WrappingSubtractI64,
         91 => MachineAlternativeFamily::WrappingMultiplyI64,
         92 => MachineAlternativeFamily::WrappingDivideI64,
+        112 => MachineAlternativeFamily::ExactDivideI64,
+        113 => MachineAlternativeFamily::ExactRemainderI64,
         93 => MachineAlternativeFamily::BitwiseOrI64,
         94 => MachineAlternativeFamily::BitwiseNotI64,
         103 => MachineAlternativeFamily::SaveFloatingControl,

@@ -57,10 +57,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
         .map(|(_, state)| state.clone())
         .collect::<Vec<_>>();
     for state_flow in state_flows {
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
         else {
             continue;
         };
@@ -263,10 +260,7 @@ fn record_crash_frontier_lower_bounds(
 ) {
     let mut derived = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == state_flow.machine_symbol)
+        let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
         else {
             continue;
         };
