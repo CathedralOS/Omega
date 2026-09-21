@@ -10590,7 +10590,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   compiler, learned_optimization_policy.md:6 still authorizes no
   implementation, `predicted_cost_delta` stays the deterministic
   baseline, WORKLOAD-CORPUS-AND-MULTIVERSIONING stays resolved-gated on
-  OMEGA-PRODUCT-COMPILER-SOURCE. Record:
+  OMEGA-PRODUCT-COMPILER-SOURCE. The z142 verification ledger
+  (`72fc66d6c3`: same resolved/record-only verdict plus a tree census
+  confirming no trainer machinery under `omega-rust/`) is folded here
+  per its field note and its draft deleted. Record:
   `wiki/drafts/learned_optimization_cost_model.md`.
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** — mined candidate; scope verified,
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES.** Mined candidate — scope verified,
@@ -13546,11 +13549,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   exists. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION,
   RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL,
   RUST-COMPILER-RELEASE-RECORD.
-  Re-verified at `72fc66d6c3` ([z70 ledger](wiki/drafts/rust_release_record_z70.md)):
-  `tools/release/records/` still absent (zero committed records);
-  TASKS_BOOTSTRAP.md:76 gate verbatim; the CONTRACT.md comparator quote
-  has aged into different wording (policy preserved); production surface
-  now double-fenced (RC-HOST-RUNNER-LANES, RC-RELEASE-RECORD).
+  Re-verified at `72fc66d6c3` (z70 ledger, draft folded and retired per
+  its field note): `tools/release/records/` still absent (zero committed
+  records); TASKS_BOOTSTRAP.md:76 gate verbatim; the CONTRACT.md
+  comparator quote has aged into different wording (policy preserved);
+  production surface now double-fenced (RC-HOST-RUNNER-LANES,
+  RC-RELEASE-RECORD).
 
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
@@ -13761,7 +13765,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUST-PRODUCER-OMISSION** — mined candidate; scope verified, gate wired. The name resolves to the omission contract in `omega-rust/README.md`: a produced closure's closed dependency set carries no `omega-rust/` artifact, build step, or checkout-derived path. The audit tool `tools/rust_producer_omission.py` (landed 6fc17a6cf5, with `tools/tests/test_rust_producer_omission.py`) already decides it; the residual was that no gate consumed the audit, so a closure regression would pass silently. Wired it into `tools/bootstrap/check-chain-hygiene.sh` ahead of the byte-identity pins: every `bootstrap/**/*.sources` manifest is audited as members and every `tools/bootstrap/*.{sh,py}` file as the declared step surface, `--require omitted` (the gate script self-excludes from the step scan, same as the retired-path grep). Fixture coverage added to `tests/bootstrap/chain-hygiene.sh`: a forged `tools/bootstrap` step invoking `cargo` and a forged `omega-rust/` manifest member both reject with "produced closure carries the Rust producer"; the restored set re-accepts (19 cases green, linux x86-64). Residual siblings remain open on their own surfaces: retention policy (RUST-PRODUCER-RETENTION-POLICY) and retirement (RUST-PRODUCER-RETIREMENT-GATE) are the workspace-retention policy legs the README keeps separate from omission.
 - **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; verify scope then implement.
-- **RUST-RELEASE-RECORD** — mined candidate; verify scope then implement.
+- **RUST-RELEASE-RECORD** — covered alias of the resolved
+  `**RUST-RELEASE-RECORD.**` row above (~:13472): both faces verified,
+  no independent slice; the z70 ledger verdict is folded there.
 - **SAMPLES-COMPILE-MULTI-HOST** — mined candidate; verify scope then implement.
 - **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
