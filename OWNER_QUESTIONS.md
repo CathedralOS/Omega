@@ -147,6 +147,50 @@ it instantiates. A reviewer verifies those citations before the framing.
    containment obligation stays open and a sufficiently large admitted
    compile can still end without a compiler-owned observation.
 
+
+3. **How does Terminal Psi key and observe the crash site of an executable
+   Trapping arithmetic operation — one that is neither an edge nor a
+   `BoundaryCall`?** (named decision:
+   `terminal-operation-level-trap-crash-site`).
+   [Structural predicates](wiki/spec/terminal-psi/structural_predicates.md)
+   line 71 requires that "Executable Trapping operations instead carry their
+   primitive denotation and path-conditioned crash site, checked against the
+   published same-cause ceiling", and
+   [effects](wiki/spec/language/effects.md) line 261 states that "The body
+   operation creates the crash site under its compiler-defined denotation".
+   The language side is therefore settled: a trapping body operation owns a
+   crash site. What is not settled is the Terminal form of that site.
+   [Observations](wiki/spec/terminal-psi/observations.md) enumerates the
+   reconstructed profile as a closed, ordered row list under
+   `omega.terminal.observation-profile.v1`, and only two of its groups carry a
+   crash: group 3, "Crash sites ordered by machine, block, and edge", and
+   group 4, "Boundary crash sites ordered by machine, block, operation, and
+   cause", which is scoped to "every declared route of every `BoundaryCall`"
+   and keyed by the boundary's exact public identity and route bucket. The
+   implementation matches exactly — `terminal_trace_v1.rs:232` keys an
+   ordinary crash site by `(MachineId, BlockId, EdgeId)` and
+   `terminal_trace_v1.rs:236` keys a boundary crash site by
+   `(MachineId, BlockId, OperationId, CrashCause)` with a boundary identity.
+   A trapping `a + b` has no edge and no boundary identity, so it fits
+   neither group, and the same section forbids the obvious workaround: "A
+   boundary crash is observed at its calling operation, not on a fabricated
+   terminator edge." A producer may not expand a trapping operation into a
+   guard plus a `Crash` terminator, so the repair cannot stay inside Omega.
+   The choice is (a) widen group 3's key from edge to an edge-or-operation
+   coordinate; (b) add a third crash-site row group for operation-level
+   non-boundary traps, with its own tag, ordering and cause encoding; or (c)
+   generalize group 4 from `BoundaryCall` to any crash-bearing operation,
+   with the boundary identity becoming optional. Each changes a versioned
+   wire format whose spec says "Unknown schemas, vocabularies, tags,
+   classifications, malformed ordering, duplicate coordinates, missing/extra
+   sites ... reject", so the profile version and the verifier's independent
+   derivation move with it. Until this is answered, **ARITHMETIC-POLICY-
+   REALIZATION**'s first bullet — a Terminal Trapping operation family with
+   its `terminal-verifier` rule, `terminal-interpreter` case and Omega
+   realization — cannot be implemented without inventing the encoding, and
+   every `source/library/core/numeric_conversion.omg` machine ending in a
+   Trapping conversion stays unable to reach a native artifact.
+
 ## Squalr scalar-scan port: surface-driven shape choices
 
 The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced
