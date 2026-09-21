@@ -526,7 +526,7 @@ impl ConsoleApplicationFixture {
             r#"machine build(builder: &mut Build) {
     builder.application("console-consumer");
     builder.depend_as("ordinary_console", Source::Path { location: "../console" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -537,7 +537,7 @@ impl ConsoleApplicationFixture {
             r#"use ordinary_console::main;
 use omega::language::core::service;
 
-data Main { console: Service<Console> in Bound; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
@@ -776,7 +776,9 @@ fn assert_root_console_permissions(
 /// independently. The component entry's own call puts that adapter in the
 /// module's realization roster, which is what the published description
 /// exports — nothing here asserts a roster.
-const INDEPENDENT_COMPONENT_SOURCE: &str = r#"pub boundary trait Pick {
+const INDEPENDENT_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+
+pub boundary trait Pick {
     machine mark(value: i32);
 }
 
@@ -788,7 +790,7 @@ via Binding::VtableField(mark);
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Pick; }
+pub data ComponentEntry { pick: Service<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -829,7 +831,7 @@ impl IndependentComponentFixture {
             r#"machine build(builder: &mut Build) {
     builder.application("independent-consumer");
     builder.depend_as("pick_component", Source::Path { location: "../pick-component" });
-    builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
+    builder.select_provider<pick_component::Pick, pick_component::PickProvider>(CompositionMode::Independent);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -930,8 +932,9 @@ impl FilesystemApplicationFixture {
         fs::write(
             root.join("application/main.omg"),
             r#"use ordinary_filesystem::main;
+use omega::language::core::service;
 
-pub data Main { files: FilesystemHost; rc: i32; }
+pub data Main { files: Service<FilesystemHost>; rc: i32; }
 pub machine Main::main(&mut self)
 reaches FilesystemHost
 invokes FilesystemHost;
