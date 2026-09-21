@@ -20,12 +20,12 @@ use selected_instructions::{
 use super::ForkRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    all_edges, edge_surface, plain_edge, terminator_instruction, terminator_successors,
-    transport_conflict,
+    PathEdge, RelocationCrossing, all_edges, edge_surface, terminator_instruction,
+    terminator_successors,
 };
 use crate::rewrites::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
 };
 
 pub(super) struct Admission {
@@ -225,16 +225,6 @@ pub(super) fn admit(
             skipped_edges.push(*edge);
         }
     }
-    for edge in &landing_edges {
-        if !plain_edge(edge) {
-            return Err(ForkRunRelocationError::UnsupportedPair);
-        }
-        for member in run {
-            if transport_conflict(member, edge) {
-                return Err(ForkRunRelocationError::UnsupportedPair);
-            }
-        }
-    }
     // The run's execution becomes conditional on the landing edge: only
     // pure register and condition-state work may sink — a roster-carrying
     // or unaccounted memory access that ran on every traversal would run
@@ -246,48 +236,44 @@ pub(super) fn admit(
             return Err(ForkRunRelocationError::UnsupportedInstruction);
         }
     }
-    // The branch terminator is the crossed edge's position: it is exempt
-    // from the barrier-kind rule but not from the call or hazard audit.
-    if has_call_contract(function, terminator.id) {
-        return Err(ForkRunRelocationError::UnsupportedInstruction);
-    }
-    for member in run {
-        if coupled(member, terminator) {
-            return Err(ForkRunRelocationError::UnsupportedPair);
-        }
-    }
-    // Every member trades order with the positions behind the run in its
-    // own body and the positions before the landing index in the arm.
-    // Every other position keeps the run on the side it always had.
-    for crossed in block.instructions[last_index + 1..]
-        .iter()
-        .chain(target.instructions[..landing_index].iter())
-    {
-        schedulable(function, crossed).ok_or(ForkRunRelocationError::UnsupportedInstruction)?;
-        for member in run {
-            if coupled(member, crossed) {
-                return Err(ForkRunRelocationError::UnsupportedPair);
-            }
-        }
-    }
-    // A settlement positioned past the run's first index observed a member
-    // inside the source block's executed prefix; a settlement positioned
-    // past the landing index observes the run inside the arm's. Both
-    // refuse; positions at or before either boundary keep the executed set
-    // they always had. Blocks on the skipped paths are unaffected: the run
-    // was never in their streams, so no prefix there ever contained or
-    // loses it.
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > first_index)
-            || (settlement.block == target.id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(ForkRunRelocationError::UnsupportedPair);
-    }
+    // The fork's window is structural: the run block's tail behind the
+    // run, the arm's head before the landing index, and the landing edges
+    // — each carried by the branch terminator as the edge's own position.
+    // The shared run-level audit proves the window independent once:
+    // schedulability and coupling against every crossed position and edge,
+    // plain-edge and transport checks, and the boundary-settlement
+    // refusal — replacing the per-shape spelling of the same checks.
+    let crossing = RelocationCrossing {
+        reachable: true,
+        positions: vec![
+            (
+                block_index,
+                (last_index + 1..block.instructions.len()).collect(),
+            ),
+            (target_index, (0..landing_index).collect()),
+        ],
+        edges: landing_edges
+            .iter()
+            .map(|successor| PathEdge {
+                block: block.id,
+                instruction: terminator,
+                successor,
+            })
+            .collect(),
+        run_block: block_index,
+        run_start: first_index,
+        run_end: last_index,
+        destination_block: target_index,
+        landing_index,
+    };
+    let members: Vec<&SelectedInstruction> = run.iter().collect();
+    admit_run_relocation(function, &members, &crossing).map_err(|rejection| match rejection {
+        RunRelocationRejection::Unschedulable => ForkRunRelocationError::UnsupportedInstruction,
+        _ => ForkRunRelocationError::UnsupportedPair,
+    })?;
     // The dead-path audit: every location any member writes must be dead —
     // unread until rewritten — along every path leaving the branch's other
     // edges. The run publishes the union of its members' locations.
-    let members: Vec<&SelectedInstruction> = run.iter().collect();
     if !skipped_edges.is_empty()
         && !dead_path::dead(
             function,
