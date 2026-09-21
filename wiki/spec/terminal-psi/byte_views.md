@@ -4,7 +4,7 @@
 
 This describes immutable observations and fixed-extent writes through borrowed
 byte views. It does not grant owned byte storage, resizing, implicit nominal
-projections, or native descriptor support.
+projections, native descriptor support, or element views over typed items.
 
 ## Values and observations
 
@@ -163,3 +163,23 @@ A native consumer must retain and independently realize the view descriptor,
 its indexed accesses, and its call/block placement. Until it does, it rejects
 these operations before projection rather than discarding their payload or
 treating fuel/proof evidence as native support.
+
+## Element views
+
+This document's vocabulary addresses raw `u8` octets only. A view whose
+index space is a sequence of typed elements — over a `FixedArray(T, N)` with
+`T` other than `u8`, or over any other borrowed structural container — is not
+a byte view, and byte-view descriptors do not establish it. A descriptor
+carrying an element type and a dense element index space is an indexed
+projection path; this presentation does not admit it. Byte reads and writes
+through this document select octets inside a `u8` sequence; they do not
+synthesize or reinterpret typed elements, and byte offsets do not acquire
+element identity.
+
+An element-view vocabulary requires its own surfaces rather than reuse of
+these operations: a distinct descriptor type carrying the element type, typed
+extent evidence over the backing container, projection vocabulary for
+construction and extraction, and its own custody rules for element mutation.
+Consumers must not derive an element view from a byte view's backing or index
+arithmetic; a consumer needing typed elements rejects the unvocabularied
+spelling rather than reinterpreting octet contents.
