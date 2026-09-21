@@ -9716,7 +9716,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   whole-conformance applications do not gain outlives/variance/
   subtyping, so it waits on a spec decision, not a checker gap. No
   unclaimed slice exists this wave; sibling LIFETIME-MULTI-SOURCE-AND-
-  OUTLIVES mines the same residual pair.
+  OUTLIVES mines the same residual pair. Re-verified at `61eea9d820`
+  (linux x86-64, 2026-09-21 ~07:10Z): residual (1) has since LANDED —
+  `resolve_signature_view_return_source` routes multi-input same-lifetime
+  signatures through `structural_view_return_source`, which unions every
+  matching leaf as candidate sources, and the landed tests pass
+  (`direct_result_links_the_union_of_inputs_sharing_the_result_lifetime`,
+  `direct_result_union_tracks_the_loan_on_every_candidate_source`,
+  `carrier_result_same_lifetime_leaves_are_unioned_within_one_input` —
+  135/135 filtered green); the recorded BORROW-PROOF-CONVERGENCE fence
+  expired and `src/borrow/` is currently unclaimed. Residual (2) is still
+  spec-gated (lifetimes.md:33, conformances.md:66). The only open slice
+  under this name remains the outlives spec decision.
 - **GENERIC-VIRTUAL-CALLS.** Mined candidate — scope verified, covered:
   same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet
   "Runtime-capable family calls in Psi checking
