@@ -1,0 +1,13 @@
+// FAIL CANARY: an implementation returning zero against the alignment
+// contract must be rejected. `get_size_in_bytes` promises its alignment-size
+// result is within [1, 8] (the MemoryAlignment customer shape); returning
+// literal 0 refutes the lower bound at the boundary.
+machine get_size_in_bytes() -> u64
+ensures result >= 1u64 && result <= 8u64
+{ 0u64 }
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
