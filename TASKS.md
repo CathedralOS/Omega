@@ -12809,6 +12809,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZATION-CATALOG-EXECUTION-ROUTE (z126) claimed pathless to
   ~14:48Z/~09:00Z and `rewrites/arm_relocation` under
   REWRITE-VALIDATOR-INDEPENDENCE (z50, ~10:33Z).
+  Re-verified at `7d03d489e3d9` (z133, linux x86-64): the census is
+  unchanged — 38 `Orphaned` route rows (35 EXACT-MACHINE-SIMPLIFICATIONS +
+  3 ALIAS-AWARE-MEMORY; DECLARATIVE-PEEPHOLES names none) and
+  `slice_executes_at_stage` still admits only `SelectedLowering`, so the
+  stage entrance executes only that route. Fence map refreshed:
+  REWRITE-CATALOG-ADMISSION (z134) still holds `module_catalog.rs`,
+  `selected_optimization.rs`, `optimization_output.rs` and
+  `catalog_route_tests.rs` to ~14:31Z; PIPELINE-REWRITE-CATALOG-WIRING
+  (z182) remains item-claimed to ~14:48Z;
+  OPTIMIZATION-CATALOG-EXECUTION-ROUTE, SELECTED-REWRITE-CATALOG-ROUTE and
+  SELECTED-REWRITE-CATALOG-WIRING have expired; `rewrites/arm_relocation`
+  stays under REWRITE-VALIDATOR-INDEPENDENCE (z50, ~10:33Z) and
+  `rewrites/fixed_view` plus neighbors moved under
+  DURABLE-CODEC-RELOCATION (z120, ~16:35Z). No independent slice.
 - **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
   and fenced — "placement" is the move leg of the
   `optimized_semantic_wrapper_{encoding,object}` orphan-owner question,
