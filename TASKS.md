@@ -7966,7 +7966,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Executable-chain legs stay host-gated per the frontier. No unbound
   residual. Sibling stubs: CHAIN-MANIFEST-OCREQ-BINDING,
   CHAIN-OCREQ-ENTRY-BINDING, D-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING,
-  OCREQ-REQUEST-BINDING.
+  OCREQ-REQUEST-BINDING. Re-witnessed at `4e716c7844` on linux x86-64
+  (CHAIN-OCREQ-ENTRY-BINDING dispatch): `sh
+  tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
+  identities verified (622,933-byte receipt request, 565,909-byte
+  customer, 45-byte expected observation).
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
   completed — the attribution ledger
   `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
