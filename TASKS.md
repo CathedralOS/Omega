@@ -10818,6 +10818,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   runtime `Value` argument proven a roster member — is not landed and
   is owned by FINITE-GENERIC-DISPATCH's remaining-work bullet. No
   independent slice.
+  Re-verified at `6f91898606` (linux x86-64): RUNTIME-VALUE-GENERICS
+  remains an open row with the same remaining-work bullets (guard-derived
+  parameter qualifications, data-declaration value binders, module-owned
+  forms, native call/storage routes) and no live claim fences
+  `dynamic_scalar_calls/` or `monomorphization/dynamic_families.rs`.
+  Dependency gate still holds — no independent slice.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
   "region alignment/expansion" parity gap). Resolved — the gap is already
@@ -16379,6 +16385,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   versioned workload surface. Sibling fences noted live: WORKLOAD-
   MULTIVERSIONING, GRAPH-COST-EVIDENCE-CORPUS, and BOUNDED-OPTIMIZATION-SEARCH
   hold their wiki/drafts scope-verification files under Zergling-126.
+  Re-verified at `53817f8759e5` (z87, linux x86-64): the authorization gate
+  stands — `learned_optimization_policy.md` still untouched since
+  `f3be428d4ae`, `optimizations.md:207` still forbids trainer-side
+  machinery, OMEGA-PRODUCT-COMPILER-SOURCE still open at :7029. Sibling
+  draft fences live: WORKLOAD-MULTIVERSIONING (exp 11:11Z),
+  GRAPH-COST-EVIDENCE-CORPUS (exp 11:04Z). No leg remains here.
 - **WORKLOAD-MULTIVERSIONING.** Scope verified, authorization gate recorded (re-verified at `2e1db3ba3e2`; source doc unchanged since `f3be428d4ae`). Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's multiversioning leg (specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: multiversing is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE — still in flight under a live claim) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. Same verdict already recorded on siblings WORKLOAD-CORPUS and GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WORKSPACE-ROLLOUT** — mined candidate; verify scope then implement.
 - **WR-REJOIN-LEGS.** Mined candidate; scope verified at `2bbe4727a2ce`,
