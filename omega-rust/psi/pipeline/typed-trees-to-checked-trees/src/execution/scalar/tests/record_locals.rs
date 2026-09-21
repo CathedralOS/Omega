@@ -350,6 +350,7 @@ fn fresh_nested_record_transition_retains_shapes_operations_and_scalar_occurrenc
                 result,
                 value,
                 calls,
+                operand_source: _,
                 discard_result_on_return,
             },
         ] = state.unit_operations.as_slice()

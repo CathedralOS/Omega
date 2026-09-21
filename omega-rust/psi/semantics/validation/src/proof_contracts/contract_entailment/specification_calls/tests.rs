@@ -114,3 +114,47 @@ ensures Emptiable::take_empty(known) == Emptiable::take_empty(known);
         "citing the requirement at an established subject must prove: {messages:?}"
     );
 }
+
+#[test]
+fn requirement_call_at_the_matching_constructor_leaf_proves() {
+    // The required membership is `value in Tree::Empty`: citing the
+    // requirement at the `Tree::Empty` constructor leaf itself is the exact
+    // established subject, so the structural judgment must prove it.
+    let source = format!(
+        "{ABSTRACT_FIXTURE}
+machine empty_leaf()
+ensures Emptiable::take_empty(Tree::Empty) == Emptiable::take_empty(Tree::Empty);
+{{}}
+"
+    );
+    let messages = machine_contract_diagnostics(&source, "empty_leaf");
+    assert!(
+        messages.is_empty(),
+        "citing the requirement at the matching constructor leaf must prove: {messages:?}"
+    );
+}
+
+#[test]
+fn requirement_call_at_a_wrong_constructor_leaf_rejects() {
+    // `Tree::Node { child: known }` is a constructor leaf whose case is not
+    // `Empty`; an established `known` does not change the constructed value's
+    // case, so the requirement citation must reject — and reject at each of
+    // the two occurrences.
+    let source = format!(
+        "{ABSTRACT_FIXTURE}
+machine node_leaf(known: Tree)
+requires known in Tree::Empty;
+ensures Emptiable::take_empty(Tree::Node {{ child: known }}) == Emptiable::take_empty(Tree::Node {{ child: known }});
+{{}}
+"
+    );
+    let messages = machine_contract_diagnostics(&source, "node_leaf");
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.contains(WRONG_SUBJECT_REJECTION))
+            .count(),
+        2,
+        "each requirement citation at the wrong constructor leaf must reject: {messages:?}"
+    );
+}

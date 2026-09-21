@@ -156,10 +156,10 @@ pub use platform_bringup::uefi_bootstrap::{
 };
 pub use program_local::program_local_extents::{
     ProgramLocalExtentAggregateRetirementError, ProgramLocalExtentMaterializationError,
-    ProgramLocalExtentRegistry, ProgramLocalExtentRetirementError, ReleasedRetainedForeignArgument,
-    RetainedForeignAccess, RetainedForeignArgument, RetainedForeignArgumentDisposition,
-    RetainedForeignArgumentError, RetainedForeignArgumentId, RetainedForeignArgumentRange,
-    RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
+    ProgramLocalExtentRegistry, ProgramLocalExtentRemapError, ProgramLocalExtentRetirementError,
+    ReleasedRetainedForeignArgument, RetainedForeignAccess, RetainedForeignArgument,
+    RetainedForeignArgumentDisposition, RetainedForeignArgumentError, RetainedForeignArgumentId,
+    RetainedForeignArgumentRange, RetainedForeignArgumentRequest, RetiredProgramLocalExtent,
 };
 pub use program_local::program_local_roots::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,
@@ -177,7 +177,6 @@ pub use program_local::program_local_roots::{
     ProgramLocalRootPrebindingId, ProgramLocalRootRetirementError, ProgramLocalRootScalarBinding,
     ProgramLocalRootScalarSource, ProgramLocalRootSchemaDigest, ProgramLocalRootSubjectPlaceId,
     RetiredProgramLocalRootOccurrence, compose_program_local_root_coexistence_report,
-    compose_program_local_root_coexistence_report_from_journal_roster,
 };
 pub use root_entry::opaque_callback_replacement::{
     CompletedOpaqueCallbackUnregistration, OpaqueCallbackRegistrationCapacityOccurrence,

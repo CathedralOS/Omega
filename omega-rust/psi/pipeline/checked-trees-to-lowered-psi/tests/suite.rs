@@ -12,6 +12,7 @@ mod borrowed_computation_arguments;
 mod borrowed_computation_custody;
 mod borrowed_scalar_call_source;
 mod borrowed_scalar_root;
+mod boundary_result_domain_calls;
 mod byte_sequence_forwarding;
 mod byte_sequence_length;
 mod byte_sequence_read;

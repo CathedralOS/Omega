@@ -782,3 +782,125 @@ fn nested_index_traversal_checks_each_collection_extent() {
         assert_eq!(checked.is_ok(), accepted, "{access}: {checked:?}");
     }
 }
+
+// CONST-GENERIC-EXTENT-RANGE-DISCHARGE: indexing a `[T; N]` const-extent
+// collection discharges `index < N` / `end <= N` against the binder itself —
+// its declared floor, the index's `u64[..N]` declared range, and the ordinary
+// collection-keyed facts. An unproven obligation rejects like every other
+// extent lane; it may not fall through to silent accept.
+#[test]
+fn const_generic_extent_index_discharge() {
+    for (source, accepted) in [
+        // Unproven scalar index is a real obligation, not a silent pass.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], index: u64) { let x: u8 = items[index]; }",
+            false,
+        ),
+        // `u64[0..=N]` declares `index <= N` — the strict form `index < N`
+        // stays unproven and must reject.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], index: u64[0..=N]) { let x: u8 = items[index]; }",
+            false,
+        ),
+        // `u64[0..N]` is the language's "index of `[T; N]`" spelling.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], index: u64[0..N]) { let x: u8 = items[index]; }",
+            true,
+        ),
+        // A literal index is provable exactly when it lies below the binder's
+        // declared floor: `N: u64` admits `N == 0`, so `items[0]` cannot hold.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) { let x: u8 = items[0]; }",
+            false,
+        ),
+        (
+            "machine inspect<const N: u64[1..=18446744073709551615]>(items: &[u8; N]) { let x: u8 = items[0]; }",
+            true,
+        ),
+        // A closed declared high below the binder's floor composes:
+        // `index <= 3` and `3 < 5 <= N`.
+        (
+            "machine inspect<const N: u64[5..=18446744073709551615]>(items: &[u8; N], index: u64[0..=3]) { let x: u8 = items[index]; }",
+            true,
+        ),
+        // Attached-data fields on a generic record take the same lane.
+        (
+            "data FixedBuffer<const N: u64> { items: [i32 in Wrapping; N]; } machine FixedBuffer::poke(&mut self, i: u64, value: i32 in Wrapping) { self.items[i] = value; }",
+            false,
+        ),
+        (
+            "data FixedBuffer<const N: u64[1..=18446744073709551615]> { items: [i32 in Wrapping; N]; } machine FixedBuffer::set_first(&mut self, value: i32 in Wrapping) { self.items[0] = value; }",
+            true,
+        ),
+    ] {
+        let result = check_source(source);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+        if accepted {
+            continue;
+        }
+        assert!(
+            result
+                .unwrap_err()
+                .iter()
+                .any(|message| message.contains("const extent")),
+            "{source}"
+        );
+    }
+}
+
+// Range windows over a const-generic extent discharge `end <= N` — and the
+// strict `end < N` for an inclusive end.
+#[test]
+fn const_generic_extent_range_discharge() {
+    for (source, accepted) in [
+        // `items[..N]` names the extent itself — `N <= N` holds trivially.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) { let x: &[u8] = &items[..N]; }",
+            true,
+        ),
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], start: u64[0..=N]) { let x: &[u8] = &items[start..N]; }",
+            true,
+        ),
+        // The inclusive end is itself an index: `items[..=N]` reads `N`, out
+        // of bounds for every admissible `N`.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) { let x: &[u8] = &items[..=N]; }",
+            false,
+        ),
+        // An unproven window end owes `end <= N`.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], end: u64) { let x: &[u8] = &items[..end]; }",
+            false,
+        ),
+        // `end: u64[0..=N]` asserts `end <= N` — sufficient for the window end.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], end: u64[0..=N]) { let x: &[u8] = &items[..end]; }",
+            true,
+        ),
+        // The builtin length spelling of the same place discharges the end.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) { let x: &[u8] = &items[..items.len]; }",
+            true,
+        ),
+        // A guard-minted collection/index fact carries the pair regardless
+        // of whether the extent is symbolic or concrete.
+        (
+            "machine inspect<const N: u64>(items: &[u8; N], index: u64, end: u64) { transition index < items.len && end <= items.len { true -> ok() _ -> fail() } state ok(&mut self) { } state fail(&mut self) { } }",
+            true,
+        ),
+    ] {
+        let result = check_source(source);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+        if accepted {
+            continue;
+        }
+        assert!(
+            result
+                .unwrap_err()
+                .iter()
+                .any(|message| message.contains("const extent")),
+            "{source}"
+        );
+    }
+}

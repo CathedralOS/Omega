@@ -1,10 +1,10 @@
 {
   "schema": "omega-benchmark-record/1",
-  "recorded_utc": "2026-09-20T15:55:19Z",
+  "recorded_utc": "2026-09-20T19:48:43Z",
   "subject": {
     "name": "wrapping_square_sum",
     "root": "samples/cli/arithmetic/wrapping_square_sum/main.omg",
-    "source_revision": "6b610300e8df83b01232830b2e48740289c63a8a"
+    "source_revision": "54d5dc1cb159cc5b15f5462305c4509bc960c006"
   },
   "key": {
     "target": "linux_arm64",
@@ -29,23 +29,23 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        28473.327380999763,
-        28289.127469999585,
-        28745.71892899985
+        28048.490410998056,
+        28297.717192002892,
+        28129.597138002282
       ],
-      "median_ms": 28473.327380999763,
-      "min_ms": 28289.127469999585,
+      "median_ms": 28129.597138002282,
+      "min_ms": 28048.490410998056,
       "stage_timings_last_sample_ms": {
-        "prepare: project -> prepared sources": 4.149,
-        "compile: sources -> requested product": 28657.792,
-        "publish: retained product -> published product": 72.48,
-        "total elapsed": 28734.911
+        "prepare: project -> prepared sources": 4.175,
+        "compile: sources -> requested product": 28042.956,
+        "publish: retained product -> published product": 71.115,
+        "total elapsed": 28118.735
       }
     },
     "peak_memory_bytes": {
       "status": "measured",
       "unit": "bytes",
-      "compile_max_rss": 150872064,
+      "compile_max_rss": 150441984,
       "run_max_rss": null
     },
     "code_size_bytes": {
@@ -71,5 +71,7 @@
       "reason": "--no-run was passed"
     }
   },
-  "notes": []
+  "notes": [
+    "compile-only row measured on linux x86-64 host; runtime not executable for cross target"
+  ]
 }

@@ -266,6 +266,7 @@ pub(crate) fn lower_inline_call(
         arguments,
         Vec::new(),
         ScalarCallCrashScope::CallerValues,
+        crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(checked, machine, state)?,
     )
     .map(Some)
 }
@@ -464,6 +465,11 @@ impl Expansion<'_> {
             parameters_for_actuals(call_types, input_types.len()),
             structural_arguments,
             ScalarCallCrashScope::Arguments,
+            crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
+                self.checked,
+                self.machine,
+                site.state,
+            )?,
         )?;
         if self.calls.contains(&call.source_coordinate) {
             return unsupported("scalar computation repeats a call occurrence");
@@ -490,6 +496,7 @@ impl Expansion<'_> {
                         structural_parameters: Vec::new(),
                         parameter_types: leaf_types.clone(),
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarArray(
                             LoweredScalarArrayConstruction {
@@ -503,6 +510,7 @@ impl Expansion<'_> {
                             target: continuation,
                             arguments: super::parameters(prefix),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });
@@ -525,6 +533,7 @@ impl Expansion<'_> {
                     let constructor = self.push(LoweredScalarBranchState {
                         parameter_types: field_types,
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         structural_parameters: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: vec![LoweredScalarEffect::EstablishScalarCase(
@@ -541,6 +550,7 @@ impl Expansion<'_> {
                             target: continuation,
                             arguments: super::parameters(prefix),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
                         },
                     });

@@ -24,7 +24,9 @@
 
 mod support;
 
+use std::borrow::Borrow;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use support::*;
 use topology_plan::topology_installation::{
@@ -118,7 +120,7 @@ fn baseline() -> (
     Vec<u8>,
     DeploymentPlan,
     Vec<u8>,
-    Vec<AdmittedComponent>,
+    Vec<Arc<AdmittedComponent>>,
 ) {
     let request = payment_request();
     let (request_bytes, plan_bytes, plan) = payment_pair();
@@ -142,19 +144,12 @@ fn checked_baseline(plan_bytes: &[u8], request_bytes: &[u8]) -> CheckedPlan {
 fn installation_request(
     expected_request: Identity,
     occurrence: u64,
-    components: &[AdmittedComponent],
+    components: &[Arc<AdmittedComponent>],
 ) -> InstallationRequest {
     InstallationRequest {
         expected_request,
         occurrence,
-        artifacts: components
-            .iter()
-            .enumerate()
-            .map(|(index, admission)| AdmittedArtifact {
-                artifact: identity(0xA1 + index as u8),
-                component_subject: subject_of(admission),
-            })
-            .collect(),
+        artifacts: artifact_roster(components, |index| identity(0xA1 + index as u8)),
     }
 }
 
@@ -166,7 +161,7 @@ fn assert_unauthorized_request(
     checked: CheckedPlan,
     expected: Identity,
     found: Identity,
-    components: &[AdmittedComponent],
+    components: &[Arc<AdmittedComponent>],
 ) {
     let mut lifecycle = InstallationLifecycle::default();
     let authorization = lifecycle
@@ -210,7 +205,7 @@ fn assert_plan_rejected(
     mutated: &DeploymentPlan,
     baseline_subject: Identity,
     request_bytes: &[u8],
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
     expected: impl Fn(&PlanRejection) -> bool,
 ) {
     let bytes = encode_plan(mutated)
@@ -242,7 +237,7 @@ fn assert_plan_identity_bound(
     mutated: &DeploymentPlan,
     baseline_subject: Identity,
     request_bytes: &[u8],
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
 ) {
     let bytes = encode_plan(mutated)
         .unwrap_or_else(|error| panic!("{name}: the substitution must stay encodable: {error}"));
@@ -284,7 +279,7 @@ fn assert_plan_decode_rejected(
     name: &str,
     mutated: &DeploymentPlan,
     request_bytes: &[u8],
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
     expected: impl Fn(&CodecError) -> bool,
 ) {
     let bytes = encode_plan(mutated).unwrap_or_else(|error| {
@@ -2065,7 +2060,7 @@ fn installation_request_rejects_every_one_field_substitution() {
             Box::new(|request: &mut InstallationRequest| {
                 request.artifacts.push(AdmittedArtifact {
                     artifact: identity(0xA4),
-                    component_subject: identity(0x44),
+                    admission: Arc::clone(&request.artifacts[0].admission),
                 });
             }),
             Box::new(|rejection: &InstallationRejection| {
@@ -2088,14 +2083,19 @@ fn installation_request_rejects_every_one_field_substitution() {
             }),
         ),
         (
-            "artifacts[1].component_subject",
+            "artifacts[1].admission::other-component",
             Box::new(|request: &mut InstallationRequest| {
-                request.artifacts[1].component_subject = identity(0x23);
+                // The artifact's subject is admission-derived now: the only
+                // way to substitute it is to admit a different component.
+                request.artifacts[1].admission = Arc::clone(&request.artifacts[0].admission);
             }),
             Box::new(|rejection: &InstallationRejection| {
                 matches!(
                     rejection,
-                    InstallationRejection::ArtifactMismatch { instance: 1 }
+                    InstallationRejection::ArtifactMismatch {
+                        instance: 1,
+                        field: "component_subject"
+                    }
                 )
             }),
         ),
@@ -2107,7 +2107,7 @@ fn installation_request_rejects_every_one_field_substitution() {
             Box::new(|rejection: &InstallationRejection| {
                 matches!(
                     rejection,
-                    InstallationRejection::ArtifactMismatch { instance: 0 }
+                    InstallationRejection::ArtifactMismatch { instance: 0, .. }
                 )
             }),
         ),

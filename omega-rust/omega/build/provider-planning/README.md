@@ -11,7 +11,7 @@ only wires the public API.
 [Receipt binding](src/provider_planning/receipt_binding.rs) validates admitted
 receipts against exact granted requirements; [installation reach](src/provider_planning/installation_reach.rs)
 resolves the selected realization's reach. Both return planned results without
-mutating the checked program. [selection.rs](src/selection.rs) owns authored
+mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs) owns authored
 selection inputs and target defaults.
 
 Target defaults preserve their exact producer roster through target-marker
@@ -19,7 +19,7 @@ erasure and typed construction, then rejoin those typed machines before plan
 selection. Do not replace the consuming carrier with a raw machine-name channel.
 Authored selection identity/order and build-over-default precedence remain intact.
 
-[Calling-policy planning](src/calling_policy_plans.rs) consumes closed plans.
+[Calling-policy planning](src/calling_policy_plans/mod.rs) consumes closed plans.
 Its [opaque-use records](src/calling_policy_plans/opaque_representations.rs)
 retain exact source joins, shape roots, application commitments, and explicit
 lifecycle/movement dispositions. Arena symbols are private join coordinates;

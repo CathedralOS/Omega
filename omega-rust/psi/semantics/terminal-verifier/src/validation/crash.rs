@@ -1025,7 +1025,8 @@ fn validate_boolean_field_terms(
     match proposition {
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
+        | Proposition::LessOrEqual(left, right)
+        | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
             validate_term(module, machine, left, runtime_requirements)?;
             validate_term(module, machine, right, runtime_requirements)?;
         }

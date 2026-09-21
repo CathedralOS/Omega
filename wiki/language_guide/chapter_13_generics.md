@@ -64,9 +64,15 @@ Value binders distinguish two staging contracts:
 
 `const` is a requirement, not an optimization hint. Without it, known arguments
 may still specialize. With it, a declaration can require fixed layout or static
-instruction operands without supplying a runtime fallback. Runtime-capable
-binder support remains implementation work; these examples specify the intended
-contract rather than currently executable source.
+instruction operands without supplying a runtime fallback. Runtime-capable binders are
+implemented for machine signatures: `machine f<Count: u32>(...)` compiles to one
+body carrying `Count` as an ordinary argument, with its `requires` bound proved
+at the call site. They are not implemented for data declarations, so the
+`Index<Limit: u32>` example below still specifies the intended contract rather
+than currently executable source, and layout-determining positions such as array
+extents continue to reject. The slice-length bound shown in the next example is
+likewise not what the landed canaries exercise — those bound a scalar
+parameter.
 
 ```omega
 machine prefix_count<Count: u32>(items: &[u8]) -> u32
@@ -131,7 +137,14 @@ results need a common representation or an explicit finite sum/eligible owner;
 no implicit boxing or variable-layout return is introduced. The
 [specialization contract](../spec/language/generics.md#finite-specialization-boundary)
 and [dynamic-family contract](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-define the rules. This is intended support, not implemented generic virtual calls.
+define the rules.
+
+Generic virtual calls of this shape are implemented, not merely intended:
+`tests/omega/pass/traits/dyn_finite_family_dispatch` erases a receiver to
+`&dyn Shape` and calls `erased.code<16>()` and `erased.code<32>()`, each
+resolving to its own generated row. The limit is narrower than "no generic
+virtual calls": the only legal binder tuple is one complete roster tuple of
+closed static values, so a width chosen at runtime has no dispatch.
 
 ## Type Equality And Indexed-Domain Matching
 

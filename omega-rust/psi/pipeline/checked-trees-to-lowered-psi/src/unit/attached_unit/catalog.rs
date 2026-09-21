@@ -18,7 +18,7 @@ use super::{
     allocate_dense, content_conservation, dense_identity, lookup_domain_id, lookup_service_id,
     lookup_type_id, terminal_scalar_type, unique_unit_boundary, unsupported,
 };
-use checked_trees::CheckedUnitStructuralTypePlan;
+use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
@@ -374,6 +374,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
             CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
+            }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
@@ -455,6 +460,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+            }
+            // Terminal Psi carries no runtime-length view descriptor, so a
+            // borrowed `&[T]` view rejects here instead of losing its extent.
+            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                return unsupported("borrowed slice view has no Terminal descriptor");
             }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 let mut field_identities = BTreeSet::new();
@@ -660,6 +670,13 @@ pub(super) fn lower_unit_structural_domains_including(
                     .iter()
                     .map(|requirement| &requirement.domain),
             )
+            .chain(match &boundary.result {
+                CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                    qualifications.iter()
+                }
+                CheckedBoundaryMachineResultPlan::Unit
+                | CheckedBoundaryMachineResultPlan::Scalar(_) => [].iter(),
+            })
         {
             if !selected.contains(domain) {
                 selected.push(*domain);
@@ -724,7 +741,10 @@ pub(super) fn lower_unit_structural_domains_including(
                 plan.domain,
                 &plan.carrier_type_identity,
             )?;
+            let establishment_routes =
+                lower_establishment_routes(checked, &plan.establishment_routes)?;
             Ok(StructuralDomainDeclaration {
+                establishment_routes,
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
@@ -735,6 +755,190 @@ pub(super) fn lower_unit_structural_domains_including(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok((declarations, domain_ids))
+}
+
+fn establishment_requirement_identity(
+    checked: &CheckedTrees,
+    trait_symbol: symbols::SymbolHandle,
+    requirement_symbol: symbols::SymbolHandle,
+) -> Result<String, LoweringError> {
+    let definition = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == trait_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "domain establishment route names an absent trait",
+        ))?;
+    let signature = checked
+        .typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .find(|signature| signature.symbol == requirement_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "domain establishment route names an absent requirement",
+        ))?;
+    Ok(checked
+        .typed
+        .normalized_trait_requirement_overload_identity(definition, signature)
+        .identity())
+}
+
+fn lower_establishment_route(
+    checked: &CheckedTrees,
+    route: language_semantics::DomainEstablishmentRoute,
+) -> Result<terminal_psi::StructuralEstablishmentRoute, LoweringError> {
+    Ok(match route {
+        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition,
+            requirement,
+        } => terminal_psi::StructuralEstablishmentRoute::Requirement {
+            requirement: establishment_requirement_identity(
+                checked,
+                trait_definition,
+                requirement,
+            )?,
+        },
+        language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait,
+            requirement,
+        } => terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
+            requirement: establishment_requirement_identity(checked, boundary_trait, requirement)?,
+        },
+        language_semantics::DomainEstablishmentRoute::ExactMachine { machine } => {
+            let declaration = checked
+                .typed
+                .machines()
+                .iter()
+                .find(|declaration| declaration.symbol == machine)
+                .ok_or(LoweringError::Unsupported(
+                    "domain establishment route names an absent machine",
+                ))?;
+            let machine = checked
+                .typed
+                .normalized_machine_overload_identity(declaration)
+                .map(|identity| identity.identity())
+                .ok_or(LoweringError::Unsupported(
+                    "domain establishment route machine has no normalized identity",
+                ))?;
+            terminal_psi::StructuralEstablishmentRoute::ExactMachine { machine }
+        }
+    })
+}
+
+/// Normalize one authored establishment catalog to its source-free form.
+/// The emitted rows are strictly ordered; each identity is the declaration's
+/// canonical normalized overload identity, so private issuers retain their
+/// exact names without gaining consumer authority.
+pub(super) fn lower_establishment_routes(
+    checked: &CheckedTrees,
+    routes: &[language_semantics::DomainEstablishmentRoute],
+) -> Result<Vec<terminal_psi::StructuralEstablishmentRoute>, LoweringError> {
+    let mut lowered = routes
+        .iter()
+        .map(|route| lower_establishment_route(checked, *route))
+        .collect::<Result<Vec<_>, _>>()?;
+    lowered.sort();
+    if lowered.windows(2).any(|pair| pair[0] == pair[1]) {
+        return unsupported("domain establishment catalog retains a duplicate route");
+    }
+    Ok(lowered)
+}
+
+/// Bind each route-authorized membership on one emitted boundary call result
+/// to the exact catalog row authorizing it. Only occurrences whose checked
+/// evidence at this call coordinate records the boundary requirement's
+/// admitted receipt carry a row; every other membership lowers bare.
+///
+/// Requirement and ExactMachine routes retain only their catalog rows: an
+/// attached-unit module publishes no conformance application or callable
+/// registry for an ordinary callee, so no replay authority exists for an
+/// ordinary call's issuer identity and no binding is emitted rather than one
+/// the verifier could not check.
+pub(super) fn call_result_qualification_establishments(
+    checked: &CheckedTrees,
+    caller_state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    boundary_callee: symbols::SymbolHandle,
+    result_domains: &[SemanticDomainId],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+) -> Result<Vec<terminal_psi::ResultQualificationEstablishment>, LoweringError> {
+    let caller_machine = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .typed
+                .machine_states(machine)
+                .iter()
+                .any(|entry| entry.symbol == caller_state)
+        })
+        .map(|machine| machine.symbol)
+        .unwrap_or_default();
+    let point = facts::ProgramPoint::CallEnsures {
+        machine_symbol: caller_machine,
+        state_symbol: caller_state,
+        statement_index: usize::try_from(coordinate.statement_index)
+            .map_err(|_| LoweringError::Unsupported("call statement index exceeds usize"))?,
+        call_ordinal: usize::try_from(coordinate.call_ordinal)
+            .map_err(|_| LoweringError::Unsupported("call ordinal exceeds usize"))?,
+    };
+    let mut establishments = Vec::new();
+    for domain in result_domains {
+        let Some(plan) = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_domains
+            .iter()
+            .find(|plan| plan.domain == *domain)
+        else {
+            continue;
+        };
+        if plan.establishment_routes.is_empty() {
+            continue;
+        }
+        let established_here = checked.facts.semantic.facts.iter().any(|(_, fact)| {
+            fact.origin == facts::FactOrigin::CallEnsures
+                && fact.point == point
+                && fact.evidence.origin
+                    == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+                && matches!(
+                    fact.payload,
+                    facts::FactPayload::ContractDomainMembership { semantic_domain, .. }
+                        if semantic_domain == *domain
+                )
+        });
+        if !established_here {
+            continue;
+        }
+        let catalog = lower_establishment_routes(checked, &plan.establishment_routes)?;
+        for route in &plan.establishment_routes {
+            let authorized = matches!(
+                route,
+                language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                    requirement,
+                    ..
+                } if *requirement == boundary_callee
+            );
+            if !authorized {
+                continue;
+            }
+            let row = lower_establishment_route(checked, *route)?;
+            let Some(index) = catalog.iter().position(|candidate| *candidate == row) else {
+                continue;
+            };
+            establishments.push(terminal_psi::ResultQualificationEstablishment {
+                domain: lookup_domain_id(domain_ids, *domain)?,
+                route: u32::try_from(index).map_err(|_| {
+                    LoweringError::Unsupported("establishment route index exceeds u32")
+                })?,
+            });
+            break;
+        }
+    }
+    establishments.sort_by_key(|binding| (binding.domain, binding.route));
+    Ok(establishments)
 }
 
 pub(super) fn lower_unit_services(
@@ -811,6 +1015,8 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }

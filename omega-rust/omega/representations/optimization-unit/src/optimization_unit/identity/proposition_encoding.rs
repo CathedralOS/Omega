@@ -86,6 +86,18 @@ pub(super) fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Propo
             encode_case_subject(bytes, subject);
             bytes.id(*case);
         }
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } => {
+            bytes.u8(17);
+            encode_float_comparison(bytes, *kind);
+            encode_float_format(bytes, *format);
+            encode_scalar_term(bytes, left);
+            encode_scalar_term(bytes, right);
+        }
     }
 }
 

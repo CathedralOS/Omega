@@ -468,7 +468,7 @@ invokes console;
         r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.depend_as("accepted_console", Source::Path { location: "../console" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<accepted_console::Console, accepted_console::ConsoleNativeProvider>();
 }
 "#,
     );

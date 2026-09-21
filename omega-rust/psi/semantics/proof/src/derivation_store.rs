@@ -19,7 +19,10 @@
 //! deterministic across runs. The key already embeds the encoding schema and
 //! every semantic input the draft lists — selected obligations, resolved
 //! symbols, constraints, operand payloads — so dependency changes produce a
-//! different key and `invalidate` drops the stale row's storage.
+//! different key and `invalidate` drops the stale row's storage. A caller
+//! that observes a dependency change without knowing the affected keys uses
+//! `invalidate_where`: every retained row whose canonical identity still
+//! names the changed dependency is dropped.
 //!
 //! Out of scope here: persistence format and cross-compilation reuse
 //! policy. The checking-loop consultation landed in
@@ -201,6 +204,33 @@ impl<D> DerivationStore<D> {
         let removed = handles.len();
         for handle in handles {
             self.derivations.free(handle);
+        }
+        removed
+    }
+
+    /// Drop every retained derivation whose key `affected` accepts; returns
+    /// how many entries were dropped in total.
+    ///
+    /// This is the invalidation granularity a dependency change needs: the
+    /// canonical key embeds each dependency's resolved identity, so a changed
+    /// dependency affects every row still naming it — not one key the caller
+    /// may no longer be able to reproduce. A caller that observes a changed
+    /// dependency sweeps the index (typically
+    /// `|key| key.as_str().contains(stale_identity)`); every matched row's
+    /// slots return to the arena and untouched rows keep their order.
+    pub fn invalidate_where(
+        &mut self,
+        mut affected: impl FnMut(&ProofObligationKey) -> bool,
+    ) -> usize {
+        let stale: Vec<ProofObligationKey> = self
+            .index
+            .keys()
+            .filter(|key| affected(key))
+            .cloned()
+            .collect();
+        let mut removed = 0;
+        for key in stale {
+            removed += self.invalidate(&key);
         }
         removed
     }

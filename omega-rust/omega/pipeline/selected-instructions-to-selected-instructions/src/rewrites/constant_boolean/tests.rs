@@ -3,16 +3,16 @@ use crate::ConstantBooleanReceipt;
 use crate::ValidatedConstantBoolean;
 use crate::ValidatedSelectedAnalysis;
 use crate::fold_selected_constant_boolean;
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 use crate::validate_constant_boolean_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-    SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionPlan, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -21,41 +21,6 @@ use semantic_vocabulary::{
 use target::NativeTarget;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
 
 const MATERIALIZE_A: SelectedInstructionId = SelectedInstructionId(2);
 const MATERIALIZE_B: SelectedInstructionId = SelectedInstructionId(3);
@@ -1472,7 +1437,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         ),
         (wider, 34u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
             fold_selected_constant_boolean(&source, 0, BOOLEAN, &environment, exact).unwrap();
         validate_constant_boolean_fold(
@@ -1484,7 +1449,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             fold_selected_constant_boolean(&source, 0, BOOLEAN, &environment, starved).unwrap_err(),
             ConstantBooleanError::WorkBudgetExceeded

@@ -1,0 +1,20 @@
+// A `drop` body is an ordinary Unit machine: helpers it calls need not
+// attach to a data type.
+
+data Guard {
+    handle: i32;
+}
+
+machine unlock() {
+}
+
+machine Guard::drop(&mut self) {
+    unlock();
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}

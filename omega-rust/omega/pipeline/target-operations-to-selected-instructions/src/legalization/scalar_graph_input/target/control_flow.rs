@@ -189,7 +189,12 @@ pub(super) fn validate(
                 psi_edge == expected_edge
                     // No destructor instructions are needed for these plain homes;
                     // retain and replay their exact ordered death-edge disposition.
-                    && edge_cleanup_matches(optimized, cleanup_actions, trivial_affine_discards)
+                    && edge_cleanup_matches(
+                        optimized,
+                        cleanup_actions,
+                        trivial_affine_discards,
+                        &[],
+                    )
                     && returned_claims.is_empty()
                     && trivial_affine_locals.is_empty()
                     // A reference-bearing result must still sit at its declared
@@ -383,8 +388,8 @@ pub(super) fn validate(
                         optimized,
                         &successor.cleanup_actions,
                         trivial_affine_discards,
+                        residual_affine_discards,
                     )
-                    && residual_affine_discards.is_empty()
             }
             (
                 TargetControlTerminator::Conditional {
@@ -431,6 +436,7 @@ fn successor_matches(
             function,
             &target.cleanup_actions,
             &source.trivial_affine_discards,
+            &[],
         )
 }
 
@@ -438,10 +444,18 @@ fn edge_cleanup_matches(
     function: &PsiOptimizationFunction,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
     places: &[semantic_vocabulary::PlaceId],
+    residuals: &[terminal_psi::StructuralAffineDiscard],
 ) -> bool {
-    actions.len() == places.len()
-        && actions.iter().zip(places).all(|(action, place)| matches!(
-            action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(source) if source == place
-        ))
-        && super::super::aggregate_results::cleanup(function, actions)
+    let expected = places
+        .iter()
+        .copied()
+        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+        .chain(
+            residuals
+                .iter()
+                .cloned()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+        )
+        .collect::<Vec<_>>();
+    actions == expected.as_slice() && super::super::aggregate_results::cleanup(function, actions)
 }
