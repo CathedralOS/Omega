@@ -16227,7 +16227,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   enumerated gap to these rows. No linux_x86_64 slice exists outside the
   claimed fence — coordinate with the squalr port lane before working it.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
-- **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
+- **REPLACEMENT-REJECTION-INVENTORY.** — mined candidate; resolved as
+  covered (re-verified `c924529921d`): the same-name row at :16129
+  already adjudicates this stub — sibling re-mine of
+  COMMON-ROUTE-REJECTION-INVENTORY asking the same inventory from the
+  replacement side; the surviving common-route refusal is the callback-
+  occupancy rejection CALLBACK-PRIVATE-MATERIALIZATION owns, and the
+  producing files were under UEFI-PHYSICAL-SEMANTIC-ENTRY's claim. No
+  slice under this stub.
 - **REPOSITORY-BASELINE-GATE** — duplicate stub of the annotated row at
   :12798 above (gate measured red on this host; fmt green again at
   `771d0469a1`, remaining red legs fenced to their repair rows). No
