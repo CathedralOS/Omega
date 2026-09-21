@@ -6,6 +6,8 @@ mod arithmetic_and_float_control;
 mod domain_guards;
 #[path = "../fixture_rosters/domains_control_and_structures.rs"]
 pub(super) mod fixture_roster;
+#[path = "domains_control_and_structures/ranked_callee_projected_receiver.rs"]
+mod ranked_callee_projected_receiver;
 #[path = "domains_control_and_structures/structure_and_slice_canaries.rs"]
 mod structure_and_slice_canaries;
 

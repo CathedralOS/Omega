@@ -97,6 +97,55 @@ class SourceInventory(unittest.TestCase):
         self.assertIsNone(
             METRICS.source_inventory(Path("/nonexistent/tree")))
 
+    def test_pattern_selects_python_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "tool"
+            root.mkdir()
+            (root / "checker.py").write_text("a\nb\n")
+            (root / "helper.rs").write_text("r\n")
+            inventory = METRICS.source_inventory(root, "*.py")
+            self.assertEqual(inventory["files"], 1)
+            self.assertEqual(inventory["lines"], 2)
+
+
+class EncodingRoute(unittest.TestCase):
+    def repo(self):
+        return Path(subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], text=True).strip())
+
+    def test_encoding_route_measures_the_landed_slice(self):
+        route = METRICS.measure_encoding_route(
+            self.repo(), repetitions=1, skip_cases=False)
+        self.assertEqual(route["status"], "measured")
+        for axis in ("checker", "translation"):
+            self.assertGreater(route[axis]["files"], 0)
+            self.assertGreater(route[axis]["lines"], 0)
+        self.assertEqual(route["case_status"], "measured")
+        self.assertGreaterEqual(len(route["cases"]), 1)
+        for case in route["cases"]:
+            self.assertTrue(case["match"], case["path"])
+        self.assertEqual(route["case_mismatches"], 0)
+        self.assertGreater(route["certificate"]["bytes"], 0)
+        theory = route["theory"]["rule_inventory"]
+        self.assertGreater(theory.get("checkerRules", 0), 0)
+        self.assertGreater(theory.get("encodingClauses", 0), 0)
+        encoding_cases = route["theory"]["encoding_cases"]
+        self.assertEqual(
+            sum(1 for row in encoding_cases if row["consistent"]), 1)
+
+    def test_encoding_route_pends_without_the_slice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            route = METRICS.measure_encoding_route(
+                Path(tmp), repetitions=1, skip_cases=False)
+        self.assertEqual(route["status"], "pending")
+
+    def test_skip_cases_still_measures_inventories(self):
+        route = METRICS.measure_encoding_route(
+            self.repo(), repetitions=1, skip_cases=True)
+        self.assertEqual(route["status"], "measured")
+        self.assertEqual(route["case_status"], "skipped")
+        self.assertGreater(route["checker"]["files"], 0)
+
 
 class ParseTimings(unittest.TestCase):
     def test_parses_stage_table_and_total(self):

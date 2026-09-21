@@ -32,6 +32,7 @@ pub enum ProofCodecError {
     StringTooLong(&'static str),
     InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),
+    MalformedMathematicalSignature(&'static str),
     TrustGraph(crate::TrustGraphError),
     SubjectIdentity(crate::CodecError),
     UnsupportedProofSectionVocabulary(u16),

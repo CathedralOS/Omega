@@ -220,6 +220,10 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             bytes.push(1);
             encode_byte_sequence_carrier(bytes, *carrier);
         }
+        StructuralTypeShape::ElementView { element } => {
+            bytes.push(8);
+            bytes.extend_from_slice(&element.get().to_le_bytes());
+        }
         StructuralTypeShape::Record { fields } => {
             bytes.push(2);
             encode_structural_fields(bytes, fields);

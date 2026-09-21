@@ -163,17 +163,6 @@ fn state_place_path(
     }
 }
 
-/// The machine whose attached data owns the place a `self.field` target refers to.
-pub(crate) fn machine_by_symbol(
-    program: &typed_trees::TypedTrees,
-    machine_symbol: SymbolHandle,
-) -> Option<&Machine> {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-}
-
 /// Resolve a `self.field` target (`Member(Name(self), field)` or
 /// `Name ["self", field]`) to the field's DECLARED type reference (constraints
 /// intact) via the machine's attached data. Mirrors proof

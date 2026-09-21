@@ -15,7 +15,8 @@ use selected_instructions::{
     SelectedInstructionId, SelectedInstructionKind, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOperand, SelectedStructuralBinding,
     SelectedStructuralCaseEdge, SelectedStructuralTransport, SelectedTerminator,
-    SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
+    SelectedValueBinding, SelectedValueTransport, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralCaseId,
@@ -729,6 +730,384 @@ fn cross_block_joins_reject_when_paths_disagree_or_never_resolve() {
         forward(&cycle_writer, &environment).unwrap_err(),
         StoredLoadForwardingError::UnsupportedPair
     );
+}
+
+/// A join whose legs stored different registers still forwards when the
+/// block's own parameter already merges them on the edges: every incoming
+/// edge binds the parameter from exactly that leg's resolved register, so
+/// the parameter itself is the carried value the load observes.
+const MERGED: VirtualRegisterId = VirtualRegisterId(5);
+
+/// The divergent join with block 1's parameter `MERGED` bound on both
+/// incoming edges from that leg's stored register — the merge the load
+/// forwards through.
+fn merge_join(
+    target: NativeTarget,
+    tweak: impl FnOnce(&mut SelectedFunction),
+) -> super::ValidatedStoredLoadForwarding {
+    mutated_chained(target, move |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let class = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .operands[0]
+            .class;
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        function.blocks[0].instructions.remove(1);
+        function.memory_accesses.remove(0);
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id, value) in [(7, 2, VALUE), (9, 3, SCRATCH)] {
+            let mut edge = successor(1);
+            edge.bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(6).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type,
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: value,
+                    parameter: MERGED,
+                },
+            });
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: vec![instruction(
+                    SelectedInstructionId(instruction_id + 10),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 8,
+                    },
+                    store,
+                    &[POINTER, value],
+                )],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: edge,
+                },
+            });
+            function.memory_accesses.push(access(
+                SelectedInstructionId(instruction_id + 10),
+                4,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WritePlace,
+            ));
+        }
+        function.virtual_registers.push(VirtualRegister {
+            id: MERGED,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::BlockParameter {
+                source_value: ValueId::new(6).unwrap(),
+                block: SelectedBlockId(1),
+                parameter_index: 0,
+            },
+            definition_site: Some(ValueDefinitionSite::BlockParameter {
+                block: BlockId::new(2).unwrap(),
+                position: 0,
+            }),
+            entry_fixed_view: None,
+        });
+        tweak(function);
+    })
+}
+
+#[test]
+fn cross_block_joins_forward_through_an_edge_merged_parameter() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Legs storing VALUE and SCRATCH disagree, but both edges bind block 1's
+    // MERGED parameter from that leg's register: the load reads the merge.
+    let merged = merge_join(target, |_| {});
+    let result = forward(&merged, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, LOAD);
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, MERGED);
+    assert_eq!(rewritten.operands[1].virtual_register, OUTPUT);
+    validate_stored_load_forwarding(
+        &merged,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// The merge must be exact: an edge missing the binding, a binding from
+/// another register, a second binding for the parameter, a bound register
+/// that is not the block's parameter, and a `Unused` transport each leave
+/// the legs divergent, and redefining the merged parameter before the load
+/// kills the pair the usual way.
+#[test]
+fn cross_block_joins_reject_when_the_edge_merge_is_incomplete() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    // Block 3's edge carries no binding for the parameter.
+    let missing = merge_join(target, |function| {
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[3].terminator
+        else {
+            unreachable!()
+        };
+        edge.bindings.clear();
+    });
+    assert_eq!(
+        forward(&missing, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // Block 3's edge binds the parameter from a register its leg does not
+    // carry: the load would observe the stored bytes, not the bound value.
+    let wrong_argument = merge_join(target, |function| {
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[3].terminator
+        else {
+            unreachable!()
+        };
+        edge.bindings[0].transport = SelectedValueTransport::Registers {
+            argument: VALUE,
+            parameter: MERGED,
+        };
+    });
+    assert_eq!(
+        forward(&wrong_argument, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A second binding for the same parameter on one edge makes the merge
+    // ambiguous.
+    let doubled = merge_join(target, |function| {
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[3].terminator
+        else {
+            unreachable!()
+        };
+        edge.bindings.push(edge.bindings[0].clone());
+    });
+    assert_eq!(
+        forward(&doubled, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A register the edge binds that is not the block's own parameter — an
+    // instruction result here — cannot serve as the merge.
+    let not_parameter = merge_join(target, |function| {
+        let class = function.virtual_registers[0].class;
+        let scalar_type = function.virtual_registers[0].scalar_type;
+        function.virtual_registers.push(VirtualRegister {
+            id: VirtualRegisterId(6),
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::InstructionResult {
+                instruction: BETWEEN,
+                source_value: ValueId::new(7).unwrap(),
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        for block in [2, 3] {
+            let SelectedTerminator::Jump {
+                successor: edge, ..
+            } = &mut function.blocks[block].terminator
+            else {
+                unreachable!()
+            };
+            edge.bindings[0].transport = SelectedValueTransport::Registers {
+                argument: if block == 2 { VALUE } else { SCRATCH },
+                parameter: VirtualRegisterId(6),
+            };
+        }
+    });
+    assert_eq!(
+        forward(&not_parameter, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // A `Unused` binding retains the semantic parameter but performs no
+    // register move, so the merge is not bound.
+    let unused = merge_join(target, |function| {
+        let SelectedTerminator::Jump {
+            successor: edge, ..
+        } = &mut function.blocks[3].terminator
+        else {
+            unreachable!()
+        };
+        edge.bindings[0].transport = SelectedValueTransport::Unused;
+    });
+    assert_eq!(
+        forward(&unused, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedPair
+    );
+    // Redefining the merged parameter inside the load's own block before the
+    // load kills the pair like any other clobber.
+    let redefined = merge_join(target, |function| {
+        let load = function.blocks[1].instructions[0].clone();
+        let mut killed = load.clone();
+        killed.id = SelectedInstructionId(11);
+        killed.operands[1].virtual_register = MERGED;
+        function.blocks[1].instructions.insert(0, killed);
+        function.memory_accesses.push(access(
+            SelectedInstructionId(11),
+            6,
+            PlaceId::new(2).unwrap(),
+            0,
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    assert_eq!(
+        forward(&redefined, &environment).unwrap_err(),
+        StoredLoadForwardingError::UnsupportedUse
+    );
+}
+
+/// A merge upstream still reaches the load when the merged register
+/// propagates through another deferred block: legs merge at block 4 into
+/// its own parameter, and block 4 alone feeds the load's block, which
+/// resolves to the parameter by propagation.
+#[test]
+fn cross_block_joins_merge_propagates_through_deferred_blocks() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let propagated = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap();
+        let class = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .operands[0]
+            .class;
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        function.blocks[0].instructions.remove(1);
+        function.memory_accesses.remove(0);
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (instruction_id, block_id, value) in [(7, 2, VALUE), (9, 3, SCRATCH)] {
+            let mut edge = successor(4);
+            edge.bindings.push(SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(6).unwrap(),
+                    argument: ValueId::new(1).unwrap(),
+                    scalar_type,
+                },
+                transport: SelectedValueTransport::Registers {
+                    argument: value,
+                    parameter: MERGED,
+                },
+            });
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block_id),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block_id) + 2).unwrap()),
+                instructions: vec![instruction(
+                    SelectedInstructionId(instruction_id + 10),
+                    SelectedInstructionKind::Store {
+                        byte_offset: 0,
+                        byte_size: 8,
+                    },
+                    store,
+                    &[POINTER, value],
+                )],
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: edge,
+                },
+            });
+            function.memory_accesses.push(access(
+                SelectedInstructionId(instruction_id + 10),
+                4,
+                place(),
+                0,
+                SelectedMemoryAccessRole::WritePlace,
+            ));
+        }
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(4),
+            origin: SelectedBlockOrigin::Source(BlockId::new(6).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(11),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        });
+        function.virtual_registers.push(VirtualRegister {
+            id: MERGED,
+            scalar_type,
+            class,
+            origin: VirtualRegisterOrigin::BlockParameter {
+                source_value: ValueId::new(6).unwrap(),
+                block: SelectedBlockId(4),
+                parameter_index: 0,
+            },
+            definition_site: Some(ValueDefinitionSite::BlockParameter {
+                block: BlockId::new(6).unwrap(),
+                position: 0,
+            }),
+            entry_fixed_view: None,
+        });
+    });
+    let result = forward(&propagated, &environment).unwrap();
+    let rewritten = &result.transformed().functions[0].blocks[1].instructions[0];
+    assert_eq!(rewritten.id, LOAD);
+    assert_eq!(rewritten.kind, SelectedInstructionKind::CopyI64);
+    assert_eq!(rewritten.operands[0].virtual_register, MERGED);
+    validate_stored_load_forwarding(
+        &propagated,
+        0,
+        LOAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
 }
 
 /// A deferred cycle carries no writer of its own, so it forwards the one

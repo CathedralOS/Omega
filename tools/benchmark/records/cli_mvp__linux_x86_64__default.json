@@ -1,10 +1,10 @@
 {
   "schema": "omega-benchmark-record/1",
-  "recorded_utc": "2026-09-20T21:26:04Z",
+  "recorded_utc": "2026-09-20T16:57:19Z",
   "subject": {
     "name": "cli_mvp",
     "root": "samples/cli/basics/cli_mvp/main.omg",
-    "source_revision": "96b4afed92e556ee7917875eb010ee49ccdda805"
+    "source_revision": "749794ddeb6456534bf99650cfa2faa6f7c3d183"
   },
   "key": {
     "target": "linux_x86_64",
@@ -17,7 +17,7 @@
   "host": {
     "os": "linux",
     "machine": "x86_64",
-    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "cpu": "Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz",
     "logical_cpus": 8,
     "python": "3.10.12",
     "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
@@ -29,24 +29,24 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        1227600.7083449985,
-        1215441.3879249988,
-        1242402.2243729997
+        1658045.460583,
+        1681237.1557690003,
+        1740820.3179600004
       ],
-      "median_ms": 1227600.7083449985,
-      "min_ms": 1215441.3879249988,
+      "median_ms": 1681237.1557690003,
+      "min_ms": 1658045.460583,
       "stage_timings_last_sample_ms": {
-        "prepare: project -> prepared sources": 51.462,
-        "compile: sources -> requested product": 1241558.888,
-        "publish: retained product -> published product": 776.171,
-        "total elapsed": 1242387.021
+        "prepare: project -> prepared sources": 54.677,
+        "compile: sources -> requested product": 1739865.176,
+        "publish: retained product -> published product": 878.368,
+        "total elapsed": 1740798.504
       }
     },
     "peak_memory_bytes": {
       "status": "measured",
       "unit": "bytes",
-      "compile_max_rss": 249024512,
-      "run_max_rss": 12156928
+      "compile_max_rss": 246046720,
+      "run_max_rss": 11448320
     },
     "code_size_bytes": {
       "status": "measured",
@@ -63,14 +63,14 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        1.7592399999557529,
-        1.6892419989744667,
-        1.3574410004366655,
-        1.3631450019602198,
-        1.3113480017636903
+        2.249736000521807,
+        1.9383380004001083,
+        1.5821919987502042,
+        2.150236001398298,
+        1.5297760000976268
       ],
-      "median_ms": 1.3631450019602198,
-      "min_ms": 1.3113480017636903,
+      "median_ms": 1.9383380004001083,
+      "min_ms": 1.5297760000976268,
       "exit_codes": [
         0,
         0,
@@ -83,7 +83,5 @@
       "exit_code_match": true
     }
   },
-  "notes": [
-    "resumed after comparison-occurrence gate 76dc49a99e"
-  ]
+  "notes": []
 }

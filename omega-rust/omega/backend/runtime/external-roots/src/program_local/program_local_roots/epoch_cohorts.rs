@@ -6,8 +6,8 @@ use crate::program_local::program_local_roots::{
 };
 use crate::{ExternalRootDiagnostic, InstalledExternalRoot, InstalledRequiredRootSlotClosure};
 use effects::{
-    ComponentEraEntryLedger, ComponentEraJournalRoster, ComponentEraLedgerId,
-    ProgramLocalRootEpochLease, ProgramLocalRootEpochLeaseId,
+    ComponentEraEntryLedger, ComponentEraLedgerId, ProgramLocalRootEpochLease,
+    ProgramLocalRootEpochLeaseId,
 };
 use executable_installation::{ArtifactId, InstalledCodeId};
 use semantic_vocabulary::{ContentAlgebra, ContentProjectionExpression};
@@ -270,45 +270,16 @@ pub fn compose_program_local_root_coexistence_report<'snapshot>(
     lifecycle: &ComponentEraEntryLedger,
     snapshots: impl IntoIterator<Item = &'snapshot ProgramLocalRootEpochAggregateSnapshot>,
 ) -> Result<ProgramLocalRootCoexistenceReport, ExternalRootDiagnostic> {
-    compose_checked_coexistence_report(
-        lifecycle.identity(),
-        lifecycle.live_eras().map(|(epoch, _, _)| epoch).collect(),
-        snapshots,
-    )
-}
-
-/// Compose the exact root-demand report against a journal-replayed roster.
-///
-/// `ComponentEraJournal::replay` is the only producer of a
-/// [`ComponentEraJournalRoster`], so the supplied roster is already the
-/// restart-reconstructed authoritative live-era set for `lifecycle_ledger` —
-/// the same roster the resident ledger would report, usable when only the
-/// persisted journal survives. The ledger identity is the caller's binding of
-/// roster to installation: every snapshot must still name it, and the same
-/// epoch-exactness rules as the live-ledger composition apply.
-pub fn compose_program_local_root_coexistence_report_from_journal_roster<'snapshot>(
-    lifecycle_ledger: ComponentEraLedgerId,
-    roster: &ComponentEraJournalRoster,
-    snapshots: impl IntoIterator<Item = &'snapshot ProgramLocalRootEpochAggregateSnapshot>,
-) -> Result<ProgramLocalRootCoexistenceReport, ExternalRootDiagnostic> {
-    compose_checked_coexistence_report(
-        lifecycle_ledger,
-        roster.live_eras().map(|(epoch, _, _)| epoch).collect(),
-        snapshots,
-    )
-}
-
-fn compose_checked_coexistence_report<'snapshot>(
-    lifecycle_ledger: ComponentEraLedgerId,
-    live_epochs: BTreeSet<u64>,
-    snapshots: impl IntoIterator<Item = &'snapshot ProgramLocalRootEpochAggregateSnapshot>,
-) -> Result<ProgramLocalRootCoexistenceReport, ExternalRootDiagnostic> {
+    let live_epochs = lifecycle
+        .live_eras()
+        .map(|(epoch, _, _)| epoch)
+        .collect::<BTreeSet<_>>();
     let mut supplied_epochs = BTreeSet::new();
     let mut normalized = Vec::new();
 
     for snapshot in snapshots {
         let identity = snapshot.identity;
-        if identity.lifecycle_ledger != lifecycle_ledger {
+        if identity.lifecycle_ledger != lifecycle.identity() {
             return Err(ExternalRootDiagnostic(
                 "program-local coexistence snapshot belongs to another lifecycle ledger".into(),
             ));
@@ -363,7 +334,7 @@ fn compose_checked_coexistence_report<'snapshot>(
     }
     normalized.sort_by_key(|snapshot| snapshot.identity.lifecycle_epoch);
     Ok(ProgramLocalRootCoexistenceReport {
-        lifecycle_ledger,
+        lifecycle_ledger: lifecycle.identity(),
         epoch_snapshots: normalized,
     })
 }

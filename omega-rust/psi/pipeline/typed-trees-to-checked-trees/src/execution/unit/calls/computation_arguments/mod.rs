@@ -218,11 +218,17 @@ fn shared_nominal_argument(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    if !place
-        .segments
-        .iter()
-        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-    {
+    // A literal subscript canonicalizes to `FixedIndex`, which names an exact
+    // element the checked path can carry. A runtime subscript canonicalizes to
+    // `Index { expression }`, which has no `CheckedUnitStructuralPathSegment`
+    // counterpart at all, so leaving it out of this pattern is what keeps the
+    // dynamic form rejecting -- no separate guard states that.
+    if !place.segments.iter().all(|segment| {
+        matches!(
+            segment,
+            facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+        )
+    }) {
         return None;
     }
     // A shared formal borrows the selected record at its existing root/path.
@@ -245,12 +251,8 @@ fn shared_nominal_argument(
         return None;
     }
     let target_identity = if target.is_self {
-        let owner = program.machines().iter().find(|owner| {
-            program
-                .machine_states(owner)
-                .first()
-                .is_some_and(|entry| entry.symbol == call.target_symbol)
-        })?;
+        let (owner, _) =
+            crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
         let reference = program
             .type_reference_table
             .find_named_type_reference(owner.attached_data_symbol)?;
@@ -289,10 +291,7 @@ fn shared_nominal_argument(
             _ => return None,
         };
         if parameter.is_self {
-            let owner = program
-                .machines()
-                .iter()
-                .find(|owner| owner.symbol == machine)?;
+            let owner = crate::lookup::machine_by_symbol(program, machine)?;
             let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
             else {

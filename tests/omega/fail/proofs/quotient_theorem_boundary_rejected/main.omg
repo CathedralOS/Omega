@@ -1,11 +1,11 @@
 use omega::language::core::relation;
 
-data Representative {
+pub data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-proposition equivalent(a: Representative, b: Representative) = a == b;
+pub proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
 ensures a == a
@@ -41,13 +41,13 @@ where equivalent satisfies
     Equivalence<Representative, equivalent>
     as RepresentativeEquivalence;
 
-machine representative(value: Representative) -> Representative {
+pub machine representative(value: Representative) -> Representative {
     value
 }
 
 // A boundary declaration supplies no checked body, so it cannot occupy the
 // Congruence role and cannot license quotient substitution.
-boundary machine representative_respects(
+pub boundary machine representative_respects(
     left: Representative,
     right: Representative
 )

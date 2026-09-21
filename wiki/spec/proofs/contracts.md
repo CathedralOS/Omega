@@ -329,6 +329,11 @@ or safe by default. Validation establishes facts about its exact observed
 subjects, not a universal provider promise. A post-call check cannot undo
 external effects or contain arbitrary provider corruption.
 
+[Requirement-based tests](../build/testing.md) obey the same rule. Their
+registration changes execution roots, not the facts available to checking or
+optimization. Passing a test grants no admission and is not a universal proof;
+mandatory verdict checks remain distinct from optional diagnostic assertions.
+
 [Build-level behavior exclusions](../build/behavior_exclusions.md) let a selected
 composition establish absence of named crashes, services or physical authority
 classes despite conservative public allowances. Assertions remain ordinary

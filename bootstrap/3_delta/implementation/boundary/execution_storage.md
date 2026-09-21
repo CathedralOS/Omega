@@ -169,6 +169,100 @@ bounded independently by the exact `(origin, ancestor cut)` incidence count
 and witnessed by canonical full-extent completions. This audit neither
 supplies a DCOUT heap refusal nor converts an outer Gamma failure into one.
 
+The same aggregate question under the retired 40,265,318-pair arena was
+answered by measurement on the unchanged canonical closure: the products
+did not stay below it. The closed envelope already exceeded that arena at
+maximum source extents, and the measured study below shows real admitted
+sources reached the exhaustion that envelope anticipated.
+
+### Whole-producer pair study (measured)
+
+The measurement reads the evaluator's own cursor, not an instrumented
+allocator. In the retired-profile
+[`gamma_evaluator.beta`](../../../2_gamma/gamma_evaluator.beta) the
+persistent register `ra0` was the immutable-pair heap cursor: initialized to
+`0x10000000`, preflighted against `ra1` = `0x70000000`, advanced by exactly
+40 bytes per pair, and never decreased. Its halt-time value is therefore the
+compilation's exact cumulative allocation and lifetime high-water. The Alpha
+arm64 seed exposes `h_halt` and keeps `vregs` in `x19`, so an lldb batch
+session — breakpoint on `h_halt`, then `((unsigned long*)$x19)[0xa0]` and
+`[0xa1]` — reports both registers before exit without modifying the tape,
+request bytes, compiler closure, or evaluator source. Observed statuses and
+outputs match direct runs; a one-line control source measured 207 pairs and
+produced the identical 3,058-byte receipt as the uninstrumented run. All runs
+below are macOS arm64 against the canonical 147,840-byte compiler closure,
+the 2,998-byte support section, and the retired profile's 8,575-byte
+evaluator tape.
+
+Each admitted extent was driven to its retired-profile boundary with the
+shape that maximizes cumulative pairs for that extent. Sources below are
+named by content; digests and generators match the
+[resource-boundary](../../../../tests/delta/resource-boundary/README.md)
+fixture families except where stated. Arena share is of the retired
+40,265,318-pair arena.
+
+| Profile extent | Worst-shape source | Bytes | Outcome | Cumulative pairs | Arena share |
+| --- | --- | ---: | --- | ---: | ---: |
+| request/source bytes | one 4,000,000-byte identifier | 4,000,047 | publish | 12,000,333 | 29.8% |
+| syntax-arena bytes | balanced `(+ …)` tree, 129,000 nodes | 774,045 | payload refusal | 30,960,310 | 76.9% |
+| type rows | 65,536 nominal types | 1,507,329 | reject | 4,902,112 | 12.2% |
+| constructor rows | 65,536 constructors | 720,953 | reject | 2,320,158 | 5.8% |
+| function rows | 32,768 functions | 720,923 | reject | 2,241,502 | 5.6% |
+| active environment rows | 65,536 generated bindings | 852,006 | publish | 5,552,375 | 13.8% |
+| coverage rows | 65,536 match arms | 1,310,762 | reject | 5,033,374 | 12.5% |
+| expression parse depth | 1,020 nested `let`s | 17,281 | publish | 155,567 | 0.4% |
+| payload bytes | exact 16,777,212-byte receipt | 172,478 | publish | 2,974,113 | 7.4% |
+| capture aggregate | 65,535-field reconstruction | 1,704,033 | payload refusal | 36,033,367 | 89.5% |
+| real customer | Epsilon closure + canonical entry | 628,304 | publish | 1,864,697 | 4.6% |
+
+The extracted rates are linear in their drivers: each checked `+` node costs
+240 pairs before publication — and another 69 in publication traversal when
+the receipt fits — and each name byte costs three pairs across its census,
+resolution, and typing events. The syntax ledger charges exactly 22 pairs per
+`(+ x y)` node — ten list pairs (three open-frame, three node, one
+parent-spine, three child-spine) plus twelve atom pairs — and is the binding
+cap on arithmetic density: 129,000 `+`
+nodes complete the ledger while 131,071 refuse at resource 7. Name bytes are
+nearly ledger-free — an atom is four pairs regardless of length — so the
+pair-maximizing corner of the admitted extent box composes ledger-maximal
+arithmetic with byte-maximal name text in one request. Count-mode
+serialization allocates no pairs, so a payload refusal contributes nothing;
+the spend must cross the arena before publication to exhaust.
+
+That corner was measured directly. A 4,194,288-byte admitted source — one
+3,420,227-byte identifier declaration followed by a 129,000-node arithmetic
+`main`, SHA-256
+`0b588a5376cefaecd8b7556d61464f857f0326df248607f8b6bc0285d605d89a`,
+inside every authored-row, depth,
+source-extent, and syntax-ledger provision — drove the cursor to exactly
+40,265,318 pairs and ended in halt 252 with empty stdout: the evaluator's
+`application_heap_failure` path, not a DCOUT row and not a generated
+application's resource exhaustion. A second corner source — the same
+identifier plus a helper function whose 129,000-node tree takes a bound
+`Int` reference at every leaf (SHA-256
+`b531678b2e1fc236a6df7c90a289f4ba532b8748274de5c32473f96a15b04e12`) —
+halted identically at the same cursor. A tighter-margin sibling (118,000
+nodes plus a 3,486,227-byte identifier) completed all producer phases and
+refused only at payload count, measuring 38,779,117 pairs — confirming the
+additive rates and showing the boundary sits between the two compositions.
+
+The finding was therefore negative for that selected profile: admitted
+Delta sources existed whose compilation allocated past the immutable-pair
+arena, and the boundary contract has no resource row for cumulative pair
+allocation — the [arithmetic probe](README.md#arithmetic-allocation-probe)
+separately rules out inventing a general DCOUT heap code. Under
+[owner-escalation](../../../MINIMIZATION.md#owner-escalation) this is the
+recorded finding that the compiler's private pair bound could not receive
+an explicit fail-closed profile under the evaluator then selected; closing
+it needs the owner decision among a larger evaluator arena, a new
+compiler-owned allocation ledger with its own DCOUT identity, or explicit
+contract acceptance of the raw status-252 observation. The evaluator has
+since adopted the 3,422,453,760-pair extent — option (a) in substance —
+with containment re-measured by the instrumented study cited above, but the
+named `delta-compiler-pair-arena-profile` decision itself remains to be
+recorded. The per-occurrence charges
+above remain the accounting of record for where those pairs are spent.
+
 Generated Delta applications are different programs. Their recursion and live
 storage can still exhaust the selected evaluator or diverge. The compiler's
 fixed-source bounds above must not be applied to those executions, the Epsilon

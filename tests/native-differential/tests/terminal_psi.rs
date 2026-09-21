@@ -59,8 +59,10 @@ fn verified_integer_control_contract_slice_executes_directly() {
                 id: BlockId::new(1).expect("entry"),
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).expect("operation"),
                     result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -77,6 +79,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                     target: BlockId::new(2).expect("exit"),
                     arguments: vec![constant],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
@@ -90,6 +93,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
                     scalar_type,
                 }],
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Return {
                     cleanup_actions: Vec::new(),
@@ -108,6 +112,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
             }],
             outcome_specific_ensures: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
         },
     };
     let module = TerminalModule {
@@ -427,6 +432,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         entry: BlockId::new(90).expect("entry"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(90).expect("entry"),
             parameters: Vec::new(),
@@ -448,6 +454,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
         },
     };
     let module = TerminalModule {
@@ -560,6 +567,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         entry: BlockId::new(10).expect("entry"),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: BlockId::new(10).expect("entry"),
             parameters: Vec::new(),
@@ -577,6 +585,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
         },
     };
     let module = TerminalModule {
