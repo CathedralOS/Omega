@@ -593,6 +593,16 @@ The three added tests since d8d48fe4ff all pass. One boundary-timing note:
 (was not flagged slow in the d8d48fe4ff reading) — a near-threshold pass on
 this host, not a failure.
 
+Re-read at 6b610300e8 (2026-09-20, Linux x86-64), same command: 2146 run —
+no tests added since 9d07a59a48 and the crate is unchanged in that window —
+with the identical 57 FAIL set test-for-test (33 bare `Service<R>` fixture
+spellings, 16 missing transitive machine plans, 3 site_guard
+crash-namespace rejections, 4 scalar-return custody cases, 1 `established
+by` qualification) and the same proof-search member still nonterminating
+(killed externally after >1560s). The tail remains empty.
+`owned_match_nested_record_replays_every_selected_payload` passed at 297s
+this reading — still near-threshold, not a failure.
+
 Confirmation at 210ffe3c93 (2026-09-20, Linux x86-64), same command: 2146
 run, 2088 passed (10 slow), 58 failed — the same 57 FAIL members plus the
 same nonterminating
@@ -817,6 +827,7 @@ composition. Every member still attributes to an owned family:
   `unit_state_graph::bindings::unranked_self_bindings_validate_without_claiming_finite_fuel`
   passes again; the unattributed tail remains empty — all 23 failures
   sit on owned families.
+
 
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
