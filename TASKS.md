@@ -8147,6 +8147,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `samples/apps/squalr` under GEOMETRY-ALIGNMENT-REGIONS (exp 01:18Z) and
   SQUALR-WINDOWS-GEOMETRY-VALIDATION (exp 05:49Z) — and the sibling stub
   GEOMETRY-ALIGNMENT-STRING-PARSING is under a live same-surface claim.
+  Second dispatch re-verified at `b8d336adcf21` (z148): fences unchanged —
+  squalr dir still wholesale-fenced, sibling claim renewed to 08:49Z.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
   Its only implementing surface is the `samples/apps/squalr` submodule,
