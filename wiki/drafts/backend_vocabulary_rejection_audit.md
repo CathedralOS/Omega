@@ -2,10 +2,11 @@
 
 Sweep of every wire-decode point under `omega-rust/omega/backend/` at
 `22e6066e9f` where a byte-level marker, kind, tag, or schema field maps onto a
-closed vocabulary. Re-recorded at `bc6c5788e0`: every cited rejection site is
-unchanged — `nodes.rs` still admits 83 `AbstractOperation` variants and maps
-the fall-through to `UnsupportedFamily` (`nodes.rs:39,378,435`), and all
-named coverage tests stand. For each surface the audit asks two questions: does every
+closed vocabulary. Re-recorded at `2dbfecd98e4`: every audited path is
+byte-identical to `bc6c5788e0` (empty `git diff` per directory — decoders,
+the `admit` seam and all cited tests unchanged; the only in-range edits were
+clerical `suspension_crossing: None` fixture fields). `nodes.rs` still maps
+the fall-through to `UnsupportedFamily` (`nodes.rs:39,378,435`). For each surface the audit asks two questions: does every
 non-admitted value reject with a named diagnostic (no `unreachable!`, no
 silent acceptance), and does a test exercise that rejection?
 
@@ -196,14 +197,26 @@ return `SourceCustodyMismatch`. None panic on vocabulary.
 
 ## Evidence
 
-Recorded at `22e6066e9f`; re-witnessed at `bc6c5788e0` (linux x86-64):
+Recorded at `22e6066e9f`; re-witnessed at `bc6c5788e0`; re-recorded against
+`2dbfecd98e4` (linux x86-64). HEAD does not compile — `terminal-verifier`'s
+`StructuralTypeShape` matches went non-exhaustive when `04f2fdbb853ea` added
+`ElementView` — so the suites were run at `40a3556906dc1` (the breaking
+commit's parent), where every audited path is byte-identical to
+`2dbfecd98e4`:
 
-- `cargo nextest run -p component-description --lib` — 24/24 pass (the
-  record's 23/23 grew by one; the coverage sweep
-  `every_closed_wire_vocabulary_rejects_a_non_admitted_tag` plus the added
+- `git diff bc6c5788e0..2dbfecd98e4 -- <every audited directory>` — empty of
+  semantic edits; only `suspension_crossing: None` fixture fields and an
+  import-list style change, all from `09b96a4a1f05a`.
+- `cargo nextest run -p component-description --lib` — 22/24 pass at
+  `40a3556906dc1`. All vocabulary-rejection pins stand
+  (`every_closed_wire_vocabulary_rejects_a_non_admitted_tag`,
   `non_utf8_identities_reject`, `zero_service_identity_in_a_bound_rejects`,
-  and `oversized_descriptions_reject_before_decoding` cases all stand).
-- `cargo clippy -p component-description --all-targets` — clean.
-- `cargo fmt --check` — clean.
-- `cargo test -p target-operations-to-selected-instructions
-  admission_vocabulary` — 2/2 pass, re-run at `bc6c5788e0`.
+  `oversized_descriptions_reject_before_decoding`, `wire::*` battery). Two
+  `component_verification::tests` fixtures fail with
+  `InvalidSuspensionCallPlan { reason: UnmarkedCallSide }` — an unrelated
+  pre-existing regression introduced when `09b96a4a1f05a`'s
+  suspension-crossing demand began validating the fixtures' unmarked
+  `BoundaryCall` operations; the audit surface itself is untouched.
+- `cargo nextest run -p target-operations-to-selected-instructions -E
+  'test(~admission_vocabulary)'` — 2/2 pass at `40a3556906dc1`.
+- Earlier runs: 24/24 + clippy/fmt clean at `bc6c5788e0`.
