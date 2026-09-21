@@ -9899,7 +9899,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under this name; sibling re-mine names on the same surface:
   ALIGNMENT-STRING-PARSING, GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
-- **SQUALR-SEED-OPERATOR-PARITY** — mined candidate; verify scope then implement.
+- **SQUALR-SEED-OPERATOR-PARITY.** Mined candidate — scope verified,
+  resolved — covered re-mine of the GEOMETRY-PARITY "named trait operators"
+  residual. The canonical trait-operator contract is already implemented
+  end to end on `main` per resolved sibling NAMED-TRAIT-OPERATORS (chapter
+  14: fixed token bindings resolve through
+  `authored_selections/operator_targets.rs` +
+  `monomorphization/selected_operator_providers.rs`, token uses consume
+  exactly the proof-static selected conformance, multiple applicable
+  binders reject, bindings unique per normalized operand telescope — pinned
+  by `tests/operators/trait_operator_bindings.rs`, 7 tests). The app-lane
+  delegate SQUALR-NAMED-TRAIT-OPERATORS owns the seed-port leg and is
+  itself claimed and live this wave; the implementing surface
+  `samples/apps/squalr` stays wholesale-fenced under
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z). Same adjudication as
+  resolved SQUALR-SEED-PARITY (`a3ab15b7611`) — no independent slice
+  exists under this name. Adjacent sibling stub SQUALR-SEED-REGION-OPERATIONS
+  mines the neighboring region residual.
 - **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
 - **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
