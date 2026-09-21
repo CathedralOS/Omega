@@ -489,13 +489,10 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let Some(function) = self
+        let function = self
             .program
             .symbols
-            .builtin_function_for_symbol(call.target_symbol)
-        else {
-            return None;
-        };
+            .builtin_function_for_symbol(call.target_symbol)?;
         let ordering = match function {
             symbols::BuiltinFunction::Min => BinaryOperator::LessOrEqual,
             symbols::BuiltinFunction::Max => BinaryOperator::GreaterOrEqual,
@@ -508,12 +505,8 @@ impl Builder<'_, '_> {
         let [left_expression, right_expression] = *arguments else {
             return None;
         };
-        let Some(left) = self.expression(left_expression, expected_type) else {
-            return None;
-        };
-        let Some(right) = self.expression(right_expression, expected_type) else {
-            return None;
-        };
+        let left = self.expression(left_expression, expected_type)?;
+        let right = self.expression(right_expression, expected_type)?;
         if self.subgraph_carries_call(left) {
             return None;
         }
