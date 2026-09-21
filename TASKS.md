@@ -9235,15 +9235,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   hazard/dead-path/commutation audits applied once — PoC (pair-rule
   widening / composable-pair descriptor rows) is one owned slice of
   that partition, not an independent slice. Re-verified at
-  `9b75533b9c7` (this session): the `Orphaned` route rows are still
-  present in `module_catalog.rs`; the pair-rule/descriptor surface
-  (`selected_lowering/catalog.rs`, `literal_fold/`) remains fenced by
-  the live COMPOSABLE-PAIR-DESCRIPTORS claim (until 23:57Z), and
-  item-level sibling claims on the cluster are live
-  (SELECTED-REWRITE-CATALOG-DISPOSITION, PIPELINE-REWRITE-ORPHANS,
-  REWRITE-VALIDATOR-INDEPENDENCE). The earlier
-  ORPHAN-REWRITE-MODULES-CATALOG claim on `rewrites/mod.rs` +
-  `module_catalog.rs` has drained. Sibling cluster rows:
+  `2a36697eee`: the `Orphaned` route rows are still present in
+  `module_catalog.rs` (now 44 occurrences, up from 35) and
+  `selected_optimization.rs` still runs only the identity route and
+  the selected-lowering pair folds. The COMPOSABLE-PAIR-DESCRIPTORS,
+  SELECTED-REWRITE-CATALOG-DISPOSITION, PIPELINE-REWRITE-ORPHANS and
+  ORPHAN-REWRITE-MODULES-CATALOG claims have all drained; live claims
+  on the cluster now are SELECTED-REWRITE-CATALOG-ROUTE (~04:11Z),
+  SELECTED-REWRITE-CATALOG-WIRING (~05:01Z) and
+  REWRITE-VALIDATOR-INDEPENDENCE (~02:35Z), with
+  `rewrites/allocation_recovery` path-fenced by
+  DURABLE-CODEC-EXTRACTION (~07:34Z). Sibling cluster rows:
   SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
