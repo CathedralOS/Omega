@@ -1124,9 +1124,8 @@ pub(crate) fn validate_image(
             } else {
                 64
             };
-            if !crate::hosted_unit_entry::unique_region(
-                object, symbol, offset, shim_bytes, output,
-            ) || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
+            if !crate::hosted_unit_entry::unique_region(object, symbol, offset, shim_bytes, output)
+                || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
             {
                 return Err(invalid());
             }
