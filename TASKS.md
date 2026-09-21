@@ -3141,6 +3141,26 @@ Owners include
   Extend the shared place/loan sequencer under **STATE-LOCAL-VALUE-FRONTIER**;
   do not reintroduce one producer family per arrangement of calls and stores.
 
+- **WRITE-ONLY-BORROW-RESIDUE.** Mined candidate — scope verified at
+  `82741ec4391`, no unfenced slice. Re-mines the residual bullets of
+  WRITE-ONLY-BORROW; each leg's implementing surface is live-fenced or
+  owner-laned: general aggregate replacement sits in
+  `execution/unit/structural_scalar_store` under BASELINE-T2C-BOUNDARY-BYTE-
+  BUFFER-REPAIR (~15:05Z); the runtime-index native lowering hole is
+  `abstract-operations-to-target-operations/src/lowering` under
+  COORDINATOR-SCOPE-AUDIT (~07:18Z) with PLACED-ACCESS-NATIVE-OPS owning the
+  leg on the board; `&mut dyn` dispatch is `execution/unit/dynamic_scalar_calls`
+  under GENERIC-VIRTUAL-DISPATCH (~15:00Z); computed IEEE stores belong to
+  FLOAT-PROVIDERS (producer `execution/unit/selected_ieee_float.rs` unfenced
+  but the leg's 135-file slice is parked on an unpublished `write-only-borrow`
+  branch — coordinator confirmation required before re-implementing, per the
+  parent row); the domain-qualified byte-field producer path runs through
+  `structural_scalar_store`/`checked_machine` (same fences). The lone
+  unfenced surface, `terminal_psi_indexed_receivers/frontier_pins.rs`, is a
+  test pin that can only move when its producer legs land. The z133
+  same-item claim drained; no other holder at this verification. Native
+  runtime legs remain macOS/Windows host-gated as recorded.
+
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
   through call argument preparation and native validation/replay. The
