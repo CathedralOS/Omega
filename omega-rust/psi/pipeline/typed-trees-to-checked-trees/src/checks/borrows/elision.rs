@@ -129,15 +129,6 @@ fn ambiguity_message(subject: &str, ambiguity: &ViewReturnAmbiguity) -> String {
              borrows `'{lifetime}`; annotate the input the view comes from, e.g. \
              `buffer: &'{lifetime} T`",
         ),
-        ViewReturnAmbiguity::LifetimeMatchesMultipleInputs {
-            lifetime,
-            candidates,
-        } => format!(
-            "machine `{subject}` returns a view whose lifetime `'{lifetime}` is shared by \
-             multiple inputs ({}); a single returned view borrowing several inputs is not \
-             supported yet — give the inputs distinct lifetimes so the view names exactly one",
-            quote_join(candidates),
-        ),
     }
 }
 

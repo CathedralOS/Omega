@@ -114,13 +114,164 @@ lists them; `get` returning 403 means foreign-parented.
 - **Batch-merge beats the landing queue at width.** The serialized
   landing.py queue saturates around ~30 deep with 100+ workers (each enqueue
   re-runs validation on a serial lane). Faster path: workers commit on their
-  branch and `git push origin HEAD:zergling/z<N>-<item>` then report
-  `branch_ready` with shas; the coordinator fetches `refs/heads/zergling/*`
-  and merges batches onto main each cycle. Claims-disjoint pathsets mean
-  merges apply clean (~0 conflicts observed; ~17 branches/cycle vs ~9
-  queue-landed/cycle). Caveat: merges skip landing.py validation — watch for
-  main breakage, and treat a batch-merge that breaks main as a coordinator
-  priority fix.
+  branch and push, then report `branch_ready` with shas; the coordinator
+  fetches `refs/heads/zergling/*` and merges batches onto main each cycle.
+  Claims-disjoint pathsets mean merges apply clean (~0 conflicts observed;
+  ~17 branches/cycle vs ~9 queue-landed/cycle). Caveat: merges skip
+  landing.py validation — watch for main breakage, and treat a batch-merge
+  that breaks main as a coordinator priority fix.
+- **Bound branch refs — one lane per zergling.** Per-item branches
+  (`zergling/z<N>-<item>`) explode to 400+ refs at width. Have each worker
+  force-push to a single persistent lane: `git push -f origin
+  HEAD:zergling/z<N>`, verdict `{"result":"branch_ready","branch":
+  "zergling/z<N>"}`. The coordinator merges each lane then deletes the ref —
+  remote ref count stays bounded by in-flight work, never grows per task.
+  Workers on separate VMs cannot land any other way (their commits aren't
+  reachable until pushed); direct `HEAD:main` pushes race non-FF at width.
+- **Prune stale lanes by ancestry, not text diff.** A lane is stale iff its
+  tip is already an ancestor of main: `git merge-base --is-ancestor <tip>
+  origin/main`. A two-dot `git diff main ref` ALWAYS differs on old-base
+  lanes (main moved under them) even when their commits were merged — the
+  text-diff check prunes nothing and conflicted duplicates accumulate.
+  Three-dot (`main...ref`) is closer but ancestry is exact.
+- **Never `pull --rebase` the merge checkout — merge instead, and detect the
+  wedge.** A rebased batch replays every lane-merge as a pick (100+ stale
+  picks on conflict) and a non-checked returncode leaves the coordinator
+  merging on a half-rebased tree forever (observed: 228 merged commits
+  stranded local-only while "the loop ran fine"). Per cycle, pre-flight:
+  `rebase-merge/ || rebase-apply/ || MERGE_HEAD` present → `rebase --abort`
+  + `merge --abort` + `reset --hard origin/main` (lane content lives on
+  origin — reset loses nothing). Then `pull --no-rebase --no-edit` (one
+  merge commit, trivially resolvable) — and if that fails, abort and skip
+  the batch, never carry a wedged tree forward. Check push returncode:
+  only delete lane refs when push succeeds.
+- **`waiting_for_user` is a settled state — drain and refire it.** A worker
+  that finished its turn sits `running (waiting_for_user)`, NOT `suspended`.
+  Treating only `suspended` as settle-able leaves ~85% of the pool parked and
+  undrained (observed: 176/203 idle while "working"). Classify
+  `suspended | blocked | waiting_for_user` as settled; `running (working)`
+  is the only true working state.
+- **`get_messages` pages OLDEST-first — verdicts live on the LAST page.**
+  `first: 80` returns the first 80 messages ever, so verdicts posted later
+  are invisible. Page with `after=` until no cursor (cap ~10 pages), then
+  scan the last page's devin messages newest-first. Verdicts may also carry
+  `candidate`/`landing_ticket` (landing-queue style) instead of `commits` —
+  extract both.
+- **Dead sessions hold claims for the whole lease (8h).** `claims.py
+  release --ticket <t>` every claim whose owner maps to an `exit`ed session —
+  zombie fences block real assignments until expiry.
+- **Never replay a long rebase chain — abort and re-merge.** If a mid-merge
+  `pull --rebase` wedges on conflicts with dozens of steps left (100+ stale
+  picks), `git rebase --abort`, `git reset --hard origin/main`, and re-merge
+  the branches fresh — the source refs still exist on origin and re-merging
+  against current main is cheaper than resolving each stale pick.
+  TASKS.md-only conflicts resolve by union-merge (keep both sides' unique
+  lines — board notes accumulate); a scripted 3-way marker pass handles them.
+- **Union-merge board-only conflicts in the coordinator, not in a resolver.**
+  When `git merge <lane>` fails and every unmerged path matches
+  `TASKS*.md` / `samples/apps/*/TASKS*.md`, run `git merge-file --union -p
+  :2: :1: :3:` per file, `git add`, `git commit --no-edit` and keep going.
+  Observed: 26 of 40 conflicted lanes were board-only — this alone took a
+  cycle from 3 merged lanes to 26. Anything else unmerged → `merge --abort`
+  and queue the lane for an Overlord resolve leg (below).
+- **Gate every batch with a scoped check before pushing main.** `mbx check -p
+  <affected crates>` (Cargo only if `mbx` is missing); red → `reset --hard`
+  to the pre-batch SHA, lanes stay on origin and retry next cycle. Main
+  never goes red from a batch; absence of a failure log is NOT evidence the
+  gate ran — log every gate result.
+
+### Overlord tier (Fusion planners / reviewers / resolvers)
+
+Cursor's split — smart planners, fast workers, neutral merge resolver, stacked
+reviewers — maps onto this loop as five persistent **Overlord** sessions
+(`devin_mode:"fusion"` on create; org default SWE-2 Max is the fallback if the
+create 400s). Creating them needs the whole pool asleep first (see
+stockpiling). Persist their ids (`overlords.json`); they are refired like
+zerglings — event-driven, one leg at a time, never stacked. Zerglings stay
+SWE-2 Max and never plan.
+
+- **Plan leg** (region → leaves). Input: one TASKS.md region + `claims.py
+  status`. Output: 15-40 DISJOINT leaves, each `{name (UPPER-KEBAB), paths,
+  acceptance, parent}`, plus `retire: [...]` for rows that are resolved,
+  duplicated, or unactionable. Session messages truncate past ~4KB, so
+  planners emit `plan_chunk` messages of ≤5 leaves and a short final `plan`
+  summary; the coordinator aggregates every chunk before folding. Fold leaves
+  into the item pool with their path sets (`item-paths.json`) so assignment
+  is path-partitioned, drop retired rows, and reject placeholder names
+  (`ITEM-NAME`, `NEW-UPPER-KEBAB`, …) — a fallback regex will happily
+  extract the prompt's own example. Planner leaves replace blind mine output
+  as the primary supply.
+- **Review leg** (green batch → field notes). After each batch pushes, hand
+  one Overlord `pre..post` with the lane list. Lens: Psi/Omega firewall and
+  crate placement, test evidence, board noise, duplicated work. No reverts.
+  Verdict `{"result":"review","verdict":"ok|concerns","followups":[leaves],
+  "notes"}`; followups enter the pool like planner leaves.
+- **Field notes (stigmergy).** Agents walk the paths the codebase gives them,
+  so a finding only sticks if it lives where the next agent will step: a
+  terse code comment at the exact site, or a row in the nearest README /
+  wiki draft — not in the verdict JSON alone. Reviewers commit `field notes:
+  <range>` and push (pull `--no-rebase` and retry on reject). This is the
+  same mechanism as AGENTS.md, board rows, and claim notes: durable traces in
+  the environment, not chat.
+- **Resolve leg** (conflicted lane → repaired lane). Queue every non-board
+  conflict (`resolve-queue.json`); keep ≤2 resolve legs active. Prompt: fetch,
+  `checkout -B resolve origin/<lane>`, `merge origin/main`, preserve BOTH
+  intents (main wins on board/claims files), scoped `mbx check -p` on touched
+  crates, `push -f origin HEAD:<lane>`; report `resolved` or `unresolvable`
+  (pure duplicate of main → the coordinator prunes the ref). Resolved lanes
+  merge on the next cycle instead of being lost to `merge --abort`.
+- **Resolve at the source, not in the queue.** Two resolvers clear ~1 lane per
+  cycle; a 200-worker pool can conflict 80 lanes in an hour, so the queue only
+  grows. The worker prompt therefore requires `git fetch && git rebase
+  origin/main` immediately before `push -f`, with the worker resolving its own
+  conflicts (it has the intent context) and re-running its scoped check. The
+  Overlord queue is the fallback for lanes that still conflict when merged.
+- **Route a queued lane back to its owner first.** Lanes are one-per-zergling
+  (`zergling/z<N>`), so when z<N> settles and its own lane is in the resolve
+  queue, prepend to its next assignment: rebase that lane onto `origin/main`,
+  resolve, scoped check, `push -f`, post `resolved`, then start the new item on
+  top. Mark the lane busy under that zergling; count only Overlord-held lanes
+  against the ≤2 resolver cap. Drop queue/busy entries for lanes that merge or
+  prune. First run: 27 lanes routed in one cycle, 15 `resolved` over the next
+  two, conflicted 75→56 — vs ~1/cycle from Overlords alone.
+- **Fold board-only lanes into one squash commit per cycle.** Audit of 60
+  merges on main: 32 touched only `TASKS.md`/`build/swarm/` (fence stamps,
+  "alias stub — covered", re-verify notes from `blocked`/`superseded` legs).
+  They are real stigmergy, not fake pushes, but one merge commit each is
+  history noise. Classify each lane with `git diff --name-only
+  origin/main...origin/<lane>`: all-board → `merge --squash` it after the code
+  lanes (TASKS.md conflicts union-merge, anything else → resolve queue), then
+  `reset --soft` to the pre-fold mark and commit once as
+  `board: fold N lane notes (z…)`. Code lanes still merge individually so
+  attribution and revertability survive.
+- **Persist a message-page cursor per session.** `get_messages` pages
+  oldest-first at ≤80/page; a zergling with 100+ legs has 1000+ messages, so a
+  blind tail costs ~10 reads per session per cycle (~2,200 API reads/cycle for
+  187 sessions). Store the `after` token of the last page you fetched
+  (`tail-cursor.json`) and resume from it — the newest verdict is always on or
+  after that page. Cycle read volume dropped 1,273 → 388 calls. Skip the
+  cursor for Overlords: planner legs need the whole leg's chunk history.
+- **Reviewer `duplicate_lanes` are advisory, never authoritative.** Reviewers
+  get the resolve queue and may list lanes whose content "already landed via a
+  sibling". Every one checked so far still differed from main in non-board
+  files (e.g. 11 of 26 files), so the coordinator MUST run its own guard before
+  deleting: `git diff --name-only origin/main...origin/<lane>`, drop board paths
+  (`TASKS.md`, `build/swarm/`, `tools/claims`), then `git diff --quiet
+  origin/main origin/<lane> -- <rest>`; prune only when that is clean or the
+  lane is board-only. A guard refusal keeps the lane queued.
+- **Verdict JSON must survive truncation.** Overlords often post the JSON
+  unfenced after a long prose tail, so the parser must accept a fenced block OR
+  a raw `{"result":"review"...}` object via `raw_decode`, with a regex fallback
+  for `leaves` / `retire` / `duplicate_lanes`. Ask for <3KB JSON with
+  `duplicate_lanes` first and ≤3 followups.
+- **Print `merge/ready` every cycle** (`merged / branch_ready`, plus
+  `dup_pruned` and queue depth). Observed 12–40%; the gap is almost entirely the
+  conflict queue. It is operational telemetry, not a quality measure — a lane
+  that merged green is not a lane that was reviewed.
+- **Overlord legs are refire-gated like workers**: only send the next leg
+  after the session produced output past the last fire timestamp. Dedupe
+  verdicts by `(session, result, item/lane, commit, timestamp)` — tails
+  re-read the same last page every cycle.
 - **Size surplus legs big — small legs churn.** A one-doc mine leg finishes in
   ~2-5 min, so ~half the pool settles every cycle and the coordinator drowns
   in message volume. Give each miner a whole directory/tree
@@ -132,7 +283,15 @@ lists them; `get` returning 403 means foreign-parented.
 ### Coordinator pre-partitioning (the fix for churn)
 
 The coordinator owns the task graph — workers never choose work, so they never
-conflict. When unfenced items run out, do NOT park the pool:
+conflict. **Assignment dedup is the coordinator's job too**: claims.py only
+covers items a worker has *already claimed* — there is a 60-90s window between
+your assign and the worker's `claim` where the item looks free, so a bare
+cursor re-hands the same item to siblings. Observed: ~2/3 of pruned lanes were
+sibling-duplicated diffs before this fix. Keep a persistent **in-flight
+ledger** (`item → session_id, assigned_utc`): on every assign, skip items that
+are fenced AND items already in-flight; release the entry when the holder's
+verdict drains or it goes `exit`. Never assign an item that's already in
+flight. When unfenced items run out, do NOT park the pool:
 
 - **Split multi-path items.** Claims are per-path, not per-item. Take a claimed
   item's path list from `claims.py status`, slice it into disjoint subsets, and
@@ -191,6 +350,13 @@ conflict. When unfenced items run out, do NOT park the pool:
   {name, item, board, session_id, devin_mode, result, item_closed, commits,
   notes, recorded_utc}. Verify `git merge-base --is-ancestor <sha> origin/main`
   for every reported commit before recording `landed`.
+- Drain claim notes with the verdicts: `python3 tools/claims.py notes` lists
+  findings workers attached to their tickets ("already resolved upstream,
+  verified at <sha>"); fold what they justify into the coordinator's next
+  board sweep commit (landed with `--board-update`), then `python3
+  tools/claims.py sweep` marks them consumed. Workers never commit board
+  files — `landing.py` refuses board-only and empty candidates, and a lane
+  whose only diff is `TASKS.md` gets deleted as stale, not merged.
 - A child that reports a main-break it caused or witnessed (build failure on
   `origin/main`) is a coordinator priority item: reproduce, claim, fix, land
   via `tools/landing.py` — do not wait for the offender to return.

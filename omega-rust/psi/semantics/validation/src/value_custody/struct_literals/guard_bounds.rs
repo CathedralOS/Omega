@@ -148,7 +148,9 @@ fn immutable_place_type(
             let definition = program.data_definitions().iter().find(|definition| {
                 symbol.is_valid()
                     && definition.symbol == *symbol
-                    && definition.type_parameters.is_empty()
+                    && super::field_obligations::construction_members_are_concrete(
+                        program, definition,
+                    )
             })?;
             let mut fields =
                 program

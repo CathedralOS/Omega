@@ -48,22 +48,39 @@ protocols, not a universal shape for firmware or other startup providers.
 
 | Established outcome | Custody consequence |
 | --- | --- |
-| Definitely not dispatched | Return the attempt to a withdrawable state; no later arrival may remain possible. |
-| Possibly dispatched, arrival unconfirmed | Retain entry/code, stack, and state custody. Timeout or lost acknowledgement does not release it. |
-| Confirmed arrival at the agreed entry | Retain the processor's accounted resources until safe retirement. |
+| Definitely not dispatched | Return the account to pending custody so a fresh invocation can retry; no later arrival through the refused attempt may remain possible. |
+| Possibly dispatched, arrival unconfirmed | The account stays invoked and held — neither withdrawable nor reissuable — and the outstanding carrier remains answerable by a later definitive receipt, which may still resolve the attempt to started. Timeout or lost acknowledgement releases nothing and erases no outstanding attempt. |
+| Confirmed arrival at the agreed entry | The processor is marked started and its accounted stack and state stay held until retirement. |
 
 Confirmation binds the exact invocation and installed entry. A checked
 consumer-authored handshake or an explicitly admitted provider guarantee may
 establish it; the compiler does not mandate a separate acknowledgement protocol.
 Sending a request or constructing an ordinary success record is not confirmation.
 
-Settlement of an unconfirmed attempt must establish both no current use of its
-resources and no possible later arrival through that attempt before returning
-custody. It cannot require a fabricated successful-start record to reach
-cancellation. Retirement of a confirmed processor likewise needs unreachability
-and quiescence. An unresolved attempt cannot become a fresh independent attempt
-by forgetting its identity. Delayed or replayed acknowledgements cannot settle
-another invocation or release its resources.
+Settlement of an unconfirmed attempt abandons it without a started record: a
+settlement receipt must name the exact outstanding carrier and attest both that
+the carrier can no longer dispatch — no later arrival through this attempt —
+and that nothing executes on the account's dedicated stack or private state.
+Only then does the account leave the ledger and return its complete custody. A
+receipt missing either premise leaves the carrier outstanding, still answerable
+by a later definitive startup receipt or a later settlement answer. It cannot
+require a fabricated successful-start record to reach cancellation. Retirement
+of a started processor needs a provider quiescence receipt naming the started
+record exactly; an incomplete drain keeps the account held and hands the
+started evidence back. An unresolved attempt cannot become a fresh independent
+attempt by forgetting its identity: completion and settlement both bind the
+record's outstanding invocation, so delayed or replayed receipts cannot resolve
+another attempt or release its resources.
+
+Each processor's startup resources are accounted separately — a dedicated
+stack class and a private state extent — so no two admitted processors can
+share one backing. An admitted account that has never been invoked may
+withdraw with its resources returned intact; once an invocation is
+outstanding the account can no longer withdraw, since the attempt may still
+arrive, and a started account stays held until retirement. The startup
+ledger borrows the installed entry for its whole lifetime: no completion,
+settlement, or retirement edge releases that installation while an attempt
+under it could still exist.
 
 ## Resource columns
 

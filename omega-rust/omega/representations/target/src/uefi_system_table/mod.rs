@@ -593,6 +593,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |package| match package {
                 ProgramEntryPhysicalContractPackage::UefiX64 => 1,
                 ProgramEntryPhysicalContractPackage::MacosArm64 => 2,
+                ProgramEntryPhysicalContractPackage::MacosX64 => 6,
                 ProgramEntryPhysicalContractPackage::LinuxX86_64 => 3,
                 ProgramEntryPhysicalContractPackage::LinuxArm64 => 4,
                 ProgramEntryPhysicalContractPackage::WindowsX64 => 5,

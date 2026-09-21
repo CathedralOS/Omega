@@ -93,10 +93,10 @@ pub enum TargetProfile {
     MacosArm64,
     /// The macOS x86-64 host profile. Recognition catalogues the Intel-macOS
     /// host so `host()` resolves and `macos_x86_64` names a selected target.
-    /// The x86-64 Mach-O writer and `targets/macos_x86_64` contract package
-    /// are implemented; `program_entry_slot` keeps the hosted compatibility
-    /// fields empty until the physical-contract-package arm and hosted-bridge
-    /// legs land (tracked under MACOS-X64-HOST-PROFILE on TASKS.md).
+    /// The x86-64 Mach-O writer, the `targets/macos_x86_64` contract package
+    /// and the hosted entry bridge are implemented; a real
+    /// x86_64-apple-darwin host run is still required (tracked under
+    /// MACOS-X64-HOST-PROFILE on TASKS.md).
     MacosX64,
     WindowsX64,
     UefiX64,
@@ -159,6 +159,7 @@ pub enum ProgramEntryCallingConvention {
 pub enum ProgramEntryPhysicalContractPackage {
     UefiX64,
     MacosArm64,
+    MacosX64,
     LinuxX86_64,
     LinuxArm64,
     WindowsX64,
@@ -169,6 +170,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
             Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
+            Self::MacosX64 => "omega::language::std::targets::macos_x86_64::entry",
             Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
             Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
             Self::WindowsX64 => "omega::language::std::targets::windows_x86_64::entry",
@@ -179,6 +181,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
             Self::MacosArm64 => "targets/macos_arm64/entry.omg",
+            Self::MacosX64 => "targets/macos_x86_64/entry.omg",
             Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
             Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
             Self::WindowsX64 => "targets/windows_x86_64/entry.omg",
@@ -191,6 +194,7 @@ impl ProgramEntryPhysicalContractPackage {
         match self {
             Self::UefiX64 => "UEFI",
             Self::MacosArm64 => "macOS ARM64",
+            Self::MacosX64 => "macOS x86-64",
             Self::LinuxX86_64 => "Linux x86-64",
             Self::LinuxArm64 => "Linux ARM64",
             Self::WindowsX64 => "Windows x86-64",
@@ -531,6 +535,24 @@ impl TargetProfile {
                 Some(ProgramEntryPhysicalContractPackage::LinuxArm64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
+            ),
+            // The macOS x86-64 hosted bridge retains the same two authored
+            // surfaces: `MacosPhysicalEntry::enter` is the dyld `appMain`
+            // process arrival (argc in edi; argv, envp and apple in rsi, rdx
+            // and rcx; the completion status back in eax) and
+            // `ProgramStorageEntry::enter` is the semantic continuation it
+            // adapter-maps into. The source-visible application stays
+            // `HostedApplication` with no authored storage parameters; the two
+            // internal roots are provisioned by the bridge, never hosted
+            // arguments.
+            Self::MacosX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("MacosX64Application"),
+                Some("MacosPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::MacosX64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
             ),
             // The Windows x86-64 hosted bridge retains the same two authored
             // surfaces: `WindowsProcessEntry::enter` is the loader process
@@ -1004,19 +1026,43 @@ mod tests {
         assert_eq!(native.pointer_alignment, 8);
         assert_eq!(profile.native_realization(), Some(native));
 
-        // The slot schema comes from the same catch-all row the hosted
-        // compatibility profiles use: no toolchain physical-contract package
-        // applies until the macOS x86-64 entry bridge lands.
+        // The slot binds the closed macOS x86-64 contract package: the
+        // dyld `appMain` arrival is target-fixed System V AMD64 and the
+        // source-visible application stays `HostedApplication`.
         let slot = profile.program_entry_slot();
         assert_eq!(slot.owner, profile);
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
-        assert_eq!(slot.boundary_schema, None);
-        assert_eq!(slot.physical_arrival_requirement, None);
-        assert_eq!(slot.physical_contract_package, None);
-        assert_eq!(slot.physical_calling_convention, None);
-        assert_eq!(slot.semantic_calling_convention, None);
+        assert_eq!(slot.boundary_schema, Some("MacosX64Application"));
+        assert_eq!(
+            slot.physical_arrival_requirement,
+            Some("MacosPhysicalEntry::enter")
+        );
+        assert_eq!(
+            slot.physical_contract_package,
+            Some(ProgramEntryPhysicalContractPackage::MacosX64)
+        );
+        let physical_package = slot
+            .physical_contract_package
+            .expect("macOS x86-64 must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::macos_x86_64::entry"
+        );
+        assert_eq!(
+            physical_package.package_relative_source(),
+            "targets/macos_x86_64/entry.omg"
+        );
+        assert_eq!(physical_package.contract_name(), "macOS x86-64");
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::SystemVAMD64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
+            Some(super::ProgramEntryCallingConvention::SystemVAMD64)
+        );
         assert_eq!(
             slot.semantic_arrival_requirement,
             "ProgramStorageEntry::enter"

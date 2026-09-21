@@ -1,7 +1,7 @@
 //! Dynamic result continuations retain complete ordinary Unit closures.
 use super::{
     CheckedTrees, DYNAMIC_CONTINUATION_SOURCE, LoweredPsi, OperationKind, Terminator,
-    checked_source, lower_machine, roundtrip,
+    checked_source_with_core_service, lower_machine, roundtrip,
 };
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -12,7 +12,7 @@ use terminal_interpreter::{
 
 fn source(route: usize, qualified: bool, trailing: bool) -> String {
     let source = DYNAMIC_CONTINUATION_SOURCE
-        .replace("console: Console; ", "")
+        .replace("console: Service<Console>; ", "")
         .replace(
             "data Main {",
             r#"
@@ -94,7 +94,7 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
         for qualified in [false, true] {
             for trailing in [false, true] {
                 let source = source(route, qualified, trailing);
-                let checked = checked_source(&source);
+                let checked = checked_source_with_core_service(&source);
                 let lowered = roundtrip(&checked);
                 assert_closure(&checked, &lowered, route);
                 assert_source_custody(&checked);
@@ -120,9 +120,9 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
 #[test]
 fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement() {
     for route in 0..4 {
-        let source =
-            source(route, true, true).replace("data Main {", "data Main { console: Console;");
-        let checked = checked_source(&source);
+        let source = source(route, true, true)
+            .replace("data Main {", "data Main { console: Service<Console>;");
+        let checked = checked_source_with_core_service(&source);
         let lowered = roundtrip(&checked);
         assert_closure(&checked, &lowered, route);
         let root = lowered
@@ -147,7 +147,7 @@ fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement(
         assert_eq!(provider.relevance, terminal_psi::BindingRelevance::Relevant);
         assert!(
             matches!(&provider.field_type, terminal_psi::StructuralFieldType::Erased { type_identity }
-            if type_identity == "named(name(Console))")
+            if type_identity == "generic(name(Service),named(name(Console)))")
         );
         assert!(!root.structural_places.iter().any(|place| matches!(
             place.kind,
@@ -322,7 +322,7 @@ impl TerminalEffectHandler for Observe {
 fn dynamic_boolean_result_executes_only_the_selected_ordinary_unit_leaf() {
     for route in 0..4 {
         let source = source(route, true, true)
-            .replace("data Main {", "data Main { console: Console;")
+            .replace("data Main {", "data Main { console: Service<Console>;")
             .replace(
                 "machine measure(&self) -> i32",
                 "machine measure(&self) -> bool",
@@ -338,7 +338,7 @@ fn dynamic_boolean_result_executes_only_the_selected_ordinary_unit_leaf() {
             )
             .replace("let result: i32", "let result: bool")
             .replace("transition result == 0", "transition result");
-        let checked = checked_source(&source);
+        let checked = checked_source_with_core_service(&source);
         let lowered = roundtrip(&checked);
         let module = &lowered.semantic_module;
         let semantic = terminal_codec::encode_module(module).unwrap();

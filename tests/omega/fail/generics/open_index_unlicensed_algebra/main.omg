@@ -1,13 +1,52 @@
+// FAIL: an open index expression inside a data declaration has no owning
+// machine's explicit conformance binder to supply the spelled operation.
 data IndexSpace {}
 
 domain<T, const I: i32> T::Indexed<I>;
 
-operator + IndexAlgebra::plus(left: i32, right: i32) -> i32;
+data Nat {
+    tag: u8;
+}
+
+trait IndexAdd<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand;
+    machine add_comm(a: Operand, b: Operand)
+    ensures add(a, b) == add(b, a);
+    machine add_assoc(a: Operand, b: Operand, c: Operand)
+    ensures add(add(a, b), c) == add(a, add(b, c));
+}
 
 machine plus_index(a: i32, b: i32) -> i32
-satisfies IndexAlgebra::plus
+satisfies IndexAdd<i32>::add as Canonical
+ensures result == 0
 {
-    transition { _ -> a }
+    transition { _ -> 0 }
+}
+
+machine plus_index_comm(a: i32, b: i32)
+satisfies IndexAdd<i32>::add_comm as Canonical
+requires plus_index(a, b) == plus_index(b, a)
+ensures plus_index(a, b) == plus_index(b, a)
+{
+    _ = plus_index(a, b);
+    _ = plus_index(b, a);
+}
+
+machine plus_index_assoc(a: i32, b: i32, c: i32)
+satisfies IndexAdd<i32>::add_assoc as Canonical
+requires plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
+ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
+{
+    _ = plus_index(plus_index(a, b), c);
+    _ = plus_index(a, plus_index(b, c));
+}
+
+Canonical:
+    Nat satisfies IndexAdd<i32>
+{
+    IndexAdd::add = plus_index;
+    IndexAdd::add_comm = plus_index_comm;
+    IndexAdd::add_assoc = plus_index_assoc;
 }
 
 data Open<const A: i32, const B: i32> {

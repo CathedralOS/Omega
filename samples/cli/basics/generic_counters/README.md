@@ -50,7 +50,14 @@ if ($LASTEXITCODE -ne 16) { throw 'Expected exit 16' }
 guessing its filename. Expect empty stdout and `native exit: 16` on stderr.
 Do not add `--target` to this execution command: an explicit target makes
 `run` compile-only. These commands describe each host's route, not a claim that
-all hosted targets have passed; remaining coverage is in
+all hosted targets have passed. On Linux x86-64 the compiler-library
+regression below, filtered to this sample, compiles, publishes, and runs
+natively to exit 16 with empty stdout; its test-owned acceptance leaves the
+ordinary CLI review route unverified there. On Linux x86-64 the ordinary
+route is gated before review decisions: package candidate checking rejects
+inside `omega-language-std` with `routed service field Filesystem::host has
+no exact Fused selected-provider-plan join`, the shared std-wide gate
+recorded on the board (attempted at `b53c7ea26032`). Remaining coverage is in
 [SAMPLE-CORPUS](../../../../TASKS.md).
 
 ## Compiler-library regression

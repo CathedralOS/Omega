@@ -18,7 +18,7 @@ use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind, SymbolLookup};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CandidateTarget {
@@ -826,9 +826,112 @@ fn collect_statement_static_argument_candidates(
     }
 }
 
+/// Every expression handle inside a signature-contract clause (requires,
+/// ensures, and membership facts), including nested operands. A call token
+/// inside one of these clauses may name an uninterpreted proof application
+/// rather than a package declaration, so declaration-selection recording
+/// cannot assume a callee symbol exists for it.
+fn contract_clause_expression_handles(
+    program: &SymbolResolvedTrees,
+) -> std::collections::HashSet<ExpressionHandle> {
+    let mut handles = std::collections::HashSet::new();
+    for (_, contract) in program.tables.declarations.signature_contracts.iter() {
+        for fact in program
+            .tables
+            .declarations
+            .proof_facts
+            .span_or_empty(contract.facts)
+        {
+            let root = match fact {
+                symbol_resolved_trees::domain::ProofFact::Expression(expression) => *expression,
+                symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                    membership.value
+                }
+            };
+            collect_expression_subtree(program, root, &mut handles);
+        }
+    }
+    handles
+}
+
+fn collect_expression_subtree(
+    program: &SymbolResolvedTrees,
+    root: ExpressionHandle,
+    handles: &mut std::collections::HashSet<ExpressionHandle>,
+) {
+    if !root.is_valid() || !handles.insert(root) {
+        return;
+    }
+    let expressions = &program.tables.bodies.expressions;
+    match expressions.expression(root) {
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                collect_expression_subtree(program, call.receiver, handles);
+            }
+            for argument in expressions.expression_handles(call.arguments) {
+                collect_expression_subtree(program, *argument, handles);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_expression_subtree(program, binary.left, handles);
+            collect_expression_subtree(program, binary.right, handles);
+        }
+        ExpressionNode::Unary(unary) => collect_expression_subtree(program, unary.operand, handles),
+        ExpressionNode::Cast(cast) => collect_expression_subtree(program, cast.value, handles),
+        ExpressionNode::Member(member) => {
+            collect_expression_subtree(program, member.receiver, handles)
+        }
+        ExpressionNode::Borrow(borrow) => {
+            collect_expression_subtree(program, borrow.target, handles)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression_subtree(program, indexed.collection, handles);
+            collect_expression_subtree(program, indexed.index, handles);
+        }
+        ExpressionNode::Membership(membership) => {
+            collect_expression_subtree(program, membership.value, handles)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            collect_expression_subtree(program, atomic.value, handles);
+            collect_expression_subtree(program, atomic.result, handles);
+        }
+        ExpressionNode::Range(range) => {
+            collect_expression_subtree(program, range.start, handles);
+            collect_expression_subtree(program, range.end, handles);
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in expressions.expression_handles(*elements) {
+                collect_expression_subtree(program, *element, handles);
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in expressions.struct_fields(literal.fields) {
+                collect_expression_subtree(program, field.value, handles);
+            }
+        }
+        ExpressionNode::Match(dispatch) => {
+            collect_expression_subtree(program, dispatch.subject, handles);
+            for arm in expressions.match_arms(dispatch.arms) {
+                collect_expression_subtree(program, arm.value, handles);
+                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                {
+                    collect_expression_subtree(program, pattern, handles);
+                }
+            }
+        }
+        ExpressionNode::Name(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
+    contract_clause_expressions: &std::collections::HashSet<ExpressionHandle>,
 ) -> Result<Vec<Candidate>, Diagnostic> {
     let expressions = &program.tables.bodies.expressions;
     let expression_span = expressions.source_span(expression);
@@ -844,8 +947,46 @@ fn expression_candidates(
             })
         }
         ExpressionNode::Call(call) => {
+            // Contract clauses admit uninterpreted proof-view applications:
+            // a callee naming no declaration (`Bag(items)`) is an opaque atom
+            // the proof checker evaluates structurally, not a declaration
+            // selection, so no Call occurrence is recorded for it. A
+            // symbol-unresolved callee that still names visible declarations
+            // (an operator overload set settled by contract context, say)
+            // keeps its occurrence for checking to finalize.
+            let unbound_contract_call = !call.target_symbol.is_valid()
+                && !call.receiver.is_valid()
+                && contract_clause_expressions.contains(&expression)
+                && matches!(
+                    program
+                        .symbols
+                        .lookup_top_level_by_name_and_kinds_from_source_matching(
+                            call.target.as_str(),
+                            &[
+                                SymbolKind::Module,
+                                SymbolKind::BuiltinType,
+                                SymbolKind::BuiltinFunction,
+                                SymbolKind::Data,
+                                SymbolKind::Domain,
+                                SymbolKind::Machine,
+                                SymbolKind::Operator,
+                                SymbolKind::Measure,
+                                SymbolKind::Proposition,
+                                SymbolKind::MathematicalDefinition,
+                                SymbolKind::Trait,
+                                SymbolKind::Conformance,
+                                SymbolKind::Const,
+                                SymbolKind::ConformanceParameter,
+                                SymbolKind::WireSchema,
+                            ],
+                            call.target.source_span(),
+                            |_| true,
+                        ),
+                    SymbolLookup::NotFound
+                );
             if call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::Source
+                && !unbound_contract_call
             {
                 candidates.push(Candidate {
                     expression,
@@ -1165,6 +1306,7 @@ fn finalize_expression_groups(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     )>,
 ) -> Result<(), Diagnostic> {
+    let contract_clause_expressions = contract_clause_expression_handles(program);
     let mut groups: Vec<CandidateGroup> = Vec::new();
     for (expression, exposure) in authored_expressions {
         let compiler_partition = program
@@ -1172,7 +1314,7 @@ fn finalize_expression_groups(
             .bodies
             .expressions
             .compiler_selection_partition(expression);
-        for candidate in expression_candidates(program, expression)? {
+        for candidate in expression_candidates(program, expression, &contract_clause_expressions)? {
             if let Some(group) = groups.iter_mut().find(|group| {
                 group.source_span == candidate.source_span
                     && group.exposure == exposure

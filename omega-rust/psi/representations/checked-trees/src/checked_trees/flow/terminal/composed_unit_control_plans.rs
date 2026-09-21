@@ -8,6 +8,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
 };
+use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
@@ -68,6 +69,9 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// Proof-only erased scalar formals in authored order, retaining their
     /// authored parameter positions. They own no runtime argument lane.
     pub erased_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    /// Erased formals whose carriers are proof-only and admit no scalar
+    /// lane. The contract term lane carries their semantic type identities.
+    pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     /// Lowered `requires` clauses for a non-entry state, in authored contract
     /// order. `None` marks a clause outside the admitted closed namespace;
     /// emission admits the state only when every row is `Some`.
@@ -122,6 +126,15 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
     },
+    /// Ordered Boolean guards each select a named-state edge. Guards evaluate
+    /// in authored order — the same sequencing the shared scalar tail roster
+    /// records — and the authored `_` arm is the fallback edge holding where
+    /// every guard fails. Each successor carries the same per-edge custody
+    /// plan as a conditional edge.
+    GuardedJumps {
+        arms: Vec<CheckedGuardedJumpPlan>,
+        fallback: CheckedStructuralControlSuccessorPlan,
+    },
     /// Consume one whole owned parameter or exact result from this state's
     /// operation prefix and transfer control through the exact closed case
     /// roster. Payload scalars are introduced only on their selected edge;
@@ -143,6 +156,16 @@ impl CheckedComposedUnitControlStatePlan {
         };
         self.operations.iter().chain(selected)
     }
+}
+
+/// One guarded arm of an ordered transition chain: the exact checked scalar
+/// expression the authored guard selected and the selected edge's custody plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedGuardedJumpPlan {
+    /// Exact checked scalar expression at `successor.statement_ordinal` under
+    /// the `Guard` role. The current family admits pure Boolean expressions.
+    pub guard: CheckedScalarExpression,
+    pub successor: CheckedStructuralControlSuccessorPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

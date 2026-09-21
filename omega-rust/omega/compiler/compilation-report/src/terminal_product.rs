@@ -1342,7 +1342,7 @@ impl RetainedTerminalArtifact {
 
 #[cfg(test)]
 mod tests {
-    use super::{integer_comparisons, TerminalIntegerComparisonOccurrenceProposal};
+    use super::{TerminalIntegerComparisonOccurrenceProposal, integer_comparisons};
     use lowered_psi::{
         LoweredSelectedIntegerComparisonOperandOrder as OperandOrder,
         LoweredSelectedIntegerComparisonOperation as Emitted,
@@ -1424,6 +1424,7 @@ mod tests {
                 entry: BlockId::new(2).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: BlockId::new(2).unwrap(),
                     parameters: Vec::new(),
                     structural_parameters: Vec::new(),
@@ -1436,6 +1437,7 @@ mod tests {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: ContractId::new(9).unwrap(),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -1449,6 +1451,7 @@ mod tests {
     fn integer_equal() -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Scalar(declaration(6, ScalarType::Boolean)),
             kind: OperationKind::IntegerEqual {
@@ -1545,6 +1548,7 @@ mod tests {
         let plan = plan("provider");
         let widen = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(8).unwrap(),
             result: OperationResult::Scalar(integer(10)),
             kind: OperationKind::IntegerWiden {
@@ -1585,6 +1589,7 @@ mod tests {
         let plan = plan("provider");
         let authored_not = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(8).unwrap(),
             result: OperationResult::Scalar(declaration(10, ScalarType::Boolean)),
             kind: OperationKind::BooleanNot {
@@ -1646,6 +1651,7 @@ mod tests {
 
         let less_than = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(5).unwrap(),
             result: OperationResult::Scalar(declaration(6, ScalarType::Boolean)),
             kind: OperationKind::IntegerLessThan {

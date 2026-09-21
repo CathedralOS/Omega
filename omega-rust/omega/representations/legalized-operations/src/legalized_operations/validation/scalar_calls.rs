@@ -1,4 +1,4 @@
-use crate::LegalizedScalarCall;
+use crate::{LegalizedDynamicParameterCall, LegalizedScalarCall};
 use calling_conventions::{EntryControl, ValueLocation, ValuePlacement, ValueShape};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +129,68 @@ fn indirect_aggregate_result(placement: &ValuePlacement) -> bool {
             pointer: calling_conventions::IndirectPointerLocation::Register(_),
             copy_stack_byte_offset: None, byte_size, alignment,
         }] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LegalizedDynamicParameterCallShapeError {
+    CallControl,
+    DispatchSignature,
+    Custody,
+    Requirement,
+    Result,
+    TableOffset,
+}
+
+impl LegalizedDynamicParameterCall {
+    /// Raw contract consistency only: the erased adapter plan, the parameter
+    /// ABI binding, the requirement row, and the slot offset must agree
+    /// internally. Semantic join and roster membership require replay against
+    /// the owning function's plan and abstract operation.
+    pub fn validate_shape(&self) -> Result<(), LegalizedDynamicParameterCallShapeError> {
+        use LegalizedDynamicParameterCallShapeError as Error;
+        if self.dispatch_call_plan.entry_control != EntryControl::CallReturn
+            || !self.dispatch_call_plan.callback_materializations.is_empty()
+        {
+            return Err(Error::CallControl);
+        }
+        // The erased adapter receives exactly the instance word; its byte
+        // width is the pointer width and the only placement family admitted.
+        let [instance] = self.dispatch_call_plan.parameters.as_slice() else {
+            return Err(Error::DispatchSignature);
+        };
+        if !direct_scalar_placement(instance) {
+            return Err(Error::DispatchSignature);
+        }
+        let dispatch = &self.dynamic_dispatch.dispatch;
+        let parameter = &self.dynamic_dispatch.parameter;
+        if self.parameter_abi.parameter != *parameter
+            || dispatch.parameter_ordinal != parameter.ordinal
+            || dispatch.owner != parameter.owner
+        {
+            return Err(Error::Custody);
+        }
+        let mut selected = parameter
+            .requirements
+            .iter()
+            .filter(|row| row.slot == dispatch.requirement_slot);
+        if selected.next() != Some(&self.requirement) || selected.next().is_some() {
+            return Err(Error::Requirement);
+        }
+        match (&self.result_home, &self.dispatch_call_plan.result) {
+            (Some(home), Some(placement)) if placement.shape == home.shape => {}
+            (None, None) => {}
+            _ => return Err(Error::Result),
+        }
+        if self.table_slot_byte_offset
+            != dispatch
+                .requirement_slot
+                .checked_mul(u32::from(instance.shape.byte_size))
+                .ok_or(Error::TableOffset)?
+        {
+            return Err(Error::TableOffset);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

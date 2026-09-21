@@ -1,0 +1,41 @@
+// PASS CANARY (compile + interpret). Ranked callee entered through a
+// projected receiver: `self.cursor.step(...)` borrows the `cursor` field
+// as the callee's whole receiver, and the callee's ranked backedge keeps
+// that same projected referent as its `self`
+// (wiki/spec/language/termination.md "Ranked callees on projected
+// receivers"). The caller/callee join preserves the exact projection,
+// callee identity, return/cleanup, and the caller-visible write: `step`
+// zeroes `self.remaining` on the projected referent, `run` reads it back
+// through `self.cursor`, and `main` exits 70 only when that composed
+// write is observed.
+data Cursor { remaining: u64 [0..=8]; }
+
+machine Cursor::step(&mut self, remaining: u64 [0..=8]) -> u64 [0..=8]
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 0 {
+        true -> self.step(remaining - 1)
+        false -> done()
+    }
+    state done(&mut self) -> u64 [0..=8] {
+        self.remaining = 0;
+        0
+    }
+}
+
+data Engine { cursor: Cursor; }
+
+machine Engine::run(&mut self) -> u64 [0..=8] {
+    let start: u64 [0..=8] = self.cursor.remaining;
+    _ = self.cursor.step(start);
+    self.cursor.remaining
+}
+
+data Main { engine: Engine; }
+
+machine Main::main(&mut self) -> i32 {
+    transition self.engine.run() == 0 {
+        true -> 70
+        false -> 71
+    }
+}

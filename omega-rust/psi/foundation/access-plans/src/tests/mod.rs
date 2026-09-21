@@ -4,6 +4,7 @@
 mod atomic_specialization;
 mod device_operations;
 mod external_specialization;
+mod owned_external_correspondence;
 mod placed_views;
 mod placement_admission;
 mod plan_validation;
@@ -40,8 +41,9 @@ use extents::ResidentClaimId;
 use extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
     ExtentProvenanceId, ExtentRights, MappedRangeReceiptContext, MappingEraId, MappingGrant,
-    MappingGrantId, MappingId, MappingSourceMode, TranslationActivationReceipt,
-    TranslationInstallObligations, TranslationReleaseObligations, map_owned,
+    MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationObligations,
+    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
+    map_owned,
 };
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 
@@ -571,6 +573,10 @@ fn primitive_request_snapshot(
             "established-owned-atomic",
             std::ptr::from_ref(established).cast::<()>(),
         ),
+        PlacementAuthorityRef::OwnedCorrespondedExternal(established) => (
+            "owned-corresponded-external",
+            std::ptr::from_ref(established).cast::<()>(),
+        ),
     };
     PrimitiveRequestSnapshot {
         plan: request.plan,
@@ -788,6 +794,7 @@ fn device_requirement_mapped_range(offset: u64, length: u64) -> MappedRangeRecei
         extent_id(815, MappingEraId::from_normalized_identity),
         TranslationInstallObligations::default(),
         TranslationReleaseObligations::default(),
+        PeerWriteRevocationObligations::default(),
     );
     let pending = map_owned(
         source,

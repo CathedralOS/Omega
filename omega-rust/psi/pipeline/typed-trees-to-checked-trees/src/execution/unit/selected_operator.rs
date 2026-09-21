@@ -123,10 +123,8 @@ pub(super) fn build_selected_operator_scalar_call(
     application: &crate::SelectedOperatorApplication,
     result: CheckedUnitScalarResultBindingPlan,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let realization_machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == application.realization_machine)?;
+    let realization_machine =
+        crate::lookup::machine_by_symbol(program, application.realization_machine)?;
     if realization_machine.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }

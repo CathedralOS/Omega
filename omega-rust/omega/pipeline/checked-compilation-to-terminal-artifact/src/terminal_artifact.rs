@@ -9,17 +9,111 @@
 use crate::{
     application_coverage, float_comparisons, float_fma, integer_comparisons, native_proposal,
 };
+use artifacts::allocations::AllocationDelta;
+use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use assembled_syntax_to_checked_compilation::{CheckedCompilation, OptimizationRollback};
 use diagnostics::Diagnostic;
+use terminal_production::{TerminalProductionStage, TerminalProductionTimings};
 
 pub(crate) mod behavior_exclusions;
 pub(crate) mod composition_modes;
 pub(crate) mod verification;
 
+/// Terminal production internally lowers, optimizes and publishes
+/// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
+/// keeps this coarse row as the boundary total; the Psi-side crate cannot
+/// name the shared tooling accumulator, so its per-leg rows arrive through
+/// `TerminalProductionTimings` and merge below it.
+const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
+    "terminal-production",
+    "CheckedTrees",
+    "CanonicalTerminalArtifact",
+    TimingCategory::Pipeline,
+);
+
+const TERMINAL_VERIFICATION_STAGE: StageMeta = StageMeta::new(
+    "terminal-verification",
+    "CanonicalTerminalArtifact",
+    "VerifiedTerminalArtifact",
+    TimingCategory::Pipeline,
+);
+
+const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
+    "native-realization-proposal",
+    "VerifiedTerminalArtifact",
+    "NativeRealizationProposal",
+    TimingCategory::Pipeline,
+);
+
+/// The Omega-side ladder names each Psi production leg rows arrive under.
+fn terminal_production_stage_meta(stage: TerminalProductionStage) -> StageMeta {
+    let (name, input, output) = match stage {
+        TerminalProductionStage::MachineSelection => (
+            "terminal-production/machine-selection",
+            "CheckedTrees",
+            "TerminalMachine",
+        ),
+        TerminalProductionStage::LedgerCheck => (
+            "terminal-production/ledger-check",
+            "CheckedTrees",
+            "CheckedLedger",
+        ),
+        TerminalProductionStage::Lowering => {
+            ("terminal-production/lowering", "CheckedTrees", "LoweredPsi")
+        }
+        TerminalProductionStage::Optimization => (
+            "terminal-production/optimization",
+            "LoweredPsi",
+            "OptimizedLoweredPsi",
+        ),
+        TerminalProductionStage::EntryReceipt => (
+            "terminal-production/entry-receipt",
+            "OptimizedLoweredPsi",
+            "ProgramEntryReceipt",
+        ),
+        TerminalProductionStage::TerminalIdentity => (
+            "terminal-production/terminal-identity",
+            "SemanticModule",
+            "TerminalPsiIdentity",
+        ),
+        TerminalProductionStage::ReceiverEligibility => (
+            "terminal-production/receiver-eligibility",
+            "CheckedTrees+SemanticModule",
+            "ReceiverEligibility",
+        ),
+        TerminalProductionStage::Publication => (
+            "terminal-production/publication",
+            "OptimizedLoweredPsi",
+            "CanonicalTerminalArtifact",
+        ),
+        TerminalProductionStage::BoundaryOperatorScope => (
+            "terminal-production/boundary-scope",
+            "LoweredPsi+CanonicalTerminalArtifact",
+            "BoundaryOperatorScope",
+        ),
+    };
+    StageMeta::new(name, input, output, TimingCategory::Pipeline)
+}
+
+/// Merge the Psi-owned production rows under the boundary row the caller just
+/// recorded. Rows drop silently when the accumulator is disabled.
+fn merge_terminal_production_timings(
+    stage_timings: &mut CompileTimings,
+    production_timings: &TerminalProductionTimings,
+) {
+    for (stage, microseconds) in production_timings.rows() {
+        stage_timings.add_completed(
+            terminal_production_stage_meta(*stage),
+            *microseconds,
+            AllocationDelta::default(),
+        );
+    }
+}
+
 /// Produce the retained Terminal product and its ordinary compiler report.
 pub fn produce_terminal_report(
     root_path: std::path::PathBuf,
-    checked: CheckedCompilation,
+    mut checked: CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     rollback: &OptimizationRollback,
 ) -> Result<compilation_report::CompileReport, Vec<Diagnostic>> {
@@ -27,7 +121,7 @@ pub fn produce_terminal_report(
     let production_subject = checked.production_subject()?;
     let source_file_count = checked.source_file_count();
     let rollback = rollback.settle(checked.optimization_selections());
-    let artifact = produce_retained_terminal_artifact(&checked, profile, rollback.effective())?;
+    let artifact = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
     compilation_report::CompileReport::from_retained_terminal_artifact(
         root_path,
         source_file_count,
@@ -84,7 +178,7 @@ pub fn validate_lowered_integer_comparison_custody(
 /// the target-owned native-realization proposal. It does not assemble a
 /// compiler report or enter native realization.
 fn produce_retained_terminal_artifact(
-    checked: &CheckedCompilation,
+    checked: &mut CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_report::RetainedTerminalArtifact, Vec<Diagnostic>> {
@@ -117,19 +211,33 @@ fn produce_retained_terminal_artifact(
     // is produced and admitted.
     behavior_exclusions::verify_entry_behavior_exclusions(checked, entry_machine_symbol)?;
     let psi_optimizations = selections.project_psi();
-    let terminal_trees = checked.terminal_production_trees();
-    let produced = terminal_production::TerminalProductionRequest {
-        checked: terminal_trees,
-        machine: terminal_production::TerminalMachineSelection::Symbol(entry_machine_symbol),
-        optimization_selections: psi_optimizations.selections().clone(),
-    }
-    .produce_program_entry_with_callback_custody(source_signature_identity, callback_placements)
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "terminal-artifact production failed: {}",
-            error.error(),
-        ))]
-    })?;
+    // The accumulator steps out of the checked record across the measured
+    // legs below so each closure may borrow the record while it is timed; it
+    // rejoins the record once the product is produced and admitted.
+    let mut stage_timings = std::mem::take(checked.timings_mut());
+    let mut production_timings = TerminalProductionTimings::enabled();
+    let produced = stage_timings
+        .record_result(TERMINAL_PRODUCTION_STAGE, || {
+            terminal_production::TerminalProductionRequest {
+                checked: checked.terminal_production_trees(),
+                machine: terminal_production::TerminalMachineSelection::Symbol(
+                    entry_machine_symbol,
+                ),
+                optimization_selections: psi_optimizations.selections().clone(),
+            }
+            .produce_program_entry_with_callback_custody_timed(
+                source_signature_identity,
+                callback_placements,
+                &mut production_timings,
+            )
+        })
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "terminal-artifact production failed: {}",
+                error.error(),
+            ))]
+        })?;
+    merge_terminal_production_timings(&mut stage_timings, &production_timings);
     let (
         artifact,
         checked_program_entry,
@@ -140,21 +248,27 @@ fn produce_retained_terminal_artifact(
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts_with_source_calls();
-    verification::verify_terminal_artifact(&artifact, profile)?;
+    stage_timings.record_result(TERMINAL_VERIFICATION_STAGE, || {
+        verification::verify_terminal_artifact(&artifact, profile)
+    })?;
     let native_realization_proposal =
-        native_proposal::project_terminal_native_realization_proposal(
-            checked,
-            profile,
-            &artifact,
-            checked_program_entry,
-            checked_boundary_operator_scope,
-            &callback_placements,
-            &source_call_occurrences,
-            &selected_ieee_float_fma_occurrences,
-            &selected_ieee_float_comparison_occurrences,
-            &selected_integer_comparison_occurrences,
-            selections,
-        )?;
+        stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
+            native_proposal::project_terminal_native_realization_proposal(
+                checked,
+                profile,
+                &artifact,
+                checked_program_entry,
+                checked_boundary_operator_scope,
+                &callback_placements,
+                &source_call_occurrences,
+                &selected_ieee_float_fma_occurrences,
+                &selected_ieee_float_comparison_occurrences,
+                &selected_integer_comparison_occurrences,
+                selections,
+            )
+        });
+    *checked.timings_mut() = stage_timings;
+    let native_realization_proposal = native_realization_proposal?;
     compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
         artifact,
         callback_placements,
@@ -173,11 +287,19 @@ pub struct ProgramEntryTerminalArtifact {
         lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     ieee_float_fma_occurrences: Vec<compilation_report::TerminalIeeeFloatFmaOccurrenceProposal>,
+    /// The stage measurements this artifact's production recorded; the caller
+    /// owns merging them back into the checked accumulator it cloned from.
+    stage_timings: CompileTimings,
 }
 
 impl ProgramEntryTerminalArtifact {
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
+    }
+
+    /// The stage measurements recorded during this artifact's production.
+    pub const fn stage_timings(&self) -> &CompileTimings {
+        &self.stage_timings
     }
 
     /// Every selected nearest fused multiply-add the artifact executes,
@@ -228,19 +350,28 @@ pub fn produce_program_entry_terminal_artifact(
     )?;
     let psi_optimizations = optimization_selections.project_psi();
     let terminal_trees = checked.terminal_production_trees();
-    let produced = terminal_production::TerminalProductionRequest {
-        checked: terminal_trees,
-        machine: terminal_production::TerminalMachineSelection::Symbol(
-            program_entry.source_signature().machine_symbol(),
-        ),
-        optimization_selections: psi_optimizations.selections().clone(),
-    }
-    .produce_program_entry(program_entry.source_signature().identity().bytes())
-    .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "native-artifact Terminal production failed: {error}"
-        ))]
-    })?;
+    let mut stage_timings = checked.timings().clone();
+    let mut production_timings = TerminalProductionTimings::enabled();
+    let produced = stage_timings
+        .record_result(TERMINAL_PRODUCTION_STAGE, || {
+            terminal_production::TerminalProductionRequest {
+                checked: terminal_trees,
+                machine: terminal_production::TerminalMachineSelection::Symbol(
+                    program_entry.source_signature().machine_symbol(),
+                ),
+                optimization_selections: psi_optimizations.selections().clone(),
+            }
+            .produce_program_entry_timed(
+                program_entry.source_signature().identity().bytes(),
+                &mut production_timings,
+            )
+        })
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact Terminal production failed: {error}"
+            ))]
+        })?;
+    merge_terminal_production_timings(&mut stage_timings, &production_timings);
     let (
         artifact,
         checked_program_entry,
@@ -295,5 +426,53 @@ pub fn produce_program_entry_terminal_artifact(
         checked_boundary_operator_scope,
         boundary_application_coverage,
         ieee_float_fma_occurrences,
+        stage_timings,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_terminal_production_timings;
+    use artifacts::compile_timings::CompileTimings;
+    use terminal_production::{TerminalProductionStage, TerminalProductionTimings};
+
+    #[test]
+    fn production_stage_rows_merge_under_the_boundary_label() {
+        let mut stage_timings = CompileTimings::enabled();
+        let mut production_timings = TerminalProductionTimings::enabled();
+        production_timings
+            .record_result(TerminalProductionStage::Lowering, || Ok::<_, ()>(()))
+            .unwrap();
+        production_timings
+            .record_result(TerminalProductionStage::Publication, || Ok::<_, ()>(()))
+            .unwrap();
+
+        merge_terminal_production_timings(&mut stage_timings, &production_timings);
+
+        let phases: Vec<&str> = stage_timings
+            .phases()
+            .iter()
+            .map(|timing| timing.phase.as_str())
+            .collect();
+        assert_eq!(
+            phases,
+            [
+                "terminal-production/lowering: CheckedTrees -> LoweredPsi",
+                "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact",
+            ]
+        );
+    }
+
+    #[test]
+    fn disabled_accumulator_drops_production_rows() {
+        let mut stage_timings = CompileTimings::default();
+        let mut production_timings = TerminalProductionTimings::enabled();
+        production_timings
+            .record_result(TerminalProductionStage::Lowering, || Ok::<_, ()>(()))
+            .unwrap();
+
+        merge_terminal_production_timings(&mut stage_timings, &production_timings);
+
+        assert!(stage_timings.phases().is_empty());
+    }
 }

@@ -7,6 +7,9 @@ use super::{
 };
 #[cfg(windows)]
 use crate::compile_rooted_canary_for_target;
+use checked_interpreter::{
+    FilesystemAccess, FilesystemGrantRoot, FilesystemGrantRootIdentity, FsGrants,
+};
 use compiler::CheckedCompileRequest;
 use std::io::Write;
 
@@ -119,6 +122,63 @@ fn contained_loop_command_branch_carrier_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The payload-carrying `Filesystem::write_all -> UnitResult` differential on
+// the dev host: an unwritable path must deliver Error, a good write Ok, with
+// the RESULT case-matched in transition position — not just the side effect.
+// Runs under the checked interpreter against the REAL fs behind a /tmp write
+// grant: the bad path is refused by the grant gate (deterministic Error), the
+// good path lands under the root. Unix-gated like the fixture's good path.
+// Native artifact production on Linux remains fenced by the
+// `filesystem/native_*` family's open native stops (no fused `FilesystemHost`
+// provider selection); the windows_x64 shape is covered by
+// windows_fs_wrapper_results_exit_canary_runs and macOS by the
+// native_filesystem_canaries roster.
+#[cfg(unix)]
+#[test]
+fn native_wrapper_write_all_result_interpreter_oracle() {
+    let canary = pass_canary(fixture_roster::NATIVE_WRAPPER_WRITE_ALL_RESULT);
+    let main_path = canary.join("main.omg");
+
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
+        .expect("write_all result canary should compile to checked trees");
+
+    // Same binding wiring as `interpret`, with the grant-scoped real fs instead
+    // of the default hermetic virtual one (under Virtual every path resolves,
+    // so the Error leg could never be observed).
+    let binding = checked
+        .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+        .map(|filesystem| {
+            FilesystemServiceBinding::from_compiler_resolved_declaration(
+                &checked,
+                filesystem.declaration_symbol(),
+            )
+            .expect("accepted filesystem fixture binding resolves one exact declaration")
+        });
+    let options = InterpretOptions {
+        filesystem: FilesystemAccess::RealScoped(FsGrants {
+            write_roots: vec![FilesystemGrantRoot::new(
+                FilesystemGrantRootIdentity::new(1).expect("nonzero grant root identity"),
+                "/tmp",
+            )],
+            ..FsGrants::default()
+        }),
+        filesystem_service_binding: binding,
+        ..InterpretOptions::default()
+    };
+    let outcome = interpret_entry(&checked, "Main::main", &[], options);
+    assert_eq!(outcome.error, None);
+    assert_eq!(
+        outcome.stdout,
+        b"PASS: write_all result Error-then-Ok correct\n",
+        "expected the write_all Error-then-Ok result split in the interpreter oracle, \
+         exit {:?}, stderr: {}",
+        outcome.exit_code,
+        String::from_utf8_lossy(&outcome.stderr)
+    );
+
+    let _ = fs::remove_file("/tmp/omega_wa_result.txt");
 }
 
 // The ERGONOMIC Filesystem wrapper natively on windows_x64 -- every result

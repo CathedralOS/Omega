@@ -100,6 +100,7 @@ fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption
     };
     let mut domains = mismatched_interface.structural_domains.to_vec();
     domains.push(terminal_psi::StructuralDomainDeclaration {
+        establishment_routes: Vec::new(),
         id: id(2, StructuralDomainId::new),
         semantic_domain,
         identity: "validation::alternate-content-domain".into(),

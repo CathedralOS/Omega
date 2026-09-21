@@ -87,7 +87,7 @@ Each file in `records/` is one JSON object:
 | `metrics.peak_memory_bytes` | `measured` when the platform reports per-child RSS — POSIX `os.wait4` (`ru_maxrss`, normalized to bytes) or a Windows job object's kernel-tracked `PeakJobMemoryUsed` (aggregate peak covering the child and its descendants); `compile_max_rss` and `run_max_rss` in bytes. `unavailable` with a reason on hosts with neither route. |
 | `metrics.code_size_bytes` | `measured`; published executable size per sample plus `stable` (whether every sample produced the identical size). |
 | `metrics.runtime_ms` | `measured` with per-sample wall-clock milliseconds, observed `exit_codes`, `exit_code_expected`, and `exit_code_match`; `skipped` for `--no-run` (e.g. a cross target with no host runtime); `unavailable` if no artifact was produced. Each non-measured status carries a `reason`. |
-| `notes` | Free-form strings supplied through `--note`. |
+| `notes` | Free-form strings supplied through `--note`. Each note describes the measurement — subject, leg, host — never the lane or agent that ran it; a re-measurement overwrites the record in place, so a refreshed row's notes replace rather than append. |
 
 Filenames are `<subject>__<target>__<selection>.json` where the
 selection slot is `default` for an empty selection or `sel-<hash>`

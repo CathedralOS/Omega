@@ -8,7 +8,7 @@
 //! and no boundary settlement inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId};
+use selected_instructions::SelectedInstructionId;
 
 use super::CommutingRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -16,8 +16,7 @@ use crate::rewrites::commuting_accesses as accesses;
 use crate::rewrites::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     pub block_index: usize,
     /// The member's index in the block body.
     pub member_index: usize,
@@ -34,7 +33,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, CommutingRelocationError> {
+) -> Result<Admission, CommutingRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(CommutingRelocationError::SourceMismatch);
@@ -157,7 +156,6 @@ pub(super) fn admit<'source>(
         return Err(CommutingRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         destination_index,

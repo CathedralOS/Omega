@@ -208,6 +208,7 @@ fn fixed_byte_array_unit_view_rejects_qualified_and_claim_bearing_roots() {
                     structural_type_id(1)
                 };
                 module.structural_domains.push(StructuralDomainDeclaration {
+                    establishment_routes: Vec::new(),
                     id: domain_id(1),
                     semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
                     identity: "QualifiedBytes".into(),

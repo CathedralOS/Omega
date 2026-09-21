@@ -232,6 +232,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     if has_descriptor_store {
         caller_operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
@@ -241,6 +242,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
     }
     caller_operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: call_operation,
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -353,6 +355,7 @@ pub(crate) fn lower_dynamic_composed_unit_machine(
                         id: caller_block,
                         parameters: Vec::new(),
                         erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         operations: caller_operations,
                         terminator: Terminator::ReturnUnit {
                             edge: edge_id(1),
