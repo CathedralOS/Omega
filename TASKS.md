@@ -4879,13 +4879,17 @@ moved to the termination-catalog fence (see that row's refresh note).
     `equal_runtime_indices_preserve_the_guarded_result_subject` also checks
     transport between distinct bound subjects under true `==` and false `!=`,
     with a shared dynamic body; writes to either subject retire the equality.
-    Remaining: guard-derived parameter qualifications. A stale guard followed
-    by `limit = 0` before
-    `bounded_result<limit>(value)` still passes `Check`, but artifact production
-    rejects with `OperationProofUnavailable`; move that rejection to the
-    exact call's source contract check without weakening the artifact gate.
-    The regression is `runtime_bound_stale_call_guard_rejects_publication`;
-    owning source check is `typed-trees-to-checked-trees/src/checks/contracts/calls.rs`.
+    Guard-derived parameter qualifications: **landed** at `725798149efe`
+    ("checks: retire stale guard premises at the source contract check") —
+    `incoming_guard_proves_requires`'s preservation gate now covers every
+    unqualified operand name the instantiated requirement spells, so a
+    stale guard followed by `limit = 0` before `bounded_result<limit>(value)`
+    rejects at the call's source contract check ("cannot prove requires
+    contract") and never reaches the artifact gate. Re-witnessed at
+    `e5a620b04d9c` (linux x86-64): `cargo nextest run -p compiler --test
+    runtime_value_generics` — 21/21 pass, including
+    `runtime_bound_stale_call_guard_rejects_publication` and the
+    dominating-guard transport controls.
   - Parse and check value binders on data declarations:
     `data Index<Limit: u32> where value < Limit, { value: u32; }` owes its
     default domain at construction, erases a proof-only index, and keeps an executable index as
