@@ -8941,6 +8941,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-PROOF-SUBJECT-SELECTION (~14:19Z); the remaining unfilled
   matrix cells stay host-gated per BENCHMARK-ROW-RESUMPTION's row. No
   independent slice.
+  Re-verified at `7d03d489e3d` (linux x86-64): census unchanged at ten
+  committed rows and `python3 tools/tests/test_benchmark.py` 29/29 green.
+  Fence rotation this wave: `tools/benchmark/records` +
+  `wiki/drafts/benchmarks.md` still under BENCHMARK-PROOF-SUBJECT-SELECTION
+  (exp ~14:19Z), `tools/benchmark/benchmark.py` + README +
+  `tools/tests/test_benchmark.py` now under BENCHMARK-REJECTED-ROW-RECORDING
+  (Zergling-128, ~16:28Z), BENCHMARK-LINUX-X64-ROW-REFRESH re-held by
+  zergling-z186 (~16:56Z). Producing surfaces stay claimed; no slice here.
 - **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-VARIANT-ROWS.** Mined candidate — scope
   verified, coverage landed. Bare re-mine of the variant-selection leg
