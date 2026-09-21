@@ -12936,6 +12936,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-WINDOWS-X64-NATIVE-ROW, and matrix-running to RC-MATRIX-RUNNER. No
   independent unfenced slice exists here. Sibling re-mines:
   RC-PLATFORM-RUNNER-COVERAGE, HOSTED-PLATFORM-RUN-MATRIX.
+  Re-verified at `e1d337a5c9` on linux x86-64: fences rotated owners but
+  coverage stands — `tools/release/records` + release-record docs under
+  RC-RELEASE-RECORD (~19:49Z), contract doc under
+  PLATFORM-RUN-LINUX-X86-64 (~11:40Z), linux_x86_64 record under
+  RC-NATIVE-MATRIX-LINUX-X86-64 (~11:30Z), linux_arm64 under
+  RC-NATIVE-MATRIX-LINUX-ARM64 (~15:33Z), Windows row under
+  RC-WINDOWS-X64-NATIVE-ROW (~08:36Z), closure under
+  RC-RELEASE-RECORD-AND-CLOSURE (~14:26Z); macos_arm64 still unrecorded
+  and needs a macOS host. No unfenced slice on this host; the settled
+  verdict stands.
 - **RC-PLATFORM-RUNNER-COVERAGE.** Mined candidate — scope
   verified, covered-alias of adjacent RC-PLATFORM-RUN-RECORDS:
   the four "required platform runs" runner rows of
@@ -13300,7 +13310,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-PCC-REPLAY-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY-HOSTILE-EVIDENCE** — mined candidate; verify scope then implement.
-- **RC-PLATFORM-RUN-RECORDS** — mined candidate; verify scope then implement.
+- **RC-PLATFORM-RUN-RECORDS** — mined candidate; covered — duplicate of the
+  resolved sibling row at TASKS.md:12921 (same name): every producible slice
+  is host-gated or claim-held; re-verified at `e1d337a5c9`. No independent
+  slice exists here.
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-ENVELOPE.** Resolved — re-mines the release-matrix gate
