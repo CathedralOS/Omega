@@ -172,17 +172,15 @@ pub(super) fn derive(
         {
             return None;
         }
-        fused_service_fields.push(CheckedProgramEntryFusedServiceField::new(
-            field_identity,
-            carrier.carrier_type_identity,
-        ));
-    }
-    fused_service_fields.sort_by(|left, right| left.field_identity().cmp(right.field_identity()));
-    if fused_service_fields
-        .windows(2)
-        .any(|pair| pair[0].field_identity() == pair[1].field_identity())
-    {
-        return None;
+        if !admit_fused_service_field(
+            &mut fused_service_fields,
+            CheckedProgramEntryFusedServiceField::new(
+                field_identity,
+                carrier.carrier_type_identity,
+            ),
+        ) {
+            return None;
+        }
     }
     Some(CheckedProgramEntryReceiverEligibility::new(
         checked
@@ -193,6 +191,24 @@ pub(super) fn derive(
         terminal_receiver_type,
         fused_service_fields,
     ))
+}
+
+/// The fused-service roster keeps the receiver's authored declaration order —
+/// the receipt is read beside the source declaration, and entry settlement
+/// rejoins each row by its exact identity pair rather than by position. Only
+/// uniqueness is enforced: a repeated field identity is refused.
+fn admit_fused_service_field(
+    roster: &mut Vec<CheckedProgramEntryFusedServiceField>,
+    field: CheckedProgramEntryFusedServiceField,
+) -> bool {
+    if roster
+        .iter()
+        .any(|existing| existing.field_identity() == field.field_identity())
+    {
+        return false;
+    }
+    roster.push(field);
+    true
 }
 
 /// Whether zero-filled storage is an established value of the receiver's
@@ -527,8 +543,8 @@ fn zero_valid_byte_field(
 #[cfg(test)]
 mod tests {
     use super::{
-        CheckedProgramEntryReceiverProjection, CheckedTrees, StructuralFieldType,
-        StructuralTypeShape, derive,
+        CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverProjection, CheckedTrees,
+        StructuralFieldType, StructuralTypeShape, admit_fused_service_field, derive,
     };
     use crate::TerminalProductionRequest;
 
@@ -1177,5 +1193,33 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn fused_service_roster_keeps_authored_order_and_refuses_duplicates() {
+        // Explicit numeric identities are strings like "#10" and "#2"; a
+        // lexicographic ordering lists "#10" before "#2" and all "#N" before
+        // any named field, diverging from the authored declaration order.
+        let mut roster = Vec::new();
+        for (identity, accepted) in [
+            ("#2", true),
+            ("#10", true),
+            ("console", true),
+            ("#2", false),
+            ("console", false),
+        ] {
+            assert_eq!(
+                admit_fused_service_field(
+                    &mut roster,
+                    CheckedProgramEntryFusedServiceField::new(
+                        identity.to_owned(),
+                        "carrier".to_owned()
+                    )
+                ),
+                accepted
+            );
+        }
+        let order: Vec<&str> = roster.iter().map(|field| field.field_identity()).collect();
+        assert_eq!(order, ["#2", "#10", "console"]);
     }
 }
