@@ -7,7 +7,7 @@ so the counts carry the revision they were measured at. Refresh by re-running
 the enumeration below on a later HEAD and replacing the tables wholesale —
 do not append dated copies of the same table.
 
-Revision: `2dbccb9bd68` (origin/main at measurement time, 2026-09-21).
+Revision: `bb192d7ea9eb` (origin/main at measurement time, 2026-09-21).
 Host: linux x86-64. Method: directory enumeration of
 `tests/omega/pass/<group>/<fixture>/` and `tests/omega/fail/<group>/<fixture>/`
 (each fixture is a directory holding `main.omg`; suites may also carry
@@ -41,8 +41,8 @@ owning suite declares.
 
 | Corpus | `*_exit` | `*_compile` | `*_warns` | `*_traps` | unsuffixed | total |
 |--------|----------|-------------|-----------|-----------|------------|-------|
-| pass   | 996      | 212         | 0         | 22        | 807        | 2037  |
-| fail   | 1        | 6           | 0         | 0         | 1218       | 1225  |
+| pass   | 996      | 215         | 0         | 22        | 809        | 2042  |
+| fail   | 1        | 6           | 0         | 0         | 1228       | 1235  |
 
 ## Per-group distribution
 
@@ -52,9 +52,9 @@ owning suite declares.
 | atomics | 11 | 7 |
 | backend | 2 | 0 |
 | blockexec | 4 | 2 |
-| borrow | 22 | 35 |
+| borrow | 24 | 37 |
 | borrows | 13 | 13 |
-| boundary | 0 | 1 |
+| boundary | 0 | 7 |
 | build | 11 | 17 |
 | calls | 190 | 35 |
 | capabilities | 34 | 15 |
@@ -68,7 +68,7 @@ owning suite declares.
 | core | 34 | 46 |
 | data | 26 | 45 |
 | dependent | 87 | 78 |
-| domains | 91 | 71 |
+| domains | 92 | 72 |
 | drops | 12 | 4 |
 | dungeon | 19 | 0 |
 | effects | 5 | 3 |
@@ -80,7 +80,7 @@ owning suite declares.
 | float | 51 | 10 |
 | generics | 60 | 77 |
 | host | 23 | 2 |
-| inline_asm | 15 | 32 |
+| inline_asm | 16 | 32 |
 | layouts | 23 | 5 |
 | memory | 6 | 13 |
 | modules | 32 | 22 |
@@ -94,7 +94,7 @@ owning suite declares.
 | platform | 0 | 1 |
 | ports | 0 | 1 |
 | progress | 1 | 0 |
-| proofs | 60 | 118 |
+| proofs | 61 | 119 |
 | providers | 36 | 32 |
 | range | 6 | 14 |
 | ranges | 3 | 12 |
@@ -117,16 +117,16 @@ owning suite declares.
 | types | 8 | 4 |
 | versioning | 9 | 1 |
 | wire | 48 | 33 |
-| **total** | **2037** | **1225** |
+| **total** | **2042** | **1235** |
 
-63 pass groups, 56 fail groups, 3262 fixtures total at this revision.
+63 pass groups, 56 fail groups, 3277 fixtures total at this revision.
 
 ## Reading the distribution
 
 - The heaviest pass groups (`calls` 190, `arithmetic` 162, `termination`
-  114, `slices` 111, `collections` 99, `domains` 91) are where runtime and
+  114, `slices` 111, `collections` 99, `domains` 92) are where runtime and
   structural semantics concentrate; the heaviest fail groups
-  (`termination` 117, `proofs` 118, `arithmetic` 84, `dependent` 78,
+  (`termination` 117, `proofs` 119, `arithmetic` 84, `dependent` 78,
   `generics` 77) mirror the checker/admission surfaces that reject programs.
 - Groups present in only one corpus (e.g. `filesystem` 86/0, `dungeon`
   19/0, `ffi` 0/1, `ports` 0/1) are asymmetric by surface, not by gap —
