@@ -1252,6 +1252,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/boundary_requirement_direct_call_unselected",
     "providers/boundary_requirement_statement_call_unselected",
     "providers/private_boundary_requirement_direct_call",
+    "providers/generic_boundary_requirement_direct_call_rejected",
     "providers/via_on_axiom_rejected",
     "providers/via_requires_satisfies",
     "providers/via_repeated_effects_rejected",
