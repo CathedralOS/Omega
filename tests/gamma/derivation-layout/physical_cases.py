@@ -1,6 +1,6 @@
 """Physically complete records, including deliberately invalid semantics."""
 
-from wire import certificate, clause, envelope, example, function, layout, proposition, record, theory
+from wire import LIMIT, certificate, clause, envelope, example, function, layout, proposition, record, theory, words
 
 
 def cases():
@@ -56,3 +56,15 @@ def source_spine():
     request = envelope(sections)
     assert len(request) == 929848
     return "46484_row_source_spine", request, layout(sections), 1, 600
+
+
+def full_extent():
+    # One admitted request at the exact provision extent: a single ground
+    # application fills the certificate terms table, so the inner scan must
+    # traverse every payload word before Layout can publish the final end.
+    children = 34078699
+    term = words(children + 3, 1, 0, children) + words(0) * children
+    sections = (theory(), proposition(), certificate(terms=(term,)))
+    request = envelope(sections)
+    assert len(request) == LIMIT
+    return "exact_extent_inner_traversal", request, layout(sections), 1, 1800
