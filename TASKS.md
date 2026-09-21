@@ -100,12 +100,12 @@ the complete product bar; focused successes below do not establish that baseline
   application acceptance.
 
   Reconcile publication first: the parent pins
-  `ef6682f75f48f9a750bc8f7594cc1f04e78ddf60`, which is not an ancestor of fetched
+  `ef6682f75f48f9a750bc8f7594cc1f04e78ddf60`, a descendant of freshly fetched
   application `origin/main` at `52bcf254c983a9ae9bf6e0c3661cafd656ca056b`
-  (2026-09-21). Preserve the geometry and scalar scan/RLE/dispatch work already
-  in the pin; do not re-port it or discard either lineage. Squalr uses only
-  `main`; publish cumulative work there without force-pushing, then pin a
-  tested commit on that line.
+  (2026-09-21). This is unpublished cumulative work, not divergent ancestry.
+  Preserve the geometry and scalar scan/RLE/dispatch code in the pin; do not
+  re-port it. Squalr uses only `main`: publish cumulative work there without
+  force-pushing, then pin a tested commit on that line.
 
   Run `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
   through ordinary package review on matching hosts. Connect
@@ -113,6 +113,16 @@ the complete product bar; focused successes below do not establish that baseline
   **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** supply allocation and placed
   access. Follow the application's actual next missing operation rather than
   waiting for every related task to close.
+
+  Preserve geometry acceptance on Windows and Linux ARM64, alignment parsing
+  and refusal/error-text parity, `set_alignment` calls, native clone/serialization
+  (including case-bearing alignment values), and token/named ordering agreement:
+  order by base address with equal-base equivalence while `equals` remains
+  size-sensitive. At the pin, parsing and named region ordering are absent;
+  clone/wire helpers exist but in-package checking does not close application
+  execution. Keep these mapped gaps explicit in the app-owned parity work.
+  Debug-assertion parity uses the settled assertion/build contracts, not an
+  invented implicit debug/release switch.
 
   Acceptance: geometry prints `Squalr geometry: PASS`; scans and repeat filters
   match Rust's exact addresses/ranges, including overlap, tails and empty input.
@@ -3303,6 +3313,9 @@ deliverable host runs, not four implementations of the gate.
   [sample record](wiki/drafts/rc_representative_programs_linux_x86_64.md) and
   [print_number control](wiki/drafts/rc_representative_programs_closure_0f75a0.md)
   preserve entry/provider, lowering and default-domain failure leads.
+  The recorded `brightness_control` Windows authored-entry rejection is a
+  concrete probe for `basics_samples_compile_from_authored_program_entry_bindings`;
+  reproduce it before repair rather than retaining its old failure as current.
   Recheck them before repair; the recorded `self.out requires [u8; N]::Utf8`
   failure must not be removed by weakening the field's domain.
   Acceptance: actual emitted ELF execution and all required full commands
@@ -3502,205 +3515,7 @@ Platform/cross-host (structurally gated — document host limits):
 
 Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
-- **SQUALR-CLI-COMMANDS.** Scope verified 2026-09-20: submodule item
-  `CLI-COMMANDS` (`samples/apps/squalr/TASKS.md`) — port the request/response
-  model through squalr-engine-session, squalr-engine and squalr-cli.
-  Dependency-blocked, not implementable this wave: the submodule's list is
-  ordered execution and this row sits after **SUPPLIED-BYTES-SCAN**, which
-  owns the production scan engine this item's acceptance exercises
-  ("creates a scan, filters it again and pages exact results through the
-  production engine"). Today squalr-engine, squalr-engine-session and
-  squalr-cli contain only `build.omg` stubs — there is no engine or session
-  surface to route commands through, and the submodule's AGENTS.md forbids
-  success stubs or fixed-capacity substitutes. The Squalr integration
-  umbrella is also under live claim (SQUALR-HEADLESS, Codex). Real start
-  condition: SUPPLIED-BYTES-SCAN lands its engine-api/scanning port, then
-  this row ports the command model on top.
-  Re-verified at `832c55e69b7` (ffival): dependency state partially moved —
-  the submodule pin `5b0307c` now carries the SUPPLIED-BYTES-SCAN surfaces
-  (27 .omg across squalr-engine-api + squalr-engine-scanning: scalar
-  scanners, element_scan_dispatcher, snapshot filters, RLE encoder), but
-  that row stays listed-open in the submodule's ordered list and this
-  item's route-through crates are still stubs: squalr-engine and
-  squalr-cli carry `build.omg` only, squalr-engine-session has only
-  `engine_os_provider.omg` — no request/response command model exists to
-  port. Submodule dir was UNFENCED this pass (claimed 8ac5e796 for the
-  witness, released); AGENTS.md still forbids success stubs. Real start
-  condition unchanged.
 
-- **SQUALR-ALIGNMENT-STRING-PARSING.** Scope verified at `949c153acd73` — the gap is
-  real and narrow, and it is an alias of a named parity gap on the sample's own board.
-  `samples/apps/squalr/TASKS.md` lists it among four remaining porting gaps ("Rust
-  debug-only assertions, alignment string parsing, the set_alignment call-site gate
-  ... and named trait operators") beside the recorded evidence that all 12 authored
-  geometry checks pass natively on macOS ARM64.
-  Measured in the ported source: `squalr-engine-api/src/structures/memory/memory_alignment.omg`
-  declares `pub data MemoryAlignment [copy]` with `MemoryAlignment::default()`,
-  `MemoryAlignment::from(size: i32)` and `get_size_in_bytes`, and
-  `structures/memory/normalized_region.omg` declares `NormalizedRegion::set_alignment`.
-  There is no string entry point at all — zero `parse`/`from_str`/`from_string` over
-  any alignment type in `samples/apps/squalr/**/*.omg`. So the port can build an
-  alignment from an integer but not from authored text, which is what a CLI argument
-  needs. The residue is one parse machine plus its rejection cases, not a structural
-  port.
-  NOTE for anyone picking this up: `samples/apps/squalr` is a git submodule
-  (`https://github.com/CathedralOS/Squalr-Omega.git`) and is NOT initialized in a
-  fresh checkout — it reads as an empty directory and every SQUALR row looks
-  unverifiable until `git submodule update --init samples/apps/squalr` runs. The
-  sibling SQUALR-REGION-ALIGNMENT-EXPANSION row shares that precondition.
-- **GEOMETRY-ALIGNMENT-PARSING.** Implemented on submodule branch
-  `zergling/z157-squalr-alignment-parsing` (tip `833ce36`, commits `c587ab4`
-  + `833ce36`) — the parse machine named by SQUALR-ALIGNMENT-STRING-PARSING's
-  residue. `memory_alignment.omg` gains `MemoryAlignment::from_str(text:
-  &[u8]) -> AlignmentParseResult` porting upstream `FromStr` verbatim: only
-  the spelled bytes "1"/"2"/"4"/"8" parse; every other length or byte refuses
-  via `AlignmentParseResult::Invalid` (first case — an untouched value reads
-  as failure). Named deviation: upstream `Err` echoes the input text; a data
-  case cannot retain a borrowed byte view, so `Invalid` drops the echo.
-  `AlignmentParseResult::parsed_size` and `from_str_consistent` exercise all
-  four spellings plus both refusal shapes in-package, matching the
-  wire-codec exercise convention (borrowed-slice receivers do not cross the
-  package boundary under selected ProgramEntry establishment). Verified at
-  `e7c0099cb2b70` on Linux x86-64: `omega --check` compiles all 30 package
-  sources clean against the bundled std. One implementation fix surfaced
-  during checking: `text.len == 1` does not establish index bounds — the
-  admissible shape is `text.len > 0` enabling `text[0]`, then a state-level
-  `len == 1` guard (the `console_write_bytes` pattern). Parent pin NOT
-  bumped — submodule integration is the coordinator merge step; the checked-in
-  `squalr-tests` `omega.lock` will need ordinary update/review against the
-  merged pin. Workspace `omega update` on this host exceeded 15min twice
-  (recompiling all package candidates) and produced no review file; the
-  direct package check is the scoped witness.
-  Re-verified at `e1dc35c9294` (linux x86-64, 2026-09-21): the submodule
-  branch `zergling/z157-squalr-alignment-parsing` remains published at tip
-  `833ce362927c` on the Squalr-Omega remote, so the landed parse machine
-  stands exactly as recorded. The parent pin bump stays the coordinator
-  merge step — no new in-scope slice exists under this name; the row is
-  stamped, not reopened.
-- **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity. Scope
-  verified at `10d93dd448`, fenced — the residual the app board lists under
-  GEOMETRY-PARITY ("clone/serialization", samples/apps/squalr/TASKS.md):
-  upstream Squalr `568aa7589b68` derives `Clone`/`Serialize`/`Deserialize`
-  across its structures and snapshot types (region filters, normalized
-  regions, scan results) so scans can be cloned for successive filtering and
-  snapshots serialized to project files; the port carries only three
-  structures modules so far
-  (`squalr-engine-api/src/structures/{scanning/filters/snapshot_region_filter,
-  memory/normalized_region, memory/memory_alignment}.omg`) with no
-  clone/serialization leg ported yet. The implementing surface
-  `samples/apps/squalr` is dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT
-  (~21:39Z) and GEOMETRY-ALIGNMENT-REGIONS (~01:18Z); sibling stub
-  SQUALR-CLONE-SERIALIZATION (below, ~7395) re-mines the same residual.
-  Claim evidence (z181): claim returned exit 2 on the fenced app dir.
-- **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
-  Re-witnessed `ac4e4eee9b` (z194, Linux x86-64): `Squalr geometry: PASS`,
-  native exit 0 through `tools/verify.py native` on the scratch-copied app
-  at pin `43329a3` — using `Source::Path` to the checkout's
-  `source/library/std` (the post-migration std), since the declared
-  git-pinned std `87d8b227` predates `32f5182254` ("reject bare
-  boundary-trait value spellings") and now fails `omega update` with 5
-  diagnostics (`host: FilesystemHost` etc. are `Service<R>` today). The
-  tracked `squalr-tests/omega.lock` is likewise rejected at HEAD
-  ("unsupported package lock version"), so BOTH recorded re-entry paths —
-  lock-bound run and fresh `omega update` — are red until the submodule's
-  std pin and lock advance to a post-`32f5182254` revision; that edit is
-  inside `samples/apps/squalr`, wholesale-fenced at this verification
-  (GEOMETRY-ALIGNMENT-REGIONS, exp 01:18Z).
-  Verified-scope audit (z105, origin/main `e8bbe9fcc0`): the geometry lane's
-  authored evidence is complete on one host — submodule TASKS records all 12
-  authored geometry checks passing on macOS ARM64 at app `4b1f7a6` with std
-  `87d8b227` (`Squalr geometry: PASS`, native exit 0); "Windows was not run",
-  and a Windows host is not available in this lane. The enumerated residual
-  gaps each map to sibling rows rather than remaining open here: Rust
-  debug-only assertions (SQUALR-DEBUG-ASSERTION-PARITY /
-  SQUALR-DEBUG-ASSERTIONS stubs at ~7541-7542), clone/serialization
-  (SQUALR-CLONE-SERIALIZATION-PARITY), alignment string parsing
-  (SQUALR-ALIGNMENT-STRING-PARSING), region alignment/expansion
-  (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators
-  (SQUALR-NAMED-TRAIT-OPERATORS). Implementing surfaces are under live
-  claims: `samples/apps/squalr` wholesale under SQUALR-TARGETS-AND-THROUGHPUT
-  (21:39Z), clone-serialization region/filter/alignment sources under
-  SQUALR-CLONE-SERIALIZATION (22:50Z), submodule+board under
-  SQUALR-REGION-ALIGNMENT-EXPANSION, TASKS.md under SQUALR-HEADLESS
-  (00:48Z). This row's own deliverable is therefore the Windows validation
-  leg (host-gated) plus witnessing that the sibling gaps closed; no
-  linux_x86_64-implementable slice exists inside the claimed surfaces.
-  Re-verified at `9f48bb2a59` (z85): the picture is unchanged — every
-  enumerated gap row is still open with a live owner
-  (GEOMETRY-ALIGNMENT-STRING-PARSING 00:04Z, SQUALR-NAMED-TRAIT-OPERATORS
-  00:58Z, REGION-ALIGNMENT-EXPANSION item claim 02:01Z), and
-  `samples/apps/squalr` stays wholesale dir-fenced
-  (SQUALR-TARGETS-AND-THROUGHPUT 05:52Z, GEOMETRY-ALIGNMENT-REGIONS
-  01:18Z, SNAPSHOT-STORAGE ×3 to ~05:2xZ); the lock/std-pin re-entry
-  repair remains an edit inside that fence and Windows validation still
-  has no host.
-  Re-verified at `479ceb0e680` (z171): unchanged shape —
-  `samples/apps/squalr` stays wholesale dir-fenced
-  (REGION-ALIGNMENT-EXPANSION / zergling-z68, exp 07:25Z), gap rows keep
-  live owners (SQUALR-NAMED-TRAIT-OPERATORS item claim ~10:24Z,
-  GEOMETRY-WINDOWS-VALIDATION item claim ~13:53Z), and no Windows host
-  exists in this lane. The own deliverable remains the host-gated
-  Windows leg; no linux_x86_64 slice outside a claimed fence exists.
-  Re-verified at `90df29812c0` (z34, linux x86-64): both re-entry paths
-  stay red — `omega --check squalr-tests/main.omg` at submodule pin
-  `5b0307c3` rejects the tracked lock ("cannot prepare accepted
-  omega.lock: fresh source key or immutable content differs") and
-  `omega update --offline` refuses the recorded std Git pin
-  ("offline resolution forbids new or refreshed Git selection"), so the
-  std-pin/lock advance remains the required submodule repair. Claim
-  drift: the `samples/apps/squalr` wholesale dir-fence has expired —
-  no path claim covers it at this check — while the enumerated gap rows
-  keep live item claims (SQUALR-NAMED-TRAIT-OPERATORS ~10:24Z,
-  GEOMETRY-WINDOWS-VALIDATION ~13:53Z, SQUALR-SEED-PARITY ~15:14Z on
-  `wiki/drafts/squalr_seed_parity.md`). The repair still belongs to the
-  port lane (submodule publication + gitlink), and Windows validation
-  still has no host; no independent slice exists under this name.
-  Re-verified at `8f58b6676b00` (z133, linux x86-64): the gitlink has
-  advanced `5b0307c3` → `ef6682f75f48` — the submodule republished the
-  lock with std Git pin `13433c1a` (post-`32f5182254`, so the recorded
-  std-pin staleness is repaired) and landed the region-alignment ports
-  (`52bcf25` NormalizedRegion `set_alignment`/`expand`). Both re-entry
-  paths stay red on this host anyway: `omega --check
-  squalr-tests/main.omg` still rejects the tracked lock ("fresh source
-  key or immutable content differs" — the lock's external-local lineage
-  keys the publisher's absolute checkout path, so any other checkout
-  needs an `omega update` review to re-key), and `omega update
-  --offline` still refuses refreshed Git selection on the same pin.
-  The residual ask narrows accordingly: per-checkout lock re-keying
-  (online `omega update` review) or a portable-lock repair — not
-  std-pin advancement. Fence map refreshed: no `samples/apps/squalr`
-  path claim; live item claims SQUALR-NAMED-TRAIT-OPERATORS ~10:24Z,
-  GEOMETRY-WINDOWS-VALIDATION ~13:53Z, SQUALR-SEED-PARITY ~15:14Z,
-  SQUALR-DEBUG-ASSERTIONS ~16:25Z, SEED-PARITY-ASSERTIONS ~11:09Z.
-  Windows leg still host-gated; no independent slice exists.
-- **SQUALR-NAMED-TRAIT-OPERATORS.** Exercise `NormalizedRegion`'s declared
-  `<`, `<=`, `>` and `>=` bindings from application code in
-  `samples/apps/squalr`, preserving base-address ordering, equal-base ordering
-  equivalence and size-sensitive `equals`. Compare token results with
-  `base_address_order` and retain explicit `Order` conformance selection.
-  Reproduce the current native customer failure before assigning compiler
-  repairs; the old ProgramEntry diagnostic is not a current observation.
-  **OPERATOR-MACHINE-SUPPLY** owns supply/grammar, with ordinary data-call
-  custody under **STATE-LOCAL-VALUE-FRONTIER**. Acceptance: Squalr's native
-  `ordering` verification executes the token comparisons and named-call
-  controls against the current submodule revision. Hash support awaits a
-  hash-keyed collection customer, not this task.
-- **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
-- **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z). Folded record (the prior ledger cleanup): the Zergling-126 ledger at `7241e02227` independently confirmed via a shallow clone of CathedralOS/Squalr-Omega `main` that the submodule board carries exactly four rows — GEOMETRY-PARITY, SUPPLIED-BYTES-SCAN, CLI-COMMANDS, TARGETS-AND-THROUGHPUT — no seed-parity item; live fences then were SQUALR-NAMED-TRAIT-OPERATORS (10:24Z) and SQUALR-CLI-COMMANDS (15:14Z). At fold time the `samples/apps/squalr` dir fence has rotated to SQUALR-DEBUG-ASSERTIONS (~16:25Z) and the draft itself stayed claimed under SQUALR-SEED-PARITY (~15:14Z).
-- **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput. Scope
-  verified at `7110606f46e5`: the name re-mines the submodule's ordered
-  `samples/apps/squalr/TASKS.md` TARGETS-AND-THROUGHPUT item — port native
-  reads using a controlled child process, partial-read handling,
-  cancellations, SIMD and parallel execution, with scalar fixtures for
-  optimized-result checks and total-allocation/throughput measurement
-  through result publication (GUI/TUI/installer excluded). Not
-  implementable this leg on two axes: the implementing surface is
-  wholesale-fenced — `samples/apps/squalr` under GEOMETRY-ALIGNMENT-REGIONS
-  (Zergling-112, ~01:18Z) — and the submodule board orders this item after
-  CLI-COMMANDS, which is still unstarted ("the CLI main entry is
-  intentionally absent until this work starts; do not substitute a
-  success stub"). No independent slice exists; re-check once CLI-COMMANDS
-  lands and the dir fence clears.
 
 
 ## Mined items (deep-mine sweep, wave 9)
@@ -3713,17 +3528,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `UnsupportedTarget` in catalog.rs and `hosted_sequences.rs` emits the
   out-of-range diagnostic. No authorized implementation surface; resolved
   with the parent row.
-- **ALIGNMENT-STRING-PARSING.** Mined candidate — scope verified,
-  covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
-  alignment-string parsing gap inside the Squalr app's geometry lane
-  (TASKS.md:6086; the parity audit at :6088 attributes it to that row).
-  Its only implementing surface is the `samples/apps/squalr` submodule,
-  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
-  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
-  residual set_alignment call-site gate is a compiler entry-mechanics
-  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
-  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
-  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **ASM-CATALOG-FAMILY-EXPANSION.** — mined candidate; verify scope then
 
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
@@ -5141,8 +4945,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (devin-848972c1, exp 13:59Z). No independent slice remains.
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
-- **CLI-COMMANDS** — mined candidate; verify scope then implement.
-  covered — contentless mined stub; CLI surface is documented in AGENTS.md with no named gap
 - **COMPARE-TEST-SELECTION.** — mined candidate; verify scope then implement.
 - **COMPILER-OBSERVATION-PRODUCTS.** — mined candidate; scope verified,
   resolved as a deliberately closed surface with no authorized slice.
@@ -5513,8 +5315,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (staged tree + atomic rename)
 - **EXECUTABLE-PUBLICATION-STEP** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the publication "step" is `publish_compilation`/`publish_native_artifact` in `omega/src/compilation/publication.rs`, which gates on `output_kind`, validates the retained artifact and manifest through `CompileReport::publish_retained_native_artifact`, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, then `publish_completed_build_outputs` commits one staged tree + atomic rename via `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. Verified at `ac4e4eee9b`. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
   covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (publish_compilation route)
-- **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
-  covered — Mach-O x86_64 pairing dispatch landed at 769627cc23; host run is MACOS-X64-HOST-PROFILE's
 - **COMPILER-EXECUTABLE-PUBLICATION-OPERATION.** — mined candidate;
   scope verified, resolved — the same surface the sibling
   EXECUTABLE-PUBLICATION-OPERATION row above already marks covered:
@@ -5548,39 +5348,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `activation_identifiers_and_publication` 15/15) standing. No leg
   remains under this name.
   covered — same landed surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (staged tree + atomic rename)
-- **FAULT-INJECTED-TARGET-READER.** Mined candidate — resolved as
-  covered: the surface this claim name has fenced is the image-emission
-  installation-record pairing dispatch for x86_64 Mach-O images with
-  thunk regions (TASKS.md MACOS-X64-HOST-PROFILE residual). That leg
-  landed on main at `769627cc23` — `installation_record/
-  record_validation.rs` dispatches Mach-O import thunk↔binding-slot
-  pairing per `image.target().architecture`, and the x86_64 arm reaches
-  the real validator
-  `image_macho::validate_macho_x86_64_import_binding_pairing`
-  (imports.rs, landed `5a5046d1db`), replaying each closed
-  `jmp [rip+disp32]` thunk against exactly one placed binding slot
-  naming the same symbol. Re-verified at `e7c0099cb2` (linux x86-64):
-  `cargo nextest run -p image-macho` 31/31 PASS, including
-  `x86_64_import_thunks_emit_and_validate_the_closed_jmp_rip_form`,
-  `x86_64_mutated_import_thunk_rejects_final_validation`, and the
-  end-to-end `x86_64_loader_mapping_accepts_eager_import_storage`
-  pairing exercise — HEAD now builds clean (the mid-drift
-  `crossed_window` break that forced the prior reading onto
-  `3533f7d0e8` is resolved). The remaining x86_64-Mach-O residual — a
-  real x86_64-apple-darwin host run — stays host-gated on
-  Re-verified at `74c2bfc605` (z181): the Mach-O x86_64 pairing
-  dispatch still reaches `image_macho::validate_macho_x86_64_import_
-  binding_pairing` from `record_validation.rs` (dispatch on
-  `image.target().architecture` intact); no same-item claim live;
-  the x86_64-apple-darwin host run stays host-gated on
-  MACOS-X64-HOST-PROFILE.
-  covered — Mach-O x86_64 pairing dispatch landed at 769627cc23; host run is MACOS-X64-HOST-PROFILE's
-
-  Re-verified again at `0a0662ad27` (z181): row unchanged; the Mach-O
-  x86_64 pairing dispatch and validator remain landed, and no
-  same-item claim is live.
-
-  MACOS-X64-HOST-PROFILE's row. No unbound slice remains here.
 - **NEW-TPV-DECLARATION-ORDER-NORMALIZATION-PIN.** Mined candidate; slice
   landed. The name resolves to the declaration-order normalization
   contract in `topology-plan`: `NormalizedGraph::new` sorts the supplied
@@ -5682,219 +5449,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   expired and `src/borrow/` is currently unclaimed. Residual (2) is still
   spec-gated (lifetimes.md:33, conformances.md:66). The only open slice
   under this name remains the outlives spec decision.
-- **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
-  [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
-  "region alignment/expansion" parity gap). Resolved — the gap is already
-  ported at Squalr-Omega `52bcf254c983a9ae9bf6e0c3661cafd656ca056b` (on that
-  repo's `main`): `squalr-engine-api`'s `NormalizedRegion` gained
-  `set_alignment` (forward-distance add to the next multiple, wrapped add at
-  the address edge, end address retained — matching the upstream
-  early-return/no-op cases) and `expand` (saturating base subtract and size
-  add around the released doubling multiply), and `squalr-tests` exercises
-  `expand` natively for growth plus low/high saturation. The residual is not
-  geometry work: `set_alignment` is source-checked but not exercised because
-  a `&mut self` machine taking a data parameter loses the entry attachment
-  identity (selected ProgramEntry establishment rejoins 0 Terminal
-  attachment identities) — a compiler entry-mechanics gap the app board now
-  tracks as "the set_alignment call-site gate" under GEOMETRY-PARITY.
-  Re-verified at `f7212dc016f2`: the ported `set_alignment`/`expand`
-  pair stands on the pinned submodule revision; the residual stays the
-  compiler entry-mechanics gate under GEOMETRY-PARITY, and the squalr
-  submodule dir sits under SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738).
-  Sibling stubs on the same parity-gaps sentence:
-  GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING (the
-  "alignment string parsing" gap), GEOMETRY-CLONE-SERIALIZATION,
-  GEOMETRY-DEBUG-ASSERTIONS, SQUALR-NAMED-TRAIT-OPERATORS.
-- **GEOMETRY-ALIGNMENT-STRING-PARSING.** Scope verified at `2a07fef5a85`
-  — re-mines the "alignment string parsing" parity gap on
-  GEOMETRY-PARITY's sentence (:7790): a `&mut self` machine taking a
-  data parameter loses the entry attachment identity (selected
-  ProgramEntry establishment rejoins 0 Terminal attachment identities).
-  That residual is a compiler entry-mechanics item tracked on the app
-  board under GEOMETRY-PARITY ("the set_alignment call-site gate"), not
-  a board item here. Its only implementing surface is the
-  `samples/apps/squalr` submodule, fenced under sibling claims
-  (SQUALR-TARGETS-AND-THROUGHPUT, SQUALR-CLONE-SERIALIZATION,
-  SQUALR-REGION-ALIGNMENT-EXPANSION per :6535). No independent slice
-  exists. Sibling stubs on the same sentence: GEOMETRY-ALIGNMENT-PARSING,
-  GEOMETRY-CLONE-SERIALIZATION, GEOMETRY-DEBUG-ASSERTIONS,
-  SQUALR-NAMED-TRAIT-OPERATORS, SQUALR-ALIGNMENT-STRING-PARSING.
-- **GEOMETRY-ALIGNMENT-STRING-PARSING.** Mined candidate — scope
-  verified, covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING:
-  the "alignment string parsing" parity gap inside the Squalr app's
-  geometry lane (samples/apps/squalr/TASKS.md's GEOMETRY-PARITY residual
-  list; the parity audit attributes it to that row). Verified sibling
-  measured the gap at `949c153acd73`: `memory_alignment.omg` builds an
-  alignment only from an integer — zero `parse`/`from_str`/
-  `from_string` over any alignment type — so the residue is one parse
-  machine plus its rejection cases, not a structural port. Its only
-  implementing surface is the `samples/apps/squalr` submodule, held
-  under live sibling claims (SQUALR-WINDOWS-GEOMETRY-VALIDATION ~05:49Z,
-  GEOMETRY-ALIGNMENT-REGIONS ~01:18Z over `TASKS.md,samples/apps/
-  squalr`; SQUALR-GEOMETRY-PARITY-RESIDUE ~03:32Z); the residual
-  `set_alignment` call-site gate is a compiler entry-mechanics item
-  tracked under GEOMETRY-PARITY, not this row. Sibling re-mine stubs on
-  the same surface: ALIGNMENT-STRING-PARSING (covered), SQUALR-SEED-
-  ALIGNMENT-PARSING (covered), GEOMETRY-ALIGNMENT-PARSING,
-  SQUALR-ALIGNMENT-STRING-PARSING.
-- **GEOMETRY-CLONE-SERIALIZATION.** Mined candidate — scope verified,
-  covered: re-mines the "clone/serialization" clause of
-  SQUALR-GEOMETRY-PARITY's residual list, whose owner row is
-  SQUALR-CLONE-SERIALIZATION-PARITY. The residual is consumed at the
-  tracked pin `ef6682f75f4` — merge `db64d58` absorbed `5ea4a17`
-  ("clone/serialization parity landed in squalr-engine-api"), so the
-  structures modules now carry authored Clone/Serialize parity:
-  `normalized_region.omg` (`clone`/`clone_from` + wire-codec pair,
-  :26-99), `snapshot_region_filter.omg` (`clone`/`clone_from`, :18-23),
-  `memory_alignment.omg`. Verification of the owning row's parity
-  acceptance stays in the submodule lane (samples/apps/squalr remains
-  dir-fenced); no independent slice exists under this name.
-- **GEOMETRY-DEBUG-ASSERTIONS.** Scope verified at `069276b986dc` —
-  re-mines the "debug-only assertions" parity gap on GEOMETRY-PARITY's
-  sentence; named verbatim as a sibling on
-  GEOMETRY-ALIGNMENT-STRING-PARSING's resolved row (:7928). The gap maps
-  to the SQUALR-DEBUG-ASSERTION-PARITY / SQUALR-DEBUG-ASSERTIONS lane
-  (Rust `debug_assert`/`debug_assert_eq` assertions in the geometry
-  engine) — an edit inside `samples/apps/squalr`, wholesale-fenced
-  under SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738, exp 05:49Z),
-  and the identical sibling stub SQUALR-GEOMETRY-DEBUG-ASSERTIONS is
-  under a live item claim (zergling-176, exp 11:43Z). No independent
-  slice exists here; sibling stubs on the same parity-gaps sentence:
-  GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-CLONE-SERIALIZATION,
-  SQUALR-NAMED-TRAIT-OPERATORS.
-  Re-verified at `32a6a7fa33` (linux x86-64): adjudication unchanged —
-  the surface is still an edit inside the `samples/apps/squalr`
-  submodule (pin now `ef6682f7`, rotated from the `5b0307c` recorded
-  earlier this wave). The recorded fences drained and re-formed:
-  SQUALR-DEBUG-ASSERTIONS (z35) now holds the `samples/apps/squalr`
-  dir-fence and SQUALR-DEBUG-ASSERTION-PARITY an item claim (both
-  ~16:2x-16:45Z, elapsed at this check), with SQUALR-SEED-PARITY on the
-  seed draft (~15:14Z); GEOMETRY-PARITY coordination still applies.
-  Still no independent slice under this name.
-  Re-verified at `32a6a7fa33` (linux x86-64): adjudication unchanged —
-  the surface is still an edit inside the `samples/apps/squalr`
-  submodule (pin now `ef6682f7`, rotated from the `5b0307c` recorded
-  earlier this wave). The recorded fences drained and re-formed:
-  SQUALR-DEBUG-ASSERTIONS (z35) now holds the `samples/apps/squalr`
-  dir-fence and SQUALR-DEBUG-ASSERTION-PARITY an item claim (both
-  ~16:2x-16:45Z, elapsed at this check), with SQUALR-SEED-PARITY on the
-  seed draft (~15:14Z); GEOMETRY-PARITY coordination still applies.
-  Still no independent slice under this name.
-- **GEOMETRY-EVIDENCE-REFRESH.** Scope verified — no independent slice.
-  The name re-mines the evidence-retention clause of the squalr
-  application acceptance (:143): "retain results under the app's ignored
-  `build/verification/`, with exact app/compiler pins and host."
-  Refreshing that evidence is a byproduct of a native `verify.py` run on
-  a matching host — the linux x86-64 witness is already recorded on
-  GEOMETRY-NATIVE (:7839, d82697ffca, `Squalr geometry: PASS`), and the
-  Windows leg is GEOMETRY-WINDOWS-VALIDATION's host-bound row. The
-  submodule path is wholesale-fenced at verification time
-  (`samples/apps/squalr` dir-claimed by SQUALR-WINDOWS-GEOMETRY-VALIDATION,
-  dev-88738). Nothing executable exists on this host under this name.
-- **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
-  app-board GEOMETRY-PARITY, source:
-  [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md)). Run the
-  geometry app natively on hosts beyond the verified macOS ARM64 evidence:
-  `python tools/verify.py native --timeout 600 --omega <executable>` inside
-  the pinned `samples/apps/squalr` (4b1f7a6) — `omega run --keep
-  squalr-tests/main.omg`, exit 0 with `Squalr geometry: PASS`.
-  **Linux x86-64 PASS (w9 z57 witness, d82697ffca):** release-profile
-  `omega`, Python 3.10 + `tomli` shim, `RUST_MIN_STACK=67108864` —
-  `Squalr geometry: PASS`, exit 0, 173.2s end-to-end (vs 167.2s macOS
-  ARM64). A debug-profile `omega` does NOT work for this leg: the
-  per-checkout `omega update` evaluation took ~62 min and the compile
-  leg exceeded the 30-min timeout; the release build compiles+runs in
-  ~3 min. Windows x86-64 and Linux ARM64 remain unrecorded.
-  Fresh-checkout ceremony (required before any run): the tracked
-  `squalr-tests/omega.lock` is bound to the committing checkout's
-  canonical path (`ExternalLocal` lineage) and rejects other checkouts
-  with "fresh source key or immutable content differs" — copy the app
-  tree to scratch (its fenced path is wholesale-claimed by
-  SQUALR-TARGETS-AND-THROUGHPUT), remove the stale lock, `omega update
-  --project squalr-tests` → accept the six pending decisions in
-  `build/package-manager/review-<target>.txt` → `omega update --resume`.
-  `verify.py` requires Python >=3.11 (`tomllib`); on 3.10 hosts run with
-  a `tomli`-backed `tomllib` shim on `PYTHONPATH`.
-- **GEOMETRY-PARITY.** Mined candidate — resolved: the bare name is the
-  app board's own canonical row, `samples/apps/squalr/TASKS.md`
-  **GEOMETRY-PARITY** at gitlink `5b0307c35` — "Validate the geometry
-  application on Windows … then finish the mapped Rust behavior still
-  absent from the seed." Its state is unchanged and it has no Omega-side
-  slice: Omega + std `87d8b227` pass all 12 authored geometry checks on
-  macOS ARM64 (`verify.py native` → `Squalr geometry: PASS`), "Windows
-  was not run" — the acceptance leg is Windows-host-gated — and the
-  residual parity list (Rust debug-only assertions, alignment string
-  parsing, the set_alignment call-site gate, named trait operators) is
-  each already a sibling row: GEOMETRY-WINDOWS-LEG /
-  GEOMETRY-WINDOWS-VALIDATION / GEOMETRY-WINDOWS-REVALIDATION carry the
-  Windows half, SQUALR-ALIGNMENT-STRING-PARSING /
-  SQUALR-NAMED-TRAIT-OPERATORS / SQUALR-GEOMETRY-PARITY the gap clauses,
-  SQUALR-CLONE-SERIALIZATION-PARITY the clone/serialization clause, and
-  the port surface `samples/apps/squalr` is wholesale-fenced this wave
-  by REGION-ALIGNMENT-EXPANSION (~07:25Z) with GEOMETRY-WINDOWS-VALIDATION
-  item-live (~13:53Z). No unfenced slice exists under this name;
-  coordinate on the submodule board.
-- **GEOMETRY-WINDOWS-LEG.** Mined candidate — resolved at `9beef2b045`:
-  re-mines the same Windows leg of the app repo's GEOMETRY-PARITY acceptance
-  that sibling row GEOMETRY-WINDOWS-VALIDATION (~this file, line 7842)
-  records: the 12-check geometry evidence is macOS ARM64 only ("Windows was
-  not run") and the acceptance is `python tools/verify.py native` on a
-  Windows host. Blocked identically two ways — no Windows development host
-  exists in this environment, and `samples/apps/squalr` is wholesale-fenced
-  this wave (SQUALR-TARGETS-AND-THROUGHPUT exp 21:39Z,
-  GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z). A Linux-side
-  `--target windows_x86_64` emit leg does not satisfy the run-based
-  acceptance and still needs the fenced tree. Owning parent:
-  SQUALR-GEOMETRY-PARITY; sibling re-mine stub GEOMETRY-WINDOWS-REVALIDATION
-  names the same leg. Re-verified at `6f918986063` (z203 leg): still
-  doubly gated — no Windows development host exists in this environment,
-  and the `samples/apps/squalr` dir fence has rotated to
-  SQUALR-DEBUG-ASSERTIONS (~16:25Z) while the
-  GEOMETRY-WINDOWS-VALIDATION item claim stays live (~13:53Z); the
-  previously cited wholesale fences (SQUALR-TARGETS-AND-THROUGHPUT,
-  GEOMETRY-ALIGNMENT-REGIONS) have drained. Submodule pin remains
-  `5b0307c352`.
-  Re-verified at `bbffdafe0498` (z116): still doubly gated — no Windows
-  development host in this environment, `samples/apps/squalr` remains
-  dir-fenced (SQUALR-DEBUG-ASSERTIONS ~16:25Z) with the
-  GEOMETRY-WINDOWS-VALIDATION item claim still live (~13:53Z). Submodule
-  pin has moved to `ef6682f75f`.
-- **GEOMETRY-WINDOWS-REVALIDATION.** Mined candidate — scope verified at
-  `94e764a6da`, re-mine of the settled adjacent row
-  GEOMETRY-WINDOWS-VALIDATION (scope verified `8734480a01`): both names
-  land on the Windows leg of the squalr app's GEOMETRY-PARITY acceptance,
-  `python tools/verify.py native --timeout 600` on a Windows host against
-  the pinned submodule (gitlink now `5b0307c352`, moved since the sibling
-  audit). Recorded evidence covers macOS ARM64 + Linux x86-64; the Windows
-  leg stays "was not run". Doubly gated: no Windows development host in
-  this lane, and `samples/apps/squalr` is dir-fenced by
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738); a Linux
-  `--target windows_x86_64` emit leg does not satisfy the run-based
-  acceptance. Sibling re-mines of this surface on the board:
-  GEOMETRY-WINDOWS-LEG (resolved `9beef2b045`), this stub, and
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (re-verified `7110606f46`,
-  ~line 10643) which also records the moved submodule pin.
-  No linux_x86_64 slice exists.
-- **GEOMETRY-WINDOWS-VALIDATION.** Mined candidate; scope verified at
-  `8734480a01`: names the Windows leg of the app repo's GEOMETRY-PARITY
-  acceptance ("Validate the geometry application on Windows"; the 12-check
-  geometry evidence to date is macOS ARM64 only — "Windows was not run").
-  Acceptance is `python tools/verify.py native --timeout 600 --omega
-  <executable>` on a Windows host against the nested build.omg graph.
-  Blocked two ways: no Windows development host exists in this
-  environment, and every touch point in `samples/apps/squalr` sits under
-  live claims (dir-fenced by Jarod's SQUALR-TARGETS-AND-THROUGHPUT;
-  file-fences from Zergling-61's SQUALR-CLONE-SERIALIZATION). A
-  Linux-side emit leg under `--target windows_x86_64` would not satisfy
-  the run-based acceptance and still needs the fenced app tree. Owning
-  parent: SQUALR-GEOMETRY-PARITY (TASKS.md:~6020); coordinate there on a
-  Windows host before working it.
-  Re-verified at `577d6ac2ba3` (Zergling-52): pin is now `5b0307c352`;
-  fence map refreshed — `samples/apps/squalr` is dir-claimed by
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (Devin / dev-88738, 05:49Z) and
-  TASKS.md sits under sibling geometry claims (GEOMETRY-ALIGNMENT-REGIONS
-  01:18Z, z175 06:28Z). The leg remains a Windows-host run; nothing
-  producible on linux x86-64.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
 - **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
@@ -5960,14 +5514,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
 - **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
-  Windows host before working it. Re-verified at `3a5db13578`
-  (linux x86-64, 2026-09-21 ~05:56Z): both blocks still hold — this lane
-  has no Windows host and `samples/apps/squalr` is again dir-fenced
-  (REGION-ALIGNMENT-EXPANSION / zergling-z68, exp 07:25Z; the earlier
-  SQUALR-TARGETS-AND-THROUGHPUT and SQUALR-CLONE-SERIALIZATION fences
-  rotated out but the surface stays claimed), and sibling claim
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (z175) covers this alias on
-  TASKS.md until 06:28Z.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY.** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
   span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
@@ -6598,7 +6144,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`x86_rel8_selected` rejects `Architecture::Aarch64` as `UnsupportedTarget`
   in catalog.rs, and `hosted_sequences.rs` emits the out-of-range
   diagnostic). Dispatch it here — already resolved.
-- **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **HOSTED-BUILTIN-SETTLEMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **HOSTED-PLATFORM-RUN-MATRIX** — resolved as already landed; mines the landed BENCHMARK-HOST-ROW-MATRIX row (ee30bfcf1865). `benchmark.py matrix` renders the hosted-platform run matrix: `HOST_LEGS` enumerates every catalogued `TargetProfile` host leg — linux_arm64, linux_x86_64, macos_arm64, macos_x86_64 (structurally blocked pending native realization), windows_x86_64 (peak-RSS leg explicit-unavailable, no os.wait4), uefi_x86_64 (runtime leg unavailable pending QEMU/hardware), plus cross_platform_cli, local_unchecked, and alpha_bootstrap — and `matrix_rows` emits one measured row per committed record plus one explicit row per uncovered leg, so no host leg is implied. `tools/tests/test_benchmark.py` pins TargetProfile drift (21 tests pass); `wiki/drafts/benchmarks.md` renders the matrix. Residual record-row authorship belongs to the fenced tools/benchmark owners, not this stub.
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
@@ -6863,18 +6408,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `owned_placement_lifecycle` are unfenced, but no end-to-end slice
   escapes the held files. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
   PLACED-ACCESS-NATIVE-OPS (claim lapsed), plus the entered-extent siblings
-  Currently unworkable — every implementing surface sits inside live
-  fences this wave: the extents crate itself (`psi/foundation/extents`)
-  is under DEVICE-EXTENT-ACCESS (11:04Z), the placed-access route
-  (hosted_receiver + access-plans legs) under PLAN-LAID-VIEWS (09:25Z),
-  the alias-analysis crate under PLACE-ALIAS-ANALYSIS-PRODUCER (10:06Z),
-  and the UEFI arrival leg under UEFI-PHYSICAL-SEMANTIC-ENTRY (08:44Z);
-  RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT (09:09Z) and SNAPSHOT-STORAGE
-  (15:21Z) hold adjacent board/storage rows. The prior ENTRY-CONTENT-ROOTS
-  and PLACED-ACCESS-NATIVE-OPS fences have since drained, but no unfenced
-  slice remains. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
-  PLACED-ACCESS-NATIVE-OPS, plus the entered-extent siblings under
-  ENTRY-CONTENT-ROOTS.
 - **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
 - **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
   handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
@@ -7156,23 +6689,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
 
 - **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Mined candidate — resolved as an alias of RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP: the name re-mines the same `calls/statement_call_recursive_{argument,overload}_compile` dedup surface that row carries (Peano/peano_add rename at `e5912f303a` ended the `core/nat.omg` collision; negative half pinned by `duplicate_overload_and_visibility_admissions_reject`). Re-witnessed at `9e3edc7be9a3` on Linux x86-64: `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile` → pass (94.6s), and `OMEGA_FAIL_CANARY_FILTER=duplicate_named_machine_overload_rejected,recursive_argument_imported_name_collision_rejected ... surface_and_targets::duplicate_overload_and_visibility_admissions_reject` → pass. No independent slice exists.
-- **REGION-ALIGNMENT-EXPANSION.** — mined candidate; verify scope then implement.
-  covered — port landed in the squalr submodule pin (`ef6682f75f48`); app-lane residual is SQUALR-REGION-ALIGNMENT-EXPANSION's
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
-- **REGION-ALIGNMENT-EXPANSION** — mined candidate; covered — alias stub of the
-  landed SQUALR-REGION-ALIGNMENT-EXPANSION port (sibling
-  GEOMETRY-REGION-ALIGNMENT-EXPANSION names the same surface). The submodule
-  pin advanced to `ef6682f75f48` carrying the port itself (`52bcf25`):
-  `squalr-engine-api/src/structures/memory/normalized_region.omg` implements
-  `NormalizedRegion::set_alignment` (forward-distance aligned-base move,
-  wrapping add at the address edge) and `::expand` (saturating base subtract +
-  wrapped doubling), each documented against its upstream revision pin;
-  `squalr-tests/main.omg` exercises it natively in the
-  `expand_grows_saturating` state (base 100→92, size 16→32, then overflow
-  saturating to base 0 / size u64::MAX). Re-verified at `c924529921` by
-  checking the pinned submodule's sources directly. No slice remains under
-  this name.
-  covered — port landed in the squalr submodule pin (`ef6682f75f48`); app-lane residual is SQUALR-REGION-ALIGNMENT-EXPANSION's
 - **REMAINING-INTRINSIC-SPAN-ARMS.** Mined candidate; scope verified at
   `739e4e81e97` — resolved as documented on sibling TV-INTRINSIC-SPAN-ARMS
   (verified 14e6f8f72e): the span-arm surface is complete for every intrinsic
@@ -7194,22 +6711,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   INTRINSIC-PHYSICAL-SPAN-ARMS is item-claimed (Jarod / swarm-w9) until
   ~05:04Z this wave.
   covered — span-arm surface complete per TV-INTRINSIC-SPAN-ARMS (`14e6f8f72e`)
-- **REGION-ALIGNMENT-EXPANSION.** Mined candidate — scope verified,
-  owner row for the region alignment/expansion residual of the Squalr
-  geometry-parity audit. The gap is concrete:
-  `samples/apps/squalr/squalr-engine-api/src/structures/memory/normalized_region.omg`
-  carries the seed's own admission — "hashing, alignment adjustment, and
-  expansion are not implemented in this seed" — so the residual is the
-  normalized-region alignment-adjustment and expansion machines plus their
-  rejection cases in the seed port. The implementing edit lives inside
-  `samples/apps/squalr`, wholesale dir-fenced this wave by
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z); the earlier
-  GEOMETRY-ALIGNMENT-REGIONS dir-fence (~01:18Z) has drained. Sibling
-  SQUALR-REGION-ALIGNMENT-EXPANSION is the app-lane row for the same
-  residual, and SQUALR-GEOMETRY-PARITY-RESIDUE's resolved audit maps this
-  enumerated gap to these rows. No linux_x86_64 slice exists outside the
-  claimed fence — coordinate with the squalr port lane before working it.
-  covered — port landed in the squalr submodule pin (`ef6682f75f48`); app-lane residual is SQUALR-REGION-ALIGNMENT-EXPANSION's
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
   covered — span-arm surface complete per TV-INTRINSIC-SPAN-ARMS (`14e6f8f72e`)
 - **RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the retained-artifact leg is `CompileReport::publish_retained_native_artifact` in `compilation-report/src/compile_report.rs`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, and self-checks a requested PCC pair pre-install before `executable_publication.rs` commits one staged tree + atomic rename — a failed publish leaves no half-written executable or stale sidecar. Witnessed green at `ea025447fe`: `cargo nextest run -p compilation-report executable_publication` 15/15 and the compiler `activation_identifiers_and_publication` suite 15/15. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-OPERATION, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
@@ -7316,41 +6817,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     macos_arm64, linux_arm64 hosts — host-gated, none producible on this
     machine.
   covered — gate exists as `samples_compile`; remaining legs host-gated (windows/macos/arm64)
-- **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
-  covered — bare stub; scalar-scan dispatch state tracked on SCOPED-LOOKUP-MAP-AUDIT / squalr lane rows
-- **SCAN-SCALAR-DISPATCH.** Verified at `ea698be6482` — resolved. The row
-  decomposes the same Squalr pin advance as resolved sibling
-  SCAN-SCALAR-SCAN and shares its reopened state: the scalar leg landed on
-  the pre-republish lineage (`43329a3`) and went absent when the gitlink
-  moved to `5ea4a17f3b`. The residual is now closed by the coordinator
-  repin — recorded gitlink `5b0307c352` carries the re-ported scalar
-  dispatch on the published lineage: `squalr-engine-scanning/src/scanners/
-  element_scan_dispatcher.omg` (explicitly documented "Port of
-  ElementScanDispatcher's scanner selection, scalar leg" — Scalar plans
-  select scalar scanners; non-scalar/Invalid select nothing), with
-  `scanner_scalar_iterative.omg`, `scanner_scalar_single_element.omg`,
-  `snapshot_region_filter_run_length_encoder.omg`, and
-  `planned_scan_type_scalar.omg` all present. No independent slice
-  remains; native-run acceptance stays on the squalr lane's own rows.
-- **SCAN-SCALAR-SCAN** — verified e0927237: landed via the squalr
-    machine. Re-witness at `4927883cf3` (linux x86-64): class (1)
-    reproduces verbatim — `basics_samples_compile_from_authored_program_
-    entry_bindings` rejects brightness_control's windows_x86_64 authored
-    entry with the same diagnostic in 11s. The deep legs are no longer
-    re-witnessable in a bounded run: `all_samples_reach_checked_trees`
-    and `algorithm_samples_..._bindings` exceed ~9 min before their
-    first assertion, and `omega --check --target linux_x86_64
-    samples/cli/basics/print_number/main.omg` emits nothing for >9 min
-    (matches the check-time caveat recorded on NOMINAL-FIELD-FLOW —
-    scale, not yet evidence of a hang). Classes (2) and (3) stay
-    recorded at `e092723726` above, unverified at tip.
-  Re-witnessed at `ea78f0e486` (linux x86-64): class (1) still reproduces
-  verbatim — `basics_samples_compile_from_authored_program_entry_bindings`
-  rejects brightness_control's windows_x86_64 authored entry with the same
-  `named-callable(path(WindowsProcessEntry::enter),...)` diagnostic in 11.3 s.
-  The suite file itself is claimed by SAMPLE-CORPUS (~10:52Z); the
-  windows_x86_64/macos_arm64/linux_arm64 host legs remain unavailable on this
-  machine and the repair classes stay with their owning rows.
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Give Terminal Psi a borrowed-view vocabulary for non-byte element types, so
   a callee can use a `&[T]` it receives. `d7a48d7af0` made the view local a
@@ -7437,74 +6903,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ProgramEntry establishment on `linux_x86_64` without the "rejoins 0 Terminal
   attachment identities" refusal, and `cargo nextest run -p
   typed-trees-to-checked-trees --lib` stays green.
-- **SCALAR-SCAN-AND-DISPATCH.** Mined candidate — scope verified, already
-  landed; decomposes the same Squalr-Omega `43329a3` commit as resolved
-  sibling SCAN-SCALAR-DISPATCH (scalar scan + run-length encoder +
-  element-scan dispatch leg). Re-verified at `9f48bb2a594`: the recorded
-  gitlink has advanced to `5b0307c35` and still carries every scalar
-  surface — `squalr-engine-scanning/src/scanners/
-  element_scan_dispatcher.omg`, `scalar/scanner_scalar_iterative.omg`,
-  `scalar/scanner_scalar_single_element.omg`,
-  `structures/snapshot_region_filter_run_length_encoder.omg`, plus the
-  api-side `scan_function_scalar.omg`,
-  `planned_scan_type_scalar.omg`,
-  `snapshot_filter_element_scan_plan.omg` (confirmed via `git ls-tree` on
-  the recorded pin). The sibling's `omega --check` witness at
-  `9e3edc7be9` (scanning 29 files + api 30 files clean) stands — the
-  pin's file inventory is what that check consumed. Remaining sibling
-  stubs on the same commit: SCAN-SCALAR-COMPARISON-DISPATCH;
-  SCAN-SCALAR-SCAN's re-opened note is stale per the sibling's merge
-  analysis (`251699c4669d` joined the republished lineage back over
-  `43329a3`).
-- **SCAN-SCALAR-DISPATCH.** — mined candidate; scope verified, already landed. The stub decomposes Squalr-Omega `43329a3` ("squalr: port scalar scan, run-length encoder, and element-scan dispatch"), whose element-scan dispatch leg names `element_scan_dispatcher.omg` + the scalar scanners. SCAN-SCALAR-SCAN's re-opened note (written when the recorded gitlink sat on the republished `5ea4a17f3b` lineage) is stale: the recorded gitlink `251699c4669d` is merge `db64d58`'s join of that lineage back over `43329a3`, which is its ancestor — `git log` confirms `43329a3` and `251699c` ("merge: adopt wire-schema NormalizedRegion…") carry `squalr-engine-scanning`. Present on the recorded pin: `squalr-engine-scanning/src/scanners/element_scan_dispatcher.omg`, `scalar/scanner_scalar_iterative.omg`, `scalar/scanner_scalar_single_element.omg`, `structures/snapshot_region_filter_run_length_encoder.omg`, plus the api-side `scan_function_scalar.omg` / `planned_scan_type_scalar.omg` / `snapshot_filter_element_scan_plan.omg` surfaces. Verified on linux-x86_64 at `9e3edc7be9` (gitlink 251699c4669d): `omega --check` clean — squalr-engine-scanning 29 files, squalr-engine-api 30 files. Siblings SCALAR-SCAN-AND-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH, SCAN-SCALAR-SCAN decompose the same commit and share this state.
-- **SCAN-SCALAR-SCAN.** — verified e0927237: landed via the squalr
-  pin advance `05416dd1a0` → Squalr-Omega `43329a3` ("squalr: port scalar
-  scan, run-length encoder, and element-scan dispatch"). The scalar leg was
-  present in that pin: `ScalarIterativeScan` pull driver over
-  current/previous u64 windows, `ScannerScalarSingleElement`, and
-  `SnapshotRegionFilterRunLengthEncoder` preserving upstream
-  stride/byte_advance semantics, selected by `ElementScanDispatcher` for
-  Scalar plans. Verified on linux-x86_64 at `e0927237`: `omega --check`
-  clean on both packages (squalr-engine-api 24 files, squalr-engine-scanning
-  28 files). Re-opened at `1edade1a480` when the gitlink sat on the
-  republished `5ea4a17f3b` lineage without the scalar leg — **closed again
-  at `94b395ea9c6b`**: the recorded gitlink is now `5b0307c3`, carrying the
-  full scalar surface (`scanners/element_scan_dispatcher.omg`,
-  `scalar/scanner_scalar_iterative.omg`,
-  `scalar/scanner_scalar_single_element.omg`,
-  `structures/snapshot_region_filter_run_length_encoder.omg`, api-side
-  `snapshot_filter_element_scan_plan.omg`) — the republished lineage's merge
-  back over `43329a3` restored it, as sibling SCAN-SCALAR-DISPATCH's row
-  recorded for pin `251699c4669d`. Residual retired. Siblings
-  SCALAR-SCAN-AND-DISPATCH, SCAN-SCALAR-DISPATCH,
-  SCAN-SCALAR-COMPARISON-DISPATCH decompose the same original commit.
-  Re-verified at `c924529921d` (linux x86-64): the recorded gitlink has
-  advanced again to `ef6682f75f` — `5b0307c3` is its ancestor — and still
-  carries every scalar surface: `scanners/element_scan_dispatcher.omg`,
-  `scanners/scalar/scanner_scalar_{iterative,single_element}.omg`, the
-  run-length encoder now under `scanners/structures/snapshot_region_filter_
-  run_length_encoder.omg` (moved with the scanners tree), plus api-side
-  `scan_function_scalar.omg`, `planned_scan_type_scalar.omg`,
-  `snapshot_filter_element_scan_plan.omg`. The drift is the squalr lane's
-  republish cadence, not a reopening.
 
-- **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build. Re-verified green at `771d0469a1c47` (linux x86-64, same command 2/2); a third bare mined stub further down this board names the same surface — drained by this row. Deduped under NEW-DEDUPE-SCOPED-LOOKUP-MAP-AUDIT-ROWS: the bare repeat stub and the field-note stub below are deleted (the field note itself asked for deletion), and an orphaned stale Squalr-gitlink fragment glued inside this row is removed — its current resolution lives on the SCAN-SCALAR rows.
+- **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build. Re-verified green at `771d0469a1c47` (linux x86-64, same command 2/2); a third bare mined stub further down this board names the same surface — drained by this row.
   covered — landed and self-enforcing (`tests/architecture/scoped_lookup_maps.rs`)
 - **SAMPLES-COMPILE-MULTI-HOST** — mined candidate; verify scope then implement.
   covered — gate exists as `samples_compile`; remaining legs host-gated (windows/macos/arm64)
 - **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
-  28 files). **Re-opened at `1edade1a480`**: the recorded gitlink moved to
-  `5ea4a17f3b` ("pin Squalr with clone/serialization parity",
-  `472563ca4c4`), which sits on a republished squalr lineage diverged from
-  `43329a3` at `420cabe8` — the published tree carries no scalar-scan
-  sources (squalr-engine-scanning is reduced to its package boundary;
-  only `snapshot_region_filter.omg` remains under
-  `squalr-engine-api/src/structures/scanning/`). The scalar leg therefore
-  exists only on the pre-republish lineage. Residual: re-port the scalar
-  scan/element-scan dispatch on the published squalr lineage, or have the
-  coordinator repin. Siblings SCALAR-SCAN-AND-DISPATCH,
-  SCAN-SCALAR-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH decompose the same
-  original commit and share this reopened state.
   covered — landed and self-enforcing (`tests/architecture/scoped_lookup_maps.rs`)
 - **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
   covered — landed and self-enforcing (`tests/architecture/scoped_lookup_maps.rs`)
@@ -7608,326 +7012,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CANARY-CORPUS by the PROGRAM-ENTRY-SELECTION-DIVISION lane.
   No independent slice exists; selection work
   resumes inside the owning lanes.
-- **SNAPSHOT-STORAGE** — mined candidate; verify scope then implement.
-- **SNAPSHOT-STORAGE-AND-FILTERING.** Scope verified — real item, no
-  bounded slice inside this repo's board. The stub names the Squalr
-  submodule's SUPPLIED-BYTES-SCAN row (`samples/apps/squalr/TASKS.md:19`):
-  port the scalar scan's snapshot storage and snapshot filtering
-  infrastructure (RLE filters, independently produced result batches,
-  shared snapshot per PORTING.md:9/27) under the pinned Rust revision's
-  semantics. Ordered execution places it after GEOMETRY-PARITY, which
-  gates it. The submodule path is wholesale-fenced at verification time —
-  `samples/apps/squalr` dir-claimed by SQUALR-WINDOWS-GEOMETRY-VALIDATION
-  (dev-88738, exp 05:49Z) with same-lane item claims live
-  (SQUALR-SUPPLIED-BYTES-SCAN, SQUALR-GEOMETRY-PARITY-RESIDUE).
-  Execution belongs to the submodule's own lane under its pin — not a
-  parent-repo slice.
-- **SQUALR-CLI-ENTRY-AND-MODEL.** Scope verified — real item, no bounded
-  slice exists inside this repo's board. The stub names the Squalr
-  submodule's CLI-COMMANDS row (`samples/apps/squalr/TASKS.md:26`): port
-  the request/response model through squalr-engine-session,
-  squalr-engine and squalr-cli, including the intentionally-absent CLI
-  main entry — the submodule's AGENTS.md forbids a success stub. Ordered
-  execution places it after SUPPLIED-BYTES-SCAN, which gates it. The
-  submodule path is wholesale-fenced at verification time
-  (`samples/apps/squalr` dir-claimed by SQUALR-WINDOWS-GEOMETRY-VALIDATION
-  dev-88738 exp 05:49Z and GEOMETRY-ALIGNMENT-REGIONS z112 exp 01:18Z).
-  Execution belongs to the submodule's own lane under its pin — not a
-  parent-repo slice.
-- **SQUALR-CLONE-SERIALIZATION.** Resolved — implemented under `samples/apps/squalr`
-  covered — implemented under samples/apps/squalr (wire-schema NormalizedRegion, Clone halves, roundtrip exercises)
-- **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
-  (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
-  fields carry wire schema numbers, so the synthesized `encode`/`decode` pair
-  is the upstream `Serialize`/`Deserialize`, exercised in-package by
-  `wire_roundtrip` (clone -> encode -> decode -> equals); `clone`/`clone_from`
-  are the authored `Clone` halves on `NormalizedRegion` and
-  `SnapshotRegionFilter` (`clone_consistent` exercises both in-package);
-  `MemoryAlignment` keeps `[copy]` for Clone/Copy and names the case-bearing
-  wire-codec gap as the serde deviation. Further named edges, not patched
-  over: `&mut`-receiver calls with borrowed arguments and static calls taking
-  `&` arguments do not attach under selected ProgramEntry establishment
-  cross-package, nested runtime-receiver calls cannot produce record results,
-  and the codec's ordered statement calls are only admitted to native closure
-  in the entry machine — so the exercises are checked in-package while
-  squalr-tests retains `Squalr geometry: PASS` natively (linux_x86_64:
-  `omega update` checks all 17 packages; `omega run --keep` exits 0).
-  Re-verified at `5b3caaf337` on linux x86-64: the landed submodule branch
-  `origin/zergling/z61-squalr-clone-serialization` (tip `5ea4a17`) is an
-  ancestor-of-pinned-head delta — +82/-7 lines across
-  `normalized_region.omg` (wire schema numbers + `encode`/`decode` +
-  `Clone`), `snapshot_region_filter.omg` (`Clone`), and
-  `memory_alignment.omg` — building directly on the tracked pin `4b1f7a6`,
-  which carries none of it; integration of that branch into the pinned
-  app remains the open leg, not any missing machinery.
-  Resolved at `5bb9a74842` (z102, linux x86-64): the open leg closed —
-  `origin/main`'s `samples/apps/squalr` gitlink now pins `ef6682f`, and
-  `5ea4a17` is an ancestor of it (merged at submodule `db64d58`, adopted
-  via `251699c` "adopt wire-schema NormalizedRegion; qualify module
-  paths", with `5b0307c` advancing the std pins and `ef6682f`
-  SQUALR-DEBUG-ASSERTIONS on top). The pinned app carries the wire-schema
-  `encode`/`decode`, `Clone` halves, and the in-package `wire_roundtrip` /
-  `clone_consistent` exercises the branch recorded. The bare duplicate
-  stub ~:17856 names the same resolved row; left standing. No remaining
-  slice under this name.
-  covered — implemented under samples/apps/squalr (wire-schema NormalizedRegion, Clone halves, roundtrip exercises)
-- **SQUALR-DEBUG-ASSERTION-PARITY.** Mined candidate; scope verified at
-  `e8bbe9fcc0` against upstream `568aa7589b68`: a re-mine of the
-  "Rust debug-only assertions" gap in the app repo's GEOMETRY-PARITY row
-  (and TASKS.md:6020 SQUALR-GEOMETRY-PARITY). Upstream `debug_assert!`
-  sites in the ported crates live in
-  `structures/scanning/filters/snapshot_region_filter.rs` (aligned base,
-  size >= value width — the Omega port carries a comment at the same site),
-  `structures/structs/valued_struct{,_field}.rs`, and the unported
-  scanning/targets-native surfaces. Omega needs no new machinery —
-  `configuration.md` excludes a debug/release mode and assertion
-  primitive; parity means authored `crash` checks or `requires` clauses on
-  the ported machines. Currently unworkable: every ported counterpart sits
-  under live claims — re-verified at `9b75533b9c7` (this session): the
-  three existing `.omg` files (`snapshot_region_filter.omg`,
-  `normalized_region.omg`, `memory_alignment.omg` under
-  `squalr-engine-api/src/structures/`) still exist, and the whole
-  `samples/apps/squalr` tree remains dir-fenced by Jarod's
-  SQUALR-TARGETS-AND-THROUGHPUT (until 21:39Z) and Zergling-112's
-  GEOMETRY-ALIGNMENT-REGIONS (until 01:18Z); Zergling-61's
-  SQUALR-CLONE-SERIALIZATION file-fence has drained, while
-  REGION-ALIGNMENT-EXPANSION and SQUALR-NAMED-TRAIT-OPERATORS hold
-  item-level claims on the same lane. Re-verified at `f6cf88be046`: the
-  fence map rolled over — the submodule dir is now held only by
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION (dev-88738, exp 05:49Z), with the
-  same lane's item-level claims (SQUALR-GEOMETRY-PARITY-RESIDUE,
-  SQUALR-SUPPLIED-BYTES-SCAN, SQUALR-REGION-ALIGNMENT-EXPANSION) still
-  live. Coordinate with GEOMETRY-PARITY's owner lane before working it.
-- **SQUALR-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
-- **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-PARITY-GAPS** — mined candidate; verify scope then implement.
-  covered — contentless stub; geometry parity gaps are GEOMETRY-PARITY / SQUALR-GEOMETRY-PARITY-RESIDUE's lane
-- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
-  `10d93dd448`, covered — re-mines the residual list of owning parent
-  item-level claims on the same lane. Coordinate with GEOMETRY-PARITY's
-  owner lane before working it.
-  Re-witnessed at `5fdd41efd8` (submodule pin `5b0307c`, initialized and
-  read-only inspected): the three ported files moved inside the submodule —
-  `structures/scanning/filters/snapshot_region_filter.omg`,
-  `structures/memory/normalized_region.omg`,
-  `structures/memory/memory_alignment.omg` — and the gap stands verbatim:
-  `snapshot_region_filter.omg:62` still carries only the comment "Upstream
-  debug assertions require an aligned base and size >= value width", no
-  `crash`/`requires` clause landed anywhere in the ported surfaces. Fence
-  refreshed: `samples/apps/squalr` wholesale under SQUALR-WINDOWS-GEOMETRY-
-  VALIDATION (exp 05:49Z), SQUALR-GEOMETRY-PARITY-RESIDUE live (03:32Z),
-  SQUALR-NAMED-TRAIT-OPERATORS item claim (10:24Z).
-  Fence re-audit at `94b395ea9c6` for retired sibling stub
-  GEOMETRY-DEBUG-ASSERTIONS (same gap; its mined row was swept, name
-  survives only in the parity-gaps sibling list): submodule pin unchanged
-  at `5b0307c`, so the gap evidence stands verbatim. Live fences rotated —
-  `samples/apps/squalr` is still wholesale dir-fenced by
-  REGION-ALIGNMENT-EXPANSION (zergling-z68, exp 07:25Z);
-  Fence re-audit at `138ed79a677` for sibling stub
-  **SQUALR-DEBUG-ASSERTIONS** (same re-mine of the Rust debug-only-assertions
-  gap — the name's whole surface is this row's): the submodule dir-fence has
-  drained, but the lane still sits under item-level claims
-  (SQUALR-NAMED-TRAIT-OPERATORS 10:24Z, SQUALR-SEED-PARITY 15:14Z on the seed
-  draft) and, per this row's standing note, must coordinate with
-  GEOMETRY-PARITY's owner lane before working it — authored `crash`/
-  `requires` parity on the ported structures belongs to that lane, not to a
-  one-stub slice.
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION drained and re-upped as
-  GEOMETRY-WINDOWS-VALIDATION (item claim, exp 13:53Z);
-  SQUALR-NAMED-TRAIT-OPERATORS item claim still live (exp 10:24Z);
-  SQUALR-GEOMETRY-PARITY-RESIDUE drained. The lane stays closed until the
-  directory fence opens.
-- **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
-  `10d93dd448`, re-verified at `3533f7d0e8` — the `samples/apps/squalr`
-  wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION exp 05:49Z), so the disposition is
-  unchanged — covered; the stub re-mines the residual list of owning parent
-- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
-  `10d93dd448`, covered — re-mines the residual list of owning parent
-- **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
-  `10d93dd448`, re-verified at `3533f7d0e8` — the `samples/apps/squalr`
-  wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION exp 05:49Z), so the disposition is
-  unchanged — covered; the stub re-mines the residual list of owning parent
-- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
-  `10d93dd448`, covered — re-mines the residual list of owning parent  Earlier z148
-  verification at `74537d6125c` folded the same stub the same way —
-  each enumerated gap mapped to a live-claimed sibling row, the parent's
-  residuals fenced or host-gated, no linux_x86_64 slice outside a
-  claimed fence.
-
-  **SQUALR-GEOMETRY-PARITY** (TASKS.md:6235), which now carries two audits:
-  the z105 verified-scope audit (12/12 geometry checks PASS on macOS ARM64
-  at app `4b1f7a6` / std `87d8b227`; every enumerated gap maps to a sibling
-  row — debug assertions → SQUALR-DEBUG-ASSERTION-PARITY/-ASSERTIONS,
-  clone/serialization → SQUALR-CLONE-SERIALIZATION, region alignment →
-  SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators →
-  SQUALR-NAMED-TRAIT-OPERATORS) and a z194 re-witness recording a new
-  regression: the tracked `squalr-tests/omega.lock` is rejected at HEAD and
-  the git-pinned std `87d8b227` fails `omega update` post-`32f5182254`, so
-  both recorded re-entry paths are red until the submodule's std pin and
-  lock advance — an edit inside `samples/apps/squalr`, wholesale-fenced
-  (GEOMETRY-ALIGNMENT-REGIONS 01:18Z, SQUALR-TARGETS-AND-THROUGHPUT). The
-  only independent residual is the Windows validation leg, which is
-  host-gated per SQUALR-WINDOWS-GEOMETRY-VALIDATION's audit. No
-  linux_x86_64 slice outside a claimed fence exists. Sibling re-mine
-  stubs: SQUALR-GEOMETRY-PARITY-GAPS, SQUALR-GEOMETRY-PARITY-RESIDUE.
-- **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-WINDOWS-GEOMETRY-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
-  Fence re-audit at `ea78f0e486` on the adjudicated row's name
-  (SQUALR-GEOMETRY-PARITY-GAPS — its own stub is retired, this row is its
-  surviving sibling): the recorded wholesale fence rotated —
-  GEOMETRY-ALIGNMENT-REGIONS' hold is gone and `samples/apps/squalr` is now
-  dir-fenced by REGION-ALIGNMENT-EXPANSION (zergling-z68, exp 07:25Z);
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION holds a live board claim (z175, exp
-  06:28Z) for the host-gated Windows leg. Disposition unchanged: every
-  enumerated gap remains an owned sibling row and no linux_x86_64 slice
-  outside a claimed fence exists.
-- **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-GEOMETRY-WINDOWS-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
-- **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; scope verified, re-mine of
-  the resolved sibling GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7203) —
-  same acceptance: `python tools/verify.py native --timeout 600 --omega
-  <executable>` on a Windows host against the pinned `samples/apps/squalr`
-  (4b1f7a6) build graph; recorded evidence is macOS ARM64 + Linux x86-64
-  (`d82697ffca`), Windows remains "was not run". Doubly gated: no Windows
-  development host exists in this environment, and `samples/apps/squalr` is
-  wholesale dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT. A Linux-side
-  `--target windows_x86_64` emit leg would not satisfy the run-based
-  acceptance. Owning parent: SQUALR-GEOMETRY-PARITY (~line 6064); siblings on
-  the same leg: SQUALR-GEOMETRY-WINDOWS-NATIVE (:8520),
-  SQUALR-GEOMETRY-WINDOWS-VALIDATION (:8522), GEOMETRY-WINDOWS-LEG (:7201),
-  GEOMETRY-WINDOWS-REVALIDATION (:7202).
-- **SQUALR-GEOMETRY-WINDOWS-VALIDATION** — mined candidate; scope verified, re-mine of the resolved sibling row GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7016). It names the same acceptance: the Windows leg of the app repo's GEOMETRY-PARITY gate — `python tools/verify.py native --timeout 600 --omega <executable>` on a Windows host against the pinned `samples/apps/squalr` (4b1f7a6) build graph; recorded geometry evidence is macOS ARM64 + Linux x86-64 (`d82697ffca`, `Squalr geometry: PASS`), Windows remains "was not run". Doubly gated: no Windows development host exists in this environment, and `samples/apps/squalr` is wholesale dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT with file-level fences from SQUALR-CLONE-SERIALIZATION. A Linux-side `--target windows_x86_64` emit leg would not satisfy the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY (~line 6064); sibling re-mine SQUALR-WINDOWS-GEOMETRY-VALIDATION (~8256).
-- **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-GEOMETRY-WINDOWS-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
-- **SQUALR-GEOMETRY-WINDOWS-NATIVE.** Mined candidate — scope verified at
-  `3533f7d0e8`, covered + host-gated: third re-mine of the same Windows
-  leg of the app repo's GEOMETRY-PARITY gate as resolved siblings
-  SQUALR-GEOMETRY-WINDOWS-RUN (:11218) and SQUALR-GEOMETRY-WINDOWS-
-  VALIDATION (:11231, itself re-mining GEOMETRY-WINDOWS-VALIDATION).
-  Same acceptance — `python tools/verify.py native --timeout 600
-  --omega <executable>` on a Windows host against the pinned
-  `samples/apps/squalr` build graph; recorded geometry evidence is macOS
-  ARM64 + Linux x86-64, Windows "was not run". Doubly gated: no Windows
-  development host exists in this environment and `samples/apps/squalr`
-  is wholesale dir-fenced (SQUALR-TARGETS-AND-THROUGHPUT + file fences).
-  A Linux `--target windows_x86_64` emit leg does not satisfy the
-  run-based acceptance. A same-item claim is live (Devin /
-  squalr-geometry-windows-native, exp 02:35Z); nothing independent to
-  add while it stands.
-- **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; scope verified, re-mine of
-  the resolved sibling GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7203) —
-  same acceptance: `python tools/verify.py native --timeout 600 --omega
-  <executable>` on a Windows host against the pinned `samples/apps/squalr`
-  (4b1f7a6) build graph; recorded evidence is macOS ARM64 + Linux x86-64
-  (`d82697ffca`), Windows remains "was not run". Doubly gated: no Windows
-  development host exists in this environment, and `samples/apps/squalr` is
-  wholesale dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT. A Linux-side
-  `--target windows_x86_64` emit leg would not satisfy the run-based
-  acceptance. Owning parent: SQUALR-GEOMETRY-PARITY (~line 6064); siblings on
-  the same leg: SQUALR-GEOMETRY-WINDOWS-NATIVE (:8520),
-  SQUALR-GEOMETRY-WINDOWS-VALIDATION (:8522), GEOMETRY-WINDOWS-LEG (:7201),
-  GEOMETRY-WINDOWS-REVALIDATION (:7202).
-- **SQUALR-GEOMETRY-WINDOWS-VALIDATION** — mined candidate; scope verified, re-mine of the resolved sibling row GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7016). It names the same acceptance: the Windows leg of the app repo's GEOMETRY-PARITY gate — `python tools/verify.py native --timeout 600 --omega <executable>` on a Windows host against the pinned `samples/apps/squalr` (4b1f7a6) build graph; recorded geometry evidence is macOS ARM64 + Linux x86-64 (`d82697ffca`, `Squalr geometry: PASS`), Windows remains "was not run". Doubly gated: no Windows development host exists in this environment, and `samples/apps/squalr` is wholesale dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT with file-level fences from SQUALR-CLONE-SERIALIZATION. A Linux-side `--target windows_x86_64` emit leg would not satisfy the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY (~line 6064); sibling re-mine SQUALR-WINDOWS-GEOMETRY-VALIDATION (~8256).
-- **SQUALR-PLUGIN-IMPLEMENTATIONS.** Scope verified at a4ffd1aff8 —
-  re-mines the "plugins/*: implementation unported" row of
-  `samples/apps/squalr/README.md`'s port-boundary table. All eight plugin
-  packages under `samples/apps/squalr/plugins/` contain only `build.omg`
-  package declarations (boundaries + internal edges mirrored from upstream
-  `plugins/*/Cargo.toml`); zero `*.omg` implementation sources exist.
-  Implementation order follows the package edges: the leaf plugins
-  (`squalr-plugin-data-types-24bit`, `-instructions-{arm,powerpc,x86}`,
-  `-memory-view-dolphin`, `-binary-symbols`, `-debuggers-native`) carry
-  real ports first; `squalr-plugin-builtins` is the aggregator that
-  depends on all of them plus `squalr-engine-api` — it lands last. This is
-  a multi-session port (each plugin mirrors its upstream crate's behavior
-  per PORTING.md parity rules — no placeholder services); it sits after
-  the scan engine in PORTING.md's executable progression, so earliest
-  legal start is after SUPPLIED-BYTES-SCAN/CLI-COMMANDS settle. The
-  whole `samples/apps/squalr` submodule is additionally wholesale-claimed
-  this wave (SQUALR-TARGETS-AND-THROUGHPUT 21:39Z,
-  SQUALR-CLONE-SERIALIZATION 22:50Z), so every implementable path is
-  fenced at verification time. Re-verified at `8f58b6676b`: all eight
-  `plugins/*` packages still carry only `build.omg` declarations at the
-  pinned submodule commit `5b0307c` (zero implementation `*.omg` sources),
-  the ordering gate stands (SUPPLIED-BYTES-SCAN / SQUALR-CLI-COMMANDS
-  unsettled), and the whole submodule is again wholesale-fenced —
-  SQUALR-DEBUG-ASSERTIONS (z35, exp ~16:25Z). The settled verdict stands.
-- **SQUALR-SEED-ALIGNMENT-PARSING.** — mined candidate; scope verified,
-  covered. Compound re-mine: "seed" is the port-seed wording on the app
-  board's GEOMETRY-PARITY residual list ("the mapped Rust behavior still
-  absent from the seed", samples/apps/squalr/TASKS.md) already adjudicated
-  by SQUALR-SEED-PARITY (resolved merged alias at `a3ab15b7611`), and
-  "alignment parsing" is its enumerated gap owned by
-  SQUALR-ALIGNMENT-STRING-PARSING — whose verified row attributes the only
-  implementing surface to the `samples/apps/squalr` submodule (under
-  SQUALR-TARGETS-AND-THROUGHPUT and GEOMETRY-ALIGNMENT-REGIONS claims) and
-  the residual `set_alignment` call-site gate to the compiler
-  entry-mechanics lane under GEOMETRY-PARITY. No independent slice exists
-  under this name; sibling re-mine names on the same surface:
-  ALIGNMENT-STRING-PARSING, GEOMETRY-ALIGNMENT-PARSING,
-  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
-- **SQUALR-SUPPLIED-BYTES-SCAN.** — mined candidate; verify scope then implement.
-- **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-WINDOWS-VALIDATION.** Resolved 2026-09-21 — minted
-  alias of the same Windows leg of the app repo's GEOMETRY-PARITY gate,
-  settled on the adjacent GEOMETRY-WINDOWS-VALIDATION /
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION rows. Re-verified at `832c55e69b`
-  on linux x86-64: recorded evidence stays macOS ARM64 + Linux x86-64
-  (`Squalr geometry: PASS`, native exit 0); the Windows leg requires
-  `python tools/verify.py native --timeout 600` on a Windows host and no
-  Windows development host exists in this lane. The submodule gitlink
-  pins `5b0307c352`; `samples/apps/squalr` carries live sibling claims
-  this wave (SQUALR-NAMED-TRAIT-OPERATORS item claim ~10:24Z,
-  SQUALR-SEED-PARITY 15:14Z on the draft ledger). A Linux
-  `--target windows_x86_64` emit leg does not satisfy the run-based
-  acceptance. No linux_x86_64 slice exists under this name.
-  Re-verified at `8f58b6676b0` (zergling-132, linux x86-64): unchanged
-  host gate — no Windows development host exists in this lane — and the
-  submodule gitlink has moved again to `ef6682f75f4` (from `5b0307c352`,
-  via SQUALR-DEBUG-ASSERTIONS' crash-parity get_element_count bump), so
-  the Windows leg must re-run against the new pin whenever a Windows
-  host appears. Fence refresh: `samples/apps/squalr` is dir-fenced by
-  SQUALR-DEBUG-ASSERTIONS (~16:25Z); the GEOMETRY-WINDOWS-VALIDATION
-  item claim stays live (~13:53Z); the recorded draft
-  `wiki/drafts/squalr_geometry_windows_validation.md` named by the
-  sibling row is not landed on main. Re-verified at `c924529921` (linux
-  x86-64): submodule gitlink still `ef6682f75f4`; host gate unchanged —
-  no Windows host in this lane, so the leg stays unmeasurable here.
-- **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
-  verified, re-mine of the audited sibling row
-  SQUALR-GEOMETRY-WINDOWS-VALIDATION (~line 10273, verified against
-  GEOMETRY-WINDOWS-VALIDATION at `8734480a01`). Same acceptance: the
-  Windows leg of the app repo's GEOMETRY-PARITY gate —
-  `python tools/verify.py native --timeout 600 --omega <executable>` on
-  a Windows host against the pinned `samples/apps/squalr` (4b1f7a6)
-  build graph; recorded geometry evidence is macOS ARM64 + Linux
-  x86-64 (`d82697ffca`, `Squalr geometry: PASS`), Windows remains
-  "was not run". Doubly gated: no Windows development host in this
-  environment, and `samples/apps/squalr` is dir-fenced by
-  SQUALR-TARGETS-AND-THROUGHPUT (+ SQUALR-CLONE-SERIALIZATION file
-  fences). A Linux `--target windows_x86_64` emit leg does not satisfy
-  the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY.
-- **STALE-CUSTODY-GATE-EXPECTATIONS** — scope verified at `10d93dd448d`:
-  Re-verified at `7110606f46` under claim e0188317 (exp 05:49Z): the
-  submodule gitlink now pins `5b0307c352` (was `4b1f7a6` at the sibling
-  audit), so the Windows leg must additionally re-run against the moved
-  pin; the host gate is unchanged — still no Windows host in this lane.
-  Re-verified at `94e764a6da` (Zergling-108): gitlink still `5b0307c352`;
-  the previously-recorded wholesale dir fences on `samples/apps/squalr`
-  (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS,
-  SQUALR-WINDOWS-GEOMETRY-VALIDATION, SNAPSHOT-STORAGE) have all expired —
-  the submodule is unfenced at this check — but the operative blocker is
-  unchanged: acceptance is a Windows-host `tools/verify.py native` run and
-  no Windows host exists in this lane. Record:
-  `wiki/drafts/squalr_geometry_windows_validation.md`.
-  Re-verified at `8f58b6676b0` (z181): the submodule gitlink moved
-  again — now `ef6682f75f` (was `5b0307c352`) — so the Windows leg
-  re-runs against the moved pin when a host exists; the named record
-  `wiki/drafts/squalr_geometry_windows_validation.md` is not on main.
-  `samples/apps/squalr` is wholesale-fenced this wave under
-  SQUALR-DEBUG-ASSERTIONS (~16:25Z registry). Operative blocker
-  unchanged: acceptance needs a Windows-host `tools/verify.py native`
-  run and no Windows host exists in this lane.
 
 
 
@@ -8069,7 +7153,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
-- **SUPPLIED-BYTES-SCAN.** Scope verified — real item, no bounded slice exists inside this repo's board. The stub names the Squalr submodule's ordered execution row (`samples/apps/squalr/TASKS.md`): port the scalar scan, snapshot storage, comparison dispatch, RLE encoder and query path through squalr-engine-api + squalr-engine-scanning — a multi-session port inside a submodule whose own AGENTS.md forbids placeholder bodies and requires the unchanged application command as outer acceptance. The submodule path is additionally wholesale-fenced at verification time (SQUALR-TARGETS-AND-THROUGHPUT, exp 21:39Z) and per the submodule's ordering it precedes CLI-COMMANDS, which gates on this row landing first. Execution belongs to the submodule's own lane under its pin — not a parent-repo slice; SQUALR-SUPPLIED-BYTES-SCAN is a sibling stub naming the same row.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
   `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
