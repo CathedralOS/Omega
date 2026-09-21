@@ -7766,7 +7766,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   family members are individually claimed this wave (CANARY-WIRE-EXACT-
   ARRAY-WITHOUT-COUNT-EXIT 00:33Z, CANARY-ACQUIRES-THROUGH-HELPER-RETURN
   23:30Z); the baseline doc entry needs its refresh when the family
-  attribution settles.
+  attribution settles. Re-witnessed 2026-09-21 at `e70748c9954` (linux
+  x86-64, `omega --check` on each fixture root): both fixtures still reject
+  with the same ProgramEntry-rejoin diagnostic, and the emitted text now
+  carries the per-fixture omission cause — the integer fixture's unit plan
+  is omitted at `state graph: terminator: unsupported tail: transition
+  chain` (state 0; a `transition` chain is not one of the admitted tail
+  shapes at `execution/unit/state_graph/mod.rs` — only an empty tail, one
+  return expression, one unconditional jump, or an exact when/else pair),
+  while the string fixture's unit plan is omitted at `structural field
+  store: record literal field`
+  (`execution/unit/structural_scalar_store/mod.rs:572`). So the family
+  splits into two distinct missing unit-plan admissions — transition-chain
+  terminator tail and record-literal field store — both under the same
+  `execution/unit/` ownership lane; the ledger refresh stays fenced to
+  BASELINE-CHECKED-LOWERED-PSI-CLUSTERS (~12:08Z).
 - **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT.** — mined candidate; scope verified
   2026-09-20 (z180): re-mines `tests/omega/pass/wire/runtime_wire_exact_
   array_without_count_exit`, which already exists and is rostered in
