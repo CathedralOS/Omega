@@ -2,7 +2,8 @@
 
 Witnessed row of the `RC-DIAGNOSTICS` release gate on the Linux x86-64
 host. Recorded at revision `e76d715c8e`, refreshed at `1edade1a480`
-(2026-09-20), re-witnessed green at `72fc66d6c326` (2026-09-21), host
+(2026-09-20), re-witnessed green at `72fc66d6c326` and again at
+`53817f8759e5` (2026-09-21), host
 `x86_64-unknown-linux-gnu`, cargo-nextest (mbx
 unavailable). The gate
 command from `wiki/drafts/rust_compiler_completion.md` names
@@ -13,8 +14,8 @@ and was run with the corrected filter.
 
 Verdict: **green** — `cargo nextest run -p compiler --test canary_suite
 proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
-PASSes in 109.3s at `72fc66d6c326`, zero drift across the full fail
-corpus. The recorded 11-fixture set is closed:
+PASSes in 115.6s at `53817f8759e5` (was 109.3s at `72fc66d6c326`), zero
+drift across the full fail corpus. The recorded 11-fixture set is closed:
 `domains/boundary_operator_mutation_invalidates_domain` was respelled by
 the RC-DIAGNOSTICS-STABILITY sibling run (`d74f2145b9`, forwarding the
 stored `&mut` field so the fixture re-reaches the pinned contract
@@ -57,9 +58,9 @@ rows are real silent-acceptance regressions needing implementation legs:
 
 The dispositions above describe the `1edade1a480` red record. Both
 admission legs have since been repaired on main and the fixture fence
-expired; at `72fc66d6c326` every fixture in the set rejects with its
-pinned fragment (re-witness above). This row is a measurement record
-only — no fixture files were modified by this leg.
+expired; at `72fc66d6c326` and again at `53817f8759e5` every fixture in
+the set rejects with its pinned fragment (re-witness above). This row is
+a measurement record only — no fixture files were modified by this leg.
 
 The gate is a matrix row, not a standalone completion: the release
 contract still requires all eight gates on one clean commit across the
