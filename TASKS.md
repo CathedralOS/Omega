@@ -19418,6 +19418,56 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names are retained on `TraitRefinementClause.service_reaches`, pending a
   clause-location variant of the reach-row table), `_` reach wildcards, and
   the evidence-binder fit check that consumes the refinement bound.
+
+  **The evidence-binder fit check landed 2026-09-21.** A binder carrying a
+  refinement carrier now resolves the carrier through `refines` and checks the
+  explicitly selected base conformance against the refinement's clauses, per
+  `conformances.md:168-171` ("a static evidence binder may require it and
+  receive an explicitly selected `Logger` conformance whose complete contract
+  fits"). New module
+  `typed-trees-to-checked-trees/src/monomorphization/selection/refinement_fit.rs`;
+  7 tests in `src/tests/generics/conformance_binders/refinement_binders.rs`.
+
+  Carrier resolution alone was NOT enough, and shipping it alone would have
+  been unsound — it would admit non-fitting conformances silently. Three
+  further sites had to resolve the requirement namespace through `refines`,
+  because a refinement's own `machines`/`requires` are empty:
+  `validation/.../generic_requirement.rs` (call resolution),
+  `syntax-trees-to-symbol-resolved-trees/.../children/machines.rs` (the
+  binder's child placeholder symbols) and its positional mirror in
+  `monomorphization/body_rewriting/evidence_rewrites.rs` — the last two must
+  visit in the same order (own machines, refined base, parents). All three are
+  guarded on `refines.is_some()`, so ordinary traits are untouched.
+
+  Three readings the spec does not settle, recorded so they can be revisited:
+  (1) `terminates;` demands a *published* guarantee — at this stage
+  `termination_plan.checked_summary` is still `NoGuarantee`, so `interface`
+  identity is the only honest signal, and `effects.md:228-229` ("observing a
+  non-waiting run does not" remove a marker) backs declaration over
+  observation. **Consequence worth noting: the corpus fixture
+  `tests/omega/pass/traits/transparent_refinement_declaration` authors
+  `machine * ... terminates;` over a `Sink::write` with no `terminates`, so a
+  binder over that trait would now reject. It still passes because nothing
+  binds it, but the shipped example would not work if used.**
+  (2) A targeted clause REPLACES the wildcard for its own requirement rather
+  than meeting with it ("unmentioned ... inherit the base", and the
+  order-independent meet is specified only for combining multiple
+  refinements). (3) `suspends true` / `blocks true` bind nothing, since they
+  only restate what the base already permits.
+
+  Still out of scope: parameterized refinements whose `refines.arguments` are
+  not pass-through (`conformance_application_arguments_match_candidate` would
+  mis-compare a reordered or partially applied head, and nothing rejects it
+  loudly), and the `bound.selected_conformance` branch, which checks subject
+  identity but never trait identity — a pre-existing hole of the same shape.
+
+  Verified: `typed-trees-to-checked-trees --lib` 5107/5107; `validation` +
+  `syntax-trees-to-symbol-resolved-trees` + `symbol-resolved-trees-to-typed-trees`
+  1749/1749. Sentinel: disabling only the fit check fails the five rejection
+  tests by name while the two admission tests still pass. The `.omg` corpus
+  fixtures could NOT be run -- `-p compiler` does not build while the fenced
+  ElementView legs remain -- so the four `fail/traits/transparent_refinement_*`
+  fixtures and the pass declaration fixture are owed a run once main is whole.
   Re-verified at `6f918986063` (z181, DYNAMIC-CALL-OCCURRENCE-SPANS
   re-dispatch): all anchors intact — `derive_dynamic_call_span` at
   `physical/operator_applications.rs:237` (called from
