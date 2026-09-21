@@ -250,13 +250,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     test PASS on linux x86-64). Residual stays here: descriptor-materializing
     relocation custody (fenced PHYSICAL-ACCESS-PROFILES) and the e2e replay leg
     (dynamic-call programs red before the physical stage upstream).
+    z98 side (`9e386769132`, rebased — code superseded by upstream
+    `da97c882017`'s generalized all-family custody): the forwarded
+    `forwarded_dynamic_descriptor_calls` span the complete emitted record
+    with multi-window relocation custody — the resolved call relocation plus
+    every descriptor argument's table-address windows (one
+    `X86_64Relative32`, or the AArch64 `Aarch64Page21`/`Aarch64PageOffset12`
+    pair), each attributed to the call's operation and joined to the
+    conformance table whose application the argument names; any other
+    relocation overlapping the record rejects as unattributed, and
+    `derive_span` carries a relocation-window set rather than the single
+    window it modeled. Witnesses
+    `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`
+    and `operator_applications::tests::descriptor_table_relocations_*`.
     Remaining intrinsic kinds still produce no occurrences, so their
     span arms have no demand side — the occurrence replay for them is
-    TV-OPERATOR-APPLICATIONS-REPLAY's scope. Descriptor-materializing
-    records additionally need relocation custody beyond the single
-    window `derive_span` models (AArch64 table addressing emits two
-    windows) plus a conformance-table symbol join; that surface in
-    `physical/` is fenced by PHYSICAL-ACCESS-PROFILES this wave.
+    TV-OPERATOR-APPLICATIONS-REPLAY's scope.
     Measured (w9, `577d6ac2ba`): no end-to-end `physical_child_replay`
     leg for the dynamic family is reachable yet — dynamic-call programs
     are red before the physical stage on this host
