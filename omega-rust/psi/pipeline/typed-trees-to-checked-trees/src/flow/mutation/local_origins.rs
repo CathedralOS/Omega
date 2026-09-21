@@ -241,13 +241,7 @@ pub(crate) fn rebase_exact_local_place(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let state = find_state(program, state_symbol)?;
-    let machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == state_symbol)
-    })?;
+    let (machine, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -303,14 +297,8 @@ pub(super) fn rebase_local_write_places(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let state = find_state(program, state_symbol)?;
+    let (machine, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
-    let machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|candidate| candidate.symbol == state_symbol)
-    })?;
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let Some(origins) =
