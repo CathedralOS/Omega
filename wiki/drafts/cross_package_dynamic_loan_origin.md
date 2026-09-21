@@ -38,8 +38,26 @@ Re-verified green at `8de5f83c09` (macOS arm64, mbx/nextest):
 evidence accepts, while naming the producer's private conformance still
 rejects), with zero loan-origin diagnostics.
 
+Re-verified again at `d6a0625f6b` (macOS arm64, mbx/nextest, same command):
+21/21 pass in 2.0 s with zero loan-origin diagnostics, while resolving the
+remaining sibling stubs on the same surface.
+
 ## Slice status
 
 No independent slice remains: the named semantic is pinned by the landed
 cross_package_visibility battery; the row resolves as a re-mine pointer
 to CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN / SHARED-RECEIVER-LOAN-ORIGIN.
+
+The sibling stubs on the same surface resolve under the same battery at
+`d6a0625f6b`, each pinning the named leg it re-mines — no independent
+slice under any of them:
+
+- `DYNAMIC-RETURN-LOAN-ORIGIN` — a dynamic return carrying
+  producer-selected evidence across the package boundary, pinned by
+  `public_dynamic_return_may_carry_private_producer_selected_evidence`.
+- `PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN` — the package boundary on the same
+  dynamic-return surface, same pin.
+- `PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN` — private producer-selected
+  evidence retained across the package boundary, pinned by
+  `public_dynamic_return_may_carry_private_producer_selected_evidence`
+  and `quotient_formation_retains_selected_evidence_as_private_package_custody`.

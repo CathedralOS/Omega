@@ -7696,7 +7696,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is stale. `bde84d1765a`'s one-hop projected-receiver admit is adjacent
   progress but does not touch establishment custody — the lane is still
   red upstream of itself.
-- **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** — mined candidate; verify scope then implement.
+- **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
+  resolved re-mine of the cross-package dynamic loan-origin cluster already
+  closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per the
+  resolved siblings CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN and
+  PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN: the recorded failure
+  `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+  ("requires an exact retained loan origin for its shared receiver") passes
+  after the retained-lineage/borrow-evidence family landed. Re-verified at
+  `d6a0625f6b` (macOS arm64, mbx/nextest): all 21 `cross_package_visibility`
+  tests pass with zero loan-origin diagnostics; detail in
+  `wiki/drafts/cross_package_dynamic_loan_origin.md`. No independent slice
+  remains.
 - **CUSTODY-MATRIX-HARNESS-MIGRATION.** Mined candidate (split-of:CUSTODY-MUTATION-COVERAGE):
   convert the legacy handwritten one-field substitution matrices to the shared
   `custody_field_inventory!`/`run_one_field_substitution_matrix` harness in
@@ -7951,7 +7962,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (4) `optimized_semantic_wrapper_object/codec` moves only after
   PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
   that owner — skip it while undecided.
-- **DYNAMIC-RETURN-LOAN-ORIGIN.** — mined candidate; verify scope then implement.
+- **DYNAMIC-RETURN-LOAN-ORIGIN.** Mined candidate; scope verified — resolved
+  re-mine of the same cross-package dynamic loan-origin cluster closed by
+  SHARED-RECEIVER-LOAN-ORIGIN at `e76d715c8e`: the stub's surface is a
+  dynamic return carrying producer-selected evidence across the package
+  boundary, pinned by
+  `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+  ("requires an exact retained loan origin for its shared receiver" stopped
+  emitting after the retained-lineage/borrow-evidence family landed).
+  Re-verified at `d6a0625f6b` (macOS arm64, mbx/nextest): all 21
+  `cross_package_visibility` tests pass with zero loan-origin diagnostics;
+  detail in `wiki/drafts/cross_package_dynamic_loan_origin.md`. No
+  independent slice remains.
 - **EDGE-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — sibling alias of the
   terminal-verifier cleanup-order row recorded under
   **EDGE-CLEANUP-ERROR-PRECEDENCE**: edge validation consumes owned
@@ -8953,7 +8975,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (certificates, transitive open obligations, schema migration, admission
   decisions in `src/ledger/obligation_ledger.rs`) stay named under
   PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice.
-- **PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN.** — mined candidate; verify scope then implement.
+- **PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN.** Mined candidate; scope verified —
+  resolved re-mine of the same cross-package dynamic loan-origin cluster
+  closed by SHARED-RECEIVER-LOAN-ORIGIN at `e76d715c8e`: the stub's surface
+  is the package boundary on a dynamic return carrying producer-selected
+  evidence, pinned by
+  `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+  ("requires an exact retained loan origin for its shared receiver" stopped
+  emitting after the retained-lineage/borrow-evidence family landed).
+  Re-verified at `d6a0625f6b` (macOS arm64, mbx/nextest): all 21
+  `cross_package_visibility` tests pass with zero loan-origin diagnostics;
+  detail in `wiki/drafts/cross_package_dynamic_loan_origin.md`. No
+  independent slice remains.
 - **PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.** — mined candidate; scope
   verified, covered at `c267df86ac` (linux x86-64, claim a8d7bd21 on
   `packages/review/evidence/src/capture` until 04:50Z). The scope-collision
@@ -9251,7 +9284,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   file-local slice exists; coordinate with the parent owner lane.
 - **PRIME-COUNTER-BENCHMARK-ROW.** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT.** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
-- **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN.** — mined candidate; verify scope then implement.
+- **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN.** Mined candidate; scope verified —
+  resolved re-mine of the same cross-package dynamic loan-origin cluster
+  closed by SHARED-RECEIVER-LOAN-ORIGIN at `e76d715c8e`: the stub's surface
+  is private producer-selected evidence retained across the package
+  boundary, pinned by
+  `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+  and
+  `cross_package_visibility::quotient_formation_retains_selected_evidence_as_private_package_custody`
+  ("requires an exact retained loan origin" stopped emitting after the
+  retained-lineage/borrow-evidence family landed). Re-verified at
+  `d6a0625f6b` (macOS arm64, mbx/nextest): all 21 `cross_package_visibility`
+  tests pass with zero loan-origin diagnostics; detail in
+  `wiki/drafts/cross_package_dynamic_loan_origin.md`. No independent slice
+  remains.
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Partially resolved — the settlement
   model landed at `c67ab1d0f2`: a privileged port effect settles only beneath
   an installed selected checked adapter, and direct-root `PortWrite` rejects
