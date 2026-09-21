@@ -22,3 +22,5 @@ recorded closures still hold. The ledger doc itself
 owners — nothing here changes what it already records.
 
 TASKS.md carries a two-line stamp pointing here; this file is the ledger.
+
+> Field note (fff0e6ce1723..72fc66d6c326 review): this draft is a scoped re-verification ledger (72/77, no new drift) written beside the board row; fold the reading into C2L-BASELINE when its fence opens and delete the draft rather than re-stamping it.

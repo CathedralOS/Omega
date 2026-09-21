@@ -306,6 +306,15 @@ fn equatable_qualified_field_reference_exit_canary_runs() {
     // name, so the field's conformance is found and `Filter == Filter`
     // expands over the nested record. Qualified `==` operands in a machine
     // body take the same route (exit 70).
+    //
+    // Not yet green on any host: `compile_rooted_canary_for_native_host`
+    // stops at resolution with "import `leaf::region` does not select one
+    // exact declaration or module in declared namespace `region`" — the
+    // fixture's `leaf` package (`leaf/main.omg` is only `use region;`) does
+    // not expose `region` as a module the root can import. That is upstream
+    // of both the equatable.rs symbol join this canary was written for and
+    // the separately tracked ProgramEntry "rejoins 0 Terminal attachment
+    // identities" residual the sibling equatable_*_exit canaries hit.
     let canary = pass_canary(fixture_roster::EQUATABLE_QUALIFIED_FIELD_REFERENCE_EXIT);
     let scratch = std::env::temp_dir().join(format!(
         "omega-equatable-qualified-field-{}",
