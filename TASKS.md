@@ -11687,7 +11687,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `liveness`/`ranges`/`legality` directly, `83766d57bf` moved custody
   reads to `optimized_target_owner`, and `tests/ancestry_contract.rs`
   pins zero `.optimized_target()` data reads (witnessed 1/1 green at
-  `4a6bd936dc`). Surviving custody-validator hops are contract inputs,
+  `4a6bd936dc`; re-witnessed 2/2 green at `8570ba9ae8` on linux x86-64
+  under the SELECTED-REWRITE-ANCESTRY-REMOVAL dispatch — still zero
+  `.optimized_target()` data reads and exactly four
+  `liveness_stage`/`selected_stage` custody hops). Surviving
+  custody-validator hops are contract inputs,
   not data reads. Sibling stubs on the same settled surface:
   RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION,
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
