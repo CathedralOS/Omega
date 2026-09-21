@@ -8,11 +8,16 @@
 //! fixed. `load_forwarding`, `dead_store` and `store_motion` walk the roster
 //! through these relations, and the commutation audit decides row ordering
 //! by the same route-and-extent reading, so the overlap reasoning lives here
-//! once rather than once per rewrite.
+//! once rather than once per rewrite. The store row-shape checks
+//! (`local_store_shape`, `place_store_row_shape`, `packed_store_row_shape`)
+//! admit the store instruction's operand surface once; each rewrite
+//! composes its own custody policy on the admitted row.
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     LocalStorageSlotId, OutgoingArgumentSlotId, SelectedCasePayloadTransport, SelectedFunction,
-    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedValueTransport, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstruction, SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedValueTransport,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::StructuralPlaceDeclaration;
@@ -316,4 +321,71 @@ pub(super) fn transport_defines(function: &SelectedFunction, register: VirtualRe
         }
     }
     false
+}
+
+/// The named store's operand surface as a constraint row: exactly
+/// `[use pointer, use value]`. Each rewrite adds its own custody policy —
+/// operand plainness for a store that must move, scratch custody for one
+/// that is removed.
+pub(super) fn place_store_row_shape<E>(
+    row: &RegisterInstructionConstraint,
+    reject: impl Fn() -> E,
+) -> Result<(), E> {
+    if row.operands.len() != 2
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || row.operands[1].operand != 1
+        || row.operands[1].access != RegisterOperandAccess::Use
+    {
+        return Err(reject());
+    }
+    Ok(())
+}
+
+/// The packed store's operand surface as a constraint row:
+/// `[use pointer, use packed value]` plus the early-clobber scratch `Def`
+/// the multi-instruction store writes through. Each rewrite adds its own
+/// custody policy on the scratch the row declares.
+pub(super) fn packed_store_row_shape<E>(
+    row: &RegisterInstructionConstraint,
+    reject: impl Fn() -> E,
+) -> Result<(), E> {
+    if row.operands.len() != 3
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || row.operands[1].operand != 1
+        || row.operands[1].access != RegisterOperandAccess::Use
+        || row.operands[2].operand != 2
+        || row.operands[2].access != RegisterOperandAccess::Def
+        || !row.operands[2].early_clobber
+    {
+        return Err(reject());
+    }
+    Ok(())
+}
+
+/// The direct slot store's operand surface: the target's declared `store64`
+/// row — exactly `[use value]` — and the instruction carrying just that one
+/// use. The instruction defines nothing, so no custody check is needed.
+pub(super) fn local_store_shape<E>(
+    instruction: &SelectedInstruction,
+    environment: &ValidatedTargetRegisterEnvironment,
+    reject: impl Fn() -> E,
+) -> Result<(), E> {
+    if environment.selected_keys().store64 != Some(instruction.constraint) {
+        return Err(reject());
+    }
+    let row = environment
+        .constraint(instruction.constraint)
+        .ok_or_else(&reject)?;
+    if row.operands.len() != 1
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+        || instruction.operands.len() != 1
+        || instruction.operands[0].operand != 0
+        || instruction.operands[0].access != RegisterOperandAccess::Use
+    {
+        return Err(reject());
+    }
+    Ok(())
 }
