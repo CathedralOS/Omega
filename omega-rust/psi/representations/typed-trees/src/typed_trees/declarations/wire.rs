@@ -86,10 +86,13 @@ pub enum WireEncodeOutputCapacityObligation {
     ExactPackedPayload,
 }
 
-/// A `wire data` protocol schema carried through the typed stage: stable field
-/// numbers, reserved (retired) numbers, and historical version eras. Wire
-/// schemas are external-representation contracts, kept separate from runtime
-/// `data` definitions.
+/// A wire protocol schema carried through the typed stage: stable field
+/// numbers and reserved (retired) numbers, derived from an ordinary `data`
+/// declaration's `#N` field identities. Historical eras are not members of a
+/// schema -- `version` member blocks are retired at parse, so a parsed program
+/// cannot produce `WireMember::Version`; each era is its own declaration.
+/// Wire schemas are external-representation contracts, kept separate from
+/// runtime `data` definitions.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireSchema {
     pub symbol: SymbolHandle,
@@ -151,8 +154,11 @@ pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode";
 /// wire stage 2b):
 /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`.
 /// `read` receives the byte count consumed, `ok` the success flag; decoding
-/// only accepts the schema's CURRENT era (historical eras await the stage 3
-/// ordinary data selected by the boundary package).
+/// accepts only the schema's own era byte by design. A historical era is a
+/// separate ordinary `data` declaration rather than a member of this schema:
+/// the boundary package's era demand selects which declaration decodes a
+/// payload, that declaration's synthesized `decode` reads it, and the
+/// lineage's `FormatMigration` machines convert between eras.
 pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
 
 /// How one primitive scalar rides compact_binary v0 (wire stage 2a): the
