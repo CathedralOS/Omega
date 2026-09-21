@@ -415,6 +415,57 @@ reaches ExtentPartition
     }
 }
 
+// Grow past the tail: a demand larger than the whole remaining residual
+// exhausts `try_allocate` inside `grow`'s reserve step, so the container
+// returns `Growth::Rejected` with the retained slot still empty — a distinct
+// arm from `exercise_grow`'s full-slot rejection. The rejection preserves the
+// live buffer's custody and the container stays usable: a later request that
+// fits the residual still grows, and `close` folds every region back.
+machine exercise_grow_exhausted(
+    partition: &ExtentPartition,
+    whole: Extent in Granted & Vacant,
+    capacity: u64
+) -> Extent
+requires
+    48 <= capacity;
+    capacity == whole.length
+reaches ExtentPartition
+{
+    let vec: BumpVec = open(partition, whole, 16, capacity);
+    let strategy: Bump = vec.strategy;
+    let remaining: u64 = strategy.remaining;
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let buffer: Extent in Granted & Vacant = vec.buffer;
+    let growth: Growth = grow(
+        partition,
+        BumpVec {
+            strategy: Bump { tail: tail, remaining: remaining },
+            buffer: buffer,
+            retained_buffer: vec.retained_buffer,
+        },
+        capacity,
+    );
+    transition growth {
+        Growth::Grown { vec } -> finish(partition, vec)
+        Growth::Rejected { vec } -> retry_within(partition, vec)
+    }
+
+    // The rejected container kept its live buffer and its empty retained
+    // slot; a demand that fits the residual still grows it.
+    state retry_within(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+        let second: Growth = grow(partition, vec, 8);
+        transition second {
+            Growth::Grown { vec } -> finish(partition, vec)
+            Growth::Rejected { vec } -> finish(partition, vec)
+        }
+    }
+
+    state finish(partition: &ExtentPartition, vec: BumpVec) -> Extent {
+        let recomposed: Recomposed = close(partition, vec);
+        recomposed.backing as Extent
+    }
+}
+
 // Shrink then grow: `shrink` returns the live buffer's freed suffix to the
 // tail, `grow` spends part of the restored residual on a new buffer while
 // the shrunk one moves to the retained slot, and `close` folds every region
