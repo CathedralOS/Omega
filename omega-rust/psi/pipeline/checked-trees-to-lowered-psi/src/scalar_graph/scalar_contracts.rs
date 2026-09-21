@@ -79,6 +79,22 @@ pub(crate) fn clauses(
             Some(ClosedScalarContractValue::FloatRange(_)) => {
                 return unsupported("scalar floating entry range is not a proposition clause");
             }
+            // A float-meaning equality clause cites its checked equality row
+            // as the vocabulary-level `Atom` the proof admission replays;
+            // the row's dense position derives that identity for producer
+            // and verifier alike. An unresolved coordinate — never rejoined
+            // in graph preparation — stays a hard failure rather than a
+            // claim erased toward Truth.
+            Some(ClosedScalarContractValue::FloatMeaningEquality { equality, .. }) => {
+                let Some(equality) = equality else {
+                    return unsupported(
+                        "float-meaning equality clause was never rejoined to its checked equality row",
+                    );
+                };
+                Proposition::Atom(terminal_psi::float_meaning_equality_proposition_id(
+                    equality.0,
+                ))
+            }
             None => return unsupported("scalar contract clause has no checked predicate"),
         };
         combined = Some(if let Some(previous) = combined {
