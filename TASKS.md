@@ -7054,18 +7054,34 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   memory-operand contract exists; atomics, mode transitions and AArch64
   system ops stay unrecognized per the same axis paragraph.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
-- **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified, real
-  surface under live same-item claims. Mines the atomic-operations half of
+- **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified,
+  covered. Mines the atomic-operations half of
   `wiki/spec/language/concurrency.md` ("Concurrency and atomic
   observation"): the dedicated `Atomic*` core-requirement table plus the
   ordering/event rules that follow it — fetch/swap return the prior
   observed by the atomic instruction (a caller-visible event ordering
   obligation), placed-access compare-exchange outcomes, and the
-  decode/encode + round-trip laws each realization must prove. Both ends
-  are claimed this wave: two same-item claims are live (Devin /
-  zergling-z155-atomics-ordering exp 02:59Z, Zergling-186 exp 01:38Z) and
-  the sibling ATOMIC-MEMORY-MODEL surface carries three more live claims.
-  Same-item claims cannot be bypassed; do not re-mine.
+  decode/encode + round-trip laws each realization must prove. Every named
+  obligation is landed on the ATOMIC-MEMORY-MODEL surface (TASKS.md:5246):
+  each `AtomicEvent` operation encodes its `reads_from` /
+  `modification_after` edge into operation identity
+  (`optimization-unit/src/optimization_unit/identity/operation_encoding/
+  atomic.rs`), `happens_before_atomic_coherence_violation` replays both
+  coherence axioms function-wide
+  (`optimization-unit-semantics/src/unit_validation/operation_contracts/
+  atomic_coherence.rs` — 11/11 unit tests green at `f501d377d811`),
+  instruction-observed-prior and single-attempt custody are pinned in
+  `abstract-operations/atomic.rs`
+  (`only_the_latest_write_on_every_path_may_be_observed`,
+  `single_attempt_requires_canonical_three_case_custody`),
+  and `atomic_global_order_operations` pins the admitted-ordering matrix
+  width-generically. Re-verified at `f501d377d811`: the recorded same-item
+  claims (z155 exp 02:59Z, Zergling-186 exp 01:38Z) and the sibling
+  ATOMIC-MEMORY-MODEL claims have all lapsed — the atomic lane carries no
+  live claim. The one open residual on this surface is ATOMIC-MEMORY-
+  MODEL's own concurrent-activation-controls leg, gated on TR3-TR8's
+  execution route; no separable slice exists under this stub's name.
+  Sibling stubs on the same surface: ATOMIC-MEMORY-MODEL.
 - **ATTACHED-UNIT-CLOSURE-PLAN.** — mined candidate; scope verified at
   `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
   (TASKS.md:1071 — "first refusing emission stage remains attached-Unit
