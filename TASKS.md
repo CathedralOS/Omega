@@ -9589,6 +9589,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   and all 5 reds are owned families at identical signatures — the single
   structural-custody member and the 4-member `scalar_array_source::cyclic`
   index-out-of-bounds family (`call_lowering.rs:419`). No new drift.
+  Re-verified at `661a4d50c0a` (linux x86-64, same 77-member filter,
+  C2L-BASELINE-FAILURE-ATTRIBUTION dispatch): **76/77 — the
+  `scalar_array_source::cyclic` family closed.** All five cyclic
+  members pass; repair is `891194236af` ("scalar successors keep
+  checked and lowered target indices apart"), which fixes the exact
+  recorded signature — `lower_scalar_graph_successor` indexed the
+  checked state roster by a lowered branch index (`len 1, index 3` at
+  `call_lowering.rs`), now rebound onto separate index spaces.
+  The single remaining red is the scalar-return custody member
+  (`owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`,
+  identical `Lowering(Unsupported("composed Unit scalar call requires
+  structural call custody"))` at tests/owned_record_return_source.rs:306);
+  its owner claim C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES has drained —
+  the family is currently unfenced. The z70 ledger draft is folded into
+  this row and deleted (its field note's instruction); the canonical
+  ledger `known_baseline_failures.md` stays fenced to
+  NEW-KBF-LIB-CLUSTER-AND-STALE-ROWS-REFRESH (~12:26Z). No independent
+  slice remains.
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET.** — scope verified and
   bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
   three members the 6ef64f6dd6 reading opened as two new families, now
