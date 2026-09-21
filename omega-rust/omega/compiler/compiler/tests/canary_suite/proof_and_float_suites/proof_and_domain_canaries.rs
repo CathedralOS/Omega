@@ -668,3 +668,30 @@ fn dependent_embed_self_field_view_canary() {
         )
     });
 }
+
+#[test]
+fn quotient_lift_rejects_a_representative_with_progress_conditional_termination() {
+    // Managed quotient admission asks the checked termination oracle for an
+    // unconditional answer on the representative and every selected theorem.
+    // The representative here stays pure but terminates only under the
+    // `Fuel::Rank` progress premise its callers must supply, so the proof-only
+    // bridge refuses the batch at the termination fence rather than admitting
+    // an executable lift.
+    let canary = fail_canary(fixture_roster::PROOFS_QUOTIENT_LIFT_UNPROVED_TERMINATION_REJECTED);
+    let expected = fs::read_to_string(canary.join("expected.txt"))
+        .expect("quotient lift rejection pin should carry expected.txt");
+    let diagnostics = check_canary(&canary)
+        .expect_err("a progress-conditional representative must not be lifted");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "{} missing expected fragment {:?}:\n{}",
+        canary.display(),
+        expected.trim(),
+        combined
+    );
+}
