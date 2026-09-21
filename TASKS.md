@@ -10920,6 +10920,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   running under RC-NATIVE-MATRIX-HOST-RUNS (live, 13:51Z); the
   other three rows additionally need macOS/Windows/arm64 hosts.
   No unfenced slice exists on this host.
+- **RC-MATRIX-RUNNER.** — mined candidate; scope verified at
+  `beaa8e1c1b` on linux x86-64 (z181): re-mines the matrix-running lane —
+  drive `tools/release_matrix.py --run` per required runner so each
+  platform row records the eight RC gates from a clean checkout
+  (open-only semantics: skipped/failed never reads pass). The tool and
+  plan are landed; `tools/release/records/` is currently unfenced and
+  no same-item claim is live. The one producible row on this host,
+  linux_x86_64, would re-measure gates already recorded red on the board
+  and mid-repair: `cargo fmt --all --check` re-verified green here at
+  `beaa8e1c1b`, but RC-DIAGNOSTICS' fail-canary leg still carries 9
+  drifted fixtures fenced to the live RC-DIAGNOSTICS-GATE claim and the
+  RC-REPOSITORY family is mid-landing (RC-REPOSITORY-GATE live) — a
+  record committed now is stale-on-arrival evidence, not a slice.
+  linux_arm64/macos_arm64/windows_x86_64 rows remain host-gated to their
+  owning items. No independently landable slice exists on this host.
+
 - **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
   797e99ead7, re-verified at `9e3edc7be9` — re-mines the release-record
   run clause covered by RC-RELEASE-RECORD-AND-CLOSURE's verified row. The
