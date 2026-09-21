@@ -413,7 +413,11 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
         ("lidt self.value", "deriver-only"),
         ("ret", "creates a hidden control exit"),
         (
-            "ldr x0, self.value",
+            "ldrb x0, self.value",
+            "no structured operand provenance/permission contract",
+        ),
+        (
+            "ldur x0, self.value",
             "no structured operand provenance/permission contract",
         ),
     ] {
@@ -487,6 +491,85 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
         parsed.expressions.expression(second.value),
         ExpressionNode::Indexed(_)
     ));
+}
+
+/// The contracted memory transfers spell their memory operand as a typed
+/// Omega place: `ldr <dest>, <place>` desugars to `<dest> = <place>` and
+/// `str <value>, <place>` to `<place> = <value>` — the place carries the
+/// provenance/permission contract (catalog MemoryTransfer rows).
+#[test]
+fn parses_memory_transfers_as_place_assignments() {
+    let source = r#"
+        data Main {
+            value: u64;
+            buffer: [u64; 4];
+        }
+
+        machine Main::main(&mut self) {
+            asm {
+                str self.value, self.buffer[0];
+                ldr self.value, self.buffer[0]
+            }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("memory transfers should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed.items.state_handles(machine.states)[0];
+    let statements = parsed
+        .items
+        .statements(parsed.items.state(entry).statements)
+        .to_vec();
+
+    assert_eq!(statements.len(), 2, "two desugared transfers");
+    // `str value, place` writes the value INTO the place: the place is the
+    // assignment target, the spelled value operand the source.
+    let StatementNode::Assignment(store) = parsed.statements.statement(statements[0]) else {
+        panic!("str should desugar to an assignment");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(store.target),
+        ExpressionNode::Indexed(_)
+    ));
+    // `ldr dest, place` reads the place INTO the destination.
+    let StatementNode::Assignment(load) = parsed.statements.statement(statements[1]) else {
+        panic!("ldr should desugar to an assignment");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(load.value),
+        ExpressionNode::Indexed(_)
+    ));
+
+    for instruction in [
+        "ldr self.value, [self.buffer]",
+        "str [self.buffer], self.value",
+    ] {
+        let source = format!(
+            r#"
+            data Main {{ value: u64; buffer: [u64; 4]; }}
+            machine Main::main(&mut self) {{ asm {{ {instruction} }} }}
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("a bracketed transfer operand keeps the bracket refusal");
+        let rendered = format!("{error:?}");
+        assert!(
+            rendered.contains("bracketed `[...]` memory addressing"),
+            "expected bracketed-operand refusal for `{instruction}`, got `{rendered}`"
+        );
+    }
 }
 
 /// The move contract covers place/value operands only: a bracketed `[address]`

@@ -564,7 +564,8 @@ fn validate_structural_type_graph(
                     }
                 }
             }
-            StructuralTypeShape::FixedArray { element, .. } => {
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element } => {
                 visit(*element, types, active, complete)?;
             }
             StructuralTypeShape::Sum { cases } => {

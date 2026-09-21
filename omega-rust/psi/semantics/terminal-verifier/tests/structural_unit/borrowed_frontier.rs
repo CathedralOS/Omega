@@ -131,6 +131,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         });
         callee.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(10),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -157,8 +158,10 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
     }];
     caller.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(1),
         result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: place_id(1),
             structural_type: structural_type_id(1),
             multiplicity: StructuralMultiplicity::Affine,
@@ -192,6 +195,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         } else if scalar {
             OperationKind::CallStructuralScalar {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 structural_arguments,
@@ -202,6 +206,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         } else {
             OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(2),
                 arguments: Vec::new(),
                 structural_arguments,
@@ -212,6 +217,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         };
         caller.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(ordinal),
             result: if scalar {
                 OperationResult::Scalar(ValueDeclaration {
@@ -227,6 +233,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
     }
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
@@ -418,6 +425,7 @@ fn shared_views_of_owned_block_parameters_preserve_exact_edge_custody() {
             caller.blocks[0].operations.clear();
             successor.operations.last_mut().unwrap().kind = OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -461,6 +469,7 @@ fn shared_views_of_owned_block_parameters_preserve_exact_edge_custody() {
                 target: block_id(10),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: place_id(1),
                     path: Vec::new(),

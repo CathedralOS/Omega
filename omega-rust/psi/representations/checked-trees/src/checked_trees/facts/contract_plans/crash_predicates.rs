@@ -86,190 +86,349 @@ pub enum CrashPredicateExpression {
 
 impl CrashPredicateExpression {
     pub fn substitute(&self, arguments: &[Option<Self>]) -> Self {
-        match self {
-            Self::Parameter(index) => arguments
-                .get(*index as usize)
-                .and_then(Clone::clone)
-                .unwrap_or_else(|| self.clone()),
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } => Self::Binary {
-                operator: *operator,
-                left: Box::new(left.substitute(arguments)),
-                right: Box::new(right.substitute(arguments)),
-            },
-            Self::Unary { operator, operand } => Self::Unary {
-                operator: *operator,
-                operand: Box::new(operand.substitute(arguments)),
-            },
-            Self::IntegerWiden {
-                source_type,
-                target_type,
-                domain,
-                operand,
-            } => Self::IntegerWiden {
-                source_type: *source_type,
-                target_type: *target_type,
-                domain: *domain,
-                operand: Box::new(operand.substitute(arguments)),
-            },
-            Self::Member { receiver, member } => Self::Member {
-                receiver: Box::new(receiver.substitute(arguments)),
-                member: member.clone(),
-            },
-            Self::Indexed { collection, index } => Self::Indexed {
-                collection: Box::new(collection.substitute(arguments)),
-                index: Box::new(index.substitute(arguments)),
-            },
-            Self::Range {
-                start,
-                end,
-                end_inclusive,
-            } => Self::Range {
-                start: Box::new(start.substitute(arguments)),
-                end: Box::new(end.substitute(arguments)),
-                end_inclusive: *end_inclusive,
-            },
-            Self::Call {
-                target,
-                receiver,
-                arguments: nested,
-            } => Self::Call {
-                target: target.clone(),
-                receiver: Box::new(receiver.substitute(arguments)),
-                arguments: nested
-                    .iter()
-                    .map(|argument| argument.substitute(arguments))
-                    .collect(),
-            },
-            _ => self.clone(),
+        // An explicit worklist keeps deep predicates off the call stack,
+        // matching the sibling validators in semantic-vocabulary and
+        // terminal-codec: `Visit` pushes a `Finalize` step behind the node's
+        // children so the rebuilt parent is constructed only after every
+        // child has produced its substituted tree on the value stack.
+        // Children push in reverse, so the left operand still rebuilds
+        // first — substitution itself has no side effects, but the order
+        // keeps the value-stack invariant obvious. Every node pushes
+        // exactly one rebuilt tree, so `built` holds the root when the
+        // worklist drains.
+        enum Step<'a> {
+            Visit(&'a CrashPredicateExpression),
+            Finalize(&'a CrashPredicateExpression),
         }
+        let mut pending = vec![Step::Visit(self)];
+        let mut built: Vec<Self> = Vec::new();
+        while let Some(step) = pending.pop() {
+            match step {
+                Step::Visit(term) => match term {
+                    Self::Parameter(index) => built.push(
+                        arguments
+                            .get(*index as usize)
+                            .and_then(Clone::clone)
+                            .unwrap_or_else(|| term.clone()),
+                    ),
+                    Self::Binary { left, right, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(right));
+                        pending.push(Step::Visit(left));
+                    }
+                    Self::Unary { operand, .. } | Self::IntegerWiden { operand, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(operand));
+                    }
+                    Self::Member { receiver, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(receiver));
+                    }
+                    Self::Indexed { collection, index } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(index));
+                        pending.push(Step::Visit(collection));
+                    }
+                    Self::Range { start, end, .. } => {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(end));
+                        pending.push(Step::Visit(start));
+                    }
+                    Self::Call {
+                        receiver,
+                        arguments: nested,
+                        ..
+                    } => {
+                        pending.push(Step::Finalize(term));
+                        for argument in nested.iter().rev() {
+                            pending.push(Step::Visit(argument));
+                        }
+                        pending.push(Step::Visit(receiver));
+                    }
+                    Self::Invalid
+                    | Self::Integer(_)
+                    | Self::Float(_)
+                    | Self::Boolean(_)
+                    | Self::Name(_)
+                    | Self::Opaque(_)
+                    | Self::ContentConservation(_) => built.push(term.clone()),
+                },
+                Step::Finalize(term) => {
+                    let rebuilt = match term {
+                        Self::Binary { operator, .. } => {
+                            let right = built.pop().expect("right child rebuilt before its parent");
+                            let left = built.pop().expect("left child rebuilt before its parent");
+                            Self::Binary {
+                                operator: *operator,
+                                left: Box::new(left),
+                                right: Box::new(right),
+                            }
+                        }
+                        Self::Unary { operator, .. } => {
+                            let operand = built.pop().expect("operand rebuilt before its parent");
+                            Self::Unary {
+                                operator: *operator,
+                                operand: Box::new(operand),
+                            }
+                        }
+                        Self::IntegerWiden {
+                            source_type,
+                            target_type,
+                            domain,
+                            ..
+                        } => {
+                            let operand = built.pop().expect("operand rebuilt before its parent");
+                            Self::IntegerWiden {
+                                source_type: *source_type,
+                                target_type: *target_type,
+                                domain: *domain,
+                                operand: Box::new(operand),
+                            }
+                        }
+                        Self::Member { member, .. } => {
+                            let receiver = built.pop().expect("receiver rebuilt before its parent");
+                            Self::Member {
+                                receiver: Box::new(receiver),
+                                member: member.clone(),
+                            }
+                        }
+                        Self::Indexed { .. } => {
+                            let index = built.pop().expect("index rebuilt before its parent");
+                            let collection =
+                                built.pop().expect("collection rebuilt before its parent");
+                            Self::Indexed {
+                                collection: Box::new(collection),
+                                index: Box::new(index),
+                            }
+                        }
+                        Self::Range { end_inclusive, .. } => {
+                            let end = built.pop().expect("range end rebuilt before its parent");
+                            let start = built.pop().expect("range start rebuilt before its parent");
+                            Self::Range {
+                                start: Box::new(start),
+                                end: Box::new(end),
+                                end_inclusive: *end_inclusive,
+                            }
+                        }
+                        Self::Call {
+                            target,
+                            arguments: nested,
+                            ..
+                        } => {
+                            let mut arguments = Vec::with_capacity(nested.len());
+                            for _ in nested {
+                                arguments.push(
+                                    built
+                                        .pop()
+                                        .expect("call argument rebuilt before its parent"),
+                                );
+                            }
+                            arguments.reverse();
+                            let receiver = built
+                                .pop()
+                                .expect("call receiver rebuilt before its parent");
+                            Self::Call {
+                                target: target.clone(),
+                                receiver: Box::new(receiver),
+                                arguments,
+                            }
+                        }
+                        _ => unreachable!("childless nodes finish inside Visit"),
+                    };
+                    built.push(rebuilt);
+                }
+            }
+        }
+        debug_assert_eq!(built.len(), 1);
+        built.pop().expect("substitution finishes its root")
     }
 
     pub fn boolean_value(&self) -> Option<bool> {
         use typed_trees::expression::{BinaryOperator, UnaryOperator};
 
-        match self {
-            Self::Boolean(value) => Some(*value),
-            Self::Unary { operator, operand } if *operator == UnaryOperator::LogicalNot as u8 => {
-                operand.boolean_value().map(|value| !value)
-            }
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } if *operator == BinaryOperator::And as u8 => {
-                Some(left.boolean_value()? && right.boolean_value()?)
-            }
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } if *operator == BinaryOperator::Or as u8 => {
-                Some(left.boolean_value()? || right.boolean_value()?)
-            }
-            _ => None,
+        // The same Visit/Finalize worklist as `substitute`: only the
+        // boolean subset evaluates, and every other form answers `None`
+        // inline — the recursive `_ => None` made any non-evaluable node
+        // fail the whole tree, so rejecting at `Visit` keeps the identical
+        // result while no descendant of a failed node is ever walked.
+        // Operators outside the boolean subset (`And`/`Or`/`LogicalNot`)
+        // reject the same way — the visit arms carry the guards the match
+        // used to.
+        enum Step<'a> {
+            Visit(&'a CrashPredicateExpression),
+            Finalize(&'a CrashPredicateExpression),
         }
+        let mut pending = vec![Step::Visit(self)];
+        let mut values: Vec<bool> = Vec::new();
+        while let Some(step) = pending.pop() {
+            match step {
+                Step::Visit(term) => match term {
+                    Self::Boolean(value) => values.push(*value),
+                    Self::Unary { operator, operand }
+                        if *operator == UnaryOperator::LogicalNot as u8 =>
+                    {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(operand));
+                    }
+                    Self::Binary {
+                        operator,
+                        left,
+                        right,
+                        ..
+                    } if *operator == BinaryOperator::And as u8
+                        || *operator == BinaryOperator::Or as u8 =>
+                    {
+                        pending.push(Step::Finalize(term));
+                        pending.push(Step::Visit(right));
+                        pending.push(Step::Visit(left));
+                    }
+                    _ => return None,
+                },
+                Step::Finalize(term) => match term {
+                    Self::Unary { .. } => {
+                        let operand = values.pop().expect("operand evaluated before its parent");
+                        values.push(!operand);
+                    }
+                    Self::Binary { operator, .. } if *operator == BinaryOperator::And as u8 => {
+                        let right = values
+                            .pop()
+                            .expect("right operand evaluated before its parent");
+                        let left = values
+                            .pop()
+                            .expect("left operand evaluated before its parent");
+                        values.push(left && right);
+                    }
+                    Self::Binary { operator, .. } if *operator == BinaryOperator::Or as u8 => {
+                        let right = values
+                            .pop()
+                            .expect("right operand evaluated before its parent");
+                        let left = values
+                            .pop()
+                            .expect("left operand evaluated before its parent");
+                        values.push(left || right);
+                    }
+                    _ => unreachable!("only boolean-subset nodes reach Finalize"),
+                },
+            }
+        }
+        debug_assert_eq!(values.len(), 1);
+        values.pop()
     }
 
     fn write_canonical(&self, out: &mut Vec<u8>) {
-        match self {
-            Self::Invalid => out.push(0),
-            Self::Binary {
-                operator,
-                left,
-                right,
-            } => {
-                out.push(1);
-                out.push(*operator);
-                left.write_canonical(out);
-                right.write_canonical(out);
-            }
-            Self::Unary { operator, operand } => {
-                out.push(2);
-                out.push(*operator);
-                operand.write_canonical(out);
-            }
-            Self::IntegerWiden {
-                source_type,
-                target_type,
-                domain,
-                operand,
-            } => {
-                out.extend([0x0e, *source_type, *target_type, *domain]);
-                operand.write_canonical(out);
-            }
-            Self::Integer(value) => {
-                out.push(3);
-                out.extend(value.as_bytes());
-                out.push(0);
-            }
-            Self::Boolean(value) => {
-                out.push(4);
-                out.push(u8::from(*value));
-            }
-            Self::Float(value) => {
-                out.push(0x0a);
-                out.extend(value.as_bytes());
-                out.push(0);
-            }
-            Self::Name(members) => {
-                out.push(5);
-                for member in members {
-                    out.extend(member.as_bytes());
-                    out.push(b'.');
-                }
-                out.push(0);
-            }
-            Self::Member { receiver, member } => {
-                out.push(6);
-                receiver.write_canonical(out);
-                out.extend(member.as_bytes());
-                out.push(0);
-            }
-            Self::Indexed { collection, index } => {
-                out.push(0x0b);
-                collection.write_canonical(out);
-                index.write_canonical(out);
-            }
-            Self::Range {
-                start,
-                end,
-                end_inclusive,
-            } => {
-                out.push(0x0d);
-                out.push(u8::from(*end_inclusive));
-                start.write_canonical(out);
-                end.write_canonical(out);
-            }
-            Self::Call {
-                target,
-                receiver,
-                arguments,
-            } => {
-                out.push(7);
-                out.extend(target.as_bytes());
-                out.push(0);
-                receiver.write_canonical(out);
-                for argument in arguments {
-                    argument.write_canonical(out);
-                }
-                out.push(0xfe);
-            }
-            Self::Opaque(display) => {
-                out.push(8);
-                out.extend(display.as_bytes());
-                out.push(0);
-            }
-            Self::Parameter(index) => {
-                out.push(9);
-                out.extend(index.to_le_bytes());
-            }
-            Self::ContentConservation(bytes) => {
-                out.push(0xcc);
-                out.extend(bytes);
+        // Pre-order serialization on an explicit stack, so deep predicates
+        // no longer spend call stack. A node's tag and inline fields emit
+        // before its children push in reverse, keeping the byte stream in
+        // declaration order; `Emit` and `EmitBytes` carry the writes that
+        // used to run after a recursive call returned (the member name and
+        // the call terminator).
+        enum Step<'a> {
+            Node(&'a CrashPredicateExpression),
+            Emit(u8),
+            EmitBytes(&'a [u8]),
+        }
+        let mut pending = vec![Step::Node(self)];
+        while let Some(step) = pending.pop() {
+            match step {
+                Step::Node(term) => match term {
+                    Self::Invalid => out.push(0),
+                    Self::Binary {
+                        operator,
+                        left,
+                        right,
+                    } => {
+                        out.push(1);
+                        out.push(*operator);
+                        pending.push(Step::Node(right));
+                        pending.push(Step::Node(left));
+                    }
+                    Self::Unary { operator, operand } => {
+                        out.push(2);
+                        out.push(*operator);
+                        pending.push(Step::Node(operand));
+                    }
+                    Self::IntegerWiden {
+                        source_type,
+                        target_type,
+                        domain,
+                        operand,
+                    } => {
+                        out.extend([0x0e, *source_type, *target_type, *domain]);
+                        pending.push(Step::Node(operand));
+                    }
+                    Self::Integer(value) => {
+                        out.push(3);
+                        out.extend(value.as_bytes());
+                        out.push(0);
+                    }
+                    Self::Boolean(value) => {
+                        out.push(4);
+                        out.push(u8::from(*value));
+                    }
+                    Self::Float(value) => {
+                        out.push(0x0a);
+                        out.extend(value.as_bytes());
+                        out.push(0);
+                    }
+                    Self::Name(members) => {
+                        out.push(5);
+                        for member in members {
+                            out.extend(member.as_bytes());
+                            out.push(b'.');
+                        }
+                        out.push(0);
+                    }
+                    Self::Member { receiver, member } => {
+                        out.push(6);
+                        pending.push(Step::Emit(0));
+                        pending.push(Step::EmitBytes(member.as_bytes()));
+                        pending.push(Step::Node(receiver));
+                    }
+                    Self::Indexed { collection, index } => {
+                        out.push(0x0b);
+                        pending.push(Step::Node(index));
+                        pending.push(Step::Node(collection));
+                    }
+                    Self::Range {
+                        start,
+                        end,
+                        end_inclusive,
+                    } => {
+                        out.push(0x0d);
+                        out.push(u8::from(*end_inclusive));
+                        pending.push(Step::Node(end));
+                        pending.push(Step::Node(start));
+                    }
+                    Self::Call {
+                        target,
+                        receiver,
+                        arguments,
+                    } => {
+                        out.push(7);
+                        out.extend(target.as_bytes());
+                        out.push(0);
+                        pending.push(Step::Emit(0xfe));
+                        for argument in arguments.iter().rev() {
+                            pending.push(Step::Node(argument));
+                        }
+                        pending.push(Step::Node(receiver));
+                    }
+                    Self::Opaque(display) => {
+                        out.push(8);
+                        out.extend(display.as_bytes());
+                        out.push(0);
+                    }
+                    Self::Parameter(index) => {
+                        out.push(9);
+                        out.extend(index.to_le_bytes());
+                    }
+                    Self::ContentConservation(bytes) => {
+                        out.push(0xcc);
+                        out.extend(bytes);
+                    }
+                },
+                Step::Emit(byte) => out.push(byte),
+                Step::EmitBytes(bytes) => out.extend(bytes),
             }
         }
     }

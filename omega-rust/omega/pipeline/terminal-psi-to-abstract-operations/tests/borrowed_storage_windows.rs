@@ -95,8 +95,10 @@ fn structural_types() -> Vec<StructuralTypeDeclaration> {
 fn extract(operation: OperationId, result: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id::<PlaceId>(result),
             structural_type: cell(),
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -116,6 +118,7 @@ fn extract(operation: OperationId, result: u64) -> Operation {
 fn repair(value: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(2),
         result: OperationResult::Unit,
         kind: OperationKind::StoreStructuralField {
@@ -174,6 +177,7 @@ fn window_machine(access: StructuralAccess) -> TerminalMachine {
         entry: id::<BlockId>(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -185,6 +189,7 @@ fn window_machine(access: StructuralAccess) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id::<ContractId>(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -371,6 +376,7 @@ fn a_replacement_subtree_repairs_and_lowers() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(5),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),
@@ -384,8 +390,10 @@ fn a_replacement_subtree_repairs_and_lowers() {
         2,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(3),
             result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: id::<PlaceId>(3),
                 structural_type: cell(),
                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -430,6 +438,7 @@ fn a_sibling_observation_inside_the_window_lowers() {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id::<OperationId>(4),
             result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
                 qualifications: Default::default(),

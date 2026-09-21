@@ -37,6 +37,14 @@ fn hosted_admission_rejects_each_authority_class_with_its_own_label() {
             "requires machine-owner authority",
         ),
         (
+            "machine m() { asm where clobbers none { invd } }",
+            "requires machine-owner authority",
+        ),
+        (
+            "machine m() { asm where clobbers none { wbnoinvd } }",
+            "requires machine-owner authority",
+        ),
+        (
             "data P { port: u16; byte: u8; } machine P::m(&self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte } }",
             "requires port-I/O authority",
         ),
@@ -58,6 +66,7 @@ fn hosted_admission_rejects_each_authority_class_with_its_own_label() {
 fn hosted_admission_passes_authority_free_instructions() {
     for source in [
         "machine m() { asm where clobbers none { lfence; sfence; mfence } }",
+        "machine m() { asm where clobbers none { serialize; pause; nop } }",
         "data P { saved: u64; } machine P::m(&mut self) { asm where clobbers r10, r15 { pushfq self.saved } }",
     ] {
         validate_asm_discharge(&typed(source), AsmAuthorityAdmission::HOSTED).unwrap_or_else(
@@ -78,6 +87,7 @@ fn machine_owner_admission_covers_every_defined_class() {
         "data P { port: u16; byte: u8; } machine P::m(&mut self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte; in self.byte, self.port } }",
         "data P { saved: u64; } machine P::m(&mut self) { asm where clobbers r10, r15 { popfq self.saved } }",
         "data P { index: u32; value: u64; } machine P::m(&mut self) { asm where clobbers r10, r11, r15, rax, rcx, rdx { rdmsr self.value, self.index; wrmsr self.index, self.value } }",
+        "machine m() { asm where clobbers none { wbinvd; invd; wbnoinvd } }",
     ] {
         validate_asm_discharge(&typed(source), AsmAuthorityAdmission::MACHINE_OWNER)
             .unwrap_or_else(|diagnostics| {

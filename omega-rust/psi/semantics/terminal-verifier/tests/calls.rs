@@ -13,6 +13,8 @@ mod declared_service_reach;
 mod erased_arguments;
 #[path = "calls/provider_results.rs"]
 mod provider_results;
+#[path = "calls/qualification_establishments.rs"]
+mod qualification_establishments;
 #[path = "calls/scalar_and_structural_call_reconstruction.rs"]
 mod scalar_and_structural_call_reconstruction;
 #[path = "calls/scalar_array_arguments.rs"]
@@ -102,18 +104,21 @@ fn boundary_call_module() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block_id(1),
                 parameters: Vec::new(),
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(1),
                         result: OperationResult::Scalar(boolean_declaration(value_id(1))),
                         kind: OperationKind::BooleanConstant { value: true },
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
@@ -131,6 +136,7 @@ fn boundary_call_module() -> TerminalModule {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: contract_id(1),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -193,6 +199,7 @@ fn provider_candidate_module() -> TerminalModule {
         entry: block_id(2),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -204,6 +211,7 @@ fn provider_candidate_module() -> TerminalModule {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(2),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -268,12 +276,14 @@ fn call_module() -> TerminalModule {
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(1),
                             result: terminal_psi::OperationResult::Scalar(boolean_declaration(
                                 caller_constant,
@@ -282,12 +292,14 @@ fn call_module() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: operation_id(2),
                             result: terminal_psi::OperationResult::Scalar(boolean_declaration(
                                 call_result,
                             )),
                             kind: OperationKind::Call {
                                 erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
                                 callee: machine_id(2),
                                 arguments: vec![caller_constant],
                                 requirement_obligations: vec![obligation_id(1)],
@@ -303,6 +315,7 @@ fn call_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(1),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -328,6 +341,7 @@ fn call_module() -> TerminalModule {
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -340,6 +354,7 @@ fn call_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(2),
                     crash_routes: Vec::new(),
                     requires: vec![Proposition::Equal(
@@ -447,13 +462,16 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: call_operation,
                         result: OperationResult::Structural(StructuralOperationResult {
+                            qualification_establishments: Vec::new(),
                             place: place_id(1),
                             structural_type: result_type,
                             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -480,6 +498,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(1),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
@@ -527,13 +546,16 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: constructor_operation,
                         result: OperationResult::Structural(StructuralOperationResult {
+                            qualification_establishments: Vec::new(),
                             place: place_id(3),
                             structural_type: result_type,
                             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -555,6 +577,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(2),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),

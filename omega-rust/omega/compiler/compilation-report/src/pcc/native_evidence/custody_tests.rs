@@ -48,10 +48,14 @@ use terminal_codec::{
     PccVerificationOutcome, pcc_artifact_commitment,
 };
 
+#[path = "custody_fields.rs"]
+mod custody_fields;
+
 use super::{
     MAX_FOOTPRINT_REGISTERS, MAX_INVENTORY_ROWS, NativeEvidenceError, NativePlacedImageEvidence,
 };
 use crate::pcc::{native_semantic_profile_identity, verify_native_proof_sidecar};
+use custody_fields::NativePlacedImageEvidenceFieldForTest;
 
 /// The exact verdict one substituted placed-image evidence wire earns from the
 /// shared checker. Every leg of the inventory below declares one of these as
@@ -644,123 +648,6 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         .footprint
         .as_ref()
         .expect("the fixture carries a footprint");
-
-    optimization_core::custody_field_inventory! {
-        /// One substitutable axis of the honest placed-image evidence section,
-        /// each variant spelling the authored leg label it replaced. Record-level
-        /// and wire-level substitutions that keep the section canonical reject at
-        /// independent replay under a named subject; substitutions the
-        /// representation closes reject at decoding as malformed evidence.
-        pub enum NativePlacedImageEvidenceFieldForTest {
-            SubstitutedTargetArchitecture,
-            ForeignArchitectureOverX86FootprintRegisters,
-            SubstitutedTargetObjectFormat,
-            ShiftedDeclaredTextExtent,
-            DeclaredExtentBeyondTheContainer,
-            OverflowingDeclaredExtent,
-            WireLevelTextOffsetSubstitution,
-            SubstitutedInventoryTextAddress,
-            SubstitutedInventoryTextByteCount,
-            SubstitutedInventoryTextDigest,
-            SubstitutedInventoryTextFingerprint,
-            SubstitutedInventorySealDigest,
-            SubstitutedInventorySealFingerprint,
-            SubstitutedRegionSectionOffset,
-            SubstitutedRegionAddress,
-            SubstitutedRegionByteCount,
-            SubstitutedRegionByteDigest,
-            SubstitutedRegionByteFingerprint,
-            SubstitutedRegionSymbol,
-            DroppedRegionFootprint,
-            AddedRegionFootprint,
-            SubstitutedFootprintRegisterSet,
-            SubstitutedFootprintMachineStateSet,
-            FootprintReducedToRegisterImpliedMachineState,
-            EmptiedRegionFootprint,
-            DroppedRegionRow,
-            InsertedRegionRow,
-            DroppedGapRow,
-            InsertedGapRow,
-            SubstitutedGapSectionOffset,
-            SubstitutedGapAddress,
-            SubstitutedGapByteCount,
-            SubstitutedGapByteDigest,
-            SubstitutedGapByteFingerprint,
-            ShiftedDeclaredDataExtent,
-            DeclaredDataExtentBeyondTheContainer,
-            WireLevelDataOffsetSubstitution,
-            SubstitutedInventoryDataAddress,
-            SubstitutedInventoryDataByteCount,
-            SubstitutedInventoryDataDigest,
-            SubstitutedInventoryDataFingerprint,
-            SubstitutedDataInventorySealDigest,
-            SubstitutedDataInventorySealFingerprint,
-            SubstitutedDataRegionOrigin,
-            SubstitutedDataRegionSectionOffset,
-            SubstitutedDataRegionAddress,
-            SubstitutedDataRegionByteCount,
-            SubstitutedDataRegionByteDigest,
-            SubstitutedDataRegionByteFingerprint,
-            SubstitutedDataRegionSymbol,
-            DroppedDataRegionRow,
-            InsertedDataRegionRow,
-            DroppedDataGapRow,
-            InsertedDataGapRow,
-            SubstitutedDataGapSectionOffset,
-            SubstitutedDataGapAddress,
-            SubstitutedDataGapByteCount,
-            SubstitutedDataGapByteDigest,
-            SubstitutedDataGapByteFingerprint,
-            ShiftedDeclaredImportDataExtent,
-            SubstitutedImportDataBaseAddress,
-            SubstitutedImportDataByteCount,
-            SubstitutedImportDataDigest,
-            SubstitutedImportDataFingerprint,
-            SubstitutedImportDataInventorySealDigest,
-            SubstitutedImportDataInventorySealFingerprint,
-            PaddedImportDataRegionRoster,
-            PaddedImportDataGapRoster,
-            UnknownArchitectureTag,
-            UnknownObjectFormatTag,
-            UnknownRegionOriginTag,
-            UnknownDataRegionOriginTag,
-            UnknownFootprintPresenceTag,
-            UndeclaredPointerSize,
-            UndeclaredPointerAlignment,
-            UndeclaredX8664MachoTargetPair,
-            UndeclaredAarch64CoffTargetPair,
-            UnknownFootprintRegisterCode,
-            FootprintRegisterOfAnotherArchitecture,
-            UnboundedFootprintRegisterCount,
-            DuplicatedFootprintRegister,
-            UnorderedFootprintRegisters,
-            MachineStateBitsOutsideTheVocabulary,
-            MachineStateSetMissingAnImpliedClass,
-            ImportThunkRowELFCannotRealize,
-            UnboundedRegionCount,
-            UnboundedGapCount,
-            UnboundedDataRegionCount,
-            UnboundedDataGapCount,
-            ShortenedRegionCount,
-            ExtendedRegionCount,
-            ShortenedGapCount,
-            ExtendedGapCount,
-            ShortenedDataRegionCount,
-            ExtendedDataRegionCount,
-            ShortenedDataGapCount,
-            ExtendedDataGapCount,
-            ReorderedRegionRows,
-            DuplicatedRegionRow,
-            ReorderedGapRows,
-            DuplicatedGapRow,
-            DuplicatedDataRegionRow,
-            NonUTF8RegionSymbol,
-            OverstatedSymbolLength,
-            NonUTF8DataRegionSymbol,
-            OverstatedDataSymbolLength,
-            TrailingByte,
-        }
-    }
 
     let substitute = |wire: &mut Vec<u8>,
                       field: NativePlacedImageEvidenceFieldForTest,
@@ -2803,9 +2690,9 @@ const COFF_TEXT_FILE_OFFSET: u64 = 0x200;
 fn pe32_plus_header(image_base: u64, entry_rva: u32) -> Vec<u8> {
     const PE_OFFSET: usize = 0x80;
     let mut header = vec![0u8; COFF_TEXT_FILE_OFFSET as usize];
-    header[..2].copy_from_slice(&[b'M', b'Z']);
+    header[..2].copy_from_slice(b"MZ");
     header[0x3c..0x40].copy_from_slice(&(PE_OFFSET as u32).to_le_bytes());
-    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(&[b'P', b'E', 0, 0]);
+    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(b"PE\0\0");
     let optional = PE_OFFSET + 24;
     header[optional..optional + 2].copy_from_slice(&0x20bu16.to_le_bytes());
     header[optional + 16..optional + 20].copy_from_slice(&entry_rva.to_le_bytes());
@@ -2976,12 +2863,10 @@ fn container_declared_entry_lands_on_a_committed_region_boundary() {
     }
     // A null entry and a container that does not parse as ELF64 both leave
     // the leg silent.
-    for entry in [0] {
-        let (evidence, executable) = elf_entry_pair(entry);
-        evidence
-            .replay_against(&executable)
-            .expect("a null e_entry declares no checkable entry");
-    }
+    let (evidence, executable) = elf_entry_pair(0);
+    evidence
+        .replay_against(&executable)
+        .expect("a null e_entry declares no checkable entry");
     let (evidence, executable) = honest_pair();
     evidence
         .replay_against(&executable)

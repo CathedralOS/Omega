@@ -1,0 +1,36 @@
+// PASS canary (checked-only): a routed scalar domain's membership is only
+// minted through the exact requirement the route names — `i32 in Km` values
+// exist solely because `Scale::measure` satisfies `ScalarIssuer::measure` and
+// promises the domain in its result. Checked compilation carries the route
+// and the issuer binding; the terminal verifier re-checks them source-free.
+
+domain i32::Km
+established by ScalarIssuer::measure;
+
+trait ScalarIssuer {
+    machine measure() -> i32 in Km
+    ensures
+        result in i32::Km;
+}
+
+data Scale {
+}
+
+machine Scale::measure() -> i32 in Km
+satisfies ScalarIssuer::measure
+ensures
+    result in i32::Km
+{
+    0
+}
+
+machine consume(value: i32 in Km) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let km: i32 in Km = Scale::measure();
+    consume(km);
+}

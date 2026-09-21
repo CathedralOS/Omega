@@ -1,0 +1,411 @@
+{
+  "cases": [
+    {
+      "case": "eq_subst_side",
+      "diagnostic": {
+        "detail": "premise ['in', ['sym', 'counter', [['sym', 's1', []]]], 'Nat'] is not ['in', ['var', 'm'], 'Nat'] with ['sym', 'succ', [['sym', 'counter', [['sym', 's0', []]]]]] for m",
+        "rule": "eq_subst"
+      },
+      "elapsed_ms": 0.026,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "membership_gap",
+      "diagnostic": {
+        "detail": "premise ['pred', 'is_integer', [['sym', 'counter', [['sym', 's1', []]]]]] is not the Nat refinement for ['sym', 'counter', [['sym', 's1', []]]]",
+        "rule": "membership_intro"
+      },
+      "elapsed_ms": 0.018,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "quantifier_escape",
+      "diagnostic": {
+        "detail": "eigenvariable s escapes into ['pred', 'reached', [['var', 's']]]",
+        "rule": "exists_elim"
+      },
+      "elapsed_ms": 0.009,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "var",
+              "s'"
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "admissions": [
+        "axiom:step_s0_s1",
+        "axiom:counter_step",
+        "axiom:step_s0_s1",
+        "axiom:nat_succ",
+        "axiom:counter_s0_nat",
+        "axiom:counter_s0_nat"
+      ],
+      "case": "reference",
+      "certificate_bytes": 1256,
+      "elapsed_ms": 0.038,
+      "expect": "accept",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "accept"
+    },
+    {
+      "case": "transition_reversed",
+      "diagnostic": {
+        "detail": "premise ['and', ['pred', 'step', [['sym', 's1', []], ['sym', 's0', []]]], ['in', ['sym', 'counter', [['sym', 's1', []]]], 'Nat']] is not ['and', ['pred', 'step', [['sym', 's0', []], ['var', \"s'\"]]], ['in', ['sym', 'counter', [['var', \"s'\"]]], 'Nat']][s':=['sym', 's1', []]]",
+        "rule": "exists_intro"
+      },
+      "elapsed_ms": 0.016,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "undeclared_axiom",
+      "diagnostic": {
+        "detail": "undeclared axiom 'counter_s1_nat'",
+        "rule": "axiom"
+      },
+      "elapsed_ms": 0.008,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "undefined_witness",
+      "diagnostic": {
+        "detail": "open term needs evidence: ['var', 'ghost']",
+        "rule": "defined_closed"
+      },
+      "elapsed_ms": 0.006,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    },
+    {
+      "case": "weaker_goal",
+      "diagnostic": {
+        "detail": "certificate proves ['exists', \"s'\", ['pred', 'step', [['sym', 's0', []], ['var', \"s'\"]]]], goal is ['exists', \"s'\", ['and', ['pred', 'step', [['sym', 's0', []], ['var', \"s'\"]]], ['in', ['sym', 'counter', [['var', \"s'\"]]], 'Nat']]]",
+        "rule": "goal"
+      },
+      "elapsed_ms": 0.009,
+      "expect": "reject",
+      "goal": [
+        "exists",
+        "s'",
+        [
+          "and",
+          [
+            "pred",
+            "step",
+            [
+              [
+                "sym",
+                "s0",
+                []
+              ],
+              [
+                "var",
+                "s'"
+              ]
+            ]
+          ],
+          [
+            "in",
+            [
+              "sym",
+              "counter",
+              [
+                [
+                  "var",
+                  "s'"
+                ]
+              ]
+            ],
+            "Nat"
+          ]
+        ]
+      ],
+      "verdict": "reject"
+    }
+  ],
+  "checker": {
+    "path": "tools/matching-logic-slice/slice_checker.py",
+    "physical_lines": 553,
+    "rules": [
+      "axiom",
+      "assumption",
+      "hypothesis",
+      "implies_intro",
+      "modus_ponens",
+      "and_intro",
+      "and_elim_left",
+      "and_elim_right",
+      "or_intro_left",
+      "or_intro_right",
+      "or_elim",
+      "exists_intro",
+      "exists_elim",
+      "forall_intro",
+      "forall_elim",
+      "eq_refl",
+      "eq_sym",
+      "eq_trans",
+      "eq_subst",
+      "membership_intro",
+      "defined_closed",
+      "defined_membership"
+    ],
+    "sha256": "424c6c8b10aef2fadd58b062c4d354e00aa54fd06a95890d870e0066c9bfd71f"
+  },
+  "fragment": "one-sorted finitary basic matching logic, no fixpoint symbols",
+  "recorded_utc": "2026-09-20T20:53:28Z",
+  "schema": "omega-matching-logic-slice-record/1",
+  "semantics_doc": "wiki/drafts/matching_logic.md",
+  "summary": {
+    "divergences": [],
+    "negative": 7,
+    "positive": 1,
+    "total": 8
+  },
+  "theory": "per-case axiom inventory; every clause is an admission"
+}

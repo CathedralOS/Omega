@@ -1,5 +1,5 @@
 //! Case selection consumes its subject; ordinary edges own every other local.
-use super::{CLOSED_SUM_UNIT_SOURCE, checked_source, lower_machine, roundtrip};
+use super::{CLOSED_SUM_UNIT_SOURCE, checked_source_with_core_service, lower_machine, roundtrip};
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 use terminal_psi::{OperationResult, Terminator};
 
@@ -43,7 +43,7 @@ fn source(transfer_before: bool) -> String {
 #[test]
 fn closed_sum_cleanup_follows_selected_arguments_and_partitions_ownership() {
     for transfer_before in [false, true] {
-        let checked = checked_source(&source(transfer_before));
+        let checked = checked_source_with_core_service(&source(transfer_before));
         let lowered = roundtrip(&checked);
         let machine = lowered
             .semantic_module
@@ -138,7 +138,7 @@ fn closed_sum_successor_computations_preserve_later_payload_arguments() {
             "state byte(&mut self, value: i32 [0..=255], saved: i32)",
             "state byte(&mut self, saved: i32, value: i32 [0..=255])",
         );
-    let checked = checked_source(&source);
+    let checked = checked_source_with_core_service(&source);
     let machine = checked
         .machines()
         .iter()
@@ -159,7 +159,9 @@ fn closed_sum_successor_catalogs_reject_duplicate_and_mixed_value_lanes() {
         CheckedScalarExpressionRole,
     };
 
-    let checked = checked_source(&source(false).replace("-> eof(before.value)", "-> eof(7)"));
+    let checked = checked_source_with_core_service(
+        &source(false).replace("-> eof(before.value)", "-> eof(7)"),
+    );
     roundtrip(&checked);
     let root = checked
         .facts
@@ -244,7 +246,7 @@ fn closed_sum_successor_catalogs_reject_duplicate_and_mixed_value_lanes() {
 
 #[test]
 fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
-    let checked = checked_source(&source(true));
+    let checked = checked_source_with_core_service(&source(true));
     roundtrip(&checked);
     let plan = checked
         .facts
@@ -331,7 +333,7 @@ fn closed_sum_exit_roster_rejects_unknown_duplicate_and_missing_receipts() {
 
 #[test]
 fn closed_sum_terminal_cleanup_rejects_missing_reordered_and_repeated_owners() {
-    let lowered = roundtrip(&checked_source(&source(false)));
+    let lowered = roundtrip(&checked_source_with_core_service(&source(false)));
     let entry = lowered.semantic_module.entry;
     for mutation in 0..4 {
         let mut changed = lowered.semantic_module.clone();

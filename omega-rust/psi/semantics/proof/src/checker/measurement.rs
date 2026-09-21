@@ -263,7 +263,8 @@ mod tests {
         ProofObligation, ProofPlanMeasurements,
     };
     use proof_admission::{
-        CertificateAcceptance, MathematicalJudgmentReceipt, PrimitiveJudgment, ProofSystemMarker,
+        CertificateAcceptance, MathematicalJudgmentReceipt, PrimitiveJudgment, ProofNode,
+        ProofRule, ProofSystemMarker,
     };
     use semantic_vocabulary::{
         EvidenceIdentity, IntegerMathLiteral, IntegerMathTerm, ObligationId, Proposition,

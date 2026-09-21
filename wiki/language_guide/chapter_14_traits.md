@@ -36,9 +36,16 @@ SaturatingIncrement:
     Counter satisfies Incrementable
 {
     machine increment(&mut self) {
-        if self.value < i32::Maximum {
+        transition self.value < i32::Maximum {
+            true -> bump()
+            _ -> saturated()
+        }
+
+        state bump(&mut self) {
             self.value = self.value + 1;
         }
+
+        state saturated(&mut self) { }
     }
 }
 ```
@@ -402,11 +409,12 @@ trait CallingPolicy {
     ) -> BoundaryPlanResult;
 }
 
-trait Calling<C, Policy: C satisfies CallingPolicy>
+trait Calling<C>
+where C satisfies CallingPolicy
 {
 }
 
-data X86InterruptConvention;
+boundary data X86InterruptConvention;
 
 X86InterruptPolicy:
     X86InterruptConvention satisfies CallingPolicy
@@ -417,7 +425,7 @@ X86InterruptPolicy:
 }
 
 boundary trait TimerInterrupt:
-    InterruptService + Calling<X86InterruptConvention, X86InterruptPolicy>
+    InterruptService + Calling<X86InterruptConvention>
 {
 }
 ```
@@ -425,12 +433,12 @@ boundary trait TimerInterrupt:
 `requires InterruptService;` and `: InterruptService` normalize to the same
 requirement edge. The referenced trait determines the edge's role: a boundary
 parent contributes service reach, while an ordinary parent such as
-`Calling<C, Policy>` contributes policy/contract identity and no service reach. An
+`Calling<C>` contributes policy/contract identity and no service reach. An
 ordinary trait therefore cannot inherit a boundary parent; the child must also
 be a `boundary trait`.
 
-`Policy` explicitly selects the conformance whose build-time `plan` machine
-checks the boundary signature. It returns an accepted plan or a structured
+`C`'s named `CallingPolicy` conformance supplies the build-time `plan`
+machine that checks the boundary signature. It returns an accepted plan or a structured
 rejection, such as an incompatible interrupt-frame shape. The compiler validates
 and canonicalizes accepted plans. The evaluated promise, not a friendly policy
 name or helper body, determines the boundary contract.
@@ -704,7 +712,7 @@ Code that wants a local dynamic interface over a component owns a local proxy:
 
 ```omega
 data LoggingProxy {
-    service: Service<LoggingService>;
+    service: Binding<LoggingService>;
 }
 
 ComponentLogger:
