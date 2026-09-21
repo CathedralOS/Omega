@@ -575,7 +575,7 @@ fn open_computed_quantity_result_canary_runs() {
     assert!(selections.iter().all(|selection| {
         selection
             .operation_contract_identity
-            .contains("IndexAlgebra::plus")
+            .contains("IndexAdd::add")
             && selection.algebra_requirement == "add"
             && selection.algebra_alias.as_deref() == Some("Canonical")
             && selection.provider.is_valid()
@@ -680,15 +680,16 @@ fn open_index_exact_local_fact_canary_runs() {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
+    // Under conformance-bound requirements every `a + 0 == 0`-shaped
+    // equality transports as a declared `requires` hypothesis: no call can
+    // mint the fact without a requires carrying it, so the discharge evidence
+    // lives at the machines' State entry points rather than a call-ensures
+    // axiom.
     assert!(
         evidence
             .iter()
-            .any(|fact| matches!(fact.point, facts::ProgramPoint::CallEnsures { .. }))
+            .all(|fact| { matches!(fact.point, facts::ProgramPoint::State { .. }) })
     );
-    assert!(evidence.iter().any(|fact| !matches!(
-        fact.point,
-        facts::ProgramPoint::CallEnsures { .. } | facts::ProgramPoint::Global
-    )));
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
