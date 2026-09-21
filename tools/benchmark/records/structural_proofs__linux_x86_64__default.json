@@ -72,6 +72,6 @@
     }
   },
   "notes": [
-    "z125: proof-subject selection leg \u2014 structural_proofs carries authored build.omg + ProgramEntry; compile-only leg (--no-run), host linux x86_64"
+    "proof-subject selection leg \u2014 structural_proofs carries authored build.omg + ProgramEntry; compile-only leg (--no-run), host linux x86_64"
   ]
 }
