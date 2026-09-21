@@ -5320,7 +5320,12 @@ Owners include
   - Expose the same consumer to independent admission/replacement and to
     **TOPOLOGY-PLAN-VERIFICATION**. First inventory actual producer/replay
     coverage; implement missing complete facts in their Psi, component, or
-    provider owners, not a second topology census.
+    provider owners, not a second topology census. The inventory is landed at
+    [component_substrate_coverage](wiki/drafts/component_substrate_coverage.md):
+    producers, consumers, and replay are mapped, the topology binding already
+    consumes `VerifiedComponent`, and no admission/replacement consumer of
+    `verify_component` exists — `component-deployment` binds candidate custody
+    directly and never verifies a description.
     **BOUNDED-INSTALLATION-REACH-ROWS** waits on this carrier for its
     component-contract fence.
 
