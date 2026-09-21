@@ -4,16 +4,19 @@ use super::{
     BlockId, CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionError,
     CheckedFloatProjectionSource, CheckedProofOnlyValueType, DirectBlockFloatParameter,
     DirectCallFloatResult, DirectMachineFloatParameter, DirectMachineFloatResult,
-    FloatMeaningProjectionLoweringError, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionInput, FloatProjectionInputId, IeeeFloatFormat, MachineId, PrimitiveType,
-    ProofValueId, ScalarType, TerminalMachine, TerminalMachineResult,
-    lower_float_meaning_projection, resolve_direct_float_source_binding,
+    FloatMeaningProjection, FloatMeaningProjectionLoweringError, FloatMeaningProjectionOperation,
+    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId,
+    FloatSemanticApplicationOperand, IeeeFloatFormat, MachineId, PrimitiveType, ProofOnlyValueType,
+    ProofValueDeclaration, ProofValueId, ScalarType, TerminalMachine, TerminalMachineResult,
+    lower_float_meaning_projection, rejoin_float_semantic_applications,
+    resolve_direct_float_source_binding,
 };
 use checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
     CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
-    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatUseSite,
-    CheckedProofValueDeclaration, CheckedProofValueId,
+    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatSemanticApplication,
+    CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite, CheckedProofValueDeclaration,
+    CheckedProofValueId,
 };
 use numerics::float_projection::FloatProjectionOperation;
 use source::{SourceMap, SourceOrigin};
@@ -295,6 +298,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let graph_state =
         |state: &checked_trees::state::State| checked_trees::CheckedScalarStateGraph {
             erased_scalar_parameters: Vec::new(),
+            erased_proof_parameters: Vec::new(),
             state: state.symbol,
             structural_parameters: Vec::new(),
             scalar_parameters: checked
@@ -339,6 +343,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     let block = |id: u64, parameters| terminal_psi::Block {
         id: BlockId::new(id).unwrap(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         parameters,
         structural_parameters: Vec::new(),
         operations: Vec::new(),
@@ -399,6 +404,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
         ],
         contract: terminal_psi::MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -549,6 +555,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         blocks: vec![terminal_psi::Block {
             id: BlockId::new(1).unwrap(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![terminal_psi::Operation {
@@ -563,6 +570,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
                     callee: MachineId::new(2).unwrap(),
                     arguments: vec![semantic_vocabulary::ValueId::new(1).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                 },
@@ -574,6 +582,7 @@ fn transported_ensures_result_lowers_to_the_emitted_call_result() {
         }],
         contract: terminal_psi::MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: crate::terminal_identities::contract_id(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -729,11 +738,378 @@ fn unjoined_call_result_falls_back_to_transitional_input() {
     );
 }
 
+fn transitional_projection_row(index: u32) -> FloatMeaningProjection {
+    let contract = FloatProjectionOperation::Meaning32.contract_identity();
+    FloatMeaningProjection {
+        result: ProofValueDeclaration {
+            id: ProofValueId(index),
+            value_type: ProofOnlyValueType::FloatMeaning,
+        },
+        source: FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(index),
+            format: IeeeFloatFormat::Binary32,
+        }),
+        operation: FloatMeaningProjectionOperation::Meaning32,
+        contract: terminal_psi::FloatProjectionContractIdentity {
+            format: contract.format,
+            operation: contract.operation,
+            declaration: contract.declaration,
+            catalog_version: contract.catalog_version,
+            commitment: contract.commitment,
+        },
+    }
+}
+
+fn add_application(
+    result: u32,
+    operands: Vec<CheckedFloatSemanticApplicationOperand>,
+) -> CheckedFloatSemanticApplication {
+    let add_row = numerics::float_semantics_catalog::FLOAT_SEMANTIC_OPERATIONS
+        .iter()
+        .find(|row| row.name == "add")
+        .expect("the sealed add row exists");
+    CheckedFloatSemanticApplication {
+        result: CheckedProofValueId(result),
+        contract: add_row.contract_identity(),
+        format: IeeeFloatFormat::Binary32,
+        operands,
+    }
+}
+
+fn binary_add_operands() -> Vec<CheckedFloatSemanticApplicationOperand> {
+    vec![
+        CheckedFloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary32),
+        CheckedFloatSemanticApplicationOperand::Meaning(CheckedProofValueId(0)),
+        CheckedFloatSemanticApplicationOperand::Meaning(CheckedProofValueId(0)),
+    ]
+}
+
+#[test]
+fn semantic_application_rejoins_its_transitional_proof_value_row() {
+    let mut projections = vec![
+        transitional_projection_row(0),
+        transitional_projection_row(1),
+    ];
+    rejoin_float_semantic_applications(
+        &[add_application(1, binary_add_operands())],
+        &mut projections,
+    )
+    .expect("rejoin");
+    let FloatMeaningSource::SemanticApplication(application) = &projections[1].source else {
+        panic!("the produced row carries the SemanticApplication carrier")
+    };
+    let expected = numerics::float_semantics_catalog::FLOAT_SEMANTIC_OPERATIONS
+        .iter()
+        .find(|row| row.name == "add")
+        .expect("add row")
+        .contract_identity();
+    assert_eq!(application.contract.row, expected.row);
+    assert_eq!(
+        application.contract.catalog_version,
+        expected.catalog_version
+    );
+    assert_eq!(application.contract.commitment, expected.commitment);
+    assert_eq!(application.format, IeeeFloatFormat::Binary32);
+    assert_eq!(
+        application.operands,
+        vec![
+            FloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary32),
+            FloatSemanticApplicationOperand::Meaning(ProofValueId(0)),
+            FloatSemanticApplicationOperand::Meaning(ProofValueId(0)),
+        ]
+    );
+    assert!(matches!(
+        projections[0].source,
+        FloatMeaningSource::TransitionalInput(_)
+    ));
+}
+
+#[test]
+fn semantic_application_rejoin_is_idempotent_for_a_shared_row() {
+    let mut projections = vec![
+        transitional_projection_row(0),
+        transitional_projection_row(1),
+    ];
+    let application = add_application(1, binary_add_operands());
+    rejoin_float_semantic_applications(
+        &[application.clone(), application.clone()],
+        &mut projections,
+    )
+    .expect("identical application rows rejoin idempotently");
+    assert!(matches!(
+        projections[1].source,
+        FloatMeaningSource::SemanticApplication(_)
+    ));
+}
+
+#[test]
+fn semantic_application_rejects_a_row_outside_the_proof_value_table() {
+    let mut projections = vec![transitional_projection_row(0)];
+    let error = rejoin_float_semantic_applications(
+        &[add_application(7, binary_add_operands())],
+        &mut projections,
+    )
+    .expect_err("out-of-range result row fails");
+    assert_eq!(
+        error,
+        FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow { result: 7 }
+    );
+}
+
+/// The carrier's format is the row's source format, so an application whose
+/// declared result format disagrees with the row's projection format is
+/// refused by name at lowering rather than emitted for the verifier to
+/// reject as a cross-format substitution.
+#[test]
+fn semantic_application_rejects_a_row_of_another_format() {
+    let mut projections = vec![
+        transitional_projection_row(0),
+        transitional_projection_row(1),
+    ];
+    let mut application = add_application(1, binary_add_operands());
+    application.format = IeeeFloatFormat::Binary64;
+    application.operands[0] =
+        CheckedFloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary64);
+    assert_eq!(
+        application.validate(),
+        Ok(()),
+        "the application replays on its own"
+    );
+    let error = rejoin_float_semantic_applications(&[application], &mut projections)
+        .expect_err("a binary64 application cannot take a binary32 row");
+    assert_eq!(
+        error,
+        FloatMeaningProjectionLoweringError::SemanticApplicationFormatMismatch { result: 1 }
+    );
+    assert!(
+        matches!(
+            projections[1].source,
+            FloatMeaningSource::TransitionalInput(_)
+        ),
+        "the refused row keeps its transitional source"
+    );
+}
+
+#[test]
+fn semantic_application_rejects_a_row_with_a_resolved_source() {
+    let mut projections = vec![
+        transitional_projection_row(0),
+        transitional_projection_row(1),
+    ];
+    projections[1].source = FloatMeaningSource::ExactBinary32Literal(0x3f800000);
+    let error = rejoin_float_semantic_applications(
+        &[add_application(1, binary_add_operands())],
+        &mut projections,
+    )
+    .expect_err("a non-transitional row cannot take the application carrier");
+    assert_eq!(
+        error,
+        FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow { result: 1 }
+    );
+}
+
+#[test]
+fn semantic_application_rejects_a_checked_row_that_fails_replay() {
+    let mut projections = vec![
+        transitional_projection_row(0),
+        transitional_projection_row(1),
+    ];
+    let mut application = add_application(1, binary_add_operands());
+    application.operands[1] =
+        CheckedFloatSemanticApplicationOperand::Meaning(CheckedProofValueId(1));
+    let error = rejoin_float_semantic_applications(&[application], &mut projections)
+        .expect_err("a self-referential meaning operand fails catalog replay");
+    assert!(matches!(
+        error,
+        FloatMeaningProjectionLoweringError::InvalidSemanticApplication { result: 1, .. }
+    ));
+}
+
 const CORE_FLOAT_MEANING: &str = "data FloatMeaning { }";
 const CORE_PROJECTIONS: &str = r#"
         operator Float::meaning32(value: f32) -> FloatMeaning;
         operator Float::meaning64(value: f64) -> FloatMeaning;
     "#;
+/// `FloatMeaning` is public here because `FloatSemantics` machines name it in
+/// their public interfaces.
+const CORE_SEMANTIC_MEANING: &str = "pub data FloatMeaning { }";
+/// The sealed toolchain `FloatFormat` record copied verbatim from
+/// `source/library/core/float_format.omg`.
+const CORE_FLOAT_FORMAT: &str = r#"
+        pub data FloatSpecialValues [copy] {
+            signed_zero: bool;
+            subnormals: bool;
+            infinity: bool;
+            nan: bool;
+        }
+        pub data FloatFormat [copy] {
+            radix: u32;
+            precision: u32;
+            minimum_normal_exponent: i32;
+            maximum_normal_exponent: i32;
+            minimum_subnormal_exponent: i32;
+            specials: FloatSpecialValues;
+            rounds_to_nearest_ties_to_even: bool;
+        }
+        pub const FloatFormat::BINARY32: FloatFormat = FloatFormat {
+            radix: 2,
+            precision: 24,
+            minimum_normal_exponent: -126,
+            maximum_normal_exponent: 127,
+            minimum_subnormal_exponent: -149,
+            specials: FloatSpecialValues {
+                signed_zero: true,
+                subnormals: true,
+                infinity: true,
+                nan: true,
+            },
+            rounds_to_nearest_ties_to_even: true,
+        };
+        pub const FloatFormat::BINARY64: FloatFormat = FloatFormat {
+            radix: 2,
+            precision: 53,
+            minimum_normal_exponent: -1022,
+            maximum_normal_exponent: 1023,
+            minimum_subnormal_exponent: -1074,
+            specials: FloatSpecialValues {
+                signed_zero: true,
+                subnormals: true,
+                infinity: true,
+                nan: true,
+            },
+            rounds_to_nearest_ties_to_even: true,
+        };
+    "#;
+const CORE_SEMANTIC_PROJECTIONS: &str = r#"
+        operator Float::meaning32(value: f32) -> FloatMeaning;
+        operator Float::meaning64(value: f64) -> FloatMeaning;
+        pub machine FloatSemantics::add(format: FloatFormat, left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;
+        pub machine FloatSemantics::multiply(format: FloatFormat, left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;
+    "#;
+
+fn checked_semantic_fixture(source: &str) -> checked_trees::CheckedTrees {
+    let mut sources = SourceMap::default();
+    let meaning_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_meaning.omg"),
+            CORE_SEMANTIC_MEANING.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let format_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_format.omg"),
+            CORE_FLOAT_FORMAT.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let projection_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_operations.omg"),
+            CORE_SEMANTIC_PROJECTIONS.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(
+            PathBuf::from("tests/float_projection/main.omg"),
+            source.to_owned(),
+        )
+        .source_id;
+    let meaning_tokens = Lexer::new(CORE_SEMANTIC_MEANING)
+        .tokenize()
+        .expect("tokenize float meaning");
+    let mut syntax = parse_syntax_trees_with_id(meaning_source_id, &meaning_tokens)
+        .expect("parse float meaning");
+    let format_tokens = Lexer::new(CORE_FLOAT_FORMAT)
+        .tokenize()
+        .expect("tokenize float format");
+    parse_syntax_trees_into_with_id(&mut syntax, format_source_id, &format_tokens)
+        .expect("parse float format");
+    let projection_tokens = Lexer::new(CORE_SEMANTIC_PROJECTIONS)
+        .tokenize()
+        .expect("tokenize semantic projections");
+    parse_syntax_trees_into_with_id(&mut syntax, projection_source_id, &projection_tokens)
+        .expect("parse semantic projections");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
+        .expect("parse fixture");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve semantic fixture");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type semantic fixture");
+    typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check semantic fixture")
+}
+
+#[test]
+fn semantic_application_lowers_to_the_terminal_carrier_end_to_end() {
+    let checked = checked_semantic_fixture(
+        r#"
+            machine helper(left: f32, right: f32) -> f32
+            requires
+                Float::meaning32(left) == FloatSemantics::add(
+                    FloatFormat::BINARY32,
+                    Float::meaning32(left),
+                    Float::meaning32(right)
+                );
+            { left }
+
+            machine terminal_root(value: bool) -> bool
+            requires
+                true == true;
+            ensures
+                true == true;
+            { value }
+        "#,
+    );
+    assert_eq!(checked.facts.proof.float_semantic_applications.len(), 1);
+    let lowered = crate::lower_machine(&checked, "terminal_root").expect("lower semantic fixture");
+    let projections = &lowered.semantic_module.float_meaning_projections;
+    let application_index = projections
+        .iter()
+        .position(|row| matches!(row.source, FloatMeaningSource::SemanticApplication(_)))
+        .expect("the application's proof value carries the SemanticApplication source");
+    let FloatMeaningSource::SemanticApplication(application) =
+        &projections[application_index].source
+    else {
+        unreachable!()
+    };
+    let identity = numerics::float_semantics_catalog::FloatSemanticContractIdentity {
+        row: application.contract.row,
+        catalog_version: application.contract.catalog_version,
+        commitment: application.contract.commitment,
+    };
+    let row =
+        numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity(&identity)
+            .expect("the emitted contract rejoins the sealed catalog");
+    assert_eq!(row.name, "add");
+    assert_eq!(application.format, IeeeFloatFormat::Binary32);
+    let [format_operand, left_operand, right_operand] = application.operands.as_slice() else {
+        panic!("add spells its three catalog operands")
+    };
+    assert_eq!(
+        *format_operand,
+        FloatSemanticApplicationOperand::Format(IeeeFloatFormat::Binary32)
+    );
+    for operand in [left_operand, right_operand] {
+        let FloatSemanticApplicationOperand::Meaning(value) = operand else {
+            panic!("add's meaning operands name earlier proof rows")
+        };
+        assert!(
+            (value.0 as usize) < application_index,
+            "meaning operands stay well-founded behind the application row"
+        );
+    }
+}
 
 fn checked_float_fixture(source: &str) -> checked_trees::CheckedTrees {
     let mut sources = SourceMap::default();

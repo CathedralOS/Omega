@@ -657,7 +657,7 @@ fn builtin_float_operator_use_fact(
     })
 }
 
-pub(super) fn resolve_builtin_float_operator_requirement(
+pub(crate) fn resolve_builtin_float_operator_requirement(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,

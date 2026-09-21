@@ -1,5 +1,6 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterConstraintKey, TargetRegisterEnvironmentIdentity};
+pub use selected_instructions::LiteralFoldIdentity;
 use selected_instructions::{
     MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity, VirtualRegisterId,
@@ -14,19 +15,6 @@ use crate::{
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
 const LITERAL_FOLD_VERSION: u32 = 12;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LiteralFoldIdentity(pub(crate) [u8; 32]);
-
-impl LiteralFoldIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
 
 /// Narrow proof-preserving physical-form fold. This is not a generic constant
 /// fold, instruction scheduler, rematerializer, spill policy, or opt level.

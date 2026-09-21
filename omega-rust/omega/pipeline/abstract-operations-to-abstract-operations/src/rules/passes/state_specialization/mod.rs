@@ -21,8 +21,9 @@ use crate::{
 
 use super::STATE_SPECIALIZATION_PASS_NAME;
 
-/// Binds the proven Boolean constant on an incoming unconditional `Jump` edge
-/// to a single-`Conditional` dispatch block's parameter and fuses the resolved
+/// Binds the proven Boolean constant on an incoming edge — an unconditional
+/// `Jump` successor or one arm of a `Conditional` predecessor — to a
+/// single-`Conditional` dispatch block's parameter and fuses the resolved
 /// arm, keeping both edges' provenance and fuel settlements on the fused
 /// traversal. Machines holding an authenticated cyclic component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]

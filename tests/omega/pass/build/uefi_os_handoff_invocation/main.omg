@@ -26,14 +26,30 @@ machine Loader::run(
     invokes UefiBootServices;
     invokes UefiOsHandoffTermination;
 {
-    transition { _ -> launch(image, initial_storage as Extent) }
+    transition { _ -> launch(image as Extent, initial_storage as Extent) }
 
-    state launch(&mut self, image: Extent in Granted, storage: Extent) {
-        self.cycle.run();
+    // The cyclic machine admits only the bare persistent receiver, so the
+    // cycle call moves through `drive`; the granted extents ride this
+    // machine's block parameters as plain extents, retained beneath the
+    // invocation for the whole cycle life.
+    state launch(&mut self, image: Extent, storage: Extent) {
+        self.drive();
         transition { _ -> retain(image, storage) }
     }
 
-    state retain(&mut self, image: Extent in Granted, storage: Extent) {
+    state retain(&mut self, image: Extent, storage: Extent) {
         transition { _ -> retain(image, storage) }
     }
+}
+
+// The acyclic forwarding edge into the target's authored cycle. `run` is the
+// cyclic machine and may only be reached through the bare `self` receiver
+// from a cyclic caller; this plain body presents the projected
+// `self.cycle` receiver where it is legal.
+machine Loader::drive(&mut self)
+    reaches UefiBootServices + UefiOsHandoffTermination
+    invokes UefiBootServices;
+    invokes UefiOsHandoffTermination;
+{
+    self.cycle.run();
 }

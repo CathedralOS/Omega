@@ -1134,3 +1134,150 @@ fn replay_rejects_drift_outside_the_window() {
         CommutingRelocationError::ReplayMismatch
     );
 }
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_commuting_relocation` directly,
+/// so every rejection comes from the validator's own window audit.
+mod independence_tests {
+    use super::{
+        CommutingRelocationError, LOAD_C, MAT_B, MAT_D, NativeTarget, STORE_A,
+        SelectedInstructionPlan, SelectedMemoryAccessRole, ValidatedCommutingRelocation, access,
+        baseline_target_register_environment, budget, fixture, mutated,
+        validate_commuting_relocation,
+    };
+
+    /// Move the member at `member_index` onto `destination_index` inside
+    /// a source fixture's plan, permuting the roster's window rows into
+    /// the new execution order — the edit a producer emitting that
+    /// relocation would publish — without asking admission whether the
+    /// window is legal.
+    fn forged(
+        source: &ValidatedCommutingRelocation,
+        member_index: usize,
+        destination_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let function = &mut proposed.functions[0];
+        let moved = function.blocks[0].instructions.remove(member_index);
+        function.blocks[0]
+            .instructions
+            .insert(destination_index, moved);
+        // The roster's window rows follow the members' new order: the two
+        // recorded accesses swap when the member carries the earlier one.
+        if member_index < destination_index {
+            function.memory_accesses.swap(0, 1);
+        }
+        proposed
+    }
+
+    /// A forged rotation of a window the validator's own audit admits
+    /// validates: the store's and load's rows reach disjoint places, so
+    /// the audit derives the move, the content comparison accepts the
+    /// rotation, and the permuted roster equals the source's own rows in
+    /// the new execution order.
+    #[test]
+    fn forged_rotation_of_a_commuting_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_commuting_relocation(
+            &source,
+            0,
+            STORE_A,
+            LOAD_C,
+            &environment,
+            budget(),
+            forged(&source, 0, 2),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a non-commuting window anyway would
+    /// publish the store moved past a load reaching the same bytes —
+    /// here `LOAD_C`'s row mutated onto the store's place and extent. The
+    /// validator's own legality audit refuses with `UnsupportedPair`,
+    /// not a replay mismatch, because it reconstructs the row
+    /// commutation instead of trusting the producer's admission record.
+    #[test]
+    fn forged_move_past_noncommuting_rows_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            // Point the load's row at the store's place and bytes: the
+            // write and the read no longer commute.
+            function.memory_accesses[1] =
+                access(LOAD_C, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8);
+        });
+        assert_eq!(
+            validate_commuting_relocation(
+                &source,
+                0,
+                STORE_A,
+                LOAD_C,
+                &environment,
+                budget(),
+                forged(&source, 0, 2),
+            )
+            .unwrap_err(),
+            CommutingRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that rotated the members but left the roster in source
+    /// order publishes a proposal whose recorded accesses no longer bind
+    /// the new execution order: the roster comparison rejects it with
+    /// `ReplayMismatch`.
+    #[test]
+    fn forged_unpermuted_roster_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = source.transformed().clone();
+        let moved = proposed.functions[0].blocks[0].instructions.remove(0);
+        proposed.functions[0].blocks[0]
+            .instructions
+            .insert(2, moved);
+        assert_eq!(
+            validate_commuting_relocation(
+                &source,
+                0,
+                STORE_A,
+                LOAD_C,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            CommutingRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged proposal for a member carrying no roster rows names the
+    /// local relocation's own accounting case — the commutation contract
+    /// never trades a rowed member across row-less positions — and the
+    /// validator's own audit refuses it before content is compared.
+    #[test]
+    fn forged_rowless_member_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = source.transformed().clone();
+        let moved = proposed.functions[0].blocks[0].instructions.remove(1);
+        proposed.functions[0].blocks[0]
+            .instructions
+            .insert(3, moved);
+        assert_eq!(
+            validate_commuting_relocation(
+                &source,
+                0,
+                MAT_B,
+                MAT_D,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            CommutingRelocationError::UnsupportedPair
+        );
+    }
+}

@@ -1,5 +1,14 @@
 // A fixed array contributes exactly N repeated elements. No synthetic
-// `<name>_count` sibling is required or consulted.
+// `<name>_count` sibling is required or consulted: the schema's static
+// extent is the encoded element count, framed length-delimited like the
+// FixedVec carrier.
+//
+// Expected bytes for { readings: [1, 2, 3, 4] }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00        (readings)
+//   length 4       -> 0x04        (the packed elements below)
+//     1..4         -> 0x01 0x02 0x03 0x04
+// written = 7.
 
 use omega_language_std::console;
 use omega::language::core::service;
@@ -25,5 +34,30 @@ machine Main::main(&mut self) reaches Console {
 
     Telemetry::encode(&msg, &mut self.buffer, &mut self.written);
 
-    self.console.exit_process(70);
+    transition self.written == 7 {
+        true -> check_bytes()
+        false -> bad()
+    }
+
+    state check_bytes(&mut self) {
+        let ok: bool = self.buffer[0] == 0
+            && self.buffer[1] == 0
+            && self.buffer[2] == 4
+            && self.buffer[3] == 1
+            && self.buffer[4] == 2
+            && self.buffer[5] == 3
+            && self.buffer[6] == 4;
+        transition ok {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }

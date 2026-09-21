@@ -2222,14 +2222,15 @@ fn measured_validation_step_boundary() {
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
     // once across the plan (3+4+3+4 = 14), and again for this function's
-    // blocks (14). The crossed surfaces pair the member (1) against
-    // `T_TAIL` (1) and the `Jump` terminator (2 uses + defs on x86-64):
-    // 2+3 = 5 steps. The dead-path bound prices each block's body,
-    // terminator, and edge surfaces once per member location plus the
-    // initial scan: on x86-64 the materializations cost 1 each, the jumps
-    // 2, the branch 3, and the return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 —
-    // times one written member register plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 5 + 52;
+    // blocks (14); the path walk pushes the lone `Jump` edge once (1).
+    // The crossed surfaces pair the member (1) against `T_TAIL` (1) and
+    // the `Jump` terminator (2 uses + defs on x86-64): 2+3 = 5 steps. The
+    // dead-path bound prices each block's body, terminator, and edge
+    // surfaces once per member location plus the initial scan: on x86-64
+    // the materializations cost 1 each, the jumps 2, the branch 3, and
+    // the return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written
+    // member register plus one: 26*2 = 52.
+    let steps: u64 = 14 + 14 + 1 + 5 + 52;
     let exact = OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap();
     relocate_selected_instruction_into_confluence(&source, 0, MOVING, HEAD, &environment, exact)
         .unwrap();
@@ -2248,7 +2249,7 @@ fn measured_validation_step_boundary() {
     );
     // Landing at the body end crosses the whole join body: the member
     // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the terminator.
-    let steps_end: u64 = 14 + 14 + (2 + 2 + 2 + 2 + 3) + 52;
+    let steps_end: u64 = 14 + 14 + 1 + (2 + 2 + 2 + 2 + 3) + 52;
     let exact = OptimizationWorkBudget::new(1, 1, steps_end, 1, 1).unwrap();
     relocate_selected_instruction_into_confluence(&source, 0, MOVING, RET, &environment, exact)
         .unwrap();

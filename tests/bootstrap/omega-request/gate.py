@@ -65,8 +65,12 @@ def observation(code, payload):
 
 
 def main():
-    directory = Path(sys.argv[1]).resolve()
-    adapter = Path(sys.argv[2]).read_bytes()
+    argv = sys.argv[1:]
+    identity_only = argv and argv[0] == "--identity"
+    if identity_only:
+        argv = argv[1:]
+    directory = Path(argv[0]).resolve()
+    adapter = Path(argv[1]).read_bytes()
     gate = Path(__file__).resolve().parent
     timeout = int(os.environ.get("OMEGA_REQUEST_OBSERVATION_SECONDS", "14400"))
     if timeout <= 0:
@@ -83,8 +87,8 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 559153,
-                     "5278fc30911f636836f552527ee0e9542b4ade49d409d4539b48f373ffec8378")
+    require_identity("D", compiler, 561794,
+                     "60754c730dfb928f9b2b6edbf2904d9a7bb292b0657eb6656a31930c28be05af")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("request entry", entry, ENTRY_SIZE, ENTRY_SHA256)
     fixture = (gate / "request.bin").read_bytes()
@@ -98,6 +102,16 @@ def main():
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + support)
+    if identity_only:
+        # Host-free leg: every bound identity above is checked — entry, canonical
+        # request fixture, and the assembled customer/DCREQ byte streams — and the
+        # expected observation decodes; only the evaluator executions need a seed
+        # host (macOS arm64 or Windows x64).
+        (directory / "evaluator.exe").stat()
+        print(f"Omega request: identity legs green; execution legs need a seed "
+              f"host ({len(request)}-byte receipt request, {len(customer)}-byte "
+              f"customer, {len(expected)}-byte expected observation)", flush=True)
+        return
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, receipt_seconds, "Epsilon receipt reconstruction")
     require_identity("Epsilon execution receipt", receipt, 721484,

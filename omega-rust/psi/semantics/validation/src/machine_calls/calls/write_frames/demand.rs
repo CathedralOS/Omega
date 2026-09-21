@@ -339,7 +339,12 @@ impl<'program> CallFrameResolver<'program> {
                             }
                             return super::wire_codecs::known_wire_codec_call_written_paths(
                                 self.program,
+                                current_machine,
                                 call,
+                                prefix.parameters,
+                                prefix.isolated_locals,
+                                prefix.aliases,
+                                prefix.divergent,
                             );
                         }
                         let receiver = self

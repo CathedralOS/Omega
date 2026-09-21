@@ -339,6 +339,10 @@ fn boundary_declaration<'a>(
         .expect("module validation established the boundary declaration")
 }
 
+// The call's completion receipts are settlement custody validated by
+// `validate_module`, not runtime values: the observation schema describes the
+// values a semantic trace compares, so the replayed row carries only the
+// declared argument and result schemas. Receipts have no channel to leak into.
 fn reconstruct_boundary_call_event(
     machine: MachineId,
     block: BlockId,
@@ -509,6 +513,7 @@ mod tests {
                 entry: block,
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: block,
                     structural_parameters: Vec::new(),
                     parameters: Vec::new(),
@@ -517,6 +522,7 @@ mod tests {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: id(1, ContractId::new),
                     crash_routes,
                     requires: Vec::new(),

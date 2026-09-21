@@ -224,7 +224,8 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
         Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
+        | Proposition::LessOrEqual(left, right)
+        | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
             validate_scalar_term_depth(left, 0)?;
             validate_scalar_term_depth(right, 0)?;
         }

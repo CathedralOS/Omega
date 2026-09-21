@@ -77,7 +77,9 @@ fn parts(
     OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
 ) {
-    let container = encode_optimized_program_storage_semantic_wrapper_object(&object).unwrap();
+    let container =
+        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding().template())
+            .unwrap();
     let manifest = construct_manifest(&object, &container).unwrap();
     let receipt = custody(&object, &container, &manifest);
     (object, container, manifest, receipt)

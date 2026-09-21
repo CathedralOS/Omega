@@ -1,10 +1,11 @@
 //! Source assembly tests: generated syntax retention, build preludes and pending imports.
 
+use super::build_prelude::{BUILD_PRELUDE, construct_build_prelude};
 use super::{
-    AssembledSyntax, BUILD_PRELUDE, CompileTimings, ImportQueue, PackageCompilationInputs,
+    AssembledSyntax, CompileTimings, ImportQueue, PackageCompilationInputs,
     RetainedGeneratedSyntaxExtension, RetainedGeneratedSyntaxUnit, SourceStorage, SyntaxTrees,
-    append_dependency_generated_sources_to_storage, construct_build_prelude,
-    generated_source_logical_path, retain_generated_syntax_extension,
+    append_dependency_generated_sources_to_storage, generated_source_logical_path,
+    retain_generated_syntax_extension,
 };
 use std::path::Path;
 use std::path::PathBuf;

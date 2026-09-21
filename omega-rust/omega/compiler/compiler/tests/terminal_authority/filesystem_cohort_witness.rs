@@ -1,8 +1,9 @@
 //! The canonical `FilesystemHost` cohort table is toolchain-settled policy:
-//! an ordinary program that demands a settled filesystem leaf emits its
-//! native artifact with no receiving-policy input, the leaf lands in the
-//! closure review with its exact exercised classes, and explicit receiver
-//! admission replays admit only under a sufficient accepted policy.
+//! an ordinary program that demands a settled filesystem leaf resolves the
+//! toolchain-minted provider plan with no receiving-policy input, the leaf
+//! classifies in the closure review with its exact exercised classes, and
+//! explicit receiver admission replays admit only under a sufficient
+//! accepted policy.
 //!
 //! The emitters in
 //! `native-realization/terminal_authority_policy/filesystem.rs` hold the
@@ -60,16 +61,16 @@ impl Fixture {
         std::fs::write(
             root.join("main.omg"),
             r#"use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    files: FilesystemHost;
+    files: Service<FilesystemHost>;
     fd: i32;
     rc: i32;
 }
 
 machine Main::main(&mut self)
 reaches FilesystemHost
-invokes FilesystemHost;
 {
     self.fd = 3;
     let n: i32 = self.files.set_len(self.fd, 0);
@@ -78,6 +79,24 @@ invokes FilesystemHost;
 "#,
         )
         .expect("write filesystem cohort source");
+        // The schema-binding preliminary cannot carry the Service carrier
+        // itself: fused receiver admission requires the binding this
+        // preliminary is discovering. A demand-lite root references the
+        // canonical trait so the typed program retains it.
+        std::fs::write(
+            root.join("prelim.omg"),
+            r#"use omega_language_std::filesystem_host;
+
+data Main {
+}
+
+machine Main::main(&mut self)
+reaches FilesystemHost
+{
+}
+"#,
+        )
+        .expect("write filesystem cohort preliminary source");
         std::fs::write(
             root.join("build.omg"),
             format!(
@@ -95,6 +114,10 @@ invokes FilesystemHost;
 
     fn main(&self) -> PathBuf {
         self.root.join("main.omg")
+    }
+
+    fn preliminary(&self) -> PathBuf {
+        self.root.join("prelim.omg")
     }
 }
 
@@ -147,7 +170,7 @@ fn filesystem_package_inputs(fixture: &Fixture) -> PackageCompilationInputs {
         .unwrap_or_else(|errors| panic!("fixture entry acceptance: {errors:#?}"));
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(inputs.clone()),
-        ..CheckedCompileRequest::new(&fixture.main(), Some("linux_x86_64"))
+        ..CheckedCompileRequest::new(&fixture.preliminary(), Some("linux_x86_64"))
     })
     .unwrap_or_else(|diagnostics| {
         panic!("preliminary checked fixture compilation: {diagnostics:#?}")
@@ -257,27 +280,30 @@ fn realize(
     .map_err(|(_, diagnostics)| diagnostics)
 }
 
-/// Selected provider plans derive only from `satisfies` machine
-/// conformances, and no `satisfies FilesystemHost` machine exists in the
-/// standard library on this revision: the demanded `set_len` leaf reaches
-/// `review_terminal_authority_closure` with zero selected provider rows, so
-/// the closure review fails closed before any mechanism classification. The
-/// named next blocker is selected-provider coverage for demanded canonical
-/// `FilesystemHost` boundary requirements; the toolchain-settled cohort
-/// minting this leg landed is witnessed one level down in
-/// `native-realization`'s settlement tests.
+/// Selected-provider coverage for the canonical `FilesystemHost` slot is
+/// settled: provider settlement mints the toolchain plan for the accepted
+/// binding (witnessed by
+/// `build-evaluation/tests/canonical_filesystem_host_settlement.rs`), and
+/// the demanded `set_len` leaf now reaches target lowering carrying one
+/// exact mechanism row from the settled cohort table.
+///
+/// The remaining honest stop is transport: every existing boundary
+/// settlement realization is a closed builtin mechanism or a normalized
+/// foreign call, so a `Syscall`-bound provider row — the binding the
+/// minted plan honestly carries on `linux_x86_64` — produces no
+/// `AdmittedBoundarySettlement` and the lowering rejects with
+/// `MissingBoundarySettlement` rather than manufacturing a transport the
+/// toolchain never proved.
 #[test]
-fn filesystem_cohort_emission_reports_the_selected_provider_blocker() {
+fn filesystem_cohort_emission_reports_the_boundary_settlement_blocker() {
     let fixture = Fixture::new("blocker");
     let diagnostics = realize(&fixture, native::current_terminal_authority_policy(), None)
-        .expect_err("demanded FilesystemHost leaves have no selected provider coverage");
+        .expect_err("a syscall-bound leaf has no admitted boundary settlement transport");
     assert!(
         diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("resolves to 0 selected provider rows")
-                && diagnostic.message.contains("set_len")
+            diagnostic.message.contains("target lowering failed")
+                && diagnostic.message.contains("MissingBoundarySettlement")
         }),
-        "the closure review names the demanded leaf and its missing coverage: {diagnostics:#?}"
+        "target lowering names the demanded leaf's missing settlement transport: {diagnostics:#?}"
     );
 }

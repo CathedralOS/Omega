@@ -9,6 +9,9 @@
 
 mod support;
 
+use std::borrow::Borrow;
+use std::sync::Arc;
+
 use support::*;
 use topology_plan::*;
 
@@ -16,7 +19,7 @@ fn compose(
     request: &TopologyRequest,
     instances: Vec<PlanInstance>,
     bindings: Vec<Binding>,
-    components: &[AdmittedComponent],
+    components: &[impl Borrow<AdmittedComponent>],
 ) -> Result<(DeploymentPlan, Vec<PolicyOutcome>), CompositionError> {
     let request_bytes = encode_request(request).unwrap();
     compose_plan(
@@ -431,7 +434,7 @@ fn a_self_connection_is_allowed_and_visible() {
         )],
     );
     let mut components = payment_components();
-    components.push(admit(&scheduler));
+    components.push(Arc::new(admit(&scheduler)));
     let request = roster_request(
         &["api", "authorization", "billing", "scheduler"],
         &subjects_of(&components),

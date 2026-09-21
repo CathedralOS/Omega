@@ -1,6 +1,6 @@
 # Chapter 12: Dependent Types
 
-A range, contract, or view can name ordinary in-scope values, not only constants.
+A contract or view can name ordinary in-scope values, not only constants.
 The compiler tracks the relationship; the program does not acquire hidden
 witness storage or runtime type metadata merely because a fact names a value.
 
@@ -10,8 +10,9 @@ non-const value binder and supplies a valid representation. `const` remains an
 explicit requirement for static knowledge, not a universal property of generics.
 
 The [dependent-value specification](../spec/language/dependent_values.md) defines
-this systems fragment. The forms below are checked end to end; a strict
-relational bound also discharges representability through the ceiling's own
+this systems fragment. The examples illustrate the required contracts, not a
+claim that every form is implemented. A strict relational bound also discharges
+representability through the ceiling's own
 carrier (`self.count < self.cap` proves `self.count + 1` fits because `cap`'s
 declared type bounds it). Equality facts do not yet transport through writes,
 and solver-general proofs and dependent views remain narrower. General
@@ -20,15 +21,17 @@ mathematical foundations have their separate
 
 ## Dependent Contracts
 
-A parameter's range may name another parameter:
+A parameter's contract may name another parameter:
 
 ```omega
-machine Buffer::get(items: &[u8], index: u64 [0..items.len]) -> u8 {
+machine Buffer::get(items: &[u8], index: u64) -> u8
+requires index < items.len
+{
     items[index]
 }
 ```
 
-For this unsigned index, the range supplies `index < items.len`. The caller
+For this unsigned index, the contract supplies `index < items.len`. The caller
 proves it, perhaps using a visible guard, and the callee may rely on it. A
 runtime length is a witness already stored in the slice, not a const argument.
 
@@ -63,9 +66,10 @@ data MemoryMap
 where
     embed(count) * embed(stride) <= embed(len),
     stride >= 40,
+    len <= 4096,
 {
     buf: [u8; 4096];
-    len: u32 [0..=4096];
+    len: u32;
     stride: u32;
     count: u32;
 }
@@ -85,7 +89,11 @@ Gating propagates through contained values. An explicit empty case can make an
 optional container zero-constructible without inventing an invalid payload:
 
 ```omega
-data Player { health: i32 [1..=100]; }
+data Player
+where health in 1..=100,
+{
+    health: i32;
+}
 
 data PlayerSlot {
     case Empty;

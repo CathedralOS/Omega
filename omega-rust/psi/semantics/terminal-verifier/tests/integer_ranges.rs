@@ -40,6 +40,7 @@ fn constant_delivery_module(range: ScalarIntegerRange, argument: u128) -> Termin
                 result: OperationResult::Scalar(declaration(call_result)),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: range.machine,
                     arguments: vec![caller_constant],
                     // The callee publishes one merged `requires` proposition,
@@ -133,6 +134,7 @@ fn integer_module(
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
@@ -163,6 +165,7 @@ fn integer_module(
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -242,6 +245,7 @@ fn forwarded_parameter_is_not_eagerly_rejected() {
             result: OperationResult::Scalar(declaration(call_result)),
             kind: OperationKind::Call {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: callee_range.machine,
                 arguments: vec![caller_parameter],
                 requirement_obligations: vec![obligation_id(1)],
@@ -389,6 +393,7 @@ fn roster_rejects_malformed_rows() {
 fn empty_contract(raw: u64) -> MachineContract {
     MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(raw).unwrap(),
         crash_routes: Vec::new(),
         requires: Vec::new(),
