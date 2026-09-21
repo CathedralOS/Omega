@@ -169,6 +169,7 @@ const MAX_ELABORATION_NODES: u64 = 1 << 16;
 mod addition;
 mod binary_numerals;
 mod booleans;
+mod casts;
 mod equality_transport;
 mod integer_operations;
 mod subtraction;
@@ -737,6 +738,11 @@ struct Denotation {
     /// `op l r` applications visible; one constant per applied term
     /// would hide them.
     integer_operations: BTreeMap<integer_operations::IntegerOperation, u32>,
+    /// Exact cast/widen operation → the position of its identity law
+    /// `Π(x : Int). Id Int (op x) x` — the denoted content of the
+    /// checked chain's "every edge preserves the mathematical integer"
+    /// invariant, interned once per operation like the other fixed laws.
+    cast_identities: BTreeMap<integer_operations::IntegerOperation, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
     /// `(operand, lower)` → assumption position of the operand's
@@ -788,6 +794,7 @@ impl Denotation {
             math_terms: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
             integer_operations: BTreeMap::new(),
+            cast_identities: BTreeMap::new(),
             decisions: HashMap::new(),
             carrier_bounds: BTreeMap::new(),
             rule_axioms: BTreeMap::new(),
@@ -1080,7 +1087,7 @@ impl Denotation {
     /// exact addition and subtraction additionally carry their fixed
     /// arithmetic laws — while field projections and unclassified
     /// constructors stay per-term opaque.
-    fn fixed_scalar_term(
+    pub(super) fn fixed_scalar_term(
         &mut self,
         term: &ScalarTerm,
     ) -> Result<TermHandle, BoundedDenotationError> {
@@ -2532,7 +2539,7 @@ impl<'a> Elaboration<'a> {
                 witness,
             } => {
                 let root = self.node(root_bound)?;
-                integer_bound_rules::cast_bound_relation(
+                let chain = integer_bound_rules::cast_bound_relation(
                     self.context,
                     self.axioms,
                     &root_bound.conclusion,
@@ -2548,6 +2555,17 @@ impl<'a> Elaboration<'a> {
                     let (proposition, variable) = self.cited_axiom(index)?;
                     premises.push(proposition);
                     evidence.push(variable);
+                }
+                if let Some(derived) = self.denotation.cast_bound_evidence(
+                    &root_bound.conclusion,
+                    evidence[0],
+                    &chain,
+                    &evidence[1..],
+                    self.axioms,
+                    &proof.conclusion,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerCastBound);
+                    return Ok(derived);
                 }
                 self.rule_instance(
                     AcceptedProofRule::IntegerCastBound,
