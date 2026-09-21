@@ -857,6 +857,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // its spelling evaluates to.
     "termination/lexicographic_component_constant_step_compile",
     "termination/joint_machine_call_cycle_forwarding_compile",
+    // A joint call cycle may rank on a bounded increasing cursor: the
+    // rank-preserving edge transports index unchanged and the strict edge
+    // increases it toward the authored range's bound.
+    "termination/joint_increasing_rank_range_compile",
     "termination/mutual_recursion_countdown_compile",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
