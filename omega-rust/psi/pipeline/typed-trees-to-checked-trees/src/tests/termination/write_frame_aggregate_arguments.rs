@@ -56,9 +56,11 @@ fn aggregate_actual_reference_leaves_transport_complete_write_sets() {
         ),
         ("missing_leaf", "write_view(View { tag: 0 });", None),
         (
+            // The leaf-slot rebind claims the overwritten actual leaf while
+            // the payload write follows the replacement's own origin.
             "replaced_reference_field",
             "rebind_view(View { body: &mut self.value, tag: 0 }, &mut self.other);",
-            None,
+            Some(vec!["self.other", "self.value"]),
         ),
         (
             // The carrier write claims the overwritten actual leaf while the
