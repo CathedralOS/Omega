@@ -11454,6 +11454,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists. Sibling re-mines verified same-way:
   MATHEMATICAL-FOUNDATIONS-REAL, MATH-PROOFS-CALL-SELECTION-OCCURRENCE,
   MATH-PROOFS-DECLARATION-SELECTION.
+  Re-verified at `69cde2eb782` (z181, MATH-PROOFS-DECLARATION-SELECTION
+  re-dispatch): adjudication stands — the name re-mines the declaration-
+  selection leg of the same contract-migration surface; PROOF-KERNEL-CORE
+  still claim-fences the kernel substrate (z177 ~09:49Z registry), while
+  the PROOF-CONTRACT-MIGRATION and MATH-FOUNDATION-BINDINGS fences have
+  drained. No independent slice exists under this name.
 - **NAMED-TRAIT-OPERATORS.** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET.** Resolved — duplicate of the
   already-adjudicated custody-expectation slice. The stub re-mines the
