@@ -352,9 +352,7 @@ mod tests {
         LoweringError, OperationKind, OperationResult, PrimitiveType, StructuralAccess,
         StructuralParameterDeclaration, lower_realization_operations,
     };
-    use crate::terminal_identities::{
-        place_id, structural_field_id, structural_type_id, value_id,
-    };
+    use crate::terminal_identities::{place_id, structural_field_id, structural_type_id, value_id};
     use checked_trees::{
         CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
         CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
@@ -525,11 +523,9 @@ mod tests {
             operations[0].kind,
             OperationKind::IntegerStructuralField {
                 source: place_id(1),
-                path: vec![
-                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                        structural_field_id(4),
-                    ),
-                ],
+                path: vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    structural_field_id(4),
+                ),],
                 field: structural_field_id(1),
             }
         );
@@ -563,7 +559,10 @@ mod tests {
             field_read.kind,
             OperationKind::IntegerStructuralField { .. }
         ));
-        assert!(matches!(constant.kind, OperationKind::IntegerConstant { .. }));
+        assert!(matches!(
+            constant.kind,
+            OperationKind::IntegerConstant { .. }
+        ));
         assert_eq!(
             add.kind,
             OperationKind::WrappingIntegerAdd {
@@ -627,10 +626,11 @@ mod tests {
             primitive_type: PrimitiveType::I32,
         };
         assert!(lower(&local, i32_type()).is_err());
-        let short_circuit = CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-            left: Box::new(boolean_field("flag")),
-            right: Box::new(boolean_field("flag")),
-        }));
+        let short_circuit =
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
+                left: Box::new(boolean_field("flag")),
+                right: Box::new(boolean_field("flag")),
+            }));
         assert!(lower(&short_circuit, ScalarType::Boolean).is_err());
     }
 
