@@ -186,6 +186,11 @@ pub(crate) enum SuspendedCallResult {
         result: StructuralOperationResult,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         expected_reference_backings: Vec<TerminalStructuralValue>,
+        /// An installed-provider boundary result mints its claim bindings on
+        /// the caller by the route's establishment authority rather than
+        /// rebinding callee-returned claims through
+        /// `returned_claim_transfers`.
+        minted_result_claims: bool,
     },
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),

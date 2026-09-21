@@ -828,20 +828,20 @@ fn validate_claim_indices(
         let Some(argument) = arguments.get(argument_index as usize) else {
             return malformed("claim action has an unknown structural argument index");
         };
-        let Some(entry_claim) = machine
+        let entry_claim = machine
             .entry_claims
             .iter()
-            .find(|entry_claim| entry_claim.claim == claim)
-        else {
-            return malformed("claim action references an unknown entry claim");
-        };
+            .find(|entry_claim| entry_claim.claim == claim);
         // A returned claim keeps its identity but moves to the successful
-        // operation's result place. The codec checks that exact occurrence;
-        // the verifier, not this structural check, establishes its liveness.
-        let path = if entry_claim.input == argument.place {
-            Some(entry_claim.path.as_slice())
-        } else {
-            machine.structural_places.iter().find_map(|declaration| {
+        // operation's result place; a boundary route may also mint the claim
+        // on that result outright. The codec checks that exact occurrence in
+        // either home; the verifier, not this structural check, establishes
+        // its liveness.
+        let path = match entry_claim {
+            Some(entry_claim) if entry_claim.input == argument.place => {
+                Some(entry_claim.path.as_slice())
+            }
+            _ => machine.structural_places.iter().find_map(|declaration| {
                 let StructuralPlaceKind::OperationResult {
                     producer,
                     structural_type,
@@ -880,7 +880,7 @@ fn validate_claim_indices(
                             .find(|binding| binding.claim == claim)
                             .map(|binding| binding.path.as_slice())
                     })
-            })
+            }),
         };
         if !path.is_some_and(|path| argument.path.is_empty() || path == argument.path) {
             return malformed("claim action does not match its structural argument path");

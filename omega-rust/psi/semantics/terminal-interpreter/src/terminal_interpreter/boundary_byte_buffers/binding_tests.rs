@@ -492,6 +492,7 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
             prepared,
             &[],
             Vec::new(),
+            false,
         )
         .unwrap();
     assert_eq!(execution.current_machine, callee_id);
