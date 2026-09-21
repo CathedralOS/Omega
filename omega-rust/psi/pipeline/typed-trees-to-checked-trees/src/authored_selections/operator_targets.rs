@@ -698,11 +698,7 @@ pub(crate) fn type_reference_for_symbol(
     } else {
         parent
     };
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == machine_owner)
-    {
+    if let Some(machine) = crate::lookup::machine_by_symbol(program, machine_owner) {
         if let Some(type_reference) = program
             .machine_owned_data(machine)
             .iter()
