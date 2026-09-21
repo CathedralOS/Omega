@@ -73,8 +73,11 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// lane. The contract term lane carries their semantic type identities.
     pub erased_proof_parameters: Vec<CheckedErasedProofParameterPlan>,
     /// Lowered `requires` clauses for a non-entry state, in authored contract
-    /// order. `None` marks a clause outside the admitted closed namespace;
-    /// emission admits the state only when every row is `Some`.
+    /// order. Producers emit only `Some` rows — an authored clause that fails
+    /// the closed-namespace lowering leaves the whole plan unadmitted at check
+    /// time rather than recording `None`. The `Option` retains emission's
+    /// independent recheck: a plan built by any later producer still admits
+    /// the state only when every row is `Some`.
     pub requires: Vec<Option<ClosedScalarContractValue>>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Ordered primitive declarations and storage assignments before this state's
@@ -119,9 +122,11 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         successor: CheckedStructuralControlSuccessorPlan,
     },
     Conditional {
-        /// Exact checked scalar expression selected by the authored guard.
-        /// The current family admits either one Boolean state parameter, a
-        /// closed expression, or the bounded one-local conditional lane.
+        /// Exact checked scalar expression recorded under the `Guard` role at
+        /// `when_true.statement_ordinal`. The lane admits any retained pure
+        /// Boolean expression — parameter reads, closed comparisons, locals,
+        /// and structural projections alike — the same contract the
+        /// `GuardedJumps` arm roster carries.
         guard: CheckedScalarExpression,
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
