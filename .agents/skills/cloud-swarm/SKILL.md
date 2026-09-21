@@ -234,6 +234,23 @@ SWE-2 Max and never plan.
   against the ≤2 resolver cap. Drop queue/busy entries for lanes that merge or
   prune. First run: 27 lanes routed in one cycle, 15 `resolved` over the next
   two, conflicted 75→56 — vs ~1/cycle from Overlords alone.
+- **Fold board-only lanes into one squash commit per cycle.** Audit of 60
+  merges on main: 32 touched only `TASKS.md`/`build/swarm/` (fence stamps,
+  "alias stub — covered", re-verify notes from `blocked`/`superseded` legs).
+  They are real stigmergy, not fake pushes, but one merge commit each is
+  history noise. Classify each lane with `git diff --name-only
+  origin/main...origin/<lane>`: all-board → `merge --squash` it after the code
+  lanes (TASKS.md conflicts union-merge, anything else → resolve queue), then
+  `reset --soft` to the pre-fold mark and commit once as
+  `board: fold N lane notes (z…)`. Code lanes still merge individually so
+  attribution and revertability survive.
+- **Persist a message-page cursor per session.** `get_messages` pages
+  oldest-first at ≤80/page; a zergling with 100+ legs has 1000+ messages, so a
+  blind tail costs ~10 reads per session per cycle (~2,200 API reads/cycle for
+  187 sessions). Store the `after` token of the last page you fetched
+  (`tail-cursor.json`) and resume from it — the newest verdict is always on or
+  after that page. Cycle read volume dropped 1,273 → 388 calls. Skip the
+  cursor for Overlords: planner legs need the whole leg's chunk history.
 - **Reviewer `duplicate_lanes` are advisory, never authoritative.** Reviewers
   get the resolve queue and may list lanes whose content "already landed via a
   sibling". Every one checked so far still differed from main in non-board
