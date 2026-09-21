@@ -777,19 +777,51 @@ mod tests {
     #[test]
     fn integer_order_certificates_reach_through_inclusive_premises() {
         let context = integer_context(&[1, 2, 3]);
-        let goal = integer_order(1, 3, true);
+        // A strict conclusion composes through inclusive links, but the
+        // kernel's strict transitivity requires at least one strict edge
+        // (`classicality.md`). Every chain that has one reaches `1 < 3`.
+        let strict = integer_order(1, 3, true);
+        for (first, second) in [(true, false), (false, true), (true, true)] {
+            let requirements = [integer_order(1, 2, first), integer_order(2, 3, second)];
+            let certificates =
+                produce_entry_requirement_certificates(&context, &strict, &requirements, &[]);
+            assert!(certificates.iter().any(|certificate| {
+                check_entry_requirement_certificate(
+                    &context,
+                    &strict,
+                    &requirements,
+                    &[],
+                    certificate,
+                )
+            }));
+            // The certificate's recorded lane stays part of the check: the
+            // same node replayed under a mismatched lane conversion is not
+            // accepted.
+            assert!(
+                certificates
+                    .iter()
+                    .all(|certificate| certificate.proof().conclusion == strict)
+            );
+        }
+        // Two inclusive links compose to the inclusive conclusion and to
+        // nothing stronger: `a <= b <= c` leaves `a = c` open. The producer
+        // supplies the `<=` certificate and supplies nothing for `<`.
         let requirements = [integer_order(1, 2, false), integer_order(2, 3, false)];
+        let inclusive = integer_order(1, 3, false);
         let certificates =
-            produce_entry_requirement_certificates(&context, &goal, &requirements, &[]);
+            produce_entry_requirement_certificates(&context, &inclusive, &requirements, &[]);
         assert!(certificates.iter().any(|certificate| {
-            check_entry_requirement_certificate(&context, &goal, &requirements, &[], certificate)
+            check_entry_requirement_certificate(
+                &context,
+                &inclusive,
+                &requirements,
+                &[],
+                certificate,
+            )
         }));
-        // The certificate's recorded lane stays part of the check: the same
-        // node replayed under a mismatched lane conversion is not accepted.
         assert!(
-            certificates
-                .iter()
-                .all(|certificate| certificate.proof().conclusion == goal)
+            produce_entry_requirement_certificates(&context, &strict, &requirements, &[])
+                .is_empty()
         );
     }
 
