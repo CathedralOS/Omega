@@ -12851,6 +12851,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   belong to BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP and
   SERVICE-CARRIER-FIXTURE-MIGRATION as owning lanes; no independent slice
   exists under this name.
+  Re-verified at `90df29812c00` (linux x86-64): the harness-compiles
+  blocker stays cleared — `cargo check -p omega-native-differential-test
+  --all-targets` is clean at this revision and the previously
+  uncompilable `abstract_publication` binary now builds and runs green
+  (56/56, witnessed by NATIVE-DIFFERENTIAL-MATRIX's e7c0099cb2b7
+  re-verification). Live fence map refreshed from the claims registry:
+  RC-NATIVE-MATRIX-LINUX-X86-64 (devin-swarm-rnmx, ~11:30Z Sep 21),
+  RC-NATIVE-MATRIX-LINUX-ARM64 (zergling-136, ~15:33Z),
+  RC-WINDOWS-X64-NATIVE-ROW (zergling-182, ~08:36Z), and
+  NATIVE-DIFFERENTIAL-MATRIX (zergling-182, ~14:30Z) all hold; the
+  per-host execution evidence still belongs to those rows. The recorded
+  linux-x86_64 run stays at `wiki/drafts/rc_native_matrix_host_execution.md`
+  (4dbdaa9bc3); no independent slice exists under this name.
 - **RC-NATIVE-MATRIX-HOSTS.** — recorded at
   `wiki/drafts/rc_native_matrix_hosts.md` (revision 0977a4249e): all four
   required runner rows enumerated. linux_x86_64 red on a full
