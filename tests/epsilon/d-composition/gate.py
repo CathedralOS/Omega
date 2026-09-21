@@ -170,7 +170,7 @@ def main():
     # scalar compilation, and Alpha tape emission. Expected observation is
     # pinned in expected.hex.
     packed = (directory / "omega_compiler.epsilon").read_bytes()
-require_identity("packed Omega D closure", packed, 569920,
+    require_identity("packed Omega D closure", packed, 569920,
                      "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
     composition_main = (gate / "main.epsilon").read_bytes()
     require_identity("composition main", composition_main, 1759,

@@ -37,8 +37,8 @@ OMEGA_PARSER_ENTRY_SIZE=4583
 OMEGA_PARSER_ENTRY_SHA256=61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618
 OMEGA_OUTCOME_ENTRY_SIZE=19632
 OMEGA_OUTCOME_ENTRY_SHA256=ce58f84f280c4f7682cb4be3f9db1763a165fb82afffa0cd5da8df413c21fa16
-OMEGA_REQUEST_ENTRY_SIZE=4115
-OMEGA_REQUEST_ENTRY_SHA256=0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0
+OMEGA_REQUEST_ENTRY_SIZE=4112
+OMEGA_REQUEST_ENTRY_SHA256=9368297baef947465d5f1ee11df8f1a0fdf60a01e369836ce0555df02890d9ca
 OMEGA_REQUEST_FIXTURE_SIZE=132
 OMEGA_REQUEST_FIXTURE_SHA256=ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062
 OMEGA_EXECUTABLE_MAIN_ENTRY_SIZE=1757
@@ -61,8 +61,22 @@ OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SIZE=3127
 OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SHA256=3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9
 OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SIZE=3193
 OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256=b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e
-OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE=4461
-OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256=406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94
+OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE=3863
+OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256=8f583b6510c940e3ef0cdc0223a1e263da37ea4f6decbea1a3130f4ba33645d0
+OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SIZE=4461
+OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SHA256=406e2bc4353983ebc81d6daa215a9b42f72b85056bc5f3263e1917e7e01efb94
+
+# D's OCREQ request entry: program.omg, the canonical Omega source the
+# request names as D's compilation subject. The executable gate feeds it to
+# the bound customer as sealed input after the packed compiler and entry
+# bytes; other gates frame their own requests. Like the gate-local entries
+# above it is a separate input from the manifested members, bound here so
+# the canonical request's subject is an audited identity rather than a
+# per-gate framing. The identical record lives in tools/bootstrap/README.md;
+# the gate's own README record and run.sh/identity-gate wiring land with the
+# omega-executable claim fence.
+OMEGA_OCREQ_ENTRY_SIZE=174
+OMEGA_OCREQ_ENTRY_SHA256=b880031336a824e41ce6021dda44e1a64aaa9e849a6b25ab658ea6fc612c1b2e
 
 # require_omega_compiler_identity : the canonical manifest is the bound file
 # and repacking it reproduces exactly the bound D closure. Every
@@ -164,11 +178,27 @@ require_omega_executable_entries_identity() {
     "controls_f.epsilon $OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_F_ENTRY_SHA256" \
     "controls_g.epsilon $OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_G_ENTRY_SHA256" \
     "controls_h.epsilon $OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_H_ENTRY_SHA256" \
-    "controls_i.epsilon $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256"
+    "controls_i.epsilon $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_I_ENTRY_SHA256" \
+    "controls_j.epsilon $OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SIZE $OMEGA_EXECUTABLE_CONTROLS_J_ENTRY_SHA256"
   do
     set -- $OMEGA_EXECUTABLE_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/$1" "$2" "$3" \
       "tests/bootstrap/omega-executable/README.md" || return $?
   done
+}
+
+# require_omega_ocreq_entry_identity : the canonical OCREQ request entry —
+# the Omega source D's request asks it to compile — is the bound file. The
+# request entry is a separate input from the canonical closure and never
+# part of the manifested members, so consumers that frame a request around
+# it run this before packing; tests may call it directly. It is not part of
+# the canonical closure and does not run during materialization. A digest
+# here is an identity check on the request entry source; it is not a proof
+# of the request's judgment.
+require_omega_ocreq_entry_identity() {
+  require_bound_identity "program.omg" \
+    "$OMEGA_PATH_OMEGA_OCREQ_ENTRY" "$OMEGA_OCREQ_ENTRY_SIZE" \
+    "$OMEGA_OCREQ_ENTRY_SHA256" \
+    "tools/bootstrap/README.md"
 }

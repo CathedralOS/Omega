@@ -166,7 +166,13 @@ pub(super) fn receiver_field_holds_entry_value(
         };
         window.iter().all(|statement| {
             field.is_none_or(|field| {
-                !statement_may_overwrite(program, machine.symbol, statement, field, &field_path[1..])
+                !statement_may_overwrite(
+                    program,
+                    machine.symbol,
+                    statement,
+                    field,
+                    &field_path[1..],
+                )
             }) && member_roots.iter().all(|root| {
                 !statement_may_overwrite(program, machine.symbol, statement, *root, &[])
             }) && receiver_roots.iter().all(|root| {

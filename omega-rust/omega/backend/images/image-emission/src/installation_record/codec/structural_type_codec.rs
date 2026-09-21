@@ -49,6 +49,10 @@ pub(crate) fn encode_structural_types(
                     }
                 }
             }
+            terminal_psi::StructuralTypeShape::ElementView { element } => {
+                bytes.extend_from_slice(&[8, 0, 0, 0]);
+                push_u64(bytes, element.get());
+            }
             terminal_psi::StructuralTypeShape::Record { fields } => {
                 bytes.extend_from_slice(&[1, 0, 0, 0]);
                 encode_structural_fields(bytes, fields)?;
@@ -98,6 +102,11 @@ pub(crate) fn decode_structural_types(
             return Err(InstallationError::NonzeroReservedField);
         }
         let shape = match shape_tag {
+            8 => terminal_psi::StructuralTypeShape::ElementView {
+                element: StructuralTypeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralReturnIdentity("element view element type"),
+                )?,
+            },
             1 => terminal_psi::StructuralTypeShape::Record {
                 fields: decode_structural_fields(reader)?,
             },

@@ -71,6 +71,9 @@ fn terminal_summary(
                         element.get()
                     )
                 }
+                terminal_psi::StructuralTypeShape::ElementView { element } => {
+                    format!("element_view(element=type:{})", element.get())
+                }
                 terminal_psi::StructuralTypeShape::Sum { cases } => {
                     format!("sum(cases={})", cases.len())
                 }

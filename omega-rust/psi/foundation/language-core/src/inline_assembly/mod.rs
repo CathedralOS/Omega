@@ -1060,9 +1060,10 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // Recognize common memory-addressing spellings so they refuse for the
         // semantic reason, not as arbitrary unknown text. The list covers the
         // AArch64 width/signed/unscaled/unprivileged variants, the non-temporal
-        // pair forms, the RCpc/limited-ordering acquire-release spellings, the
-        // complete exclusive and LSE read-modify-write ordering grids, the
-        // 64-byte accelerator block forms, the NEON structure load/store
+        // and signed pair forms, the RCpc/limited-ordering acquire-release
+        // spellings, the complete exclusive and LSE read-modify-write ordering
+        // grids including the store-only (`st*`) aliases, the 64-byte
+        // accelerator block forms, the NEON structure load/store
         // spells, x86 exchange and compare-exchange forms, the implicit-operand
         // string and port-string instructions (bare and width-suffixed — the
         // `movsd`/`cmpsd` SSE scalar spellings stay unrecognized since those
@@ -1075,44 +1076,51 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // maintenance (`cl*`/`tlbi`/`ic`/`dc`), and SIMD register-only moves
         // do not access memory or belong to a different contract family, and
         // stay unrecognized rather than borrowing this refusal.
-        "ldp" | "stp" | "ldnp" | "stnp" | "push" | "pop" | "pushq" | "popq" | "pushw" | "pushl"
-        | "pushf" | "pushfd" | "pusha" | "pushal" | "pushad" | "popa" | "popal" | "popad"
-        | "popw" | "popl" | "popf" | "popfd" | "enter" | "leave" | "ldrb" | "ldrh" | "ldrsb"
-        | "ldrsh" | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb" | "ldurh" | "ldursb"
-        | "ldursh" | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb" | "ldtrh" | "ldtrsb"
-        | "ldtrsh" | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldapr" | "ldaprb" | "ldaprh"
-        | "ldaprsb" | "ldaprsh" | "ldaprsw" | "ldapur" | "ldapurb" | "ldapurh" | "ldapursb"
-        | "ldapursh" | "ldapursw" | "stlur" | "stlurb" | "stlurh" | "ldlar" | "ldlarb"
-        | "ldlarh" | "stllr" | "stllrb" | "stllrh" | "ldxr" | "ldxrb" | "ldxrh" | "stxr"
-        | "stxrb" | "stxrh" | "ldax" | "ldaxr" | "ldaxrb" | "ldaxrh" | "stlxr" | "stlxrb"
-        | "stlxrh" | "ldxp" | "stxp" | "ldaxp" | "stlxp" | "ldar" | "ldarb" | "ldarh" | "stlr"
-        | "stlrb" | "stlrh" | "ld64b" | "st64b" | "st64bv" | "st64bv0" | "ld1" | "st1" | "ld2"
-        | "st2" | "ld3" | "st3" | "ld4" | "st4" | "ld1r" | "ld2r" | "ld3r" | "ld4r" | "swp"
-        | "swpb" | "swph" | "swpa" | "swpal" | "swpl" | "swpab" | "swpah" | "swpalb" | "swpalh"
-        | "swplb" | "swplh" | "cas" | "casb" | "cash" | "casa" | "casal" | "casl" | "casab"
-        | "casah" | "caslb" | "caslh" | "casalb" | "casalh" | "casp" | "caspa" | "caspal"
-        | "caspl" | "ldadd" | "ldaddb" | "ldaddh" | "ldadda" | "ldaddab" | "ldaddah" | "ldaddl"
-        | "ldaddlb" | "ldaddlh" | "ldaddal" | "ldaddalb" | "ldaddalh" | "ldclr" | "ldclrb"
-        | "ldclrh" | "ldclra" | "ldclrab" | "ldclrah" | "ldclrl" | "ldclrlb" | "ldclrlh"
-        | "ldclral" | "ldclralb" | "ldclralh" | "ldeor" | "ldeorb" | "ldeorh" | "ldeora"
-        | "ldeorab" | "ldeorah" | "ldeorl" | "ldeorlb" | "ldeorlh" | "ldeoral" | "ldeoralb"
-        | "ldeoralh" | "ldset" | "ldsetb" | "ldseth" | "ldseta" | "ldsetab" | "ldsetah"
-        | "ldsetl" | "ldsetlb" | "ldsetlh" | "ldsetal" | "ldsetalb" | "ldsetalh" | "ldsmax"
-        | "ldsmaxb" | "ldsmaxh" | "ldsmaxa" | "ldsmaxab" | "ldsmaxah" | "ldsmaxl" | "ldsmaxlb"
-        | "ldsmaxlh" | "ldsmaxal" | "ldsmaxalb" | "ldsmaxalh" | "ldsmin" | "ldsminb"
-        | "ldsminh" | "ldsmina" | "ldsminab" | "ldsminah" | "ldsminl" | "ldsminlb" | "ldsminlh"
-        | "ldsminal" | "ldsminalb" | "ldsminalh" | "ldumax" | "ldumaxb" | "ldumaxh" | "ldumaxa"
-        | "ldumaxab" | "ldumaxah" | "ldumaxl" | "ldumaxlb" | "ldumaxlh" | "ldumaxal"
-        | "ldumaxalb" | "ldumaxalh" | "ldumin" | "lduminb" | "lduminh" | "ldumina" | "lduminab"
-        | "lduminah" | "lduminl" | "lduminlb" | "lduminlh" | "lduminal" | "lduminalb"
-        | "lduminalh" | "xchg" | "xadd" | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat"
-        | "xlatb" | "lds" | "les" | "lss" | "lfs" | "lgs" | "sgdt" | "sidt" | "lgdt" | "movnti"
-        | "movntq" | "movntdq" | "movntdqa" | "bound" | "fxsave" | "fxrstor" | "xsave"
-        | "xsavec" | "xsaves" | "xsaveopt" | "xrstor" | "xrstors" | "movs" | "movsb" | "movsw"
-        | "movsq" | "lods" | "lodsb" | "lodsw" | "lodsq" | "lodsd" | "stos" | "stosb" | "stosw"
-        | "stosq" | "stosd" | "scas" | "scasb" | "scasw" | "scasq" | "scasd" | "cmps" | "cmpsb"
-        | "cmpsw" | "cmpsq" | "ins" | "outs" | "insb" | "insw" | "insd" | "outsb" | "outsw"
-        | "outsd" => Refused(UnmodeledMemoryAccess),
+        "ldp" | "stp" | "ldpsw" | "ldnp" | "stnp" | "push" | "pop" | "pushq" | "popq" | "pushw"
+        | "pushl" | "pushf" | "pushfd" | "pusha" | "pushal" | "pushad" | "popa" | "popal"
+        | "popad" | "popw" | "popl" | "popf" | "popfd" | "enter" | "leave" | "ldrb" | "ldrh"
+        | "ldrsb" | "ldrsh" | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb" | "ldurh"
+        | "ldursb" | "ldursh" | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb" | "ldtrh"
+        | "ldtrsb" | "ldtrsh" | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldapr" | "ldaprb"
+        | "ldaprh" | "ldaprsb" | "ldaprsh" | "ldaprsw" | "ldapur" | "ldapurb" | "ldapurh"
+        | "ldapursb" | "ldapursh" | "ldapursw" | "stlur" | "stlurb" | "stlurh" | "ldlar"
+        | "ldlarb" | "ldlarh" | "stllr" | "stllrb" | "stllrh" | "ldxr" | "ldxrb" | "ldxrh"
+        | "stxr" | "stxrb" | "stxrh" | "ldax" | "ldaxr" | "ldaxrb" | "ldaxrh" | "stlxr"
+        | "stlxrb" | "stlxrh" | "ldxp" | "stxp" | "ldaxp" | "stlxp" | "ldar" | "ldarb"
+        | "ldarh" | "stlr" | "stlrb" | "stlrh" | "ld64b" | "st64b" | "st64bv" | "st64bv0"
+        | "ld1" | "st1" | "ld2" | "st2" | "ld3" | "st3" | "ld4" | "st4" | "ld1r" | "ld2r"
+        | "ld3r" | "ld4r" | "swp" | "swpb" | "swph" | "swpa" | "swpal" | "swpl" | "swpab"
+        | "swpah" | "swpalb" | "swpalh" | "swplb" | "swplh" | "cas" | "casb" | "cash" | "casa"
+        | "casal" | "casl" | "casab" | "casah" | "caslb" | "caslh" | "casalb" | "casalh"
+        | "casp" | "caspa" | "caspal" | "caspl" | "ldadd" | "ldaddb" | "ldaddh" | "ldadda"
+        | "ldaddab" | "ldaddah" | "ldaddl" | "ldaddlb" | "ldaddlh" | "ldaddal" | "ldaddalb"
+        | "ldaddalh" | "ldclr" | "ldclrb" | "ldclrh" | "ldclra" | "ldclrab" | "ldclrah"
+        | "ldclrl" | "ldclrlb" | "ldclrlh" | "ldclral" | "ldclralb" | "ldclralh" | "ldeor"
+        | "ldeorb" | "ldeorh" | "ldeora" | "ldeorab" | "ldeorah" | "ldeorl" | "ldeorlb"
+        | "ldeorlh" | "ldeoral" | "ldeoralb" | "ldeoralh" | "ldset" | "ldsetb" | "ldseth"
+        | "ldseta" | "ldsetab" | "ldsetah" | "ldsetl" | "ldsetlb" | "ldsetlh" | "ldsetal"
+        | "ldsetalb" | "ldsetalh" | "ldsmax" | "ldsmaxb" | "ldsmaxh" | "ldsmaxa" | "ldsmaxab"
+        | "ldsmaxah" | "ldsmaxl" | "ldsmaxlb" | "ldsmaxlh" | "ldsmaxal" | "ldsmaxalb"
+        | "ldsmaxalh" | "ldsmin" | "ldsminb" | "ldsminh" | "ldsmina" | "ldsminab" | "ldsminah"
+        | "ldsminl" | "ldsminlb" | "ldsminlh" | "ldsminal" | "ldsminalb" | "ldsminalh"
+        | "ldumax" | "ldumaxb" | "ldumaxh" | "ldumaxa" | "ldumaxab" | "ldumaxah" | "ldumaxl"
+        | "ldumaxlb" | "ldumaxlh" | "ldumaxal" | "ldumaxalb" | "ldumaxalh" | "ldumin"
+        | "lduminb" | "lduminh" | "ldumina" | "lduminab" | "lduminah" | "lduminl" | "lduminlb"
+        | "lduminlh" | "lduminal" | "lduminalb" | "lduminalh" | "stadd" | "staddb" | "staddh"
+        | "staddl" | "staddlb" | "staddlh" | "stclr" | "stclrb" | "stclrh" | "stclrl"
+        | "stclrlb" | "stclrlh" | "steor" | "steorb" | "steorh" | "steorl" | "steorlb"
+        | "steorlh" | "stset" | "stsetb" | "stseth" | "stsetl" | "stsetlb" | "stsetlh"
+        | "stsmax" | "stsmaxb" | "stsmaxh" | "stsmaxl" | "stsmaxlb" | "stsmaxlh" | "stsmin"
+        | "stsminb" | "stsminh" | "stsminl" | "stsminlb" | "stsminlh" | "stumax" | "stumaxb"
+        | "stumaxh" | "stumaxl" | "stumaxlb" | "stumaxlh" | "stumin" | "stuminb" | "stuminh"
+        | "stuminl" | "stuminlb" | "stuminlh" | "xchg" | "xadd" | "cmpxchg" | "cmpxchg8b"
+        | "cmpxchg16b" | "xlat" | "xlatb" | "lds" | "les" | "lss" | "lfs" | "lgs" | "sgdt"
+        | "sidt" | "lgdt" | "movnti" | "movntq" | "movntdq" | "movntdqa" | "bound" | "fxsave"
+        | "fxrstor" | "xsave" | "xsavec" | "xsaves" | "xsaveopt" | "xrstor" | "xrstors"
+        | "movs" | "movsb" | "movsw" | "movsq" | "lods" | "lodsb" | "lodsw" | "lodsq" | "lodsd"
+        | "stos" | "stosb" | "stosw" | "stosq" | "stosd" | "scas" | "scasb" | "scasw" | "scasq"
+        | "scasd" | "cmps" | "cmpsb" | "cmpsw" | "cmpsq" | "ins" | "outs" | "insb" | "insw"
+        | "insd" | "outsb" | "outsw" | "outsd" => Refused(UnmodeledMemoryAccess),
         _ => return None,
     };
     Some(entry)

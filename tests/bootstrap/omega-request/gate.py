@@ -1,7 +1,7 @@
 """Drive D's canonical OCREQ request entry through the selected evaluator."""
 
-ENTRY_SIZE = 4115
-ENTRY_SHA256 = "0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0"
+ENTRY_SIZE = 4112
+ENTRY_SHA256 = "9368297baef947465d5f1ee11df8f1a0fdf60a01e369836ce0555df02890d9ca"
 REQUEST_SIZE = 132
 REQUEST_SHA256 = "ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062"
 
@@ -87,7 +87,7 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-require_identity("D", compiler, 569920,
+    require_identity("D", compiler, 569920,
                      "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("request entry", entry, ENTRY_SIZE, ENTRY_SHA256)

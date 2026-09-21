@@ -15,14 +15,55 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        use typed_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
-
         let Some(schema) = self.program.wire_encode_call_schema(call) else {
             return Ok(None);
         };
         let schema_name = schema.name.as_str().to_owned();
         let era = self.program.wire_schema_current_era(schema);
+        let (fields, has_text_field) = self.wire_encode_fields(schema)?;
 
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments);
+        let [value_argument, out_argument, written_argument] = arguments else {
+            return Err(Halt::Trap(format!(
+                "`{schema_name}::encode` expects 3 arguments, got {}",
+                arguments.len()
+            )));
+        };
+        let (value_argument, out_argument, written_argument) =
+            (*value_argument, *out_argument, *written_argument);
+
+        let value_cell = self.eval_argument(value_argument, frame)?;
+        let value_cell = self.deref_cell(value_cell);
+        let out_cell = self.eval_argument(out_argument, frame)?;
+        let out_cell = self.deref_cell(out_cell);
+        let written_cell = self.eval_argument(written_argument, frame)?;
+        let written_cell = self.deref_cell(written_cell);
+
+        let bytes = self.wire_encode_body(&schema_name, era, &fields, &value_cell)?;
+        self.wire_encode_commit(
+            &schema_name,
+            &bytes,
+            has_text_field,
+            &out_cell,
+            &written_cell,
+        )?;
+        Ok(Some(Value::Unit))
+    }
+
+    /// The CURRENT-era (name, number, content) list of a schema's encodable
+    /// fields, sorted by field number, and whether any field is runtime-sized
+    /// (text, borrowed byte slice, or borrowed scalar slice -- the
+    /// bounded-output drop rule keys off it).
+    pub(super) fn wire_encode_fields(
+        &self,
+        schema: &typed_trees::wire::WireSchema,
+    ) -> EvalResult<(Vec<(String, u64, WireInterpField)>, bool)> {
+        use typed_trees::wire::{WireFieldEncoding, WireMember};
+
+        let schema_name = schema.name.as_str();
         // (field name, number, content) of the CURRENT era, in field-number
         // order -- validation has already enforced the stage 2 field set
         // (scalars, at most one trailing String, scalar-only nested
@@ -98,29 +139,23 @@ impl<'program> Evaluator<'program> {
                     | WireInterpField::ScalarSlice(_)
             )
         });
+        Ok((fields, has_text_field))
+    }
 
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        let [value_argument, out_argument, written_argument] = arguments else {
-            return Err(Halt::Trap(format!(
-                "`{schema_name}::encode` expects 3 arguments, got {}",
-                arguments.len()
-            )));
-        };
-        let (value_argument, out_argument, written_argument) =
-            (*value_argument, *out_argument, *written_argument);
-
-        let value_cell = self.eval_argument(value_argument, frame)?;
-        let value_cell = self.deref_cell(value_cell);
-        let out_cell = self.eval_argument(out_argument, frame)?;
-        let out_cell = self.deref_cell(out_cell);
-        let written_cell = self.eval_argument(written_argument, frame)?;
-        let written_cell = self.deref_cell(written_cell);
+    /// The compact_binary bytes the synthesized encoder emits for `value`:
+    /// the CURRENT era discriminator varint, then tag varint + payload per
+    /// field in field-number order.
+    pub(super) fn wire_encode_body(
+        &self,
+        schema_name: &str,
+        era: u64,
+        fields: &[(String, u64, WireInterpField)],
+        value_cell: &Cell,
+    ) -> EvalResult<Vec<u8>> {
+        use typed_trees::wire::{WireFieldEncoding, wire_varint_bytes};
 
         let mut bytes = wire_varint_bytes(era);
-        for (field_name, number, content) in &fields {
+        for (field_name, number, content) in fields {
             bytes.extend(wire_varint_bytes(*number));
 
             let raw = match &*value_cell.borrow() {
@@ -327,7 +362,21 @@ impl<'program> Evaluator<'program> {
                 }
             }
         }
+        Ok(bytes)
+    }
 
+    /// Commit the emitted bytes to the caller's `out`/`written` cells under
+    /// the bounded-output contract: an oversized emission without a
+    /// runtime-sized field is a compiler bug (trap), while a text-bearing
+    /// schema drops overflowing content and `written` clamps to capacity.
+    pub(super) fn wire_encode_commit(
+        &self,
+        schema_name: &str,
+        bytes: &[u8],
+        has_text_field: bool,
+        out_cell: &Cell,
+        written_cell: &Cell,
+    ) -> EvalResult<()> {
         match &*out_cell.borrow() {
             Value::Array(elements) => {
                 if bytes.len() > elements.len() && !has_text_field {
@@ -343,7 +392,7 @@ impl<'program> Evaluator<'program> {
                 // With a runtime-sized text field the native byte-copy bounds every store
                 // against the buffer's capacity and DROPS overflowing content
                 // (the text field encodes last); `zip` clamps identically.
-                for (element, byte) in elements.iter().zip(&bytes) {
+                for (element, byte) in elements.iter().zip(bytes) {
                     *element.borrow_mut() = Value::Int(i64::from(*byte));
                 }
             }
@@ -358,8 +407,7 @@ impl<'program> Evaluator<'program> {
             _ => unreachable!("out argument validated as an array above"),
         };
         *written_cell.borrow_mut() = Value::Int(bytes.len().min(buffer_capacity) as i64);
-
-        Ok(Some(Value::Unit))
+        Ok(())
     }
 
     /// `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` -- the
@@ -377,8 +425,6 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        use typed_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
-
         let Some(schema) = self.program.wire_decode_call_schema(call) else {
             return Ok(None);
         };
@@ -407,6 +453,76 @@ impl<'program> Evaluator<'program> {
                 ))
             })?;
 
+        let fields = self.wire_decode_fields(&schema_name, schema, |name| {
+            typed_trees::wire::data_field_type(self.program, value_type, name)
+        })?;
+
+        let value_cell = self.eval_argument(value_argument, frame)?;
+        let value_cell = self.deref_cell(value_cell);
+        let buffer_cell = self.eval_argument(buffer_argument, frame)?;
+        let buffer_cell = self.deref_cell(buffer_cell);
+        let read_cell = self.eval_argument(read_argument, frame)?;
+        let read_cell = self.deref_cell(read_cell);
+        let ok_cell = self.eval_argument(ok_argument, frame)?;
+        let ok_cell = self.deref_cell(ok_cell);
+
+        // The decode buffer's bytes and compile-time length.
+        let buffer: Vec<u8> = match &*buffer_cell.borrow() {
+            Value::Array(elements) => elements
+                .iter()
+                .map(|element| {
+                    element
+                        .borrow()
+                        .as_int()
+                        .map(|byte| byte as u8)
+                        .ok_or_else(|| {
+                            Halt::Trap(format!(
+                                "`{schema_name}::decode` buffer element is not a byte"
+                            ))
+                        })
+                })
+                .collect::<Result<_, _>>()?,
+            _ => {
+                return Err(Halt::Trap(format!(
+                    "`{schema_name}::decode` buffer argument is not a fixed byte array"
+                )));
+            }
+        };
+
+        let (cursor, ok) =
+            self.wire_decode_body(&schema_name, era, &fields, &buffer, &value_cell)?;
+
+        *read_cell.borrow_mut() = Value::Int(cursor as i64);
+        // The verdict enum (`WireVerdict`): Sound on a clean decode, Invalid
+        // on the first violation -- mirrors the native tag write (Invalid = 0
+        // = the ZII zero case, Sound = 1). The declaring type resolves by
+        // name (invalid when the program declares no WireVerdict, and the
+        // name-global fallback covers it).
+        *ok_cell.borrow_mut() = Value::Enum {
+            type_symbol: self
+                .find_data_by_name("WireVerdict")
+                .map(|data| data.symbol)
+                .unwrap_or_else(SymbolHandle::invalid),
+            variant_name: if ok { "Sound" } else { "Invalid" }.to_owned(),
+            payload: Vec::new(),
+        };
+
+        Ok(Some(Value::Unit))
+    }
+
+    /// The CURRENT-era (name, number, content) decode fields of a schema, in
+    /// field-number order. `resolve_field_type` answers the destination data
+    /// declaration's type for a field name -- the call path resolves it from
+    /// the value argument's declared type, the conformance verifier from the
+    /// schema's own data declaration.
+    pub(super) fn wire_decode_fields(
+        &self,
+        schema_name: &str,
+        schema: &typed_trees::wire::WireSchema,
+        resolve_field_type: impl Fn(&str) -> Option<TypeReferenceHandle>,
+    ) -> EvalResult<Vec<(String, u64, WireInterpScalarField)>> {
+        use typed_trees::wire::{WireMember, WireScalarEncoding};
+
         // (field name, number, content) of the CURRENT era, in field-number
         // order -- validation has already enforced the stage 2 field set
         // (scalars plus scalar-only nested messages).
@@ -418,14 +534,12 @@ impl<'program> Evaluator<'program> {
             if field.relevance.is_erased() {
                 continue;
             }
-            let target_type =
-                typed_trees::wire::data_field_type(self.program, value_type, field.name.as_str())
-                    .ok_or_else(|| {
-                    Halt::Unsupported(format!(
-                        "`{schema_name}::decode` cannot resolve destination field `{}`",
-                        field.name
-                    ))
-                })?;
+            let target_type = resolve_field_type(field.name.as_str()).ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "`{schema_name}::decode` cannot resolve destination field `{}`",
+                    field.name
+                ))
+            })?;
             if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
                 let range = typed_trees::wire::repeated_element_type(
                     self.program,
@@ -505,38 +619,23 @@ impl<'program> Evaluator<'program> {
             ));
         }
         fields.sort_by_key(|(_, number, _)| *number);
+        Ok(fields)
+    }
 
-        let value_cell = self.eval_argument(value_argument, frame)?;
-        let value_cell = self.deref_cell(value_cell);
-        let buffer_cell = self.eval_argument(buffer_argument, frame)?;
-        let buffer_cell = self.deref_cell(buffer_cell);
-        let read_cell = self.eval_argument(read_argument, frame)?;
-        let read_cell = self.deref_cell(read_cell);
-        let ok_cell = self.eval_argument(ok_argument, frame)?;
-        let ok_cell = self.deref_cell(ok_cell);
-
-        // The decode buffer's bytes and compile-time length.
-        let buffer: Vec<u8> = match &*buffer_cell.borrow() {
-            Value::Array(elements) => elements
-                .iter()
-                .map(|element| {
-                    element
-                        .borrow()
-                        .as_int()
-                        .map(|byte| byte as u8)
-                        .ok_or_else(|| {
-                            Halt::Trap(format!(
-                                "`{schema_name}::decode` buffer element is not a byte"
-                            ))
-                        })
-                })
-                .collect::<Result<_, _>>()?,
-            _ => {
-                return Err(Halt::Trap(format!(
-                    "`{schema_name}::decode` buffer argument is not a fixed byte array"
-                )));
-            }
-        };
+    /// Run the synthesized strict decoder's operation sequence over `buffer`,
+    /// writing decoded members into `value_cell`'s field cells. Returns the
+    /// consumed cursor and the soundness flag; per the sticky-failure
+    /// contract every step still runs after the first violation so cursor
+    /// and field side effects match the native sequences byte for byte.
+    pub(super) fn wire_decode_body(
+        &mut self,
+        schema_name: &str,
+        era: u64,
+        fields: &[(String, u64, WireInterpScalarField)],
+        buffer: &[u8],
+        value_cell: &Cell,
+    ) -> EvalResult<(usize, bool)> {
+        use typed_trees::wire::wire_varint_bytes;
 
         // read = 0, ok = true -- then the sticky flag only ever clears.
         let mut cursor = 0usize;
@@ -592,7 +691,7 @@ impl<'program> Evaluator<'program> {
             expect_byte(&mut cursor, &mut ok, byte);
         }
 
-        for (field_name, number, content) in &fields {
+        for (field_name, number, content) in fields {
             for byte in wire_varint_bytes(*number) {
                 expect_byte(&mut cursor, &mut ok, byte);
             }
@@ -795,27 +894,11 @@ impl<'program> Evaluator<'program> {
                 }
             }
         }
-
-        *read_cell.borrow_mut() = Value::Int(cursor as i64);
-        // The verdict enum (`WireVerdict`): Sound on a clean decode, Invalid
-        // on the first violation -- mirrors the native tag write (Invalid = 0
-        // = the ZII zero case, Sound = 1). The declaring type resolves by
-        // name (invalid when the program declares no WireVerdict, and the
-        // name-global fallback covers it).
-        *ok_cell.borrow_mut() = Value::Enum {
-            type_symbol: self
-                .find_data_by_name("WireVerdict")
-                .map(|data| data.symbol)
-                .unwrap_or_else(SymbolHandle::invalid),
-            variant_name: if ok { "Sound" } else { "Invalid" }.to_owned(),
-            payload: Vec::new(),
-        };
-
-        Ok(Some(Value::Unit))
+        Ok((cursor, ok))
     }
 }
 
-enum WireInterpField {
+pub(super) enum WireInterpField {
     Direct(typed_trees::wire::WireFieldEncoding),
     Nested(Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>),
     Repeated(typed_trees::wire::WireRepeatedEncoding),
@@ -828,7 +911,7 @@ enum WireInterpField {
 /// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
 /// it. An owned `String` is encode-only, but a borrowed `&[u8]` byte slice
 /// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
-enum WireInterpScalarField {
+pub(super) enum WireInterpScalarField {
     Scalar {
         encoding: typed_trees::wire::WireScalarEncoding,
         range: Option<language_semantics::wire::WireScalarRange>,
@@ -858,7 +941,7 @@ enum WireInterpScalarField {
 /// The CURRENT-era (name, number, scalar encoding) list of a nested wire
 /// schema, sorted by field number -- validation has already guaranteed the
 /// scalar-only child body.
-fn wire_nested_scalar_fields(
+pub(super) fn wire_nested_scalar_fields(
     program: &TypedTrees,
     child: &typed_trees::wire::WireSchema,
 ) -> Result<Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>, Halt> {
@@ -987,7 +1070,7 @@ fn wire_scalar_in_range(
 /// The unsigned LEB128 payload a scalar value encodes as -- the same
 /// widths/signedness the native encoders apply: load at the source width
 /// (zero- or sign-extending), zigzag signed sources at 64 bits.
-fn wire_scalar_varint_value(
+pub(super) fn wire_scalar_varint_value(
     raw: i64,
     scalar: typed_trees::wire::WireScalarEncoding,
 ) -> Result<u64, Halt> {
@@ -1024,7 +1107,7 @@ fn wire_decoded_scalar_value(
     }
 }
 
-fn zigzag64(value: i64) -> u64 {
+pub(super) fn zigzag64(value: i64) -> u64 {
     ((value << 1) ^ (value >> 63)) as u64
 }
 
