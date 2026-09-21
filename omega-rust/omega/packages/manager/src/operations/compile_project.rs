@@ -9,7 +9,7 @@ use crate::admission::{
 };
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
-    ReviewOnlyCapabilityConflictLimits, RestrictedBuildCheckpoint,
+    RestrictedBuildCheckpoint, ReviewOnlyCapabilityConflictLimits,
     compile_resolved_package_candidate_for_production,
     compile_resolved_package_candidate_for_production_with_checkpoint,
 };
