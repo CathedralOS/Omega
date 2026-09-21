@@ -97,6 +97,23 @@ DERIVATION_COMPARISON_ENTRY_SESSION_SHA256=8f1ea6dd838b0c770cdfc56d745a1bfa7f493
 DERIVATION_COMPARISON_ENTRY_WITNESS_SIZE=349
 DERIVATION_COMPARISON_ENTRY_WITNESS_SHA256=2ba9d62188b05e802231ab0da5be0add5751e866bb2b4a2342d1a7019ccc0375
 
+# Bound produced certificate subject. The certificate request is a produced
+# artifact, not a manifested member: the Beta-encoding edge's stepper
+# reproduces these bytes from the bound theory and checker closures, and the
+# certificate-check gate consumes exactly this request. The record lives in
+# bootstrap/proofs/beta_encoding/README.md with the theory's other bound
+# subjects; the same size/digest pair is independently pinned by the
+# producing gate's own record (tests/gamma/beta-encoding-theory's full
+# subject RECORDED table) and the proofs identity gate checks that the
+# records agree. A digest here is an identity check on the produced bytes,
+# not a proof of the derivation the certificate claims. The check edge's
+# disclosed admission record — the checker's 17-byte Checked observation —
+# binds its proof-row count in the producing gate's record; its measured
+# work field lands with the first native run and binds then, per the
+# manifest's bind-on-arrival rule.
+BETA_ENCODING_CERTIFICATE_REQUEST_SIZE=135485028
+BETA_ENCODING_CERTIFICATE_REQUEST_SHA256=7c0e3bf230a2675a170ea77dc6962ef6aa7c03ce15248b27475c7c6a3e592908
+
 # require_bound_manifest_closure LABEL MANIFEST SIZE SHA256 PACKED_SIZE
 # PACKED_SHA256 RECORD : shared manifest-then-repack check behind both proof
 # subjects. Repacking needs python3; without it the closure identity cannot
@@ -154,6 +171,18 @@ require_beta_encoding_definition_package_identity() {
     "$OMEGA_PATH_BETA_ENCODING_PACKAGE" \
     "$BETA_ENCODING_DEFINITION_PACKAGE_SIZE" \
     "$BETA_ENCODING_DEFINITION_PACKAGE_SHA256" \
+    "bootstrap/proofs/beta_encoding/README.md"
+}
+
+# require_beta_encoding_certificate_request_identity FILE : a produced
+# certificate request file is exactly the bound produced subject above. A
+# gate that materializes the request to disk runs it before consuming the
+# bytes; tests may call it directly. In-memory consumers pin the same
+# identity against their own record instead.
+require_beta_encoding_certificate_request_identity() {
+  require_bound_identity "certificate request" "$1" \
+    "$BETA_ENCODING_CERTIFICATE_REQUEST_SIZE" \
+    "$BETA_ENCODING_CERTIFICATE_REQUEST_SHA256" \
     "bootstrap/proofs/beta_encoding/README.md"
 }
 

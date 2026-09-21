@@ -271,7 +271,7 @@ fn copy_case_membership_fact(
     let ProofFact::Membership(membership) = snapshot.items.proof_fact(source) else {
         unreachable!("membership fact checked by caller")
     };
-    let membership = membership.clone();
+    let membership = *membership;
     let arguments = snapshot
         .type_references
         .type_reference_handles(membership.domain_arguments)

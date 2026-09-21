@@ -29,8 +29,9 @@ pub enum ElfPlacedDynamicSectionKind {
     ProcedureLinkage = 8,
     ProcedureGot = 9,
     ProcedureRelocation = 10,
-    DynamicTable = 11,
-    SectionNameTable = 12,
+    GeneralRelocation = 11,
+    DynamicTable = 12,
+    SectionNameTable = 13,
 }
 
 /// Absolute geometry for one future `Elf64_Phdr`.
@@ -80,7 +81,7 @@ impl ElfLoadProgramHeader {
     }
 }
 
-/// Absolute placement of one row in the closed thirteen-section roster.
+/// Absolute placement of one row in the closed fourteen-section roster.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElfPlacedDynamicSection {
     pub(crate) index: u32,

@@ -52,10 +52,13 @@ impl SelectedInstructionOptimizationEvidence {
             Self::Identity(ranges) => {
                 validate_optimized_live_range_custody(ranges.liveness_stage(), ranges.ranges())
                     .map_err(SelectedInstructionOptimizationError::LiveRanges)?;
-                if !ranges
-                    .selections()
-                    .for_phase(optimization_core::OptimizationExecutionPhase::SelectedLowering)
-                    .is_empty()
+                // Identity output admits only selections under executor-less
+                // catalog slices; a selection under any phase the entrance
+                // executes without its rewrite run is a missing execution.
+                // The executed set comes from the same catalog admission
+                // `optimize_analyzed_selected_instructions` reads.
+                if super::executed_slice_phases()
+                    .any(|phase| !ranges.selections().for_phase(phase).is_empty())
                 {
                     return Err(SelectedInstructionOptimizationError::MissingExecution);
                 }

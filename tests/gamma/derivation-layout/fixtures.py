@@ -22,7 +22,7 @@ def cases():
     yield "outer_trailing", valid + b"X", rejected(228, 5), 2, 60
 
     yield source_spine()
-    # This tests forwarding, not a request-extent inner scan: outer admission stops first.
+    # This tests forwarding, not a 130-MiB inner scan: outer admission stops first.
     oversized = MAGIC + words(LIMIT - 23, 0, 0, 0) + b"\x00" * (LIMIT - 23)
     incomplete = b"\x02" + words(1, LIMIT, LIMIT, LIMIT + 1)
     yield "outer_request_capacity_forwarded", oversized, incomplete, 1, 600

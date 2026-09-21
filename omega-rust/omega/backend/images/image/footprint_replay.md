@@ -3,7 +3,7 @@
 [Machine-state evidence](../../../../../wiki/spec/build/machine_state_evidence.md)
 specifies the required final-artifact contract. The typed model and replay live
 in [footprint_certificate.rs](src/footprint_certificate.rs); executable-region
-inventory lives in [model/executable_regions.rs](src/model/executable_regions.rs).
+inventory lives in [final_image/executable_regions.rs](src/final_image/executable_regions.rs).
 
 The certificate retains normalized coverage classes, completeness and missing
 sets, final placement, compiler-text derivation, and region inventory in one

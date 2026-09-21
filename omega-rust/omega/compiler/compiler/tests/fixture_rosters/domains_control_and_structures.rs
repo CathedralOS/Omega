@@ -240,6 +240,8 @@ pub(crate) const RUNTIME_SATURATING_ARRAY_ELEMENT_GUARD_EXIT: &str =
 pub(crate) const CUSTOM_RANKING_FIELD_COUNTDOWN_COMPILE: &str =
     "termination/custom_ranking_field_countdown_compile";
 pub(crate) const CUSTOM_RANKING_STRUCT_VIEW: &str = "termination/custom_ranking_struct_view";
+pub(crate) const RANKED_CALLEE_PROJECTED_RECEIVER_COMPILE: &str =
+    "termination/ranked_callee_projected_receiver_compile";
 pub(crate) const RUNTIME_FLOAT_NESTED_OPERAND_EXIT: &str =
     "arithmetic/runtime_float_nested_operand_exit";
 pub(crate) const RUNTIME_SHIFT_COUNT_DOMAIN_EXIT: &str =
@@ -400,6 +402,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_SATURATING_ARRAY_ELEMENT_GUARD_EXIT,
     CUSTOM_RANKING_FIELD_COUNTDOWN_COMPILE,
     CUSTOM_RANKING_STRUCT_VIEW,
+    RANKED_CALLEE_PROJECTED_RECEIVER_COMPILE,
     RUNTIME_FLOAT_NESTED_OPERAND_EXIT,
     RUNTIME_SHIFT_COUNT_DOMAIN_EXIT,
     RUNTIME_EXACT_GUARDED_SHIFT_COUNT_EXIT,

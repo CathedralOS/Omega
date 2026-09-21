@@ -12,7 +12,12 @@ use crate::emission::scalar_types::terminal_scalar_type;
 use crate::proofs::contract_predicates::canonical_equality;
 use crate::proofs::contract_predicates::{PredicateTerms, connective};
 use crate::terminal_identities::{allocate_dense, value_id};
-use checked_trees::CheckedStructuralScalarParameterPlan;
+use checked_trees::{
+    CheckedErasedProofParameterPlan, CheckedProofTerm, CheckedStructuralScalarParameterPlan,
+    CheckedTrees,
+};
+use semantic_vocabulary::{ProofTerm, ProofTermField};
+use terminal_psi::ErasedProofFormal;
 
 mod namespace;
 mod result_range;
@@ -79,6 +84,22 @@ pub(crate) fn clauses(
             Some(ClosedScalarContractValue::FloatRange(_)) => {
                 return unsupported("scalar floating entry range is not a proposition clause");
             }
+            // A float-meaning equality clause cites its checked equality row
+            // as the vocabulary-level `Atom` the proof admission replays;
+            // the row's dense position derives that identity for producer
+            // and verifier alike. An unresolved coordinate — never rejoined
+            // in graph preparation — stays a hard failure rather than a
+            // claim erased toward Truth.
+            Some(ClosedScalarContractValue::FloatMeaningEquality { equality, .. }) => {
+                let Some(equality) = equality else {
+                    return unsupported(
+                        "float-meaning equality clause was never rejoined to its checked equality row",
+                    );
+                };
+                Proposition::Atom(terminal_psi::float_meaning_equality_proposition_id(
+                    equality.0,
+                ))
+            }
             None => return unsupported("scalar contract clause has no checked predicate"),
         };
         combined = Some(if let Some(previous) = combined {
@@ -133,6 +154,72 @@ pub(crate) fn erased_formal_declarations(
             })
         })
         .collect()
+}
+
+/// Emit the terminal erased-proof formal roster for one checked plan, in
+/// authored order. Proof formals carry their semantic type identity rather
+/// than a scalar type or value id — they never name a runtime operand.
+pub(crate) fn erased_proof_formal_declarations(
+    erased: &[CheckedErasedProofParameterPlan],
+) -> Vec<ErasedProofFormal> {
+    erased
+        .iter()
+        .map(|parameter| ErasedProofFormal {
+            source_position: parameter.source_position,
+            type_identity: parameter.type_identity.clone(),
+        })
+        .collect()
+}
+
+/// Convert one checked proof-only actual into its terminal term. `Formal`
+/// occurrences resolve against the caller's erased-proof roster by symbol, so
+/// the emitted position always indexes the roster carried by the block or
+/// contract these terms appear under. Construction identities canonicalize
+/// through the same `::` display path every other identity uses.
+pub(crate) fn checked_proof_term(
+    checked: &CheckedTrees,
+    term: &CheckedProofTerm,
+    caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
+) -> Result<ProofTerm, LoweringError> {
+    match term {
+        CheckedProofTerm::Construction {
+            data_symbol: _,
+            type_identity,
+            case_symbol,
+            fields,
+        } => Ok(ProofTerm::Construction {
+            type_identity: type_identity.clone(),
+            case_identity: case_symbol.map(|symbol| checked.symbols.display_path(symbol, "::")),
+            fields: fields
+                .iter()
+                .map(|field| {
+                    Ok(ProofTermField {
+                        field_identity: checked.symbols.display_path(field.field_symbol, "::"),
+                        term: checked_proof_term(
+                            checked,
+                            &field.term,
+                            caller_erased_proof_parameters,
+                        )?,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
+        }),
+        CheckedProofTerm::Formal { parameter_symbol } => {
+            let position = caller_erased_proof_parameters
+                .iter()
+                .position(|parameter| parameter.parameter_symbol == *parameter_symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "proof actual references a formal outside the caller's erased-proof roster",
+                ))?;
+            Ok(ProofTerm::Formal {
+                position: u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "erased-proof roster position exceeds the terminal term width",
+                    )
+                })?,
+            })
+        }
+    }
 }
 
 /// Preserve integer contract relations as propositions, not executable Boolean
@@ -251,4 +338,32 @@ mod tests {
             }
         }
     }
+}
+
+/// The erased-proof roster the caller machine's given state exposes to its
+/// lowered terms: the scalar-graph state's own roster when the caller is a
+/// scalar machine, otherwise the unit machine's published roster.
+pub(crate) fn caller_erased_proof_roster<'a>(
+    checked: &'a CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+) -> Result<&'a [CheckedErasedProofParameterPlan], LoweringError> {
+    if let Some(roster) = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .iter()
+        .find(|graph| graph.machine == machine)
+        .and_then(|graph| graph.states.iter().find(|entry| entry.state == state))
+        .map(|entry| entry.erased_proof_parameters.as_slice())
+    {
+        return Ok(roster);
+    }
+    Ok(crate::unit::attached_unit::bodies::UnitBody::find(
+        &checked.facts.flow.terminal_unit_effects,
+        machine,
+    )?
+    .entry()?
+    .erased_proof_parameters)
 }

@@ -19,8 +19,12 @@ pub struct NominalAffineCleanup {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub cleanup_machine: MachineId,
-    /// Target-contract-local proof root for the borrowed cleanup receiver.
-    /// This is not an executable structural parameter or ABI argument.
+    /// The place the edge lends the consumed value to inside the callee
+    /// frame: exactly the hook's declared `is_self` structural parameter when
+    /// the hook keeps a borrowed `self` receiver, otherwise a proof-local
+    /// root any contextual `requires` clause roots at. Absent when the hook
+    /// keeps no receiver and declares no contextual requirements. It is not
+    /// an argument slot on the edge itself.
     pub cleanup_receiver: Option<PlaceId>,
     /// Obligation identities aligned positionally with the selected cleanup
     /// machine's contextual `requires` clauses.

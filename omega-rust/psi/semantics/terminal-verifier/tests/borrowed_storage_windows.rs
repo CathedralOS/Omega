@@ -125,6 +125,7 @@ fn machine() -> TerminalMachine {
         entry: id(1, BlockId::new),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),
@@ -136,6 +137,7 @@ fn machine() -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(1, ContractId::new),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -369,12 +371,14 @@ fn an_early_return_through_a_second_block_rejects() {
         target: id(2, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(2, BlockId::new),
         parameters: Vec::new(),
@@ -558,6 +562,7 @@ fn the_window_cannot_cross_an_edge() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(1, PlaceId::new),
                 path: argument,
@@ -568,6 +573,7 @@ fn the_window_cannot_cross_an_edge() {
         };
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: id(5, PlaceId::new),
                 position: 0,
@@ -625,6 +631,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -633,12 +640,14 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     let open_arm = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(2, BlockId::new),
         parameters: Vec::new(),
@@ -648,6 +657,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(4, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -655,6 +665,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
     };
     let quiet_arm = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),
@@ -664,6 +675,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(4, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -671,6 +683,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
     };
     let merge = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),
@@ -787,6 +800,7 @@ fn successor_arity_reports_before_window_debt() {
         target: id(2, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![
             StructuralArgument {
                 place: id(1, PlaceId::new),
@@ -811,6 +825,7 @@ fn successor_arity_reports_before_window_debt() {
     });
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: vec![StructuralParameterDeclaration {
             place: id(5, PlaceId::new),
             position: 0,
@@ -875,12 +890,14 @@ fn overlapping_successor_arguments_report_in_edge_order() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![argument(first), argument(second)],
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
         };
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: vec![
                 StructuralParameterDeclaration {
                     place: id(5, PlaceId::new),
@@ -946,6 +963,7 @@ fn a_conditional_reports_the_true_arm_successor_first() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![overlapping_argument.clone()],
             trivial_affine_discards: Vec::new(),
         },
@@ -954,6 +972,7 @@ fn a_conditional_reports_the_true_arm_successor_first() {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![overlapping_argument],
             trivial_affine_discards: Vec::new(),
         },
@@ -965,6 +984,7 @@ fn a_conditional_reports_the_true_arm_successor_first() {
         });
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: id(place, PlaceId::new),
                 position: 0,

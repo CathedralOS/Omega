@@ -91,7 +91,8 @@ pub(super) fn validate_contract_scope(
         }
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
+        | Proposition::LessOrEqual(left, right)
+        | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
             validate_term_scope(module, machine, left, allowed, contract, clause)?;
             validate_term_scope(module, machine, right, allowed, contract, clause)
         }

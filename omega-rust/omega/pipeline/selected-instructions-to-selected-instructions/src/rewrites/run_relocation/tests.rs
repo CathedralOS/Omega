@@ -1637,7 +1637,12 @@ fn run_relocation_is_deterministic_and_re_admitted() {
 /// proposal below is handed to `validate_run_relocation` directly, so
 /// every rejection comes from the validator's own window audit.
 mod independence_tests {
-    use super::*;
+    use super::{
+        FIRST, MAT_A, MAT_B, MAT_C, NativeTarget, POINTER, RunRelocationError, SUM,
+        SelectedInstructionKind, SelectedInstructionPlan, THIRD, ValidatedRunRelocation,
+        baseline_target_register_environment, budget, fixture, instruction, mutated,
+        validate_run_relocation,
+    };
 
     /// Move the run `run` onto `destination_index` inside a source
     /// fixture's plan — the edit a producer emitting that relocation

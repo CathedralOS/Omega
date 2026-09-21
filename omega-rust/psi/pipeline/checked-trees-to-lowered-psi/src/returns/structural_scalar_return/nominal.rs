@@ -206,6 +206,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         structural_parameters: nominal_parameters,
         scalar_parameters: Vec::new(),
         erased_scalar_parameters: plan.erased_scalar_parameters.clone(),
+        erased_proof_parameters: plan.erased_proof_parameters.clone(),
         provider_attachment_requirements: Vec::new(),
         trivial_affine_locals: Vec::new(),
         entry_claims: Vec::new(),
@@ -232,6 +233,32 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         cleanups: nominal_cleanups,
     };
     let mut staged = checked.clone();
+    // The staged synthetic entry owns no scalar lane, so the Unit closure
+    // signature cannot express authored scalar requires terms against it. The
+    // return-lane scalar_requirements republish the retained integer bounds on
+    // the real caller, so the scratch contract keeps only its derived tail.
+    if let Some(staged_contract) = staged
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|contract| contract.machine == plan.machine)
+    {
+        let closed = &staged_contract.closed_scalar_values;
+        let derived_requires = closed.requires()[closed.authored_requires().len()..].to_vec();
+        let ensures = closed.ensures().to_vec();
+        let has_crash_clauses = closed.has_crash_clauses();
+        let has_outcome_specific_clauses = closed.has_outcome_specific_clauses();
+        let float_entry_ranges = closed.float_entry_ranges().map(<[_]>::to_vec);
+        staged_contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+            derived_requires,
+            ensures,
+            has_crash_clauses,
+            has_outcome_specific_clauses,
+        )
+        .with_authored_requires_len(0)
+        .with_float_entry_ranges(float_entry_ranges);
+    }
     for shape in &checked
         .facts
         .flow
@@ -389,6 +416,22 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             continue;
         };
         if receiver_place_rebase.contains_key(&receiver) {
+            continue;
+        }
+        // A receiver that names the hook's borrowed `self` parameter is a
+        // declared place, not a proof-local root — it stays put.
+        let receiver_is_hook_parameter = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == cleanup.cleanup_machine)
+            .is_some_and(|machine| {
+                machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self && parameter.place == receiver)
+            });
+        if receiver_is_hook_parameter {
             continue;
         }
         next_proof_root = next_proof_root
@@ -1290,6 +1333,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             id: continuation_block,
             parameters: vec![convergence_value],
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: operations.operations[continuation_operation_start..].to_vec(),
             terminator: Terminator::Return {
                 edge: return_edge,
@@ -1351,6 +1395,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             id: entry.entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: operations.operations,
             terminator: Terminator::Return {
                 edge,

@@ -706,6 +706,25 @@ pub enum ModuleError {
     ErasedCallArgumentUnknownValue {
         operation: OperationId,
     },
+    /// A call supplies a different number of erased proof actuals than the
+    /// callee contract's `erased_proof_formals` roster declares.
+    ErasedProofArgumentArityMismatch {
+        operation: OperationId,
+        expected: usize,
+        actual: usize,
+    },
+    /// An erased proof actual names a formal position the caller's block does
+    /// not declare — proof actuals stay inside the caller's own proof scope.
+    ErasedProofArgumentUnknownFormal {
+        operation: OperationId,
+    },
+    /// An erased proof actual's carrier type differs from the callee formal's
+    /// declared type identity at the same roster position.
+    ErasedProofArgumentTypeMismatch {
+        operation: OperationId,
+        expected: String,
+        actual: String,
+    },
     UnknownBoundaryCallArgument {
         operation: OperationId,
         argument: ValueId,

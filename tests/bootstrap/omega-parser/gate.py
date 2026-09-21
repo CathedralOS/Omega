@@ -80,7 +80,7 @@ def main():
               f"execution legs need a seed host ({len(request)}-byte receipt "
               f"request, {len(customer)}-byte customer)", flush=True)
         return
-    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "300"))
+    receipt_timeout = int(os.environ.get("OMEGA_PARSER_RECEIPT_SECONDS", "1800"))
     if receipt_timeout <= 0:
         raise SystemExit("OMEGA_PARSER_RECEIPT_SECONDS must be positive")
     receipt = evaluate(directory, delta_compiler,

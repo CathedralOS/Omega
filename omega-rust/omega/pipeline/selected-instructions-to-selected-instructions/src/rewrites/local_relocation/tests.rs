@@ -1683,7 +1683,11 @@ fn windowed_measured_validation_step_boundary_admits_and_rejects() {
 /// proposal below is handed to `validate_local_relocation` directly, so
 /// every rejection comes from the validator's own window audit.
 mod independence_tests {
-    use super::*;
+    use super::{
+        LocalRelocationError, MAT_A, MAT_B, NativeTarget, SUM, SelectedInstructionPlan,
+        ValidatedLocalRelocation, baseline_target_register_environment, budget, fixture,
+        validate_local_relocation,
+    };
 
     /// Move the member at `member_index` onto `destination_index` inside a
     /// source fixture's plan — the edit a producer emitting that

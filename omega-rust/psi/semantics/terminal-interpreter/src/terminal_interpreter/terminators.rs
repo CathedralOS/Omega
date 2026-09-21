@@ -88,6 +88,13 @@ impl TerminalExecution {
         let callee = machines
             .get(&completed.0.cleanup_machine)
             .expect("all nominal cleanup targets were validated before edge charge");
+        // The edge lends the consumed value to the hook's borrowed `self`
+        // receiver: the callee frame starts holding it at the declared
+        // receiver place, and the hook's ordinary body runs against it.
+        let receiver_binding = completed
+            .0
+            .cleanup_receiver
+            .map(|receiver| (receiver, completed.1.clone()));
         self.call_stack.push(SuspendedCall {
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
@@ -108,6 +115,9 @@ impl TerminalExecution {
         });
         self.values = BTreeMap::new();
         self.structural_values = BTreeMap::new();
+        if let Some((receiver, value)) = receiver_binding {
+            self.structural_values.insert(receiver, value);
+        }
         self.live_affine_frontier = BTreeSet::new();
         self.live_claims = BTreeMap::new();
         self.dynamic_parameters = BTreeMap::new();
@@ -597,6 +607,9 @@ impl TerminalExecution {
             });
             self.values = BTreeMap::new();
             self.structural_values = BTreeMap::new();
+            if let Some(receiver) = completed.0.cleanup_receiver {
+                self.structural_values.insert(receiver, completed.1.clone());
+            }
             self.live_affine_frontier = BTreeSet::new();
             self.live_claims = BTreeMap::new();
             self.dynamic_parameters = BTreeMap::new();
@@ -728,6 +741,9 @@ impl TerminalExecution {
                         });
                         self.values = BTreeMap::new();
                         self.structural_values = BTreeMap::new();
+                        if let Some(receiver) = completed.0.cleanup_receiver {
+                            self.structural_values.insert(receiver, completed.1.clone());
+                        }
                         self.live_affine_frontier = BTreeSet::new();
                         self.live_claims = BTreeMap::new();
                         self.dynamic_parameters = BTreeMap::new();
@@ -747,6 +763,26 @@ impl TerminalExecution {
                         };
                         self.values = caller.values;
                         self.values.insert(result_value, returned);
+                        self.retire_plain_locals();
+                        self.structural_values = caller.structural_values;
+                        self.scalar_case_values = caller.scalar_case_values;
+                        self.scalar_array_values = caller.scalar_array_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
+                        self.live_affine_frontier = caller.live_affine_frontier;
+                        self.live_claims = caller.live_claims;
+                        self.dynamic_parameters = caller.dynamic_parameters;
+                        self.current_machine = caller.current_machine;
+                        self.current = caller.current;
+                        self.next_operation = caller.next_operation;
+                        return Ok(TerminatorFlow::Continue);
+                    }
+                    if final_result.is_none()
+                        && let Some(caller) = self.call_stack.pop()
+                    {
+                        let SuspendedCallResult::Unit = caller.result else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.values = caller.values;
                         self.retire_plain_locals();
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;

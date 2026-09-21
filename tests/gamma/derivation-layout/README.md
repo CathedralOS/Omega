@@ -34,7 +34,7 @@ There are 188 vectors and 374 expected observations. The 186 small vectors run
 twice under a 60-second host watchdog. A 46,484-row source
 spine runs once under 600 seconds: child references are physical words and must
 not cause one Gamma call frame per logical term. Its 929,848-byte request is
-not the complete Beta certificate. One 136,314,881-byte outer request also runs
+not the complete Beta certificate. One 130-MiB-plus-one outer request also runs
 once; outer capacity refusal must forward unchanged without scanning invalid
-inner contents. No exact-extent inner traversal is claimed or performed here.
+inner contents. No exact-130-MiB inner traversal is claimed or performed here.
 Host timeouts and outer evaluator failures are not checker outcomes.
