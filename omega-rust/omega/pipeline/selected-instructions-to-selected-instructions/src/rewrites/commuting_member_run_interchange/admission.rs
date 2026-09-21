@@ -9,7 +9,7 @@
 //! window, and no boundary settlement inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId};
+use selected_instructions::SelectedInstructionId;
 
 use super::CommutingMemberRunInterchangeError;
 use crate::ValidatedSelectedAnalysis;
@@ -17,8 +17,7 @@ use crate::rewrites::commuting_accesses as accesses;
 use crate::rewrites::place_storage::structural_place_declarations;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     pub block_index: usize,
     /// The member's index in the block body. The member sits strictly on
     /// one side of the run's span: before `run_first_index` or after
@@ -34,15 +33,15 @@ pub(super) struct Admission<'source> {
     pub run_last_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     run_first: SelectedInstructionId,
     run_last: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, CommutingMemberRunInterchangeError> {
+) -> Result<Admission, CommutingMemberRunInterchangeError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(CommutingMemberRunInterchangeError::SourceMismatch);
@@ -205,7 +204,6 @@ pub(super) fn admit<'source>(
         return Err(CommutingMemberRunInterchangeError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         run_first_index,
