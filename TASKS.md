@@ -3141,6 +3141,26 @@ Owners include
   Extend the shared place/loan sequencer under **STATE-LOCAL-VALUE-FRONTIER**;
   do not reintroduce one producer family per arrangement of calls and stores.
 
+- **WRITE-ONLY-BORROW-RESIDUE.** Mined candidate — scope verified at
+  `82741ec4391`, no unfenced slice. Re-mines the residual bullets of
+  WRITE-ONLY-BORROW; each leg's implementing surface is live-fenced or
+  owner-laned: general aggregate replacement sits in
+  `execution/unit/structural_scalar_store` under BASELINE-T2C-BOUNDARY-BYTE-
+  BUFFER-REPAIR (~15:05Z); the runtime-index native lowering hole is
+  `abstract-operations-to-target-operations/src/lowering` under
+  COORDINATOR-SCOPE-AUDIT (~07:18Z) with PLACED-ACCESS-NATIVE-OPS owning the
+  leg on the board; `&mut dyn` dispatch is `execution/unit/dynamic_scalar_calls`
+  under GENERIC-VIRTUAL-DISPATCH (~15:00Z); computed IEEE stores belong to
+  FLOAT-PROVIDERS (producer `execution/unit/selected_ieee_float.rs` unfenced
+  but the leg's 135-file slice is parked on an unpublished `write-only-borrow`
+  branch — coordinator confirmation required before re-implementing, per the
+  parent row); the domain-qualified byte-field producer path runs through
+  `structural_scalar_store`/`checked_machine` (same fences). The lone
+  unfenced surface, `terminal_psi_indexed_receivers/frontier_pins.rs`, is a
+  test pin that can only move when its producer legs land. The z133
+  same-item claim drained; no other holder at this verification. Native
+  runtime legs remain macOS/Windows host-gated as recorded.
+
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
   through call argument preparation and native validation/replay. The
@@ -4520,6 +4540,18 @@ Owners include
   Trait conformance selection, target-default or overridden float provider
   execution (**FLOAT-PROVIDERS**) and canonical compiler float-meaning
   evaluation keep their separate supply routes.
+- **NEW-OMS-OPERATOR-INTRODUCER-INVENTORY.** — mined candidate;
+  scope verified, slice landed 2026-09-21 (z181): the inventory of
+  the `operator` introducer's retirement surface is committed at
+  `wiki/drafts/operator_introducer_retirement_inventory.md` — 212
+  `operator`-introduced declarations at `82741ec439` (157 library +
+  18 test boundary rows; 37 plain test rows; zero library plain
+  rows), the parse/representation/resolution/checking/supply-mode
+  surfaces to retire, per-bucket migration routing, and the removal
+  order. The migration legs themselves stay with
+  OPERATOR-MACHINE-SUPPLY (TOP-LEVEL-BOUNDARY-REQUIREMENTS generic
+  requirements gate the 29 generic rows).
+
 
 - **MODULE-NAMESPACE-RESOLUTION.** Finish the
   [module/name contract](wiki/spec/language/modules.md) in
@@ -7598,13 +7630,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
   alignment-string parsing gap inside the Squalr app's geometry lane
   (TASKS.md:6086; the parity audit at :6088 attributes it to that row).
-  Its only implementing surface is the `samples/apps/squalr` submodule,
-  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
-  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
-  residual set_alignment call-site gate is a compiler entry-mechanics
-  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
-  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
-  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+  Its only implementing surface is the `samples/apps/squalr` submodule.
+  Re-verified at `58b08fc20f2`: still covered — the sibling claims named
+  here drained; the submodule dir is now fenced only by
+  REGION-ALIGNMENT-EXPANSION (~07:25Z), with SQUALR-NAMED-TRAIT-OPERATORS
+  (~10:24Z) and GEOMETRY-WINDOWS-VALIDATION (~13:53Z) holding item claims
+  on the same lane. The residual set_alignment call-site gate stays a
+  compiler entry-mechanics item tracked under GEOMETRY-PARITY, not this
+  row. Sibling re-mine stubs on the same surface:
+  GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING,
+  SQUALR-ALIGNMENT-STRING-PARSING.
 - **ALPHA-WINDOWS-SEED-EXECUTION.** Mined candidate — scope verified at
   `a51cb805cc`, host-gated re-mine: the name re-covers the Windows x64 leg of
   the audited Alpha seed-execution surface already owned by
@@ -12441,7 +12476,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   natural-writer fuel expectations, ProgramEntry receiver provisioning, and
   one pinned terminal-bytes drift. Re-run when those families close.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-RUNS.** Mined candidate — sibling stub naming the
+  recorded RC-NATIVE-MATRIX surface (canonical row item:
+  RC-NATIVE-MATRIX-LINUX-X86-64). Fresh linux x86-64 host run recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision `6ef64f6dd6`):
+  the 38-leg witness set stays 24 pass / 14 fail — all 14 sysv legs still
+  refuse at product admission on the param-carrying-entry root-slot
+  residual (ENTRY-CONTENT-ROOTS). New evidence at this revision: the gate
+  command itself (`nextest -p omega-native-differential-test
+  --all-targets`) no longer compiles — `pipeline_ownership` carries four
+  `optimized_target()`→`optimized_target_owner()` handle-drift errors from
+  `83766d57bf6` plus a missing `LegalizedScalarTerminator::Crash` arm from
+  `bf8769cce13`; that file family is under the live
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS claim, so the breakage is recorded, not
+  repaired. Context samples also moved: `aarch64_entry_abi` 0/11 now fails
+  at checking (unrespelled fixtures: exact-arithmetic overflow +
+  borrowed-storage transfer), and `program_entries_and_image_validation`
+  is 9/5 across four distinct residuals including the ProgramEntry
+  attachment-identity rejoin. Sibling stubs naming the same recorded
+  surface: RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
+  -HOSTS. (Superseded row: main's 7b259409073 run re-records the
+  same draft at 22 pass / 16 fail with the pipeline_ownership compile
+  drift repaired.)
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
@@ -13864,6 +13920,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `python3 tools/trusted_surface_digests.py` exits 0 and
   `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
   is 15/15 PASS on linux x86-64.
+
+  Duty pass at `138ed79a677` (assigned row TRUSTED-SURFACE-DIGEST-RE-RECORD):
+  the ledger is current — `tools/trusted_surface_digests.py` reports "all
+  recorded digests match the working tree" and the 15-test
+  `trusted_surface` suite is 15/15 PASS on linux x86-64. No drift since the
+  `39317a770b` re-record, so no entry needed revalidation this pass.
 
 - **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS.** — verified 14e6f8f72e: the span-arm surface
