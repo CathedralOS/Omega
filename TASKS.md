@@ -1693,6 +1693,27 @@ Owners include
   held by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). No independent slice
   remains open inside this row.
 
+  Re-verified at `7d03d489e3d9` (z133, linux x86-64): both recorded gates
+  still hold — `cargo nextest run -p typed-trees-to-checked-trees
+  checks::content` 14/14 and the authored ledger end-to-end leg
+  `cargo nextest run -p compiler --test secondary_processor_startup` 4/4,
+  including `authored_startup_contract_survives_terminal_and_native_production`
+  installing the emitted trampoline bytes. No upstream edits on the
+  ledger, canary, startup-test or trampoline-emission surfaces since
+  `3dac85e5cc`. Fence map refreshed: `execution/unit/providers.rs` under
+  PROVIDER-ATTACHMENT-MACHINE-PLAN (z200, ~09:49Z), the
+  `platform_bringup/secondary_processor*` ledger under
+  NEW-APB-CANCELLATION-RACE-PINS (z11, ~12:52Z), `root_entry/
+  provider_execution.rs` under NEW-BI-INSTALLED-OCCURRENCE-REPLAY-PINS
+  (swarm-w9, ~10:26Z), `external-roots` `program_local` subtree under
+  EPOCH-RESOURCE-SNAPSHOTS (~11:32Z), the host-leg recipe draft under
+  NEW-APB-HOST-LEG-RECIPE (~16:10Z), the UEFI handoff surface under
+  UEFI-OS-HANDOFF (z19, ~10:19Z), with the boundary-ABI lane still held
+  by OPAQUE-BY-VALUE-BOUNDARY-ABI (~15:16Z). The open frontier is
+  unchanged: the provider-planning/native-settlement join to the
+  installed occurrence. No independent slice remains open inside this
+  row.
+
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
   route and exact occurrence through independent replay. Reject forged source
   construction, foreign/replayed receipts, substituted geometry and duplicate
@@ -12796,6 +12817,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZATION-CATALOG-EXECUTION-ROUTE (z126) claimed pathless to
   ~14:48Z/~09:00Z and `rewrites/arm_relocation` under
   REWRITE-VALIDATOR-INDEPENDENCE (z50, ~10:33Z).
+  Re-verified at `7d03d489e3d9` (z133, linux x86-64): the census is
+  unchanged — 38 `Orphaned` route rows (35 EXACT-MACHINE-SIMPLIFICATIONS +
+  3 ALIAS-AWARE-MEMORY; DECLARATIVE-PEEPHOLES names none) and
+  `slice_executes_at_stage` still admits only `SelectedLowering`, so the
+  stage entrance executes only that route. Fence map refreshed:
+  REWRITE-CATALOG-ADMISSION (z134) still holds `module_catalog.rs`,
+  `selected_optimization.rs`, `optimization_output.rs` and
+  `catalog_route_tests.rs` to ~14:31Z; PIPELINE-REWRITE-CATALOG-WIRING
+  (z182) remains item-claimed to ~14:48Z;
+  OPTIMIZATION-CATALOG-EXECUTION-ROUTE, SELECTED-REWRITE-CATALOG-ROUTE and
+  SELECTED-REWRITE-CATALOG-WIRING have expired; `rewrites/arm_relocation`
+  stays under REWRITE-VALIDATOR-INDEPENDENCE (z50, ~10:33Z) and
+  `rewrites/fixed_view` plus neighbors moved under
+  DURABLE-CODEC-RELOCATION (z120, ~16:35Z). No independent slice.
 - **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
   and fenced — "placement" is the move leg of the
   `optimized_semantic_wrapper_{encoding,object}` orphan-owner question,
