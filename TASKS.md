@@ -10909,6 +10909,47 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
   MACOS-X64-HOST-PROFILE's row. No unbound slice remains here.
 - **FILESYSTEM-SNAPSHOT-ISOLATION.** Resolved — verified ea025447fe; re-verified 201d58c591 and `ded56393da` (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
+||||||| parent of 5286fac0a900 (board: EXECUTABLE-PUBLICATION-STAGE marker repair + restamp)
+- **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
+- **EXECUTABLE-PUBLICATION-JOIN.** Mined candidate; scope verified, resolved —
+  same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on
+  `origin/main`): the "join" is `CompileReport::publish_retained_native_artifact`
+  (`compilation-report/src/compile_report.rs:271`) joining the validated
+  retained artifact, manifest, and requested PCC pair into one staged tree that
+  `executable_publication.rs` (`publish_exact_bytes`) commits by write-to-tmp,
+  exact read-back replay, mode set, and atomic rename — a failed join leaves no
+  half-written executable or stale sidecar. `omega/src/compilation/publication.rs`
+  (`publish_compilation`/`publish_native_artifact`) is the product-owned route
+  into it, `publish_completed_build_outputs` writes companions, and
+  `output_kind` gating matches the spec's report/entry-bridge rule. Verified on
+  ea025447fe. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION,
+  EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP,
+  RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
+- **EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
+- **EXECUTABLE-PUBLICATION-STAGE** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the "stage" is the staged tree + atomic rename committed by `CompileReport::publish_retained_native_artifact` through `executable_publication.rs` after validating the retained artifact and manifest, refusing non-local output filenames, requiring compiler-text/function validation evidence, and self-checking a requested PCC pair pre-install; a failed publish leaves no half-written executable or stale sidecar, and `omega/src/compilation/publication.rs` is the product-owned route into it. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STEP, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
+- **EXECUTABLE-PUBLICATION-STEP** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the publication "step" is `publish_compilation`/`publish_native_artifact` in `omega/src/compilation/publication.rs`, which gates on `output_kind`, validates the retained artifact and manifest through `CompileReport::publish_retained_native_artifact`, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, then `publish_completed_build_outputs` commits one staged tree + atomic rename via `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. Verified at `ac4e4eee9b`. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
+- **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
+- **FILESYSTEM-SNAPSHOT-ISOLATION** — verified ea025447fe; re-verified 201d58c591 (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
+- **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
+- **EXECUTABLE-PUBLICATION-JOIN.** Mined candidate; scope verified, resolved —
+  same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on
+  `origin/main`): the "join" is `CompileReport::publish_retained_native_artifact`
+  (`compilation-report/src/compile_report.rs:271`) joining the validated
+  retained artifact, manifest, and requested PCC pair into one staged tree that
+  `executable_publication.rs` (`publish_exact_bytes`) commits by write-to-tmp,
+  exact read-back replay, mode set, and atomic rename — a failed join leaves no
+  half-written executable or stale sidecar. `omega/src/compilation/publication.rs`
+  (`publish_compilation`/`publish_native_artifact`) is the product-owned route
+  into it, `publish_completed_build_outputs` writes companions, and
+  `output_kind` gating matches the spec's report/entry-bridge rule. Verified on
+  ea025447fe. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION,
+  EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP,
+  RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
+- **EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): `omega/src/compilation/publication.rs` (`publish_compilation`/`publish_native_artifact`) is the product-owned route calling `CompileReport::publish_retained_native_artifact`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, and commits one staged tree + atomic rename through `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. `output_kind` gating matches the spec's report/entry-bridge rule. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
+- **EXECUTABLE-PUBLICATION-STAGE.** Mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the "stage" is the staged tree + atomic rename committed by `CompileReport::publish_retained_native_artifact` through `executable_publication.rs` after validating the retained artifact and manifest, refusing non-local output filenames, requiring compiler-text/function validation evidence, and self-checking a requested PCC pair pre-install; a failed publish leaves no half-written executable or stale sidecar, and `omega/src/compilation/publication.rs` is the product-owned route into it. Re-verified at `dccdfd1fd11` — record stands; the sibling row's suite witness (`cargo nextest run -p compilation-report executable_publication` 15/15, `ea025447fe`) still covers this pin. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STEP, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
+- **EXECUTABLE-PUBLICATION-STEP** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the publication "step" is `publish_compilation`/`publish_native_artifact` in `omega/src/compilation/publication.rs`, which gates on `output_kind`, validates the retained artifact and manifest through `CompileReport::publish_retained_native_artifact`, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, then `publish_completed_build_outputs` commits one staged tree + atomic rename via `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. Verified at `ac4e4eee9b`. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
+- **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
+- **FILESYSTEM-SNAPSHOT-ISOLATION** — verified ea025447fe; re-verified 201d58c591 (`cargo nextest run -p build-evaluation --lib` 84/84, linux x86-64): the contract
   already holds in `build-evaluation/src/evidence/filesystem_scope/
   preparation.rs` + `filesystem_scope.rs`. Captured source snapshots get a
   create-exclusive owner-only (0o700) private staging parent placed outside
