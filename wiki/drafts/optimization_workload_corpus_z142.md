@@ -32,3 +32,5 @@ WORKLOAD-CORPUS, GRAPH-COST-EVIDENCE-CORPUS,
 LEARNED-OPTIMIZATION-COST-MODEL, WORKLOAD-MULTIVERSIONING. Coordinator:
 fold this stub (and the unmarked :11477 duplicate) into
 WORKLOAD-CORPUS-AND-MULTIVERSIONING.
+
+> Field note (163618c89557..b53c7ea26032 review): re-verification record of a row already folded into WORKLOAD-CORPUS-AND-MULTIVERSIONING; fold and delete rather than re-stamping.

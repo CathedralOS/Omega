@@ -26,3 +26,5 @@ assignment re-mines that consumed resolution.
 No linux_x86_64 implementable slice exists under this name. The alias row
 LEARNED-COST-MODEL's stale pointer (TASKS.md:5889 reference, now deleted)
 was updated to carry this record.
+
+> Field note (163618c89557..b53c7ea26032 review): second ledger draft for the same gate as learned_optimization_cost_model_z142.md; keep one, fold the gate citation into LEARNED-COST-MODEL, delete the other.
