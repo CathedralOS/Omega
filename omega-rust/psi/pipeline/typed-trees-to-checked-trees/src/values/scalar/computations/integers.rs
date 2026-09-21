@@ -465,3 +465,156 @@ fn parameter(position: usize, primitive_type: PrimitiveType) -> CheckedScalarExp
         primitive_type,
     }
 }
+
+impl Builder<'_, '_> {
+    /// The `min`/`max` integer shorthand names a pure builtin, so no machine
+    /// or flow call owns it: the computation is the authored comparison
+    /// `a <= b` (or `a >= b` for `max`) selecting between its operands. Each
+    /// operand computation is shared between the comparison's application and
+    /// the winning selection arm, so an operand carrying a machine call stays
+    /// on the ordinary call lane -- sharing it would sequence its call twice.
+    pub(super) fn integer_min_max(
+        &mut self,
+        source_expression: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+        expected_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        if !is_integer(expected_type)
+            || call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || call.static_requirement_dispatch.is_some()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+        {
+            return None;
+        }
+        let Some(function) = self
+            .program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+        else {
+            return None;
+        };
+        let ordering = match function {
+            symbols::BuiltinFunction::Min => BinaryOperator::LessOrEqual,
+            symbols::BuiltinFunction::Max => BinaryOperator::GreaterOrEqual,
+            _ => return None,
+        };
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        let [left_expression, right_expression] = *arguments else {
+            return None;
+        };
+        let Some(left) = self.expression(left_expression, expected_type) else {
+            return None;
+        };
+        let Some(right) = self.expression(right_expression, expected_type) else {
+            return None;
+        };
+        if self.subgraph_carries_call(left) {
+            return None;
+        }
+        if self.subgraph_carries_call(right) {
+            return None;
+        }
+        let operands = self.plans.operands.insert_many([left, right]);
+        let template = construct_integer_comparison(
+            ordering,
+            parameter(0, expected_type),
+            parameter(1, expected_type),
+        )?;
+        let condition = self.insert(
+            PrimitiveType::Bool,
+            CheckedScalarComputationKind::Apply {
+                source_expression,
+                expression: CheckedScalarExpression::Boolean(Box::new(template)),
+                operands,
+            },
+        );
+        Some(self.insert(
+            expected_type,
+            CheckedScalarComputationKind::Select {
+                source_expression,
+                condition,
+                when_true: left,
+                when_false: right,
+            },
+        ))
+    }
+
+    /// Whether any node under `root` sequences a machine call. Selection shares
+    /// an operand computation between its comparison and both arms; a shared
+    /// call would be sequenced once per referencing position.
+    fn subgraph_carries_call(&self, root: CheckedScalarComputationHandle) -> bool {
+        let plans = &*self.plans;
+        let mut pending = vec![root];
+        let mut visited = Vec::new();
+        while let Some(handle) = pending.pop() {
+            if !plans.nodes.is_valid(handle) {
+                return true;
+            }
+            if visited.contains(&handle) {
+                continue;
+            }
+            visited.push(handle);
+            let kind = &plans.nodes.get(handle).kind;
+            match kind {
+                CheckedScalarComputationKind::Call { .. } => return true,
+                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                    pending.extend([*left, *right]);
+                }
+                CheckedScalarComputationKind::Qualification { operand, .. }
+                | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
+                    pending.push(*operand);
+                }
+                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+                    pending.push(*subject);
+                    let Some(arms) = plans.dispatch_arms.span(*arms) else {
+                        return true;
+                    };
+                    for arm in arms {
+                        if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) =
+                            arm.pattern
+                        {
+                            pending.push(pattern);
+                        }
+                        pending.push(arm.value);
+                    }
+                }
+                CheckedScalarComputationKind::Apply { operands, .. } => {
+                    let Some(operands) = plans.operands.span(*operands) else {
+                        return true;
+                    };
+                    pending.extend(operands.iter().copied());
+                }
+                CheckedScalarComputationKind::Select {
+                    condition,
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    pending.extend([*condition, *when_true, *when_false]);
+                }
+                CheckedScalarComputationKind::CaseMembership {
+                    subject:
+                        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
+                    ..
+                } => {
+                    let Some(fields) = plans.case_fields.span(subject.fields) else {
+                        return true;
+                    };
+                    for field in fields {
+                        pending.push(field.value);
+                    }
+                }
+                CheckedScalarComputationKind::CaseMembership { .. } => {}
+                CheckedScalarComputationKind::Value(_)
+                | CheckedScalarComputationKind::StructuralField { .. } => {}
+            }
+        }
+        false
+    }
+}
