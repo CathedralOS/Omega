@@ -611,6 +611,10 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         Some(&root_policy),
     )
     .expect("fresh policy admits consumer-bound Console evidence");
+    assert_eq!(
+        evidence.schema().version(),
+        ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION
+    );
     let root_evidence = evidence
         .packages()
         .iter()
