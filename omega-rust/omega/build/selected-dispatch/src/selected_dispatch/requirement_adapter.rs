@@ -103,7 +103,19 @@ fn statement_receiver_member_symbols(
     // unique across the program, so more than one binding means the path does
     // not re-derive and stays fenced.
     let mut root_types = Vec::new();
+    // A `self.`-rooted receiver names its enclosing machine or state as the
+    // root place, whose type is the machine's attached data rather than a
+    // parameter or local declaration.
+    let mut self_attached_data = Vec::new();
     for machine in typed.machines() {
+        if machine.symbol == root
+            || typed
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == root)
+        {
+            self_attached_data.push(machine.attached_data_symbol);
+        }
         for state in typed.machine_states(machine) {
             for parameter in typed.state_parameters(state) {
                 if parameter.symbol == root {
@@ -119,13 +131,16 @@ fn statement_receiver_member_symbols(
             }
         }
     }
-    let [type_reference] = root_types.as_slice() else {
-        return None;
+    let mut data_symbol = match root_types.as_slice() {
+        [type_reference] => named_type_symbol(typed, *type_reference)?,
+        [] => match self_attached_data.as_slice() {
+            [data_symbol] if data_symbol.is_valid() => *data_symbol,
+            _ => return None,
+        },
+        _ => return None,
     };
-    let mut type_reference = *type_reference;
     let mut member_symbols = Vec::with_capacity(members.len());
     for member in members {
-        let data_symbol = named_type_symbol(typed, type_reference)?;
         let owner = typed
             .data_definitions()
             .iter()
@@ -147,7 +162,7 @@ fn statement_receiver_member_symbols(
             return None;
         }
         member_symbols.push(symbol);
-        type_reference = next_type;
+        data_symbol = named_type_symbol(typed, next_type)?;
     }
     (member_symbols.last().copied() == Some(leaf)).then_some(member_symbols)
 }
