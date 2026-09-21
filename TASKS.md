@@ -11506,7 +11506,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OPTIMIZED-WRAPPER-OBJECT-RELOCATION** — mined candidate; verify scope then implement.
 - **OPTIMIZER-RULE-AXIS-GATE** — mined candidate; verify scope then implement.
 - **ORPHAN-ENTRANCE-AUDIT.** — mined candidate; verify scope then implement.
-- **ORPHAN-REWRITE-MODULES-CATALOG** — mined candidate; verify scope then implement.
+- **ORPHAN-REWRITE-MODULES-CATALOG** — mined candidate; scope verified,
+  resolved — re-mine of the rewrite-orphans bullet in TASKS_OPTIMIZER.md's
+  PIPELINE-OWNER-CONSOLIDATION, adjudicated on sibling row
+  POC-REWRITE-ORPHANS at `e7c0099cb2b` and re-verified on
+  POC-SELECTED-REWRITE-CATALOG at `2a36697eee`: the named catalog is
+  landed — `selected-instructions-to-selected-instructions/src/rewrites/
+  module_catalog.rs` carries 44 `Orphaned` rows at `832c55e69b76`, each
+  naming its owner item (EXACT-MACHINE-SIMPLIFICATIONS /
+  ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES), reconciled against
+  `mod.rs` by `module_catalog_reconciles_with_mod_declarations` (:326)
+  and pinned against silent Orphaned drift by `252353dacb2`. What
+  remains is not a catalog slice but the catalog-execution leg already
+  owned by the SELECTED-REWRITE-CATALOG-* cluster (orphan modules still
+  unexecuted — `optimize_selected_instructions` at
+  `selected_optimization.rs` runs only the SelectedLowering route +
+  identity). Fences at this pass: `module_catalog.rs` itself under
+  REWRITE-CATALOG-ADMISSION (~14:31Z), `rewrites/arm_relocation` under
+  REWRITE-VALIDATOR-INDEPENDENCE (~10:33Z). No independent slice exists
+  under this name.
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
