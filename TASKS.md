@@ -10129,7 +10129,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `--target windows_x86_64` emit leg does not satisfy the run-based
   acceptance and still needs the fenced tree. Owning parent:
   SQUALR-GEOMETRY-PARITY; sibling re-mine stub GEOMETRY-WINDOWS-REVALIDATION
-  names the same leg.
+  names the same leg. Re-verified at `6f918986063` (z203 leg): still
+  doubly gated — no Windows development host exists in this environment,
+  and the `samples/apps/squalr` dir fence has rotated to
+  SQUALR-DEBUG-ASSERTIONS (~16:25Z) while the
+  GEOMETRY-WINDOWS-VALIDATION item claim stays live (~13:53Z); the
+  previously cited wholesale fences (SQUALR-TARGETS-AND-THROUGHPUT,
+  GEOMETRY-ALIGNMENT-REGIONS) have drained. Submodule pin remains
+  `5b0307c352`.
 - **GEOMETRY-WINDOWS-REVALIDATION.** Mined candidate — scope verified at
   `94e764a6da`, re-mine of the settled adjacent row
   GEOMETRY-WINDOWS-VALIDATION (scope verified `8734480a01`): both names
