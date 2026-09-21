@@ -9995,6 +9995,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   omega-native-differential-test --all-targets` green, only dead-code
   warnings in `terminal_psi_conditional.rs`). The feature-families
   residual stays upstream-gated as recorded; no leg remains here.
+  Re-verified at `58b08fc20f2fc` (linux x86-64):
+  `ExternalCandidateFeatures` (external_schema/model.rs) still the
+  authoritative feature row and `candidate_features::derive` still
+  projects it post-validation onto `ExternalDecisionPoint`; the
+  fence map moved — GRAPH-COST-MODEL-STUDY's `pass_manager/` claim
+  expired, while sibling stubs on the same gated surface are now
+  under live claims (GRAPH-COST-EVIDENCE-CORPUS z126 11:04Z,
+  WORKLOAD-CORPUS z175 07:19Z, WORKLOAD-MULTIVERSIONING z126 11:11Z).
+  Feature-family residual stays corpus-gated as recorded.
 - **HOST-ALIAS-BUILD-DIR-DETECTION.** Advanced — the race-window residual
   verified at `7452910c6e` (a host alias planted between admission's
   `overlap_key` check and the first write is invisible to the
