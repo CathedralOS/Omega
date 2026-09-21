@@ -16,11 +16,16 @@ exposes it beside package identity, purpose, and request meaning —
 satisfying acceptance.md's restricted-build requirement that each request
 report its originating package *and dependency path*.
 
-All four join call-sites supply the source closure:
+**Corrected 2026-09-21: three of the four join call-sites named below do not
+exist.** `ungranted_restricted_build_requests` has no caller anywhere under
+`operations/` — its only production caller is
+`review/restricted_build_grants.rs:290`, and every other call site is a test.
+`check_locked_sources.rs:156` cannot exist at all: that file is 147 lines. The
+two other cited lines are unrelated code. Only the fourth site below is real.
 
-- `operations/check_project.rs:153`,
-- `operations/compile_project.rs:197`,
-- `operations/check_locked_sources.rs:156` — each calls
+The route that does supply the source closure:
+
+- `review/restricted_build_grants.rs:290` calls
   `ungranted_restricted_build_requests(accepted, reviews, &source_closure)`;
 - the in-compile checkpoint in `review/candidate/compilation/package_pass.rs`
   calls `RestrictedBuildCheckpoint::ungranted_requests` with

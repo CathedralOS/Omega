@@ -4013,10 +4013,14 @@ moved to the termination-catalog fence (see that row's refresh note).
   `fail/core/content_retained_custody_from_borrow`). The shared-borrow row
   lowers to `terminal_psi::RetainedBorrowCustody`
   (`checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs`).
-  It cannot be invoked: the Terminal verifier rejects every boundary call whose
-  declaration carries a `RetainedBorrow` guarantee with
-  `RetainedBorrowBoundaryIsNotExecutable`
-  (`terminal-verifier/src/validation/structural_operations/unit_operation/boundary_calls.rs`).
+  It IS invocable — this paragraph is stale and contradicts the row's own
+  "Resume evidence" below it. `143636cec8a6a` ("psi: admit invoked
+  retained-borrow boundary calls under custody") replaced the blanket refusal
+  with custody validation: `boundary_calls.rs:39` destructures the
+  `RetainedBorrow` guarantee and `:89` gates the call on
+  `ModuleError::InvalidRetainedBorrowBoundaryCall`, admitting a call whose
+  source argument is the whole borrowed place presented `SharedBorrow`.
+  `RetainedBorrowBoundaryIsNotExecutable` has zero hits in the tree.
 
   Resume evidence (Zergling-181, wave 2026-09-20): the Terminal leg of the
   first bullet landed. `retain_foreign_borrow_custodies` now merges the
@@ -6158,17 +6162,25 @@ moved to the termination-catalog fence (see that row's refresh note).
   Terminal production carries partial affine residuals on returns, call
   continuations and Jumps for the bounded forms listed in its
   [cleanup note](omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup).
-  Native lowering does not realize them: `lowering/function/mod.rs` rejects a
-  function containing any Jump with `residual_affine_discards`
-  (`UnsupportedPartialAffineContinuation`), and return cleanup admits only
-  whole-root `DiscardRoot` actions (`plain_home_cleanup` in
-  `lowering/control_flow/terminator.rs`).
+  Native lowering realizes them on Jump edges, since `aa698892c9a62`:
+  `plain_home_cleanup` (`lowering/control_flow/terminator.rs:104-133`) admits
+  both `DiscardRoot` and `DiscardResidual` behind a binding-overlap guard, and
+  `lowering/function/mod.rs` no longer inspects `residual_affine_discards` at
+  all — it is 42 lines whose sole rejection is
+  `ScalarBoundaryArgumentsRequireNativeRealization`, and
+  `UnsupportedPartialAffineContinuation` has zero hits in any `.rs` file.
+  Conditional, structural-case and `ReturnStructural` edges carry no residual
+  roster at all: `SuccessorEdge` has only `trivial_affine_discards`, and
+  `encoding.md` gives the successor-edge wire row no residual slot (the Jump
+  case needed a normative tag-1/tag-10 amendment to carry one). Extending it
+  is therefore a spec amendment plus a five-surface chain, not a bounded
+  slice.
 
   Remaining work:
 
-  - Native: realize residual cleanup on return, Jump and conditional edges of
-    the common control graph, including boundary call-result homes and
-    projected copies; whole-result disposal does not cover a projected
+  - Native: realize residual cleanup on return and conditional edges of the
+    common control graph, including boundary call-result homes and
+    projected copies (Jump edges landed at `aa698892c9a62`); whole-result disposal does not cover a projected
     result's residuals. Computed scalar bindings, boundary-result projections,
     and cyclic control need their own storage and edge replay without
     delaying cleanup until final return.
@@ -6369,14 +6381,16 @@ moved to the termination-catalog fence (see that row's refresh note).
   Acceptance: every path invokes the exact selected hook once or proves the
   value transferred/consumed.
 
-  Flag: a nonempty `drop` body is admitted only as a source-ordered list of
-  zero-argument calls to mutually distinct attached helpers whose own bodies
-  are empty (`is_exact_executable_drop_body` in
-  `validation/src/program_validation/statements.rs`); everything else rejects
-  as "outside the executable cleanup slice". The executable slice therefore
-  invokes hooks that cannot do work. The general mechanism is to check and
-  lower the hook body as an ordinary Unit machine and invoke it as the edge's
-  cleanup action, then delete the recognizer.
+  Flag (RETIRED — the prescribed mechanism landed at `4d34752d7e45d`, "cleanup:
+  lower and invoke the real owner-attached drop hook body"). Drop bodies are
+  now checked and lowered as ordinary Unit machine bodies and invoked as the
+  edge's cleanup action, so field stores on the borrowed `self` receiver,
+  repeated calls, argumented calls and bodied helpers all admit — pinned by
+  `tests/native-differential/tests/frontend_drop_expectations.rs:407,436,465,493`.
+  `is_exact_executable_drop_body` and the diagnostic "outside the executable
+  cleanup slice" have zero hits in the tree, and
+  `validation/src/program_validation/statements.rs` carries no cleanup
+  recognizer at all. There is nothing left to delete.
 
 - **TR3-TR8.** Finish whole-call-graph worst-case stack derivation, exact
   `StackPlan`, nonmoving `StackLease`, suspension/cancellation preservation,
@@ -7893,11 +7907,13 @@ Omega-side / native:
   `selected_ieee_float_fma_unit_applications` already uses; the two recorded
   transport tests again fail at the documented
   `FMA provider transport is not implemented in the common instruction
-  pipeline` fence instead of upstream. Remaining legs: (a) no production arm
-  for `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` in
-  `target-operations-to-selected-instructions`
-  (`legalization/scalar_graph_input/target/unit.rs` ingest + `unit/ieee_float.rs`
-  selection); (b) s2s carry, s2rh XMM allocation, post-allocation machine plan,
+  pipeline` fence instead of upstream. Remaining legs: (a) **LANDED at
+  `2a6e06f1c496d`** ("legalize scalar-FMA unit operations against exact
+  constant sources") —
+  `legalization/scalar_graph_input/target/unit.rs:114-118` dispatches
+  `NearestIeeeFloatFusedMultiplyAdd` to `unit/ieee_float.rs:81-136`, which
+  legalizes it against its exact constant operand sources and the settlement's
+  operation/format; (b) s2s carry, s2rh XMM allocation, post-allocation machine plan,
   machine-emission VFMADD + canonical MXCSR envelope + `x86_scalar_fma*`
   object records; (c) remove the `object_emission.rs`, `program_entry.rs`, and
   `optimization_stage.rs` fences once the transport proves out. Unrelated
@@ -7925,10 +7941,10 @@ Omega-side / native:
   remain on their own surfaces.
 - **FLOAT-FMA-NATIVE-TRANSPORT.** Scope verified at 4e523615fe — re-mines
   the transport legs already enumerated on sibling X86-FMA-PROVIDER-TRANSPORT:
-  (a) the production arm for `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`
-  in `target-operations-to-selected-instructions` (`legalization/
-  scalar_graph_input/target/unit.rs` ingest + `unit/ieee_float.rs`
-  selection); (b) the downstream carry — s2s carry, s2rh XMM allocation,
+  (a) **LANDED at `2a6e06f1c496d`** — the production arm for
+  `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` is in
+  `legalization/scalar_graph_input/target/unit.rs:114-118` +
+  `unit/ieee_float.rs:81-136`; (b) the downstream carry — s2s carry, s2rh XMM allocation,
   post-allocation machine plan, machine-emission VFMADD + canonical MXCSR
   envelope + `x86_scalar_fma*` object records; (c) the
   `object_emission.rs` / `program_entry.rs` / `optimization_stage.rs`
@@ -13616,7 +13632,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GENERAL-CYCLIC-EXECUTION; no proved general cyclic composition theorem
   is claimed. Prose-only spec edit; consistency reviewed, no code path
   touched.
-- **NEW-LSC-MULTI-SOURCE-LIFETIME-LEAVES.** Inserted row, scope verified at `b868b9ee8f27` (planner-scoped to `typed-trees-to-checked-trees/src/borrow/view_link.rs`) — the multi-source lifetime-leaf machinery is already implemented in that file: `structural_view_return_source` enumerates input leaves via `carried_lifetimes`, an elided output requires exactly one leaf across the frontier (`ElidedMultipleInputs` at `matching.len() != 1`, covering one parameter carrying several unnamed sources), an explicit output lifetime emits one `ViewReturnFieldSource` per matching leaf within a single input, and one lifetime shared across parameters rejects as `LifetimeMatchesMultipleInputs` ("a single returned view borrowing several inputs is not modelled yet"). No bounded slice remains inside view_link.rs: modelling multi-source borrows changes `ViewReturnSource`'s shape and therefore both consumers — `checks::borrows::elision`'s diagnostic and `borrow::loans`' call-site loan attributor — which sit outside the assigned file. No live fence covers the file; the cross-file leg needs its own dispatch with `elision.rs` + `loans.rs` in scope.
+- **NEW-LSC-MULTI-SOURCE-LIFETIME-LEAVES.** Inserted row, scope verified at `b868b9ee8f27` (planner-scoped to `typed-trees-to-checked-trees/src/borrow/view_link.rs`) — the multi-source lifetime-leaf machinery is already implemented in that file: `structural_view_return_source` enumerates input leaves via `carried_lifetimes`, an elided output requires exactly one leaf across the frontier (`ElidedMultipleInputs` at `matching.len() != 1`, covering one parameter carrying several unnamed sources), an explicit output lifetime emits one `ViewReturnFieldSource` per matching leaf. **SUPERSEDED — this row was inserted after its own blocker was already gone.** `9106b1ca03725` ("psi: explicit result lifetime unions same-lifetime inputs as view sources") landed the multi-source leg inside `view_link.rs`: an explicit result lifetime now links *every* input carrying the name and emits one `ViewReturnFieldSource` per matching leaf across inputs (`view_link.rs:256-285`, comment at :257-259). `LifetimeMatchesMultipleInputs` and its diagnostic have zero hits in any `.rs` file; the only multi-match rejection left is `ElidedMultipleInputs`, guarded by `output.lifetime.is_none() && matching.len() != 1` (:246-248). The sibling row at :12926 already calls the variant retired. No slice remains here. No live fence covers the file; the cross-file leg needs its own dispatch with `elision.rs` + `loans.rs` in scope.
 - **NEW-NATIVE-DIFF-IGNORED-OPERAND-PROBE-INTENT.** Inserted row, scope
   verified (planner-scoped to `tests/native-differential/tests/real_fs.rs`)
   — the ignored-operand probe intent is already implemented and green:
@@ -14769,11 +14785,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   lowering/` + the native-realization lowering legs above). CML4 held a
   live claim on exactly those surfaces when this row was verified
   (expires 2026-09-21T00:33Z). Re-verified at `9ff8673b31`: that claim
-  has expired and the named surfaces are currently unfenced, while the
-  rejection gate is unchanged — `lowering/function/mod.rs` still maps a
-  nonempty `residual_affine_discards` to
-  `LoweringError::UnsupportedPartialAffineContinuation`. The expansion
-  legs remain CML4's named work; no independent slice exists.
+  has expired and the named surfaces are currently unfenced. **The rejection
+  gate described above is STALE as of `aa698892c9a62`:**
+  `lowering/function/mod.rs` no longer inspects `residual_affine_discards`
+  (its sole rejection is `ScalarBoundaryArgumentsRequireNativeRealization`),
+  `UnsupportedPartialAffineContinuation` has zero hits in any `.rs` file, and
+  `plain_home_cleanup` realizes `DiscardResidual` alongside `DiscardRoot`
+  (`lowering/control_flow/terminator.rs:104-133`). That correction was written
+  only to `wiki/drafts/partial_ownership_cleanup_expansion.md` at
+  `5136cb11f6f6d`, which never touched this board. The Jump leg is landed; the
+  expansion legs that remain are conditional edges, boundary call-result homes,
+  projected copies and cyclic control, and they remain CML4's named work.
 - **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
   stub names the physical-lane access-profile surface covered at `9ced81e046`
   ("backend: cover every access profile through the mixed structural rejoin"):
@@ -18933,13 +18955,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     that the route does not take the fixed-view path — survives deletion).
     The name no longer appears anywhere in the crate at `3a1304c93e`.
   - `abstract-operations-to-target-operations::lower_to_target_operations_and_native_callbacks`
-    is the one that survives. It is re-exported at `lib.rs:27` with every
-    caller inside its own crate — `lowering.rs:67` delegates to it,
-    `lowering/optimized.rs:68` and `tests/normalized_foreign_calls.rs` use
-    it — so it is a competing public entrance beside the used
-    `lower_optimized_to_target_operations`, not dead code. Note before
-    changing it: `tests/architecture/stage_crate_ownership.rs:175` names it
-    as a string, so the architecture gate knows about it.
+    is CLOSED. `f6bb8e6c2eb4c` demoted it to `pub(crate)`
+    (`abstract-operations-to-target-operations/src/lib.rs:16`, with a doc
+    comment naming it internal plumbing), which is one of this row's three
+    accepted dispositions. It is no longer in
+    `tests/architecture/stage_crate_ownership.rs`'s `PLUMBING_REEXPORTS`, which
+    now lists only `optimize_analyzed_selected_instructions` and
+    `normalize_open_index_identities`. No entrance remains to delete, demote or
+    wire.
 
   Also still worth a per-name audit, unchanged: the
   `abstract-operations-to-abstract-operations` specialization surface

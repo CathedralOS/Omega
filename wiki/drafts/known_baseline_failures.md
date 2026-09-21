@@ -428,13 +428,6 @@ reasons again (`OMEGA_FAIL_CANARY_FILTER` covering all named members on
 now; `generics/authored_const_call_operator_unselected_provider` is still
 unregistered. Section closed pending the next audit.
 
-||||||| parent of 46a9ef596511 (board/known-baseline-failures: attach fix-leaf names to every recorded cluster)
-Fix leaf for this whole section: **CANARY-CORPUS** — stale `expected.txt`
-re-pinning, per-member repair or retirement of the five true failures, and
-the roster-gap registrations are all corpus maintenance; none of the
-fragments above changes the semantic question the member exists to pin, so
-no member needs a production-side bisect before the corpus lane re-pins it.
-
 
 ## checked-trees-to-lowered-psi
 
@@ -1027,7 +1020,7 @@ member below now passes. The hosted-receiver custody five remain live; two of
 the original eight failures were never itemized here.
 
 - Hosted-receiver custody (5): `control_flow_cleanup_source_reaches_the_publication_gate`,
-  `retired_selected_lowering_rejects_before_native_publication`,
+  `unimplemented_post_terminal_phase_rejects_before_native_publication`,
   `selected_preterminal_optimizers_rejoin_one_native_pipeline`,
   `selected_progress_free_source_stages_non_visible_terminal_candidate`,
   `selected_source_entry_retains_build_bound_progress_for_terminal_publication`
