@@ -3527,10 +3527,9 @@ Owners include
     payloads), so the routed membership would need a payload-path schema and
     verifier evidence. Whether a returned sum's payload counts as "the exact
     result subject" (authority.md) is the open spec question. The
-    installed-provider interpreter path also still gates boundary
-    results to claim-free affine shapes (`supported_result` in
-    terminal-interpreter `call_operations.rs`); the uninstalled effect path
-    admits the claimed linear result.
+    installed-provider interpreter path now mints and settles the claimed
+    linear result (see the Sep 20 wave-state note below); the uninstalled
+    effect path admits the claimed linear result.
   - Omega: join that boundary outcome to the ledger — landed for the whole
     interpreted lifetime: `interpreted_register_and_unregister_drive_the_
     registration_ledger` in `component-publication/src/tests.rs` drives root
@@ -3601,6 +3600,36 @@ Owners include
   still cannot run without the fenced unit-plan admission. Native entry stays
   gated on CALLBACK-PRIVATE-MATERIALIZATION (live, exp 09:13Z). No landable
   slice from this row this wave.
+  Wave state at `2a9f9c02ad` (~13:00Z Sep 20, z152): the installed-
+  provider minted-claims + introduced-qualifications leg is landed.
+  `supported_result` admits a claimed linear result (linear results and
+  affine results stay claim-free; unrestricted results still reject),
+  and `settle_return_structural` distinguishes the minted frame
+  (`result.claims` non-empty with no `returned_claim_transfers`) from
+  the transferred frame: `mint_boundary_result_claims` installs each
+  `result.claims` binding on the caller's live-claim ledger at the
+  returned place, skipping any binding whose path the returned sum does
+  not inhabit (`boundary_claim_path_inhabited` walks `Field` segments
+  through `observe_structural_case` on the callee frame, fail-closed),
+  so a `Rejected` return mints no `Live` on an absent payload. Result
+  `qualifications` are introduced at return — minted onto the returned
+  value — and the verifier admits the introduced direction through
+  `matches_return_source` (source ⊆ result) on return edges while calls
+  keep exact `call_result_matches`. `provider_result` admits linear
+  results and lets `entry_claims` bind structural parameters, so a
+  Linear `registration` param can carry the claim the result mints back.
+  `installed_registered_provider_mints_and_settles_the_live_claim`
+  splices a provider machine + `ProviderCandidateConformance` row into
+  the compiled `INSTALLED_PROVIDER_SOURCE` module, admits the
+  installation, runs the customer, and observes exactly the `unregister`
+  boundary effect with `released.qualifications == [Live]` — the full
+  verified, admitted, interpreted path. The authored-customer witness is
+  the next leg: an authored provider cannot mint the domain today (its
+  `satisfies` body still needs ordinary `in Live` evidence to return a
+  qualified value), which waits on the sibling-fenced execution/unit
+  plan admission above; the trusted-surface ledger re-recorded the three
+  verifier sites under the claim-held `sites.rs` because the digest
+  must match the working tree.
 
 - **FOREIGN-RETAINED-ARGUMENT-BACKING.** Execute outbound arguments that a
   foreign callee retains after return, beyond callbacks, under
