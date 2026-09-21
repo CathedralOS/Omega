@@ -11781,18 +11781,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stride/byte_advance semantics, selected by `ElementScanDispatcher` for
   Scalar plans. Verified on linux-x86_64 at `e0927237`: `omega --check`
   clean on both packages (squalr-engine-api 24 files, squalr-engine-scanning
-  28 files). **Re-opened at `1edade1a480`**: the recorded gitlink moved to
-  `5ea4a17f3b` ("pin Squalr with clone/serialization parity",
-  `472563ca4c4`), which sits on a republished squalr lineage diverged from
-  `43329a3` at `420cabe8` — the published tree carries no scalar-scan
-  sources (squalr-engine-scanning is reduced to its package boundary;
-  only `snapshot_region_filter.omg` remains under
-  `squalr-engine-api/src/structures/scanning/`). The scalar leg therefore
-  exists only on the pre-republish lineage. Residual: re-port the scalar
-  scan/element-scan dispatch on the published squalr lineage, or have the
-  coordinator repin. Siblings SCALAR-SCAN-AND-DISPATCH,
-  SCAN-SCALAR-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH decompose the same
-  original commit and share this reopened state.
+  28 files). Re-opened at `1edade1a480` when the gitlink sat on the
+  republished `5ea4a17f3b` lineage without the scalar leg — **closed again
+  at `94b395ea9c6b`**: the recorded gitlink is now `5b0307c3`, carrying the
+  full scalar surface (`scanners/element_scan_dispatcher.omg`,
+  `scalar/scanner_scalar_iterative.omg`,
+  `scalar/scanner_scalar_single_element.omg`,
+  `structures/snapshot_region_filter_run_length_encoder.omg`, api-side
+  `snapshot_filter_element_scan_plan.omg`) — the republished lineage's merge
+  back over `43329a3` restored it, as sibling SCAN-SCALAR-DISPATCH's row
+  recorded for pin `251699c4669d`. Residual retired. Siblings
+  SCALAR-SCAN-AND-DISPATCH, SCAN-SCALAR-DISPATCH,
+  SCAN-SCALAR-COMPARISON-DISPATCH decompose the same original commit.
 - **SCHEDULING-RELOCATION-UNIFICATION.** — mined candidate; scope verified, the unified admission landed and the family fold-in remains. EXACT-MACHINE-SIMPLIFICATIONS' flag asks for "one relocation rule over a member run and a destination point that derives the crossed positions and edges on every path between them and the traversals that gain or lose the run". `rewrites/relocation/` is that rule: `relocate_selected_member_run` takes only the run's first and last member and a destination instruction — no per-shape window locator — resolves the run as a contiguous span in one block, resolves the destination to any block's body position or terminator-carried instruction, and derives the whole legality surface through the shared primitives once: `block_edges::crossed_window` supplies crossed positions and path edges over every acyclic path to the destination (PATH_EDGE_LIMIT-bounded), the traversal audit re-derives gained edges (every predecessor edge into the destination must be crossed) and lost edges (every terminator exit of every crossed path-source block must be crossed) so multi-path windows no family enumerates — chain and diamond spans — admit identically, and `window_hazards::admit_run_relocation` applies the schedulable/coupled/memory-ordering/transport/settlement audits unchanged. `validate_member_run_relocation` re-admits and replays by restore-by-content under `ValidatedMemberRunRelocation`. Witnessed green on this head: `cargo clippy -p selected-instructions-to-selected-instructions --all-targets --no-deps -D warnings` clean, `cargo fmt` clean, `cargo nextest run -p selected-instructions-to-selected-instructions -E 'test(~relocation::)'` 469/469 pass on Linux x86-64 (18 new tests: cross-block single member and contiguous run, in-block backward/forward/inside-run landings, chain and diamond windows, gained/lost traversal refusal, entry and unreachable destinations, foreign last member, barrier/coupled/memory-ordering/edge-transport/settlement refusals, forged-proposal replay). Remaining: retire the per-shape families' own window locators in favor of this admission — the family entrances stay on EXACT-MACHINE-SIMPLIFICATIONS' flag and GENERAL-SCHEDULE-RELOCATION's migration legs; no `Optimization` descriptor or `selected_optimization` route exists for any relocation rule yet, which stays on the parent row's execution-route leg.
 - **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
 - **SEED-HOST-CHAIN-LEGS.** Mined candidate. The bootstrap chain has two
