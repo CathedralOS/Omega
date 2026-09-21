@@ -7459,6 +7459,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   legs (build.omg + ProgramEntry, tools/benchmark record) stay on the
   owning sibling rows. Sibling re-mine names: MATH-PROOFS-CHECKED-CALL-
   SELECTION, PROOFS-SUBJECT-CHECKED-CALL-SELECTION.
+- **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Resolved —
+  covered-alias of the checked-call-selection blockage that
+  failed `math_proofs`, landed on sibling
+  BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION (verified
+  `1f7301b710`): contract-position calls naming no declaration
+  (`Bag(items)`/`Bag(before)` atoms) deliberately get no Call
+  occurrence from the resolver
+  (`contract_clause_calls_naming_no_declaration_skip_call_`
+  `selection`), so `collect_checked_proof_view_call_selections`
+  now walks each fact's root subtree as a group, inherits the
+  clause's authored exposure, and reports unbound receiverless
+  calls carrying no Call-kind occurrence — checked finalization
+  mints one finalized ProofView ledger row per exact
+  (span, exposure) call site as the expression's occurrence.
+  Witnesses: `undeclared_contract_view_calls_finalize_as_`
+  `proof_view_intrinsics` green; typed-trees-to-checked-trees
+  5038/5038; `omega --check` compiles
+  `samples/cli/proofs/math_proofs`. Verified at `e7c0099cb2b`:
+  no live same-item claim; the contract-migration residual
+  (mathematical trait parameters) sits with
+  PROOF-CONTRACT-MIGRATION per the MATHEMATICAL-* sibling rows.
+  No independent slice under this name.
 - **BENCHMARK-PROOF-SUBJECT-SELECTION.** Mined candidate; scope verified at
   `1a772e4ae1`, owned — re-mines the proof-subject leg of the benchmarks
   frontier (wiki/drafts/benchmarks.md 'no measurable subject'): the only
