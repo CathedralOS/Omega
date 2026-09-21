@@ -1,7 +1,7 @@
 # Supplied-theory derivation checking
 
 Run `sh tests/gamma/derivation-checking/run.sh` from the repository root.
-The gate uses the selected Gamma evaluator on macOS arm64, Linux x86-64, or Windows x64 Git
+The gate uses the selected Gamma evaluator on macOS arm64 or Windows x64 Git
 Bash. An unavailable Python installation explicitly skips; other hosts report
 unsupported. Host availability is not evidence of cross-platform execution.
 
@@ -71,17 +71,14 @@ For `P` Reflexivity rows comparing the same valid term, setup costs `P+1`,
 each row costs `1+2`, and final root comparisons cost four: `4P+5` total.
 A nullary constant Unfold costs three more than a Reflexivity row, so replacing
 one row yields `4P+8`. The 163,838-row fixture therefore completes at exactly
-655,360 units. With 163,839 rows, the first final root comparison requests
-655,361 at byte 2,621,604 and must refuse.
+655,360 units; with 163,839 rows the final root comparisons add four and the
+check completes at 655,364 inside the shared 67,108,864-unit work provision.
 
-A 262,143-row table consumes 262,144 units during setup and the remaining
-393,216 in 131,072 Ref rows. The next row reservation refuses at byte 2,097,268
-with the full limit/requested values. The 130 MiB request extent also admits a
-fresh proof-index reservation exhaustion directly: a 655,360-row table of
-minimum-size Reflexivity rows requests 655,361 units during setup and refuses
-on the table itself (`fresh_proof_index_reservation_exhaustion`). Substitution's
-bulk controls separately cover exact and adjacent reservation refusal in an
-already consumed session.
+A 262,143-row table consumes 262,144 units during setup and three per Ref row,
+completing at 1,048,577. A fresh proof-index reservation cannot exhaust the
+work provision: the 130 MiB envelope admits fewer than 8,519,681 minimum-size
+proof rows, far under 2^26. Substitution's bulk controls separately cover
+exact and adjacent reservation refusal in an already consumed session.
 The 32,768-row backward Symmetry chain costs `6P+3 = 196,611`; it checks logical
 proof depth without expanding the chain or recursively traversing premises.
 
