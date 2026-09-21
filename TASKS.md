@@ -9089,7 +9089,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests/bootstrap/omega-request/run.sh --identity` PASS — all bound
   identities verified (622,933-byte receipt request, 565,909-byte
   customer, 45-byte expected observation).
-  OCREQ-REQUEST-BINDING.
+  OCREQ-REQUEST-BINDING. Re-witnessed at `832c55e69b` on linux x86-64
+  (OCREQ-ENTRY-BINDING dispatch): `sh
+  tests/bootstrap/omega-request/run.sh --identity` PASS — identical bound
+  identities (622,933-byte receipt request, 565,909-byte customer, 45-byte
+  expected observation); executing half stays seed-host-gated.
 - **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved, re-mines the
   bound OCREQ request-entry surface (sibling resolutions above).
   Re-verified at `94e764a6da` (linux x86-64):
