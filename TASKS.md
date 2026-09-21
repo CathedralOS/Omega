@@ -6418,6 +6418,25 @@ Owners include
   mechanism is one settled call-target substitution keyed on the
   `FlowCallFact` occurrence, with a Terminal-visible requirement/provider row.
 
+  Re-verified at `72fc66d6c32` (linux x86-64) — every named leg is fenced
+  or upstream-blocked this wave: the parameterized-requirement gate and
+  deeper receiver projections live in `selected-dispatch/boundary_dispatch.rs`
+  (NEW-NFF-FILESYSTEM-HOST-PLAN-JOIN-REGRESSION, ~15:44Z) and the
+  statement-position/FlowCallFact surfaces share that file;
+  provider-planning `receipt_binding.rs`/`selected_plan_bindings.rs` under
+  NEW-BI-PROVIDER-PLANNING-ISSUANCE-JOIN (~15:36Z); the external-satisfier
+  structural-argument surface `execution/unit/{providers.rs,types/mod.rs}`
+  under PROVIDER-ATTACHMENT-MACHINE-PLAN (~09:49Z); l2t
+  `boundary_operator_custody` under FILESYSTEM-RELEASE-CONTRACT (~14:20Z);
+  the tokenless-operator respell and `MachineSupplyMode::Boundary` removal
+  are delegated to OPERATOR-MACHINE-SUPPLY whose inventory landed (z181)
+  with migrations open; the interrupt completion route waits on the
+  linear-receiver satisfier plus the COMPONENT-SUBSTRATE carrier per its
+  own row; the macOS ARM64 external-satisfier control is host-gated. The
+  Terminal requirement-identity leg (`terminal_module/boundary/conformances.rs`)
+  is unfenced but joins through the settled dispatch facts boundary_dispatch.rs
+  produces — fenced upstream. No uncontested landable slice this pass.
+
 - **BUILD-ADMISSION-CHECKPOINT.** Execute an admitted build machine against one
   coherent frontend/source/authority snapshot and append generated source in a
   later resolution stratum; authored source may not resolve forward into output
