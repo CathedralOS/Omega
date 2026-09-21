@@ -641,6 +641,19 @@ not close it.
 This records current implementation evidence against the required cases; it is
 a status annotation, not a contract amendment.
 
+Re-verified on linux x86-64 at `8f58b6676b00a`: `cargo nextest run -p
+topology-plan` is 100/103 green. Three cited pins are currently red on
+upstream identity-encoding drift, not semantic regressions — the
+`payment.request`/`payment.plan` golden bytes
+(`golden_fixtures_decode_and_verify`, `encode_is_byte_exact_and_canonical`)
+and the committed `build-scope-topology` inputs
+(`the_package_composes_and_a_source_free_consumer_verifies`) embed component
+identities whose upstream derivation moved (the same family was re-recorded
+at `92d628b2e8763` and `96bcff6facdbd`). Until the fixtures are re-recorded,
+the canonical-wire and cross-machine replay claims below rest on
+`noncanonical_and_duplicate_entries_reject` and the green composition legs,
+not the golden pins.
+
 Covered by `omega-rust/omega/packages/topology` tests
 (`cargo nextest run -p topology-plan`, linux x86-64):
 
@@ -655,8 +668,10 @@ Covered by `omega-rust/omega/packages/topology` tests
   bindings/instances, and misleading `only_via` inputs
   (`invalid_policy_inputs_reject_instead_of_vacuously_satisfying`,
   `invalid_policy_selectors_reject`). Declaration and binding order collapse to
-  one canonical graph and wire form (`encode_is_byte_exact_and_canonical`,
-  `noncanonical_and_duplicate_entries_reject` in `codec.rs`).
+  one canonical graph and wire form
+  (`noncanonical_and_duplicate_entries_reject` in `codec.rs`;
+  `encode_is_byte_exact_and_canonical` is currently red on fixture drift —
+  see above).
 - Admission and substitution: `verification.rs` rejects unadmitted records,
   externally-relabeled verified subjects, substituted component records and
   endpoint inventories, stale-but-well-formed requests and authorizations,
@@ -682,7 +697,8 @@ Covered by `omega-rust/omega/packages/topology` tests
   `a_mismatched_executable_refuses_before_any_member_entry`).
 - Cross-machine replay: `composition_build.rs`
   `the_package_composes_and_a_source_free_consumer_verifies` covers the
-  no-source-tree consumer leg.
+  no-source-tree consumer leg (currently red on committed-input drift — see
+  above).
 
 Not yet closed:
 
