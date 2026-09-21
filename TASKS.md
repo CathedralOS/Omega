@@ -10899,7 +10899,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
   (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership`
   (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
-- **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
+- **SQUALR-CLONE-SERIALIZATION.** Resolved — implemented under `samples/apps/squalr`
   (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
   fields carry wire schema numbers, so the synthesized `encode`/`decode` pair
   is the upstream `Serialize`/`Deserialize`, exercised in-package by
