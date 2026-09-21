@@ -180,6 +180,21 @@ const PLUMBING_REEXPORTS: [(&str, &str); 2] = [
     ),
 ];
 
+/// Stage crates whose lowering surface is one entrance by design: every
+/// root-exported `lower_*` function must be exactly the named entrance, and
+/// the crate root may not alias it under another name. The typed->checked
+/// stage once carried four public lowerings (standalone, preliminary, and two
+/// byte-identical selected-provider variants) plus a `lower_typed_program`
+/// alias; the checkpoint mode and the settled selections now ride in a
+/// request value, and pipeline.md's "no competing successors or compatibility
+/// wrappers" rule keeps it that way. The paired name is the request type the
+/// entrance must take, which the root must export beside it.
+const SINGLE_LOWERING_ENTRANCES: [(&str, &str, &str); 1] = [(
+    "typed-trees-to-checked-trees",
+    "lower_typed_trees",
+    "CheckingRequest",
+)];
+
 /// Root `pub mod`s that are deliberately not stage entrances: module-level
 /// surfaces the orphan audit catalogs rather than wires, with the audit
 /// disposition per entry. `source-files-to-assembled-syntax::source` stays
@@ -420,6 +435,56 @@ fn stage_entrances_stay_connected_to_external_callers() {
             );
         }
         let ident = name.replace('-', "_");
+        if let Some((_, entrance, request)) = SINGLE_LOWERING_ENTRANCES
+            .iter()
+            .find(|(stage, _, _)| stage == &name)
+        {
+            let lowerings: Vec<&String> = entrances
+                .iter()
+                .filter(|function| function.starts_with("lower_"))
+                .collect();
+            assert_eq!(
+                lowerings,
+                vec![&entrance.to_string()],
+                "{ident} must expose exactly one lowering entrance, {entrance}; \
+                 a second checkpoint or selection variant belongs in {request}, \
+                 not in another pub fn"
+            );
+            let aliases: Vec<&String> = exported
+                .iter()
+                .filter(|item| item.starts_with("lower_") && item != entrance)
+                .collect();
+            assert!(
+                aliases.is_empty(),
+                "{ident} re-exports lowering aliases {aliases:?} beside {entrance}; \
+                 a compatibility alias is a second entrance"
+            );
+            assert!(
+                exported.contains(*request),
+                "{ident} must export {request} beside {entrance}: the request \
+                 carries the checkpoint mode and settled selections"
+            );
+            let signature_takes_request = std::fs::read_dir(path.join("src"))
+                .unwrap()
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|file| file.extension().is_some_and(|ext| ext == "rs"))
+                .any(|file| {
+                    let source = std::fs::read_to_string(&file).unwrap();
+                    source
+                        .find(&format!("pub fn {entrance}("))
+                        .is_some_and(|at| {
+                            let tail = &source[at..];
+                            let end = tail.find('{').unwrap_or(tail.len());
+                            tail[..end].contains(&format!("&{request}"))
+                        })
+                });
+            assert!(
+                signature_takes_request,
+                "{ident}::{entrance} must take a &{request}: the mode and the \
+                 settled selections are request data, not entrance variants"
+            );
+        }
         for entrance in entrances {
             if PLUMBING_REEXPORTS
                 .iter()
