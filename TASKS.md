@@ -8631,6 +8631,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `tests/multi_source_view_lifetimes.rs` and the crate README are claimed
   under GENERIC-RETURNED-VIEW-LIFETIMES (exp 22:27Z). No independent unclaimed
   slice exists here.
+  Fence re-verified at `4927883cf3`: GENERIC-RETURNED-VIEW-LIFETIMES' lease
+  has drained and `src/borrow/{view_link.rs,view_link/,loans.rs,loans/}` are
+  now claim-free — but the witness surfaces stay fenced (`src/tests/borrow`
+  to BORROW-PROOF-CONVERGENCE exp 06:46Z; the crate's `tests/` dir to
+  PROOF-CONTRACT-MIGRATION exp 10:38Z), so the multi-source leg (a deliberate-
+  boundary semantics change needing new pass/fail corpus) still cannot land
+  with coverage this wave; the outlives leg remains spec-blocked.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT.** Mined candidate — scope verified,
   already landed and enforced; same verdict as sibling row
   SCOPED-LOOKUP-MAP-AUDIT, whose surface this stub re-mines: the
