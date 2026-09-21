@@ -2782,14 +2782,22 @@ Owners include
 
   Remaining work:
 
-  - Erased non-primitive parameters: `erased_scalar_parameter_plans` still
-    refuses typed formals such as `Nat` (the
-    `erased_proof_only_typed_parameter_exit` canary stays checked-only),
-    now by name — `shape_admission`'s
-    `validate_erased_runtime_scalar_formals` rejects an erased non-scalar
-    formal on a non-proof machine at check time instead of omitting it
-    from the calling plan silently (`fail/relevance/erased_nonscalar_parameter`
-    pins the surface; proof machines keep their proof-side carriers).
+  - Done: erased non-primitive parameters. `e2728569622f` ("route erased
+    proof-only formals through call plans and terminal-psi") landed the
+    contract term lane: `MachineContract::erased_proof_formals` carries
+    proof-only typed formals (e.g. `Nat`) in dense authored order after the
+    scalar erased roster, call/successor operations supply one `ProofTerm`
+    per roster row, and `shape_admission`'s
+    `validate_erased_runtime_scalar_formals` now admits proof-only mentions
+    (the diagnostic still refuses an erased runtime-carrier formal that is
+    neither scalar nor proof-only; `fail/relevance/erased_nonscalar_parameter`
+    keeps pinning that surface). Re-verified at `bc772bf7cd7e` on linux
+    x86-64: canary_suite `layouts_and_pending::
+    erased_proof_only_typed_parameter_stays_out_of_the_scalar_signature`
+    PASSes including the native execution leg (`keep(70, Nat::Zero{})`
+    compiles natively and exits 70). Residual: the canary's own header
+    comment still describes the superseded "intentionally rejected"
+    spelling; roster re-homing crosses the fenced suite-roster lanes.
   - Done: the internal-calls lane carries requires-bearing and
     erased-formal callees — composed-control internal targets publish
     `erased_scalar_formals` and `requires`, emission resolves erased
