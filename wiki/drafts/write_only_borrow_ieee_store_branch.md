@@ -141,3 +141,33 @@ this record was written:
 Re-implementation therefore starts from the contract's fixed points (the
 pin, the producer gap, the named owner fences) exactly as recorded; nothing
 in this decision widens store admission or re-opens the gate.
+
+## Third recovery check at `4b8d3f36b725` (wave — NEW-WOB-IEEE-STORE-BRANCH-RECOVERY)
+
+Path B stands; the parked branch is still absent:
+
+- `git cat-file -t 71a647f464` — still not a valid object name on this host;
+  the tip object is unrecoverable here, as at both earlier checks.
+- `git ls-remote origin` names no `write-only-borrow` ref — only the recorded
+  checkpoint branch `checkpoint/write-only-diagnostic-expectations-20260905`
+  remains. Path A stays dormant under its reversal clause.
+
+Contract facts re-verified unchanged at `4b8d3f36b725` (linux x86-64):
+
+- The failing pin stands at HEAD:
+  `frontier_pins.rs::guarded_index_and_computed_stores_still_miss_the_checked_control_plan`
+  still asserts the `values[2] = left + right` computed-store shape rejects
+  with "no source-independent checked scalar control plan".
+- The producer gap stands: `execution/unit/selected_ieee_float.rs` still
+  emits `SelectedIeeeFloatFusedMultiplyAdd` only for `LocalInitializer`
+  locals whose operands are `IeeeFloatLiteral`s.
+
+Neighbor drift worth noting for the re-implementation lane: three
+write-only-borrow producer commits landed since the decision —
+`9a81cd6877425` (write-only borrows lend result fields and replace whole
+records), `0a8a0d148f498` (held write-only borrows plan stores, calls, and
+forwarded authority), and `5cc7285ec0e17` (the probe retired into named
+suite members). The borrowed-place store machinery moved forward without
+covering this slice: the remaining gap is narrowed to computed floating
+result transport into a write-only/mutable place — format and result
+evidence through the named route — not the whole place/loan sequencer.
