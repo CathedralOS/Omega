@@ -11383,7 +11383,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUST-COMPILER-RELEASE-RECORD.** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION.** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
 - **RUST-PRODUCER-RETENTION-POLICY.** Mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Re-verified at `e7c0099cb2`: the TASKS_BOOTSTRAP.md gate stands verbatim ("Full self-hosting remains dependent on settled exercised Omega behavior, the Rust product completion plan, complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE`") — OMEGA-PRODUCT-COMPILER-SOURCE (TASKS.md:6472) and OMEGA-C are still open rows, so the comparator-retirement decision named by sibling stub RUST-PRODUCER-RETIREMENT-GATE stays gated; the three earlier same-item claims (01:30Z/00:20Z/05:12Z) have drained. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
-- **RUST-RELEASE-RECORD.** — mined candidate; verify scope then implement.
+- **RUST-RELEASE-RECORD.** — mined candidate; scope verified at
+  `479ceb0e68` on linux x86-64 (z181), resolved — covered on both
+  faces. Record face: re-mines the release-record clause owned by
+  RC-RELEASE-RECORD-AND-CLOSURE's verified row — the substrate
+  `tools/release/release_record.py` (landed `210ffe3c93`) writes
+  `omega-release-record/1` JSON per `--target`, but `tools/release/
+  records/` still carries no committed JSON and the contract's
+  eight-gates-green-on-one-commit closure is correctly open (the
+  RC-DIAGNOSTICS gate is mid-repair under a live claim; bounded
+  linux_x86_64 drafts exist only as wiki/drafts evidence). Producer
+  face: the Rust-producer clauses of RUST-PRODUCER-RETENTION-POLICY —
+  Rust is comparator not bootstrap authority, and its retirement is
+  gated on settled exercised Omega behavior + the Rust product
+  completion plan + complete D + OMEGA-PRODUCT-COMPILER-SOURCE
+  (TASKS_BOOTSTRAP.md:76), all still open. No independent slice
+  exists. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION,
+  RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL,
+  RUST-COMPILER-RELEASE-RECORD.
+
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
   (`all_samples_reach_checked_trees` + per-cohort authored-entry legs +
