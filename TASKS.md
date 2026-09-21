@@ -11294,8 +11294,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   leg is now a repeatable gate: `tests/architecture/stage_crate_
   ownership.rs::stage_root_public_modules_have_external_consumers`
   (present at base `58b08fc20f`). Sibling stubs resolved same-way:
-  PIPELINE-REWRITE-ORPHANS, PIPELINE-WRAPPER-OBJECT-ORPHAN.
-
+  PIPELINE-REWRITE-ORPHANS, PIPELINE-WRAPPER-OBJECT-ORPHAN (field note:
+  those two rows above/below still read as unverified stubs — fold this
+  verdict into them or retire them; do not re-sweep the same 19 modules).
 - **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
 - **PKG-INPUTS-FLOAT-IDENTITY-LANDING.** Mined candidate — scope verified,
   resolved — landed at `742a2f1d84` ("psi: evaluate and independently replay
@@ -13781,6 +13782,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   on CallUnitWithDynamicArguments legalization + attachment-identity joins;
   remaining intrinsic occurrences belong to TV-OPERATOR-APPLICATIONS-REPLAY)
   and live on the canonical TRANSLATION-VALIDATION row.
+  (field note: DYNAMIC-CALL-OCCURRENCE-SPANS has no row of its own on this
+  board — this re-verification rides on TRANSLATION-VALIDATION; readers
+  searching for the stub's verdict land here.)
 - **TRANSPARENT-TRAIT-REFINEMENTS.** — in progress (branch
   `zergling/z137-transparent-trait-refinements`); parser through typed trees
   land on that branch: `trait Local = Base { machine * reaches; suspends
