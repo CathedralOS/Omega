@@ -1543,6 +1543,7 @@ mod machine_bounds {
         };
         let rank_constant = |operation: u64, result: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -1868,6 +1869,7 @@ mod machine_bounds {
         };
         let rank_constant = |operation: u64, result: u64| Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(operation),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

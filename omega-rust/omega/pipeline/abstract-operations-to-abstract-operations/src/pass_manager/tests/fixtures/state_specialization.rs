@@ -173,6 +173,7 @@ pub(in crate::pass_manager::tests) fn verified_dispatch_specialization_unit()
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(5_613).unwrap(),
                     result: OperationResult::Scalar(boolean(5_610)),
                     kind: OperationKind::BooleanConstant { value: true },
@@ -336,6 +337,7 @@ fn call_result_pair() -> (terminal_psi::TerminalMachine, terminal_psi::TerminalM
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(5_915).unwrap(),
                     result: OperationResult::Scalar(boolean(5_911)),
                     kind: OperationKind::Call {
@@ -416,6 +418,7 @@ fn call_result_pair() -> (terminal_psi::TerminalMachine, terminal_psi::TerminalM
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(5_952).unwrap(),
                 result: OperationResult::Scalar(boolean(5_956)),
                 kind: OperationKind::BooleanConstant { value: true },
@@ -488,6 +491,7 @@ fn integer_comparison_machine() -> terminal_psi::TerminalMachine {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(5_812).unwrap(),
                     result: OperationResult::Scalar(unsigned64(5_808)),
                     kind: OperationKind::IntegerConstant {
@@ -536,6 +540,7 @@ fn integer_comparison_machine() -> terminal_psi::TerminalMachine {
                     },
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(5_814).unwrap(),
                         result: OperationResult::Scalar(boolean(5_811)),
                         kind: OperationKind::IntegerLessThan {
