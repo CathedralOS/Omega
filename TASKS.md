@@ -9906,6 +9906,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MINGW/MSYS x64 host; no audited seed executes on Linux or macOS x86_64.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER.** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN.** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
+  Re-verified at `bc772bf7cd7` on the current wave: the wholesale fence is
+  unchanged — OMEGA-WRITTEN-PRODUCT-COMPILER (Zergling-74) still holds
+  `source/psi` + `source/omega` end to end, so the named chain's entire
+  implementing surface is claim-held. The cited STATE-LOCAL-VALUE-FRONTIER
+  lease has since drained, but leg (2)'s dependency ordering is unaffected:
+  the `terminal_psi_indexed_receivers` legs sit inside the wholesale fence
+  regardless of who owns them this wave. Adjudication unchanged — no
+  independent slice exists.
 - **OPTIMIZATION-WORKLOAD-CORPUS.** Mined candidate; scope verified at
   7a5a87d5a1, authorization gate recorded — same verdict as both scoped
   siblings on this surface (WORKLOAD-CORPUS, GRAPH-COST-EVIDENCE-CORPUS).
